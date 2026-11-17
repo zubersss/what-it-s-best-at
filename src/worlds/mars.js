@@ -34,6 +34,7 @@ export default {
 
   surface: {
     roughness: 0.55,                 // Oren–Nayar sigma (rad)
+    meanAlbedo: [0.24, 0.135, 0.07], // regional average, for bounce light and multiple scattering
     // Materials blended by slope and height. Albedos are linear reflectance.
     dust: [0.30, 0.165, 0.080],      // bright butterscotch dust on flats
     sand: [0.150, 0.085, 0.050],     // darker basaltic sand, low ground
@@ -51,13 +52,12 @@ export default {
   atmosphere: {
     topAltitude: 90000,            // m
     occluderAltitude: 2500,        // m: mean local terrain used for the planet's shadow on the air
-    groundAlbedo: [0.26, 0.15, 0.08],
     // CO2 gas (Rayleigh). Coefficients per metre at datum.
     rayleigh: { scattering: [1.15e-7, 2.7e-7, 6.6e-7], scaleHeight: 11100 },
     // Dust: absorbs blue, forward-scatters it in a tighter lobe (blue aureole at the Sun).
     dust: {
-      scattering: [2.72e-5, 2.52e-5, 2.10e-5],
-      absorption: [0.06e-5, 0.28e-5, 0.92e-5],
+      scattering: [2.25e-5, 1.98e-5, 1.64e-5],
+      absorption: [0.06e-5, 0.40e-5, 1.00e-5],
       phaseG: [0.70, 0.76, 0.85],
       scaleHeight: 11100,
       // Low dust layer pooled in the canyon (exponential height fog).

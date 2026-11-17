@@ -18,7 +18,7 @@ export const CONFIG = {
   SKYVIEW: [160, 100],
   FROXEL: [32, 32, 32],     // w, h, slices (atlas is 8 x 4 tiles)
   FROXEL_ATLAS: [8, 4],
-  IRRADIANCE: [32, 16],
+  IRRADIANCE: 16,            // octahedral irradiance map size (plus one row for the circumsolar term)
 
   // Near shadow map
   NEAR_SHADOW_SIZE: 2048,

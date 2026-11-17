@@ -9,8 +9,8 @@ before sunset. Update this file in every commit that changes behaviour.
 | --- | --- | --- |
 | 0 | Docs, plan, assets (MOLA DEM, star catalogue) | done |
 | 1 | Project skeleton, HDR post pipeline, HUD, cameras | done |
-| 2 | Quadtree terrain, height source, materials | done (lighting placeholder until stage 3) |
-| 3 | Atmosphere and fog | todo |
+| 2 | Quadtree terrain, height source, materials | done |
+| 3 | Atmosphere and fog | done (tuning continues) |
 | 4 | Sun, sky bodies, stars, exposure behaviour | todo |
 | 5 | Shadows (baked terrain + near shadow map) | todo |
 | 6 | Rocks and ship | todo |

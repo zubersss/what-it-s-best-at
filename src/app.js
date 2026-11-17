@@ -10,7 +10,9 @@ import { DynamicResolution } from './post/dynamicResolution.js';
 import { Hud } from './debug/hud.js';
 import { Input } from './controls/input.js';
 import { CameraRig } from './controls/cameraRig.js';
-import { makeTestFar } from './debug/testScene.js';
+import { Atmosphere } from './atmosphere/atmosphere.js';
+import { makeSkyDome } from './sky/skyDome.js';
+import { SunDisc } from './sky/sun.js';
 import { createHeightSource, loadRasters } from './terrain/height/heightSource.js';
 import { Terrain } from './terrain/terrain.js';
 
@@ -53,7 +55,12 @@ export class App {
     this.rig = new CameraRig(world, (d) => this.hs.height(d[0], d[1], d[2], walkWL));
     this.farScene = new THREE.Scene();
     this.nearScene = new THREE.Scene();
-    this.farScene.add(makeTestFar(this.rig.camera));
+    // The atmosphere publishes its LUTs into the shared uniforms; build it before any lit material.
+    this.atmosphere = new Atmosphere(renderer, world);
+    this.sun = new SunDisc(SOLAR_SYSTEM.sun);
+    this.skyDome = makeSkyDome();
+    this.skyDome.visible = !this.atmosphere.empty;
+    this.farScene.add(this.sun.mesh, this.skyDome);
     this.terrain = new Terrain(world, rasters, this.hs, renderer);
     this.nearScene.add(this.terrain.group);
     await this.terrain.workers.ready;
@@ -127,12 +134,19 @@ export class App {
     const aspect0 = post.width / post.height;
     this.terrain.update(rig, aspect0);
 
-    // 6. Scene into the HDR target
+    // 4. Atmosphere LUTs
     this.dynRes.beginFrame();
     post.setScale(this.dynRes.scale);
     G.uViewport.value.set(post.viewW, post.viewH);
     G.uExposure.value = post.exposure;
     const aspect = post.viewW / post.viewH;
+    const th = Math.tan(rig.fov * Math.PI / 360);
+    G.uCamRight.value.copy(rig.right); G.uCamUp.value.copy(rig.up); G.uCamFwd.value.copy(rig.forward);
+    G.uTanHalfFov.value.set(th * aspect, th);
+    this.atmosphere.update(rig.pos, G.uSunDir.value, this.terrain.farDistance);
+    this.sun.update(G.uSunDir.value, eph.sunDistance, rig, post.viewH);
+
+    // 6. Scene into the HDR target
 
     post.beginScene();
     rig.finalize(aspect, 0.1, 100);
@@ -171,7 +185,7 @@ export class App {
       calls: this.stats.calls, triangles: this.stats.triangles, maxCalls: CONFIG.MAX_DRAW_CALLS, maxTriangles: CONFIG.MAX_TRIANGLES,
       chunksDrawn: this.terrain.drawList.length, chunksLoaded: this.terrain.loadedCount, chunkPool: CONFIG.CHUNK_POOL, queue: this.terrain.queueLength,
       scale: post.scale, viewW: post.viewW, viewH: post.viewH, gpuMs: this.dynRes.gpuMs,
-      gpuBytes: post.gpuBytes + this.terrain.gpuBytes, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries,
+      gpuBytes: post.gpuBytes + this.terrain.gpuBytes + this.atmosphere.gpuBytes, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries,
       exposure: post.exposure, sunEl: sun.elevation, sunAz: sun.azimuth,
       lat: ll.lat, lon: ll.lon, alt: rig.altitude, agl: rig.agl, heading: rig.heading, pitch: rig.pitch, fov: rig.fov,
     };

@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
+import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 
 const VERT = /* glsl */`
 in vec2 aGrid;
@@ -123,7 +124,7 @@ export const DETAIL_TILE = 64;   // metres covered by one repeat of the detail t
 export function makeTerrainMaterial(shared, normalTex, shadowTex) {
   return new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
-    defines: { NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES },
+    defines: { ...atmosphereDefines(), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES },
     vertexShader: VERT, fragmentShader: FRAG,
     uniforms: {
       ...shared,
