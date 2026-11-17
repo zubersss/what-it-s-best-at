@@ -20,18 +20,15 @@ export default {
     layers: [
       { op: 'dem' },
       // Fill in everything the rasters cannot resolve (fractal relief below the raster pixel size).
-      { op: 'fbm', seed: 11, maxWavelength: 48000, minWavelength: 1.2, roughness: 0.80, amp: 0.085, belowDem: 2.2,
-        slopeGain: [0.06, 0.45, 0.35, 1.0], flatFloor: 0.35 },
+      { op: 'fbm', seed: 11, maxWavelength: 48000, minWavelength: 0.6, roughness: 0.82, amp: 26, belowDem: 2.2,
+        slopeGain: [0.05, 0.45, 0.22, 1.0], hetero: 0.5 },
       // Spur-and-gully relief on the big walls.
-      { op: 'ridged', seed: 23, maxWavelength: 5200, minWavelength: 60, roughness: 0.72, amp: 420,
-        slopeMask: [0.10, 0.42], warp: 0.35, stretchAlongSlope: 2.6 },
+      { op: 'ridged', seed: 23, maxWavelength: 1500, minWavelength: 24, roughness: 0.9, amp: 330, slopeMask: [0.10, 0.36], warp: 0.3 },
       // Horizontal rock strata: resistant layers become cliffs, weak ones benches.
-      { op: 'terrace', seed: 31, thickness: 520, cliff: 0.22, rise: 0.72, strength: 0.85, slopeMask: [0.12, 0.34], jitter: 0.35, warpAmp: 60, warpWavelength: 2600 },
-      { op: 'terrace', seed: 37, thickness: 64, cliff: 0.30, rise: 0.70, strength: 0.55, slopeMask: [0.25, 0.60], jitter: 0.5, warpAmp: 6, warpWavelength: 300 },
+      { op: 'terrace', seed: 31, thickness: 420, cliff: 0.22, rise: 0.74, strength: 0.9, slopeMask: [0.10, 0.30], jitter: 0.3, warpAmp: 50, warpWavelength: 2600 },
+      { op: 'terrace', seed: 37, thickness: 46, cliff: 0.30, rise: 0.72, strength: 0.6, slopeMask: [0.16, 0.42], jitter: 0.4, warpAmp: 5, warpWavelength: 300 },
       // Sparse small craters on the plateau and floor.
-      { op: 'craters', seed: 41, radius: [40, 1800], density: 0.10, depth: 0.18, rim: 0.035, slopeMaskInv: [0.15, 0.35] },
-      // Wind-blown dust: low dunes on flat ground only.
-      { op: 'dunes', seed: 53, wavelength: 38, amp: 0.55, slopeMaskInv: [0.05, 0.22], windAzimuth: 115 },
+      { op: 'craters', seed: 41, radius: [30, 1900], density: 0.22, depth: 0.2, rim: 0.04, slopeMaskInv: [0.12, 0.3] },
     ],
   },
 
@@ -76,11 +73,11 @@ export default {
 
   scene: {
     dateUTC: '2014-01-31T09:29:00Z',   // ~20 min before local sunset at the start site
-    start: { lat: -13.1, lon: 296.6, eye: 1.7, heading: 285, pitch: -2 },
+    start: { lat: -13.19128, lon: 296.57326, eye: 1.7, heading: 295, pitch: -4 },
     ship: { east: 30, north: 74, heading: 200 },      // metres from start
     exposure: { key: 0.16, min: 0.5, max: 6.0e5, speed: 1.6 },
     bookmarks: {
-      ledge: { heading: 285, pitch: -2, fov: 60 },
+      ledge: { heading: 295, pitch: -4, fov: 60 },
       sun: { heading: 297, pitch: 3, fov: 22 },
       wall: { heading: 10, pitch: 3, fov: 50 },
       ship: { heading: 22, pitch: 1, fov: 38 },

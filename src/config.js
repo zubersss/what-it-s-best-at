@@ -4,10 +4,10 @@ export const CONFIG = {
   GRID: 32,                 // quads per chunk edge (fixed, shared index buffer)
   NORMAL_RES: 128,          // normal-map cells per chunk edge (texture is NORMAL_RES+1 square)
   SHADOW_RES: 64,           // baked sun-shadow cells per chunk edge
-  CHUNK_POOL: 300,          // fixed number of chunk slots (geometry + textures)
-  MAX_RENDER_CHUNKS: 120,   // hard cap of terrain draw calls
-  SPLIT_FACTOR: 1.55,       // split when distance < factor * node edge
-  SPLIT_FACTOR_OFFSCREEN: 0.6,
+  CHUNK_POOL: 480,          // fixed number of chunk slots (geometry + textures)
+  MAX_RENDER_CHUNKS: 130,   // hard cap of terrain draw calls
+  SPLIT_FACTOR: 0.95,       // split when distance < factor * node edge
+  SPLIT_FACTOR_OFFSCREEN: 0.3,
   MORPH_START: 0.72,        // fraction of the merge distance where geomorphing starts
   WORKERS: 3,
   SHADOW_REBAKE_DEG: 1.0,

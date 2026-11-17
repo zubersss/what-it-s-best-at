@@ -10,7 +10,9 @@ import { DynamicResolution } from './post/dynamicResolution.js';
 import { Hud } from './debug/hud.js';
 import { Input } from './controls/input.js';
 import { CameraRig } from './controls/cameraRig.js';
-import { makeTestFar, makeTestGround } from './debug/testScene.js';
+import { makeTestFar } from './debug/testScene.js';
+import { createHeightSource, loadRasters } from './terrain/height/heightSource.js';
+import { Terrain } from './terrain/terrain.js';
 
 export class App {
   constructor({ canvas, context, world, params }) {
@@ -44,12 +46,17 @@ export class App {
     this.hud.onTime = (h) => { this.timeOffsetHours = h; };
     this.input = new Input(this.canvas);
 
-    this.rig = new CameraRig(world, () => 0);
+    // Height source on the main thread (camera collision, placement) and in the workers.
+    const rasters = await loadRasters(world, import.meta.env.BASE_URL);
+    this.hs = createHeightSource(world, rasters);
+    const walkWL = 2 * (Math.PI / 2) * world.radius / (1 << world.terrain.maxLevel) / CONFIG.NORMAL_RES;
+    this.rig = new CameraRig(world, (d) => this.hs.height(d[0], d[1], d[2], walkWL));
     this.farScene = new THREE.Scene();
     this.nearScene = new THREE.Scene();
     this.farScene.add(makeTestFar(this.rig.camera));
-    this.testGround = makeTestGround();
-    this.nearScene.add(this.testGround);
+    this.terrain = new Terrain(world, rasters, this.hs, renderer);
+    this.nearScene.add(this.terrain.group);
+    await this.terrain.workers.ready;
 
     this.applyBookmark(params.shot || 'ledge');
     if (params.timeOffsetHours != null) this.timeOffsetHours = params.timeOffsetHours;
@@ -116,6 +123,10 @@ export class App {
     rig.update(dt, this.input, this.input.down('KeyZ'));
     G.uCamPlanetPos.value.copy(rig.pos);
 
+    // 3. Terrain LOD
+    const aspect0 = post.width / post.height;
+    this.terrain.update(rig, aspect0);
+
     // 6. Scene into the HDR target
     this.dynRes.beginFrame();
     post.setScale(this.dynRes.scale);
@@ -127,12 +138,7 @@ export class App {
     rig.finalize(aspect, 0.1, 100);
     renderer.render(this.farScene, rig.camera);
     renderer.clearDepth();
-    rig.finalize(aspect, Math.max(0.25, Math.min(200, rig.agl * 0.15)), 2.0e6);
-    // placeholder ground: tangent disc under the camera
-    const up = new THREE.Vector3(rig.localUp[0], rig.localUp[1], rig.localUp[2]);
-    this.testGround.position.copy(up).multiplyScalar(-rig.agl);
-    this.testGround.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), up);
-    this.testGround.material.uniforms.uN.value.copy(up);
+    rig.finalize(aspect, Math.max(0.25, Math.min(300, rig.agl * 0.15)), this.terrain.farDistance * 1.05);
     renderer.render(this.nearScene, rig.camera);
 
     // 7. Post
@@ -147,9 +153,9 @@ export class App {
     this.input.endFrame();
 
     if (this.shotMode) {
-      const ready = this.frameCount > 6 && post.stableReads >= 3;
+      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle;
       window.__shotReady = ready;
-      window.__stats = { calls: this.stats.calls, triangles: this.stats.triangles, exposure: post.exposure, frame: this.frameCount };
+      window.__stats = { calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), frame: this.frameCount };
     }
   }
 
@@ -163,9 +169,9 @@ export class App {
     return {
       world: world.name, mode: rig.mode, shot: this.shotMode ? this.bookmark : '',
       calls: this.stats.calls, triangles: this.stats.triangles, maxCalls: CONFIG.MAX_DRAW_CALLS, maxTriangles: CONFIG.MAX_TRIANGLES,
-      chunksDrawn: 0, chunksLoaded: 0, chunkPool: CONFIG.CHUNK_POOL, queue: 0,
+      chunksDrawn: this.terrain.drawList.length, chunksLoaded: this.terrain.loadedCount, chunkPool: CONFIG.CHUNK_POOL, queue: this.terrain.queueLength,
       scale: post.scale, viewW: post.viewW, viewH: post.viewH, gpuMs: this.dynRes.gpuMs,
-      gpuBytes: post.gpuBytes, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries,
+      gpuBytes: post.gpuBytes + this.terrain.gpuBytes, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries,
       exposure: post.exposure, sunEl: sun.elevation, sunAz: sun.azimuth,
       lat: ll.lat, lon: ll.lon, alt: rig.altitude, agl: rig.agl, heading: rig.heading, pitch: rig.pitch, fov: rig.fov,
     };
