@@ -7,8 +7,8 @@ before sunset. Update this file in every commit that changes behaviour.
 
 | # | Stage | Status |
 | --- | --- | --- |
-| 0 | Docs, plan, assets (MOLA DEM, star catalogue) | in progress |
-| 1 | Project skeleton, HDR post pipeline, HUD, cameras | todo |
+| 0 | Docs, plan, assets (MOLA DEM, star catalogue) | done |
+| 1 | Project skeleton, HDR post pipeline, HUD, cameras | done |
 | 2 | Quadtree terrain, height source, materials | todo |
 | 3 | Atmosphere and fog | todo |
 | 4 | Sun, sky bodies, stars, exposure behaviour | todo |
@@ -38,4 +38,4 @@ before sunset. Update this file in every commit that changes behaviour.
 
 ## Next
 
-Stage 1.
+Stage 2.

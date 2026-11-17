@@ -1,0 +1,60 @@
+// Headless screenshots of the camera bookmarks. See CLAUDE.md.
+//   node scripts/shots.mjs [--world mars] [--shot ledge,sun] [--size 1280x720] [--out docs/shots]
+//                          [--query "t=0.5&hud=1"] [--suffix _x] [--timeout 240]
+// Headless Chromium uses software WebGL: frame rates here mean nothing.
+import { createRequire } from 'node:module';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createServer } from 'vite';
+
+const require = createRequire(import.meta.url);
+const { chromium } = require('playwright');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+const args = process.argv.slice(2);
+const opt = (name, def) => (args.includes('--' + name) ? args[args.indexOf('--' + name) + 1] : def);
+const world = opt('world', 'mars');
+const shots = opt('shot', 'ledge,sun,wall,ship,dusk').split(',');
+const [W, H] = opt('size', '1280x720').split('x').map(Number);
+const outDir = path.resolve(root, opt('out', 'docs/shots'));
+const extraQuery = opt('query', '');
+const suffix = opt('suffix', '');
+const timeoutS = Number(opt('timeout', '300'));
+
+await mkdir(outDir, { recursive: true });
+const server = await createServer({ root, logLevel: 'error', server: { port: 0, host: '127.0.0.1' } });
+await server.listen();
+const base = server.resolvedUrls.local[0];
+
+const browser = await chromium.launch({
+  args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--enable-webgl', '--disable-gpu-vsync'],
+});
+const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[browser ${m.type()}]`, m.text().slice(0, 600)); });
+page.on('pageerror', (e) => console.log('[pageerror]', String(e).slice(0, 600)));
+
+const summary = {};
+let failed = false;
+for (const shot of shots) {
+  const url = `${base}?world=${world}&shot=${shot}${extraQuery ? '&' + extraQuery : ''}`;
+  const t0 = Date.now();
+  await page.goto(url, { waitUntil: 'load' });
+  try {
+    await page.waitForFunction(() => window.__shotReady === true || window.__shotError, null, { timeout: timeoutS * 1000, polling: 250 });
+  } catch {
+    console.log(`  ${shot}: not ready after ${timeoutS}s — saving what is on screen`);
+    failed = true;
+  }
+  const err = await page.evaluate(() => window.__shotError || null);
+  if (err) { console.log(`  ${shot}: ERROR ${err}`); failed = true; }
+  const stats = await page.evaluate(() => window.__stats || null);
+  const file = path.join(outDir, `${world}_${shot}${suffix}.png`);
+  await page.screenshot({ path: file });
+  summary[shot] = stats;
+  console.log(`${world}/${shot}: ${((Date.now() - t0) / 1000).toFixed(1)}s`, JSON.stringify(stats));
+}
+await writeFile(path.join(outDir, `${world}_stats${suffix}.json`), JSON.stringify(summary, null, 2));
+await browser.close();
+await server.close();
+process.exit(failed ? 1 : 0);

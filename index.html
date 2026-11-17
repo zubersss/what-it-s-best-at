@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Solar System Explorer — Valles Marineris benchmark</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+    canvas#view { display: block; width: 100vw; height: 100vh; image-rendering: auto; }
+    #hud { position: fixed; left: 8px; top: 8px; padding: 8px 10px; font: 12px/1.35 ui-monospace, Menlo, Consolas, monospace;
+      color: #d8d8d0; background: rgba(0, 0, 0, 0.55); white-space: pre; pointer-events: none; user-select: none; min-width: 300px; }
+    #hud .warn { color: #ffb060; }
+    #timebar { position: fixed; left: 8px; bottom: 8px; padding: 6px 10px; font: 12px ui-monospace, Menlo, Consolas, monospace;
+      color: #d8d8d0; background: rgba(0, 0, 0, 0.55); display: flex; gap: 8px; align-items: center; }
+    #timebar input { width: 320px; }
+    #fatal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; color: #ddd;
+      font: 14px ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; padding: 40px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <div id="hud"></div>
+  <div id="timebar"><span>time</span><input id="time" type="range" min="-12" max="12" step="0.01" value="0" /><span id="timelabel"></span></div>
+  <div id="fatal"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
