@@ -10,6 +10,8 @@ export default {
     maxLevel: 17,               // finest quadtree level (~40 m chunks)
     minAltitude: -8300,         // lowest terrain on the planet (m), for culling/atmosphere
     maxAltitude: 21300,
+    shadowCeiling: 7000,        // no terrain near the scene rises above this (m): shadow rays stop there
+    shadowRange: 160000,        // how far shadow rays are marched (m)
     // Elevation rasters (int16 LE metres). Later entries override earlier ones inside
     // their bounds, feathered over `feather` degrees.
     dems: [

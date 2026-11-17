@@ -44,8 +44,10 @@ export class Terrain {
   get queueLength() { return this.wanted.length + this.workers.busy; }
   get idle() { return this.idleFrames > 3; }
 
-  update(rig, aspect) {
+  // sunDir: THREE.Vector3 (planet-fixed); sunHalf: the Sun's angular radius in radians.
+  update(rig, aspect, sunDir, sunHalf) {
     this.frame++;
+    this._sun = [sunDir.x, sunDir.y, sunDir.z]; this._sunHalf = sunHalf;
     const cam = this._cam.copy(rig.pos), R = this.radius;
     const camLen = cam.length();
     this._camDir[0] = cam.x / camLen; this._camDir[1] = cam.y / camLen; this._camDir[2] = cam.z / camLen;
@@ -93,8 +95,9 @@ export class Terrain {
 
     this.stalled = false;
     this._dispatch();
+    this._rebakeShadows();
     // Idle = nothing left to build, or nothing more can be built (pool exhausted).
-    this.idleFrames = (this.workers.busy === 0 && (this.wanted.length === 0 || this.stalled)) ? this.idleFrames + 1 : 0;
+    this.idleFrames = (this.workers.busy === 0 && this.staleShadows === 0 && (this.wanted.length === 0 || this.stalled)) ? this.idleFrames + 1 : 0;
     if (this.frame % 240 === 0) for (const root of this.roots) this._prune(root);
   }
 
@@ -144,11 +147,31 @@ export class Terrain {
       const slot = this._reserveSlot();
       if (slot < 0) { this.stalled = true; break; }
       node.loading = true; node.reserved = slot;
-      this.workers.run({ type: 'chunk', face: node.face, level: node.level, ix: node.ix, iy: node.iy })
+      node.shadowSun = this._sun;
+      this.workers.run({ type: 'chunk', face: node.face, level: node.level, ix: node.ix, iy: node.iy, sun: this._sun, sunHalf: this._sunHalf })
         .then((res) => this._onChunk(node, res))
         .catch((e) => { node.loading = false; this.pool.free.push(node.reserved); console.error(e); });
     }
     this.wanted.splice(0, k);
+  }
+
+  // Re-bakes baked shadows of drawn chunks whose Sun direction is stale by more than
+  // SHADOW_REBAKE_DEG. Nearest first; chunk builds always take priority (they ran above).
+  _rebakeShadows() {
+    this.staleShadows = 0;
+    if (!this.workers.idle && this.frame % 4) return;
+    const cosLimit = Math.cos(CONFIG.SHADOW_REBAKE_DEG * Math.PI / 180), sun = this._sun;
+    for (const node of this.drawList) {
+      const s = node.shadowSun;
+      if (node.shadowBusy || !s || s[0] * sun[0] + s[1] * sun[1] + s[2] * sun[2] >= cosLimit) continue;
+      this.staleShadows++;
+      if (!this.workers.idle) continue;
+      node.shadowBusy = true;
+      const want = sun;
+      this.workers.run({ type: 'shadow', face: node.face, level: node.level, ix: node.ix, iy: node.iy, sun: want, sunHalf: this._sunHalf })
+        .then((res) => { node.shadowBusy = false; if (node.slot >= 0 && !node.dead) { this.pool.uploadShadow(node.slot, res.shadow); node.shadowSun = want; } })
+        .catch((e) => { node.shadowBusy = false; console.error(e); });
+    }
   }
 
   _reserveSlot() {

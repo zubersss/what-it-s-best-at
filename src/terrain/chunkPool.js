@@ -45,5 +45,11 @@ export class ChunkPool {
     s.geometry.attributes.position.array.set(data.positions); s.geometry.attributes.position.needsUpdate = true;
     s.geometry.attributes.aHM.array.set(data.attrs); s.geometry.attributes.aHM.needsUpdate = true;
     s.normalTex.image.data = data.normals; s.normalTex.needsUpdate = true;
+    this.uploadShadow(slotIndex, data.shadow);
+  }
+
+  uploadShadow(slotIndex, shadow) {
+    const s = this.slots[slotIndex];
+    s.shadowTex.image.data = shadow; s.shadowTex.needsUpdate = true;
   }
 }

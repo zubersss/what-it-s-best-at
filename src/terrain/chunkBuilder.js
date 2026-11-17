@@ -34,8 +34,8 @@ export function buildGridUVs(G) {
 }
 
 export class ChunkBuilder {
-  constructor(hs, cfg) {
-    this.hs = hs;
+  constructor(hs, cfg, shadowBaker) {
+    this.hs = hs; this.shadowBaker = shadowBaker; this.SR = cfg.SHADOW_RES;
     this.G = cfg.GRID; this.NR = cfg.NORMAL_RES;
     this.step = this.NR / this.G;
     this.M = this.NR + 3;
@@ -49,7 +49,8 @@ export class ChunkBuilder {
     this.dir = [0, 0, 0];
   }
 
-  build(face, level, ix, iy) {
+  // sun: [x,y,z] unit direction (planet-fixed) and sunHalf: its angular radius, for the baked shadow map.
+  build(face, level, ix, iy, sun, sunHalf) {
     const { hs, G, NR, M, H, P, D, step } = this;
     const R = hs.radius;
     const size = 2 / (1 << level), a0 = -1 + ix * size, b0 = -1 + iy * size;
@@ -150,6 +151,7 @@ export class ChunkBuilder {
       normals[t] = toHalf(nx); normals[t + 1] = toHalf(ny); normals[t + 2] = toHalf(nz); normals[t + 3] = toHalf(ao);
     }
 
-    return { positions, attrs, normals, center: [cx, cy, cz], radius: Math.sqrt(radius2) + skirt * 0.5, minH, maxH };
+    const shadow = this.shadowBaker.bakeChunk(face, level, ix, iy, sun, sunHalf, { H, D, M, NR, stride: NR / this.SR });
+    return { positions, attrs, normals, shadow, center: [cx, cy, cz], radius: Math.sqrt(radius2) + skirt * 0.5, minH, maxH };
   }
 }

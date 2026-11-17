@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { CONFIG } from './config.js';
 import { G } from './render/globals.js';
 import { SOLAR_SYSTEM, AU_M } from './worlds/solarSystem.js';
-import { Ephemeris, dateToJD, jdToDate, elevationAzimuth } from './core/ephemeris.js';
+import { Ephemeris, dateToJD, jdToDate, elevationAzimuth, latLonToDir } from './core/ephemeris.js';
 import { PostPipeline } from './post/post.js';
 import { DynamicResolution } from './post/dynamicResolution.js';
 import { Hud } from './debug/hud.js';
@@ -15,6 +15,9 @@ import { makeSkyDome } from './sky/skyDome.js';
 import { SunDisc } from './sky/sun.js';
 import { makeStars } from './sky/stars.js';
 import { SkyBodies } from './sky/bodies.js';
+import { NearShadow } from './shadows/nearShadow.js';
+import { Rocks } from './rocks/rocks.js';
+import { Lander } from './ship/lander.js';
 import { createHeightSource, loadRasters } from './terrain/height/heightSource.js';
 import { Terrain } from './terrain/terrain.js';
 
@@ -71,8 +74,13 @@ export class App {
       this.stars = makeStars(new Float32Array(await res.arrayBuffer()));
       this.farScene.add(this.stars.points);
     }
+    this.nearShadow = new NearShadow(renderer);
     this.terrain = new Terrain(world, rasters, this.hs, renderer);
-    this.nearScene.add(this.terrain.group);
+    this.rocks = new Rocks(world, this.hs);
+    this.lander = new Lander(world, this.hs, latLonToDir(world.scene.start.lat, world.scene.start.lon));
+    this.nearScene.add(this.terrain.group, this.rocks.mesh, this.lander.mesh);
+    this.nearShadow.addCaster(this.rocks.mesh, this.rocks.depthMaterial);
+    this.nearShadow.addCaster(this.lander.mesh, this.lander.depthMaterial);
     await this.terrain.workers.ready;
 
     this.applyBookmark(params.shot || 'ledge');
@@ -142,7 +150,10 @@ export class App {
 
     // 3. Terrain LOD
     const aspect0 = post.width / post.height;
-    this.terrain.update(rig, aspect0);
+    const sunHalf = Math.asin(SOLAR_SYSTEM.sun.radius / eph.sunDistance);
+    this.terrain.update(rig, aspect0, G.uSunDir.value, sunHalf);
+    this.rocks.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
+    this.lander.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
 
     // 4. Atmosphere LUTs
     this.dynRes.beginFrame();
@@ -157,6 +168,9 @@ export class App {
     this.sun.update(G.uSunDir.value, eph.sunDistance, rig, post.viewH);
     this.bodies.update(eph, rig, post.viewH);
     this.stars?.setFrame(eph.icrfToFixed, rig, post.viewH);
+
+    // 5. Near shadow map (ship + rocks)
+    this.nearShadow.render(rig.pos, G.uSunDir.value, rig.localUp);
 
     // 6. Scene into the HDR target
 
@@ -179,7 +193,7 @@ export class App {
     this.input.endFrame();
 
     if (this.shotMode) {
-      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle;
+      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending;
       window.__shotReady = ready;
       window.__stats = { calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), frame: this.frameCount };
     }
@@ -197,7 +211,7 @@ export class App {
       calls: this.stats.calls, triangles: this.stats.triangles, maxCalls: CONFIG.MAX_DRAW_CALLS, maxTriangles: CONFIG.MAX_TRIANGLES,
       chunksDrawn: this.terrain.drawList.length, chunksLoaded: this.terrain.loadedCount, chunkPool: CONFIG.CHUNK_POOL, queue: this.terrain.queueLength,
       scale: post.scale, viewW: post.viewW, viewH: post.viewH, gpuMs: this.dynRes.gpuMs,
-      gpuBytes: post.gpuBytes + this.terrain.gpuBytes + this.atmosphere.gpuBytes, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries,
+      gpuBytes: post.gpuBytes + this.terrain.gpuBytes + this.atmosphere.gpuBytes + this.nearShadow.gpuBytes, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries,
       exposure: post.exposure, sunEl: sun.elevation, sunAz: sun.azimuth,
       lat: ll.lat, lon: ll.lon, alt: rig.altitude, agl: rig.agl, heading: rig.heading, pitch: rig.pitch, fov: rig.fov,
     };

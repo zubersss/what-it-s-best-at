@@ -3,6 +3,7 @@
 // direct Sun (with its circumsolar aureole), sky light, and ground bounce — nothing else.
 import { G } from './globals.js';
 import { ATMO_UNIFORMS, ATMO_COMMON } from '../atmosphere/atmosphereGlsl.js';
+import { NEAR_SHADOW_PARS } from '../shadows/nearShadow.js';
 
 // Call after the Atmosphere has been constructed (it publishes its uniforms into G).
 export const lightingUniforms = () => ({ ...G });
@@ -65,6 +66,8 @@ vec3 aerialPerspective(vec3 color, vec3 rel) {
   float cosT = dot(rel / dist, uSunDir);
   return color * T + (Ls + Lm * phaseHG3(cosT, uMieG)) * (uLutScaleInv.y * uSunIrradiance);
 }
+
+${NEAR_SHADOW_PARS}
 
 // Oren-Nayar diffuse (Fujii's qualitative fit) times N.L, divided by PI.
 float diffuseON(vec3 N, vec3 L, vec3 V, float sigma) {
