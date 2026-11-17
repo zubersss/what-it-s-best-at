@@ -22,15 +22,15 @@ export default {
     layers: [
       { op: 'dem' },
       // Fill in everything the rasters cannot resolve (fractal relief below the raster pixel size).
-      { op: 'fbm', seed: 11, maxWavelength: 48000, minWavelength: 0.6, roughness: 0.82, amp: 26, belowDem: 2.2,
+      { op: 'fbm', seed: 11, maxWavelength: 48000, minWavelength: 0.6, roughness: 0.82, amp: 30, belowDem: 2.2,
         slopeGain: [0.05, 0.45, 0.22, 1.0], hetero: 0.5 },
       // Spur-and-gully relief on the big walls.
-      { op: 'ridged', seed: 23, maxWavelength: 1500, minWavelength: 24, roughness: 0.9, amp: 330, slopeMask: [0.10, 0.36], warp: 0.3 },
+      { op: 'ridged', seed: 23, maxWavelength: 1500, minWavelength: 24, roughness: 0.9, amp: 400, slopeMask: [0.10, 0.36], warp: 0.3 },
       // Horizontal rock strata: resistant layers become cliffs, weak ones benches.
-      { op: 'terrace', seed: 31, thickness: 420, cliff: 0.22, rise: 0.74, strength: 0.9, slopeMask: [0.10, 0.30], jitter: 0.3, warpAmp: 50, warpWavelength: 2600 },
-      { op: 'terrace', seed: 37, thickness: 46, cliff: 0.30, rise: 0.72, strength: 0.6, slopeMask: [0.16, 0.42], jitter: 0.4, warpAmp: 5, warpWavelength: 300 },
-      // Sparse small craters on the plateau and floor.
-      { op: 'craters', seed: 41, radius: [30, 1900], density: 0.22, depth: 0.2, rim: 0.04, slopeMaskInv: [0.12, 0.3] },
+      { op: 'terrace', seed: 31, thickness: 290, cliff: 0.24, rise: 0.70, strength: 0.8, slopeMask: [0.10, 0.30], jitter: 0.3, warpAmp: 40, warpWavelength: 2600 },
+      { op: 'terrace', seed: 37, thickness: 38, cliff: 0.30, rise: 0.72, strength: 0.6, slopeMask: [0.10, 0.30], jitter: 0.4, warpAmp: 5, warpWavelength: 300 },
+      // Sparse small craters on the plateau and canyon floor only.
+      { op: 'craters', seed: 41, radius: [30, 900], density: 0.12, depth: 0.2, rim: 0.04, slopeMaskInv: [0.05, 0.14] },
     ],
   },
 
@@ -48,7 +48,7 @@ export default {
     sandBelow: -3600, sandFade: 900,   // dark sand appears below this altitude (m)
     ripples: { wavelength: 0.9, strength: 0.16 },
     detailStrength: 0.5,
-    rocks: { count: 320, radius: 110, size: [0.25, 1.6], albedo: [0.150, 0.090, 0.058] },
+    rocks: { count: 480, radius: 120, size: [0.3, 2.4], albedo: [0.150, 0.090, 0.058] },
   },
 
   atmosphere: {

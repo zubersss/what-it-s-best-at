@@ -58,7 +58,9 @@ amount, `H` HUD, `[` `]` time −/+, `1`–`5` bookmarks, `P` pause time.
 - Custom shaders are GLSL ES 3.00 through `ShaderMaterial`/`RawShaderMaterial`.
 - Vite, plain JavaScript ES modules, no framework. Must build to static files hostable
   on GitHub Pages (`base: './'`).
-- Target: an old PC, 8 GB RAM, weak integrated graphics.
+- Target: a Samsung Galaxy S23 Ultra (Chrome on Android, touch only, Adreno 740). The
+  owner changed this from the original "old PC with weak integrated graphics"; the
+  engine has not been adapted to it yet — see `docs/PROGRESS.md`.
 - **No logarithmic depth buffer.** Distant celestial bodies render in a separate far
   pass, depth is cleared, then the near scene renders.
 - All world positions are 64-bit JS numbers in metres. Only camera-relative positions go

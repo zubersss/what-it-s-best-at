@@ -38,18 +38,38 @@ before sunset. Update this file in every commit that changes behaviour.
 
 ## Next
 
-Work was paused by the owner part-way through stages 5–6. To resume:
+Work was paused by the owner (second pause) part-way through stages 5–6.
 
-1. `npm run shots -- --shot ship --query "t=-1.0"` and look at the lander, rocks and
-   their shadows (nothing in stages 5b/6 has been visually verified yet).
-2. Finish stages 5–6, then 7 (performance pass) and 8 (Moon swap).
-3. Save final screenshots of every bookmark for Mars and the Moon in `docs/shots/`
-   (none are saved there yet) and bring `docs/ARCHITECTURE.md` up to date.
+**Target hardware changed by the owner to a Samsung Galaxy S23 Ultra.** Nothing has been
+adapted for it yet. Planned, not started:
+
+- Touch controls (move stick, drag to look, buttons for fly / zoom / HUD / bookmarks).
+  The brief lists "UI beyond the debug HUD" under do-not-build, so keep this minimal.
+- "Device pixel ratio capped at 1" gives only about 880x412 on that phone. Proposed
+  replacement: cap the pixel count (~1.5 M pixels) instead; needs the owner's OK.
+- Tile-based GPU hygiene: full clears instead of scissored clears, clear before
+  full-screen passes, invalidate depth after the scene pass.
+- Reload on WebGL context loss; dynamic viewport height; optional wake lock.
+
+State of the last commit:
+
+- The canyon recipe in `src/worlds/mars.js` was retuned (narrower ledges, rougher
+  walls, fewer craters, more rocks) but **not yet looked at in a screenshot**, and
+  `scene.start` still points at the ledge found for the previous recipe, so the start
+  position and ship offset must be re-picked (`node scripts/find-ledge.mjs`; the best
+  new candidate was lat -13.17438, lon 296.56805, untested).
+- The lander and rocks render (one screenshot seen: lander visible ~80 m away, rocks
+  sparse). The near shadow map has not been verified.
+
+To resume: re-pick the start ledge and ship offset, verify stages 5–6 in screenshots,
+then stage 7 (performance + phone adaptation) and stage 8 (Moon swap), then save final
+screenshots of every bookmark for Mars and the Moon in `docs/shots/` (none saved yet)
+and bring `docs/ARCHITECTURE.md` up to date.
 
 Things already noticed that still need attention:
 
-- Chunk build time roughly doubled (~40 ms -> ~85 ms in the headless container) once
-  the shadow bake was added to each chunk.
+- Chunk build time is too high: ~40 ms before the shadow bake, ~85 ms with it, and
+  ~130–140 ms after the recipe retune (all measured in the headless container).
 - At the 130-chunk draw budget, triangles on camera-facing walls are about 10–20 px
   wide at 540p; distant walls are soft.
 - The start ledge is a wide flat bench, so the lower half of the `ledge` shot is

@@ -143,7 +143,7 @@ export class Rocks {
       const dist = Math.hypot(x - cam.x, y - cam.y, z - cam.z);
       if (dist > radius) continue;
       const u = (h2 & 0xffff) / 65536;
-      const size = def.size[0] * Math.pow(def.size[1] / def.size[0], u * u * u);
+      const size = def.size[0] * Math.pow(def.size[1] / def.size[0], u * u);
       up.set(d[0], d[1], d[2]);
       e.set(((h2 >>> 16) / 65536 - 0.5) * 0.9, ((h0 >>> 16) / 65536 - 0.5) * 0.9, (h1 & 0xff) / 256 * Math.PI * 2);
       q.setFromEuler(e); qUp.setFromUnitVectors(zAxis, up); q.premultiply(qUp);
