@@ -249,9 +249,9 @@ export class Governor {
       else if (this.featureLevel < FEATURE_STEPS.length) {
         const f = FEATURE_STEPS[this.featureLevel++];
         f.apply(this.app, true); this._note(`off: ${f.label}`);
-      }
+      } else return;                      // nothing left to give up
+      this.sinceStep = 0;
     }
-    this.sinceStep = 0;
   }
 
   _up() {
@@ -259,6 +259,7 @@ export class Governor {
       const f = FEATURE_STEPS[--this.featureLevel];
       f.apply(this.app, false); this._note(`back on: ${f.label}`);
     } else if (this.resLevel > 0) { this.resLevel--; this._applyScale(); this._note(`resolution up to ${(this.pixels / 1e6).toFixed(2)} MP`); }
+    else return;
     this.sinceStep = 0;
   }
 

@@ -44,6 +44,9 @@ export class CameraRig {
     const h = this.heightAt(d);
     const r = this.world.radius + h + eye;
     this.pos.set(d[0] * r, d[1] * r, d[2] * r);
+    // Height above ground is known here; leaving the old value until the next update
+    // would give one frame of the previous place's flight speed (it scales with height).
+    this.agl = eye; this.groundAlt = h;
     if (heading != null) this.heading = heading;
     if (pitch != null) this.pitch = pitch;
     this.jumpOffset = 0; this.vUp = 0; this.velocity.set(0, 0, 0); this._prevHeading = this.heading;
@@ -56,8 +59,9 @@ export class CameraRig {
     const p = [this.pos.x + this.east[0] * east + this.north[0] * north, this.pos.y + this.east[1] * east + this.north[1] * north, this.pos.z + this.east[2] * east + this.north[2] * north];
     const l = Math.hypot(p[0], p[1], p[2]);
     const d = [p[0] / l, p[1] / l, p[2] / l];
-    const r = this.world.radius + this.heightAt(d) + eye;
+    const ground = this.heightAt(d), r = this.world.radius + ground + eye;
     this.pos.set(d[0] * r, d[1] * r, d[2] * r);
+    this.agl = eye; this.groundAlt = ground;
     this._refresh();
   }
 
