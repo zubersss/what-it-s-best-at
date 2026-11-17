@@ -1,177 +1,133 @@
 # Progress
 
-Milestone 1: benchmark scene — Mars, Coprates Chasma (Valles Marineris), ~20 minutes
-before sunset — plus the Moon as a data-only world swap. Update this file in every
-commit that changes behaviour.
+What exists, what was decided and why, what is wrong, and a short log. The plan of record
+is `docs/ROADMAP.md`; the rules are in `CLAUDE.md`. Update this file in every commit that
+changes behaviour.
 
-## Staged plan
+## What exists today
 
-| # | Stage | Status |
-| --- | --- | --- |
-| 0 | Docs, plan, assets (MOLA DEM, star catalogue) | done |
-| 1 | Project skeleton, HDR post pipeline, HUD, cameras | done |
-| 2 | Quadtree terrain, height source, materials | done |
-| 3 | Atmosphere and fog | done |
-| 4 | Sun, sky bodies, stars, exposure behaviour | done |
-| 5 | Shadows (baked terrain + near shadow map) | done |
-| 6 | Rocks and ship | done |
-| 7 | Performance pass + phone adaptation | done in code; **not measured on the real device** |
-| 8 | Moon swap (`?world=moon`, data only) | done |
-| 9 | Flying character with cloak, flight between worlds (owner request) | done; **feel untested on a real device** |
+- **Mars**: Coprates Chasma (Valles Marineris) on real NASA MOLA elevation, at
+  2014-01-31 09:29 UTC, about 20 minutes before local sunset. Five bookmarks: ledge, sun,
+  wall, ship, dusk.
+- **The Moon**: a procedural cratered world from a data file alone, at 2026-01-15, lunar
+  evening with a gibbous Earth. The same five bookmarks.
+- **The character**: a suited figure with a cloth-simulated cloak. Flight speed grows
+  with distance from the nearest surface, so one stick covers hovering, orbit and the
+  crossing between worlds; the engine hands over from one world to the other in flight.
+- **Engine**: cube-sphere terrain with worker-built chunks and baked Sun shadows, a
+  lookup-table atmosphere, the true sky (9 096 catalogue stars, Sun, planets and moons
+  from an ephemeris checked against JPL Horizons), a lander, rocks, HDR with
+  auto-exposure, AgX, bloom, dither.
+- **Tools**: reference screenshots, a stability test, a scripted Mars→Moon flight test.
 
-Reference screenshots of all five bookmarks on both worlds, plus four of the flying
-character, are in `docs/shots/` (phone-shaped, 1100×515, rendered with software WebGL
-from the production build).
+## Milestone 1 plan — phone link and measurement
 
-`node scripts/flight-test.mjs <dir>` flies Mars → orbit → Moon → lunar surface with
-scripted keys; it passed with no console errors and the hand-over to the Moon world
-happened in flight.
+1. Save the charter (`CLAUDE.md`) and roadmap; remove the rules it replaces.
+2. GitHub Pages through GitHub Actions, deployed from `main`; Claude merges its own pull
+   requests so the link follows every push. Build stamped with the commit hash.
+3. Start screen (Play, Benchmark, Soak, Smooth/Sharp) showing the commit hash; hash in
+   the HUD.
+4. The governor: native-resolution ceiling, about 1 M pixel floor, resolution first, then
+   features in a fixed order, hysteresis; frame pacing for a steady 60 or 30.
+5. Benchmark: scripted 3-minute route (Mars bookmarks → flight to the Moon → lunar
+   bookmarks), 10-minute soak, results screen with Copy.
+6. Reference screenshots, stability test, independent critic, docs, checkpoint.
 
-## Decisions (and why)
+## Decisions in force (and why)
 
-- **Target hardware is a Samsung Galaxy S23 Ultra** (changed by the owner mid-project,
-  with "change whatever you need to make it the best on the phone"). Consequences:
-  - *Pixel-count cap instead of "device pixel ratio 1".* Ratio 1 on the phone is about
-    880×412. The cap is 1.5 M pixels (≈1790×836 there; still ratio 1 on a 1080p desktop).
-  - *Minimal touch controls* were added although the brief lists "UI beyond the debug
-    HUD" under do-not-build: without them none of the required controls work on a phone.
-  - Tile-based-GPU hygiene (whole-target clears, clear before full-screen passes, depth
-    and unused colour invalidated), GL context loss reloads the page, wake lock and
-    landscape lock behind the `FULL` button.
-- **Site**: Coprates Chasma, on the lip of a bench on the north flank of the southern
-  ridge (13.174°S, 296.568°E, +570 m). The trough runs ~W17°N; on the chosen date the Sun
-  sets at azimuth 297°, almost straight down the canyon. The north wall (≈10 km of
-  relief, ~55 km away) is the "far wall".
-- **Date**: 2014-01-31 09:29 UTC — the evening Curiosity photographed Earth and the Moon
-  from Mars — so Earth really is an evening star 34° from the Sun. Phobos is in the
-  eastern sky (behind the default view) and sets about 35 minutes later.
-- **Height data**: real MOLA. Global 4 px/deg (2 MB) + a 128 px/deg inset (463 m/px,
-  2.3 MB) around the scene, fetched with HTTP range requests. Everything below ~1 km is
-  procedural (fractal fill, ridged spurs, strata terraces, craters).
-- **Stars**: real Yale Bright Star Catalogue (9 096 stars).
-- **Depth**: no logarithmic depth. Far pass → clear depth → near pass with a dynamic
-  near plane and front-to-back chunk order. A second depth slice for distant terrain was
-  considered and not needed in the screenshots.
-- **Pre-exposure** everywhere, and exposure-scaled LUTs, because RGBA16F cannot span the
-  solar disc and faint stars.
+### Rendering and physics
+
+- **Depth**: far pass → clear depth → near pass with a near plane that grows with
+  altitude and front-to-back chunk order; the character gets its own depth slice when
+  the terrain's near plane has moved past it.
+- **Pre-exposure** everywhere, and exposure-scaled lookup tables, because half-float
+  targets cannot span the solar disc and faint stars.
 - **Circumsolar split**: at sunset most sunlight on Mars arrives as a forward-scattered
   aureole, not the direct beam. Treating the aureole (within ~28°) as directional light
   that terrain shadows can block keeps canyon shadows meaningful without inventing light.
-- **Dusk bookmark is 1.7 h after the start**, not ~1 h: Martian twilight is long, and
-  stars/Earth only clear the glow once the Sun is ~17° down.
+- **Highlight-priority metering**: lit surfaces write alpha 1, sky/stars/Sun write 0, and
+  exposure may not push the brightest lit region more than `exposure.highlight` (6) times
+  over white. Consequence, consistent with art rule 2: while the sunlit character is in
+  frame in space, stars and distant planets are not visible.
+- **Exposure metering floor** (`scene.exposure.shadowFloor`) is a per-world number: 0.2
+  on Mars, 0.6 on the Moon, where a black sky would otherwise over-expose the ground.
 - **Chunk grid 40×40, normal map 120², shadow map 60², 120-chunk draw cap**: the draw-call
   budget, not the triangle budget, limits terrain detail, so chunks were made denser.
-- **Moon**: fully procedural (no LOLA raster), site just inside the east rim of a ~3 km
-  crater at 7.98°N, 54.95°W on 2026-01-15 (lunar evening, gibbous Earth 36° up). The
-  `ship` and `dusk` bookmarks stand 25 m east on the rim crest; `ship` is also two days
-  earlier so the rim's shadow does not cover the lander. Lunar regolith roughness was
-  halved after the first shots: at a 7° Sun the flat crest dissolved into noisy
-  micro-shadow speckle.
-- **Exposure metering floor** (`scene.exposure.shadowFloor`) is a per-world number: 0.2
-  on Mars, 0.6 on the Moon, where a black sky would otherwise overexpose the ground.
-- **Flying character (owner request, outside the original brief).** Interactive sessions
-  now start in `hero` mode behind the figure; bookmarks/screenshots stay first person
-  unless `?hero=1`; `G` / `HERO` switches back to plain walking, `F` to the debug camera.
-  - Speed is 0.85 × distance-to-nearest-surface per second (×3 boost): slow near the
-    ground, far faster than light between planets, automatic slow arrival. Chosen over
-    fixed warp gears because it needs no extra UI and cannot overshoot.
-  - The camera is still the thing that moves; the figure is drawn ~4 m ahead of it.
-  - `TARGET` snaps the view to the next body, because at correct exposure a sunlit
-    figure and faint planets cannot both be visible (see next point).
-  - **Highlight-priority metering**: lit surfaces write alpha 1, sky/stars/Sun write 0,
-    and exposure may not push the brightest lit region more than `exposure.highlight`
-    (6) times over white. Consequence, consistent with art rule 2: while the sunlit
-    figure is in frame in space, stars and distant planets are not visible.
-  - **The cloak trails in vacuum too.** Physically nothing would move it at constant
-    speed in space; 30 % of the atmospheric flow is kept so it still streams in flight.
-    This is the one deliberate departure from physics, at the owner's request.
-  - World hand-over (Mars ↔ Moon) happens when the other world's surface is nearer than
-    the current one's; in practice about half-way, where both are dots.
-  - The sky now always contains every catalogue body (`world.sky.bodies` is unused).
+- **Mobile GPU care**: clears before full-screen passes, depth and unused colour
+  invalidated, GL context loss reloads the page.
 
-## Simplified relative to the brief (and why)
+### Worlds
 
-- **Atmosphere "single scattering first, then multiple scattering"**: both were built
-  together; there is no single-scattering-only mode.
-- **Height fog** is a second exponential layer of the same dust medium inside the
-  atmosphere integrator rather than a separate screen-space fog: one consistent medium.
-- **Air is not shadowed by terrain** (no volumetric shadows): haze inside the shadowed
-  canyon is lit as if the Sun reached it. Only the planet's own shadow darkens the air.
-- **No sky-visibility / ambient-occlusion bake**: sky light is not reduced inside the
-  canyon. Only a one-texel cavity term darkens creases.
-- **Shadow maps are 60² per chunk** with mid- and far-field occluders evaluated on
-  17×17 and 5×5 ray grids, so shadows cast from far away have soft, low-resolution edges.
-- **Spur-and-gully relief below MOLA resolution is isotropic** ridged noise; it is not
-  aligned downslope the way real gullies are.
-- **Planetshine is unshadowed** and comes only from the single brightest sky body.
-- **Moon rotation uses the mean IAU elements** (no libration terms); Earth's position in
-  the lunar sky can be off by a few degrees. The Moon's orbit is a mean Kepler ellipse
-  (0.7° error in the Earth–Moon direction at the test epoch).
-- **No anti-aliasing** (TAA is excluded by the brief, MSAA was left off for cost).
-- **Earth's disc from the Moon** is a procedural ocean/land/cloud pattern, not real
-  geography.
-- **Only Mars and the Moon have terrain.** Earth, Phobos and Deimos are spheres/lumps in
-  the sky: you can fly right up to them (collision at 2 % above the radius) but not land.
-- **No atmospheric limb glow from orbit**: the sky in-scatter LUT is only valid inside
-  the air and fades out above it; haze over the surface is still drawn from space.
-- **The character has rigid limbs** (two poses blended, no skeleton, no walk cycle) and
-  the cloak collides with a single capsule, so it can clip the arms.
+- **Mars site**: the lip of a bench on the north flank of Coprates' southern ridge
+  (13.174°S, 296.568°E, +570 m). The trough runs ~W17°N; on the chosen date the Sun sets
+  at azimuth 297°, almost straight down the canyon. The north wall (≈10 km of relief,
+  ~55 km away) is the "far wall".
+- **Mars date**: 2014-01-31 — the evening Curiosity photographed Earth and the Moon from
+  Mars — so Earth really is an evening star 34° from the Sun. Phobos is in the eastern
+  sky and sets about 35 minutes later.
+- **Mars height data**: MOLA global 4 px/deg (2 MB) plus a 128 px/deg inset (463 m/px,
+  2.3 MB) around the scene. Everything below ~1 km is procedural.
+- **Dusk bookmark is 1.7 h after the start**: Martian twilight is long, and stars/Earth
+  only clear the glow once the Sun is ~17° down.
+- **Moon**: fully procedural for now, site just inside the east rim of a ~3 km crater at
+  7.98°N, 54.95°W. The `ship` and `dusk` bookmarks stand 25 m east on the rim crest;
+  `ship` is two days earlier so the rim's shadow does not cover the lander. Regolith
+  roughness was halved: at a 7° Sun a flat crest dissolved into micro-shadow speckle.
+- **The sky always contains every catalogue body**; the one underfoot is skipped.
 
-## Known issues
+### Character and flight
 
-- **Nothing has been measured on the S23 Ultra.** Frame rate, render scale, thermal
-  behaviour, touch feel and chunk-build speed on the phone are unknown.
-- Triangles are at ~460–480k of the 500k budget and draw calls at ~135 of 200.
-- Chunk build time in the headless container: Mars ~35–40 ms average, Moon ~90–120 ms
-  (dense crater lattices, mostly in the shadow rays). First full load of a view needs
-  ~340 chunks.
-- LOD: detail pops in when chunks refine (normal maps change resolution; geometry
-  morphs). Telephoto zoom reloads many distant chunks each time it is engaged.
-- At ground level the strata benches read as smooth dunes up close; near-field rock
-  character relies on the instanced rocks.
-- Twilight glow has a fairly hard upper edge at the highest exposures (a real effect of
-  a constant dust scale height with a hard top, exaggerated by the exposure clamp).
-- Earth is blown out to white in the lunar `dusk` shot (it is ~14 stops brighter than
-  the earthlit ground).
-- Flight: the view's "up" is the direction away from the current world, so at the
-  hand-over between worlds the horizon/roll jumps once. Simulation time keeps running
-  across worlds, but pressing a bookmark jumps to that world's own scene date.
-- From orbit Mars is the 4 px/deg MOLA map outside the Coprates inset: soft, and its
-  colour is one dust tone plus darker low ground (no albedo map).
-- Flying far from every body leaves you in black space with only the HUD's
-  `nearest` / `target` read-out to navigate by; use `TARGET`.
-- Not visually verified: Phobos and Deimos as lit meshes (code path is the same one
-  that draws Earth from the Moon, which was verified), behaviour above ~10 km altitude,
-  walking across cube-face edges, the touch controls on a real phone.
-- `scripts/find-ledge.mjs` thresholds were tuned for Mars cliffs; the lunar rim was found
-  with an ad-hoc script.
+- Interactive sessions start behind the character; bookmarks in screenshot mode stay
+  first person unless `?hero=1`.
+- Speed is 0.85 × distance-to-nearest-surface per second (×3 boost): slow near the
+  ground, far faster than light between planets, automatic slow arrival.
+- The camera is the thing that moves; the figure is drawn ~4 m ahead of it.
+- `TARGET` snaps the view to the next body.
+- **The cloak trails in vacuum too** (30 % of the atmospheric flow is kept). This is the
+  one deliberate departure from physics, at the owner's request.
+- World hand-over (Mars ↔ Moon) happens when the other world's surface is nearer than
+  the current one's; in practice about half-way, where both are dots. Simulation time
+  runs on across worlds; pressing a bookmark jumps to that world's own scene date.
 
-## What to check on the phone
+## Known limits of what is built
 
-Open the built site, tap `FULL`, then for each bookmark (`VIEW` button) on Mars and with
-`?world=moon`, note from the HUD: **fps**, **frame ms (worst)**, **scale**, **draw
-calls**, **triangles**, **chunks drawn / loaded**, **gpu mem**. Then:
+- Air is not shadowed by terrain; haze inside the shadowed canyon is lit as if sunlit.
+- No sky-visibility bake: sky light is not reduced inside the canyon.
+- Shadow maps are 60² per chunk; shadows cast from far away have soft edges.
+- Gullies below MOLA resolution are not aligned downslope.
+- Planetshine is unshadowed and comes only from the single brightest sky body.
+- The Moon's rotation uses mean elements (no libration); Earth can be a few degrees off.
+- No anti-aliasing.
+- Earth's disc is a procedural ocean/land/cloud pattern, not real geography.
+- Only Mars and the Moon have terrain; other bodies stop you 2 % above their radius.
+- The sky's in-scatter fades out above the atmosphere: no glow on the planet's edge.
+- The character has rigid limbs; the cloak collides with a single capsule.
 
-0. Flight feel: is the stick-to-speed law controllable on the phone (leaving the ground,
-   reaching orbit, `TARGET` → Moon, arriving)? Does the cloak look alive or jittery at
-   the phone's frame rate? Any hitch at the Mars ↔ Moon hand-over?
-1. Stand still for 20 s: does the render scale settle or hunt up and down?
-2. Walk forward and turn quickly: look for terrain popping, shimmer on distant ridges,
-   holes or dark seams between chunks, and how long detail takes to arrive.
-3. Near the lander: do rock and lander shadows crawl or swim as you walk?
-4. Hold `ZOOM` on the Sun and on the far wall: chunk reload time, banding around the Sun.
-5. Drag the time slider through sunset: do terrain shadows update within a second or
-   two, do stars and Earth appear only as it darkens, any coloured blotches at night?
-6. Leave the tab for a minute and come back (context loss should reload cleanly).
-7. Try `?fps=60` and `?dpr=3` to see what the GPU can really hold.
+## Known problems (and where the roadmap deals with them)
 
-## Next
+| Problem | Milestone |
+| --- | --- |
+| Nothing measured on the phone yet | 1 (benchmark) |
+| Detail pops as terrain refines; telephoto reloads distant chunks | 2 |
+| No atmospheric glow on the planet's edge from orbit | 2 |
+| Horizon rolls once at the Mars ↔ Moon hand-over | 2 |
+| Lunar chunks build ~3× slower than Mars (~90–120 ms vs ~35–40 ms, headless) | 2 |
+| Haze in the shadowed canyon looks sunlit | 2 |
+| Ledges read as smooth dunes up close | 2 |
+| Far wall is over-hazed and soft | 2 |
+| Rigid limbs; cloak clips the arms | 2 |
+| Phobos and Deimos never checked in a screenshot | 2 |
+| From orbit Mars is soft and one colour outside the Coprates inset | 3 |
+| Twilight glow has a hard upper edge at the highest exposures | 3 |
+| Earth is blown out to white in the lunar dusk shot | 5 |
+| Far from every body there is only the HUD read-out to navigate by | 4 / 7 |
+| Triangles sit at ~460–480k of the 500k budget | watch |
 
-1. Measure on the S23 Ultra and tune `MAX_PIXELS`, `TARGET_FPS`, `MAX_RENDER_CHUNKS`,
-   `SPLIT_FACTOR` and the flight constants in `cameraRig.js` from real use.
-1b. Character: skeleton and walk cycle, arm collision for the cloak, a ground mode where
-   the figure stands on the terrain; limb glow of the atmosphere from orbit.
-2. Cheaper lunar chunk builds (shadow rays through crater lattices).
-3. Sky-visibility bake and terrain-shadowed haze for the canyon.
-4. Downslope-aligned gullies; rockier near field.
-5. A real LOLA raster for the Moon.
+## Log
+
+- **Foundation (before the charter)**: stages 0–9 of the original brief — skeleton and
+  HDR pipeline, terrain, atmosphere, sky, shadows, rocks and lander, phone adaptation,
+  the Moon swap, the flying character and flight between worlds.
+- **Charter adopted**: `CLAUDE.md` rewritten from the owner's charter, `docs/ROADMAP.md`
+  added, the replaced rules deleted (old hardware target, pixel caps, "no UI", Mars-only
+  scope, the do-not-build list).
