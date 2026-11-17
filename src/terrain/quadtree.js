@@ -23,6 +23,7 @@ export class Node {
     this.radius = this.edge * 0.72 + margin;
     this.minH = h - margin; this.maxH = h + margin;
     this.lastVisit = 0; this.lastSplit = 0;
+    this.childrenLive = false; this.liveAt = 0;     // children drawn instead of this node, and since when
     this.dist = 0; this.inView = false;
   }
 

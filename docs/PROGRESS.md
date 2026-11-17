@@ -44,6 +44,26 @@ changes behaviour.
 
 Status: all six done; waiting for the owner's first benchmark results from the phone.
 
+## Milestone 2 plan — fix the known problems
+
+The owner said "continue" at the milestone 1 checkpoint before any phone results; the
+governor is tuned when they arrive. Order: small and safe first, recipe tuning last
+(it moves the ground and needs the most screenshots).
+
+1. Phobos and Deimos: an `aim=` screenshot parameter, telephoto shots, check position,
+   size and phase.
+2. Lunar chunk builds: profile the height recipe in Node, remove the hot spots.
+3. Hand-over roll: carry the camera's roll across the switch and let it go as the new
+   world gets close.
+4. From space: exposure that does not blow out a sunlit globe, sky light that follows
+   the local Sun (dark night side, no stripe), glow on the planet's edge.
+5. Terrain popping: new chunks fade in from their parent's shape, normals and shadows.
+6. Haze in terrain shadow: air below the shadow line gets no direct sunlight.
+7. Far wall: dust numbers re-tuned once the shadowed haze is right.
+8. Ledges: sharper benches at walking scale; re-pick bookmarks if the ground moves.
+9. Character: bending limbs, cloak kept off the arms.
+10. Reference set, stability test, critic, governor steps for anything new, checkpoint.
+
 ## Decisions in force (and why)
 
 ### Rendering and physics

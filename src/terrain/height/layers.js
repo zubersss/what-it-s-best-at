@@ -142,7 +142,8 @@ export const OPS = {
     const classes = [];
     const INFL = 2.2, OMAX = 0.6;
     for (let R = def.radius[1], n = 0; R >= def.radius[0] && n < 24; R /= 2, n++) {
-      for (let l = 0; l < (def.layers || 1); l++) classes.push({ R, cell: 2 * (INFL + OMAX) * R, seed: def.seed * 101 + n * 7 + l * 1013, last: true, list: null, count: 0, buf: null });
+      // memo*: the craters of the 2x2x2 lattice block looked up last (see fn below)
+      for (let l = 0; l < (def.layers || 1); l++) classes.push({ R, cell: 2 * (INFL + OMAX) * R, seed: def.seed * 101 + n * 7 + l * 1013, last: true, list: null, count: 0, buf: null, memoX: NaN, memoY: NaN, memoZ: NaN, memoN: 0, memo: new Float64Array(40) });
     }
     const density = def.density, depthK = def.depth ?? 0.2, rimK = def.rim ?? 0.04;
     const smi = def.slopeMaskInv, radius = def.planetRadius;
@@ -198,9 +199,19 @@ export const OPS = {
         }
         const inv = 1 / cls.cell;
         const bx = Math.floor(c.px * inv - 0.5), by = Math.floor(c.py * inv - 0.5), bz = Math.floor(c.pz * inv - 0.5);
-        for (let dz = 0; dz < 2; dz++) for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
-          if (craterOf(cls, bx + dx, by + dy, bz + dz)) apply(c, cr[0], cr[1], cr[2], cr[3], cr[4], lod);
+        // Neighbouring samples (along a chunk row, along a shadow ray) nearly always fall
+        // in the same lattice block: its craters are looked up once and remembered.
+        // Hashing eight cells per class per sample was most of the cost of a lunar chunk.
+        const memo = cls.memo;
+        if (bx !== cls.memoX || by !== cls.memoY || bz !== cls.memoZ) {
+          cls.memoX = bx; cls.memoY = by; cls.memoZ = bz;
+          let m = 0;
+          for (let dz = 0; dz < 2; dz++) for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
+            if (craterOf(cls, bx + dx, by + dy, bz + dz)) { memo[m] = cr[0]; memo[m + 1] = cr[1]; memo[m + 2] = cr[2]; memo[m + 3] = cr[3]; memo[m + 4] = cr[4]; m += 5; }
+          }
+          cls.memoN = m;
         }
+        for (let m = 0; m < cls.memoN; m += 5) apply(c, memo[m], memo[m + 1], memo[m + 2], memo[m + 3], memo[m + 4], lod);
       }
       c.h += add * mask;
       if (slope * mask > c.slope) c.slope = slope * mask;

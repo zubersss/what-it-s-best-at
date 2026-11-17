@@ -145,6 +145,7 @@ npm run smoke          # headless check of the start screen, modes, HUD and a fu
 npm run govsim         # the governor against simulated GPUs (no browser)
 npm run assets         # re-download and convert NASA/Yale data into public/data/
 npm run probe          # top-down shaded relief of the height function (no browser)
+node scripts/sky-table.mjs   # where the sky bodies are from a site over time (no browser)
 ```
 
 The screenshot scripts need Playwright (`npm i -D playwright && npx playwright install
@@ -163,7 +164,7 @@ URL parameters: `world=mars|moon`, `shot=ledge|sun|wall|ship|dusk` (fixed camera
 bookmark, deterministic screenshot mode, skips the start screen), `t=<hours offset>`,
 `hud=0|1`, `scale=<fixed render scale>`, `mode=smooth|sharp`, `bench=run|soak` (start a
 benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|hover`,
-`lat= lon= alt= heading= pitch= fov=`.
+`lat= lon= alt= heading= pitch= fov=`, `aim=<sky body>` (turn the view to it).
 
 Keys: `WASD` move, mouse look (click to capture), `Shift` run / boost, `Space` jump /
 up, `Q`/`E` down / up, `G` flying character on/off, `T` aim at the next body in the sky,

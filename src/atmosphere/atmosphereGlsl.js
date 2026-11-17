@@ -117,7 +117,90 @@ void integrateScattering(vec3 ro, vec3 rd, vec3 sunDir, float tMax, int steps, o
     trans *= stepT;
   }
 }
+
+// One step of the same integral at point p over length dt (used by the two variants below).
+void scatterStep(vec3 p, float dt, vec3 sunDir, float pr, inout vec3 Lsmooth, inout vec3 Lmie, inout vec3 trans) {
+  float r = length(p);
+  Medium m = sampleMedium(r - uRPlanet);
+  float muS = dot(p, sunDir) / r;
+  vec3 Tsun = transmittanceLut(r, muS) * planetShadow(r, muS);
+  vec3 psi = multiScatLut(r, muS);
+  vec3 stepT = exp(-m.ext * dt);
+  vec3 k = (1.0 - stepT) / max(m.ext, vec3(1e-9));
+  Lsmooth += trans * k * (m.scatR * pr * Tsun + psi * (m.scatR + m.scatM));
+  Lmie += trans * k * (m.scatM * Tsun);
+  trans *= stepT;
+}
+
+// Evenly spaced samples: for rays that cross the whole shell (the sky seen from space),
+// where no part of the path is special.
+void integrateUniform(vec3 ro, vec3 rd, vec3 sunDir, float tMax, int steps, out vec3 Lsmooth, out vec3 Lmie, out vec3 trans) {
+  float pr = phaseRayleigh(dot(rd, sunDir));
+  trans = vec3(1.0); Lsmooth = vec3(0.0); Lmie = vec3(0.0);
+  float dt = tMax / float(steps);
+  for (int i = 0; i < steps; i++) scatterStep(ro + rd * ((float(i) + 0.5) * dt), dt, sunDir, pr, Lsmooth, Lmie, trans);
+}
+
+// Samples crowding toward the far end: for a ray from space down to the ground, where
+// the dense air is.
+void integrateToGround(vec3 ro, vec3 rd, vec3 sunDir, float tMax, int steps, out vec3 Lsmooth, out vec3 Lmie, out vec3 trans) {
+  float pr = phaseRayleigh(dot(rd, sunDir));
+  trans = vec3(1.0); Lsmooth = vec3(0.0); Lmie = vec3(0.0);
+  float n = float(steps);
+  for (int i = 0; i < steps; i++) {
+    float a = 1.0 - float(i) / n, b = 1.0 - float(i + 1) / n;
+    float t0 = tMax * (1.0 - a * a), t1 = tMax * (1.0 - b * b);
+    scatterStep(ro + rd * (0.5 * (t0 + t1)), t1 - t0, sunDir, pr, Lsmooth, Lmie, trans);
+  }
+}
 `;
+
+// Sky light on level ground as a function of the Sun's height: a 1-D table (SKYE_W
+// texels, u = 0.5 + 0.5 sign(mu) sqrt|mu| like the multi-scatter LUT), built once per
+// world. Includes a share of the light bounced by sunlit ground, so that airless worlds
+// follow the Sun too. Only ratios of this table are used (see SKYGAIN_FRAG).
+export const SKYE_FRAG = /* glsl */`
+${ATMO_UNIFORMS}
+${ATMO_COMMON}
+${ATMO_LUT_ACCESS}
+in vec2 vUv;
+out vec4 outColor;
+void main() {
+  float xs = clamp((vUv.x * float(SKYE_W) - 0.5) / (float(SKYE_W) - 1.0), 0.0, 1.0) * 2.0 - 1.0;
+  float muS = sign(xs) * xs * xs;
+  float r = clamp(uROcc + 0.05, uRBottom + 0.02, uRTop - 0.02);
+  vec3 ro = vec3(0.0, 0.0, r), sun = vec3(sqrt(max(1.0 - muS * muS, 0.0)), 0.0, muS);
+  vec3 E = vec3(0.0);
+  const int NA = 6, NE = 5;
+  for (int i = 0; i < NA; i++) for (int j = 0; j < NE; j++) {
+    // cosine-weighted directions over half the upper hemisphere (the other half mirrors it)
+    float phi = PI * (float(i) + 0.5) / float(NA), u = (float(j) + 0.5) / float(NE);
+    float cosT = sqrt(1.0 - u), sinT = sqrt(u);
+    vec3 rd = vec3(sinT * cos(phi), sinT * sin(phi), cosT);
+    vec3 Ls, Lm, T;
+    integrateScattering(ro, rd, sun, raySphere(ro, rd, uRTop), 10, Ls, Lm, T);
+    E += Ls + Lm * phaseHG3(dot(rd, sun), uMieG);
+  }
+  E *= PI / float(NA * NE);
+  E += uGroundAlbedo * transmittanceLut(r, muS) * planetShadow(r, muS) * max(muS, 0.0) * 0.25;
+  outColor = vec4(E * SKYE_SCALE, 1.0);
+}`;
+
+// The table above divided by its own value at the camera's Sun height: how much brighter
+// or darker the sky light is at another place on the globe than where the camera is.
+// Exactly 1 at the camera, 0 deep in the night, capped where the camera itself is in the
+// dark (there the camera's sky light is too faint to scale up without noise).
+export const SKYGAIN_FRAG = /* glsl */`
+uniform sampler2D tSkyE;
+uniform float uSunMu;
+in vec2 vUv;
+out vec4 outColor;
+void main() {
+  float uc = 0.5 + 0.5 * sign(uSunMu) * sqrt(abs(uSunMu));
+  uc = (uc * (float(SKYE_W) - 1.0) + 0.5) / float(SKYE_W);
+  vec3 here = max(texture(tSkyE, vec2(uc, 0.5)).rgb, vec3(1e-6));
+  outColor = vec4(min(texture(tSkyE, vUv).rgb / here, vec3(32.0)), 1.0);
+}`;
 
 export const TRANSMITTANCE_FRAG = /* glsl */`
 ${ATMO_UNIFORMS}

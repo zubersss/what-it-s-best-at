@@ -10,8 +10,8 @@ owner's reply or phone results), `done`.
 | # | Milestone | Status |
 | --- | --- | --- |
 | 0 | Foundation: Mars (Coprates Chasma), the Moon, flight between them, the character | done |
-| 1 | Phone link and measurement | checkpoint sent |
-| 2 | Fix the known problems | not started |
+| 1 | Phone link and measurement | done (open: Pages switch, governor tuning from the owner's phone results) |
+| 2 | Fix the known problems | in progress |
 | 3 | Make Mars and the Moon beautiful | not started |
 | 4 | Character and flight feel | not started |
 | 5 | Earth and the Sun from space | not started |

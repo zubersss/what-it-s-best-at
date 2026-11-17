@@ -9,10 +9,11 @@ import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { G } from '../render/globals.js';
 import { makePassMaterial, renderPass } from '../render/fullscreen.js';
-import { TRANSMITTANCE_FRAG, MULTISCAT_FRAG, SKYVIEW_FRAG, FROXEL_FRAG, IRRADIANCE_FRAG } from './atmosphereGlsl.js';
+import { TRANSMITTANCE_FRAG, MULTISCAT_FRAG, SKYVIEW_FRAG, FROXEL_FRAG, IRRADIANCE_FRAG, SKYE_FRAG, SKYGAIN_FRAG } from './atmosphereGlsl.js';
 
 const KM = 0.001;
 export const FROXEL_POW = 2.5;
+const SKYE_W = 64;          // texels of the sky-light-versus-Sun-height table
 
 function fl(n) { return Number.isInteger(n) ? n.toFixed(1) : String(n); }
 
@@ -21,6 +22,7 @@ export function atmosphereDefines() {
   return {
     SKY_W: fl(sw), SKY_H: fl(sh), MS_W: fl(mw), MS_H: fl(mh), MS_SCALE: '10000.0',
     FROX_W: fl(fw), FROX_H: fl(fh), FROX_D: fd, ATLAS_X: ax, ATLAS_Y: ay, FROX_POW: fl(FROXEL_POW), IRR: CONFIG.IRRADIANCE,
+    SKYE_W: SKYE_W, SKYE_SCALE: '1000.0',
   };
 }
 
@@ -46,7 +48,9 @@ export class Atmosphere {
     this.skyView = new THREE.WebGLRenderTarget(sw, sh, { ...half, count: 2 });
     this.froxels = new THREE.WebGLRenderTarget(fw * ax, fh * ay, { ...half, count: 3 });
     this.irradiance = new THREE.WebGLRenderTarget(I, I + 1, half);
-    this.gpuBytes = 8 * (tw * th + mw * mh + 2 * sw * sh + 3 * fw * ax * fh * ay + I * (I + 1));
+    this.skyE = new THREE.WebGLRenderTarget(SKYE_W, 1, half);
+    this.skyGain = new THREE.WebGLRenderTarget(SKYE_W, 1, half);
+    this.gpuBytes = 8 * (tw * th + mw * mh + 2 * sw * sh + 3 * fw * ax * fh * ay + I * (I + 1) + 2 * SKYE_W);
 
     const lut = { tTransmittance: { value: this.transmittance.texture }, tMultiScat: { value: this.multiScat.texture } };
     const sky = { tSkySmooth: { value: this.skyView.textures[0] }, tSkyMie: { value: this.skyView.textures[1] }, uSkyParams: { value: new THREE.Vector4(Math.PI / 2, 0.01, 1, 0) } };
@@ -60,17 +64,20 @@ export class Atmosphere {
     };
     this.froxelMat = makePassMaterial(FROXEL_FRAG, { ...u, ...lut, ...this.froxelU }, { defines });
     this.irrMat = makePassMaterial(IRRADIANCE_FRAG, { ...u, tTransmittance: lut.tTransmittance, ...sky, ...this.cam }, { defines });
+    this.skyEMat = makePassMaterial(SKYE_FRAG, { ...u, ...lut }, { defines });
+    this.skyGainMat = makePassMaterial(SKYGAIN_FRAG, { tSkyE: { value: this.skyE.texture }, uSunMu: this.cam.uSunMu }, { defines });
 
     // Publish for consumers (terrain, rocks, ship, hero, sky dome, sun, bodies).
     Object.assign(G, u, {
-      tTransmittance: lut.tTransmittance, ...sky,
+      tTransmittance: lut.tTransmittance, tMultiScat: lut.tMultiScat, ...sky,
+      tSkyGain: { value: this.skyGain.texture },        // sky light elsewhere on the globe relative to here
       tIrradiance: { value: this.irradiance.texture },
       tFroxelA: { value: this.froxels.textures[0] }, tFroxelB: { value: this.froxels.textures[1] }, tFroxelC: { value: this.froxels.textures[2] },
       uFroxelRange: this.froxelU.uFroxelRange,          // x = slice distribution exponent, y = far limit (km)
       uLutScaleInv: { value: new THREE.Vector2(1, 1) },
       uSkyFrame: { value: new THREE.Matrix3() },
       uSunLocal: { value: new THREE.Vector3(0, 0, 1) },
-      uSkyFade: { value: 1 },                           // sky in-scatter fades out when the camera leaves the atmosphere
+      uSkyFade: { value: 1 },                           // 1: sky from the sky-view LUT (camera in the air); 0: marched per pixel (camera in space)
     });
     this._up = new THREE.Vector3(); this._sh = new THREE.Vector3(); this._third = new THREE.Vector3();
     this.setWorld(world);
@@ -105,16 +112,19 @@ export class Atmosphere {
     if (!this.staticDone) {
       renderPass(r, this.transMat, this.transmittance);
       renderPass(r, this.msMat, this.multiScat);
+      renderPass(r, this.skyEMat, this.skyE);
       this.staticDone = true;
     }
     const up = this._up.copy(camPos).normalize();
     const camKm = camPos.length() * KM;
     const camR = Math.min(this.rTop - 0.02, Math.max(this.rBottom + 0.02, camKm));
     const mu = up.dot(sunDir);
-    // Above the atmosphere the sky-view LUT (built for a camera inside it) is no longer
-    // valid; its contribution fades out over two atmosphere thicknesses.
+    // The sky-view LUT is built for a camera inside the air. From space the sky dome
+    // marches each view ray through the shell instead (the glow on the planet's edge is
+    // far thinner than the LUT could resolve). The two are the same physics; they are
+    // cross-faded over the top tenth of the atmosphere, where the air is thinnest.
     this.outside = camKm > this.rTop;
-    G.uSkyFade.value = this.empty ? 0 : Math.min(1, Math.max(0, 1 - (camKm - this.rTop) / (2 * (this.rTop - this.rPlanet))));
+    G.uSkyFade.value = Math.min(1, Math.max(0, (this.rTop - camKm) / (0.1 * (this.rTop - this.rPlanet))));
 
     // Local sky frame: x toward the Sun's azimuth, z up.
     const sh = this._sh.copy(sunDir).addScaledVector(up, -mu);
@@ -134,6 +144,7 @@ export class Atmosphere {
       G.uSkyParams.value.set(Math.PI - beta, Math.max(beta, 1e-4), 1 / scale, 0);
       renderPass(r, this.skyMat, this.skyView);
       renderPass(r, this.irrMat, this.irradiance);
+      renderPass(r, this.skyGainMat, this.skyGain);
     }
 
     // Aerial perspective froxels follow the camera every frame (one draw call). From

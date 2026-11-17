@@ -10,16 +10,19 @@ const VERT = /* glsl */`
 in vec2 aGrid;
 in vec2 aHM;                 // x = height above datum, y = morph delta toward the parent LOD
 uniform vec3 uChunkPlanetPos;
-uniform vec2 uMorph;         // x = distance where this chunk has fully become its parent, y = start fraction
+uniform vec3 uMorph;         // x = distance where this chunk has fully become its parent, y = start fraction,
+                             // z = fade from the parent's look just after this chunk first appeared (1 -> 0)
 uniform vec4 uDetail;        // xy = offset in tiles, zw = chunk extent in tiles
 out vec2 vUv;
 out vec2 vGrid;
+out float vMorph;            // 0 = this chunk's own shape and shading, 1 = its parent's
 out vec2 vDetailUv;
 out float vHeight;
 out vec3 vRel;
 void main() {
   vec3 rel = (modelMatrix * vec4(position, 1.0)).xyz;      // camera-relative, planet axes
-  float k = clamp((length(rel) / uMorph.x - uMorph.y) / (0.96 - uMorph.y), 0.0, 1.0);
+  float k = max(clamp((length(rel) / uMorph.x - uMorph.y) / (0.96 - uMorph.y), 0.0, 1.0), uMorph.z);
+  vMorph = k;
   vec3 up = normalize(uChunkPlanetPos + position);
   rel += up * (aHM.y * k);
   vHeight = aHM.x + aHM.y * k;
@@ -34,6 +37,9 @@ const FRAG = /* glsl */`
 ${LIGHTING_PARS}
 uniform sampler2D tNormal;     // xyz world normal, a = cavity occlusion
 uniform sampler2D tShadow;     // baked sun visibility
+uniform sampler2D tParentNormal;   // the same two maps of the parent chunk: shading morphs
+uniform sampler2D tParentShadow;   // toward them exactly as the vertices morph toward its shape
+uniform vec3 uParent;          // xy = this chunk's corner inside the parent (0 or 0.5), z = parent maps bound
 uniform sampler2D tStrata;
 uniform sampler2D tDetail;
 uniform vec3 uDust, uSand, uScree, uRock;
@@ -49,10 +55,21 @@ in vec2 vGrid;
 in vec2 vDetailUv;
 in float vHeight;
 in vec3 vRel;
+in float vMorph;
 layout(location = 0) out vec4 fragColor;
 
 void main() {
   vec4 nt = texture(tNormal, vUv);
+  float shadow = texture(tShadow, (vGrid * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1)).r;
+  float pk = vMorph * uParent.z;
+  if (pk > 0.004) {
+    // Near the distance where this chunk hands over to its parent (and for a moment
+    // after it first appears) normals, cavities and baked shadows blend into the
+    // parent's, so detail arrives and leaves without a pop.
+    vec2 pg = uParent.xy + vGrid * 0.5;
+    nt = mix(nt, texture(tParentNormal, (pg * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1)), pk);
+    shadow = mix(shadow, texture(tParentShadow, (pg * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1)).r, pk);
+  }
   vec3 N = normalize(nt.xyz);
   float ao = nt.a;
   vec3 planetPos = uCamPlanetPos + vRel;
@@ -95,7 +112,6 @@ void main() {
   N = normalize(N + uTanU * dn.x + uTanV * dn.y);
 
   // --- light
-  float shadow = texture(tShadow, (vGrid * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1)).r;
   shadow *= nearShadow(vRel, N);
   vec3 direct = directSun(planetPos) * shadow * diffuseON(N, uSunDir, V, uRoughness);
   vec3 ambient = (skyLight(N, up) * ao + planetShine(N)) / PI;
@@ -142,7 +158,8 @@ export function makeTerrainMaterial(shared, normalTex, shadowTex) {
     uniforms: {
       ...shared,
       tNormal: { value: normalTex }, tShadow: { value: shadowTex },
-      uChunkPlanetPos: { value: new THREE.Vector3() }, uMorph: { value: new THREE.Vector2(1e12, CONFIG.MORPH_START) },
+      tParentNormal: { value: normalTex }, tParentShadow: { value: shadowTex }, uParent: { value: new THREE.Vector3() },
+      uChunkPlanetPos: { value: new THREE.Vector3() }, uMorph: { value: new THREE.Vector3(1e12, CONFIG.MORPH_START, 0) },
       uDetail: { value: new THREE.Vector4() }, uTanU: { value: new THREE.Vector3() }, uTanV: { value: new THREE.Vector3() },
     },
   });
