@@ -32,6 +32,14 @@ export async function open({ dist = false, width = 880, height = 412, dsf = 1.25
     }
     return false;
   };
+  // Under software WebGL the previous page can keep the browser busy for a long time:
+  // navigation gets a generous timeout and a second try.
+  const goto = async (url) => {
+    for (let attempt = 0; ; attempt++) {
+      try { await page.goto(url, { waitUntil: 'load', timeout: 240000 }); return; }
+      catch (e) { if (attempt >= 2) throw e; console.log(`  navigation attempt ${attempt + 1} failed, trying again`); }
+    }
+  };
   const close = async () => { await browser.close(); await (dist ? server.httpServer.close() : server.close()); };
-  return { base: server.resolvedUrls.local[0], browser, page, problems, snap, close };
+  return { base: server.resolvedUrls.local[0], browser, page, problems, snap, goto, close };
 }

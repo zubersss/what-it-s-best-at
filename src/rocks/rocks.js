@@ -117,6 +117,7 @@ export class Rocks {
     if (!this.mesh.visible) return;
     if (rig.agl > this.def.radius * 3) {                 // far above the ground: no rocks in reach
       if (this.count) { this.count = 0; this.geometry.instanceCount = 0; this.cellKey = ''; }
+      this.needVis = false;
       return;
     }
     const R = this.world.radius, cell = this.cell, ll = rig.latLon;
@@ -125,10 +126,11 @@ export class Rocks {
     const dLon = dLat / Math.max(0.05, Math.cos(band * Math.PI / 180));
     const ci = Math.floor(ll.lat / dLat), cj = Math.floor(ll.lon / dLon);
     const key = ci + ',' + cj + ',' + band;
-    if (key !== this.cellKey) { this.cellKey = key; this._scatter(rig, ci, cj, dLat, dLon); this.needVis = true; }
+    // (no rocks in reach, e.g. a few hundred metres up: nothing to ask the shadow workers about)
+    if (key !== this.cellKey) { this.cellKey = key; this._scatter(rig, ci, cj, dLat, dLon); this.needVis = this.count > 0; }
     this.mesh.position.subVectors(this.anchor, rig.pos);
     const s = this.visSun;
-    if (!this.needVis && s[0] * sun[0] + s[1] * sun[1] + s[2] * sun[2] < 0.99995) this.needVis = true;   // > 0.57 degrees
+    if (!this.needVis && this.count && s[0] * sun[0] + s[1] * sun[1] + s[2] * sun[2] < 0.99995) this.needVis = true;   // > 0.57 degrees
     if (this.needVis && this.count && !this.pendingVis) {
       const want = [sun[0], sun[1], sun[2]], count = this.count, stamp = this.cellKey;
       const job = workers.run({ type: 'points', points: this.points.slice(0, count * 3), sun: want, sunHalf, minWL: 0.6 });

@@ -10,7 +10,7 @@ owner's reply or phone results), `done`.
 | # | Milestone | Status |
 | --- | --- | --- |
 | 0 | Foundation: Mars (Coprates Chasma), the Moon, flight between them, the character | done |
-| 1 | Phone link and measurement | in progress |
+| 1 | Phone link and measurement | checkpoint sent |
 | 2 | Fix the known problems | not started |
 | 3 | Make Mars and the Moon beautiful | not started |
 | 4 | Character and flight feel | not started |
@@ -32,6 +32,11 @@ owner's reply or phone results), `done`.
   average and minimum render resolution, governor steps, hitches over 100 ms and their
   cause, GPU string, screen size and pixel ratio, mode, commit hash.
 - The governor, and the Smooth and Sharp modes.
+
+Built. Open items that need the owner: switch GitHub Pages on (Settings → Pages →
+Source: "GitHub Actions"), then run the benchmark in both modes and the soak test on the
+phone and paste the results. The governor's starting level and thresholds are tuned from
+those results before milestone 2 starts.
 
 ## 2. Fix the known problems
 

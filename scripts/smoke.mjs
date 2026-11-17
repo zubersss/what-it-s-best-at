@@ -1,6 +1,8 @@
 // Headless smoke test of the parts a screenshot bookmark never touches: the start screen,
 // Play, the Smooth/Sharp switch, the HUD states, and a complete benchmark run with its
-// results screen.   node scripts/smoke.mjs [--dist] [--out <dir>] [--no-bench]
+// results screen.   node scripts/smoke.mjs [--dist] [--out <dir>] [--no-bench] [--soak]
+// --soak runs the 10-minute soak instead of the 3-minute benchmark (two extra laps, and
+// the minute-by-minute table).
 // Software WebGL: the frame rates it prints are meaningless; it checks that things work.
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -8,10 +10,10 @@ import { open, opt, flag, root } from './lib/browser.mjs';
 
 const out = path.resolve(root, opt('out', 'docs/shots/ui'));
 await mkdir(out, { recursive: true });
-const { base, page, problems, snap, close } = await open({ dist: flag('dist'), touch: true });
+const { base, page, problems, snap, goto, close } = await open({ dist: flag('dist'), touch: true });
 const check = (name, ok) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`); if (!ok) problems.push(name); };
 
-await page.goto(base, { waitUntil: 'load' });
+await goto(base);
 await page.waitForSelector('#start', { timeout: 30000 });
 check('start screen is up while loading', await page.isVisible('#start'));
 await page.waitForFunction(() => window.__app?.loaded, null, { timeout: 240000 });
@@ -35,21 +37,23 @@ await snap(path.join(out, 'playing_full_hud.png'));
 console.log(await page.evaluate(() => window.__app.governor.summary), '| steps so far:', await page.evaluate(() => window.__app.governor.log.map((s) => s.text).join('; ')));
 
 if (!flag('no-bench')) {
-  await page.goto(base + '?bench=run', { waitUntil: 'load' });
+  const soak = flag('soak'), limit = soak ? 760000 : 330000;
+  await goto(base + (soak ? '?bench=soak' : '?bench=run'));
   await page.waitForFunction(() => window.__app?.benchmark?.active, null, { timeout: 240000 });
-  check('benchmark starts from ?bench=run', true);
+  check(`benchmark starts from ?bench=${soak ? 'soak' : 'run'}`, true);
   const t0 = Date.now();
   let shot = 0;
   for (;;) {
     const s = await page.evaluate(() => { const a = window.__app; return { done: !!window.__benchResult, phase: a.benchmark.phase, flight: a.benchmark.flight, world: a.world.id, agl: a.rig.agl, banner: document.querySelector('#benchbar span')?.textContent }; });
     if (s.done) break;
-    if (Date.now() - t0 > 330000) { check('benchmark finishes', false); break; }
+    if (Date.now() - t0 > limit) { check('benchmark finishes', false); break; }
     const elapsed = (Date.now() - t0) / 1000;
-    if (elapsed > shot * 20) { console.log(`  ${elapsed.toFixed(0)}s ${s.banner} | world ${s.world} agl ${s.agl.toExponential(2)} ${s.phase === 5 ? s.flight : ''}`); if (shot % 2 === 0) await snap(path.join(out, `bench_${String(shot).padStart(2, '0')}.png`)); shot++; }
+    if (elapsed > shot * (soak ? 60 : 20)) { console.log(`  ${elapsed.toFixed(0)}s ${s.banner} | world ${s.world} agl ${s.agl.toExponential(2)} ${s.phase === 5 ? s.flight : ''}`); if (shot % 2 === 0) await snap(path.join(out, `bench_${String(shot).padStart(2, '0')}.png`)); shot++; }
     await page.waitForTimeout(1000);
   }
   const text = await page.evaluate(() => window.__benchResult || '');
   check('results screen is up', await page.isVisible('#results'));
+  if (soak) check('soak has a minute-by-minute table with ten rows', (text.match(/^\s+\d+: [\d.]+ fps/gm) || []).length === 10);
   check('results have every line the owner asked for', ['average fps', '1% low', 'worst frame', 'render resolution', 'quality steps', 'hitches over 100 ms', 'GPU:', 'pixel ratio', 'mode', 'build'].every((k) => text.includes(k)));
   await snap(path.join(out, 'results_screen.png'));
   console.log('\n' + text + '\n');

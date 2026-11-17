@@ -23,6 +23,7 @@ export class NearShadow {
     G.uShadowMatrix = { value: new THREE.Matrix4() };
     G.uShadowParams = { value: new THREE.Vector3(R, 1 / N, 0) };   // radius, texel (uv), enabled
     this._lx = new THREE.Vector3(); this._ly = new THREE.Vector3(); this._m = new THREE.Matrix4();
+    this._anchor = new THREE.Vector3(); this._rel = new THREE.Vector3(); this._anchored = false;
     this._bias = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1);
   }
 
@@ -50,8 +51,15 @@ export class NearShadow {
     if (lx.lengthSq() < 1e-8) lx.set(1, 0, 0).cross(lz);
     lx.normalize(); ly.crossVectors(lz, lx);
     // Snap the map centre to whole texels so shadows do not crawl as the camera moves.
+    // The texel lattice is tied to a point on the ground near the camera, not to the
+    // planet's centre: measured from the centre, the lattice sweeps across the ground at
+    // hundreds of metres per second as the Sun turns (and one of the two coordinates is
+    // identically zero, so it was never snapped at all).
     const texel = 2 * this.radius / this.size;
-    const cx = camPos.dot(lx), cy = camPos.dot(ly);
+    const A = this._anchor;
+    if (!this._anchored || A.distanceToSquared(camPos) > 4 * this.radius * this.radius) { A.copy(camPos); this._anchored = true; }
+    const rel = this._rel.subVectors(camPos, A);
+    const cx = rel.dot(lx), cy = rel.dot(ly);
     const ox = Math.round(cx / texel) * texel - cx, oy = Math.round(cy / texel) * texel - cy;
     const cam = this.camera, D = 1 + this.range * 0.5;
     cam.position.set(lx.x * ox + ly.x * oy + lz.x * D, lx.y * ox + ly.y * oy + lz.y * D, lx.z * ox + ly.z * oy + lz.z * D);

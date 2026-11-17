@@ -168,8 +168,10 @@ export class Benchmark {
     L.push(`by part: ${WORLDS[FIRST].name} ${part(0).toFixed(1)} fps · flight ${part(1).toFixed(1)} · ${WORLDS[SECOND].name} ${part(2).toFixed(1)}`);
     if (this.kind === 'soak') {
       L.push('minute by minute (fps, resolution):');
-      for (let m = 0; m * 60 < total; m++) {
-        const idx = []; for (let i = 0; i < n; i++) if (this.at[i] >= m * 60 && this.at[i] < m * 60 + 60) idx.push(i);
+      const minutes = Math.ceil(this.duration / 60);
+      for (let m = 0; m < minutes; m++) {
+        // (the frame that crosses the finish line belongs to the last minute)
+        const idx = []; for (let i = 0; i < n; i++) if (Math.min(minutes - 1, Math.floor(this.at[i] / 60)) === m) idx.push(i);
         if (!idx.length) continue;
         const f = fps(idx.map((i) => dts[i])), p = idx.reduce((a, i) => a + px[i], 0) / idx.length;
         L.push(`  ${String(m + 1).padStart(2)}: ${f.toFixed(1)} fps, ${mp(p)}`);

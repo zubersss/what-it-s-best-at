@@ -81,7 +81,7 @@ skipped, so frames are evenly spaced.
 | `src/controls/` | `input.js` (keys, mouse, virtual keys), `touch.js` (phone controls), `cameraRig.js` (walk, fly, zoom). |
 | `src/post/post.js` | HDR target, metering, bloom, tone map, dither. |
 | `src/debug/hud.js` | HUD (compact line / full read-out / off) and time-of-day slider. |
-| `scripts/` | `shots.mjs` (headless screenshots of bookmarks), `shots-all.mjs` (the full reference set), `stability.mjs` (consecutive-frame flicker test), `smoke.mjs` (start screen, modes and a full benchmark run, headless), `flight-test.mjs`, `probe-terrain.mjs` (shaded relief in Node), `find-ledge.mjs`, `fetch-assets.mjs`, `gen-bluenoise.mjs`, `lib/` (shared browser launcher, PNG read/write). |
+| `scripts/` | `shots.mjs` (headless screenshots of bookmarks), `shots-all.mjs` (the full reference set), `stability.mjs` (consecutive-frame flicker test), `smoke.mjs` (start screen, modes and a full benchmark run, headless), `governor-sim.mjs` (the governor against simulated GPUs), `flight-test.mjs`, `probe-terrain.mjs` (shaded relief in Node), `find-ledge.mjs`, `fetch-assets.mjs`, `gen-bluenoise.mjs`, `lib/` (shared browser launcher, PNG read/write). |
 
 ## Worlds are data
 
@@ -235,7 +235,8 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
 - **Stepping up** needs a clean run of `holdUp` seconds (3 s to start) and, where the
   browser exposes GPU timer queries, GPU time under 72 % of the interval. If a step up
   has to be taken back within 4 s, `holdUp` doubles (up to 60 s); it halves again each
-  time a step up holds. That is the hysteresis.
+  time a step up holds. That is the hysteresis. The first eight frames after a step up
+  are watched separately: if five of them are late the step is taken back at once.
 - **Modes**: Smooth (60 fps) and Sharp (30 fps), `M` / the MODE button / the start
   screen, remembered in `localStorage`. Switching to Sharp jumps to native with every
   feature on and lets the governor come down; switching to Smooth starts five levels

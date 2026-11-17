@@ -70,10 +70,6 @@ export class Governor {
     // Display refresh interval in ms: from the start-up probe if it ran, else assumed
     // 60 Hz; refined all the time from the animation-frame callbacks (see shouldRender).
     this.vsync = 1000 / 60; this.vsyncMeasured = false;
-    if (probe) {
-      probe.stop = true;
-      if (probe.samples.length >= 12) { this.vsync = Math.min(percentile(probe.samples, 0.2), MAX_VSYNC); this.vsyncMeasured = true; }
-    }
     this._vs = []; this._vfree = []; this._vc = 0; this._skipped = false;
     this.interval = 1000 / MODES[this.mode].fps;
     this.paced = fixedScale == null;
@@ -91,6 +87,7 @@ export class Governor {
     this.ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
     this.query = null; this.pending = [];
     this._started = false;
+    this._probeFrames = -1; this._probeLate = 0;      // frames watched since the last step up
     this._setInterval();
   }
 
@@ -116,7 +113,7 @@ export class Governor {
       this._applyScale();
     }
     // A new target: forget what was learned and look again from where we are.
-    this.holdUp = 3; this.cooldown = 1.0; this.cleanTime = 0; this._filled = 0; this.lastUpFailed = false;
+    this.holdUp = 3; this.cooldown = 1.0; this.cleanTime = 0; this._filled = 0; this.lastUpFailed = false; this._probeFrames = -1;
     this._note(`mode ${MODES[mode].label}, starting at ${(this.pixels / 1e6).toFixed(2)} MP`);
   }
 
@@ -141,6 +138,11 @@ export class Governor {
   // skipped to keep an even frame interval.
   shouldRender(now) {
     const d = now - this._lastRaf; this._lastRaf = now;
+    if (probe && !probe.stop) {
+      // First frame of the game: take what the start-up probe measured while it loaded.
+      probe.stop = true;
+      if (probe.samples.length >= 12) { this.vsync = Math.min(percentile(probe.samples, 0.2), MAX_VSYNC); this.vsyncMeasured = true; this._setInterval(); }
+    }
     if (d > 2 && d < 70) {
       // Callbacks arrive a whole number of refreshes apart. One that follows a skipped
       // callback is exactly one refresh later; one that follows a drawn frame can be
@@ -203,6 +205,19 @@ export class Governor {
     const late = dtMs > this.interval * LATE, soft = kind === FRAME.SOFT;
     this._ring[this._ri] = (late ? 1 : 0) | (soft ? 2 : 0); this._ri = (this._ri + 1) % WINDOW; this._filled = Math.min(WINDOW, this._filled + 1);
     if (late && !soft) this.cleanTime = 0; else if (!late) this.cleanTime += dt;
+    // Just stepped up? Watch the next frames closely: if most of the first eight are late
+    // the step does not hold, and it is taken back at once (a fifth of a second of
+    // stutter instead of a full second).
+    if (this._probeFrames >= 0) {
+      this._probeFrames++; if (late && !soft) this._probeLate++;
+      if (this._probeFrames >= 8 && this._probeLate >= 5) {
+        this.holdUp = Math.min(60, this.holdUp * 2); this.lastUpFailed = true;
+        this._down(1);
+        this.sinceUp = 1e9; this.cooldown = 0.7; this._filled = 0; this.cleanTime = 0; this._probeFrames = -1;
+        return;
+      }
+      if (this._probeFrames >= WINDOW) this._probeFrames = -1;
+    }
     if (this.cooldown > 0 || this._filled < WINDOW) return;
     let hard = 0, hardLate = 0, allLate = 0;
     for (let i = 0; i < WINDOW; i++) { const v = this._ring[i]; if (v & 1) allLate++; if (!(v & 2)) { hard++; if (v & 1) hardLate++; } }
@@ -224,7 +239,7 @@ export class Governor {
       if (!this.lastUpFailed) this.holdUp = Math.max(3, this.holdUp * 0.5);
       this.lastUpFailed = false;
       this._up();
-      this.sinceUp = 0; this.cooldown = 1.2; this.cleanTime = 0;
+      this.sinceUp = 0; this.cooldown = 1.2; this.cleanTime = 0; this._probeFrames = 0; this._probeLate = 0;
     }
   }
 
@@ -234,9 +249,9 @@ export class Governor {
       else if (this.featureLevel < FEATURE_STEPS.length) {
         const f = FEATURE_STEPS[this.featureLevel++];
         f.apply(this.app, true); this._note(`off: ${f.label}`);
-      }
+      } else return;                      // nothing left to give up
+      this.sinceStep = 0;
     }
-    this.sinceStep = 0;
   }
 
   _up() {
@@ -244,6 +259,7 @@ export class Governor {
       const f = FEATURE_STEPS[--this.featureLevel];
       f.apply(this.app, false); this._note(`back on: ${f.label}`);
     } else if (this.resLevel > 0) { this.resLevel--; this._applyScale(); this._note(`resolution up to ${(this.pixels / 1e6).toFixed(2)} MP`); }
+    else return;
     this.sinceStep = 0;
   }
 
