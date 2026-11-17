@@ -17,9 +17,15 @@ commit that changes behaviour.
 | 6 | Rocks and ship | done |
 | 7 | Performance pass + phone adaptation | done in code; **not measured on the real device** |
 | 8 | Moon swap (`?world=moon`, data only) | done |
+| 9 | Flying character with cloak, flight between worlds (owner request) | done; **feel untested on a real device** |
 
-Reference screenshots of all five bookmarks on both worlds are in `docs/shots/`
-(phone-shaped, 1100×515, rendered with software WebGL).
+Reference screenshots of all five bookmarks on both worlds, plus four of the flying
+character, are in `docs/shots/` (phone-shaped, 1100×515, rendered with software WebGL
+from the production build).
+
+`node scripts/flight-test.mjs <dir>` flies Mars → orbit → Moon → lunar surface with
+scripted keys; it passed with no console errors and the hand-over to the Moon world
+happened in flight.
 
 ## Decisions (and why)
 
@@ -60,6 +66,25 @@ Reference screenshots of all five bookmarks on both worlds are in `docs/shots/`
   bookmark is two days earlier so the rim's shadow does not cover the lander.
 - **Exposure metering floor** (`scene.exposure.shadowFloor`) is a per-world number: 0.2
   on Mars, 0.6 on the Moon, where a black sky would otherwise overexpose the ground.
+- **Flying character (owner request, outside the original brief).** Interactive sessions
+  now start in `hero` mode behind the figure; bookmarks/screenshots stay first person
+  unless `?hero=1`; `G` / `HERO` switches back to plain walking, `F` to the debug camera.
+  - Speed is 0.85 × distance-to-nearest-surface per second (×3 boost): slow near the
+    ground, far faster than light between planets, automatic slow arrival. Chosen over
+    fixed warp gears because it needs no extra UI and cannot overshoot.
+  - The camera is still the thing that moves; the figure is drawn ~4 m ahead of it.
+  - `TARGET` snaps the view to the next body, because at correct exposure a sunlit
+    figure and faint planets cannot both be visible (see next point).
+  - **Highlight-priority metering**: lit surfaces write alpha 1, sky/stars/Sun write 0,
+    and exposure may not push the brightest lit region more than `exposure.highlight`
+    (6) times over white. Consequence, consistent with art rule 2: while the sunlit
+    figure is in frame in space, stars and distant planets are not visible.
+  - **The cloak trails in vacuum too.** Physically nothing would move it at constant
+    speed in space; 30 % of the atmospheric flow is kept so it still streams in flight.
+    This is the one deliberate departure from physics, at the owner's request.
+  - World hand-over (Mars ↔ Moon) happens when the other world's surface is nearer than
+    the current one's; in practice about half-way, where both are dots.
+  - The sky now always contains every catalogue body (`world.sky.bodies` is unused).
 
 ## Simplified relative to the brief (and why)
 
@@ -82,6 +107,12 @@ Reference screenshots of all five bookmarks on both worlds are in `docs/shots/`
 - **No anti-aliasing** (TAA is excluded by the brief, MSAA was left off for cost).
 - **Earth's disc from the Moon** is a procedural ocean/land/cloud pattern, not real
   geography.
+- **Only Mars and the Moon have terrain.** Earth, Phobos and Deimos are spheres/lumps in
+  the sky: you can fly right up to them (collision at 2 % above the radius) but not land.
+- **No atmospheric limb glow from orbit**: the sky in-scatter LUT is only valid inside
+  the air and fades out above it; haze over the surface is still drawn from space.
+- **The character has rigid limbs** (two poses blended, no skeleton, no walk cycle) and
+  the cloak collides with a single capsule, so it can clip the arms.
 
 ## Known issues
 
@@ -99,6 +130,13 @@ Reference screenshots of all five bookmarks on both worlds are in `docs/shots/`
   a constant dust scale height with a hard top, exaggerated by the exposure clamp).
 - Earth is blown out to white in the lunar `dusk` shot (it is ~14 stops brighter than
   the earthlit ground).
+- Flight: the view's "up" is the direction away from the current world, so at the
+  hand-over between worlds the horizon/roll jumps once. Simulation time keeps running
+  across worlds, but pressing a bookmark jumps to that world's own scene date.
+- From orbit Mars is the 4 px/deg MOLA map outside the Coprates inset: soft, and its
+  colour is one dust tone plus darker low ground (no albedo map).
+- Flying far from every body leaves you in black space with only the HUD's
+  `nearest` / `target` read-out to navigate by; use `TARGET`.
 - Not visually verified: Phobos and Deimos as lit meshes (code path is the same one
   that draws Earth from the Moon, which was verified), behaviour above ~10 km altitude,
   walking across cube-face edges, the touch controls on a real phone.
@@ -111,6 +149,9 @@ Open the built site, tap `FULL`, then for each bookmark (`VIEW` button) on Mars 
 `?world=moon`, note from the HUD: **fps**, **frame ms (worst)**, **scale**, **draw
 calls**, **triangles**, **chunks drawn / loaded**, **gpu mem**. Then:
 
+0. Flight feel: is the stick-to-speed law controllable on the phone (leaving the ground,
+   reaching orbit, `TARGET` → Moon, arriving)? Does the cloak look alive or jittery at
+   the phone's frame rate? Any hitch at the Mars ↔ Moon hand-over?
 1. Stand still for 20 s: does the render scale settle or hunt up and down?
 2. Walk forward and turn quickly: look for terrain popping, shimmer on distant ridges,
    holes or dark seams between chunks, and how long detail takes to arrive.
@@ -124,7 +165,9 @@ calls**, **triangles**, **chunks drawn / loaded**, **gpu mem**. Then:
 ## Next
 
 1. Measure on the S23 Ultra and tune `MAX_PIXELS`, `TARGET_FPS`, `MAX_RENDER_CHUNKS`,
-   `SPLIT_FACTOR` from real numbers.
+   `SPLIT_FACTOR` and the flight constants in `cameraRig.js` from real use.
+1b. Character: skeleton and walk cycle, arm collision for the cloak, a ground mode where
+   the figure stands on the terrain; limb glow of the atmosphere from orbit.
 2. Cheaper lunar chunk builds (shadow rays through crater lattices).
 3. Sky-visibility bake and terrain-shadowed haze for the canyon.
 4. Downslope-aligned gullies; rockier near field.
