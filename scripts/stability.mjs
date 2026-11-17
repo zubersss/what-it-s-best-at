@@ -2,7 +2,8 @@
 // moves, on the ground and in flight. Consecutive frames should differ only by the
 // camera's own small motion; anything that pops, crawls, shimmers or sparkles shows up
 // as a difference that is large, or that appears in the middle frame only.
-//   node scripts/stability.mjs [--dist] [--out docs/shots/stability] [--only walk]
+//   node scripts/stability.mjs [--dist] [--out docs/shots/stability] [--only walk,orbit] [--stations 3]
+// With --only, the rows of the other moves in an existing report.json are kept.
 // For every move it saves a strip per station (frame 1 | frame 2 | frame 3 | amplified
 // difference) and prints two numbers:
 //   changed  share of pixels that change by more than 6 % of full scale between frames
@@ -30,9 +31,10 @@ const MOVES = [
 const STATIONS = Number(opt('stations', '3'));
 const out = path.resolve(root, opt('out', 'docs/shots/stability')), only = opt('only', '');
 await mkdir(out, { recursive: true });
-const { base, page, problems, snap, close } = await open({ dist: flag('dist') });
+const { base, page, problems, snap, goto, close } = await open({ dist: flag('dist') });
 
-const ready = (minFrame) => page.waitForFunction((n) => (window.__shotReady === true && window.__app.frameCount >= n) || window.__shotError, minFrame, { timeout: 300000, polling: 250 }).catch(() => { console.log('  not ready in time, using what is on screen'); });
+const ready = (minFrame) => page.waitForFunction((n) => (window.__shotReady === true && window.__app.frameCount >= n) || window.__shotError, minFrame, { timeout: 240000, polling: 250 })
+  .catch(async () => { console.log(`  not ready in time (waiting for: ${await page.evaluate(() => window.__stats?.wait || '?')}), using what is on screen`); });
 const move = (step, times) => page.evaluate(({ step, times }) => {
   const a = window.__app, r = a.rig;
   if (step.fwd) {
@@ -45,10 +47,12 @@ const move = (step, times) => page.evaluate(({ step, times }) => {
 }, { step, times });
 
 const lum = (img, i) => 0.2126 * img.rgb[i * 3] + 0.7152 * img.rgb[i * 3 + 1] + 0.0722 * img.rgb[i * 3 + 2];
-const report = [];
+const wanted = (m) => !only || only.split(',').some((k) => m.id.includes(k));
+let report = [];
+try { if (only) report = JSON.parse(await readFile(path.join(out, 'report.json'), 'utf8')).filter((r) => !wanted({ id: r.move })); } catch { /* no earlier report */ }
 for (const m of MOVES) {
-  if (only && !m.id.includes(only)) continue;
-  await page.goto(`${base}?world=${m.world}&shot=${m.shot}${m.query ? '&' + m.query : ''}`, { waitUntil: 'load' });
+  if (!wanted(m)) continue;
+  await goto(`${base}?world=${m.world}&shot=${m.shot}${m.query ? '&' + m.query : ''}`);
   await ready(8);
   for (let s = 0; s < STATIONS; s++) {
     const frames = [];

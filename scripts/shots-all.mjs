@@ -31,7 +31,7 @@ if (!flag('no-build')) {
 let failed = 0;
 for (const [world, shots, query, suffix] of SETS) {
   if (only && !`${world}${suffix}`.includes(only)) continue;
-  const a = ['scripts/shots.mjs', '--dist', '--world', world, '--shot', shots, '--size', '880x412', '--dsf', '1.25', '--out', out];
+  const a = ['scripts/shots.mjs', '--dist', '--world', world, '--shot', shots, '--size', '880x412', '--dsf', '1.25', '--timeout', '480', '--out', out];   // night scenes need ~570 frames for exposure to settle
   if (query) a.push('--query', query);
   if (suffix) a.push('--suffix', suffix);
   const r = spawnSync('node', a, { cwd: root, stdio: 'inherit' });

@@ -8,10 +8,10 @@ import { open, opt, flag, root } from './lib/browser.mjs';
 
 const out = path.resolve(root, opt('out', 'docs/shots/ui'));
 await mkdir(out, { recursive: true });
-const { base, page, problems, snap, close } = await open({ dist: flag('dist'), touch: true });
+const { base, page, problems, snap, goto, close } = await open({ dist: flag('dist'), touch: true });
 const check = (name, ok) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`); if (!ok) problems.push(name); };
 
-await page.goto(base, { waitUntil: 'load' });
+await goto(base);
 await page.waitForSelector('#start', { timeout: 30000 });
 check('start screen is up while loading', await page.isVisible('#start'));
 await page.waitForFunction(() => window.__app?.loaded, null, { timeout: 240000 });
@@ -35,7 +35,7 @@ await snap(path.join(out, 'playing_full_hud.png'));
 console.log(await page.evaluate(() => window.__app.governor.summary), '| steps so far:', await page.evaluate(() => window.__app.governor.log.map((s) => s.text).join('; ')));
 
 if (!flag('no-bench')) {
-  await page.goto(base + '?bench=run', { waitUntil: 'load' });
+  await goto(base + '?bench=run');
   await page.waitForFunction(() => window.__app?.benchmark?.active, null, { timeout: 240000 });
   check('benchmark starts from ?bench=run', true);
   const t0 = Date.now();

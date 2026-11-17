@@ -142,6 +142,7 @@ npm run shots:all      # the full reference set: both worlds, orbit, character
 npm run stability      # 3 consecutive frames along scripted moves, with a flicker report
 npm run flight         # scripted Mars -> orbit -> Moon flight (headless)
 npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run
+npm run govsim         # the governor against simulated GPUs (no browser)
 npm run assets         # re-download and convert NASA/Yale data into public/data/
 npm run probe          # top-down shaded relief of the height function (no browser)
 ```
@@ -217,5 +218,11 @@ finished benchmark leaves its text in `window.__benchResult`.
   uses it fail silently; the near shadow map is therefore always initialised.
 - On tile-based mobile GPUs: clear before full-screen passes, scissor the scene clear to
   the part of the target that is used, invalidate what will not be read back.
+- The governor judges a late frame against its target interval, never against the
+  measured refresh rate: when every frame is slow the refresh rate reads too low and
+  would excuse them. Check governor changes in a simulation before the phone sees them.
+- Anything that screenshot mode waits for (`__shotReady`) must be able to finish in
+  every camera position, or the headless scripts stall there (the rocks' shadow check a
+  few hundred metres up was such a case).
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

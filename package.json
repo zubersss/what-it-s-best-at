@@ -14,7 +14,8 @@
     "shots:all": "node scripts/shots-all.mjs",
     "stability": "node scripts/stability.mjs",
     "flight": "node scripts/flight-test.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "govsim": "node scripts/governor-sim.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"

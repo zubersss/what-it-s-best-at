@@ -157,11 +157,47 @@ Status: all six done; waiting for the owner's first benchmark results from the p
 | Far wall is over-hazed and soft | 2 |
 | Rigid limbs; cloak clips the arms | 2 |
 | Phobos and Deimos never checked in a screenshot | 2 |
+| From orbit the band just above Mars's edge is darker than the haze higher up, and the edge has a drawn-looking outline | 2 |
+| Whole-globe views over-expose the day side; Mars has a dark stripe along the terminator | 2 |
+| A soft glow surrounds the airless Moon's lit edge from orbit | 2 |
+| A broken bright line along the lunar horizon (far rim, one pixel high) | 2 |
+| No contact shadows under the lander and rocks when the site is in canyon shadow | 2 |
+| Night scenes need about 570 frames for exposure to settle in screenshot mode | 2 (tooling) |
 | From orbit Mars is soft and one colour outside the Coprates inset | 3 |
 | Twilight glow has a hard upper edge at the highest exposures | 3 |
 | Earth is blown out to white in the lunar dusk shot | 5 |
 | Far from every body there is only the HUD read-out to navigate by | 4 / 7 |
 | Triangles sit at ~460–480k of the 500k budget | watch |
+
+## Independent critic, milestone 1 (screenshots and art rules only)
+
+Ranked, most damaging first. None of these were in milestone 1's scope; each is filed
+under the milestone that owns it.
+
+1. **Both worlds are blank from orbit.** Mars's day side is a blown-out cream ball with
+   no canyon, volcanoes or dark markings; the Moon is one pale grey with a few dozen
+   soft pits, no maria, highlands or rays. → 3 (real maps, both worlds from orbit); the
+   over-exposed day side is an exposure fault to fix first → 2.
+2. **The day–night boundary is wrong.** Night sides are visibly lit (Mars rust-red and
+   more detailed than its day side), terminators are ruler-straight, Mars has a grey
+   stripe darker than the night beyond it, the airless Moon has a soft glow around its
+   lit edge, Mars's halo is thick and fuzzy, and the twilight in `mars_dusk` is a
+   hard-edged lens. → 2 (edge glow, stripe, Moon halo), 3 (terminator, night side,
+   twilight edge).
+3. **A low Sun does not look low on the ground.** `mars_ship` reads as overcast noon
+   with no contact shadows under the lander and rocks; at 7° the lunar ground is evenly
+   grey and craters read as pale blisters, not shadow-filled bowls. → 2 (shadowed-canyon
+   haze and sky light, contact shadows), 3 (ground materials).
+4. **Lunar ground is uniform plaster.** Same grey in every direction and at every Sun
+   height, `moon_dusk` looks like daytime with stars, craters are identical stamps, a
+   broken white line runs along the horizon, Earth is a white speck with no blue.
+   → 3 (lunar maps and materials), 2 (the white line), 5 (Earth).
+5. **The character is a mannequin.** Ball head with no visor, pipe limbs, no backpack,
+   a stiff rectangular cloak in saturated red, a suit that stays clean white in
+   butterscotch light. → 2 (limbs, cloak), 4 (the rest).
+
+Strongest image: `mars_sun` ("could pass for a Spirit/Curiosity sunset frame").
+Weakest: `mars_ledge_orbit_globe`.
 
 ## Log
 
