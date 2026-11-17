@@ -14,6 +14,7 @@ uniform float uClamp;
 in vec2 vUv;
 out vec4 outColor;
 vec3 S(vec2 o) { return min(texture(tSrc, min((vUv + o * uTexel) * uUvScale, uUvMax)).rgb, vec3(uClamp)); }
+float A(vec2 o) { return texture(tSrc, min((vUv + o * uTexel) * uUvScale, uUvMax)).a; }
 void main() {
   // 13-tap downsample (Jimenez 2014): stable under motion, no fireflies after the clamp.
   vec3 a = S(vec2(-2.0, 2.0)), b = S(vec2(0.0, 2.0)), c = S(vec2(2.0, 2.0));
@@ -21,7 +22,9 @@ void main() {
   vec3 g = S(vec2(-2.0, -2.0)), h = S(vec2(0.0, -2.0)), i = S(vec2(2.0, -2.0));
   vec3 j = S(vec2(-1.0, 1.0)), k = S(vec2(1.0, 1.0)), l = S(vec2(-1.0, -1.0)), m = S(vec2(1.0, -1.0));
   vec3 col = e * 0.125 + (a + c + g + i) * 0.03125 + (b + d + f + h) * 0.0625 + (j + k + l + m) * 0.125;
-  outColor = vec4(col, 1.0);
+  // alpha = fraction of the footprint covered by lit surfaces (0 for sky, stars, Sun)
+  float cover = 0.25 * (A(vec2(-1.0, 1.0)) + A(vec2(1.0, 1.0)) + A(vec2(-1.0, -1.0)) + A(vec2(1.0, -1.0)));
+  outColor = vec4(col, cover);
 }`;
 
 const UP_FRAG = /* glsl */`
@@ -45,9 +48,11 @@ uniform sampler2D tSrc;
 uniform float uFloor;      // fraction of the frame mean below which texels stop pulling exposure up
 in vec2 vUv;
 out vec4 outColor;
+float cover;
 float lumAt(int x, int y) {
-  vec3 c = texture(tSrc, (vec2(float(x), float(y)) + 0.5) / vec2(32.0, 18.0)).rgb;
-  return dot(c, vec3(0.2126, 0.7152, 0.0722));
+  vec4 c = texture(tSrc, (vec2(float(x), float(y)) + 0.5) / vec2(32.0, 18.0));
+  cover = c.a;
+  return dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
 }
 void main() {
   // Centre-weighted average of log2 luminance over a 32 x 18 grid. Texels far darker than
@@ -57,16 +62,18 @@ void main() {
   for (int y = 0; y < 18; y++) for (int x = 0; x < 32; x++) mean += lumAt(x, y);
   mean /= 576.0;
   float floorLum = max(mean * uFloor, 1e-7);
-  float sum = 0.0, wsum = 0.0;
+  float sum = 0.0, wsum = 0.0, peak = 0.0;
   for (int y = 0; y < 18; y++) {
     for (int x = 0; x < 32; x++) {
       vec2 d = ((vec2(float(x), float(y)) + 0.5) / vec2(32.0, 18.0) - 0.5) * vec2(1.0, 1.15);
       float w = exp(-dot(d, d) * 3.0);
-      sum += w * log2(max(lumAt(x, y), floorLum));
+      float l = lumAt(x, y);
+      sum += w * log2(max(l, floorLum));
       wsum += w;
+      if (cover > 0.2) peak = max(peak, l / cover);   // brightest region that is a lit surface
     }
   }
-  outColor = vec4(sum / wsum, 0.0, 0.0, 1.0);
+  outColor = vec4(sum / wsum, peak, 0.0, 1.0);
 }`;
 
 const COMPOSITE_FRAG = /* glsl */`
@@ -133,7 +140,7 @@ export class PostPipeline {
     this.gpuBytes = 0;
 
     // Auto exposure state
-    this.settings = { key: 0.16, min: 0.5, max: 6e5, speed: 1.6, shadowFloor: 0.2, ...exposureSettings };
+    this.settings = { key: 0.16, min: 0.5, max: 6e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, ...exposureSettings };
     this.exposure = 20;
     this.targetExposure = 20;
     this.measuredLog2 = 0;
@@ -157,6 +164,11 @@ export class PostPipeline {
       uUvScale: { value: new THREE.Vector2(1, 1) }, uUvMax: { value: new THREE.Vector2(1, 1) },
       uBloom: { value: CONFIG.BLOOM_STRENGTH }, uBloomNorm: { value: 0.2 }, uNoiseSize: { value: BLUE_NOISE_SIZE },
     });
+  }
+
+  setExposureSettings(s) {
+    this.settings = { key: 0.16, min: 0.5, max: 6e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, ...s };
+    this.meterMat.uniforms.uFloor.value = this.settings.shadowFloor;
   }
 
   resize(width, height) {
@@ -192,7 +204,7 @@ export class PostPipeline {
     const r = this.renderer;
     this.exposureUsed = this.exposure;       // what this frame's shaders were given
     r.setRenderTarget(this.scene);
-    r.setClearColor(0x000000, 1);
+    r.setClearColor(0x000000, 0);      // alpha 0 = "not a lit surface" (used by the metering)
     // Whole-target clear (not scissored to the sub-viewport): the fast path on tile-based GPUs.
     r.clear(true, true, false);
   }
@@ -224,8 +236,9 @@ export class PostPipeline {
       renderPass(r, this.downMat, this.bloomDown[i]);
     }
 
-    // Metering from the quarter-res level (already clamped, so the solar disc cannot dominate).
-    this.meterMat.uniforms.tSrc.value = this.bloomDown[1].texture;
+    // Metering from the 1/16-res level: every part of the frame contributes (a small bright
+    // object cannot fall between samples), and the clamp keeps the solar disc from dominating.
+    this.meterMat.uniforms.tSrc.value = this.bloomDown[3].texture;
     renderPass(r, this.meterMat, this.meterTarget);
     this._meter(dt);
 
@@ -260,7 +273,12 @@ export class PostPipeline {
       const log2Pre = this._readBuf[0];
       if (!Number.isFinite(log2Pre)) return;
       this.measuredLog2 = log2Pre - Math.log2(used);           // scene luminance, log2
-      const target = Math.min(s.max, Math.max(s.min, s.key / Math.pow(2, this.measuredLog2)));
+      let target = s.key / Math.pow(2, this.measuredLog2);
+      // Highlight priority: a sunlit surface (the hero in space, a planet filling the view)
+      // may not be pushed more than `highlight` times over white, however dark the rest is.
+      const peak = this._readBuf[1] / used;
+      if (peak > 0) target = Math.min(target, s.highlight / peak);
+      target = Math.min(s.max, Math.max(s.min, target));
       this.stableReads = Math.abs(Math.log2(target / used)) < 0.03 ? this.stableReads + 1 : 0;
       this.targetExposure = target;
     }).catch(() => { this._readPending = false; });

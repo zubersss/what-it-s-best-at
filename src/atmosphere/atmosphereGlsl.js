@@ -257,7 +257,7 @@ uniform vec3 uCamPosKm;      // planet-centred camera position
 uniform vec3 uSunDirW;
 uniform vec3 uCamRight, uCamUp, uCamFwd;
 uniform vec2 uTanHalfFov;
-uniform float uFroxelMax;    // km
+uniform vec2 uFroxelRange;   // x: exponent of the slice distribution, y: far limit (km)
 uniform float uLutScale;
 layout(location = 0) out vec4 outSmooth;
 layout(location = 1) out vec4 outMie;
@@ -268,15 +268,34 @@ void main() {
   vec2 uv = fract(gl_FragCoord.xy / vec2(FROX_W, FROX_H));
   vec2 ndc = uv * 2.0 - 1.0;
   vec3 rd = normalize(uCamFwd + uCamRight * ndc.x * uTanHalfFov.x + uCamUp * ndc.y * uTanHalfFov.y);
-  float tMax = uFroxelMax * pow((slice + 1.0) / float(FROX_D), FROX_POW);
+  // Each ray's slices divide its own path through the air: from the camera (or from where
+  // the ray enters the atmosphere) to the ground, the far limit, or back out to space.
+  float t1 = uFroxelRange.y;
+  float t0 = 0.0;
   float r = length(uCamPosKm);
-  vec3 ro = uCamPosKm * (clamp(r, uRBottom + 0.01, uRTop - 0.01) / r);
-  float tG = raySphere(ro, rd, uRBottom);
-  if (tG > 0.0) tMax = min(tMax, tG);
-  float tTop = raySphere(ro, rd, uRTop);
-  if (tTop > 0.0) tMax = min(tMax, tTop);
+  vec3 ro = r < uRBottom + 0.01 ? uCamPosKm * ((uRBottom + 0.01) / r) : uCamPosKm;
+  outSmooth = vec4(0.0, 0.0, 0.0, 1.0); outMie = vec4(0.0, 0.0, 0.0, 1.0); outTrans = vec4(1.0);
+  if (r > uRTop) {
+    // Camera in space: the ray first has to reach the atmosphere (or misses it).
+    float b = dot(ro, rd), disc = b * b - (r * r - uRTop * uRTop);
+    if (disc <= 0.0 || b > 0.0) return;
+    float s = sqrt(disc);
+    t0 = -b - s; t1 = min(t1, -b + s);
+  } else {
+    float tTop = raySphere(ro, rd, uRTop);
+    if (tTop > 0.0) t1 = min(t1, tTop);
+  }
+  // From space the path ends at the ground, so the slices resolve the air just above it.
+  // Inside the air the slice spacing must not depend on whether the ray dips below the
+  // lowest terrain (neighbouring rays would disagree along the horizon); only the march
+  // itself stops there.
+  float tG = raySphere(ro + rd * t0, rd, uRBottom);
+  if (r > uRTop && tG > 0.0) t1 = min(t1, t0 + tG);
+  if (t1 <= t0) return;
+  float len = (t1 - t0) * pow((slice + 1.0) / float(FROX_D), uFroxelRange.x);
+  if (tG > 0.0) len = min(len, tG);
   vec3 Ls, Lm, T;
-  integrateScattering(ro, rd, uSunDirW, tMax, 6 + int(slice) / 2, Ls, Lm, T);
+  integrateScattering(ro + rd * t0, rd, uSunDirW, len, 6 + int(slice) / 2, Ls, Lm, T);
   outSmooth = vec4(Ls * uLutScale, 1.0);
   outMie = vec4(Lm * uLutScale, 1.0);
   outTrans = vec4(T, 1.0);

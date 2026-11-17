@@ -17,6 +17,8 @@ export const PARAMS = {
   fps: num('fps', null),
   dpr: num('dpr', null),                // fixed device pixel ratio (overrides the pixel-count cap)
   touch: q.get('touch') === '1',        // force the touch controls on
+  hero: q.has('hero') ? q.get('hero') !== '0' : null,   // flying character on/off (default: on, off in screenshots)
+  heropose: q.get('heropose'),          // screenshots: 'fly' (default) or 'hover'
   lat: num('lat', null), lon: num('lon', null), alt: num('alt', null),
   heading: num('heading', null), pitch: num('pitch', null), fov: num('fov', null),
   debug: q.get('debug') || '',

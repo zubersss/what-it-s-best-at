@@ -56,7 +56,7 @@ export default {
     ship: { east: 70, north: 10, heading: 200 },
     // shadowFloor: texels darker than this fraction of the frame mean (black sky, hard shadow)
     // barely raise the exposure, so sunlit ground is exposed like a lunar surface photograph.
-    exposure: { key: 0.06, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.6 },
+    exposure: { key: 0.06, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.6, highlight: 6 },
     bookmarks: {
       ledge: { heading: 270, pitch: -6, fov: 60 },
       sun: { heading: 269, pitch: 4, fov: 22 },

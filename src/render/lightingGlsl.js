@@ -22,7 +22,7 @@ uniform sampler2D tIrradiance;      // octahedral irradiance map (local sky fram
 uniform sampler2D tFroxelA;         // aerial perspective: smooth in-scatter
 uniform sampler2D tFroxelB;         //                      un-phased dust in-scatter
 uniform sampler2D tFroxelC;         //                      transmittance
-uniform float uFroxelMax;           // km
+uniform vec2 uFroxelRange;          // x: exponent of the slice distribution, y: far limit (km)
 uniform vec2 uLutScaleInv;          // x: 1 / scale of the irradiance LUT, y: 1 / scale of the froxels
 uniform mat3 uSkyFrame;             // planet-fixed -> local sky frame
 uniform vec3 uShineDir;             // toward the brightest sky body
@@ -57,7 +57,20 @@ vec3 planetShine(vec3 N) { return uShineE * max(dot(N, uShineDir), 0.0); }
 // Attenuates a surface colour and adds in-scattered light along the view ray.
 vec3 aerialPerspective(vec3 color, vec3 rel) {
   float dist = length(rel);
-  float s = float(FROX_D) * pow(clamp(dist * 0.001 / uFroxelMax, 0.0, 1.0), 1.0 / FROX_POW);
+  // Same path through the air as the froxel pass computed for this view ray.
+  vec3 ro = uCamPlanetPos * 0.001, rd = rel / dist;
+  float rc = length(ro), bq = dot(ro, rd), pathA = 0.0, pathB;
+  float discT = bq * bq - (rc * rc - uRTop * uRTop);
+  if (rc > uRTop) {
+    if (discT <= 0.0 || bq > 0.0) return color;
+    float sT = sqrt(discT); pathA = -bq - sT; pathB = -bq + sT;
+  } else pathB = -bq + sqrt(max(discT, 0.0));
+  if (rc > uRTop) {
+    float discB = bq * bq - (rc * rc - uRBottom * uRBottom);
+    if (discB > 0.0) { float tg = -bq - sqrt(discB); if (tg > pathA) pathB = min(pathB, tg); }
+  }
+  pathB = min(pathB, uFroxelRange.y);
+  float s = float(FROX_D) * pow(clamp((dist * 0.001 - pathA) / max(pathB - pathA, 1e-4), 0.0, 1.0), 1.0 / uFroxelRange.x);
   float c = max(s - 1.0, 0.0);
   float k0 = min(floor(c), float(FROX_D) - 1.0), k1 = min(k0 + 1.0, float(FROX_D) - 1.0), f = c - k0;
   vec2 uv = clamp(gl_FragCoord.xy / uViewport, vec2(0.5) / vec2(FROX_W, FROX_H), 1.0 - vec2(0.5) / vec2(FROX_W, FROX_H));

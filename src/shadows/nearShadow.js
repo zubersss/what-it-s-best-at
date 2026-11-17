@@ -26,12 +26,15 @@ export class NearShadow {
     this._bias = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1);
   }
 
-  addCaster(mesh, depthMaterial) { this.casters.push({ mesh, depthMaterial }); }
+  // isVisible: optional predicate (a mesh inside a hidden group still reports visible).
+  addCaster(mesh, depthMaterial, isVisible = null) { this.casters.push({ mesh, depthMaterial, isVisible }); }
+  removeCaster(mesh) { this.casters = this.casters.filter((c) => c.mesh !== mesh); }
+  _on(c) { return c.mesh.visible && (!c.isVisible || c.isVisible()); }
 
   // camPos: planet-fixed doubles; sunDir: unit; localUp: array.
   render(camPos, sunDir, localUp) {
     const elevationSin = sunDir.x * localUp[0] + sunDir.y * localUp[1] + sunDir.z * localUp[2];
-    const enabled = elevationSin > -0.02 && this.casters.some((c) => c.mesh.visible);
+    const enabled = elevationSin > -0.02 && this.casters.some((c) => this._on(c));
     G.uShadowParams.value.z = enabled ? 1 : 0;
     if (!this.initialised) {
       // The depth texture must exist even when shadows are off (night): a shadow sampler
@@ -62,7 +65,7 @@ export class NearShadow {
     r.setRenderTarget(this.target);
     r.clear(true, true, false);
     for (const c of this.casters) {
-      if (!c.mesh.visible) continue;
+      if (!this._on(c)) continue;
       const keep = c.mesh.material;
       c.mesh.material = c.depthMaterial;
       r.render(c.mesh, cam);

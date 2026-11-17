@@ -15,6 +15,8 @@ export class TouchControls {
     this.root.innerHTML = `
       <div id="stick"><div id="knob"></div></div>
       <div id="tbuttons">
+        <button data-key="KeyG">HERO</button>
+        <button data-key="KeyT">TARGET</button>
         <button data-key="KeyF">FLY</button>
         <button data-key="KeyZ" data-hold="1">ZOOM</button>
         <button data-act="view">VIEW</button>

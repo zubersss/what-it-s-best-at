@@ -10,7 +10,7 @@ export class WorkerPool {
       const slot = { w, busy: false };
       w.onmessage = (ev) => {
         const m = ev.data;
-        if (m.type === 'ready') { resolve(); return; }
+        if (m.type === 'ready') { slot.busy = false; resolve(); return; }
         const p = this.pending.get(m.id);
         if (!p) { if (m.type === 'error') console.error(m.message); return; }
         this.pending.delete(m.id);
@@ -22,6 +22,10 @@ export class WorkerPool {
       this.workers.push(slot);
     })));
   }
+
+  // Loads another world into every worker. Replies to jobs of the old world still arrive
+  // (the caller ignores them); new jobs queue behind the init message in each worker.
+  reinit(initMessage) { for (const s of this.workers) s.w.postMessage(initMessage); }
 
   get idle() { let n = 0; for (const s of this.workers) if (!s.busy) n++; return n; }
   get busy() { return this.workers.length - this.idle; }

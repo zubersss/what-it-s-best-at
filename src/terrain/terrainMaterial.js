@@ -105,19 +105,30 @@ void main() {
 
 // Uniforms shared by every chunk material (same objects, by reference).
 export function makeTerrainShared(world, textures) {
-  const s = world.surface, st = s.strata || {};
-  return {
+  const shared = {
     ...lightingUniforms(),
     tStrata: { value: textures.strata }, tDetail: { value: textures.detail },
-    uDust: { value: new THREE.Vector3(...s.dust) }, uSand: { value: new THREE.Vector3(...s.sand) },
-    uScree: { value: new THREE.Vector3(...s.scree) }, uRock: { value: new THREE.Vector3(...s.rock) },
-    uSlopes: { value: new THREE.Vector4(s.slopes.dustMax, s.slopes.screeMin, s.slopes.screeMax, s.slopes.rockMin) },
-    uStrata: { value: new THREE.Vector4(1 / (st.period || 1000), st.contrast || 0, 1 / (st.finePeriod || 100), st.fine || 0) },
-    uSandRange: { value: new THREE.Vector2(s.sandBelow ?? -1e9, s.sandFade ?? 1) },
-    uRipple: { value: new THREE.Vector3(2 * Math.PI / (s.ripples?.wavelength || 1), s.ripples?.strength || 0, DETAIL_TILE) },
-    uRoughness: { value: s.roughness ?? 0.5 },
-    uDetailStrength: { value: s.detailStrength ?? 0.5 },
+    uDust: { value: new THREE.Vector3() }, uSand: { value: new THREE.Vector3() },
+    uScree: { value: new THREE.Vector3() }, uRock: { value: new THREE.Vector3() },
+    uSlopes: { value: new THREE.Vector4() }, uStrata: { value: new THREE.Vector4() },
+    uSandRange: { value: new THREE.Vector2() }, uRipple: { value: new THREE.Vector3() },
+    uRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 },
   };
+  setTerrainSurface(shared, world);
+  return shared;
+}
+
+// Writes a world's surface numbers into the shared uniforms (also used when switching worlds).
+export function setTerrainSurface(shared, world) {
+  const s = world.surface, st = s.strata || {};
+  shared.uDust.value.set(...s.dust); shared.uSand.value.set(...s.sand);
+  shared.uScree.value.set(...s.scree); shared.uRock.value.set(...s.rock);
+  shared.uSlopes.value.set(s.slopes.dustMax, s.slopes.screeMin, s.slopes.screeMax, s.slopes.rockMin);
+  shared.uStrata.value.set(1 / (st.period || 1000), st.contrast || 0, 1 / (st.finePeriod || 100), st.fine || 0);
+  shared.uSandRange.value.set(s.sandBelow ?? -1e9, s.sandFade ?? 1);
+  shared.uRipple.value.set(2 * Math.PI / (s.ripples?.wavelength || 1), s.ripples?.strength || 0, DETAIL_TILE);
+  shared.uRoughness.value = s.roughness ?? 0.5;
+  shared.uDetailStrength.value = s.detailStrength ?? 0.5;
 }
 
 export const DETAIL_TILE = 64;   // metres covered by one repeat of the detail texture at the coarsest scale

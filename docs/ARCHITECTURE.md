@@ -67,6 +67,7 @@ new session can change it without re-deriving everything.
 | `src/shadows/nearShadow.js` | The single 2048² shadow map + its GLSL. |
 | `src/rocks/rocks.js` | Instanced rocks, scattered deterministically near the camera. |
 | `src/ship/lander.js` | Procedural lander geometry, placement, material. |
+| `src/hero/hero.js` / `cloak.js` | The flying character (procedural suited figure, rigid posed limbs) and its cloth-simulated cloak. |
 | `src/controls/` | `input.js` (keys, mouse, virtual keys), `touch.js` (phone controls), `cameraRig.js` (walk, fly, zoom). |
 | `src/post/` | `post.js` (HDR target, metering, bloom, tone map, dither), `dynamicResolution.js`. |
 | `src/debug/hud.js` | Debug HUD and time-of-day slider. |
@@ -155,6 +156,39 @@ One code path: a body is a lit mesh when it is more than ~2.5 pixels across and 
 source with the correct integrated flux otherwise (Earth is a point from Mars and a disc
 from the Moon). Stars and unresolved bodies are flux-carrying Gaussian point sprites, so
 exposure alone decides whether they are visible (rule 2).
+
+## The flying character and world-to-world flight
+
+- **Hero** (`src/hero/`): a suited figure built from primitives, drawn ~4 m in front of
+  and a little below the camera, in its own scene. The camera is still what the controls
+  move (`rig.mode === 'hero'`); the figure only poses itself from the rig's velocity:
+  upright when hovering, horizontal with arms forward in flight, banking into turns.
+  Near the ground it shares the terrain's depth buffer; once the terrain's near plane has
+  moved past it (higher up) depth is cleared and it renders in its own 0.2–400 m slice.
+- **Cloak**: a 9×14 mass–spring cloth (Verlet, 90 Hz, 4 constraint passes, capsule
+  collision with the body), simulated in an anchor-relative frame so planet-scale
+  coordinates never reach it. Forces: gravity (the world's, falling off with altitude),
+  the wearer's acceleration (inertia, clamped), drag toward the passing air, and
+  travelling ripples. Air density comes from `atmosphere.surfaceDensity` and scale
+  height. In vacuum a reduced "flow" (30 %) is kept on purpose so the cloak still trails
+  in flight — a deliberate, owner-requested departure from physics.
+- **Speed law** (`cameraRig.js`): top speed = 0.85 × distance to the nearest surface of
+  any body per second (×3 with boost, floor 7 m/s), velocity smoothed over ~0.4 s, never
+  more than 40 % of the remaining gap per frame. Leaving, cruising and arriving are the
+  same control at every scale.
+- **The sky is the whole catalogue**: `SkyBodies` always holds every body in
+  `solarSystem.js` and skips the one you are on. `App.space()` measures clearances each
+  frame (speed limit, collision with bodies that have no terrain) and calls
+  `switchWorld` when another world with a definition file is nearer than the current one.
+- **`switchWorld`** converts camera position, heading and velocity old-fixed → inertial →
+  new-fixed, then calls `setWorld` on the rig, atmosphere (same LUT targets, new medium),
+  terrain (same GPU pool, slots released, workers re-initialised, `epoch` bumped), rocks,
+  sky bodies, exposure settings and the time slider, and rebuilds the lander. Simulation
+  time is continuous across the switch; applying a bookmark sets that world's scene date.
+- **From space**: aerial-perspective slices span from where the view first meets the
+  atmosphere to the far plane and are marched from the entry point; the sky-view LUT
+  (built for a camera inside the air) fades out over two atmosphere thicknesses, so
+  there is no limb glow from high orbit; the terrain's near plane grows with altitude.
 
 ## Post
 

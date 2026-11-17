@@ -3,6 +3,8 @@
 //
 // `world.atmosphere === null` is not a special case: it becomes an empty medium (all
 // coefficients zero), the same passes run once, and the sky simply stays black.
+// The uniform objects are created once and only their values change when the world
+// changes (`setWorld`), so materials built earlier keep working after a world switch.
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { G } from '../render/globals.js';
@@ -25,23 +27,14 @@ export function atmosphereDefines() {
 export class Atmosphere {
   constructor(renderer, world) {
     this.renderer = renderer;
-    const a = world.atmosphere;
-    this.empty = !a;
-    const R = world.radius * KM;
-    const v3 = (x) => new THREE.Vector3(...(x || [0, 0, 0]).map((c) => c / KM));   // per metre -> per km
-    const dust = a?.dust, fog = dust?.fog, abs = a?.absorber;
-    this.rPlanet = R;
-    this.rBottom = R + (world.terrain.minAltitude - 300) * KM;
-    this.rTop = R + (a?.topAltitude ?? 60000) * KM;
-    this.rOcc = R + (a?.occluderAltitude ?? 0) * KM;
     const u = {
-      uRPlanet: { value: R }, uRBottom: { value: this.rBottom }, uRTop: { value: this.rTop }, uROcc: { value: this.rOcc },
-      uRayScat: { value: v3(a?.rayleigh?.scattering) }, uRayH: { value: (a?.rayleigh?.scaleHeight ?? 8000) * KM },
-      uMieScat: { value: v3(dust?.scattering) }, uMieAbs: { value: v3(dust?.absorption) }, uMieH: { value: (dust?.scaleHeight ?? 8000) * KM },
-      uMieG: { value: new THREE.Vector3(...(dust?.phaseG || [0, 0, 0])) },
-      uFog: { value: new THREE.Vector4(fog?.density ?? 0, (fog?.baseAltitude ?? 0) * KM, (fog?.scaleHeight ?? 1000) * KM, fog?.maxDensity ?? 8) },
-      uAbsCoef: { value: v3(abs?.absorption) }, uAbsLayer: { value: new THREE.Vector2((abs?.centerAltitude ?? 25000) * KM, (abs?.halfWidth ?? 15000) * KM) },
-      uGroundAlbedo: { value: new THREE.Vector3(...(world.surface.meanAlbedo || world.surface.dust)) },
+      uRPlanet: { value: 1 }, uRBottom: { value: 1 }, uRTop: { value: 2 }, uROcc: { value: 1 },
+      uRayScat: { value: new THREE.Vector3() }, uRayH: { value: 8 },
+      uMieScat: { value: new THREE.Vector3() }, uMieAbs: { value: new THREE.Vector3() }, uMieH: { value: 8 },
+      uMieG: { value: new THREE.Vector3() },
+      uFog: { value: new THREE.Vector4(0, 0, 1, 8) },
+      uAbsCoef: { value: new THREE.Vector3() }, uAbsLayer: { value: new THREE.Vector2(25, 15) },
+      uGroundAlbedo: { value: new THREE.Vector3() },
     };
     this.params = u;
     const defines = atmosphereDefines();
@@ -57,27 +50,52 @@ export class Atmosphere {
 
     const lut = { tTransmittance: { value: this.transmittance.texture }, tMultiScat: { value: this.multiScat.texture } };
     const sky = { tSkySmooth: { value: this.skyView.textures[0] }, tSkyMie: { value: this.skyView.textures[1] }, uSkyParams: { value: new THREE.Vector4(Math.PI / 2, 0.01, 1, 0) } };
-    this.cam = { uCamR: { value: R }, uSunMu: { value: 0 }, uLutScale: { value: 1 } };
+    this.cam = { uCamR: { value: 1 }, uSunMu: { value: 0 }, uLutScale: { value: 1 } };
     this.transMat = makePassMaterial(TRANSMITTANCE_FRAG, { ...u }, { defines });
     this.msMat = makePassMaterial(MULTISCAT_FRAG, { ...u, tTransmittance: lut.tTransmittance }, { defines });
     this.skyMat = makePassMaterial(SKYVIEW_FRAG, { ...u, ...lut, ...this.cam }, { defines });
-    this.froxelU = { uCamPosKm: { value: new THREE.Vector3() }, uSunDirW: G.uSunDir, uCamRight: G.uCamRight, uCamUp: G.uCamUp, uCamFwd: G.uCamFwd, uTanHalfFov: G.uTanHalfFov, uFroxelMax: { value: 400 }, uLutScale: { value: 1 } };
+    this.froxelU = {
+      uCamPosKm: { value: new THREE.Vector3() }, uSunDirW: G.uSunDir, uCamRight: G.uCamRight, uCamUp: G.uCamUp, uCamFwd: G.uCamFwd, uTanHalfFov: G.uTanHalfFov,
+      uFroxelRange: { value: new THREE.Vector2(0, 400) }, uLutScale: { value: 1 },
+    };
     this.froxelMat = makePassMaterial(FROXEL_FRAG, { ...u, ...lut, ...this.froxelU }, { defines });
     this.irrMat = makePassMaterial(IRRADIANCE_FRAG, { ...u, tTransmittance: lut.tTransmittance, ...sky, ...this.cam }, { defines });
 
-    // Publish for consumers (terrain, rocks, ship, sky dome, sun, bodies).
+    // Publish for consumers (terrain, rocks, ship, hero, sky dome, sun, bodies).
     Object.assign(G, u, {
       tTransmittance: lut.tTransmittance, ...sky,
       tIrradiance: { value: this.irradiance.texture },
       tFroxelA: { value: this.froxels.textures[0] }, tFroxelB: { value: this.froxels.textures[1] }, tFroxelC: { value: this.froxels.textures[2] },
-      uFroxelMax: this.froxelU.uFroxelMax,
+      uFroxelRange: this.froxelU.uFroxelRange,          // x = slice distribution exponent, y = far limit (km)
       uLutScaleInv: { value: new THREE.Vector2(1, 1) },
       uSkyFrame: { value: new THREE.Matrix3() },
       uSunLocal: { value: new THREE.Vector3(0, 0, 1) },
+      uSkyFade: { value: 1 },                           // sky in-scatter fades out when the camera leaves the atmosphere
     });
-    this.staticDone = false;
-    this.lastMu = 99; this.lastR = -1;
     this._up = new THREE.Vector3(); this._sh = new THREE.Vector3(); this._third = new THREE.Vector3();
+    this.setWorld(world);
+  }
+
+  // Loads a world's medium into the existing uniforms and marks every LUT stale.
+  setWorld(world) {
+    const a = world.atmosphere, u = this.params;
+    this.empty = !a;
+    const R = world.radius * KM;
+    const set3 = (v, x) => { const s = x || [0, 0, 0]; v.set(s[0] / KM, s[1] / KM, s[2] / KM); };   // per metre -> per km
+    const dust = a?.dust, fog = dust?.fog, abs = a?.absorber;
+    this.rPlanet = R;
+    this.rBottom = R + (world.terrain.minAltitude - 300) * KM;
+    this.rTop = R + (a?.topAltitude ?? 60000) * KM;
+    this.rOcc = R + (a?.occluderAltitude ?? 0) * KM;
+    u.uRPlanet.value = R; u.uRBottom.value = this.rBottom; u.uRTop.value = this.rTop; u.uROcc.value = this.rOcc;
+    set3(u.uRayScat.value, a?.rayleigh?.scattering); u.uRayH.value = (a?.rayleigh?.scaleHeight ?? 8000) * KM;
+    set3(u.uMieScat.value, dust?.scattering); set3(u.uMieAbs.value, dust?.absorption); u.uMieH.value = (dust?.scaleHeight ?? 8000) * KM;
+    u.uMieG.value.set(...(dust?.phaseG || [0, 0, 0]));
+    u.uFog.value.set(fog?.density ?? 0, (fog?.baseAltitude ?? 0) * KM, (fog?.scaleHeight ?? 1000) * KM, fog?.maxDensity ?? 8);
+    set3(u.uAbsCoef.value, abs?.absorption); u.uAbsLayer.value.set((abs?.centerAltitude ?? 25000) * KM, (abs?.halfWidth ?? 15000) * KM);
+    u.uGroundAlbedo.value.set(...(world.surface.meanAlbedo || world.surface.dust));
+    this.staticDone = false; this.froxelDone = false;
+    this.lastMu = 99; this.lastR = -1; this.skyScale = 0;
   }
 
   // camPos: planet-centred metres (doubles). sunDir: unit, planet-fixed. farDistance: metres.
@@ -90,8 +108,13 @@ export class Atmosphere {
       this.staticDone = true;
     }
     const up = this._up.copy(camPos).normalize();
-    const camR = Math.min(this.rTop - 0.02, Math.max(this.rBottom + 0.02, camPos.length() * KM));
+    const camKm = camPos.length() * KM;
+    const camR = Math.min(this.rTop - 0.02, Math.max(this.rBottom + 0.02, camKm));
     const mu = up.dot(sunDir);
+    // Above the atmosphere the sky-view LUT (built for a camera inside it) is no longer
+    // valid; its contribution fades out over two atmosphere thicknesses.
+    this.outside = camKm > this.rTop;
+    G.uSkyFade.value = this.empty ? 0 : Math.min(1, Math.max(0, 1 - (camKm - this.rTop) / (2 * (this.rTop - this.rPlanet))));
 
     // Local sky frame: x toward the Sun's azimuth, z up.
     const sh = this._sh.copy(sunDir).addScaledVector(up, -mu);
@@ -113,10 +136,13 @@ export class Atmosphere {
       renderPass(r, this.irrMat, this.irradiance);
     }
 
-    // Aerial perspective froxels follow the camera every frame (one draw call).
+    // Aerial perspective froxels follow the camera every frame (one draw call). From
+    // space the slices start where the view first meets the atmosphere.
     if (!this.empty || !this.froxelDone) {
       this.froxelU.uCamPosKm.value.copy(camPos).multiplyScalar(KM);
-      this.froxelU.uFroxelMax.value = Math.min(1500, Math.max(20, farDistance * KM));
+      // Inside the air most haze is near the camera (dense slices first); from space it
+      // is at the far end of each ray, so the slices are spread evenly.
+      this.froxelU.uFroxelRange.value.set(this.outside ? 1.0 : FROXEL_POW, Math.max(20, farDistance * KM));
       this.froxelU.uLutScale.value = scale; G.uLutScaleInv.value.y = 1 / scale;
       renderPass(r, this.froxelMat, this.froxels);
       this.froxelDone = true;

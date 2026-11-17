@@ -5,7 +5,7 @@ import { CONFIG } from '../config.js';
 import { Node } from './quadtree.js';
 import { ChunkPool } from './chunkPool.js';
 import { WorkerPool } from './workerPool.js';
-import { makeTerrainMaterial, makeTerrainShared, DETAIL_TILE } from './terrainMaterial.js';
+import { makeTerrainMaterial, makeTerrainShared, setTerrainSurface, DETAIL_TILE } from './terrainMaterial.js';
 import { makeDetailTexture, makeStrataTexture } from './surfaceTextures.js';
 import { FACES } from './cubeSphere.js';
 
@@ -22,11 +22,8 @@ export class Terrain {
     this.pool = new ChunkPool((n, s) => makeTerrainMaterial(this.shared, n, s), renderer.capabilities.getMaxAnisotropy());
     this.group = this.pool.group;
     const count = Math.max(1, Math.min(CONFIG.WORKERS, (navigator.hardwareConcurrency || 2) - 1));
-    this.workers = new WorkerPool(count, {
-      type: 'init', world,
-      rasters: rasters.map((r) => ({ ...r, data: undefined, buffer: r.data.buffer })),
-      cfg: { GRID: CONFIG.GRID, NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES },
-    });
+    this.epoch = 0;                    // bumped on every world switch; stale worker replies are dropped
+    this.workers = new WorkerPool(count, this._initMessage(world, rasters));
     this.roots = FACES.map((_, f) => new Node(f, 0, 0, 0, null, hs, this.relief));
     this.frame = 0;
     this.drawList = []; this.wanted = [];
@@ -38,6 +35,34 @@ export class Terrain {
     this.idleFrames = 0;
     this.gpuBytes = this.pool.gpuBytes + 256 * 256 * 4 * 4 / 3;
     this._cam = new THREE.Vector3(); this._camDir = [0, 0, 1];
+  }
+
+  _initMessage(world, rasters) {
+    return {
+      type: 'init', world,
+      rasters: rasters.map((r) => ({ ...r, data: undefined, buffer: r.data.buffer })),
+      cfg: { GRID: CONFIG.GRID, NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES },
+    };
+  }
+
+  // Replaces the planet: every chunk slot is released, the workers load the new height
+  // source, the surface palette changes. The GPU pool itself is reused as is.
+  setWorld(world, rasters, hs) {
+    this.epoch++;
+    this.world = world; this.hs = hs;
+    this.radius = world.radius; this.maxLevel = world.terrain.maxLevel;
+    this.relief = world.terrain.maxAltitude - world.terrain.minAltitude;
+    setTerrainSurface(this.shared, world);
+    this.textures.strata.dispose();
+    this.textures.strata = makeStrataTexture(world.surface.strata);
+    this.shared.tStrata.value = this.textures.strata;
+    const pool = this.pool;
+    pool.free.length = 0;
+    for (let i = 0; i < pool.slots.length; i++) { pool.slots[i].node = null; pool.slots[i].mesh.visible = false; pool.free.push(i); }
+    this.roots = FACES.map((_, f) => new Node(f, 0, 0, 0, null, hs, this.relief));
+    this.drawList.length = 0; this.wanted.length = 0;
+    this.lodScale = 1; this.idleFrames = 0;
+    this.workers.reinit(this._initMessage(world, rasters));
   }
 
   get loadedCount() { return CONFIG.CHUNK_POOL - this.pool.free.length; }
@@ -148,9 +173,10 @@ export class Terrain {
       if (slot < 0) { this.stalled = true; break; }
       node.loading = true; node.reserved = slot;
       node.shadowSun = this._sun;
+      const epoch = this.epoch;
       this.workers.run({ type: 'chunk', face: node.face, level: node.level, ix: node.ix, iy: node.iy, sun: this._sun, sunHalf: this._sunHalf })
-        .then((res) => this._onChunk(node, res))
-        .catch((e) => { node.loading = false; this.pool.free.push(node.reserved); console.error(e); });
+        .then((res) => { if (epoch === this.epoch) this._onChunk(node, res); })
+        .catch((e) => { if (epoch === this.epoch) { node.loading = false; this.pool.free.push(node.reserved); } console.error(e); });
     }
     this.wanted.splice(0, k);
   }
@@ -167,9 +193,9 @@ export class Terrain {
       this.staleShadows++;
       if (!this.workers.idle) continue;
       node.shadowBusy = true;
-      const want = sun;
+      const want = sun, epoch = this.epoch;
       this.workers.run({ type: 'shadow', face: node.face, level: node.level, ix: node.ix, iy: node.iy, sun: want, sunHalf: this._sunHalf })
-        .then((res) => { node.shadowBusy = false; if (node.slot >= 0 && !node.dead) { this.pool.uploadShadow(node.slot, res.shadow); node.shadowSun = want; } })
+        .then((res) => { node.shadowBusy = false; if (epoch === this.epoch && node.slot >= 0 && !node.dead) { this.pool.uploadShadow(node.slot, res.shadow); node.shadowSun = want; } })
         .catch((e) => { node.shadowBusy = false; console.error(e); });
     }
   }

@@ -55,6 +55,7 @@ export class Hud {
       `sun        el ${s.sunEl.toFixed(1)}  az ${s.sunAz.toFixed(1)}`,
       `pos        ${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}  alt ${s.alt.toFixed(0)} m  agl ${s.agl.toFixed(1)} m`,
       `view       hdg ${s.heading.toFixed(1)} pitch ${s.pitch.toFixed(1)} fov ${s.fov.toFixed(1)}`,
+      `flight     ${s.speed}   nearest ${s.nearest}${s.target ? '   target ' + s.target : ''}`,
     ];
     this.el.textContent = lines.join('\n');
   }

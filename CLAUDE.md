@@ -3,6 +3,8 @@
 Browser space-exploration game set in the real solar system. Milestone 1 is a single
 benchmark scene (Mars, Coprates Chasma in Valles Marineris, ~20 min before sunset) that
 proves the art direction and the engine foundation, plus the Moon as a data-only swap.
+On top of that the owner asked for a flying character: you explore behind a suited figure
+with a cloak, Superman-style, fast enough to fly from one world to another.
 Future sessions have no memory except this file and `docs/` — keep them current.
 
 - `docs/ARCHITECTURE.md` — how the engine is put together, frame order, units, frames.
@@ -39,16 +41,28 @@ output until the end).
 URL parameters: `world=mars|moon`, `shot=ledge|sun|wall|ship|dusk` (fixed camera
 bookmark, deterministic screenshot mode), `t=<hours offset>`, `hud=0|1`,
 `scale=<fixed render scale>`, `dpr=<fixed pixel ratio>`, `fps=<target>`, `fly=1`,
-`touch=1`, `lat= lon= alt= heading= pitch= fov=`.
+`touch=1`, `hero=0|1` (flying character; on by default except in screenshots),
+`heropose=fly|hover` (screenshots), `lat= lon= alt= heading= pitch= fov=`.
 
-Keys: `WASD` move, mouse look (click to capture), `Shift` run / fly fast, `Space` jump /
-up, `Q`/`E` fly down / up, `F` walk ↔ fly, `Z` hold for telephoto, mouse wheel = zoom
-amount, `H` HUD, `[` `]` time −/+, `1`–`5` bookmarks, `P` pause time.
+`node scripts/flight-test.mjs <dir>` flies Mars → Moon headlessly with scripted keys and
+saves screenshots along the way; run it after touching flight, world switching or
+anything that must work from space.
 
-Touch (phones): left part of the screen = move stick (push to the rim to run), drag
-anywhere else = look, buttons `FLY`, `ZOOM` (hold), `VIEW` (next bookmark), `HUD`,
-`FULL` (fullscreen + landscape lock + wake lock), `▲` jump / up, `▼` down. The time
-slider is part of the HUD.
+Keys: `WASD` move, mouse look (click to capture), `Shift` run / boost, `Space` jump /
+up, `Q`/`E` down / up, `G` flying character on/off, `T` aim at the next body in the sky,
+`F` walk ↔ free-fly debug camera, `Z` hold for telephoto, mouse wheel = zoom amount,
+`H` HUD, `[` `]` time −/+, `1`–`5` bookmarks, `P` pause time.
+
+Touch (phones): left part of the screen = move stick (push to the rim to run / boost),
+drag anywhere else = look, buttons `HERO`, `TARGET`, `FLY`, `ZOOM` (hold), `VIEW` (next
+bookmark), `HUD`, `FULL` (fullscreen + landscape lock + wake lock), `▲` up, `▼` down.
+The time slider is part of the HUD.
+
+Flying between worlds: tap `TARGET` until the HUD says the body you want (Earth, Moon,
+Phobos, Deimos, Mars, Sun), push the stick forward. Speed is proportional to the
+distance to the nearest surface, so you leave slowly, cross space in tens of seconds and
+arrive slowly. When another world with a terrain file (Mars, Moon) becomes nearer than
+the one you left, the engine hands over to it in flight.
 
 ## Art direction: "mission-camera realism" (rules — do not break)
 
@@ -109,7 +123,9 @@ slider is part of the HUD.
 
 Volumetric clouds, water, vegetation, SSR, SSAO, global illumination, motion blur, depth
 of field, TAA, gameplay systems, UI beyond the debug HUD and the minimal touch controls,
-other planets.
+terrain for other planets. (The owner later asked for the flying character and
+world-to-world flight; those are in. Earth, Phobos and Deimos are still sky bodies only:
+you can fly up to them but not land.)
 
 ## Working conventions and hard-won lessons
 
@@ -127,6 +143,12 @@ other planets.
   the comment on `craters` in `layers.js`).
 - After changing a terrain recipe, the start position, ship offset and bookmarks must be
   re-picked (`scripts/find-ledge.mjs`, `scripts/probe-terrain.mjs`): the ground moves.
+- Modules that depend on the world expose `setWorld(...)` and mutate their existing
+  uniform objects; never replace an object in `G` after start-up (materials hold the old
+  reference). Worker replies carry the terrain `epoch` and are dropped after a switch.
+- The hero is drawn at a fixed offset in front of the camera; the camera is still the
+  thing that moves. Do not write a pose velocity into `rig.velocity` — in hero mode the
+  rig integrates it (use the `motion` argument of `Hero.update`).
 - A `sampler2DShadow` bound to a never-rendered depth texture makes every draw call that
   uses it fail silently; the near shadow map is therefore always initialised.
 - On tile-based GPUs: clear whole targets, clear before full-screen passes, invalidate

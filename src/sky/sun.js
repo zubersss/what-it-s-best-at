@@ -31,7 +31,7 @@ export class SunDisc {
           vec3 limb = (1.0 - uLimb * (1.0 - mu)) / (1.0 - uLimb / 3.0);
           vec3 Lmean = uSunIrradiance / (PI * uAngRadius * uAngRadius);
           vec3 T = texture(tTransmittance, transmittanceUv(uCamRkm, dot(d, uUp))).rgb;
-          fragColor = vec4(min(Lmean * limb * T * edge * uExposure, vec3(60000.0)), 1.0);
+          fragColor = vec4(min(Lmean * limb * T * edge * uExposure, vec3(60000.0)), 0.0);
         }`,
     });
     this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);

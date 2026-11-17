@@ -57,7 +57,13 @@ for (const shot of shots) {
   if (err) { console.log(`  ${shot}: ERROR ${err}`); failed = true; }
   const stats = await page.evaluate(() => window.__stats || null);
   const file = path.join(outDir, `${world}_${shot}${suffix}.png`);
-  await page.screenshot({ path: file });
+  // Software WebGL frames can take a long time; never let one slow screenshot kill the run.
+  let saved = false;
+  for (let attempt = 0; attempt < 3 && !saved; attempt++) {
+    try { await page.screenshot({ path: file, timeout: 180000 }); saved = true; }
+    catch (e) { console.log(`  ${shot}: screenshot attempt ${attempt + 1} failed (${String(e).split('\n')[0]})`); }
+  }
+  if (!saved) failed = true;
   summary[shot] = stats;
   console.log(`${world}/${shot}: ${((Date.now() - t0) / 1000).toFixed(1)}s`, JSON.stringify(stats));
 }

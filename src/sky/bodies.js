@@ -96,11 +96,14 @@ function lumpyGeometry(def, seed) {
 export class SkyBodies {
   constructor(world, catalogue) {
     this.world = world; this.cat = catalogue;
+    // The true sky: every body in the catalogue is always there. The one we stand on is
+    // simply skipped (it is the terrain).
+    this.ids = Object.keys(catalogue).filter((id) => id !== 'sun');
     this.group = new THREE.Group();
-    this.points = new PointSources(Math.max(1, world.sky.bodies.length));
+    this.points = new PointSources(this.ids.length);
     this.points.points.renderOrder = 19;
     this.group.add(this.points.points);
-    this.bodies = world.sky.bodies.map((id, i) => {
+    this.bodies = this.ids.map((id, i) => {
       const def = catalogue[id], s = def.surface || { recipe: 'rock', albedo: [0.1, 0.1, 0.1] };
       const u = {
         ...G,
@@ -118,10 +121,13 @@ export class SkyBodies {
       const mesh = new THREE.Mesh(lumpyGeometry(def, i * 13.7 + 1), mat);
       mesh.frustumCulled = false; mesh.renderOrder = 5; mesh.matrixAutoUpdate = false;
       this.group.add(mesh);
-      return { id, def, mesh, u, info: {} };
+      return { id, def, mesh, u, info: {}, pos: new THREE.Vector3(), rel: new THREE.Vector3(), dist: Infinity };
     });
+    this.byId = new Map(this.bodies.map((b) => [b.id, b]));
     this._v = new THREE.Vector3(); this._m = new THREE.Matrix4();
   }
+
+  setWorld(world) { this.world = world; }
 
   // eph: Ephemeris (already updated); rig: camera rig; viewH: render height in pixels.
   update(eph, rig, viewH) {
@@ -130,13 +136,15 @@ export class SkyBodies {
     sunPos.set(eph.sunDir[0], eph.sunDir[1], eph.sunDir[2]).multiplyScalar(eph.sunDistance);
     const pxAngle = 2 * Math.tan(rig.fov * Math.PI / 360) / viewH;
     this.points.setFrame(null, rig, viewH);
-    const order = this.bodies.map((b) => {
+    const order = [];
+    for (const b of this.bodies) {
       const e = eph.bodies.get(b.id);
-      b.pos = b.pos || new THREE.Vector3(); b.pos.set(e.pos[0], e.pos[1], e.pos[2]);
-      b.rel = b.rel || new THREE.Vector3(); b.rel.subVectors(b.pos, cam);
+      b.pos.set(e.pos[0], e.pos[1], e.pos[2]);
+      b.rel.subVectors(b.pos, cam);
       b.dist = b.rel.length();
-      return b;
-    }).sort((a, b) => a.dist - b.dist);
+      if (b.id === this.world.body) b.mesh.visible = false; else order.push(b);
+    }
+    order.sort((a, b) => a.dist - b.dist);
 
     let np = 0, shine = 0;
     G.uShineE.value.set(0, 0, 0);

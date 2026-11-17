@@ -37,9 +37,9 @@ export class Rocks {
   constructor(world, hs) {
     this.world = world; this.hs = hs;
     const def = world.surface.rocks || { count: 0, radius: 100, size: [0.3, 1], albedo: [0.15, 0.1, 0.07] };
-    this.def = def; this.capacity = Math.max(1, def.count | 0);
+    this.def = def; this.capacity = 512;                // fixed instance buffer; a world may use fewer
     this.cell = 7;
-    this.prob = Math.min(1, this.capacity / (Math.PI * def.radius * def.radius / (this.cell * this.cell)) * 0.92);
+    this.prob = Math.min(1, Math.min(this.capacity, def.count | 0) / (Math.PI * def.radius * def.radius / (this.cell * this.cell)) * 0.92);
     const base = rockGeometry();
     const geo = new THREE.InstancedBufferGeometry();
     geo.setAttribute('position', base.attributes.position); geo.setAttribute('normal', base.attributes.normal);
@@ -86,7 +86,7 @@ export class Rocks {
       fragmentShader: /* glsl */`layout(location = 0) out vec4 fragColor; void main() { fragColor = vec4(1.0); }`,
     });
     this.mesh = new THREE.Mesh(geo, this.material);
-    this.mesh.frustumCulled = false; this.mesh.visible = this.capacity > 1;
+    this.mesh.frustumCulled = false; this.mesh.visible = (def.count | 0) > 0;
     this.anchor = new THREE.Vector3();
     this.cellKey = '';
     this.points = new Float64Array(n * 3);
@@ -96,9 +96,26 @@ export class Rocks {
 
   get triangles() { return this.count * this.trianglesPerRock; }
 
+  // Another world: new numbers, same buffers.
+  setWorld(world, hs) {
+    this.world = world; this.hs = hs;
+    const def = world.surface.rocks || { count: 0, radius: 100, size: [0.3, 1], albedo: [0.15, 0.1, 0.07] };
+    this.def = def;
+    this.prob = Math.min(1, Math.min(this.capacity, def.count | 0) / (Math.PI * def.radius * def.radius / (this.cell * this.cell)) * 0.92);
+    const u = this.material.uniforms;
+    u.uFadeRadius.value = def.radius; u.uRockAlbedo.value.set(...def.albedo); u.uDustAlbedo.value.set(...world.surface.dust);
+    u.uRoughness.value = world.surface.roughness ?? 0.5;
+    this.mesh.visible = (def.count | 0) > 0;
+    this.cellKey = ''; this.count = 0; this.geometry.instanceCount = 0; this.needVis = false;
+  }
+
   // Re-scatter when the camera enters a new grid cell; keep sun visibility up to date.
   update(rig, sun, sunHalf, workers) {
-    if (this.capacity <= 1) return;
+    if (!this.mesh.visible) return;
+    if (rig.agl > this.def.radius * 3) {                 // far above the ground: no rocks in reach
+      if (this.count) { this.count = 0; this.geometry.instanceCount = 0; this.cellKey = ''; }
+      return;
+    }
     const R = this.world.radius, cell = this.cell, ll = rig.latLon;
     const dLat = cell / R * 180 / Math.PI;
     const band = Math.round(ll.lat / 2) * 2;                                    // longitude step fixed per 2-degree band
@@ -130,7 +147,8 @@ export class Rocks {
     this.anchor.copy(rig.pos);
     const cam = rig.pos, d = this._d, q = new THREE.Quaternion(), e = new THREE.Euler(), up = new THREE.Vector3(), zAxis = new THREE.Vector3(0, 0, 1), qUp = new THREE.Quaternion();
     let n = 0;
-    for (let a = -span; a <= span && n < this.capacity; a++) for (let b = -span; b <= span && n < this.capacity; b++) {
+    const maxN = Math.min(this.capacity, def.count | 0);
+    for (let a = -span; a <= span && n < maxN; a++) for (let b = -span; b <= span && n < maxN; b++) {
       const i = ci + a, j = cj + b;
       const h0 = hash3(i, j, 17, 911);
       if ((h0 & 0xffff) / 65536 >= this.prob) continue;

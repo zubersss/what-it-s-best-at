@@ -27,12 +27,12 @@ export function makeSkyDome() {
       ${ATMO_UNIFORMS}
       ${ATMO_COMMON}
       ${SKYVIEW_ACCESS}
-      uniform mat3 uSkyFrame; uniform vec3 uSunLocal; uniform vec3 uSunIrradiance; uniform float uExposure;
+      uniform mat3 uSkyFrame; uniform vec3 uSunLocal; uniform vec3 uSunIrradiance; uniform float uExposure; uniform float uSkyFade;
       in vec3 vDir; out vec4 outColor;
       void main() {
         vec3 d = uSkyFrame * normalize(vDir);
-        vec3 L = skyRadianceLocal(d, uSunLocal, uMieG) * uSunIrradiance;
-        outColor = vec4(min(L * uExposure, vec3(60000.0)), 1.0);
+        vec3 L = skyRadianceLocal(d, uSunLocal, uMieG) * uSunIrradiance * uSkyFade;
+        outColor = vec4(min(L * uExposure, vec3(60000.0)), 0.0);
       }`,
   });
   const mesh = new THREE.Mesh(fullscreenGeometry, mat);

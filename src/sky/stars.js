@@ -45,7 +45,7 @@ function makeMaterial(extraUniforms) {
       void main() {
         vec2 p = (gl_PointCoord - 0.5) * (ceil(uSigma * 6.0) + 1.0);
         float w = exp(-dot(p, p) / (2.0 * uSigma * uSigma));
-        fragColor = vec4(min(vRadiance * w, vec3(60000.0)), 1.0);
+        fragColor = vec4(min(vRadiance * w, vec3(60000.0)), 0.0);
       }`,
   });
 }

@@ -54,6 +54,7 @@ export default {
 
   atmosphere: {
     topAltitude: 90000,            // m
+    surfaceDensity: 0.020,         // kg/m^3 at datum (how hard the air pushes on cloth)
     occluderAltitude: 2500,        // m: mean local terrain used for the planet's shadow on the air
     // CO2 gas (Rayleigh). Coefficients per metre at datum.
     rayleigh: { scattering: [1.15e-7, 2.7e-7, 6.6e-7], scaleHeight: 11100 },
@@ -79,7 +80,8 @@ export default {
     // The lip of a bench on the north flank of Coprates' southern ridge, ~570 m above datum.
     start: { lat: -13.174286, lon: 296.567862, eye: 1.7, heading: 292, pitch: -7 },
     ship: { east: 66, north: -53, heading: 250 },     // metres from start
-    exposure: { key: 0.16, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.2 },
+    // highlight: how many times over white the brightest lit surface may be pushed
+    exposure: { key: 0.16, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.2, highlight: 6 },
     bookmarks: {
       ledge: { heading: 292, pitch: -7, fov: 60 },
       sun: { heading: 297, pitch: 3, fov: 22 },
