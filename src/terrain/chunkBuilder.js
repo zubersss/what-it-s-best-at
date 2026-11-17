@@ -43,8 +43,6 @@ export class ChunkBuilder {
     this.H = new Float64Array(M * M);
     this.P = new Float64Array(M * M * 3);
     this.D = new Float64Array(M * M * 3);
-    this.blurA = new Float64Array(M * M);
-    this.blurB = new Float64Array(M * M);
     this.hp = new Float64Array((this.G + 1) * (this.G + 1));
     this.dir = [0, 0, 0];
   }
@@ -114,25 +112,7 @@ export class ChunkBuilder {
       attrs[o * 2] = attrs[v * 2]; attrs[o * 2 + 1] = attrs[v * 2 + 1];
     }
 
-    // Cavity term: how far a texel sits below its neighbourhood (cheap baked occlusion).
-    const A = this.blurA, B = this.blurB, rad = 6;
-    for (let j = 0; j < M; j++) {
-      let acc = 0, n = 0;
-      for (let i = -rad; i < M; i++) {
-        const add = i + rad; if (add < M) { acc += H[j * M + add]; n++; }
-        const rem = i - rad - 1; if (rem >= 0) { acc -= H[j * M + rem]; n--; }
-        if (i >= 0) A[j * M + i] = acc / n;
-      }
-    }
-    for (let i = 0; i < M; i++) {
-      let acc = 0, n = 0;
-      for (let j = -rad; j < M; j++) {
-        const add = j + rad; if (add < M) { acc += A[add * M + i]; n++; }
-        const rem = j - rad - 1; if (rem >= 0) { acc -= A[rem * M + i]; n--; }
-        if (j >= 0) B[j * M + i] = acc / n;
-      }
-    }
-    const texel = edge / NR, cavScale = 1 / (texel * rad * 0.9);
+    const texel = edge / NR;
 
     // World-space normal map (RGBA16F): xyz normal, a = cavity occlusion.
     const T = NR + 1;
@@ -145,8 +125,10 @@ export class ChunkBuilder {
       let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
       const nl = 1 / Math.sqrt(nx * nx + ny * ny + nz * nz);
       nx *= nl; ny *= nl; nz *= nl;
-      const cav = (B[s] - H[s]) * cavScale;
-      const ao = 1 / (1 + Math.max(0, cav) * 2.2);
+      // Cavity term from the immediate neighbours only (so it never changes across chunk edges):
+      // texels sitting in a crease receive less sky light.
+      const cav = ((H[s - 1] + H[s + 1] + H[s - M] + H[s + M]) * 0.25 - H[s]) / texel;
+      const ao = 1 / (1 + Math.max(0, cav) * 5.0);
       const t = (j * T + i) * 4;
       normals[t] = toHalf(nx); normals[t + 1] = toHalf(ny); normals[t + 2] = toHalf(nz); normals[t + 3] = toHalf(ao);
     }

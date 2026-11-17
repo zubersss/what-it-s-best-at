@@ -12,8 +12,8 @@ before sunset. Update this file in every commit that changes behaviour.
 | 2 | Quadtree terrain, height source, materials | done |
 | 3 | Atmosphere and fog | done (tuning continues) |
 | 4 | Sun, sky bodies, stars, exposure behaviour | done |
-| 5 | Shadows (baked terrain + near shadow map) | in progress — code written, baked terrain shadows checked in a screenshot, near shadow map not yet looked at |
-| 6 | Rocks and ship | in progress — code written and runs without errors, not yet looked at in a screenshot |
+| 5 | Shadows (baked terrain + near shadow map) | done |
+| 6 | Rocks and ship | done |
 | 7 | Performance pass | todo |
 | 8 | Moon swap (`?world=moon`, data only) | todo |
 

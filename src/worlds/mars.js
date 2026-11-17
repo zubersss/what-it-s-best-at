@@ -46,8 +46,8 @@ export default {
     strata: { seed: 7, period: 1900, contrast: 0.55, fine: 0.30, finePeriod: 140, colors: [[1.25, 1.02, 0.86], [0.72, 0.70, 0.74], [1.05, 0.90, 0.72], [0.55, 0.52, 0.55], [1.15, 0.98, 0.80]] },
     slopes: { dustMax: 0.30, screeMin: 0.42, screeMax: 0.74, rockMin: 0.80 },   // tan(slope)
     sandBelow: -3600, sandFade: 900,   // dark sand appears below this altitude (m)
-    ripples: { wavelength: 0.9, strength: 0.16 },
-    detailStrength: 0.5,
+    ripples: { wavelength: 0.9, strength: 0.10 },
+    detailStrength: 0.38,
     rocks: { count: 480, radius: 120, size: [0.3, 2.4], albedo: [0.150, 0.090, 0.058] },
   },
 
@@ -75,14 +75,15 @@ export default {
 
   scene: {
     dateUTC: '2014-01-31T09:29:00Z',   // ~20 min before local sunset at the start site
-    start: { lat: -13.19128, lon: 296.57326, eye: 1.7, heading: 295, pitch: -4 },
-    ship: { east: 30, north: 74, heading: 200 },      // metres from start
+    // The lip of a bench on the north flank of Coprates' southern ridge, ~570 m above datum.
+    start: { lat: -13.174286, lon: 296.567862, eye: 1.7, heading: 292, pitch: -7 },
+    ship: { east: 66, north: -53, heading: 250 },     // metres from start
     exposure: { key: 0.16, min: 0.5, max: 6.0e5, speed: 1.6 },
     bookmarks: {
-      ledge: { heading: 295, pitch: -4, fov: 60 },
+      ledge: { heading: 292, pitch: -7, fov: 60 },
       sun: { heading: 297, pitch: 3, fov: 22 },
-      wall: { heading: 10, pitch: 3, fov: 50 },
-      ship: { heading: 22, pitch: 1, fov: 38 },
+      wall: { heading: 338, pitch: -3, fov: 34 },
+      ship: { heading: 130, pitch: 5, fov: 40 },
       dusk: { heading: 298, pitch: 9, fov: 60, timeOffsetHours: 1.7 },
     },
   },
