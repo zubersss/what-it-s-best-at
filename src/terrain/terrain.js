@@ -74,7 +74,7 @@ export class Terrain {
     list.sort((a, b) => a.dist - b.dist);
     // Budget feedback with a wide dead zone: changing the LOD scale re-tiles everything,
     // so it must not hunt around the cap.
-    if (list.length > CONFIG.MAX_RENDER_CHUNKS) this.lodScale *= 0.97;
+    if (list.length > CONFIG.MAX_RENDER_CHUNKS || this.stalled) this.lodScale *= 0.97;
     else if (list.length < CONFIG.MAX_RENDER_CHUNKS * 0.6 && this.lodScale < 1) this.lodScale = Math.min(1, this.lodScale * 1.01);
     if (list.length > CONFIG.MAX_RENDER_CHUNKS) list.length = CONFIG.MAX_RENDER_CHUNKS;
 
@@ -124,6 +124,7 @@ export class Terrain {
       node.lastSplit = this.frame;
       let ready = true;
       for (const c of node.children) {
+        c.lastVisit = this.frame;        // keeps loaded children alive while their siblings are still building
         if (c.slot >= 0) continue;
         ready = false;
         if (!c.loading) { c.prio = (this._visibility(c) > 0 ? 0 : 1000) + d / node.edge + c.level * 0.01; this.wanted.push(c); }
@@ -153,7 +154,7 @@ export class Terrain {
   _reserveSlot() {
     const pool = this.pool;
     if (pool.free.length) return pool.free.pop();
-    let best = -1, bestVisit = this.frame - 1;
+    let best = -1, bestVisit = this.frame - 20;      // never evict anything used in the last few frames
     for (let i = 0; i < pool.slots.length; i++) {
       const n = pool.slots[i].node;
       if (!n || n.level === 0 || n.lastVisit >= bestVisit) continue;

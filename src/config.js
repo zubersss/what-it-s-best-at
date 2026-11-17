@@ -14,7 +14,7 @@ export const CONFIG = {
 
   // Atmosphere LUT sizes
   TRANSMITTANCE: [256, 64],
-  MULTISCATTER: [32, 32],
+  MULTISCATTER: [64, 32],
   SKYVIEW: [160, 100],
   FROXEL: [32, 32, 32],     // w, h, slices (atlas is 8 x 4 tiles)
   FROXEL_ATLAS: [8, 4],

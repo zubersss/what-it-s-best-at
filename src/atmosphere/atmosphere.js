@@ -17,7 +17,7 @@ function fl(n) { return Number.isInteger(n) ? n.toFixed(1) : String(n); }
 export function atmosphereDefines() {
   const [sw, sh] = CONFIG.SKYVIEW, [mw, mh] = CONFIG.MULTISCATTER, [fw, fh, fd] = CONFIG.FROXEL, [ax, ay] = CONFIG.FROXEL_ATLAS;
   return {
-    SKY_W: fl(sw), SKY_H: fl(sh), MS_W: fl(mw), MS_H: fl(mh),
+    SKY_W: fl(sw), SKY_H: fl(sh), MS_W: fl(mw), MS_H: fl(mh), MS_SCALE: '10000.0',
     FROX_W: fl(fw), FROX_H: fl(fh), FROX_D: fd, ATLAS_X: ax, ATLAS_Y: ay, FROX_POW: fl(FROXEL_POW), IRR: CONFIG.IRRADIANCE,
   };
 }
@@ -56,12 +56,12 @@ export class Atmosphere {
     this.gpuBytes = 8 * (tw * th + mw * mh + 2 * sw * sh + 3 * fw * ax * fh * ay + I * (I + 1));
 
     const lut = { tTransmittance: { value: this.transmittance.texture }, tMultiScat: { value: this.multiScat.texture } };
-    const sky = { tSkySmooth: { value: this.skyView.textures[0] }, tSkyMie: { value: this.skyView.textures[1] }, uSkyParams: { value: new THREE.Vector4(Math.PI / 2, 0.01, 0, 0) } };
-    this.cam = { uCamR: { value: R }, uSunMu: { value: 0 } };
+    const sky = { tSkySmooth: { value: this.skyView.textures[0] }, tSkyMie: { value: this.skyView.textures[1] }, uSkyParams: { value: new THREE.Vector4(Math.PI / 2, 0.01, 1, 0) } };
+    this.cam = { uCamR: { value: R }, uSunMu: { value: 0 }, uLutScale: { value: 1 } };
     this.transMat = makePassMaterial(TRANSMITTANCE_FRAG, { ...u }, { defines });
     this.msMat = makePassMaterial(MULTISCAT_FRAG, { ...u, tTransmittance: lut.tTransmittance }, { defines });
     this.skyMat = makePassMaterial(SKYVIEW_FRAG, { ...u, ...lut, ...this.cam }, { defines });
-    this.froxelU = { uCamPosKm: { value: new THREE.Vector3() }, uSunDirW: G.uSunDir, uCamRight: G.uCamRight, uCamUp: G.uCamUp, uCamFwd: G.uCamFwd, uTanHalfFov: G.uTanHalfFov, uFroxelMax: { value: 400 } };
+    this.froxelU = { uCamPosKm: { value: new THREE.Vector3() }, uSunDirW: G.uSunDir, uCamRight: G.uCamRight, uCamUp: G.uCamUp, uCamFwd: G.uCamFwd, uTanHalfFov: G.uTanHalfFov, uFroxelMax: { value: 400 }, uLutScale: { value: 1 } };
     this.froxelMat = makePassMaterial(FROXEL_FRAG, { ...u, ...lut, ...this.froxelU }, { defines });
     this.irrMat = makePassMaterial(IRRADIANCE_FRAG, { ...u, tTransmittance: lut.tTransmittance, ...sky, ...this.cam }, { defines });
 
@@ -71,6 +71,7 @@ export class Atmosphere {
       tIrradiance: { value: this.irradiance.texture },
       tFroxelA: { value: this.froxels.textures[0] }, tFroxelB: { value: this.froxels.textures[1] }, tFroxelC: { value: this.froxels.textures[2] },
       uFroxelMax: this.froxelU.uFroxelMax,
+      uLutScaleInv: { value: new THREE.Vector2(1, 1) },
       uSkyFrame: { value: new THREE.Matrix3() },
       uSunLocal: { value: new THREE.Vector3(0, 0, 1) },
     });
@@ -80,7 +81,8 @@ export class Atmosphere {
   }
 
   // camPos: planet-centred metres (doubles). sunDir: unit, planet-fixed. farDistance: metres.
-  update(camPos, sunDir, farDistance) {
+  update(camPos, sunDir, farDistance, exposure) {
+    const scale = Math.min(1e7, Math.max(1e-2, exposure));
     const r = this.renderer;
     if (!this.staticDone) {
       renderPass(r, this.transMat, this.transmittance);
@@ -99,12 +101,14 @@ export class Atmosphere {
     G.uSkyFrame.value.set(sh.x, sh.y, sh.z, third.x, third.y, third.z, up.x, up.y, up.z);
     G.uSunLocal.value.set(Math.sqrt(Math.max(0, 1 - mu * mu)), 0, mu);
 
-    if (Math.abs(mu - this.lastMu) > 1.5e-4 || Math.abs(camR - this.lastR) > 0.004) {
-      this.lastMu = mu; this.lastR = camR;
+    const drift = Math.abs(Math.log2(scale / (this.skyScale || 1e-9)));
+    if (Math.abs(mu - this.lastMu) > 1.5e-4 || Math.abs(camR - this.lastR) > 0.004 || drift > 5) {
+      this.lastMu = mu; this.lastR = camR; this.skyScale = scale;
+      this.cam.uLutScale.value = scale; G.uLutScaleInv.value.x = 1 / scale;
       this.cam.uCamR.value = camR; this.cam.uSunMu.value = mu;
       const rG = this.rBottom;
       const beta = Math.acos(Math.min(1, Math.sqrt(Math.max(0, camR * camR - rG * rG)) / camR));
-      G.uSkyParams.value.set(Math.PI - beta, Math.max(beta, 1e-4), 0, 0);
+      G.uSkyParams.value.set(Math.PI - beta, Math.max(beta, 1e-4), 1 / scale, 0);
       renderPass(r, this.skyMat, this.skyView);
       renderPass(r, this.irrMat, this.irradiance);
     }
@@ -113,6 +117,7 @@ export class Atmosphere {
     if (!this.empty || !this.froxelDone) {
       this.froxelU.uCamPosKm.value.copy(camPos).multiplyScalar(KM);
       this.froxelU.uFroxelMax.value = Math.min(1500, Math.max(20, farDistance * KM));
+      this.froxelU.uLutScale.value = scale; G.uLutScaleInv.value.y = 1 / scale;
       renderPass(r, this.froxelMat, this.froxels);
       this.froxelDone = true;
     }

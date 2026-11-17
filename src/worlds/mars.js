@@ -81,7 +81,7 @@ export default {
       sun: { heading: 297, pitch: 3, fov: 22 },
       wall: { heading: 10, pitch: 3, fov: 50 },
       ship: { heading: 22, pitch: 1, fov: 38 },
-      dusk: { heading: 300, pitch: 14, fov: 60, timeOffsetHours: 0.95 },
+      dusk: { heading: 298, pitch: 9, fov: 60, timeOffsetHours: 1.7 },
     },
   },
 };

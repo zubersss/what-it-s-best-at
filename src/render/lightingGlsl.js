@@ -22,6 +22,7 @@ uniform sampler2D tFroxelA;         // aerial perspective: smooth in-scatter
 uniform sampler2D tFroxelB;         //                      un-phased dust in-scatter
 uniform sampler2D tFroxelC;         //                      transmittance
 uniform float uFroxelMax;           // km
+uniform vec2 uLutScaleInv;          // x: 1 / scale of the irradiance LUT, y: 1 / scale of the froxels
 uniform mat3 uSkyFrame;             // planet-fixed -> local sky frame
 
 // Irradiance of the Sun reaching a point (planet-centred metres), unshadowed:
@@ -30,7 +31,7 @@ vec3 directSun(vec3 planetPos) {
   vec3 pk = planetPos * 0.001;
   float r = length(pk);
   vec3 T = texture(tTransmittance, transmittanceUv(r, dot(pk, uSunDir) / r)).rgb;
-  vec3 circ = texelFetch(tIrradiance, ivec2(0, IRR), 0).rgb;
+  vec3 circ = texelFetch(tIrradiance, ivec2(0, IRR), 0).rgb * uLutScaleInv.x;
   return uSunIrradiance * (T + circ);
 }
 
@@ -44,7 +45,7 @@ vec2 octEncode(vec3 n) {
 vec3 skyLight(vec3 N, vec3 up) {
   vec2 e = octEncode(uSkyFrame * N);
   vec2 uv = (e * (float(IRR) - 1.0) + 0.5) / vec2(float(IRR), float(IRR) + 1.0);
-  return texture(tIrradiance, uv).rgb * uSunIrradiance;
+  return texture(tIrradiance, uv).rgb * (uLutScaleInv.x * uSunIrradiance);
 }
 
 // Attenuates a surface colour and adds in-scattered light along the view ray.
@@ -62,7 +63,7 @@ vec3 aerialPerspective(vec3 color, vec3 rel) {
   vec3 Lm = mix(texture(tFroxelB, t0).rgb, texture(tFroxelB, t1).rgb, f) * near;
   vec3 T = mix(vec3(1.0), mix(texture(tFroxelC, t0).rgb, texture(tFroxelC, t1).rgb, f), near);
   float cosT = dot(rel / dist, uSunDir);
-  return color * T + (Ls + Lm * phaseHG3(cosT, uMieG)) * uSunIrradiance;
+  return color * T + (Ls + Lm * phaseHG3(cosT, uMieG)) * (uLutScaleInv.y * uSunIrradiance);
 }
 
 // Oren-Nayar diffuse (Fujii's qualitative fit) times N.L, divided by PI.

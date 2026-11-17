@@ -85,10 +85,11 @@ vec3 transmittanceLut(float r, float mu) {
   return texture(tTransmittance, uv).rgb;
 }
 
+// u is denser around muS = 0 (the terminator), where the value changes by orders of magnitude.
 vec3 multiScatLut(float r, float muS) {
-  vec2 uv = vec2(muS * 0.5 + 0.5, clamp((r - uRBottom) / (uRTop - uRBottom), 0.0, 1.0));
+  vec2 uv = vec2(0.5 + 0.5 * sign(muS) * sqrt(abs(muS)), clamp((r - uRBottom) / (uRTop - uRBottom), 0.0, 1.0));
   uv = (uv * (vec2(MS_W, MS_H) - 1.0) + 0.5) / vec2(MS_W, MS_H);
-  return texture(tMultiScat, uv).rgb;
+  return texture(tMultiScat, uv).rgb * (1.0 / MS_SCALE);
 }
 
 // In-scattered light and transmittance along a ray, from ro for tMax km.
@@ -147,7 +148,8 @@ out vec4 outColor;
 vec3 transmittanceLut(float r, float mu) { return texture(tTransmittance, transmittanceUv(r, mu)).rgb; }
 void main() {
   vec2 uv = (vUv * vec2(MS_W, MS_H) - 0.5) / (vec2(MS_W, MS_H) - 1.0);
-  float muS = clamp(uv.x * 2.0 - 1.0, -1.0, 1.0);
+  float xs = clamp(uv.x * 2.0 - 1.0, -1.0, 1.0);
+  float muS = sign(xs) * xs * xs;
   float r = uRBottom + clamp(uv.y, 0.0, 1.0) * (uRTop - uRBottom);
   r = clamp(r, uRBottom + 0.01, uRTop - 0.01);
   vec3 ro = vec3(0.0, 0.0, r);
@@ -186,7 +188,7 @@ void main() {
     L2 += L; fms += f;
   }
   L2 /= float(SQ * SQ); fms /= float(SQ * SQ);
-  outColor = vec4(L2 / (1.0 - min(fms, vec3(0.97))), 1.0);
+  outColor = vec4(L2 / (1.0 - min(fms, vec3(0.97))) * MS_SCALE, 1.0);
 }`;
 
 // Sky-view LUT: u = azimuth from the Sun (0..180 deg, denser near the Sun),
@@ -197,6 +199,7 @@ ${ATMO_COMMON}
 ${ATMO_LUT_ACCESS}
 uniform float uCamR;       // camera radius (km)
 uniform float uSunMu;      // cosine of the Sun's zenith angle at the camera
+uniform float uLutScale;   // outputs are pre-multiplied so half floats keep precision at night
 in vec2 vUv;
 layout(location = 0) out vec4 outSmooth;
 layout(location = 1) out vec4 outMie;
@@ -218,15 +221,15 @@ void main() {
   float tMax = tG > 0.0 ? tG : tTop;
   vec3 Ls, Lm, T;
   integrateScattering(ro, rd, sunDir, tMax, 36, Ls, Lm, T);
-  outSmooth = vec4(Ls, 1.0);
-  outMie = vec4(Lm, 1.0);
+  outSmooth = vec4(Ls * uLutScale, 1.0);
+  outMie = vec4(Lm * uLutScale, 1.0);
 }`;
 
 // Shared by everything that reads the sky-view LUT.
 export const SKYVIEW_ACCESS = /* glsl */`
 uniform sampler2D tSkySmooth;
 uniform sampler2D tSkyMie;
-uniform vec4 uSkyParams;     // x zenith-horizon angle, y beta, zw unused
+uniform vec4 uSkyParams;     // x zenith-horizon angle, y beta, z = 1 / scale the LUT was rendered with
 vec2 skyViewUv(float cosTheta, float cosPhi) {
   float theta = acos(clamp(cosTheta, -1.0, 1.0));
   float v;
@@ -241,7 +244,7 @@ vec3 skyRadianceLocal(vec3 d, vec3 sunLocal, vec3 mieG) {
   float lh = length(d.xy);
   float cosPhi = lh > 1e-5 ? d.x / lh : 1.0;
   vec2 uv = skyViewUv(d.z, cosPhi);
-  return texture(tSkySmooth, uv).rgb + texture(tSkyMie, uv).rgb * phaseHG3(dot(d, sunLocal), mieG);
+  return (texture(tSkySmooth, uv).rgb + texture(tSkyMie, uv).rgb * phaseHG3(dot(d, sunLocal), mieG)) * uSkyParams.z;
 }
 `;
 
@@ -255,6 +258,7 @@ uniform vec3 uSunDirW;
 uniform vec3 uCamRight, uCamUp, uCamFwd;
 uniform vec2 uTanHalfFov;
 uniform float uFroxelMax;    // km
+uniform float uLutScale;
 layout(location = 0) out vec4 outSmooth;
 layout(location = 1) out vec4 outMie;
 layout(location = 2) out vec4 outTrans;
@@ -273,8 +277,8 @@ void main() {
   if (tTop > 0.0) tMax = min(tMax, tTop);
   vec3 Ls, Lm, T;
   integrateScattering(ro, rd, uSunDirW, tMax, 6 + int(slice) / 2, Ls, Lm, T);
-  outSmooth = vec4(Ls, 1.0);
-  outMie = vec4(Lm, 1.0);
+  outSmooth = vec4(Ls * uLutScale, 1.0);
+  outMie = vec4(Lm * uLutScale, 1.0);
   outTrans = vec4(T, 1.0);
 }`;
 
@@ -287,6 +291,7 @@ uniform sampler2D tTransmittance;
 ${SKYVIEW_ACCESS}
 uniform float uCamR;
 uniform float uSunMu;
+uniform float uLutScale;
 out vec4 outColor;
 vec3 transmittanceLut(float r, float mu) { return texture(tTransmittance, transmittanceUv(r, mu)).rgb; }
 vec3 octDecode(vec2 e) {
@@ -315,7 +320,7 @@ void main() {
       if (d.z < 0.0) continue;
       E += skyRadianceLocal(d, sunLocal, uMieG) * circumsolar(c);
     }
-    outColor = vec4(E * (2.0 * PI * (1.0 - cosMax) / float(N)), 1.0);
+    outColor = vec4(E * (2.0 * PI * (1.0 - cosMax) / float(N)) * uLutScale, 1.0);
     return;
   }
   vec2 uv = (gl_FragCoord.xy - 0.5) / (float(IRR) - 1.0);
@@ -335,5 +340,5 @@ void main() {
     vec3 L = d.z > 0.0 ? skyRadianceLocal(d, sunLocal, uMieG) * (1.0 - circumsolar(dot(d, sunLocal))) : Lground;
     E += L * w;
   }
-  outColor = vec4(E * (4.0 * PI / float(N)), 1.0);
+  outColor = vec4(E * (4.0 * PI / float(N)) * uLutScale, 1.0);
 }`;

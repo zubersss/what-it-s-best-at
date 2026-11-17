@@ -13,6 +13,8 @@ import { CameraRig } from './controls/cameraRig.js';
 import { Atmosphere } from './atmosphere/atmosphere.js';
 import { makeSkyDome } from './sky/skyDome.js';
 import { SunDisc } from './sky/sun.js';
+import { makeStars } from './sky/stars.js';
+import { SkyBodies } from './sky/bodies.js';
 import { createHeightSource, loadRasters } from './terrain/height/heightSource.js';
 import { Terrain } from './terrain/terrain.js';
 
@@ -61,6 +63,14 @@ export class App {
     this.skyDome = makeSkyDome();
     this.skyDome.visible = !this.atmosphere.empty;
     this.farScene.add(this.sun.mesh, this.skyDome);
+    this.bodies = new SkyBodies(world, SOLAR_SYSTEM);
+    this.farScene.add(this.bodies.group);
+    if (world.sky.stars) {
+      const res = await fetch(import.meta.env.BASE_URL + world.sky.stars.url);
+      if (!res.ok) throw new Error('Failed to load star catalogue');
+      this.stars = makeStars(new Float32Array(await res.arrayBuffer()));
+      this.farScene.add(this.stars.points);
+    }
     this.terrain = new Terrain(world, rasters, this.hs, renderer);
     this.nearScene.add(this.terrain.group);
     await this.terrain.workers.ready;
@@ -143,8 +153,10 @@ export class App {
     const th = Math.tan(rig.fov * Math.PI / 360);
     G.uCamRight.value.copy(rig.right); G.uCamUp.value.copy(rig.up); G.uCamFwd.value.copy(rig.forward);
     G.uTanHalfFov.value.set(th * aspect, th);
-    this.atmosphere.update(rig.pos, G.uSunDir.value, this.terrain.farDistance);
+    this.atmosphere.update(rig.pos, G.uSunDir.value, this.terrain.farDistance, post.exposure);
     this.sun.update(G.uSunDir.value, eph.sunDistance, rig, post.viewH);
+    this.bodies.update(eph, rig, post.viewH);
+    this.stars?.setFrame(eph.icrfToFixed, rig, post.viewH);
 
     // 6. Scene into the HDR target
 
