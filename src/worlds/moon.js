@@ -23,7 +23,7 @@ export default {
       { op: 'craters', seed: 7, radius: [50, 3500], density: 1.0, layers: 4, depth: 0.19, rim: 0.045 },
       { op: 'craters', seed: 9, radius: [3, 50], density: 1.0, layers: 3, depth: 0.17, rim: 0.04 },
       // Regolith: gentle hummocks, rougher on crater walls.
-      { op: 'fbm', seed: 13, maxWavelength: 260, minWavelength: 0.8, roughness: 0.92, amp: 4.5, slopeGain: [0.12, 0.5, 0.55, 1.5], hetero: 0.4 },
+      { op: 'fbm', seed: 13, maxWavelength: 260, minWavelength: 0.8, roughness: 0.92, amp: 2.0, slopeGain: [0.12, 0.5, 0.5, 1.7], hetero: 0.4 },
     ],
   },
 
@@ -51,9 +51,10 @@ export default {
 
   scene: {
     dateUTC: '2026-01-15T01:00:00Z',   // lunar evening at the site: Sun 7 deg up in the west, gibbous Earth 36 deg up in the east
-    // Crest of the east rim of a ~3 km crater, looking west across it toward the low Sun.
-    start: { lat: 7.978229, lon: -54.94739, eye: 1.7, heading: 270, pitch: -6 },
-    ship: { east: 70, north: 10, heading: 200 },
+    // Just inside the east rim of a ~3 km crater, on the slope that faces the low Sun,
+    // looking west across the crater. The rim crest is 25 m behind (east of) the camera.
+    start: { lat: 7.978229, lon: -54.94822, eye: 1.7, heading: 270, pitch: -6 },
+    ship: { east: 95, north: 10, heading: 200 },
     // shadowFloor: texels darker than this fraction of the frame mean (black sky, hard shadow)
     // barely raise the exposure, so sunlit ground is exposed like a lunar surface photograph.
     exposure: { key: 0.06, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.6, highlight: 6 },
@@ -62,8 +63,8 @@ export default {
       sun: { heading: 269, pitch: 4, fov: 22 },
       wall: { heading: 322, pitch: -9, fov: 42 },
       // two days earlier: the Sun is ~30 deg up, so the rim's shadow no longer covers the lander
-      ship: { heading: 82, pitch: 10, fov: 62, timeOffsetHours: -48 },
-      dusk: { heading: 86, pitch: 13, fov: 60, timeOffsetHours: 20 },
+      ship: { east: 25, heading: 82, pitch: 10, fov: 62, timeOffsetHours: -48 },    // from the crest
+      dusk: { east: 25, heading: 86, pitch: 13, fov: 60, timeOffsetHours: 20 },
     },
   },
 };

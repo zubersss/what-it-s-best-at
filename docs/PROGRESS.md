@@ -61,9 +61,12 @@ happened in flight.
   stars/Earth only clear the glow once the Sun is ~17° down.
 - **Chunk grid 40×40, normal map 120², shadow map 60², 120-chunk draw cap**: the draw-call
   budget, not the triangle budget, limits terrain detail, so chunks were made denser.
-- **Moon**: fully procedural (no LOLA raster), site on the crest of a crater rim at
-  7.98°N, 54.95°W on 2026-01-15 (lunar evening, gibbous Earth 36° up). Its `ship`
-  bookmark is two days earlier so the rim's shadow does not cover the lander.
+- **Moon**: fully procedural (no LOLA raster), site just inside the east rim of a ~3 km
+  crater at 7.98°N, 54.95°W on 2026-01-15 (lunar evening, gibbous Earth 36° up). The
+  `ship` and `dusk` bookmarks stand 25 m east on the rim crest; `ship` is also two days
+  earlier so the rim's shadow does not cover the lander. Lunar regolith roughness was
+  halved after the first shots: at a 7° Sun the flat crest dissolved into noisy
+  micro-shadow speckle.
 - **Exposure metering floor** (`scene.exposure.shadowFloor`) is a per-world number: 0.2
   on Mars, 0.6 on the Moon, where a black sky would otherwise overexpose the ground.
 - **Flying character (owner request, outside the original brief).** Interactive sessions
