@@ -61,8 +61,9 @@ void main() {
   vec3 V = -vRel / dist;
 
   vec4 d0 = texture(tDetail, vDetailUv);
-  vec4 d1 = texture(tDetail, vDetailUv * 9.0);
-  vec4 d2 = texture(tDetail, vDetailUv * 83.0);
+  vec4 d1 = vec4(0.5), d2 = vec4(0.5);
+  bool fine = uQuality.x > 0.5;                 // governor step: close-up ground detail
+  if (fine) { d1 = texture(tDetail, vDetailUv * 9.0); d2 = texture(tDetail, vDetailUv * 83.0); }
 
   // --- materials by slope
   float cosS = clamp(dot(N, up), 0.0, 1.0);
@@ -89,7 +90,7 @@ void main() {
   dn *= uDetailStrength * (0.55 + 0.9 * rockW + 0.5 * screeW);
   vec2 wind = vec2(0.82, 0.57);
   float phase = dot(vDetailUv * uRipple.z, wind) * uRipple.x + (d1.b - 0.5) * 9.0 + (d0.b - 0.5) * 30.0;
-  float ripFade = (1.0 - smoothstep(0.5, 1.6, fwidth(phase))) * flatW * (1.0 - sandW * 0.5);
+  float ripFade = fine ? (1.0 - smoothstep(0.5, 1.6, fwidth(phase))) * flatW * (1.0 - sandW * 0.5) : 0.0;
   dn += wind * cos(phase) * uRipple.y * ripFade;
   N = normalize(N + uTanU * dn.x + uTanV * dn.y);
 

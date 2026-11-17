@@ -78,15 +78,18 @@ export class Cloak {
   // accel: wearer's acceleration (m/s^2, clamped by the caller). wind: air velocity
   // relative to the wearer (m/s). air: 0 (vacuum) .. 1 (dense air) — how hard it pushes.
   update(dt, rot, gravity, accel, wind, air) {
-    this.accum = Math.min(this.accum + dt, STEP * 4);
-    while (this.accum >= STEP) { this._step(rot, gravity, accel, wind, air); this.accum -= STEP; }
+    // halfRate (governor step): every other simulation step is skipped; the cloth moves
+    // a little more stiffly but costs half.
+    const step = this.halfRate ? STEP * 2 : STEP;
+    this.accum = Math.min(this.accum + dt, step * 4);
+    while (this.accum >= step) { this._step(rot, gravity, accel, wind, air, step); this.accum -= step; }
     this.positionAttr.array.set(this.pos); this.positionAttr.needsUpdate = true;
     this.geometry.computeVertexNormals();
   }
 
-  _step(rot, gravity, accel, wind, air) {
-    const { pos, prev } = this, e = rot.elements, n = NX * NY, h2 = STEP * STEP;
-    this.time += STEP;
+  _step(rot, gravity, accel, wind, air, h) {
+    const { pos, prev } = this, e = rot.elements, n = NX * NY, h2 = h * h;
+    this.time += h;
     const t = this.time;
     const wlen = Math.hypot(wind.x, wind.y, wind.z);
     const drag = 0.9 + 5.5 * air;                       // 1/s: how quickly cloth follows the air
@@ -94,7 +97,7 @@ export class Cloak {
     // forces
     for (let i = NX; i < n; i++) {
       const o = i * 3, ix = i % NX, iy = (i / NX) | 0;
-      const vx = (pos[o] - prev[o]) / STEP, vy = (pos[o + 1] - prev[o + 1]) / STEP, vz = (pos[o + 2] - prev[o + 2]) / STEP;
+      const vx = (pos[o] - prev[o]) / h, vy = (pos[o + 1] - prev[o + 1]) / h, vz = (pos[o + 2] - prev[o + 2]) / h;
       // travelling ripples: stronger with speed and with real air
       const ph = t * (5 + wlen * 0.5) - iy * 0.9 + ix * 0.6;
       const gust = (0.45 + 2.0 * air) * Math.min(1, wlen / 12 + 0.10) * (iy / NY);

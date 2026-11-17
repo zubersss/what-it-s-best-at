@@ -27,8 +27,15 @@ new session can change it without re-deriving everything.
 
 ## Frame order (`src/app.js`)
 
+The animation-frame callback first asks the governor whether to draw at all
+(`governor.shouldRender`): with a 60 fps target on a 120 Hz screen every second refresh is
+skipped, so frames are evenly spaced.
+
+0. Classify the frame that just ended (`frameCause`: jump, world switch, new terrain…);
+   if a benchmark is running it records the frame and presses the virtual keys.
 1. Time → `ephemeris` → Sun direction (planet-fixed), sky-body positions, star rotation.
-2. Controls (keyboard/mouse or touch) → camera world position, orientation, FOV.
+2. Controls (keyboard/mouse, touch, or nothing while a full-screen panel is open) →
+   camera world position, orientation, FOV.
 3. `terrain.update` → quadtree selection, worker requests, shadow re-bakes, chunk meshes
    re-based to the camera. Then `rocks.update`, `lander.update`.
 4. `atmosphere.update` → LUTs (transmittance + multi-scatter once per world; sky-view and
@@ -40,18 +47,21 @@ new session can change it without re-deriving everything.
    **near pass** (terrain front-to-back, rocks, ship) → depth invalidated.
 7. `post.render` → bloom downsample chain, luminance metering (async 1×1 read-back, CPU
    adaptation), bloom upsample, AgX tone map, blue-noise dither → canvas.
-8. HUD + dynamic resolution controller.
+8. `governor.update` (may change the render scale or a feature for the next frame), HUD.
 
 ## Modules
 
 | Path | Responsibility |
 | --- | --- |
 | `src/main.js` | Checks WebGL 2 + float targets, loads the world definition, starts `App`. |
-| `src/app.js` | Owns renderer, scenes, frame loop, bookmarks, pixel-count cap; wires modules. |
+| `src/app.js` | Owns renderer, scenes, frame loop, bookmarks, canvas size, start screen and benchmark flow; wires modules. |
 | `src/config.js` | Engine constants: grid sizes, pool sizes, budgets, LUT sizes. |
 | `src/worlds/*.js` | World definitions (numbers + recipe names only). `solarSystem.js` is the shared body catalogue (orbits, rotation, radii, albedos, disc looks). `index.js` is the registry. |
 | `src/core/ephemeris.js` | Kepler orbits, IAU rotation models, local-frame helpers. Pure JS. |
-| `src/core/params.js` | URL parameters. |
+| `src/core/params.js` / `build.js` | URL parameters; the commit the page was built from (injected by Vite). |
+| `src/perf/governor.js` | The governor: render resolution, feature step-down order, frame pacing, Smooth/Sharp. |
+| `src/perf/benchmark.js` | The scripted 3-minute run and 10-minute soak, and the results text. |
+| `src/ui/` | `screens.js` (start screen, results screen, benchmark banner, toast), `device.js` (fullscreen, landscape lock, wake lock). |
 | `src/terrain/height/` | **HeightSource**: `noise.js`, `dem.js` (raster sampling), `layers.js` (recipe ops: dem, fbm, ridged, terrace, craters), `heightSource.js`. Pure JS: runs in workers, on the main thread and in Node. |
 | `src/terrain/cubeSphere.js` | Cube-face ↔ direction mapping. |
 | `src/terrain/chunkBuilder.js` | Builds one chunk: band-limited vertices, skirts, morph deltas, normal map, shadow bake. |
@@ -69,9 +79,9 @@ new session can change it without re-deriving everything.
 | `src/ship/lander.js` | Procedural lander geometry, placement, material. |
 | `src/hero/hero.js` / `cloak.js` | The flying character (procedural suited figure, rigid posed limbs) and its cloth-simulated cloak. |
 | `src/controls/` | `input.js` (keys, mouse, virtual keys), `touch.js` (phone controls), `cameraRig.js` (walk, fly, zoom). |
-| `src/post/` | `post.js` (HDR target, metering, bloom, tone map, dither), `dynamicResolution.js`. |
-| `src/debug/hud.js` | Debug HUD and time-of-day slider. |
-| `scripts/` | `shots.mjs` (headless screenshots), `probe-terrain.mjs` (shaded relief in Node), `find-ledge.mjs`, `fetch-assets.mjs`, `gen-bluenoise.mjs`. |
+| `src/post/post.js` | HDR target, metering, bloom, tone map, dither. |
+| `src/debug/hud.js` | HUD (compact line / full read-out / off) and time-of-day slider. |
+| `scripts/` | `shots.mjs` (headless screenshots of bookmarks), `shots-all.mjs` (the full reference set), `stability.mjs` (consecutive-frame flicker test), `smoke.mjs` (start screen, modes and a full benchmark run, headless), `flight-test.mjs`, `probe-terrain.mjs` (shaded relief in Node), `find-ledge.mjs`, `fetch-assets.mjs`, `gen-bluenoise.mjs`, `lib/` (shared browser launcher, PNG read/write). |
 
 ## Worlds are data
 
@@ -192,20 +202,66 @@ exposure alone decides whether they are visible (rule 2).
 
 ## Post
 
-HDR RGBA16F → bloom downsample (13-tap, clamped) → metering (32×18 grid, centre-weighted
-log average with a floor at 0.6× the frame mean, async read-back) → bloom upsample →
-composite (~4.5 % bloom mix) → AgX → blue-noise dither. Dynamic resolution renders into
-a sub-viewport of a fixed-size target (no reallocations).
+HDR RGBA16F → bloom downsample (13-tap, clamped; the first level is capped at about
+0.6 M pixels so bloom costs the same at any render size) → metering (32×18 grid,
+centre-weighted log average with a floor at 0.6× the frame mean, async read-back) → bloom
+upsample → composite (~4.5 % bloom mix) → AgX → blue-noise dither. The scene is rendered
+into a sub-viewport of a fixed, native-size target (no reallocations when the resolution
+changes) and the composite pass scales it up to the canvas.
 
-## Phone target (Samsung S23 Ultra)
+## The governor (`src/perf/governor.js`)
 
-- Render size: `ratio = min(devicePixelRatio, max(1, sqrt(MAX_PIXELS / cssPixels)))`
-  with `MAX_PIXELS = 1.5e6` (≈1790×836 on the phone; exactly ratio 1 on a 1080p
-  desktop). `?dpr=` overrides.
+Owner policy: the best image quality that holds a steady frame rate on the phone.
+
+- **Canvas**: its backing store is the native pixel size (`devicePixelContentBox` when
+  the browser reports it, else CSS size × `devicePixelRatio`), so the final image is
+  never resampled by the browser. `MAX_NATIVE_PIXELS` (8.3 M) is only a guard for
+  monitors above 4K.
+- **Resolution levels**: level k renders `native × 0.88^k` pixels; the lowest level is
+  the one closest to 1 M pixels (or native, if the canvas is smaller than that).
+- **Feature steps** (`FEATURE_STEPS`, fixed order, used only once resolution is at its
+  floor): close-up ground detail → soft edges of near shadows → half the rocks → terrain
+  budget ×0.8 → bloom → terrain budget ×0.64 → cloak at half rate. Steps up run in
+  reverse. Every new feature that costs frame time adds its step here.
+- **Measuring**: the display's refresh interval is estimated continuously from the
+  spacing of animation-frame callbacks (20th percentile of the last 60, never slower than
+  57 Hz). The frame interval is the mode's target rounded to a whole number of refreshes.
+  A frame is *late* when it arrives more than half a refresh after its interval.
+- **Deciding**: over the last 24 frames, step down when more than 20 % of the ordinary
+  frames are late, or more than 60 % of all frames (two steps at once above 60 %). Frames
+  in which new terrain was uploaded are "soft": lateness there is usually not the
+  resolution's fault. Frames after a bookmark jump, a world switch, a resize or a return
+  from the background are ignored.
+- **Stepping up** needs a clean run of `holdUp` seconds (3 s to start) and, where the
+  browser exposes GPU timer queries, GPU time under 72 % of the interval. If a step up
+  has to be taken back within 4 s, `holdUp` doubles (up to 60 s); it halves again each
+  time a step up holds. That is the hysteresis.
+- **Modes**: Smooth (60 fps) and Sharp (30 fps), `M` / the MODE button / the start
+  screen, remembered in `localStorage`. Switching to Sharp jumps to native with every
+  feature on and lets the governor come down; switching to Smooth starts five levels
+  (about half the pixels) lower.
+- `?scale=` and screenshot mode fix the scale and switch all of this off.
+
+## Benchmark (`src/perf/benchmark.js`)
+
+A lap is 180 s: five Mars bookmarks (12 s each: hold, pan, fly forward), a 60 s flight
+(climb to orbit, aim at the Moon and cruise with boost, follow the Moon's curve down
+toward the landing site; safety nets teleport if a slow device falls behind), five lunar
+bookmarks. The soak is 600 s of laps. It drives the game through virtual keys, so it
+exercises the same code as a player. Every rendered frame is recorded (frame time, render
+pixels, part of the lap). Frames over 100 ms are listed with their cause from
+`App.frameCause`. The results are plain text (`window.__benchResult`), shown on the
+results screen with a Copy button. `?bench=run|soak` starts one without a tap.
+
+## Phone target (Samsung Galaxy S23 Ultra)
+
 - Tile-based GPU hygiene: whole-target clears, a clear before every full-screen pass,
   depth invalidated after the scene, shadow-map colour attachment invalidated, no colour
   writes in the shadow pass.
-- Touch: `src/controls/touch.js` (floating move stick on the left, drag-to-look, five
-  buttons mapped to the keyboard actions). Shown on coarse-pointer devices or `?touch=1`.
+- Touch: `src/controls/touch.js` (floating move stick on the left, drag-to-look, a row of
+  buttons mapped to the keyboard actions). Shown on coarse-pointer devices or `?touch=1`,
+  hidden while a benchmark plays or a panel is open.
+- Play and the benchmark buttons enter fullscreen, lock landscape and take a wake lock
+  (re-taken when the page returns from the background).
 - GL context loss reloads the page. The shadow depth texture is initialised even when
   shadows are off (an unallocated shadow sampler fails every lit draw call).

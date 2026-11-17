@@ -12,10 +12,11 @@ export const PARAMS = {
   shot: q.get('shot') || null,          // bookmark name; also switches to deterministic "screenshot mode"
   timeOffsetHours: num('t', null),
   hud: q.has('hud') ? q.get('hud') !== '0' : null,
-  scale: num('scale', null),            // fixed render scale (disables dynamic resolution)
+  scale: num('scale', null),            // fixed render scale (switches the governor off)
+  mode: q.get('mode'),                  // 'smooth' (60 fps target) or 'sharp' (30 fps target)
+  bench: q.get('bench'),                // 'run' or 'soak': start a benchmark as soon as the scene is ready
   fly: q.get('fly') === '1',
-  fps: num('fps', null),
-  dpr: num('dpr', null),                // fixed device pixel ratio (overrides the pixel-count cap)
+  dpr: num('dpr', null),                // pretend the screen has this device pixel ratio
   touch: q.get('touch') === '1',        // force the touch controls on
   hero: q.has('hero') ? q.get('hero') !== '0' : null,   // flying character on/off (default: on, off in screenshots)
   heropose: q.get('heropose'),          // screenshots: 'fly' (default) or 'hover'

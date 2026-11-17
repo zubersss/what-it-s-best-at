@@ -28,7 +28,7 @@ const until = async (cond, maxSeconds, every, tick) => {
   return false;
 };
 
-await page.mouse.click(360, 170);
+await page.click('#start button.primary');            // Play
 await page.waitForTimeout(8000);
 await snap('00_start');
 await page.keyboard.down('KeyE');

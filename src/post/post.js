@@ -138,6 +138,7 @@ export class PostPipeline {
     this.scene = null;
     this.bloomDown = []; this.bloomUp = [];
     this.gpuBytes = 0;
+    this.bloomEnabled = true;
 
     // Auto exposure state
     this.settings = { key: 0.16, min: 0.5, max: 6e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, ...exposureSettings };
@@ -177,10 +178,14 @@ export class PostPipeline {
     this.scene?.dispose();
     this.scene = new THREE.WebGLRenderTarget(this.width, this.height, { ...opts, depthBuffer: true, stencilBuffer: false });
     this.scene.texture.colorSpace = THREE.NoColorSpace;
+    this.scene.scissorTest = true;
     for (const t of this.bloomDown) t.dispose();
     for (const t of this.bloomUp) t.dispose();
     this.bloomDown = []; this.bloomUp = [];
-    let w = this.width, h = this.height, bytes = this.width * this.height * (8 + 4);
+    // The bloom chain does not need to follow the native size: its first level is capped
+    // at about 0.6 M pixels, which keeps its cost flat on very dense screens.
+    const first = Math.max(2, Math.sqrt(this.width * this.height / 600000));
+    let w = Math.round(this.width / first) * 2, h = Math.round(this.height / first) * 2, bytes = this.width * this.height * (8 + 4);
     for (let i = 0; i < CONFIG.BLOOM_LEVELS; i++) {
       w = Math.max(2, w >> 1); h = Math.max(2, h >> 1);
       this.bloomDown.push(new THREE.WebGLRenderTarget(w, h, { ...opts, depthBuffer: false }));
@@ -205,7 +210,8 @@ export class PostPipeline {
     this.exposureUsed = this.exposure;       // what this frame's shaders were given
     r.setRenderTarget(this.scene);
     r.setClearColor(0x000000, 0);      // alpha 0 = "not a lit surface" (used by the metering)
-    // Whole-target clear (not scissored to the sub-viewport): the fast path on tile-based GPUs.
+    // The target is native-sized but only the governor's sub-rectangle is used: the clear
+    // is scissored to it, so a tile-based GPU never touches the tiles outside.
     r.clear(true, true, false);
   }
 
@@ -242,10 +248,10 @@ export class PostPipeline {
     renderPass(r, this.meterMat, this.meterTarget);
     this._meter(dt);
 
-    // Upsample chain.
+    // Upsample chain (skipped when the governor has switched bloom off).
     const um = this.upMat.uniforms;
     let acc = this.bloomDown[this.bloomDown.length - 1];
-    for (let i = this.bloomUp.length - 1; i >= 0; i--) {
+    for (let i = this.bloomUp.length - 1; i >= 0 && this.bloomEnabled; i--) {
       um.tSrc.value = acc.texture; um.tBase.value = this.bloomDown[i].texture;
       um.uTexel.value.set(1 / acc.width, 1 / acc.height);
       renderPass(r, this.upMat, this.bloomUp[i]);
@@ -257,6 +263,7 @@ export class PostPipeline {
     cm.uUvScale.value.set(sx, sy); cm.uUvMax.value.set(maxU, maxV);
     // The accumulated bloom is a sum over levels; normalise so strength is a true mix weight.
     cm.uBloomNorm.value = 1 / this.bloomDown.length;
+    cm.uBloom.value = this.bloomEnabled ? CONFIG.BLOOM_STRENGTH : 0;
     renderPass(r, this.compositeMat, null);
   }
 

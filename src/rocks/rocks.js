@@ -96,6 +96,9 @@ export class Rocks {
 
   get triangles() { return this.count * this.trianglesPerRock; }
 
+  // Governor step: draw only part of the scattered rocks (they are in a stable order).
+  setFraction(f) { this.fraction = f; this.geometry.instanceCount = Math.floor(this.count * f); }
+
   // Another world: new numbers, same buffers.
   setWorld(world, hs) {
     this.world = world; this.hs = hs;
@@ -175,7 +178,7 @@ export class Rocks {
       n++;
     }
     this.count = n;
-    this.geometry.instanceCount = n;
+    this.geometry.instanceCount = Math.floor(n * (this.fraction ?? 1));
     this.aOffset.needsUpdate = this.aQuat.needsUpdate = this.aScale.needsUpdate = this.aMisc.needsUpdate = true;
     void dirToLatLon; void G;
   }

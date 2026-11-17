@@ -141,6 +141,7 @@ npm run shots          # headless screenshots of every bookmark of one world -> 
 npm run shots:all      # the full reference set: both worlds, orbit, character
 npm run stability      # 3 consecutive frames along scripted moves, with a flicker report
 npm run flight         # scripted Mars -> orbit -> Moon flight (headless)
+npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run
 npm run assets         # re-download and convert NASA/Yale data into public/data/
 npm run probe          # top-down shaded relief of the height function (no browser)
 ```
@@ -166,12 +167,16 @@ benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|hover`,
 Keys: `WASD` move, mouse look (click to capture), `Shift` run / boost, `Space` jump /
 up, `Q`/`E` down / up, `G` flying character on/off, `T` aim at the next body in the sky,
 `F` walk ↔ free-fly debug camera, `Z` hold for telephoto, mouse wheel = zoom amount,
-`H` HUD, `M` Smooth ↔ Sharp, `[` `]` time −/+, `1`–`5` bookmarks, `P` pause time.
+`H` HUD (one line → full read-out with the time slider → off), `M` Smooth ↔ Sharp,
+`[` `]` time −/+, `1`–`5` bookmarks, `P` pause time.
 
 Touch: left part of the screen = move stick (push to the rim to run / boost), drag
 anywhere else = look, buttons `HERO`, `TARGET`, `FLY`, `ZOOM` (hold), `VIEW` (next
 bookmark), `HUD`, `MODE` (Smooth ↔ Sharp), `FULL` (fullscreen + landscape lock + wake
-lock), `▲` up, `▼` down. The time slider is part of the HUD.
+lock), `▲` up, `▼` down. The time slider is part of the full HUD.
+
+Interactive sessions open on the start screen (Play, Benchmark, Soak test, mode). A
+finished benchmark leaves its text in `window.__benchResult`.
 
 ## Architecture rules
 

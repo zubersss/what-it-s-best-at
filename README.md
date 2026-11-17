@@ -1,9 +1,10 @@
-# Solar System Explorer — milestone 1
+# Solar System Explorer
 
-A browser benchmark scene for a space-exploration game set in the real solar system:
-Mars, inside Valles Marineris (Coprates Chasma), about 20 minutes before sunset, rendered
-with three.js (WebGL 2) on real NASA MOLA elevation data. `?world=moon` loads the Moon
-from a data file alone.
+A browser game: fly a suited, cloaked character through the real solar system. Today it
+has Mars (Coprates Chasma in Valles Marineris, on real NASA MOLA elevation data), the
+Moon, and the flight between them. Rendered with three.js on WebGL 2.
+
+**Play it:** https://zubersss.github.io/what-it-s-best-at/ (updates on every push to `main`).
 
 ```
 npm install
@@ -11,8 +12,13 @@ npm run dev -- --host     # then open the printed Network URL on the phone (same
 npm run build             # static site in dist/ (works from any sub-path, e.g. GitHub Pages)
 ```
 
-The target device is a Samsung Galaxy S23 Ultra; desktop with keyboard and mouse works too.
-Fullscreen, landscape lock and wake lock need HTTPS (GitHub Pages) or localhost.
+The test device is a Samsung Galaxy S23 Ultra in landscape; desktop with keyboard and
+mouse works too. Fullscreen, landscape lock and wake lock need HTTPS or localhost.
+
+The start screen has **Play**, a 3-minute **Benchmark**, a 10-minute **Soak test** and the
+mode switch: **Smooth** (60 fps target, default) or **Sharp** (30 fps target, favouring
+full resolution). A benchmark plays by itself and ends on a results screen with a Copy
+button.
 
 | Touch | Keyboard | |
 | --- | --- | --- |
@@ -22,13 +28,16 @@ Fullscreen, landscape lock and wake lock need HTTPS (GitHub Pages) or localhost.
 | `FLY` | `F` | walk ↔ free-fly debug camera |
 | `ZOOM` (hold) | `Z` (hold), wheel | telephoto |
 | `VIEW` | `1`–`5` | camera bookmarks: ledge, sun, wall, ship, dusk |
-| `HUD` | `H` | debug HUD and time-of-day slider |
+| `HUD` | `H` | HUD: one line → everything plus the time-of-day slider → off |
+| `MODE` | `M` | Smooth ↔ Sharp |
+| `FULL` | | fullscreen, landscape lock, keep the screen awake |
 | `▲` `▼` | `Space`, `Q`/`E` | jump / fly up and down |
 | stick at the rim | `Shift` | run / boost |
 
 You fly behind a suited figure with a cloak. Speed grows with distance from the nearest
 surface, so the same stick hovers over a rock, climbs to orbit and crosses to another
-world in well under a minute: tap `TARGET` until the HUD shows `moon`, push forward.
+world in well under a minute: tap `TARGET` until the full HUD shows `moon`, push forward.
 
-Everything else — rules, architecture, status, asset licences — is in
-[`CLAUDE.md`](CLAUDE.md) and [`docs/`](docs/). Reference screenshots: [`docs/shots/`](docs/shots/).
+Everything else — the project charter, roadmap, architecture, status, asset licences — is
+in [`CLAUDE.md`](CLAUDE.md) and [`docs/`](docs/). Reference screenshots:
+[`docs/shots/`](docs/shots/).
