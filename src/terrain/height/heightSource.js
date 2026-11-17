@@ -25,6 +25,7 @@ export function createHeightSource(world, rasters = []) {
   }
   const c = { x: 0, y: 0, z: 1, px: 0, py: 0, pz: 0, h: 0, slope: 0, res: 1e12, minWL: 0 };
   const n = fns.length;
+  const regional = fns.filter((f) => f.prepare);
 
   const hs = {
     radius,
@@ -37,6 +38,10 @@ export function createHeightSource(world, rasters = []) {
       hs.baseSlope = c.slope;
       return c.h;
     },
+    // Optional speed-up when many nearby points follow: (x,y,z) unit direction of the
+    // region's centre and its radius in metres. Call release() before querying elsewhere.
+    prepare(x, y, z, rho) { for (const f of regional) f.prepare(x * radius, y * radius, z * radius, rho); },
+    release() { for (const f of regional) f.release(); },
   };
   return hs;
 }

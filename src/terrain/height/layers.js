@@ -131,53 +131,102 @@ export const OPS = {
   },
 
   // Impact craters, power-law sizes between radius[0] and radius[1] (m).
-  // density = chance that a lattice cell of a size class holds a crater (0..1),
-  // layers = independent lattices per class. depth / rim are fractions of the radius.
+  // Craters live in 3-D lattices (no seams anywhere on the sphere), one size class per
+  // octave of radius. A lattice cell holds a crater with probability `density`, and only
+  // centres that fall within OMAX radii of the surface are kept, so one lattice covers
+  // roughly 1.2 % of the ground per class at density 1; `layers` stacks independent
+  // lattices for busier surfaces. depth / rim are fractions of the radius.
+  // Locality: a crater can only affect points in the 2x2x2 cells nearest to it, because
+  // cell = 2 * (influence + OMAX) * R. Do not change one without the other.
   craters(def) {
     const classes = [];
-    const INFL = 2.2;
+    const INFL = 2.2, OMAX = 0.6;
     for (let R = def.radius[1], n = 0; R >= def.radius[0] && n < 24; R /= 2, n++) {
-      for (let l = 0; l < (def.layers || 1); l++) classes.push({ R, cell: 2 * INFL * R, seed: def.seed * 101 + n * 7 + l * 1013 });
+      for (let l = 0; l < (def.layers || 1); l++) classes.push({ R, cell: 2 * (INFL + OMAX) * R, seed: def.seed * 101 + n * 7 + l * 1013, last: true, list: null, count: 0, buf: null });
     }
     const density = def.density, depthK = def.depth ?? 0.2, rimK = def.rim ?? 0.04;
     const smi = def.slopeMaskInv, radius = def.planetRadius;
-    return (c) => {
+    let add = 0, slope = 0;
+
+    // Fills cr[] = centre x,y,z, radius, age for the crater of lattice cell (ix,iy,iz), if any.
+    const cr = new Float64Array(5);
+    const craterOf = (cls, ix, iy, iz) => {
+      const h0 = hash3(ix, iy, iz, cls.seed);
+      if ((h0 & 0xffff) / 65536 >= density) return false;
+      const cell = cls.cell;
+      const cx = (ix + 0.5) * cell, cy = (iy + 0.5) * cell, cz = (iz + 0.5) * cell;
+      const tol = OMAX * cls.R;
+      if (Math.abs(Math.sqrt(cx * cx + cy * cy + cz * cz) - radius) > cell * 0.87 + tol) return false;   // cell nowhere near the surface
+      const h1 = hash3(ix, iy, iz, cls.seed + 1), h2 = hash3(ix, iy, iz, cls.seed + 2);
+      const qx = cx + ((h1 & 0xffff) / 65536 - 0.5) * cell, qy = cy + ((h1 >>> 16) / 65536 - 0.5) * cell, qz = cz + ((h2 & 0xffff) / 65536 - 0.5) * cell;
+      const qlen = Math.sqrt(qx * qx + qy * qy + qz * qz);
+      if (Math.abs(qlen - radius) > tol) return false;        // centre too far above / below the ground
+      const ql = radius / qlen;
+      cr[0] = qx * ql; cr[1] = qy * ql; cr[2] = qz * ql;
+      cr[3] = cls.R * (0.5 + 0.5 * ((h2 >>> 16) / 65536));
+      cr[4] = 0.35 + 0.65 * ((h0 >>> 16) / 65536);          // age: older = shallower, softer
+      return true;
+    };
+    // Adds one crater's profile at the current point.
+    const apply = (c, qx, qy, qz, r, age, lod) => {
+      const ex = c.px - qx, ey = c.py - qy, ez = c.pz - qz;
+      const d2 = ex * ex + ey * ey + ez * ez, infl = r * INFL;
+      if (d2 >= infl * infl) return;
+      // slightly irregular outline: no two craters are perfect circles
+      const wob = 1 + 0.09 * noise3(ex / r * 1.3 + qx * 1e-3, ey / r * 1.3 + qy * 1e-3, ez / r * 1.3 + qz * 1e-3);
+      const t = Math.sqrt(d2) / r * wob;                     // 0 centre, 1 rim
+      if (t >= INFL) return;
+      const depth = depthK * r * age, rim = rimK * r * age;
+      let v, dv;
+      if (t < 1) { const t2 = t * t; v = rim - (depth + rim) * (1 - t2) * (1 - 0.35 * t2 * (1 - age)); dv = (depth + rim) * 2 * t / r; }
+      else { const fade = 1 - smoothstep(1.25, INFL, t); const t4 = t * t * t * t; v = rim * fade / (t * t * t); dv = (depth + rim) * 2 / (t4 * r); }   // dv stays continuous across the rim
+      add += v * lod; if (dv * lod > slope) slope = dv * lod;
+    };
+
+    const fn = (c) => {
       const mask = smi ? 1 - smoothstep(smi[0], smi[1], c.slope) : 1;
       if (mask <= 0) return;
-      let add = 0, slope = 0;
+      add = 0; slope = 0;
       for (let ci = 0; ci < classes.length; ci++) {
         const cls = classes[ci];
-        if (cls.R * 2 <= c.minWL) break;               // classes are sorted large -> small
+        if (cls.R * 2 <= c.minWL) { if (cls.last) break; continue; }   // classes run large -> small within a layer
         const lod = Math.min(1, cls.R * 2 / c.minWL - 1);
-        const cell = cls.cell, inv = 1 / cell;
+        const list = cls.list;
+        if (list) {                                           // craters pre-collected for this region
+          for (let k = 0; k < cls.count; k++) apply(c, list[k * 5], list[k * 5 + 1], list[k * 5 + 2], list[k * 5 + 3], list[k * 5 + 4], lod);
+          continue;
+        }
+        const inv = 1 / cls.cell;
         const bx = Math.floor(c.px * inv - 0.5), by = Math.floor(c.py * inv - 0.5), bz = Math.floor(c.pz * inv - 0.5);
         for (let dz = 0; dz < 2; dz++) for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
-          const ix = bx + dx, iy = by + dy, iz = bz + dz;
-          const h0 = hash3(ix, iy, iz, cls.seed);
-          if ((h0 & 0xffff) / 65536 >= density) continue;
-          const cx = (ix + 0.5) * cell, cy = (iy + 0.5) * cell, cz = (iz + 0.5) * cell;
-          const cl = Math.sqrt(cx * cx + cy * cy + cz * cz);
-          if (Math.abs(cl - radius) > cell * 0.5) continue;      // cell not on the surface shell
-          const h1 = hash3(ix, iy, iz, cls.seed + 1), h2 = hash3(ix, iy, iz, cls.seed + 2);
-          let qx = cx + ((h1 & 0xffff) / 65536 - 0.5) * cell, qy = cy + ((h1 >>> 16) / 65536 - 0.5) * cell, qz = cz + ((h2 & 0xffff) / 65536 - 0.5) * cell;
-          const ql = radius / Math.sqrt(qx * qx + qy * qy + qz * qz);
-          qx *= ql; qy *= ql; qz *= ql;
-          const r = cls.R * (0.5 + 0.5 * ((h2 >>> 16) / 65536));
-          const ex = c.px - qx, ey = c.py - qy, ez = c.pz - qz;
-          const d2 = ex * ex + ey * ey + ez * ez;
-          const infl = r * INFL;
-          if (d2 >= infl * infl) continue;
-          const t = Math.sqrt(d2) / r;                 // 0 centre, 1 rim
-          const age = 0.35 + 0.65 * ((h0 >>> 16) / 65536);   // older = shallower, softer
-          const depth = depthK * r * age, rim = rimK * r * age;
-          let v, dv;
-          if (t < 1) { const t2 = t * t; v = rim - (depth + rim) * (1 - t2) * (1 - 0.35 * t2 * (1 - age)); dv = (depth + rim) * 2 * t / r; }
-          else { const fade = 1 - smoothstep(1.25, INFL, t); v = rim * fade / (t * t * t); dv = rim * 3 / (t * t * t * t) / r; }
-          add += v * lod; if (dv * lod > slope) slope = dv * lod;
+          if (craterOf(cls, bx + dx, by + dy, bz + dz)) apply(c, cr[0], cr[1], cr[2], cr[3], cr[4], lod);
         }
       }
       c.h += add * mask;
       if (slope * mask > c.slope) c.slope = slope * mask;
     };
+    // Region mode: when many points inside one small region are evaluated (a chunk), the
+    // craters of every class whose lattice is coarser than the region are collected once.
+    fn.prepare = (px, py, pz, rho) => {
+      for (const cls of classes) {
+        cls.list = null;
+        if (cls.cell < rho * 0.4) continue;
+        const cell = cls.cell, reach = rho + cls.R * (INFL + OMAX) + cell * 0.5;
+        if (!cls.buf) cls.buf = new Float64Array(5 * 256);
+        let n = 0;
+        const x0 = Math.floor((px - reach) / cell), x1 = Math.floor((px + reach) / cell);
+        const y0 = Math.floor((py - reach) / cell), y1 = Math.floor((py + reach) / cell);
+        const z0 = Math.floor((pz - reach) / cell), z1 = Math.floor((pz + reach) / cell);
+        for (let iz = z0; iz <= z1; iz++) for (let iy = y0; iy <= y1; iy++) for (let ix = x0; ix <= x1; ix++) {
+          if (n >= 256 || !craterOf(cls, ix, iy, iz)) continue;
+          const dx = cr[0] - px, dy = cr[1] - py, dz = cr[2] - pz, lim = rho + cr[3] * INFL;
+          if (dx * dx + dy * dy + dz * dz > lim * lim) continue;
+          cls.buf.set(cr, n * 5); n++;
+        }
+        cls.list = cls.buf; cls.count = n;
+      }
+    };
+    fn.release = () => { for (const cls of classes) cls.list = null; };
+    return fn;
   },
 };

@@ -33,6 +33,13 @@ export class NearShadow {
     const elevationSin = sunDir.x * localUp[0] + sunDir.y * localUp[1] + sunDir.z * localUp[2];
     const enabled = elevationSin > -0.02 && this.casters.some((c) => c.mesh.visible);
     G.uShadowParams.value.z = enabled ? 1 : 0;
+    if (!this.initialised) {
+      // The depth texture must exist even when shadows are off (night): a shadow sampler
+      // bound to an unallocated texture makes every lit draw call fail.
+      this.initialised = true;
+      this.renderer.setRenderTarget(this.target);
+      this.renderer.clear(true, true, false);
+    }
     if (!enabled) return;
     // Light basis; lz = toward the Sun.
     const lz = sunDir, lx = this._lx, ly = this._ly;
@@ -61,6 +68,8 @@ export class NearShadow {
       r.render(c.mesh, cam);
       c.mesh.material = keep;
     }
+    const gl = r.getContext();
+    gl.invalidateFramebuffer(gl.FRAMEBUFFER, [gl.COLOR_ATTACHMENT0]);   // only depth is kept
   }
 }
 

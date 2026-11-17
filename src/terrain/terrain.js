@@ -77,7 +77,7 @@ export class Terrain {
     // Budget feedback with a wide dead zone: changing the LOD scale re-tiles everything,
     // so it must not hunt around the cap.
     if (list.length > CONFIG.MAX_RENDER_CHUNKS || this.stalled) this.lodScale *= 0.97;
-    else if (list.length < CONFIG.MAX_RENDER_CHUNKS * 0.6 && this.lodScale < 1) this.lodScale = Math.min(1, this.lodScale * 1.01);
+    else if (list.length < CONFIG.MAX_RENDER_CHUNKS * 0.84 && this.lodScale < 1 && this.wanted.length === 0) this.lodScale = Math.min(1, this.lodScale * 1.01);
     if (list.length > CONFIG.MAX_RENDER_CHUNKS) list.length = CONFIG.MAX_RENDER_CHUNKS;
 
     const slots = this.pool.slots;

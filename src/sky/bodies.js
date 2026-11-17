@@ -138,7 +138,8 @@ export class SkyBodies {
       return b;
     }).sort((a, b) => a.dist - b.dist);
 
-    let np = 0;
+    let np = 0, shine = 0;
+    G.uShineE.value.set(0, 0, 0);
     const fx = this.points.flux, px = this.points.positions;
     for (let k = 0; k < order.length; k++) {
       const b = order[k], def = b.def;
@@ -147,7 +148,7 @@ export class SkyBodies {
       // Eclipse: is the home world between this body and the Sun?
       let lit = 1;
       const along = -b.pos.dot(toSun);                       // distance along the sun ray to the home centre's closest point
-      if (along > 0) {
+      if (along > 0 && def.radius < Rhome) {                 // only bodies the home world's shadow can swallow
         const perp = Math.sqrt(Math.max(0, b.pos.lengthSq() - along * along));
         const pen = along * (this.cat.sun.radius / dSun);     // penumbra half-width
         lit = Math.min(1, Math.max(0, (perp - (Rhome - pen)) / Math.max(1, 2 * pen)));
@@ -158,6 +159,18 @@ export class SkyBodies {
       const dir = b.rel.clone().divideScalar(b.dist);
       // Phase angle (Sun - body - observer)
       const cosA = -dir.dot(toSun), alpha = Math.acos(Math.max(-1, Math.min(1, cosA)));
+      // Planetshine on the ground: sunlight this body reflects toward us (Lambert-sphere phase law).
+      {
+        const phiS = (Math.sin(alpha) + (Math.PI - alpha) * Math.cos(alpha)) / Math.PI;
+        const eS = E * def.geometricAlbedo * phiS * (def.radius / b.dist) ** 2;
+        const above = Math.min(1, Math.max(0, (dir.dot(this._up(rig)) + 0.02) / 0.07));
+        if (eS * above > shine) {
+          shine = eS * above;
+          const c = def.color || [1, 1, 1];
+          G.uShineE.value.set(shine * c[0] * sunC[0], shine * c[1] * sunC[1], shine * c[2] * sunC[2]);
+          G.uShineDir.value.copy(dir);
+        }
+      }
       b.info = { elevation: Math.asin(dir.dot(this._up(rig))) * 180 / Math.PI, phaseAngle: alpha * 180 / Math.PI, pixels: 2 * angRadius / pxAngle, lit };
 
       if (2 * angRadius / pxAngle < 2.5) {

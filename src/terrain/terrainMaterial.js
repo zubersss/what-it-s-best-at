@@ -97,7 +97,7 @@ void main() {
   float shadow = texture(tShadow, (vGrid * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1)).r;
   shadow *= nearShadow(vRel, N);
   vec3 direct = directSun(planetPos) * shadow * diffuseON(N, uSunDir, V, uRoughness);
-  vec3 ambient = skyLight(N, up) * ao / PI;
+  vec3 ambient = (skyLight(N, up) * ao + planetShine(N)) / PI;
   vec3 col = albedo * (direct + ambient);
   col = aerialPerspective(col, vRel);
   fragColor = vec4(col * uExposure, 1.0);

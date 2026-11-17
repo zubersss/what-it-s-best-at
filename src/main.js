@@ -6,6 +6,7 @@ function fatal(msg) {
   const el = document.getElementById('fatal');
   el.style.display = 'flex';
   el.textContent = msg;
+  document.getElementById('loading')?.remove();
   window.__shotError = msg;
   console.error(msg);
 }

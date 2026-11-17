@@ -32,6 +32,8 @@ mesh.frustumCulled = false;
 export function renderPass(renderer, material, target) {
   mesh.material = material;
   renderer.setRenderTarget(target);
+  // A clear tells tile-based mobile GPUs they need not restore the previous contents.
+  renderer.clear(true, false, false);
   renderer.render(mesh, camera);
 }
 

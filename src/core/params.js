@@ -15,6 +15,8 @@ export const PARAMS = {
   scale: num('scale', null),            // fixed render scale (disables dynamic resolution)
   fly: q.get('fly') === '1',
   fps: num('fps', null),
+  dpr: num('dpr', null),                // fixed device pixel ratio (overrides the pixel-count cap)
+  touch: q.get('touch') === '1',        // force the touch controls on
   lat: num('lat', null), lon: num('lon', null), alt: num('alt', null),
   heading: num('heading', null), pitch: num('pitch', null), fov: num('fov', null),
   debug: q.get('debug') || '',

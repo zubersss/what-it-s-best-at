@@ -10,6 +10,7 @@ import { DynamicResolution } from './post/dynamicResolution.js';
 import { Hud } from './debug/hud.js';
 import { Input } from './controls/input.js';
 import { CameraRig } from './controls/cameraRig.js';
+import { TouchControls } from './controls/touch.js';
 import { Atmosphere } from './atmosphere/atmosphere.js';
 import { makeSkyDome } from './sky/skyDome.js';
 import { SunDisc } from './sky/sun.js';
@@ -26,7 +27,6 @@ export class App {
     this.canvas = canvas; this.world = world; this.params = params;
     this.shotMode = !!params.shot;
     const renderer = new THREE.WebGLRenderer({ canvas, context, antialias: false, alpha: false, depth: false, stencil: false, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, CONFIG.MAX_PIXEL_RATIO));
     renderer.outputColorSpace = THREE.LinearSRGBColorSpace;   // we do our own tone map + encoding
     renderer.toneMapping = THREE.NoToneMapping;
     renderer.autoClear = false;
@@ -51,7 +51,14 @@ export class App {
     this.hud = new Hud();
     this.hud.setVisible(params.hud ?? !this.shotMode);
     this.hud.onTime = (h) => { this.timeOffsetHours = h; };
+    this.timeRange = (world.dayHours || 24) / 2;
+    this.hud.setTimeRange(this.timeRange);
     this.input = new Input(this.canvas);
+    this.touch = new TouchControls(this.canvas, this.input, { view: () => this.cycleBookmark() });
+    if (params.touch) this.touch.enable();
+    // Mobile browsers drop the GL context when the tab is backgrounded for long: start over.
+    this.canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.contextLost = true; });
+    this.canvas.addEventListener('webglcontextrestored', () => location.reload());
 
     // Height source on the main thread (camera collision, placement) and in the workers.
     const rasters = await loadRasters(world, import.meta.env.BASE_URL);
@@ -101,15 +108,23 @@ export class App {
     this.bookmark = name;
   }
 
+  cycleBookmark() {
+    const names = Object.keys(this.world.scene.bookmarks);
+    this.applyBookmark(names[(names.indexOf(this.bookmark) + 1) % names.length]);
+  }
+
   resize() {
     const w = Math.max(2, this.canvas.clientWidth), h = Math.max(2, this.canvas.clientHeight);
+    // Pixel-count cap instead of a fixed pixel ratio (see CONFIG.MAX_PIXELS).
+    const dpr = window.devicePixelRatio || 1;
+    const pr = this.params.dpr ?? Math.min(dpr, Math.max(1, Math.sqrt(CONFIG.MAX_PIXELS / (w * h))));
+    this.renderer.setPixelRatio(pr);
     this.renderer.setSize(w, h, false);
-    const pr = this.renderer.getPixelRatio();
     this.post.resize(Math.round(w * pr), Math.round(h * pr));
   }
 
   start() {
-    const loop = (now) => { this.frame(now); requestAnimationFrame(loop); };
+    const loop = (now) => { if (!this.contextLost) this.frame(now); requestAnimationFrame(loop); };
     requestAnimationFrame(loop);
   }
 
@@ -118,8 +133,9 @@ export class App {
     if (i.hit('KeyH')) this.hud.toggle();
     if (i.hit('KeyF')) this.rig.toggleMode();
     if (i.hit('KeyP')) this.paused = !this.paused;
-    if (i.down('BracketRight')) this.timeOffsetHours = Math.min(12, this.timeOffsetHours + 0.01);
-    if (i.down('BracketLeft')) this.timeOffsetHours = Math.max(-12, this.timeOffsetHours - 0.01);
+    const tr = this.timeRange;
+    if (i.down('BracketRight')) this.timeOffsetHours = Math.min(tr, this.timeOffsetHours + tr / 1200);
+    if (i.down('BracketLeft')) this.timeOffsetHours = Math.max(-tr, this.timeOffsetHours - tr / 1200);
     const names = Object.keys(this.world.scene.bookmarks);
     for (let k = 0; k < names.length && k < 9; k++) if (i.hit('Digit' + (k + 1))) this.applyBookmark(names[k]);
   }
@@ -180,6 +196,7 @@ export class App {
     renderer.clearDepth();
     rig.finalize(aspect, Math.max(0.25, Math.min(300, rig.agl * 0.15)), this.terrain.farDistance * 1.05);
     renderer.render(this.nearScene, rig.camera);
+    post.endScene();
 
     // 7. Post
     post.render(dt);
@@ -191,6 +208,7 @@ export class App {
     this.stats.calls = info.render.calls; this.stats.triangles = info.render.triangles;
     this.hud.update(dtMs, () => this.collectStats(jd));
     this.input.endFrame();
+    if (!this.loaded && this.frameCount > 3 && this.terrain.drawList.length > 0) { this.loaded = true; document.getElementById('loading')?.remove(); }
 
     if (this.shotMode) {
       const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending;

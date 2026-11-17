@@ -5,6 +5,7 @@ export default {
   body: 'mars',                 // key into solarSystem.js (orbit, rotation)
   radius: 3389500,              // m, terrain datum (areoid mean radius)
   gravity: 3.71,                // m/s^2
+  dayHours: 24.66,              // length of the solar day (sets the time slider's range)
 
   terrain: {
     maxLevel: 17,               // finest quadtree level (~40 m chunks)
@@ -30,7 +31,7 @@ export default {
       { op: 'terrace', seed: 31, thickness: 290, cliff: 0.24, rise: 0.70, strength: 0.8, slopeMask: [0.10, 0.30], jitter: 0.3, warpAmp: 40, warpWavelength: 2600 },
       { op: 'terrace', seed: 37, thickness: 38, cliff: 0.30, rise: 0.72, strength: 0.6, slopeMask: [0.10, 0.30], jitter: 0.4, warpAmp: 5, warpWavelength: 300 },
       // Sparse small craters on the plateau and canyon floor only.
-      { op: 'craters', seed: 41, radius: [30, 900], density: 0.12, depth: 0.2, rim: 0.04, slopeMaskInv: [0.05, 0.14] },
+      { op: 'craters', seed: 41, radius: [30, 900], density: 1.0, layers: 1, depth: 0.2, rim: 0.04, slopeMaskInv: [0.05, 0.14] },
     ],
   },
 
@@ -63,7 +64,7 @@ export default {
       phaseG: [0.70, 0.76, 0.85],
       scaleHeight: 11100,
       // Low dust layer pooled in the canyon (exponential height fog).
-      fog: { density: 0.9, baseAltitude: -4800, scaleHeight: 1900 },
+      fog: { density: 0.6, baseAltitude: -4800, scaleHeight: 1900 },
     },
     absorber: null,
   },
@@ -78,11 +79,11 @@ export default {
     // The lip of a bench on the north flank of Coprates' southern ridge, ~570 m above datum.
     start: { lat: -13.174286, lon: 296.567862, eye: 1.7, heading: 292, pitch: -7 },
     ship: { east: 66, north: -53, heading: 250 },     // metres from start
-    exposure: { key: 0.16, min: 0.5, max: 6.0e5, speed: 1.6 },
+    exposure: { key: 0.16, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.2 },
     bookmarks: {
       ledge: { heading: 292, pitch: -7, fov: 60 },
       sun: { heading: 297, pitch: 3, fov: 22 },
-      wall: { heading: 338, pitch: -3, fov: 34 },
+      wall: { heading: 352, pitch: -2, fov: 34 },
       ship: { heading: 130, pitch: 5, fov: 40 },
       dusk: { heading: 298, pitch: 9, fov: 60, timeOffsetHours: 1.7 },
     },

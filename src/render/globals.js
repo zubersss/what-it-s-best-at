@@ -15,5 +15,8 @@ export const G = {
   uCamUp: { value: new THREE.Vector3(0, 1, 0) },
   uCamFwd: { value: new THREE.Vector3(0, 0, -1) },
   uTanHalfFov: { value: new THREE.Vector2(1, 1) },
+  // Planetshine: light reflected onto the ground by the brightest sky body (earthshine on the Moon).
+  uShineDir: { value: new THREE.Vector3(0, 0, 1) },
+  uShineE: { value: new THREE.Vector3(0, 0, 0) },
   // The Atmosphere adds its LUT textures and medium parameters here at start-up.
 };

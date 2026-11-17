@@ -1,12 +1,13 @@
 // Headless screenshots of the camera bookmarks. See CLAUDE.md.
-//   node scripts/shots.mjs [--world mars] [--shot ledge,sun] [--size 1280x720] [--out docs/shots]
-//                          [--query "t=0.5&hud=1"] [--suffix _x] [--timeout 240]
+//   node scripts/shots.mjs [--world mars] [--shot ledge,sun] [--size 1280x720] [--out docs/shots] [--dist]
+//                          [--query "t=0.5&hud=1"] [--suffix _x] [--timeout 240] [--dsf 2] [--touch]
+// Phone-shaped example (S23 Ultra landscape is about 880x412 CSS px): --size 880x412 --dsf 2 --touch
 // Headless Chromium uses software WebGL: frame rates here mean nothing.
 import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createServer } from 'vite';
+import { createServer, preview } from 'vite';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -21,16 +22,22 @@ const outDir = path.resolve(root, opt('out', 'docs/shots'));
 const extraQuery = opt('query', '');
 const suffix = opt('suffix', '');
 const timeoutS = Number(opt('timeout', '300'));
+const dsf = Number(opt('dsf', '1'));                 // device scale factor (a phone is ~2.6–3.5)
+const touch = args.includes('--touch');             // emulate a touch device
 
 await mkdir(outDir, { recursive: true });
-const server = await createServer({ root, logLevel: 'error', server: { port: 0, host: '127.0.0.1' } });
-await server.listen();
+// --dist serves the production build (run `npm run build` first) instead of the dev server.
+const useDist = args.includes('--dist');
+const server = useDist
+  ? await preview({ root, logLevel: 'error', preview: { port: 4179, strictPort: false, host: '127.0.0.1' } })
+  : await createServer({ root, logLevel: 'error', server: { port: 0, host: '127.0.0.1' } });
+if (!useDist) await server.listen();
 const base = server.resolvedUrls.local[0];
 
 const browser = await chromium.launch({
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--enable-webgl', '--disable-gpu-vsync'],
 });
-const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: dsf, hasTouch: touch, isMobile: touch });
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[browser ${m.type()}]`, m.text().slice(0, 600)); });
 page.on('pageerror', (e) => console.log('[pageerror]', String(e).slice(0, 600)));
 
@@ -56,5 +63,5 @@ for (const shot of shots) {
 }
 await writeFile(path.join(outDir, `${world}_stats${suffix}.json`), JSON.stringify(summary, null, 2));
 await browser.close();
-await server.close();
+await (useDist ? server.httpServer.close() : server.close());
 process.exit(failed ? 1 : 0);

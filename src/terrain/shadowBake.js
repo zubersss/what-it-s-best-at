@@ -67,10 +67,13 @@ export class ShadowBaker {
     else {
       H = this.H; M = S + 3; cells = S; stride = 1;
       const wl = 2 * edge / S;
+      faceToDir(face, a0 + size / 2, b0 + size / 2, dir);
+      hs.prepare(dir[0], dir[1], dir[2], edge * 0.76);
       for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) {
         faceToDir(face, a0 + (i - 1) / S * size, b0 + (j - 1) / S * size, dir);
         H[j * M + i] = hs.height(dir[0], dir[1], dir[2], wl);
       }
+      hs.release();
     }
     const minWL = 2 * edge / cells, spacing = edge / cells;
 
@@ -122,6 +125,7 @@ export class ShadowBaker {
       farA[j * (FAR + 1) + i] = Math.max(-clampA, Math.min(clampA, a));
     }
     // --- mid field: 17x17 rays from the edge of the height grid out to 8 chunk widths
+    hs.prepare(cx, cy, cz, edge * 9);
     for (let j = 0; j <= MID; j++) for (let i = 0; i <= MID; i++) {
       dirAt(i / MID, j / MID);
       const gx = 1 + i / MID * cells, gy = 1 + j / MID * cells;
@@ -129,10 +133,11 @@ export class ShadowBaker {
       const fa = bil(farA, FAR + 1, i / MID * FAR, j / MID * FAR);
       if (fa > stop) {                                              // not already dark from far away
         const tStart = Math.max(spacing * 1.5, exitCells(gx, gy) * tPerCell * 0.9);
-        if (tStart < tMid) a = this._march(dir[0], dir[1], dir[2], heightAt(Math.min(gx, M - 1.001), Math.min(gy, M - 1.001)) + spacing * 0.05, sx, sy, sz, tStart, tMid, minWL * 2, spacing * 2, stop);
+        if (tStart < tMid) a = this._march(dir[0], dir[1], dir[2], heightAt(Math.min(gx, M - 1.001), Math.min(gy, M - 1.001)) + spacing * 0.05, sx, sy, sz, tStart, tMid, Math.max(minWL * 2, edge / 6), spacing * 2, stop);
       }
       midA[j * (MID + 1) + i] = Math.max(-clampA, Math.min(clampA, a));
     }
+    hs.release();
     // --- inner field: every texel walks the chunk's own height grid
     const maxG = M - 1.001;
     for (let j = 0; j <= S; j++) for (let i = 0; i <= S; i++) {

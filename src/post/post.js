@@ -42,19 +42,27 @@ void main() {
 
 const METER_FRAG = /* glsl */`
 uniform sampler2D tSrc;
+uniform float uFloor;      // fraction of the frame mean below which texels stop pulling exposure up
 in vec2 vUv;
 out vec4 outColor;
+float lumAt(int x, int y) {
+  vec3 c = texture(tSrc, (vec2(float(x), float(y)) + 0.5) / vec2(32.0, 18.0)).rgb;
+  return dot(c, vec3(0.2126, 0.7152, 0.0722));
+}
 void main() {
-  // Centre-weighted average of log2 luminance over a 32 x 18 grid.
+  // Centre-weighted average of log2 luminance over a 32 x 18 grid. Texels far darker than
+  // the frame's mean (a black airless sky, deep shadow) are floored at a fraction of that
+  // mean, so they pull the exposure up only a little — like a camera's matrix metering.
+  float mean = 0.0;
+  for (int y = 0; y < 18; y++) for (int x = 0; x < 32; x++) mean += lumAt(x, y);
+  mean /= 576.0;
+  float floorLum = max(mean * uFloor, 1e-7);
   float sum = 0.0, wsum = 0.0;
   for (int y = 0; y < 18; y++) {
     for (int x = 0; x < 32; x++) {
-      vec2 uv = (vec2(float(x), float(y)) + 0.5) / vec2(32.0, 18.0);
-      vec3 c = texture(tSrc, uv).rgb;
-      float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
-      vec2 d = (uv - 0.5) * vec2(1.0, 1.15);
+      vec2 d = ((vec2(float(x), float(y)) + 0.5) / vec2(32.0, 18.0) - 0.5) * vec2(1.0, 1.15);
       float w = exp(-dot(d, d) * 3.0);
-      sum += w * log2(max(lum, 1e-7));
+      sum += w * log2(max(lumAt(x, y), floorLum));
       wsum += w;
     }
   }
@@ -125,7 +133,7 @@ export class PostPipeline {
     this.gpuBytes = 0;
 
     // Auto exposure state
-    this.settings = { key: 0.16, min: 0.5, max: 6e5, speed: 1.6, ...exposureSettings };
+    this.settings = { key: 0.16, min: 0.5, max: 6e5, speed: 1.6, shadowFloor: 0.2, ...exposureSettings };
     this.exposure = 20;
     this.targetExposure = 20;
     this.measuredLog2 = 0;
@@ -143,7 +151,7 @@ export class PostPipeline {
 
     this.downMat = makePassMaterial(DOWN_FRAG, { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() }, uUvScale: { value: new THREE.Vector2(1, 1) }, uUvMax: { value: new THREE.Vector2(1, 1) }, uClamp: { value: 1e9 } });
     this.upMat = makePassMaterial(UP_FRAG, { tSrc: { value: null }, tBase: { value: null }, uTexel: { value: new THREE.Vector2() } });
-    this.meterMat = makePassMaterial(METER_FRAG, { tSrc: { value: null } });
+    this.meterMat = makePassMaterial(METER_FRAG, { tSrc: { value: null }, uFloor: { value: this.settings.shadowFloor } });
     this.compositeMat = makePassMaterial(COMPOSITE_FRAG, {
       tScene: { value: null }, tBloom: { value: null }, tBlueNoise: { value: noise },
       uUvScale: { value: new THREE.Vector2(1, 1) }, uUvMax: { value: new THREE.Vector2(1, 1) },
@@ -157,7 +165,6 @@ export class PostPipeline {
     this.scene?.dispose();
     this.scene = new THREE.WebGLRenderTarget(this.width, this.height, { ...opts, depthBuffer: true, stencilBuffer: false });
     this.scene.texture.colorSpace = THREE.NoColorSpace;
-    this.scene.scissorTest = true;
     for (const t of this.bloomDown) t.dispose();
     for (const t of this.bloomUp) t.dispose();
     this.bloomDown = []; this.bloomUp = [];
@@ -186,7 +193,15 @@ export class PostPipeline {
     this.exposureUsed = this.exposure;       // what this frame's shaders were given
     r.setRenderTarget(this.scene);
     r.setClearColor(0x000000, 1);
+    // Whole-target clear (not scissored to the sub-viewport): the fast path on tile-based GPUs.
     r.clear(true, true, false);
+  }
+
+  // Call right after the last scene draw: the depth buffer is not needed any more, so a
+  // tile-based GPU does not have to write it back to memory.
+  endScene() {
+    const gl = this.renderer.getContext();
+    gl.invalidateFramebuffer(gl.FRAMEBUFFER, [gl.DEPTH_ATTACHMENT]);
   }
 
   render(dt) {

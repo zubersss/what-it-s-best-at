@@ -13,6 +13,12 @@ export class Hud {
     this.slider.addEventListener('change', () => this.slider.blur());
   }
 
+  // The slider spans one solar day of the current world, centred on the scene's start time.
+  setTimeRange(halfRangeHours) {
+    this.slider.min = String(-halfRangeHours); this.slider.max = String(halfRangeHours);
+    this.slider.step = String(halfRangeHours / 1200);
+  }
+
   setVisible(v) {
     this.visible = v;
     this.el.classList.toggle('hidden', !v);

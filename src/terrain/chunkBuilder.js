@@ -44,6 +44,7 @@ export class ChunkBuilder {
     this.P = new Float64Array(M * M * 3);
     this.D = new Float64Array(M * M * 3);
     this.hp = new Float64Array((this.G + 1) * (this.G + 1));
+    this.hv = new Float64Array((this.G + 1) * (this.G + 1));
     this.dir = [0, 0, 0];
   }
 
@@ -56,6 +57,8 @@ export class ChunkBuilder {
     const minWL = 2 * edge / NR;
     const dir = this.dir;
     let minH = Infinity, maxH = -Infinity;
+    faceToDir(face, a0 + size / 2, b0 + size / 2, dir);
+    hs.prepare(dir[0], dir[1], dir[2], edge * 0.76);
     for (let j = 0; j < M; j++) {
       const b = b0 + (j - 1) / NR * size;
       for (let i = 0; i < M; i++) {
@@ -69,18 +72,27 @@ export class ChunkBuilder {
         if (h < minH) minH = h; if (h > maxH) maxH = h;
       }
     }
+    hs.release();
 
-    // Chunk origin: the centre sample.
-    const cs = (1 + NR / 2) * M + 1 + NR / 2;
-    const cx = P[cs * 3], cy = P[cs * 3 + 1], cz = P[cs * 3 + 2];
-
-    // Parent-LOD heights at even vertices, for geomorphing.
-    const V = G + 1, hp = this.hp;
+    // Vertex heights are a small symmetric box average of the fine samples around each
+    // vertex: the mesh cannot represent what only the normal map can resolve, and point
+    // sampling that detail shows up as faceted, shimmering silhouettes. The window
+    // shrinks toward the chunk edge so both neighbours compute identical edge vertices.
+    const V = G + 1, hp = this.hp, hv = this.hv;
+    const boxAvg = (si, sj, rad) => {
+      let acc = 0;
+      for (let y = sj - rad; y <= sj + rad; y++) { const o = y * M + si; for (let x = -rad; x <= rad; x++) acc += H[o + x]; }
+      return acc / ((2 * rad + 1) * (2 * rad + 1));
+    };
+    const radV = Math.max(1, step >> 1), radP = radV * 2;
+    for (let j = 0; j < V; j++) for (let i = 0; i < V; i++) {
+      const si = 1 + i * step, sj = 1 + j * step;
+      const border = Math.min(si, sj, M - 1 - si, M - 1 - sj);
+      hv[j * V + i] = boxAvg(si, sj, Math.min(radV, border));
+      // Parent-LOD height at the vertices the parent mesh also has (even ones): a wider average.
+      if (level > 0 && !(i & 1) && !(j & 1)) hp[j * V + i] = boxAvg(si, sj, Math.min(radP, border));
+    }
     if (level > 0) {
-      for (let j = 0; j < V; j += 2) for (let i = 0; i < V; i += 2) {
-        const o = ((1 + j * step) * M + 1 + i * step) * 3;
-        hp[j * V + i] = hs.height(D[o], D[o + 1], D[o + 2], minWL * 2);
-      }
       for (let j = 0; j < V; j++) for (let i = 0; i < V; i++) {
         const oi = i & 1, oj = j & 1;
         if (!oi && !oj) continue;
@@ -90,14 +102,19 @@ export class ChunkBuilder {
       }
     }
 
+    // Chunk origin: the centre vertex.
+    const cs = (1 + NR / 2) * M + 1 + NR / 2, cv = (G / 2) * V + G / 2;
+    const cr = R + hv[cv];
+    const cx = D[cs * 3] * cr, cy = D[cs * 3 + 1] * cr, cz = D[cs * 3 + 2] * cr;
+
     const nv = vertexCount(G);
     const positions = new Float32Array(nv * 3), attrs = new Float32Array(nv * 2);
     let radius2 = 0;
     for (let j = 0; j < V; j++) for (let i = 0; i < V; i++) {
-      const s = (1 + j * step) * M + 1 + i * step, v = j * V + i;
-      const x = P[s * 3] - cx, y = P[s * 3 + 1] - cy, z = P[s * 3 + 2] - cz;
+      const s = (1 + j * step) * M + 1 + i * step, v = j * V + i, r = R + hv[v];
+      const x = D[s * 3] * r - cx, y = D[s * 3 + 1] * r - cy, z = D[s * 3 + 2] * r - cz;
       positions[v * 3] = x; positions[v * 3 + 1] = y; positions[v * 3 + 2] = z;
-      attrs[v * 2] = H[s]; attrs[v * 2 + 1] = level > 0 ? hp[v] - H[s] : 0;
+      attrs[v * 2] = hv[v]; attrs[v * 2 + 1] = level > 0 ? hp[v] - hv[v] : 0;
       const d2 = x * x + y * y + z * z; if (d2 > radius2) radius2 = d2;
     }
     // Skirts hang below the four edges to hide LOD seams.

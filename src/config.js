@@ -1,11 +1,11 @@
 // Engine constants. World-specific numbers never go here — they live in src/worlds/.
 export const CONFIG = {
   // Terrain
-  GRID: 32,                 // quads per chunk edge (fixed, shared index buffer)
-  NORMAL_RES: 128,          // normal-map cells per chunk edge (texture is NORMAL_RES+1 square)
-  SHADOW_RES: 64,           // baked sun-shadow cells per chunk edge
+  GRID: 40,                 // quads per chunk edge (fixed, shared index buffer; must be even)
+  NORMAL_RES: 120,          // normal-map cells per chunk edge (multiple of GRID; texture is NORMAL_RES+1 square)
+  SHADOW_RES: 60,           // baked sun-shadow cells per chunk edge (must divide NORMAL_RES)
   CHUNK_POOL: 480,          // fixed number of chunk slots (geometry + textures)
-  MAX_RENDER_CHUNKS: 130,   // hard cap of terrain draw calls
+  MAX_RENDER_CHUNKS: 120,   // hard cap of terrain draw calls
   SPLIT_FACTOR: 0.95,       // split when distance < factor * node edge
   SPLIT_FACTOR_OFFSCREEN: 0.3,
   MORPH_START: 0.72,        // fraction of the merge distance where geomorphing starts
@@ -25,7 +25,10 @@ export const CONFIG = {
   NEAR_SHADOW_RADIUS: 150,  // metres around the camera
 
   // Post / performance
-  MAX_PIXEL_RATIO: 1,
+  // Render-size cap. The brief's "device pixel ratio 1" assumed a desktop monitor; the target
+  // is now a phone with a ~3x display, where ratio 1 is only ~880x412. We cap the pixel
+  // count instead: ratio = min(devicePixelRatio, max(1, sqrt(MAX_PIXELS / cssPixels))).
+  MAX_PIXELS: 1.5e6,
   BLOOM_LEVELS: 5,
   BLOOM_STRENGTH: 0.045,
   TARGET_FPS: 30,

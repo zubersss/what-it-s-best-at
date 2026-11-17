@@ -74,13 +74,13 @@ export class Rocks {
           vec3 albedo = mix(uRockAlbedo * vMisc.y, uDustAlbedo, top * 0.55);       // dust settles on top
           float contact = mix(0.55, 1.0, smoothstep(-0.35, 0.25, vLocal.z));        // darker where it meets the ground
           vec3 direct = directSun(planetPos) * vMisc.x * nearShadow(vRel, N) * diffuseON(N, uSunDir, V, uRoughness);
-          vec3 col = albedo * (direct + skyLight(N, up) * contact / PI);
+          vec3 col = albedo * (direct + (skyLight(N, up) * contact + planetShine(N)) / PI);
           col = aerialPerspective(col, vRel);
           fragColor = vec4(col * uExposure, 1.0);
         }`,
     });
     this.depthMaterial = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3, uniforms: { uFadeRadius: fade },
+      glslVersion: THREE.GLSL3, colorWrite: false, uniforms: { uFadeRadius: fade },
       vertexShader: /* glsl */`${INSTANCE_VERT}
         void main() { vec3 c; gl_Position = projectionMatrix * viewMatrix * vec4(rockPosition(c), 1.0); }`,
       fragmentShader: /* glsl */`layout(location = 0) out vec4 fragColor; void main() { fragColor = vec4(1.0); }`,

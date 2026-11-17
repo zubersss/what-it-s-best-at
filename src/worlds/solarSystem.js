@@ -25,7 +25,7 @@ export const SOLAR_SYSTEM = {
     parent: 'sun',
     radius: 6371.0e3,
     geometricAlbedo: 0.434,
-    color: [0.62, 0.74, 1.0],
+    color: [0.72, 0.82, 1.0],
     orbit: {
       frame: 'ecliptic',
       a: [1.00000261 * AU, 0.00000562 * AU], e: [0.01671123, -0.00004392],

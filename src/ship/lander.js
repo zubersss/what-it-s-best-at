@@ -177,7 +177,7 @@ void main() {
   vec3 L = uSunDir;
   float NL = max(dot(N, L), 0.0), NV = max(dot(N, V), 1e-3);
   vec3 Esun = directSun(planetPos) * uSunVis * nearShadow(vRel, normalize(vN));
-  vec3 sky = skyLight(N, up);
+  vec3 sky = skyLight(N, up) + planetShine(N);
   vec3 diffuse = albedo * (1.0 - metal) * (Esun * NL + sky) / PI;
   // Specular: Sun highlight + a reflection of the real sky (or the ground below the horizon).
   vec3 F0 = mix(vec3(0.04), albedo, metal);
@@ -244,7 +244,7 @@ export class Lander {
     this.triangles = geo.attributes.position.count / 3;
     this.material = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: this.uniforms, vertexShader: VERT, fragmentShader: FRAG, side: THREE.DoubleSide });
     this.depthMaterial = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3, side: THREE.DoubleSide,
+      glslVersion: THREE.GLSL3, side: THREE.DoubleSide, colorWrite: false,
       vertexShader: `void main() { gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`,
       fragmentShader: `layout(location = 0) out vec4 fragColor; void main() { fragColor = vec4(1.0); }`,
     });

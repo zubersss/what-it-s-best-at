@@ -67,9 +67,10 @@ export class CameraRig {
     this.fov = Math.exp(Math.log(this.fov) + (Math.log(target) - Math.log(this.fov)) * k);
 
     this._basis();
-    const fwd = (input.down('KeyW') ? 1 : 0) - (input.down('KeyS') ? 1 : 0);
-    const strafe = (input.down('KeyD') ? 1 : 0) - (input.down('KeyA') ? 1 : 0);
-    const fast = input.down('ShiftLeft') || input.down('ShiftRight');
+    const fwd = (input.down('KeyW') ? 1 : 0) - (input.down('KeyS') ? 1 : 0) + input.moveY;
+    const strafe = (input.down('KeyD') ? 1 : 0) - (input.down('KeyA') ? 1 : 0) + input.moveX;
+    // Touch stick pushed to its rim = run / fly fast.
+    const fast = input.down('ShiftLeft') || input.down('ShiftRight') || Math.hypot(input.moveX, input.moveY) > 0.96;
     const slow = input.down('ControlLeft');
 
     if (this.mode === 'walk') {

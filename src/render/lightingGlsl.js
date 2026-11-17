@@ -25,6 +25,8 @@ uniform sampler2D tFroxelC;         //                      transmittance
 uniform float uFroxelMax;           // km
 uniform vec2 uLutScaleInv;          // x: 1 / scale of the irradiance LUT, y: 1 / scale of the froxels
 uniform mat3 uSkyFrame;             // planet-fixed -> local sky frame
+uniform vec3 uShineDir;             // toward the brightest sky body
+uniform vec3 uShineE;               // its irradiance at the ground (planetshine)
 
 // Irradiance of the Sun reaching a point (planet-centred metres), unshadowed:
 // the attenuated direct beam plus the forward-scattered aureole around it.
@@ -48,6 +50,9 @@ vec3 skyLight(vec3 N, vec3 up) {
   vec2 uv = (e * (float(IRR) - 1.0) + 0.5) / vec2(float(IRR), float(IRR) + 1.0);
   return texture(tIrradiance, uv).rgb * (uLutScaleInv.x * uSunIrradiance);
 }
+
+// Irradiance from planetshine (sunlight reflected by a sky body) onto a surface with normal N.
+vec3 planetShine(vec3 N) { return uShineE * max(dot(N, uShineDir), 0.0); }
 
 // Attenuates a surface colour and adds in-scattered light along the view ray.
 vec3 aerialPerspective(vec3 color, vec3 rel) {
