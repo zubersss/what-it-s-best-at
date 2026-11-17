@@ -15,18 +15,21 @@ import path from 'node:path';
 import { open, opt, flag, root } from './lib/browser.mjs';
 import { decodePNG, encodePNG } from './lib/png.mjs';
 
-// step = what the camera does between two consecutive frames (one 60th of a second of
-// that motion); stride = how far it travels between stations, in the same units.
+// step = what the camera does between two consecutive frames; stride = how far it
+// travels between stations, in steps. Steps are kept to about a pixel of image motion:
+// slow motion is what shows crawling and shimmer, and a pop shows at any speed, while a
+// fast move only fills the difference picture with honest motion.
 const MOVES = [
   { id: 'mars_walk', world: 'mars', shot: 'ledge', query: '', step: { fwd: 0.055 }, stride: 160 },
-  { id: 'mars_turn', world: 'mars', shot: 'ledge', query: '', step: { yaw: 0.25 }, stride: 90 },
+  { id: 'mars_turn', world: 'mars', shot: 'ledge', query: '', step: { yaw: 0.06 }, stride: 300 },
   { id: 'mars_wall_tele', world: 'mars', shot: 'wall', query: '', step: { yaw: 0.05 }, stride: 60 },
-  { id: 'mars_low_flight', world: 'mars', shot: 'ledge', query: 'hero=1&alt=900', step: { fwd: 3 }, stride: 120 },
-  { id: 'mars_high_flight', world: 'mars', shot: 'ledge', query: 'alt=60000&pitch=-30', step: { fwd: 700 }, stride: 40 },
-  { id: 'mars_orbit', world: 'mars', shot: 'ledge', query: 'alt=400000&pitch=-25', step: { fwd: 5000 }, stride: 30 },
+  { id: 'mars_low_flight', world: 'mars', shot: 'ledge', query: 'hero=1&alt=900', step: { fwd: 1 }, stride: 300 },
+  { id: 'mars_high_flight', world: 'mars', shot: 'ledge', query: 'alt=60000&pitch=-30', step: { fwd: 150 }, stride: 150 },
+  { id: 'mars_orbit', world: 'mars', shot: 'ledge', query: 'alt=400000&pitch=-25', step: { fwd: 800 }, stride: 150 },
   { id: 'moon_walk', world: 'moon', shot: 'ship', query: '', step: { fwd: 0.055 }, stride: 160 },
-  { id: 'moon_low_flight', world: 'moon', shot: 'ledge', query: 'hero=1&alt=600', step: { fwd: 3 }, stride: 120 },
-  { id: 'moon_orbit', world: 'moon', shot: 'ledge', query: 'alt=120000&pitch=-25', step: { fwd: 2000 }, stride: 30 },
+  { id: 'moon_turn', world: 'moon', shot: 'ledge', query: '', step: { yaw: 0.06 }, stride: 300 },
+  { id: 'moon_low_flight', world: 'moon', shot: 'ledge', query: 'hero=1&alt=600', step: { fwd: 1 }, stride: 300 },
+  { id: 'moon_orbit', world: 'moon', shot: 'ledge', query: 'alt=120000&pitch=-25', step: { fwd: 250 }, stride: 150 },
 ];
 const STATIONS = Number(opt('stations', '3'));
 const out = path.resolve(root, opt('out', 'docs/shots/stability')), only = opt('only', '');
@@ -45,6 +48,14 @@ const move = (step, times) => page.evaluate(({ step, times }) => {
   if (step.yaw) r.heading = (r.heading + step.yaw * times + 360) % 360;
   return a.frameCount;
 }, { step, times });
+// Screenshot mode sets exposure instantly from each frame's metering, which would turn a
+// 2 % metering difference into a frame-wide brightness step that play never shows
+// (there exposure glides). So exposure is held for the three frames of a station.
+const holdExposure = (on) => page.evaluate((on) => {
+  const p = window.__app.post, s = p.settings;
+  if (on && !p._held) { p._held = [s.min, s.max]; s.min = s.max = p.exposure; }
+  if (!on && p._held) { [s.min, s.max] = p._held; p._held = null; }
+}, on);
 
 const lum = (img, i) => 0.2126 * img.rgb[i * 3] + 0.7152 * img.rgb[i * 3 + 1] + 0.0722 * img.rgb[i * 3 + 2];
 const wanted = (m) => !only || only.split(',').some((k) => m.id.includes(k));
@@ -56,9 +67,11 @@ for (const m of MOVES) {
   await ready(8);
   for (let s = 0; s < STATIONS; s++) {
     const frames = [];
+    await holdExposure(false);
     for (let f = 0; f < 3; f++) {
       const n = await move(m.step, f === 0 ? (s === 0 ? 0 : m.stride) : 1);
       await ready(n + 6);
+      if (f === 0) await holdExposure(true);
       const file = path.join(out, `_${m.id}_${s}_${f}.png`);
       await snap(file);
       frames.push(decodePNG(await readFile(file)));

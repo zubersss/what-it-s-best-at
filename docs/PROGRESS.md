@@ -95,6 +95,8 @@ Status: all six done; waiting for the owner's first benchmark results from the p
 - **`npm run stability` reports, it does not pass or fail.** Consecutive frames legally
   differ where the camera moved; the script marks one-frame outliers in red and a person
   (or Claude) looks at the strips.
+- **The near shadow map's texel grid is anchored to the ground near the camera** and
+  re-anchored only when the camera is more than two map radii away.
 
 ### Worlds
 
@@ -168,6 +170,32 @@ Status: all six done; waiting for the owner's first benchmark results from the p
 | Earth is blown out to white in the lunar dusk shot | 5 |
 | Far from every body there is only the HUD read-out to navigate by | 4 / 7 |
 | Triangles sit at ~460–480k of the 500k budget | watch |
+
+## Stability test, milestone 1
+
+Three consecutive frames at two stations along ten scripted moves (walking, turning,
+telephoto, low flight, high flight and orbit on Mars; walking, turning, low flight and
+orbit on the Moon), about one pixel of image motion per frame, exposure held.
+Numbers are in `docs/shots/stability/report.json`; the strips are not kept in the
+repository (re-create them with `npm run stability`).
+
+- **No pops and no sparkles** in any of the moves; differences between frames follow
+  the edges of things that moved.
+- **Residual shimmer: one-pixel-high bright features alias**, because there is no
+  anti-aliasing: sunlit ridge highlights on the near Martian ground while turning, and
+  the sunlit far rim of the lunar crater (a broken line on the horizon). At the phone's
+  resolution these are finer than in the test; to be judged there. → 2
+- **Fixed: the near shadow map's texel grid was tied to the planet's centre.** One of
+  its two coordinates was identically zero (never snapped) and, measured from the
+  centre, the grid swept across the ground as the Sun turned, so shadow edges of rocks,
+  the lander and the character could crawl. It is now tied to a point on the ground near
+  the camera. Found by reading the code while chasing a test result; the test itself
+  cannot show it (time is paused in screenshots), so the visible effect is unconfirmed.
+- **Fixed: screenshot mode never became ready a few hundred metres above the ground**
+  (the rocks waited for a shadow answer that was never asked for).
+- The first version of the test moved too fast (several pixels per frame) and let
+  exposure re-meter between frames; both produced large, honest differences that hid
+  what the test is for. Steps are now about a pixel and exposure is held per station.
 
 ## Independent critic, milestone 1 (screenshots and art rules only)
 

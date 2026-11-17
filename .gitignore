@@ -2,3 +2,5 @@ node_modules
 dist
 .cache
 *.log
+# stability strips are large and re-creatable (npm run stability); the report is kept
+docs/shots/stability/*.png
