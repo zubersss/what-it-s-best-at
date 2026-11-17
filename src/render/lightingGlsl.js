@@ -27,6 +27,7 @@ uniform vec2 uLutScaleInv;          // x: 1 / scale of the irradiance LUT, y: 1 
 uniform mat3 uSkyFrame;             // planet-fixed -> local sky frame
 uniform vec3 uShineDir;             // toward the brightest sky body
 uniform vec3 uShineE;               // its irradiance at the ground (planetshine)
+uniform vec4 uQuality;              // governor switches: x close-up detail, y soft shadow edges
 
 // Irradiance of the Sun reaching a point (planet-centred metres), unshadowed:
 // the attenuated direct beam plus the forward-scattered aureole around it.

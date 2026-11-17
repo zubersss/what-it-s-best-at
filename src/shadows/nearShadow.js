@@ -81,6 +81,7 @@ export const NEAR_SHADOW_PARS = /* glsl */`
 uniform highp sampler2DShadow tNearShadow;
 uniform mat4 uShadowMatrix;
 uniform vec3 uShadowParams;     // radius (m), texel size (uv), enabled
+// (uQuality is declared by the lighting chunk that includes this.)
 // Visibility of the Sun (0..1) from ship/rock shadows at a camera-relative position.
 float nearShadow(vec3 rel, vec3 N) {
   float d = length(rel);
@@ -88,9 +89,12 @@ float nearShadow(vec3 rel, vec3 N) {
   vec3 c = (uShadowMatrix * vec4(rel + N * 0.05, 1.0)).xyz;
   if (c.x < 0.0 || c.x > 1.0 || c.y < 0.0 || c.y > 1.0 || c.z > 1.0) return 1.0;
   c.z -= 0.00025;
-  float t = uShadowParams.y * 0.75;
-  float s = texture(tNearShadow, vec3(c.xy + vec2(-t, -t * 0.4), c.z)) + texture(tNearShadow, vec3(c.xy + vec2(t, t * 0.4), c.z))
-          + texture(tNearShadow, vec3(c.xy + vec2(-t * 0.4, t), c.z)) + texture(tNearShadow, vec3(c.xy + vec2(t * 0.4, -t), c.z));
-  return mix(s * 0.25, 1.0, smoothstep(uShadowParams.x * 0.8, uShadowParams.x, d));
+  float s;
+  if (uQuality.y > 0.5) {
+    float t = uShadowParams.y * 0.75;
+    s = 0.25 * (texture(tNearShadow, vec3(c.xy + vec2(-t, -t * 0.4), c.z)) + texture(tNearShadow, vec3(c.xy + vec2(t, t * 0.4), c.z))
+              + texture(tNearShadow, vec3(c.xy + vec2(-t * 0.4, t), c.z)) + texture(tNearShadow, vec3(c.xy + vec2(t * 0.4, -t), c.z)));
+  } else s = texture(tNearShadow, c);          // governor step: one filtered tap
+  return mix(s, 1.0, smoothstep(uShadowParams.x * 0.8, uShadowParams.x, d));
 }
 `;

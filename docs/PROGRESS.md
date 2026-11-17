@@ -18,7 +18,16 @@ changes behaviour.
   lookup-table atmosphere, the true sky (9 096 catalogue stars, Sun, planets and moons
   from an ephemeris checked against JPL Horizons), a lander, rocks, HDR with
   auto-exposure, AgX, bloom, dither.
-- **Tools**: reference screenshots, a stability test, a scripted Mars→Moon flight test.
+- **Start screen** with Play, a 3-minute benchmark, a 10-minute soak test and the
+  Smooth / Sharp switch; a results screen with a Copy button; the commit the page was
+  built from on the start screen and in the HUD.
+- **The governor**: renders at the canvas's native pixel size when it can, lowers
+  resolution first (down to about 1 M pixels), then features in a fixed order, and paces
+  frames evenly to the 60 or 30 fps target.
+- **Phone link**: GitHub Pages, deployed by GitHub Actions on every push to `main`.
+- **Tools**: the reference screenshot set (`npm run shots:all`), the stability test
+  (`npm run stability`), a scripted Mars→Moon flight test (`npm run flight`) and a
+  headless check of the start screen, modes and a full benchmark (`npm run smoke`).
 
 ## Milestone 1 plan — phone link and measurement
 
@@ -32,6 +41,8 @@ changes behaviour.
 5. Benchmark: scripted 3-minute route (Mars bookmarks → flight to the Moon → lunar
    bookmarks), 10-minute soak, results screen with Copy.
 6. Reference screenshots, stability test, independent critic, docs, checkpoint.
+
+Status: all six done; waiting for the owner's first benchmark results from the phone.
 
 ## Decisions in force (and why)
 
@@ -55,6 +66,35 @@ changes behaviour.
   budget, not the triangle budget, limits terrain detail, so chunks were made denser.
 - **Mobile GPU care**: clears before full-screen passes, depth and unused colour
   invalidated, GL context loss reloads the page.
+
+### Measurement and the governor (milestone 1)
+
+- **The canvas is drawn pixel for pixel** (`devicePixelContentBox`), so "native" really
+  is the panel's own pixels. A guard at 8.3 M pixels protects the memory budget on
+  monitors above 4K only.
+- **Smooth starts at about half of native's pixels, Sharp at native.** Coming down is
+  quick (under a second per step) and climbing is slow on purpose, so starting high
+  settles fastest, but starting Smooth at native would mean a second or two of stutter
+  on a phone that cannot hold it. To be tuned from the first benchmark.
+- **Lateness is judged against the target interval (×1.2), not against the measured
+  refresh rate.** When every frame is slow the refresh rate cannot be measured (all
+  callbacks are late), and a tolerance based on it excused 40 fps as "on time" in
+  simulation. The refresh rate is measured at page load, before anything heavy runs.
+- **Frames with terrain uploads count less.** A late frame that uploaded terrain is
+  usually late because of the upload, which a lower resolution cannot fix. Such frames
+  only trigger a step down when more than 60 % of all frames are late.
+- **Hysteresis**: a step up that is taken back within 4 s doubles the wait before the
+  next try (3 s → 60 s); each step up that holds halves it. In simulation a steady
+  scene settles on one level and tries the next one about once a minute.
+- **The benchmark drives the game through virtual keys** rather than a replayed camera
+  path, so it measures the code a player runs (controls, hand-over between worlds,
+  terrain streaming). Runs are therefore close to, but not exactly, repeatable.
+- **HUD has three states** (one line / everything / off) and starts on the one line, so
+  the picture is not covered by debug text on the phone. `?hud=1` still gives the full
+  read-out.
+- **`npm run stability` reports, it does not pass or fail.** Consecutive frames legally
+  differ where the camera moved; the script marks one-frame outliers in red and a person
+  (or Claude) looks at the strips.
 
 ### Worlds
 
@@ -107,7 +147,7 @@ changes behaviour.
 
 | Problem | Milestone |
 | --- | --- |
-| Nothing measured on the phone yet | 1 (benchmark) |
+| Nothing measured on the phone yet: governor start level, step sizes and thresholds are first guesses | 1 (owner's benchmark results) |
 | Detail pops as terrain refines; telephoto reloads distant chunks | 2 |
 | No atmospheric glow on the planet's edge from orbit | 2 |
 | Horizon rolls once at the Mars ↔ Moon hand-over | 2 |
@@ -131,3 +171,7 @@ changes behaviour.
 - **Charter adopted**: `CLAUDE.md` rewritten from the owner's charter, `docs/ROADMAP.md`
   added, the replaced rules deleted (old hardware target, pixel caps, "no UI", Mars-only
   scope, the do-not-build list).
+- **Milestone 1 built**: Pages workflow, build stamp, start screen, governor with Smooth
+  and Sharp, benchmark and soak with a results screen, exact-pixel canvas, three-state
+  HUD, `shots:all`, `stability` and `smoke` scripts. Removed `dynamicResolution.js`,
+  `MAX_PIXELS`, `TARGET_FPS`, `MIN_SCALE` and the `?fps=` parameter.

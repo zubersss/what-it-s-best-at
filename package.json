@@ -13,7 +13,8 @@
     "probe": "node scripts/probe-terrain.mjs",
     "shots:all": "node scripts/shots-all.mjs",
     "stability": "node scripts/stability.mjs",
-    "flight": "node scripts/flight-test.mjs"
+    "flight": "node scripts/flight-test.mjs",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"

@@ -28,6 +28,8 @@ export class Terrain {
     this.frame = 0;
     this.drawList = []; this.wanted = [];
     this.lodScale = 1;
+    this.maxChunks = CONFIG.MAX_RENDER_CHUNKS;     // lowered by the governor's terrain steps
+    this.uploads = 0;                              // chunks uploaded since the app last read it
     this.splitIn = CONFIG.SPLIT_FACTOR; this.splitOut = CONFIG.SPLIT_FACTOR_OFFSCREEN;
     this.frustum = new THREE.Frustum(); this.wideFrustum = new THREE.Frustum();
     this.farDistance = 1e6;
@@ -101,9 +103,9 @@ export class Terrain {
     list.sort((a, b) => a.dist - b.dist);
     // Budget feedback with a wide dead zone: changing the LOD scale re-tiles everything,
     // so it must not hunt around the cap.
-    if (list.length > CONFIG.MAX_RENDER_CHUNKS || this.stalled) this.lodScale *= 0.97;
-    else if (list.length < CONFIG.MAX_RENDER_CHUNKS * 0.84 && this.lodScale < 1 && this.wanted.length === 0) this.lodScale = Math.min(1, this.lodScale * 1.01);
-    if (list.length > CONFIG.MAX_RENDER_CHUNKS) list.length = CONFIG.MAX_RENDER_CHUNKS;
+    if (list.length > this.maxChunks || this.stalled) this.lodScale *= 0.97;
+    else if (list.length < this.maxChunks * 0.84 && this.lodScale < 1 && this.wanted.length === 0) this.lodScale = Math.min(1, this.lodScale * 1.01);
+    if (list.length > this.maxChunks) list.length = this.maxChunks;
 
     const slots = this.pool.slots;
     for (let i = 0; i < slots.length; i++) slots[i].mesh.visible = false;
@@ -221,6 +223,7 @@ export class Terrain {
     const si = node.reserved; node.reserved = -1;
     if (node.dead) { this.pool.free.push(si); return; }
     this.pool.upload(si, res);
+    this.uploads++;
     const s = this.pool.slots[si];
     s.node = node; node.slot = si;
     node.center.set(res.center[0], res.center[1], res.center[2]);

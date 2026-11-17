@@ -1,7 +1,8 @@
-// Touch controls for phones (the target device is a Samsung S23 Ultra).
+// Touch controls for phones (the test device is a Samsung Galaxy S23 Ultra).
 // Left part of the screen: a floating move stick. Rest of the screen: drag to look.
-// A small button row maps onto the same actions the keyboard has. This is deliberately
-// the only on-screen UI besides the debug HUD.
+// A small button row maps onto the same actions the keyboard has.
+import { immersive, keepAwake } from '../ui/device.js';
+
 export class TouchControls {
   // actions: { view(): void }  (bookmark cycling lives in the app)
   constructor(canvas, input, actions) {
@@ -21,6 +22,7 @@ export class TouchControls {
         <button data-key="KeyZ" data-hold="1">ZOOM</button>
         <button data-act="view">VIEW</button>
         <button data-key="KeyH">HUD</button>
+        <button data-key="KeyM">MODE</button>
         <button data-act="full">FULL</button>
       </div>
       <div id="tupdown">
@@ -83,16 +85,12 @@ export class TouchControls {
   enable() {
     if (this.enabled) return;
     this.enabled = true;
-    this.root.classList.remove('hidden');
+    if (!this.suppressed) this.root.classList.remove('hidden');
     document.body.classList.add('touch');
   }
 
-  async fullscreen() {
-    try {
-      if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
-      else await document.exitFullscreen();
-      await screen.orientation?.lock?.('landscape');
-    } catch { /* not allowed on this browser: ignore */ }
-    try { this.wake = this.wake || await navigator.wakeLock?.request('screen'); } catch { /* optional */ }
-  }
+  // Hidden while a benchmark plays by itself or a full-screen panel is up.
+  setVisible(v) { this.suppressed = !v; if (this.enabled) this.root.classList.toggle('hidden', !v); }
+
+  fullscreen() { immersive(true); keepAwake(); }
 }

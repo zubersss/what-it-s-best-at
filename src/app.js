@@ -7,8 +7,12 @@ import { WORLDS } from './worlds/index.js';
 import { SOLAR_SYSTEM, AU_M } from './worlds/solarSystem.js';
 import { Ephemeris, dateToJD, jdToDate, elevationAzimuth, latLonToDir } from './core/ephemeris.js';
 import { PostPipeline } from './post/post.js';
-import { DynamicResolution } from './post/dynamicResolution.js';
-import { Hud } from './debug/hud.js';
+import { Governor, MODES, FRAME } from './perf/governor.js';
+import { Benchmark } from './perf/benchmark.js';
+import { StartScreen, ResultsScreen, BenchBanner, Toast } from './ui/screens.js';
+import { immersive, keepAwake } from './ui/device.js';
+import { BUILD } from './core/build.js';
+import { Hud, HUD } from './debug/hud.js';
 import { Input } from './controls/input.js';
 import { CameraRig } from './controls/cameraRig.js';
 import { TouchControls } from './controls/touch.js';
@@ -25,6 +29,8 @@ import { createHeightSource, loadRasters } from './terrain/height/heightSource.j
 import { Terrain } from './terrain/terrain.js';
 
 const C_LIGHT = 299792458;
+// What the camera reads while a full-screen panel is open: nothing is pressed.
+const NO_INPUT = { dx: 0, dy: 0, wheel: 0, moveX: 0, moveY: 0, down: () => false, hit: () => false };
 
 function fmtDistance(m) {
   if (!Number.isFinite(m)) return '-';
@@ -60,6 +66,14 @@ export class App {
     this.worldData = new Map();        // world id -> { world, rasters, hs }
     this.targetIndex = -1;
     this.nearestName = ''; this.nearestClear = Infinity;
+    const gl = renderer.getContext(), dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    this.gpuName = String((dbg && gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) || gl.getParameter(gl.RENDERER) || 'unknown');
+    // Moments after which a slow frame has a known cause (see frameCause).
+    this.jumpedAt = this.switchedAt = this.resumedAt = this.resizedAt = -1e9;
+    this.lastUploads = 0; this.hiddenCount = 0; this.loadedAt = Infinity;
+    this.quality = G.uQuality.value;   // governor switches: x close-up ground detail, y soft shadow edges
+    this.terrainFactors = {};
+    this.menuOpen = false;
   }
 
   // Rasters + main-thread height source of a world (cached; the other worlds are fetched
@@ -83,15 +97,31 @@ export class App {
     const { world, params, renderer } = this;
     this.post = new PostPipeline(renderer, world.scene.exposure);
     this.post.instant = this.shotMode;
-    this.dynRes = new DynamicResolution(renderer, this.shotMode ? (params.scale ?? 1) : params.scale, params.fps);
+    let savedMode = null;
+    try { savedMode = localStorage.getItem('sse.mode'); } catch { /* storage blocked: use the default */ }
+    this.governor = new Governor(this, params.mode || savedMode || 'smooth', this.shotMode ? (params.scale ?? 1) : params.scale);
     this.hud = new Hud();
-    this.hud.setVisible(params.hud ?? !this.shotMode);
+    this.hud.setLevel(params.hud != null ? (params.hud ? HUD.FULL : HUD.OFF) : this.shotMode ? HUD.OFF : HUD.COMPACT);
     this.hud.onTime = (h) => { this.timeOffsetHours = h; };
+    if (!this.shotMode) {
+      // The start screen goes up at once; its buttons unlock when the first terrain is drawn.
+      this.startScreen = new StartScreen(BUILD, this.governor.mode, { play: () => this.play(), benchmark: (kind) => this.startBenchmark(kind), mode: () => this.toggleMode() });
+      this.results = new ResultsScreen(() => { this.startScreen.show(); });
+      this.banner = new BenchBanner(() => this.benchmark.stop());
+      this.toast = new Toast();
+      this.benchmark = new Benchmark(this);
+      this.menuOpen = true;
+    }
     this.timeRange = (world.dayHours || 24) / 2;
     this.hud.setTimeRange(this.timeRange);
     this.input = new Input(this.canvas);
     this.touch = new TouchControls(this.canvas, this.input, { view: () => this.cycleBookmark() });
     if (params.touch) this.touch.enable();
+    this.touch.setVisible(!this.menuOpen);
+    document.addEventListener('visibilitychange', () => {
+      // Coming back from the background: the long gap is not a slow frame.
+      if (document.visibilityState === 'visible') { this.lastNow = 0; this.resumedAt = performance.now(); } else this.hiddenCount++;
+    });
     // Mobile browsers drop the GL context when the tab is backgrounded for long: start over.
     this.canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.contextLost = true; });
     this.canvas.addEventListener('webglcontextrestored', () => location.reload());
@@ -134,6 +164,14 @@ export class App {
     // unless asked (?hero=1).
     if (params.hero ?? (!this.shotMode && !params.fly)) this.setHero(true);
     window.addEventListener('resize', () => this.resize());
+    // The exact size of the canvas in device pixels, where the browser can tell us: with
+    // it the image is drawn pixel for pixel, with no resampling by the browser.
+    try {
+      new ResizeObserver((entries) => {
+        const box = entries[0].devicePixelContentBoxSize?.[0];
+        if (box) { this.devicePixels = [box.inlineSize, box.blockSize]; this.resize(); }
+      }).observe(this.canvas, { box: 'device-pixel-content-box' });
+    } catch { /* not supported: CSS size x devicePixelRatio is used */ }
     this.resize();
     for (const w of Object.values(WORLDS)) if (w.id !== world.id) this.loadWorldData(w).catch(() => {});
   }
@@ -162,6 +200,7 @@ export class App {
     this.timeOffsetHours = b.timeOffsetHours ?? 0;
     this.bookmark = name;
     if (this.hero) this.hero.started = false;
+    this.jumpedAt = performance.now();
   }
 
   cycleBookmark() {
@@ -169,24 +208,94 @@ export class App {
     this.applyBookmark(names[(names.indexOf(this.bookmark) + 1) % names.length]);
   }
 
+  // The render ceiling is the canvas's native pixel size; the governor works below it.
   resize() {
-    const w = Math.max(2, this.canvas.clientWidth), h = Math.max(2, this.canvas.clientHeight);
-    // Pixel-count cap instead of a fixed pixel ratio (see CONFIG.MAX_PIXELS).
-    const dpr = window.devicePixelRatio || 1;
-    const pr = this.params.dpr ?? Math.min(dpr, Math.max(1, Math.sqrt(CONFIG.MAX_PIXELS / (w * h))));
-    this.renderer.setPixelRatio(pr);
+    const cw = Math.max(2, this.canvas.clientWidth), ch = Math.max(2, this.canvas.clientHeight);
+    const dpr = this.params.dpr ?? (window.devicePixelRatio || 1);
+    let w = Math.round(cw * dpr), h = Math.round(ch * dpr);
+    // Trust the browser's exact device-pixel size when it agrees with CSS size x ratio to
+    // within rounding (under device emulation it can report CSS pixels instead).
+    const exact = this.devicePixels;
+    if (exact && this.params.dpr == null && Math.abs(exact[0] - w) <= 2 && Math.abs(exact[1] - h) <= 2) [w, h] = exact;
+    const guard = Math.min(1, Math.sqrt(CONFIG.MAX_NATIVE_PIXELS / (w * h)));
+    w = Math.max(2, Math.round(w * guard)); h = Math.max(2, Math.round(h * guard));
+    if (w === this.post.width && h === this.post.height) return;
+    this.renderer.setPixelRatio(1);
     this.renderer.setSize(w, h, false);
-    this.post.resize(Math.round(w * pr), Math.round(h * pr));
+    this.post.resize(w, h);
+    this.governor.setNative(w * h);
+    this.resizedAt = performance.now();
   }
 
   start() {
-    const loop = (now) => { if (!this.contextLost) this.frame(now); requestAnimationFrame(loop); };
+    const loop = (now) => {
+      requestAnimationFrame(loop);
+      if (this.contextLost || !this.governor.shouldRender(now)) return;
+      this.frame(now);
+    };
     requestAnimationFrame(loop);
+  }
+
+  // --- start screen, modes, benchmark -------------------------------------------------
+
+  play() {
+    this.startScreen.hide();
+    this.menuOpen = false;
+    this.touch.setVisible(true);
+    if (this.touch.enabled) immersive();
+    keepAwake();
+  }
+
+  toggleMode() {
+    const next = this.governor.mode === 'smooth' ? 'sharp' : 'smooth';
+    this.governor.setMode(next);
+    try { localStorage.setItem('sse.mode', next); } catch { /* storage blocked: the choice lasts for this visit */ }
+    this.startScreen?.setMode(next);
+    this.toast?.show(`${MODES[next].label} — ${MODES[next].fps} fps`);
+  }
+
+  startBenchmark(kind) {
+    if (!this.loaded || this.benchmark.active) return;
+    this.startScreen.hide(); this.results.hide();
+    this.menuOpen = false;
+    this.touch.setVisible(false);
+    if (this.touch.enabled) immersive();
+    keepAwake();
+    this.banner.show(true);
+    this.benchmark.start(kind);
+  }
+
+  onBenchmarkDone(text) {
+    this.banner.show(false);
+    this.menuOpen = true;
+    this.results.show(text);
+    window.__benchResult = text;
+  }
+
+  // The governor's terrain steps: the smallest factor asked for wins.
+  terrainBudget(factor, id) {
+    this.terrainFactors[id] = factor;
+    let m = 1;
+    for (const k in this.terrainFactors) m = Math.min(m, this.terrainFactors[k]);
+    this.terrain.maxChunks = Math.round(CONFIG.MAX_RENDER_CHUNKS * m);
+  }
+
+  // Why the frame that just ended may have been slow (for the benchmark's hitch list).
+  frameCause(now, uploads) {
+    if (this.switching || now < this.switchedAt + 2500) return 'arriving at another world';
+    if (now < this.jumpedAt + 2500) return 'jump to a bookmark';
+    if (now < this.resumedAt + 1500) return 'page came back from the background';
+    if (now < this.resizedAt + 1500) return 'screen size changed';
+    if (this.governor.sinceStep < 0.4) return 'quality step';
+    if (uploads) return `new terrain (${uploads} patch${uploads > 1 ? 'es' : ''})`;
+    if (now < this.loadedAt + 4000) return 'start-up';
+    return 'unknown';
   }
 
   handleKeys() {
     const i = this.input;
     if (i.hit('KeyH')) this.hud.toggle();
+    if (i.hit('KeyM')) this.toggleMode();
     if (i.hit('KeyF')) { this.hero.setVisible(false); this.rig.toggleMode(); }
     if (i.hit('KeyG')) this.setHero(this.rig.mode !== 'hero');
     if (i.hit('KeyT')) this.nextTarget();
@@ -271,19 +380,31 @@ export class App {
       this.timeRange = (w.dayHours || 24) / 2;
       this.hud.setTimeRange(this.timeRange);
       this.bookmark = '';
-    } finally { this.switching = false; }
+    } finally { this.switching = false; this.switchedAt = performance.now(); }
   }
 
   frame(now) {
     const dtMs = this.lastNow ? now - this.lastNow : 16.7;
     this.lastNow = now;
     const dt = Math.min(dtMs, 100) / 1000;
-    const { renderer, rig, post } = this;
+    const { renderer, rig, post, governor } = this;
     renderer.info.reset();
     this.frameCount++;
 
+    // 0. What kind of frame was the last one, and who is steering
+    const uploads = this.lastUploads;
+    const cause = this.frameCause(now, uploads);
+    const bench = this.benchmark?.active;
+    if (bench) {
+      // The benchmark plays by itself: the player's stick and look input are ignored.
+      const i = this.input; i.dx = i.dy = i.wheel = 0; i.moveX = i.moveY = 0;
+      this.benchmark.update(dtMs, cause);
+      if (this.frameCount % 15 === 0) this.banner.set(this.benchmark.status);
+    }
+    const input = this.menuOpen ? NO_INPUT : this.input;
+
     // 1. Time and sky geometry
-    this.handleKeys();
+    if (!this.menuOpen && !bench) this.handleKeys();
     if (!this.paused) this.timeOffsetHours += dt / 3600;
     const jd = this.baseJD + this.timeOffsetHours / 24;
     const eph = this.ephemeris;
@@ -291,7 +412,7 @@ export class App {
     G.uTime.value = this.shotMode ? 0.25 : now / 1000;
 
     // 2. Camera
-    rig.update(dt, this.input, this.input.down('KeyZ'));
+    rig.update(dt, input, input.down('KeyZ'));
     this.space(eph);
     const world = this.world;                       // may have just changed
     G.uSunDir.value.set(eph.sunDir[0], eph.sunDir[1], eph.sunDir[2]);
@@ -309,8 +430,8 @@ export class App {
     this.updateHero(dt, sunHalf);
 
     // 4. Atmosphere LUTs
-    this.dynRes.beginFrame();
-    post.setScale(this.dynRes.scale);
+    governor.beginFrame();
+    post.setScale(governor.scale);
     G.uViewport.value.set(post.viewW, post.viewH);
     G.uExposure.value = post.exposure;
     const aspect = post.viewW / post.viewH;
@@ -344,15 +465,21 @@ export class App {
 
     // 7. Post
     post.render(dt);
-    this.dynRes.endFrame();
-    this.dynRes.update(dtMs);
+    governor.endFrame();
+    const settling = cause !== 'unknown' && cause !== 'quality step' && !cause.startsWith('new terrain');
+    governor.update(dtMs, settling ? FRAME.IGNORE : uploads ? FRAME.SOFT : FRAME.NORMAL);
+    this.lastUploads = this.terrain.uploads; this.terrain.uploads = 0;
 
     // 8. HUD
     const info = renderer.info;
     this.stats.calls = info.render.calls; this.stats.triangles = info.render.triangles;
     this.hud.update(dtMs, () => this.collectStats(jd));
     this.input.endFrame();
-    if (!this.loaded && this.frameCount > 3 && this.terrain.drawList.length > 0) { this.loaded = true; document.getElementById('loading')?.remove(); }
+    if (!this.loaded && this.frameCount > 3 && this.terrain.drawList.length > 0) {
+      this.loaded = true; this.loadedAt = now;
+      this.startScreen?.setReady(true);
+      if (this.params.bench && this.benchmark) this.startBenchmark(this.params.bench);
+    }
 
     if (this.shotMode) {
       const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending;
@@ -391,6 +518,9 @@ export class App {
     } else if (rig.agl >= 20000) hero.uniforms.uSunVis.value = 1;
   }
 
+  // Estimated GPU memory in use (render targets, terrain pool, lookup tables, shadow map).
+  get gpuBytes() { return this.post.gpuBytes + this.terrain.gpuBytes + this.atmosphere.gpuBytes + this.nearShadow.gpuBytes; }
+
   collectStats(jd) {
     const { rig, post, renderer, world } = this;
     const ll = rig.latLon;
@@ -405,10 +535,12 @@ export class App {
     }
     return {
       world: world.name, mode: rig.mode, shot: this.shotMode ? this.bookmark : '',
+      build: BUILD.commit, governor: this.governor.summary, modeLabel: MODES[this.governor.mode].label,
+      nativeW: post.width, nativeH: post.height, refresh: this.governor.vsyncMeasured ? Math.round(1000 / this.governor.vsync) : '?',
       calls: this.stats.calls, triangles: this.stats.triangles, maxCalls: CONFIG.MAX_DRAW_CALLS, maxTriangles: CONFIG.MAX_TRIANGLES,
       chunksDrawn: this.terrain.drawList.length, chunksLoaded: this.terrain.loadedCount, chunkPool: CONFIG.CHUNK_POOL, queue: this.terrain.queueLength,
-      scale: post.scale, viewW: post.viewW, viewH: post.viewH, gpuMs: this.dynRes.gpuMs,
-      gpuBytes: post.gpuBytes + this.terrain.gpuBytes + this.atmosphere.gpuBytes + this.nearShadow.gpuBytes, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries,
+      scale: post.scale, viewW: post.viewW, viewH: post.viewH, gpuMs: this.governor.gpuMs,
+      gpuBytes: this.gpuBytes, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries,
       exposure: post.exposure, sunEl: sun.elevation, sunAz: sun.azimuth,
       lat: ll.lat, lon: ll.lon, alt: rig.altitude, agl: rig.agl, heading: rig.heading, pitch: rig.pitch, fov: rig.fov,
       speed: fmtSpeed(rig.velocity.length()), nearest: `${this.nearestName} ${fmtDistance(this.nearestClear)}`, target,
