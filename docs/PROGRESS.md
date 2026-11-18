@@ -130,7 +130,9 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 - **Sky light follows the local Sun.** The irradiance map belongs to the camera's place.
   Elsewhere on the globe it is scaled by a table of sky-plus-bounce light on level ground
   against the Sun's height (built once per world on the GPU, divided by its own value at
-  the camera, capped at 32). It is exactly 1 at the camera, so nothing changes nearby.
+  the camera, capped at 32). It is exactly 1 at the camera, and below 3 km of altitude
+  the look-up is skipped altogether (it fades in up to 30 km), so nothing changes on the
+  ground and nothing is paid for there.
 - **Edge glow from space is marched per pixel**, in the sky dome (rays that cross the
   shell) and on ground seen at a grazing angle (blend from froxels below a view cosine of
   0.38, fully marched below 0.22). Screen-space froxels cannot follow the path length
@@ -235,6 +237,11 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 | Terminators are geometrically straight; no relief shadows along them from afar | 3 |
 | Twilight glow has a hard upper edge at the highest exposures | 3 |
 | Lunar ground is one grey at every Sun height; craters are soft stamps | 3 |
+| Baked terrain shadows have soft, wobbly edges on an airless world; no long shadows from rocks and lander at a low Sun | 3 |
+| Mars: flat grey sky away from the Sun, olive cast in the sunset views, one-colour ground | 3 |
+| Mars from orbit is veiled in cream haze with faint vertical streaks; the canyon does not show | 3 |
+| An earthlit lunar night is exposed as bright as day | 3 |
+| Deimos burns out to a white blob at dusk exposure | 5 |
 | The character is still a simple figure: no visor detail, no backpack, clean white suit | 4 |
 | Earth is blown out to white in the lunar dusk shot and has no blue | 5 |
 | Far from every body there is only the HUD read-out to navigate by | 4 / 7 |
@@ -246,6 +253,28 @@ Mars's terminator; the halo around the airless Moon; the roll at the Mars ↔ Mo
 hand-over; lunar chunk build time (72 → 41 ms); haze ignoring terrain shadow; ledges
 reading as dunes; the far wall's haze (in part: 15 % less dust); rigid limbs and the
 cloak passing through arms and legs; Phobos and Deimos checked.
+
+## Tests and measurements, milestone 2
+
+- **Stability** (ten moves, two stations each, `docs/shots/stability/report.json`): no
+  pops, no sparkles. Mars from orbit went from 0.07 % of pixels changing to 0 (the edge of
+  the planet is now smooth). The Moon is as before: differences only where a rock a metre
+  from the camera really moves.
+- **Flight test**: Mars → orbit → Moon, hand-over with the roll carried over, no errors.
+- **Smoke test** with a full benchmark: passes; all nine governor steps were exercised.
+- **Final build against the reference set**: `mars_ledge` and both Mars orbit views are
+  identical to within 1/255 after the last two changes (sky-light look-up skipped near the
+  ground; the from-space haze march compiled only into the terrain shader).
+- **Relative cost in the test browser** (software rendering, start view, all features on;
+  only the ratios mean anything, and they are not phone performance): milestone 1 = 584
+  ms per frame; milestone 2 = 784 ms. Known shares: the from-space haze branch in the
+  terrain shader, never taken on the ground, costs about 15 % there (a software renderer
+  pays for masked branches; a phone GPU should not), and the sky-light look-up cost 10 %
+  before it was skipped near the ground. **Open risk**: if the owner's benchmark shows the
+  ground views slower than with the milestone 1 build, compile the from-space haze as a
+  second terrain program and switch to it above the atmosphere.
+- **Lunar chunk builds in the browser**: 59 ms each in the benchmark run (90 before);
+  Martian ones 43 ms (35 before: the extra ledge layer and the busier machine).
 
 ## Stability test, milestone 1
 
@@ -272,6 +301,37 @@ repository (re-create them with `npm run stability`).
 - The first version of the test moved too fast (several pixels per frame) and let
   exposure re-meter between frames; both produced large, honest differences that hid
   what the test is for. Steps are now about a pixel and exposure is held per station.
+
+## Independent critic, milestone 2 (screenshots and art rules only)
+
+Told that real surface maps from orbit and the simple character are scheduled. Ranked:
+
+1. **A low Sun that casts no long shadows.** Rocks, lander and craters sit on evenly lit
+   ground with a small smudge at most; from 120 km lunar craters are pale dimples. Real
+   low-Sun frames are ruled by shadows many times longer than the objects. → 3
+2. **The Moon is soft where it must be razor-sharp.** Blurred, wobbly edge on the big
+   crater shadow, craters shading like blisters, the broken white line on the horizon, a
+   glowing fringe on the globe, a ruler-straight terminator, ground like plaster. → 3
+3. **Mars's colour and sky disagree from shot to shot.** A flat grey sky with no
+   brightening toward the horizon over saturated orange clay in `mars_ship`; an olive
+   drift in `mars_sun` and `mars_dusk`; chocolate ground in `mars_ledge`; the dusk glow
+   is a cream lens with a visible upper edge. → 3
+4. **Mars from orbit looks cloud-covered** even allowing for the missing map: a cream
+   veil, faint vertical streaks in the low-orbit view, a fat fuzzy rim, no relief
+   although the largest canyon lies below in raking light. → 3
+5. **Sky bodies fall apart under a long lens.** Phobos's shadow edge was a staircase of
+   facets (fixed straight away: the moons' meshes had one normal per face); Deimos burns
+   out at dusk; Earth is a grey-white speck with no blue; `moon_dusk` is exposed as
+   bright as day. → Earth 5; night exposure 3.
+
+Strongest image: `mars_ledge` ("at a glance it passes for a rover sunset frame").
+Weakest: `mars_ship` ("grey slab sky, monochrome orange clay, box rocks and a lander with
+no shadow").
+
+Compared with the first review, the gaps about the view from space (blown-out globes,
+lit night sides, the stripe on the terminator, no edge glow) are gone from the list;
+what replaced them is mostly the lunar surface and Martian colour, which milestone 3 is
+for.
 
 ## Independent critic, milestone 1 (screenshots and art rules only)
 
@@ -315,3 +375,9 @@ Weakest: `mars_ledge_orbit_globe`.
   and Sharp, benchmark and soak with a results screen, exact-pixel canvas, three-state
   HUD, `shots:all`, `stability` and `smoke` scripts. Removed `dynamicResolution.js`,
   `MAX_PIXELS`, `TARGET_FPS`, `MIN_SCALE` and the `?fps=` parameter.
+- **Milestone 2 built**: exposure, sky light and edge glow from space; fade-in of new
+  terrain; roll carried across the hand-over; faster lunar chunks; terrain shadow in the
+  haze; clearer Martian air; rock ledges and a new lander view; bending limbs and a cloak
+  that stays off them; Phobos and Deimos checked (and their faceted shading fixed);
+  tools `sky-table`, `profile-chunks`, `build-check`; shot parameters `aim`, `east`,
+  `north`, `debug`.

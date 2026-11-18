@@ -84,6 +84,7 @@ export class Atmosphere {
     Object.assign(G, u, {
       tTransmittance: lut.tTransmittance, tMultiScat: lut.tMultiScat, ...sky,
       tSkyGain: { value: this.skyGain.texture },        // sky light elsewhere on the globe relative to here
+      uSkyGainMix: { value: 0 },                        // how much of it applies (0 near the ground)
       tIrradiance: { value: this.irradiance.texture },
       tFroxelA: { value: this.froxels.textures[0] }, tFroxelB: { value: this.froxels.textures[1] }, tFroxelC: { value: this.froxels.textures[2] },
       uFroxelRange: this.froxelU.uFroxelRange,          // x = slice distribution exponent, y = far limit (km)
@@ -177,6 +178,8 @@ export class Atmosphere {
     // cross-faded over the top tenth of the atmosphere, where the air is thinnest.
     this.outside = camKm > this.rTop;
     G.uSkyFade.value = Math.min(1, Math.max(0, (this.rTop - camKm) / (0.1 * (this.rTop - this.rPlanet))));
+    const gx = Math.min(1, Math.max(0, (camKm - this.rPlanet - 3) / 27));
+    G.uSkyGainMix.value = gx * gx * (3 - 2 * gx);
 
     // Local sky frame: x toward the Sun's azimuth, z up.
     const sh = this._sh.copy(sunDir).addScaledVector(up, -mu);

@@ -20,6 +20,7 @@ uniform float uPlanetRadius;
 uniform vec2 uViewport;
 uniform sampler2D tIrradiance;      // octahedral irradiance map (local sky frame) + circumsolar row
 uniform sampler2D tSkyGain;         // sky light at another Sun height relative to the camera's (1-D)
+uniform float uSkyGainMix;          // 0 near the ground (everything in view shares the camera's sky), 1 from high up
 uniform sampler2D tFroxelA;         // aerial perspective: smooth in-scatter
 uniform sampler2D tFroxelB;         //                      un-phased dust in-scatter
 uniform sampler2D tFroxelC;         //                      transmittance
@@ -49,13 +50,18 @@ vec2 octEncode(vec3 n) {
 // Irradiance from the sky (minus the aureole) and from sunlit ground onto a surface with
 // normal N, at a place whose local vertical is up. The irradiance map belongs to the
 // camera's place; elsewhere on the globe it is scaled by how the sky's brightness changes
-// with the Sun's height there (exactly 1 at the camera, 0 on the night side).
+// with the Sun's height there (exactly 1 at the camera, 0 on the night side). Near the
+// ground nothing in view is far enough round the globe for that to matter, and the
+// look-up is skipped (uSkyGainMix fades it in between 3 and 30 km of altitude).
 vec3 skyLight(vec3 N, vec3 up) {
   vec2 e = octEncode(uSkyFrame * N);
   vec2 uv = (e * (float(IRR) - 1.0) + 0.5) / vec2(float(IRR), float(IRR) + 1.0);
-  float mu = dot(up, uSunDir);
-  float ug = 0.5 + 0.5 * sign(mu) * sqrt(abs(mu));
-  vec3 gain = texture(tSkyGain, vec2((ug * (float(SKYE_W) - 1.0) + 0.5) / float(SKYE_W), 0.5)).rgb;
+  vec3 gain = vec3(1.0);
+  if (uSkyGainMix > 0.0) {
+    float mu = dot(up, uSunDir);
+    float ug = 0.5 + 0.5 * sign(mu) * sqrt(abs(mu));
+    gain = mix(gain, texture(tSkyGain, vec2((ug * (float(SKYE_W) - 1.0) + 0.5) / float(SKYE_W), 0.5)).rgb, uSkyGainMix);
+  }
   return texture(tIrradiance, uv).rgb * gain * (uLutScaleInv.x * uSunIrradiance);
 }
 
@@ -63,6 +69,8 @@ vec3 skyLight(vec3 N, vec3 up) {
 vec3 planetShine(vec3 N) { return uShineE * max(dot(N, uShineDir), 0.0); }
 
 // Attenuates a surface colour and adds in-scattered light along the view ray.
+// Materials that can fill the view from space (the terrain) define SPACE_HAZE to get the
+// per-pixel march near the planet's edge; small objects do without that code.
 vec3 aerialPerspective(vec3 color, vec3 rel) {
   float dist = length(rel);
   // Same path through the air as the froxel pass computed for this view ray.
@@ -77,6 +85,7 @@ vec3 aerialPerspective(vec3 color, vec3 rel) {
     float sT = sqrt(discT); pathA = -bq - sT; pathB = -bq + sT;
     float dk = dist * 0.001;
     if (dk <= pathA) return color;                 // the surface is this side of the air (a figure in orbit)
+#ifdef SPACE_HAZE
     // Seen from space at a grazing angle (toward the planet's edge) the path through the
     // air changes too fast from pixel to pixel for the screen-space froxels: there the
     // haze is marched for this pixel. (cosine of the angle between view ray and local vertical)
@@ -93,6 +102,7 @@ vec3 aerialPerspective(vec3 color, vec3 rel) {
       marched = color * T + (Ls + Lm * phaseHG3(cosT, uMieG)) * uSunIrradiance;
       if (useMarch >= 1.0) return marched;
     }
+#endif
   } else pathB = -bq + sqrt(max(discT, 0.0));
   if (rc > uRTop) {
     float discB = bq * bq - (rc * rc - uRBottom * uRBottom);

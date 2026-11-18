@@ -2,6 +2,7 @@
 // big enough on screen to resolve and as a point source of the correct brightness when
 // it is not — Earth is a point from Mars and a disc from the Moon with the same code.
 import * as THREE from 'three';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G } from '../render/globals.js';
 import { noise3 } from '../terrain/height/noise.js';
 import { ATMO_UNIFORMS, ATMO_COMMON } from '../atmosphere/atmosphereGlsl.js';
@@ -76,7 +77,11 @@ void main() {
 }`;
 
 function lumpyGeometry(def, seed) {
-  const geo = new THREE.IcosahedronGeometry(1, 12);     // 2 880 triangles
+  // three's polyhedra are triangle soup: without shared vertices the normals come out
+  // one per face and the day-night edge of a small moon is a staircase of facets.
+  const soup = new THREE.IcosahedronGeometry(1, 12);    // 2 880 triangles
+  soup.deleteAttribute('uv'); soup.deleteAttribute('normal');
+  const geo = mergeVertices(soup, 1e-5);
   const pos = geo.attributes.position, s = def.surface || {};
   const lump = s.lumpiness || 0, radii = def.radii || [def.radius, def.radius, def.radius];
   const cr = s.crater;                                  // [size, depth, latitude]: one large dent
