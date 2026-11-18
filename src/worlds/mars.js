@@ -91,7 +91,7 @@ export default {
       ledge: { heading: 292, pitch: -7, fov: 60 },
       sun: { heading: 297, pitch: 3, fov: 22 },
       wall: { heading: 352, pitch: -2, fov: 34 },
-      ship: { east: 25, north: -20, heading: 129, pitch: 2, fov: 40 },     // from a sunlit bench, looking at the lander
+      ship: { east: 25, north: -20, heading: 123, pitch: 2, fov: 40 },     // from a sunlit bench, looking at the lander
       dusk: { heading: 298, pitch: 9, fov: 60, timeOffsetHours: 1.7 },
     },
   },

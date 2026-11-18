@@ -50,6 +50,10 @@ those results before milestone 2 starts.
 - Rigid character limbs and the cloak clipping the arms.
 - Phobos and Deimos never checked.
 
+Built (see `docs/PROGRESS.md` for what each fix is and what is left of each problem).
+Moved on to milestone 3, because they need its real maps or materials: the far wall's
+remaining softness, contact shadows in terrain shade, the two-lobe dust phase function.
+
 ## 3. Make Mars and the Moon beautiful
 
 - Real lunar elevation and colour from NASA's public-domain maps, with procedural detail

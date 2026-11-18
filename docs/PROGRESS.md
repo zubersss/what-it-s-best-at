@@ -144,10 +144,23 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
   Sun 0.4°. At the Mars bookmarks it changes little, and that is correct: the Sun shines
   along the canyon and its air really is sunlit (`?debug=airall` shows what fully shadowed
   air would look like; `?debug=noair` switches the map off).
-- **Mars dust re-tuned for the far wall**: 15 % less dust and a slightly tighter forward
-  lobe for red and green. A single Henyey–Greenstein lobe that matches the aureole is
-  about twice too bright 60° from the Sun compared with measured Martian dust; that glare
-  is what buried the far wall.
+- **Mars dust re-tuned for the far wall**: 15 % less dust (column optical depth about
+  0.23, a clear season). Direct sunlight at the scene's 4° Sun rises by about half, so
+  benches catch light and cast shadows, and the far wall keeps a third of its light
+  instead of a quarter. Tried and rejected: a tighter forward lobe for red and green. It
+  is closer to measured Martian dust 60° from the Sun (a single Henyey–Greenstein lobe
+  that matches the aureole is about twice too bright there), but it made the aureole a
+  third brighter and whiter and darkened the whole sunset view. A two-lobe phase function
+  is the proper fix and belongs to milestone 3.
+- **Ledges**: a terrace riser reads as rock only when it is steeper than the surface's
+  rock slope, so the 38 m beds went from a 30 % to an 18 % cliff fraction, and a 5 m bed
+  layer adds ledges at walking scale. The masks use the large-scale slope (0.54 at the
+  site, a canyon flank), so the benches themselves carry small steps too.
+- **The lander bookmark moved** 25 m east and 20 m south onto a sunlit bench (the old spot
+  ended up behind a riser). The start position and the lander's place are unchanged.
+- **Character**: each limb is an upper and a lower piece, both children of the body (so
+  each can be drawn into the shadow map on its own); the lower one is placed at the joint
+  every frame. Eight limb capsules are handed to the cloak solver.
 - **New chunks fade in from their parent** (shape, normals, cavities, baked shadows) over
   0.6 s, and shading morphs with distance exactly like the vertices. A parent's maps are
   always loaded while its children are drawn (the pool never evicts a node with loaded
@@ -212,27 +225,27 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 
 | Problem | Milestone |
 | --- | --- |
-| Nothing measured on the phone yet: governor start level, step sizes and thresholds are first guesses | 1 (owner's benchmark results) |
-| Detail pops as terrain refines; telephoto reloads distant chunks | 2 |
-| No atmospheric glow on the planet's edge from orbit | 2 |
-| Horizon rolls once at the Mars ↔ Moon hand-over | 2 |
-| Lunar chunks build ~3× slower than Mars (~90–120 ms vs ~35–40 ms, headless) | 2 |
-| Haze in the shadowed canyon looks sunlit | 2 |
-| Ledges read as smooth dunes up close | 2 |
-| Far wall is over-hazed and soft | 2 |
-| Rigid limbs; cloak clips the arms | 2 |
-| Phobos and Deimos never checked in a screenshot | 2 |
-| From orbit the band just above Mars's edge is darker than the haze higher up, and the edge has a drawn-looking outline | 2 |
-| Whole-globe views over-expose the day side; Mars has a dark stripe along the terminator | 2 |
-| A soft glow surrounds the airless Moon's lit edge from orbit | 2 |
-| A broken bright line along the lunar horizon (far rim, one pixel high) | 2 |
-| No contact shadows under the lander and rocks when the site is in canyon shadow | 2 |
-| Night scenes need about 570 frames for exposure to settle in screenshot mode | 2 (tooling) |
-| From orbit Mars is soft and one colour outside the Coprates inset | 3 |
+| Governor start level, step sizes and thresholds are first guesses until the owner's phone results arrive | 1 (open) |
+| No contact shadows under the lander and rocks when the site is in terrain shadow | 3 |
+| One-pixel-high bright features alias (ridge highlights, the lunar far rim): no anti-aliasing | 3 |
+| Night scenes need about 570 frames for exposure to settle in screenshot mode | tooling |
+| A chunk that takes over while its parent is itself still fading in starts from the parent's own maps, a small jump during fast streaming | watch |
+| Lunar chunks still build about 1.7× slower than Martian ones (41 vs 24 ms in Node) | watch |
+| From orbit Mars is one colour and soft; the Moon has no maria or rays | 3 |
+| Terminators are geometrically straight; no relief shadows along them from afar | 3 |
 | Twilight glow has a hard upper edge at the highest exposures | 3 |
-| Earth is blown out to white in the lunar dusk shot | 5 |
+| Lunar ground is one grey at every Sun height; craters are soft stamps | 3 |
+| The character is still a simple figure: no visor detail, no backpack, clean white suit | 4 |
+| Earth is blown out to white in the lunar dusk shot and has no blue | 5 |
 | Far from every body there is only the HUD read-out to navigate by | 4 / 7 |
 | Triangles sit at ~460–480k of the 500k budget | watch |
+
+Fixed in milestone 2: detail popping as terrain refines; no glow (and an inverted band)
+on the planet's edge from orbit; over-exposed globes, lit night sides and the stripe on
+Mars's terminator; the halo around the airless Moon; the roll at the Mars ↔ Moon
+hand-over; lunar chunk build time (72 → 41 ms); haze ignoring terrain shadow; ledges
+reading as dunes; the far wall's haze (in part: 15 % less dust); rigid limbs and the
+cloak passing through arms and legs; Phobos and Deimos checked.
 
 ## Stability test, milestone 1
 
