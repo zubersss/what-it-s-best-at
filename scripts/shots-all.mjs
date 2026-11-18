@@ -9,26 +9,26 @@ import { root, opt, flag } from './lib/browser.mjs';
 const out = opt('out', 'docs/shots'), only = opt('only', '');
 // [world, bookmarks, extra URL query, file suffix]
 const SETS = [
-  ['mars', 'ledge,sun,wall,ship,dusk,olympus,gale', '', ''],
+  ['mars', 'ledge,sun,wall,ship,dusk,canyon,olympus,gale', '', ''],
   ['moon', 'ledge,sun,wall,ship,dusk,tycho,taurus', '', ''],
-  // from orbit: low and oblique, then the whole globe from straight above the site (north
+  // from orbit (above the sunset view along the canyon): low and oblique, then the whole globe from straight above (north
   // up) at the scene's own moment, by day and by night
-  ['mars', 'ledge', 'alt=250000&pitch=-22', '_orbit_low'],
-  ['mars', 'ledge', 'alt=6000000&pitch=-89&heading=0', '_orbit_globe'],
-  ['mars', 'ledge', 'alt=6000000&pitch=-89&heading=0&t=-5', '_orbit_day'],
-  ['mars', 'ledge', 'alt=6000000&pitch=-89&heading=0&t=5', '_orbit_night'],
+  ['mars', 'canyon', 'alt=250000&pitch=-22', '_orbit_low'],
+  ['mars', 'canyon', 'alt=6000000&pitch=-89&heading=0', '_orbit_globe'],
+  ['mars', 'canyon', 'alt=6000000&pitch=-89&heading=0&t=-5', '_orbit_day'],
+  ['mars', 'canyon', 'alt=6000000&pitch=-89&heading=0&t=5', '_orbit_night'],
   ['moon', 'ledge', 'alt=120000&pitch=-22', '_orbit_low'],
   ['moon', 'ledge', 'alt=3500000&pitch=-89&heading=0', '_orbit_globe'],
   ['moon', 'ledge', 'lat=0&lon=0&alt=8000000&pitch=-89&heading=0&fov=30', '_orbit_day'],     // the near side, terminator across it
   ['moon', 'ledge', 'alt=3500000&pitch=-89&heading=0&t=345', '_orbit_night'],                // earthlit
   // Mars's moons through a long lens: half-lit Phobos an hour before the scene, Deimos at dusk
-  ['mars', 'ledge', 'aim=phobos&fov=1.0&t=-1', '_phobos'],
-  ['mars', 'ledge', 'aim=deimos&fov=0.35&t=1.5', '_deimos'],
+  ['mars', 'canyon', 'aim=phobos&fov=1.0&t=-1', '_phobos'],
+  ['mars', 'canyon', 'aim=deimos&fov=0.35&t=1.5', '_deimos'],
   // the character
   ['mars', 'ledge', 'hero=1', '_hero_flight'],
   ['mars', 'ship', 'hero=1&heropose=hover', '_hero_hover'],
   ['mars', 'ship', 'hero=1&heropose=hover&dust=1&pitch=-28', '_hero_dust'],
-  ['mars', 'ledge', 'hero=1&alt=400000&pitch=-20', '_hero_orbit'],
+  ['mars', 'canyon', 'hero=1&alt=400000&pitch=-20', '_hero_orbit'],
   ['moon', 'ship', 'hero=1&heropose=hover', '_hero_hover'],
   ['moon', 'ship', 'hero=1&heropose=hover&dust=1&pitch=-28', '_hero_dust'],
   ['moon', 'ledge', 'hero=1', '_hero_flight'],

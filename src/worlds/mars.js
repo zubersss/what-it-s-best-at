@@ -108,11 +108,14 @@ export default {
     // The first five are one place at different moments; the rest are other real places.
     // timeOffsetHours moves the clock from dateUTC to the light that suits the view.
     bookmarks: {
-      ledge: { label: 'Coprates Chasma', heading: 292, pitch: -7, fov: 60 },
+      // The lip of the canyon's north rim, 5.1 km up, two hours before sunset: the ground
+      // falls away 10 km to the floor, the lit south wall 60 km away across the haze.
+      ledge: { label: 'Coprates Chasma, the north rim', lat: -11.6859, lon: 296.7243, heading: 210, pitch: -9, fov: 48, timeOffsetHours: -2 },
       sun: { label: 'Coprates, the setting Sun', heading: 297, pitch: 3, fov: 22 },
       wall: { label: 'Coprates, the north wall', heading: 352, pitch: -2, fov: 34 },
       ship: { label: 'Coprates, the lander', east: 25, north: -20, heading: 123, pitch: 2, fov: 40 },     // from a sunlit bench, looking at the lander
       dusk: { label: 'Coprates at dusk', heading: 298, pitch: 9, fov: 60, timeOffsetHours: 1.7 },
+      canyon: { label: 'Coprates, sunset along the canyon', heading: 292, pitch: -7, fov: 60 },   // from the bench on the southern ridge
       olympus: { label: 'Olympus Mons, the summit caldera', lat: 18.231, lon: 226.1658, heading: 90, pitch: -10, fov: 64, timeOffsetHours: 4.5 },   // the lip of the west wall, 20 km up, late afternoon
       gale: { label: 'Gale crater, Mount Sharp', lat: -4.5895, lon: 137.4417, heading: 150, pitch: 3, fov: 45, timeOffsetHours: 1.5 },          // where Curiosity landed, morning
     },

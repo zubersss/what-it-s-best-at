@@ -107,6 +107,17 @@ released (HOVER switches it off), a limit on how fast the nearest body may sweep
 also acted while flying bent every aimed trip off its target and was dropped: gravity
 acts when the pilot lets go.
 
+## The owner's scale note (during milestone 3)
+
+"It doesn't feel like I'm standing on a planet: make the planet feel giant, the mountains
+and the canyons, give it depth, deep depths." Three causes found, three changes:
+
+| Cause | Change |
+| --- | --- |
+| Flight speed was 0.85 × height above the ground per second at every height, so the ground streamed past alike at 10 m and at 10 km: the eye could not tell a 7 km cliff from a 7 m rock | Near the ground the speed is now 0.2 × height per second, rising smoothly to 0.85 between 3 and 60 km. Falling (stick released) keeps its old pace. Aimed trips still arrive (`flyby`: 13 → 19 s, the last kilometres gentler) |
+| A 60° vertical field of view: about 100° across on a phone held sideways, which shrinks everything far away | 48° (about 85° across). Mountains and canyon walls fill more of the screen |
+| The opening view looked along the canyon from a bench among low hills: neither wall nor the depth was in view | The opening view is now the lip of the north rim at 5 km, two hours before sunset, looking down across the 10 km deep canyon to the south wall 60 km away. The sunset view along the canyon stays as an extra place (`canyon`) |
+
 ## Milestone 3 plan — make Mars and the Moon beautiful
 
 Started straight after the owner's phone results and flight notes (above). Order: the

@@ -35,7 +35,7 @@ export const CONFIG = {
   MAX_TRIANGLES: 500000,
 
   // Camera
-  DEFAULT_FOV: 60,          // vertical, degrees
+  DEFAULT_FOV: 48,          // vertical, degrees (about 85 across on a phone held sideways: wider makes mountains small)
   TELE_FOV: 7.5,
   EYE_HEIGHT: 1.7,
 };
