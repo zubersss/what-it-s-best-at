@@ -35,7 +35,7 @@ export const FEATURE_STEPS = [
 const RES_STEP = 0.88;          // each resolution step keeps 88 % of the pixels (about 6 % per side)
 const MIN_PIXELS = 1.0e6;
 const WINDOW = 24;              // frames looked at for "are we missing the target"
-const SMOOTH_HEAD_START = 5;    // Smooth starts 5 steps (about half the pixels) below where Sharp would
+const GOOD_AFTER = 20;           // seconds without a step down that make a resolution level "known good"
 const MAX_VSYNC = 1000 / 57;    // no screen we care about refreshes slower than this
 
 const LATE = 1.2;               // a frame is late when it takes more than 1.2 x its interval
@@ -90,6 +90,8 @@ export class Governor {
     this.query = null; this.pending = [];
     this._started = false;
     this._probeFrames = -1; this._probeLate = 0;      // frames watched since the last step up
+    this.goodLevel = null;        // highest resolution level known to hold (see update)
+    this.sinceDown = 0; this._upFrom = null;
     this._setInterval();
   }
 
@@ -97,7 +99,9 @@ export class Governor {
     this.nativePixels = pixels;
     const floor = Math.min(pixels, MIN_PIXELS);
     this.maxResLevel = Math.max(0, Math.round(Math.log(floor / pixels) / Math.log(RES_STEP)));
-    if (!this._started) { this._started = true; this.resLevel = this.mode === 'smooth' ? SMOOTH_HEAD_START : 0; }
+    // Both modes start at native: the test phone holds it at 60 fps, and coming down
+    // takes well under a second per two steps if a device cannot.
+    if (!this._started) { this._started = true; this.resLevel = 0; }
     this.resLevel = Math.min(this.resLevel, this.maxResLevel);
     this._applyScale();
   }
@@ -109,13 +113,13 @@ export class Governor {
     if (this.fixed == null) {
       // Sharp has twice the time per frame: go straight to native with everything on and
       // come down only if needed (coming down is quick, climbing is slow on purpose).
-      // Smooth has half the time: start about half the pixels lower.
+      // Smooth keeps the level it is at and comes down from there if it has to.
       if (mode === 'sharp') { while (this.featureLevel > 0) FEATURE_STEPS[--this.featureLevel].apply(this.app, false); this.resLevel = 0; }
-      else this.resLevel = Math.min(this.maxResLevel, this.resLevel + SMOOTH_HEAD_START);
       this._applyScale();
     }
     // A new target: forget what was learned and look again from where we are.
     this.holdUp = 3; this.cooldown = 1.0; this.cleanTime = 0; this._filled = 0; this.lastUpFailed = false; this._probeFrames = -1;
+    this.goodLevel = null; this.sinceDown = 0;
     this._note(`mode ${MODES[mode].label}, starting at ${(this.pixels / 1e6).toFixed(2)} MP`);
   }
 
@@ -200,8 +204,11 @@ export class Governor {
   update(dtMs, kind = FRAME.NORMAL) {
     if (this.fixed != null) return;
     const dt = Math.min(dtMs, 250) / 1000;
-    this.time += dt; this.sinceStep += dt; this.sinceUp += dt; this.cooldown -= dt;
+    this.time += dt; this.sinceStep += dt; this.sinceUp += dt; this.sinceDown += dt; this.cooldown -= dt;
     if (kind === FRAME.IGNORE) return;
+    // A level that has run this long without a step down is one the device can hold: after
+    // a passing dip (a burst of terrain loading) the way back is one jump, not a climb.
+    if (this.featureLevel === 0 && this.sinceDown > GOOD_AFTER && (this.goodLevel == null || this.resLevel < this.goodLevel)) this.goodLevel = this.resLevel;
     // Late is judged against the interval itself, not the measured refresh: if every
     // frame is slow the refresh estimate is too long, and must not excuse them.
     const late = dtMs > this.interval * LATE, soft = kind === FRAME.SOFT;
@@ -214,7 +221,7 @@ export class Governor {
       this._probeFrames++; if (late && !soft) this._probeLate++;
       if (this._probeFrames >= 8 && this._probeLate >= 5) {
         this.holdUp = Math.min(60, this.holdUp * 2); this.lastUpFailed = true;
-        this._down(1);
+        this._takeBack();
         this.sinceUp = 1e9; this.cooldown = 0.7; this._filled = 0; this.cleanTime = 0; this._probeFrames = -1;
         return;
       }
@@ -229,8 +236,8 @@ export class Governor {
       // Missing the target. If we only just stepped up, that step was a mistake: take it
       // back and wait longer before trying again.
       const tookBack = this.sinceUp < 4;
-      if (tookBack) { this.holdUp = Math.min(60, this.holdUp * 2); this.lastUpFailed = true; }
-      this._down(!tookBack && Math.max(hardFraction, allFraction) > 0.6 ? 2 : 1);
+      if (tookBack) { this.holdUp = Math.min(60, this.holdUp * 2); this.lastUpFailed = true; this._takeBack(); }
+      else this._down(Math.max(hardFraction, allFraction) > 0.6 ? 2 : 1);
       this.cooldown = 0.7; this._filled = 0; this.cleanTime = 0;
       return;
     }
@@ -252,16 +259,30 @@ export class Governor {
         const f = FEATURE_STEPS[this.featureLevel++];
         f.apply(this.app, true); this._note(`off: ${f.label}`);
       } else return;                      // nothing left to give up
-      this.sinceStep = 0;
+      this.sinceStep = 0; this.sinceDown = 0;
     }
+  }
+
+  // Undoes the last step up (which may have been a jump of several levels back to a
+  // level that used to hold): it does not hold any more.
+  _takeBack() {
+    if (this._upFrom != null && this._upFrom > this.resLevel) {
+      this.resLevel = Math.min(this.maxResLevel, this._upFrom); this._applyScale();
+      this._note(`resolution down to ${(this.pixels / 1e6).toFixed(2)} MP`);
+      this.sinceStep = 0; this.sinceDown = 0;
+    } else this._down(1);
+    this.goodLevel = null; this._upFrom = null;
   }
 
   _up() {
     if (this.featureLevel > 0) {
       const f = FEATURE_STEPS[--this.featureLevel];
       f.apply(this.app, false); this._note(`back on: ${f.label}`);
-    } else if (this.resLevel > 0) { this.resLevel--; this._applyScale(); this._note(`resolution up to ${(this.pixels / 1e6).toFixed(2)} MP`); }
-    else return;
+    } else if (this.resLevel > 0) {
+      this._upFrom = this.resLevel;
+      this.resLevel = this.goodLevel != null && this.goodLevel < this.resLevel ? this.goodLevel : this.resLevel - 1;
+      this._applyScale(); this._note(`resolution up to ${(this.pixels / 1e6).toFixed(2)} MP`);
+    } else return;
     this.sinceStep = 0;
   }
 

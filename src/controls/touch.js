@@ -18,6 +18,7 @@ export class TouchControls {
       <div id="tbuttons">
         <button data-key="KeyG">HERO</button>
         <button data-key="KeyT">TARGET</button>
+        <button data-key="KeyX">HOVER</button>
         <button data-key="KeyF">FLY</button>
         <button data-key="KeyZ" data-hold="1">ZOOM</button>
         <button data-act="view">VIEW</button>
@@ -88,6 +89,9 @@ export class TouchControls {
     if (!this.suppressed) this.root.classList.remove('hidden');
     document.body.classList.add('touch');
   }
+
+  // Keeps a toggle button lit while its state is on (HOVER).
+  setLit(key, on) { this.root.querySelector(`button[data-key="${key}"]`)?.classList.toggle('lit', on); }
 
   // Hidden while a benchmark plays by itself or a full-screen panel is up.
   setVisible(v) { this.suppressed = !v; if (this.enabled) this.root.classList.toggle('hidden', !v); }

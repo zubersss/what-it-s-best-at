@@ -25,6 +25,7 @@ button.
 | left stick / drag | `WASD` / mouse | move / look |
 | `HERO` | `G` | flying character on / off (on by default) |
 | `TARGET` | `T` | aim at the next body in the sky (Earth, Moon, Phobos, Deimos, Sun) |
+| `HOVER` | `X` | hover on / off. Off (the default): let go of the stick and gravity pulls you toward the nearest world, or the Sun |
 | `FLY` | `F` | walk ↔ free-fly debug camera |
 | `ZOOM` (hold) | `Z` (hold), wheel | telephoto |
 | `VIEW` | `1`–`5` | camera bookmarks: ledge, sun, wall, ship, dusk |

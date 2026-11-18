@@ -200,9 +200,23 @@ exposure alone decides whether they are visible (rule 2).
   height. In vacuum a reduced "flow" (30 %) is kept on purpose so the cloak still trails
   in flight — a deliberate, owner-requested departure from physics.
 - **Speed law** (`cameraRig.js`): top speed = 0.85 × distance to the nearest surface of
-  any body per second (×3 with boost, floor 7 m/s), velocity smoothed over ~0.4 s, never
-  more than 40 % of the remaining gap per frame. Leaving, cruising and arriving are the
-  same control at every scale.
+  any body per second (×3 with boost, floor 7 m/s, ceiling 3 AU/s), never more than 40 %
+  of the remaining gap per frame. Speeding up is eased over ~0.4 s; slowing down is five
+  times quicker, so the speed follows the shrinking limit on arrival instead of carrying
+  the traveller past. Leaving, cruising and arriving are the same control at every scale.
+- **Aim**: heading and pitch are measured against the local horizon, which turns as the
+  traveller moves. Above about a hundredth of a radius, and when looking past the world's
+  edge rather than at it, the view's direction is held in space instead
+  (`_holdDirection`); looking at the world keeps the horizon frame, which is what brings
+  "point at the ground and push" down onto it.
+- **Gravity** (`controls/gravity.js`, numbers from the body catalogue): every body pulls
+  with a drift that is a fraction of the local top speed, growing slowly with its real
+  gravitational acceleration at the traveller's distance (Sun's surface 0.68, Mars 0.29,
+  the Moon 0.24, the Sun's pull at Mars's distance 0.07). The pull fades out as the stick
+  is pushed and is off while hovering (`rig.hover`, the HOVER button). A fall is an
+  ever-slowing approach because speed shrinks with distance.
+- **Fly-by limit**: while approaching or passing the nearest body, the motion is slowed
+  (never bent) so that the body sweeps across the view at no more than 0.45 rad/s.
 - **The sky is the whole catalogue**: `SkyBodies` always holds every body in
   `solarSystem.js` and skips the one you are on. `App.space()` measures clearances each
   frame (speed limit, collision with bodies that have no terrain) and calls

@@ -16,6 +16,7 @@ const AU = 149597870700;
 export const SOLAR_SYSTEM = {
   sun: {
     radius: 695700e3,
+    gravity: 274,                            // surface gravity, m/s^2 (flight: see controls/gravity.js)
     // Solar irradiance at 1 AU is the engine's radiometric unit (1.0).
     limbDarkening: [0.397, 0.503, 0.652],   // linear limb-darkening coefficient per RGB
     color: [1.0, 0.98, 0.95],                // disc colour, relative (found colour: near white)
@@ -24,6 +25,7 @@ export const SOLAR_SYSTEM = {
   earth: {
     parent: 'sun',
     radius: 6371.0e3,
+    gravity: 9.81,
     geometricAlbedo: 0.434,
     color: [0.72, 0.82, 1.0],
     orbit: {
@@ -45,6 +47,7 @@ export const SOLAR_SYSTEM = {
   moon: {
     parent: 'earth',
     radius: 1737.4e3,
+    gravity: 1.62,
     geometricAlbedo: 0.12,
     color: [1.0, 0.97, 0.92],
     orbit: {
@@ -59,6 +62,7 @@ export const SOLAR_SYSTEM = {
   mars: {
     parent: 'sun',
     radius: 3389.5e3,
+    gravity: 3.71,
     geometricAlbedo: 0.17,
     color: [1.0, 0.68, 0.42],
     orbit: {
@@ -74,6 +78,7 @@ export const SOLAR_SYSTEM = {
   phobos: {
     parent: 'mars',
     radius: 11.1e3,
+    gravity: 0.0057,
     radii: [13.0e3, 11.4e3, 9.1e3],        // ~27 x 22 x 18 km
     geometricAlbedo: 0.071,
     color: [1.0, 0.92, 0.85],
@@ -85,6 +90,7 @@ export const SOLAR_SYSTEM = {
   deimos: {
     parent: 'mars',
     radius: 6.2e3,
+    gravity: 0.003,
     radii: [7.5e3, 6.1e3, 5.2e3],
     geometricAlbedo: 0.068,
     color: [1.0, 0.93, 0.86],

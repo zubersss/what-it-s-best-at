@@ -28,6 +28,7 @@ export class Terrain {
     this.roots = FACES.map((_, f) => new Node(f, 0, 0, 0, null, hs, this.relief));
     this.frame = 0;
     this.drawList = []; this.wanted = [];
+    this.ready = [];                               // built chunks waiting for their turn to be uploaded
     this.lodScale = 1;
     this.maxChunks = CONFIG.MAX_RENDER_CHUNKS;     // lowered by the governor's terrain steps
     this.uploads = 0;                              // chunks uploaded since the app last read it
@@ -63,19 +64,27 @@ export class Terrain {
     pool.free.length = 0;
     for (let i = 0; i < pool.slots.length; i++) { pool.slots[i].node = null; pool.slots[i].mesh.visible = false; pool.free.push(i); }
     this.roots = FACES.map((_, f) => new Node(f, 0, 0, 0, null, hs, this.relief));
-    this.drawList.length = 0; this.wanted.length = 0;
+    this.drawList.length = 0; this.wanted.length = 0; this.ready.length = 0;
     this.lodScale = 1; this.idleFrames = 0;
     this.workers.reinit(this._initMessage(world, rasters));
   }
 
   get loadedCount() { return CONFIG.CHUNK_POOL - this.pool.free.length; }
-  get queueLength() { return this.wanted.length + this.workers.busy; }
+  get queueLength() { return this.wanted.length + this.workers.busy + this.ready.length; }
   get idle() { return this.idleFrames > 3; }
 
   // sunDir: THREE.Vector3 (planet-fixed); sunHalf: the Sun's angular radius in radians.
   update(rig, aspect, sunDir, sunHalf) {
     this.frame++;
+    const before = this.now || 0;
     this.now = performance.now();
+    // Finished chunks go to the GPU a few per frame, not all at once: about one per 60th
+    // of a second of frame time (so one at 60 fps, two at 30, and no limit that matters
+    // when frames take a second each in a software renderer).
+    if (this.ready.length) {
+      const budget = Math.max(1, Math.min(8, Math.round((this.now - before) / 16.7))) + (this.ready.length > 6 ? 1 : 0);
+      for (let k = 0; k < budget && this.ready.length; k++) { const r = this.ready.shift(); this._upload(r.node, r.res); }
+    }
     this._sun = [sunDir.x, sunDir.y, sunDir.z]; this._sunHalf = sunHalf;
     const cam = this._cam.copy(rig.pos), R = this.radius;
     const camLen = cam.length();
@@ -136,7 +145,7 @@ export class Terrain {
     this._dispatch();
     this._rebakeShadows();
     // Idle = nothing left to build, or nothing more can be built (pool exhausted).
-    this.idleFrames = (this.workers.busy === 0 && this.staleShadows === 0 && this.fading === 0 && (this.wanted.length === 0 || this.stalled)) ? this.idleFrames + 1 : 0;
+    this.idleFrames = (this.workers.busy === 0 && this.ready.length === 0 && this.staleShadows === 0 && this.fading === 0 && (this.wanted.length === 0 || this.stalled)) ? this.idleFrames + 1 : 0;
     if (this.frame % 240 === 0) for (const root of this.roots) this._prune(root);
   }
 
@@ -235,7 +244,10 @@ export class Terrain {
     return best;
   }
 
-  _onChunk(node, res) {
+  // A worker has finished a chunk: queue it for upload (see update).
+  _onChunk(node, res) { this.ready.push({ node, res }); }
+
+  _upload(node, res) {
     node.loading = false;
     const si = node.reserved; node.reserved = -1;
     if (node.dead) { this.pool.free.push(si); return; }

@@ -50,7 +50,7 @@ export class Hud {
     if (this.level === HUD.OFF) return;
     const s = getStats();
     if (this.level === HUD.COMPACT) {
-      this.el.textContent = `${this.fps.toFixed(0)} fps · ${(s.viewW * s.viewH / 1e6).toFixed(2)} MP · ${s.modeLabel} · build ${s.build}`;
+      this.el.textContent = `${this.fps.toFixed(0)} fps · ${(s.viewW * s.viewH / 1e6).toFixed(2)} MP · ${s.modeLabel}${s.hover ? ' · hover' : ''} · build ${s.build}`;
       return;
     }
     const warn = (v, lim) => (v > lim ? '  <-- over budget' : '');
@@ -68,6 +68,7 @@ export class Hud {
       `pos        ${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}  alt ${s.alt.toFixed(0)} m  agl ${s.agl.toFixed(1)} m`,
       `view       hdg ${s.heading.toFixed(1)} pitch ${s.pitch.toFixed(1)} fov ${s.fov.toFixed(1)}`,
       `flight     ${s.speed}   nearest ${s.nearest}${s.target ? '   target ' + s.target : ''}`,
+      `gravity    ${s.hover ? 'off (hover)' : 'pull ' + s.pull.toFixed(2) + ' of top speed'}`,
     ];
     this.el.textContent = lines.join('\n');
   }
