@@ -136,6 +136,7 @@ later. The start screen and the HUD show the commit the page was built from.
 npm install
 npm run dev            # http://localhost:5173/   (add -- --host to open it from a phone on the same Wi-Fi)
 npm run build          # static site in dist/ (relative paths)
+./scripts/build-check.sh    # the same, but fails loudly (never judge a build through `| tail`)
 npm run preview        # serve dist/
 npm run shots          # headless screenshots of every bookmark of one world -> docs/shots/
 npm run shots:all      # the full reference set: both worlds, orbit, character
@@ -164,7 +165,8 @@ URL parameters: `world=mars|moon`, `shot=ledge|sun|wall|ship|dusk` (fixed camera
 bookmark, deterministic screenshot mode, skips the start screen), `t=<hours offset>`,
 `hud=0|1`, `scale=<fixed render scale>`, `mode=smooth|sharp`, `bench=run|soak` (start a
 benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|hover`,
-`lat= lon= alt= heading= pitch= fov=`, `aim=<sky body>` (turn the view to it).
+`lat= lon= alt= heading= pitch= fov=`, `east= north=` (metres from the bookmark's place),
+`aim=<sky body>` (turn the view to it), `debug=noair|airall` (haze shadows off / everywhere).
 
 Keys: `WASD` move, mouse look (click to capture), `Shift` run / boost, `Space` jump /
 up, `Q`/`E` down / up, `G` flying character on/off, `T` aim at the next body in the sky,
@@ -225,5 +227,13 @@ finished benchmark leaves its text in `window.__benchResult`.
 - Anything that screenshot mode waits for (`__shotReady`) must be able to finish in
   every camera position, or the headless scripts stall there (the rocks' shadow check a
   few hundred metres up was such a case).
+- A backtick inside a GLSL comment ends the JavaScript template string around it and
+  breaks the build; and a build piped through `tail` reports success anyway. Build with
+  `./scripts/build-check.sh`.
+- Screen-space froxels cannot carry the haze near a planet's edge seen from space (the
+  path length jumps between neighbouring froxels): sky and grazing ground are marched
+  per pixel there.
+- A terrain op that looks crisp from afar can read as a dune up close: a terrace riser is
+  rock only if its cliff fraction makes it steeper than the surface's `rockMin` slope.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

@@ -146,6 +146,8 @@ export class App {
       this.stars = makeStars(new Float32Array(await res.arrayBuffer()));
       this.farScene.add(this.stars.points);
     }
+    this.atmosphere.airDebugAll = params.debug.includes('airall');                 // ?debug=airall: every bit of air counts as shadowed
+    if (params.debug.includes('noair')) this.atmosphere.airEnabled = false;      // ?debug=noair: no terrain shadows in the haze
     this.nearShadow = new NearShadow(renderer);
     this.terrain = new Terrain(world, data.rasters, data.hs, renderer);
     this.rocks = new Rocks(world, data.hs);
@@ -193,7 +195,8 @@ export class App {
     const sc = this.world.scene, s = sc.start, b = sc.bookmarks[name] || {};
     const p = this.params;
     this.rig.setLatLon(p.lat ?? b.lat ?? s.lat, p.lon ?? b.lon ?? s.lon, b.eye ?? s.eye, p.heading ?? b.heading ?? s.heading, p.pitch ?? b.pitch ?? s.pitch);
-    if (b.east || b.north) this.rig.offsetMetres(b.east || 0, b.north || 0, b.eye ?? s.eye);
+    const east = p.east ?? b.east ?? 0, north = p.north ?? b.north ?? 0;
+    if (east || north) this.rig.offsetMetres(east, north, b.eye ?? s.eye);
     if (p.alt != null) { if (this.rig.mode === 'walk') this.rig.setMode('fly'); this.rig.pos.setLength(this.world.radius + p.alt); this.rig.agl = 0; }
     this.rig.baseFov = this.rig.fov = p.fov ?? b.fov ?? CONFIG.DEFAULT_FOV;
     // A bookmark is a place and a moment: it restores its world's scene time.
@@ -426,6 +429,7 @@ export class App {
     // 3. Terrain LOD, rocks, lander, hero
     const aspect0 = post.width / post.height;
     const sunHalf = Math.asin(SOLAR_SYSTEM.sun.radius / eph.sunDistance);
+    this.atmosphere.updateAir(rig.pos, G.uSunDir.value, this.terrain);     // before the terrain takes the workers
     this.terrain.update(rig, aspect0, G.uSunDir.value, sunHalf);
     this.rocks.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
     this.lander.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
@@ -486,9 +490,9 @@ export class App {
     }
 
     if (this.shotMode) {
-      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending;
+      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy;
       window.__shotReady = ready;
-      window.__stats = { calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander' : ''}` };
+      window.__stats = { calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow' : ''}` };
     }
   }
 

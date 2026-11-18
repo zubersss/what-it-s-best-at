@@ -29,7 +29,11 @@ export default {
       { op: 'ridged', seed: 23, maxWavelength: 1500, minWavelength: 24, roughness: 0.9, amp: 400, slopeMask: [0.10, 0.36], warp: 0.3 },
       // Horizontal rock strata: resistant layers become cliffs, weak ones benches.
       { op: 'terrace', seed: 31, thickness: 290, cliff: 0.24, rise: 0.70, strength: 0.8, slopeMask: [0.10, 0.30], jitter: 0.3, warpAmp: 40, warpWavelength: 2600 },
-      { op: 'terrace', seed: 37, thickness: 38, cliff: 0.30, rise: 0.72, strength: 0.6, slopeMask: [0.10, 0.30], jitter: 0.4, warpAmp: 5, warpWavelength: 300 },
+      // (a narrow cliff fraction makes the risers steep enough to be rock, not a sandy ramp)
+      { op: 'terrace', seed: 37, thickness: 38, cliff: 0.18, rise: 0.76, strength: 0.6, slopeMask: [0.10, 0.30], jitter: 0.4, warpAmp: 5, warpWavelength: 300 },
+      // Walking scale: beds a few metres thick stand out as crisp ledges, so hillsides
+      // read as layered rock, not dunes.
+      { op: 'terrace', seed: 43, thickness: 5, cliff: 0.16, rise: 0.80, strength: 0.8, slopeMask: [0.22, 0.42], jitter: 0.5, warpAmp: 1.5, warpWavelength: 70 },
       // Sparse small craters on the plateau and canyon floor only.
       { op: 'craters', seed: 41, radius: [30, 900], density: 1.0, layers: 1, depth: 0.2, rim: 0.04, slopeMaskInv: [0.05, 0.14] },
     ],
@@ -60,8 +64,9 @@ export default {
     rayleigh: { scattering: [1.15e-7, 2.7e-7, 6.6e-7], scaleHeight: 11100 },
     // Dust: absorbs blue, forward-scatters it in a tighter lobe (blue aureole at the Sun).
     dust: {
-      scattering: [2.25e-5, 1.98e-5, 1.64e-5],
-      absorption: [0.06e-5, 0.40e-5, 1.00e-5],
+      // A clear-season load: column optical depth about 0.23 at datum.
+      scattering: [1.91e-5, 1.68e-5, 1.39e-5],
+      absorption: [0.05e-5, 0.34e-5, 0.85e-5],
       phaseG: [0.70, 0.76, 0.85],
       scaleHeight: 11100,
       // Low dust layer pooled in the canyon (exponential height fog).
@@ -86,7 +91,7 @@ export default {
       ledge: { heading: 292, pitch: -7, fov: 60 },
       sun: { heading: 297, pitch: 3, fov: 22 },
       wall: { heading: 352, pitch: -2, fov: 34 },
-      ship: { heading: 130, pitch: 5, fov: 40 },
+      ship: { east: 25, north: -20, heading: 129, pitch: 2, fov: 40 },     // from a sunlit bench, looking at the lander
       dusk: { heading: 298, pitch: 9, fov: 60, timeOffsetHours: 1.7 },
     },
   },

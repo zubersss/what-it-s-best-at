@@ -77,7 +77,10 @@ export class Cloak {
   // dt seconds. rot: wearer-local -> world axes. gravity: world-axes vector (m/s^2).
   // accel: wearer's acceleration (m/s^2, clamped by the caller). wind: air velocity
   // relative to the wearer (m/s). air: 0 (vacuum) .. 1 (dense air) — how hard it pushes.
-  update(dt, rot, gravity, accel, wind, air) {
+  // colliders (optional): capsules of the wearer's limbs in its own frame, 7 numbers each
+  // (ax, ay, az, bx, by, bz, radius); the cloth is kept outside them as well as the torso.
+  update(dt, rot, gravity, accel, wind, air, colliders = null) {
+    this.colliders = colliders;
     // halfRate (governor step): every other simulation step is skipped; the cloth moves
     // a little more stiffly but costs half.
     const step = this.halfRate ? STEP * 2 : STEP;
@@ -139,9 +142,21 @@ export class Cloak {
         const cy = ly < -0.95 ? -0.95 : ly > 0.62 ? 0.62 : ly;
         const dx = lx, dy = ly - cy, dz = lz, d2 = dx * dx + dy * dy + dz * dz;
         const R = ly > 0.0 ? 0.215 : 0.19;
-        if (d2 < R * R && d2 > 1e-9) {
-          const s = R / Math.sqrt(d2) - 1;
-          const ox = dx * s, oy = dy * s, oz = dz * s;
+        let ox = 0, oy = 0, oz = 0;
+        if (d2 < R * R && d2 > 1e-9) { const s = R / Math.sqrt(d2) - 1; ox = dx * s; oy = dy * s; oz = dz * s; }
+        // arms and legs: closest point on each capsule's axis, pushed out to its radius
+        const col = this.colliders;
+        if (col) {
+          for (let c = 0; c < col.length; c += 7) {
+            const px2 = lx + ox, py2 = ly + oy, pz2 = lz + oz;
+            const ax = col[c], ay = col[c + 1], az = col[c + 2], bx = col[c + 3] - ax, by = col[c + 4] - ay, bz = col[c + 5] - az, r = col[c + 6];
+            let t = ((px2 - ax) * bx + (py2 - ay) * by + (pz2 - az) * bz) / (bx * bx + by * by + bz * bz + 1e-9);
+            t = t < 0 ? 0 : t > 1 ? 1 : t;
+            const qx = px2 - (ax + bx * t), qy = py2 - (ay + by * t), qz = pz2 - (az + bz * t), q2 = qx * qx + qy * qy + qz * qz;
+            if (q2 < r * r && q2 > 1e-9) { const s = r / Math.sqrt(q2) - 1; ox += qx * s; oy += qy * s; oz += qz * s; }
+          }
+        }
+        if (ox !== 0 || oy !== 0 || oz !== 0) {
           pos[o] += e[0] * ox + e[3] * oy + e[6] * oz; pos[o + 1] += e[1] * ox + e[4] * oy + e[7] * oz; pos[o + 2] += e[2] * ox + e[5] * oy + e[8] * oz;
         }
       }

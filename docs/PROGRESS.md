@@ -118,6 +118,49 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 - **The near shadow map's texel grid is anchored to the ground near the camera** and
   re-anchored only when the camera is more than two map radii away.
 
+### From space, exposure and haze (milestone 2)
+
+- **Subject-priority exposure** (`exposure.surface`, default 0.6): single pixels of the
+  HDR scene are sampled on a 32×18 grid; where alpha says "lit surface" they give the
+  share of the frame that is surface and the brightness of its bright parts (mean weighted
+  by brightness, so a half-lit globe counts as its day side). Once surfaces cover more
+  than 1–6 % of the frame, exposure may not push that brightness above `surface`. A small
+  figure against the stars keeps the old, looser limit (`highlight`). Ground-level
+  bookmarks sit at 0.17–0.24, far below the limit, and are unchanged.
+- **Sky light follows the local Sun.** The irradiance map belongs to the camera's place.
+  Elsewhere on the globe it is scaled by a table of sky-plus-bounce light on level ground
+  against the Sun's height (built once per world on the GPU, divided by its own value at
+  the camera, capped at 32). It is exactly 1 at the camera, so nothing changes nearby.
+- **Edge glow from space is marched per pixel**, in the sky dome (rays that cross the
+  shell) and on ground seen at a grazing angle (blend from froxels below a view cosine of
+  0.38, fully marched below 0.22). Screen-space froxels cannot follow the path length
+  there: it changes by a factor of two between neighbouring froxels. The sky-view LUT is
+  used only while the camera is in the air and is cross-faded over the top tenth of the
+  atmosphere.
+- **Terrain shadow in the air** is a 64×64 map on the tangent plane around the camera
+  (half-width 0.6 × the world's shadow range, growing with altitude) holding the altitude
+  below which the Sun is hidden. One coarse height sample per step toward the Sun; about
+  50–100 ms in a worker, redone when the camera has moved a sixth of the half-width or the
+  Sun 0.4°. At the Mars bookmarks it changes little, and that is correct: the Sun shines
+  along the canyon and its air really is sunlit (`?debug=airall` shows what fully shadowed
+  air would look like; `?debug=noair` switches the map off).
+- **Mars dust re-tuned for the far wall**: 15 % less dust and a slightly tighter forward
+  lobe for red and green. A single Henyey–Greenstein lobe that matches the aureole is
+  about twice too bright 60° from the Sun compared with measured Martian dust; that glare
+  is what buried the far wall.
+- **New chunks fade in from their parent** (shape, normals, cavities, baked shadows) over
+  0.6 s, and shading morphs with distance exactly like the vertices. A parent's maps are
+  always loaded while its children are drawn (the pool never evicts a node with loaded
+  children).
+- **The hand-over between worlds keeps the camera's roll.** `CameraRig.roll` holds the
+  previous world's "up" and is released (1.2 /s) only inside 40 radii of the new world, so
+  the re-levelling happens while the world grows in view. Look input is rotated by the
+  roll so "right" stays right on screen.
+- **Lunar chunk builds**: the crater op remembers the last 2×2×2 lattice block per class.
+  Heights are bit-identical; the profile went from 72 to 41 ms per chunk in Node (Mars:
+  24 ms). The rest of the gap is the fractal layers and the shadow rays, which simply
+  cost more per sample on a cratered world.
+
 ### Worlds
 
 - **Mars site**: the lip of a bench on the north flank of Coprates' southern ridge

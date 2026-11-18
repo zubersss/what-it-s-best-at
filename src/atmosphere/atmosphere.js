@@ -14,6 +14,7 @@ import { TRANSMITTANCE_FRAG, MULTISCAT_FRAG, SKYVIEW_FRAG, FROXEL_FRAG, IRRADIAN
 const KM = 0.001;
 export const FROXEL_POW = 2.5;
 const SKYE_W = 64;          // texels of the sky-light-versus-Sun-height table
+const AIR_N = 64;           // cells across the terrain-shadow-in-air map
 
 function fl(n) { return Number.isInteger(n) ? n.toFixed(1) : String(n); }
 
@@ -50,7 +51,7 @@ export class Atmosphere {
     this.irradiance = new THREE.WebGLRenderTarget(I, I + 1, half);
     this.skyE = new THREE.WebGLRenderTarget(SKYE_W, 1, half);
     this.skyGain = new THREE.WebGLRenderTarget(SKYE_W, 1, half);
-    this.gpuBytes = 8 * (tw * th + mw * mh + 2 * sw * sh + 3 * fw * ax * fh * ay + I * (I + 1) + 2 * SKYE_W);
+    this.gpuBytes = 8 * (tw * th + mw * mh + 2 * sw * sh + 3 * fw * ax * fh * ay + I * (I + 1) + 2 * SKYE_W) + 2 * AIR_N * AIR_N;
 
     const lut = { tTransmittance: { value: this.transmittance.texture }, tMultiScat: { value: this.multiScat.texture } };
     const sky = { tSkySmooth: { value: this.skyView.textures[0] }, tSkyMie: { value: this.skyView.textures[1] }, uSkyParams: { value: new THREE.Vector4(Math.PI / 2, 0.01, 1, 0) } };
@@ -62,7 +63,19 @@ export class Atmosphere {
       uCamPosKm: { value: new THREE.Vector3() }, uSunDirW: G.uSunDir, uCamRight: G.uCamRight, uCamUp: G.uCamUp, uCamFwd: G.uCamFwd, uTanHalfFov: G.uTanHalfFov,
       uFroxelRange: { value: new THREE.Vector2(0, 400) }, uLutScale: { value: 1 },
     };
-    this.froxelMat = makePassMaterial(FROXEL_FRAG, { ...u, ...lut, ...this.froxelU }, { defines });
+    // Terrain shadow in the air (see updateAir): a small map filled by a terrain worker.
+    this.airTex = new THREE.DataTexture(new Uint16Array(AIR_N * AIR_N), AIR_N, AIR_N, THREE.RedFormat, THREE.HalfFloatType);
+    this.airTex.minFilter = this.airTex.magFilter = THREE.LinearFilter;
+    this.airTex.wrapS = this.airTex.wrapT = THREE.ClampToEdgeWrapping;
+    this.airTex.needsUpdate = true;
+    this.airU = {
+      tAirShadow: { value: this.airTex }, uAirOrigin: { value: new THREE.Vector3() },
+      uAirE: { value: new THREE.Vector3(1, 0, 0) }, uAirN: { value: new THREE.Vector3(0, 1, 0) }, uAirParams: { value: new THREE.Vector3(1, 0.4, 0) },
+    };
+    this.airEnabled = true;              // governor switch
+    this.air = null;                     // what the current map was made for
+    this.airPending = false;
+    this.froxelMat = makePassMaterial(FROXEL_FRAG, { ...u, ...lut, ...this.froxelU, ...this.airU }, { defines });
     this.irrMat = makePassMaterial(IRRADIANCE_FRAG, { ...u, tTransmittance: lut.tTransmittance, ...sky, ...this.cam }, { defines });
     this.skyEMat = makePassMaterial(SKYE_FRAG, { ...u, ...lut }, { defines });
     this.skyGainMat = makePassMaterial(SKYGAIN_FRAG, { tSkyE: { value: this.skyE.texture }, uSunMu: this.cam.uSunMu }, { defines });
@@ -103,6 +116,45 @@ export class Atmosphere {
     u.uGroundAlbedo.value.set(...(world.surface.meanAlbedo || world.surface.dust));
     this.staticDone = false; this.froxelDone = false;
     this.lastMu = 99; this.lastR = -1; this.skyScale = 0;
+    this.air = null; this.airU.uAirParams.value.z = 0;
+    this.shadowReach = world.terrain.shadowRange ?? 150000;
+  }
+
+  // True while a terrain-shadow map is wanted but not there yet (screenshots wait for it).
+  get airBusy() { return this.airWanted && (this.airPending || !this.air); }
+
+  // Keeps the terrain-shadow-in-air map around the camera up to date. A terrain worker
+  // fills it (about 80 k coarse height samples); it is redone when the camera has moved a
+  // sixth of the map's half-width, when the Sun has moved 0.4 degrees, or when the map
+  // should be a different size (it grows with altitude). terrain: for its workers and epoch.
+  updateAir(camPos, sunDir, terrain) {
+    const up = this._up.copy(camPos).normalize(), alt = camPos.length() - this.rPlanet / KM;
+    // No air, switched off, in space, or night at the camera (the planet's own shadow
+    // already takes the sunlight away): no map.
+    this.airWanted = !this.empty && this.airEnabled && alt < 150000 && up.dot(sunDir) > -0.1;
+    if (!this.airWanted) { this.airU.uAirParams.value.z = 0; this.air = null; return; }
+    const extent = Math.min(300000, Math.max(this.shadowReach * 0.6, 4 * alt));
+    const a = this.air;
+    const stale = !a || a.center.distanceToSquared(up) * this.rPlanet * this.rPlanet / (KM * KM) > (a.extent / 6) ** 2 ||
+      a.sun.dot(sunDir) < 0.999976 || Math.abs(extent / a.extent - 1) > 0.3;
+    if (!stale || this.airPending) return;
+    const east = new THREE.Vector3(-up.y, up.x, 0);
+    if (east.lengthSq() < 1e-12) east.set(1, 0, 0);
+    east.normalize();
+    const north = new THREE.Vector3().crossVectors(up, east), center = up.clone(), sun = sunDir.clone(), epoch = terrain.epoch;
+    const job = terrain.workers.run({ type: 'air', center: center.toArray(), east: east.toArray(), north: north.toArray(), extent, n: AIR_N, sun: sun.toArray() });
+    if (!job) return;                       // every worker is busy: try again next frame
+    this.airPending = true;
+    job.then((res) => {
+      this.airPending = false;
+      if (epoch !== terrain.epoch || this.empty) return;
+      if (this.airDebugAll) res.map.fill(0x4f80);        // ?debug=airall: pretend all air is in shadow (60 km as a half float)
+      this.airTex.image.data = res.map; this.airTex.needsUpdate = true;
+      this.airU.uAirOrigin.value.copy(center).multiplyScalar(this.rPlanet);
+      this.airU.uAirE.value.copy(east); this.airU.uAirN.value.copy(north);
+      this.airU.uAirParams.value.set(1 / (2 * extent * KM), Math.max(0.3, 2 * extent * KM / AIR_N * 0.12), 1);
+      this.air = { center, sun, extent };
+    }).catch(() => { this.airPending = false; });
   }
 
   // camPos: planet-centred metres (doubles). sunDir: unit, planet-fixed. farDistance: metres.

@@ -24,6 +24,9 @@ self.onmessage = (ev) => {
       const t0 = performance.now();
       const shadow = baker.bakeChunk(m.face, m.level, m.ix, m.iy, m.sun, m.sunHalf, null);
       self.postMessage({ type: 'shadow', id: m.id, shadow, ms: performance.now() - t0 }, [shadow.buffer]);
+    } else if (m.type === 'air') {
+      const map = baker.bakeAir(m.center, m.east, m.north, m.extent, m.n, m.sun);
+      self.postMessage({ type: 'air', id: m.id, map }, [map.buffer]);
     } else if (m.type === 'points') {
       const vis = baker.bakePoints(m.points, m.sun, m.sunHalf, m.minWL || 0.5);
       self.postMessage({ type: 'points', id: m.id, vis }, [vis.buffer]);

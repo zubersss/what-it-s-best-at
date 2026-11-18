@@ -29,6 +29,7 @@ export const FEATURE_STEPS = [
   { id: 'bloom', label: 'glow around bright things', apply: (app, off) => { app.post.bloomEnabled = !off; } },
   { id: 'terrain-2', label: 'terrain detail (fewer patches again)', apply: (app, off) => { app.terrainBudget(off ? 0.64 : 1, 'terrain-2'); } },
   { id: 'cloak', label: 'cloak simulated at half rate', apply: (app, off) => { app.hero.cloak.halfRate = off; } },
+  { id: 'air-shadow', label: 'terrain shadows in the haze', apply: (app, off) => { app.atmosphere.airEnabled = !off; } },
 ];
 
 const RES_STEP = 0.88;          // each resolution step keeps 88 % of the pixels (about 6 % per side)

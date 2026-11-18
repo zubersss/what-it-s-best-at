@@ -109,6 +109,9 @@ void integrateScattering(vec3 ro, vec3 rd, vec3 sunDir, float tMax, int steps, o
     Medium m = sampleMedium(r - uRPlanet);
     float muS = dot(p, sunDir) / r;
     vec3 Tsun = transmittanceLut(r, muS) * planetShadow(r, muS);
+#ifdef AIR_SHADOW
+    Tsun *= airLit(p, r);        // air inside a terrain shadow gets no direct sunlight
+#endif
     vec3 psi = multiScatLut(r, muS);
     vec3 stepT = exp(-m.ext * dt);
     vec3 k = (1.0 - stepT) / max(m.ext, vec3(1e-9));
@@ -335,6 +338,21 @@ vec3 skyRadianceLocal(vec3 d, vec3 sunLocal, vec3 mieG) {
 export const FROXEL_FRAG = /* glsl */`
 ${ATMO_UNIFORMS}
 ${ATMO_COMMON}
+// Terrain shadow in the air: a coarse map on the tangent plane around the camera holding
+// the altitude below which the Sun is hidden by terrain (see ShadowBaker.bakeAir).
+#define AIR_SHADOW
+uniform sampler2D tAirShadow;
+uniform vec3 uAirOrigin, uAirE, uAirN;   // map centre on the datum sphere (km) and its east / north axes
+uniform vec3 uAirParams;                 // x = 1 / map width (per km), y = softness of the shadow edge (km), z = on
+float airLit(vec3 p, float r) {
+  if (uAirParams.z < 0.5) return 1.0;
+  vec3 d = p - uAirOrigin;
+  vec2 uv = vec2(dot(d, uAirE), dot(d, uAirN)) * uAirParams.x + 0.5;
+  float border = max(abs(uv.x - 0.5), abs(uv.y - 0.5));
+  if (border >= 0.5) return 1.0;
+  float lit = smoothstep(-uAirParams.y, uAirParams.y, r - uRPlanet - texture(tAirShadow, uv).r);
+  return mix(lit, 1.0, smoothstep(0.4, 0.5, border));     // the map fades out at its edge
+}
 ${ATMO_LUT_ACCESS}
 uniform vec3 uCamPosKm;      // planet-centred camera position
 uniform vec3 uSunDirW;
