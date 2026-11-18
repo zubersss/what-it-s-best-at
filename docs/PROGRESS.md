@@ -475,6 +475,40 @@ repository (re-create them with `npm run stability`).
   exposure re-meter between frames; both produced large, honest differences that hid
   what the test is for. Steps are now about a pixel and exposure is held per station.
 
+## Independent critic, milestone 3 (screenshots and art rules only)
+
+Thirty reference pictures, compared with Viking, Pathfinder, the rovers, Hubble and the
+Apollo surface photographs. The five gaps, worst first, and what was done:
+
+1. **Mars is one colour everywhere**: ground, cliffs, rocks and the globe the same tan;
+   from orbit no Solis Lacus, no dark regions; craters and the canyon as white embossed
+   lines. → a helper traced where the colour map's contrast is lost from orbit; another
+   reworked the ground palette (see below).
+2. **Landforms read as sand or dough**: Mount Sharp a rippled heap, canyon slopes like
+   wax, blurry dark "tiger stripes" on the ground, the Olympus caldera wall near-white
+   like snow, identical faceted rocks. → ground palette and texture helper; the large
+   landform shapes are recorded under known problems.
+3. **The Moon's light is soft**: few, small, soft shadows at mid-morning; the figure's
+   shadow blurred; the sunrise view's foreground the whitest thing in the frame;
+   blotches on the rille's far wall. → a helper on crisp shadows; the exposure of
+   into-Sun views and of the night now follows how Apollo crews exposed.
+4. **Bright sky bodies**: Earth a white oval in a glow, Deimos burnt out, Phobos cream
+   and brighter than the sky. → Earth and Deimos belong to milestone 5. Phobos is lit
+   by full sunlight and seen through the whole dusty sky, which adds to it, so it is
+   brighter than the sky behind it; kept.
+5. **The Mars sky**: the twilight a cream lens with a sharp lower edge; the daytime sky
+   away from the Sun flat grey-brown. → milestone 5 (already in the known problems).
+
+Kept, as the critic advised: the Martian sunset (`ledge`, `sun`), the Moon from space with
+its seas and Tycho's rays, the crescent Mars with its bluish rim, the black airless sky,
+Mount Hadley.
+
+Reported as broken: a straight line across the ground at the Mars lander (the lip of a
+small rock bench; in milestone 2 it was the edge of a wrong shadow, now fixed); a curved
+material edge and a stair-stepped far ridge at Olympus; a box-like ledge with stretched
+texture in `mars_wall`; stair-steps on the lunar sunrise ridge (no anti-aliasing yet);
+soft puffs of lunar dust (now a spray of fine grains on clean arcs).
+
 ## Independent critic, milestone 2 (screenshots and art rules only)
 
 Told that real surface maps from orbit and the simple character are scheduled. Ranked:
