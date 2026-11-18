@@ -31,8 +31,9 @@ await page.waitForTimeout(6000);
 check('compact HUD shows frame rate, resolution, mode and build', /fps · [\d.]+ MP · (Smooth|Sharp) · build \w+/.test(await page.textContent('#hud')));
 await snap(path.join(out, 'playing_compact_hud.png'));
 await page.evaluate(() => window.__app.hud.toggle());
-await page.waitForTimeout(4000);
-check('full HUD shows the quality line', /quality\s+(Smooth|Sharp)/.test(await page.textContent('#hud')));
+// the HUD refreshes on the next rendered frame, and a software-rendered frame can take seconds
+const fullHud = await page.waitForFunction(() => /quality\s+(Smooth|Sharp)/.test(document.querySelector('#hud').textContent), null, { timeout: 60000, polling: 500 }).then(() => true, () => false);
+check('full HUD shows the quality line', fullHud);
 await snap(path.join(out, 'playing_full_hud.png'));
 console.log(await page.evaluate(() => window.__app.governor.summary), '| steps so far:', await page.evaluate(() => window.__app.governor.log.map((s) => s.text).join('; ')));
 
