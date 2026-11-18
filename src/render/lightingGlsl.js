@@ -75,7 +75,14 @@ vec3 planetShine(vec3 N) { return uShineE * max(dot(N, uShineDir), 0.0); }
 // Attenuates a surface colour and adds in-scattered light along the view ray.
 // Materials that can fill the view from space (the terrain) define SPACE_HAZE to get the
 // per-pixel march near the planet's edge; small objects do without that code.
-vec3 aerialPerspective(vec3 color, vec3 rel) {
+// rho: the ground's albedo here over the mean albedo the air's light was computed with.
+// Most of the haze over the day side seen from above is sunlight that the ground below
+// reflected and the dust scattered back up, so over dark ground there is less of it and
+// over bright ground more: a large dark region keeps its contrast through the haze, as
+// it does in photographs from orbit. This holds where the line of sight crosses the low
+// air close to the place it looks at (a steep view); along a grazing line the air is lit
+// by all the ground it passes over, which is the mean (weight fades out by angle).
+vec3 hazeOverGround(vec3 color, vec3 rel, vec3 rho) {
   float dist = length(rel);
   // Same path through the air as the froxel pass computed for this view ray.
   vec3 ro = uCamPlanetPos * 0.001, rd = rel / dist;
@@ -84,6 +91,9 @@ vec3 aerialPerspective(vec3 color, vec3 rel) {
   float cosT = dot(rd, uSunDir);
   vec3 marched = vec3(0.0);
   float useMarch = 0.0;
+  // cosine between the line of sight and the vertical at the far end: 1 looking straight down
+  vec3 pEnd = ro + rd * (dist * 0.001);
+  vec3 rhoW = 1.0 + (rho - 1.0) * smoothstep(0.3, 0.6, -dot(rd, pEnd) / length(pEnd));
   if (rc > uRTop) {
     if (discT <= 0.0 || bq > 0.0) return color;
     float sT = sqrt(discT); pathA = -bq - sT; pathB = -bq + sT;
@@ -106,10 +116,10 @@ vec3 aerialPerspective(vec3 color, vec3 rel) {
       // entry point from the closest approach to the centre: accurate in 32-bit floats
       float dc = length(ro - rd * bq);
       float tin = -bq - sqrt(max((uRTop - dc) * (uRTop + dc), 0.0));
-      vec3 Ls, Lm, T;
-      if (uQuality.z > 0.5) integrateToGround(ro + rd * tin, rd, uSunDir, max(dk - tin, 0.0), 12, Ls, Lm, T);
-      else integrateToGround(ro + rd * tin, rd, uSunDir, max(dk - tin, 0.0), 6, Ls, Lm, T);      // governor step
-      marched = color * T + (Ls + Lm * phaseHG3(cosT, uMieG)) * uSunIrradiance;
+      vec3 Ls, Lm, T, Lg;
+      if (uQuality.z > 0.5) integrateToGround(ro + rd * tin, rd, uSunDir, max(dk - tin, 0.0), 12, Ls, Lm, T, Lg);
+      else integrateToGround(ro + rd * tin, rd, uSunDir, max(dk - tin, 0.0), 6, Ls, Lm, T, Lg);      // governor step
+      marched = color * T + (Ls + Lg * (rhoW - 1.0) + Lm * phaseHG3(cosT, uMieG)) * uSunIrradiance;
       if (useMarch >= 1.0) return marched;
     }
 #endif
@@ -127,11 +137,18 @@ vec3 aerialPerspective(vec3 color, vec3 rel) {
   vec2 t0 = (vec2(mod(k0, atlas.x), floor(k0 / atlas.x)) + uv) / atlas;
   vec2 t1 = (vec2(mod(k1, atlas.x), floor(k1 / atlas.x)) + uv) / atlas;
   float near = clamp(s, 0.0, 1.0);
-  vec3 Ls = mix(texture(tFroxelA, t0).rgb, texture(tFroxelA, t1).rgb, f) * near;
+  vec4 A = mix(texture(tFroxelA, t0), texture(tFroxelA, t1), f);
+  vec3 Ls = A.rgb * near * (1.0 + A.a * (rhoW - 1.0));      // alpha: the ground's share of it
   vec3 Lm = mix(texture(tFroxelB, t0).rgb, texture(tFroxelB, t1).rgb, f) * near;
   vec3 T = mix(vec3(1.0), mix(texture(tFroxelC, t0).rgb, texture(tFroxelC, t1).rgb, f), near);
   vec3 hazed = color * T + (Ls + Lm * phaseHG3(cosT, uMieG)) * (uLutScaleInv.y * uSunIrradiance);
   return mix(hazed, marched, useMarch);
+}
+// Small things (rocks, the lander, the character): the haze of mean ground.
+vec3 aerialPerspective(vec3 color, vec3 rel) { return hazeOverGround(color, rel, vec3(1.0)); }
+// The ground itself, with its own albedo.
+vec3 aerialPerspective(vec3 color, vec3 rel, vec3 albedo) {
+  return hazeOverGround(color, rel, clamp(albedo / max(uGroundAlbedo, vec3(1e-4)), 0.0, 2.5));
 }
 
 ${NEAR_SHADOW_PARS}

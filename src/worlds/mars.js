@@ -48,10 +48,12 @@ export default {
     roughness: 0.55,                 // Oren–Nayar sigma (rad)
     meanAlbedo: [0.24, 0.135, 0.07], // regional average, for bounce light and multiple scattering
     // Viking colour mosaic of the whole planet (sRGB image; mean linear colour below). It
-    // scales the palette place by place: dark basaltic plains, bright dust, polar ice. Only
-    // half of its colour differences are used: the mosaic's dark regions lean blue, more
-    // than the ground itself does.
-    albedoMap: { url: 'data/mars_color_2880.jpg', encoding: 'srgb', mean: [0.197, 0.118, 0.113], strength: 1.0, chroma: 0.5 },
+    // scales the palette place by place: dark basaltic plains, bright dust, polar ice. All
+    // of its colour differences are used: against the bright regions its dark ones are
+    // 0.4-0.45 as bright in red and 0.75 in blue (Solis Lacus / Syria, Meridiani / Arabia),
+    // the spectral contrast of dark basalt against dust; at half, every dark region was
+    // the same orange as the dust, only darker.
+    albedoMap: { url: 'data/mars_color_2880.jpg', encoding: 'srgb', mean: [0.197, 0.118, 0.113], strength: 1.0, chroma: 1.0 },
     // Materials blended by slope and height. Albedos are linear reflectance.
     dust: [0.30, 0.165, 0.080],      // bright butterscotch dust on flats
     sand: [0.150, 0.085, 0.050],     // darker basaltic sand, low ground
@@ -98,15 +100,22 @@ export default {
     // highlight: how many times over white the brightest lit surface may be pushed
     // max: how far the exposure may be pushed in the dark. It is what keeps the twilight
     // glow from burning out an hour and a half after sunset.
-    exposure: { key: 0.16, min: 0.5, max: 2.3e5, speed: 1.6, shadowFloor: 0.2, highlight: 6 },
+    // globe: how bright the sunlit part of the planet is held when it is seen as a world in
+    // black space (the engine's default, 0.32, is for grey worlds). Mars at 0.18 is metered
+    // like a mid-grey card, below the tone curve's shoulder, which would otherwise fade its
+    // orange to cream and flatten its dark markings (it kept half of their contrast).
+    exposure: { key: 0.16, min: 0.5, max: 2.3e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, globe: 0.18 },
     // The first five are one place at different moments; the rest are other real places.
     // timeOffsetHours moves the clock from dateUTC to the light that suits the view.
     bookmarks: {
-      ledge: { label: 'Coprates Chasma', heading: 292, pitch: -7, fov: 60 },
+      // The lip of the canyon's north rim, 5.1 km up, two hours before sunset: the ground
+      // falls away 10 km to the floor, the lit south wall 60 km away across the haze.
+      ledge: { label: 'Coprates Chasma, the north rim', lat: -11.6859, lon: 296.7243, heading: 210, pitch: -9, fov: 48, timeOffsetHours: -2 },
       sun: { label: 'Coprates, the setting Sun', heading: 297, pitch: 3, fov: 22 },
       wall: { label: 'Coprates, the north wall', heading: 352, pitch: -2, fov: 34 },
       ship: { label: 'Coprates, the lander', east: 25, north: -20, heading: 123, pitch: 2, fov: 40 },     // from a sunlit bench, looking at the lander
       dusk: { label: 'Coprates at dusk', heading: 298, pitch: 9, fov: 60, timeOffsetHours: 1.7 },
+      canyon: { label: 'Coprates, sunset along the canyon', heading: 292, pitch: -7, fov: 60 },   // from the bench on the southern ridge
       olympus: { label: 'Olympus Mons, the summit caldera', lat: 18.231, lon: 226.1658, heading: 90, pitch: -10, fov: 64, timeOffsetHours: 4.5 },   // the lip of the west wall, 20 km up, late afternoon
       gale: { label: 'Gale crater, Mount Sharp', lat: -4.5895, lon: 137.4417, heading: 150, pitch: 3, fov: 45, timeOffsetHours: 1.5 },          // where Curiosity landed, morning
     },

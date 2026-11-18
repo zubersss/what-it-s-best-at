@@ -86,19 +86,26 @@ vec3 transmittanceLut(float r, float mu) {
 }
 
 // u is denser around muS = 0 (the terminator), where the value changes by orders of magnitude.
-vec3 multiScatLut(float r, float muS) {
+// rgb: multiply-scattered radiance (isotropic); a: the share of it that began as sunlight
+// reflected by the ground below (of the world's mean albedo).
+vec4 multiScat4(float r, float muS) {
   vec2 uv = vec2(0.5 + 0.5 * sign(muS) * sqrt(abs(muS)), clamp((r - uRBottom) / (uRTop - uRBottom), 0.0, 1.0));
   uv = (uv * (vec2(MS_W, MS_H) - 1.0) + 0.5) / vec2(MS_W, MS_H);
-  return texture(tMultiScat, uv).rgb * (1.0 / MS_SCALE);
+  vec4 m = texture(tMultiScat, uv);
+  return vec4(m.rgb * (1.0 / MS_SCALE), m.a);
 }
+vec3 multiScatLut(float r, float muS) { return multiScat4(r, muS).rgb; }
 
 // In-scattered light and transmittance along a ray, from ro for tMax km.
 // Lsmooth = Rayleigh single scattering + all multiple scattering.
 // Lmie    = dust single scattering WITHOUT its phase function (the view/Sun angle is
 //           constant along a ray, so the consumer multiplies by the phase per pixel).
-void integrateScattering(vec3 ro, vec3 rd, vec3 sunDir, float tMax, int steps, out vec3 Lsmooth, out vec3 Lmie, out vec3 trans) {
+// Lground = the part of Lsmooth that is sunlight reflected by the ground (of the mean
+//           albedo) and scattered by the air: over brighter or darker ground there is
+//           proportionally more or less of it (aerialPerspective).
+void integrateScattering(vec3 ro, vec3 rd, vec3 sunDir, float tMax, int steps, out vec3 Lsmooth, out vec3 Lmie, out vec3 trans, out vec3 Lground) {
   float pr = phaseRayleigh(dot(rd, sunDir));
-  trans = vec3(1.0); Lsmooth = vec3(0.0); Lmie = vec3(0.0);
+  trans = vec3(1.0); Lsmooth = vec3(0.0); Lmie = vec3(0.0); Lground = vec3(0.0);
   float n = float(steps);
   for (int i = 0; i < steps; i++) {
     // quadratic distribution: most samples near the camera, where the low dust layer is
@@ -112,27 +119,39 @@ void integrateScattering(vec3 ro, vec3 rd, vec3 sunDir, float tMax, int steps, o
 #ifdef AIR_SHADOW
     Tsun *= airLit(p, r);        // air inside a terrain shadow gets no direct sunlight
 #endif
-    vec3 psi = multiScatLut(r, muS);
+    vec4 ms = multiScat4(r, muS);
+    vec3 psi = ms.rgb * (m.scatR + m.scatM);
     vec3 stepT = exp(-m.ext * dt);
     vec3 k = (1.0 - stepT) / max(m.ext, vec3(1e-9));
-    Lsmooth += trans * k * (m.scatR * pr * Tsun + psi * (m.scatR + m.scatM));
+    Lsmooth += trans * k * (m.scatR * pr * Tsun + psi);
+    Lground += trans * k * psi * ms.a;
     Lmie += trans * k * (m.scatM * Tsun);
     trans *= stepT;
   }
 }
+void integrateScattering(vec3 ro, vec3 rd, vec3 sunDir, float tMax, int steps, out vec3 Lsmooth, out vec3 Lmie, out vec3 trans) {
+  vec3 Lg;
+  integrateScattering(ro, rd, sunDir, tMax, steps, Lsmooth, Lmie, trans, Lg);
+}
 
 // One step of the same integral at point p over length dt (used by the two variants below).
-void scatterStep(vec3 p, float dt, vec3 sunDir, float pr, inout vec3 Lsmooth, inout vec3 Lmie, inout vec3 trans) {
+void scatterStep(vec3 p, float dt, vec3 sunDir, float pr, inout vec3 Lsmooth, inout vec3 Lmie, inout vec3 trans, inout vec3 Lground) {
   float r = length(p);
   Medium m = sampleMedium(r - uRPlanet);
   float muS = dot(p, sunDir) / r;
   vec3 Tsun = transmittanceLut(r, muS) * planetShadow(r, muS);
-  vec3 psi = multiScatLut(r, muS);
+  vec4 ms = multiScat4(r, muS);
+  vec3 psi = ms.rgb * (m.scatR + m.scatM);
   vec3 stepT = exp(-m.ext * dt);
   vec3 k = (1.0 - stepT) / max(m.ext, vec3(1e-9));
-  Lsmooth += trans * k * (m.scatR * pr * Tsun + psi * (m.scatR + m.scatM));
+  Lsmooth += trans * k * (m.scatR * pr * Tsun + psi);
+  Lground += trans * k * psi * ms.a;
   Lmie += trans * k * (m.scatM * Tsun);
   trans *= stepT;
+}
+void scatterStep(vec3 p, float dt, vec3 sunDir, float pr, inout vec3 Lsmooth, inout vec3 Lmie, inout vec3 trans) {
+  vec3 Lg = vec3(0.0);
+  scatterStep(p, dt, sunDir, pr, Lsmooth, Lmie, trans, Lg);
 }
 
 // Evenly spaced samples: for rays that cross the whole shell (the sky seen from space),
@@ -146,14 +165,14 @@ void integrateUniform(vec3 ro, vec3 rd, vec3 sunDir, float tMax, int steps, out 
 
 // Samples crowding toward the far end: for a ray from space down to the ground, where
 // the dense air is.
-void integrateToGround(vec3 ro, vec3 rd, vec3 sunDir, float tMax, int steps, out vec3 Lsmooth, out vec3 Lmie, out vec3 trans) {
+void integrateToGround(vec3 ro, vec3 rd, vec3 sunDir, float tMax, int steps, out vec3 Lsmooth, out vec3 Lmie, out vec3 trans, out vec3 Lground) {
   float pr = phaseRayleigh(dot(rd, sunDir));
-  trans = vec3(1.0); Lsmooth = vec3(0.0); Lmie = vec3(0.0);
+  trans = vec3(1.0); Lsmooth = vec3(0.0); Lmie = vec3(0.0); Lground = vec3(0.0);
   float n = float(steps);
   for (int i = 0; i < steps; i++) {
     float a = 1.0 - float(i) / n, b = 1.0 - float(i + 1) / n;
     float t0 = tMax * (1.0 - a * a), t1 = tMax * (1.0 - b * b);
-    scatterStep(ro + rd * (0.5 * (t0 + t1)), t1 - t0, sunDir, pr, Lsmooth, Lmie, trans);
+    scatterStep(ro + rd * (0.5 * (t0 + t1)), t1 - t0, sunDir, pr, Lsmooth, Lmie, trans, Lground);
   }
 }
 `;
@@ -225,7 +244,7 @@ void main() {
   vec3 ro = vec3(0.0, 0.0, r);
   vec3 sunDir = vec3(sqrt(max(1.0 - muS * muS, 0.0)), 0.0, muS);
   float rGround = min(uROcc, r - 0.02);
-  vec3 L2 = vec3(0.0), fms = vec3(0.0);
+  vec3 L2 = vec3(0.0), fms = vec3(0.0), L2g = vec3(0.0);
   const int SQ = 8, STEPS = 20;
   for (int i = 0; i < SQ; i++) for (int j = 0; j < SQ; j++) {
     float u = (float(i) + 0.5) / float(SQ), v = (float(j) + 0.5) / float(SQ);
@@ -253,12 +272,16 @@ void main() {
       vec3 p = ro + rd * tMax;
       float pr = length(p);
       float mu = dot(p, sunDir) / pr;
-      L += trans * transmittanceLut(max(pr, uRBottom + 0.01), mu) * planetShadow(pr, mu) * max(mu, 0.0) * uGroundAlbedo / PI;
+      vec3 g = trans * transmittanceLut(max(pr, uRBottom + 0.01), mu) * planetShadow(pr, mu) * max(mu, 0.0) * uGroundAlbedo / PI;
+      L += g; L2g += g;
     }
     L2 += L; fms += f;
   }
   L2 /= float(SQ * SQ); fms /= float(SQ * SQ);
-  outColor = vec4(L2 / (1.0 - min(fms, vec3(0.97))) * MS_SCALE, 1.0);
+  // alpha: the share of this light that set out as sunlight reflected by the ground below.
+  // The higher orders are a multiple of the second, so the share holds for all of it.
+  float share = dot(L2g, vec3(0.2126, 0.7152, 0.0722)) / max(dot(L2 * float(SQ * SQ), vec3(0.2126, 0.7152, 0.0722)), 1e-30);
+  outColor = vec4(L2 / (1.0 - min(fms, vec3(0.97))) * MS_SCALE, clamp(share, 0.0, 1.0));
 }`;
 
 // Sky-view LUT: u = azimuth from the Sun (0..180 deg, denser near the Sun),
@@ -379,9 +402,11 @@ void main() {
   if (t1 <= t0) return;
   float len = (t1 - t0) * pow((slice + 1.0) / float(FROX_D), uFroxelRange.x);
   if (tG > 0.0) len = min(len, tG);
-  vec3 Ls, Lm, T;
-  integrateScattering(ro + rd * t0, rd, uSunDirW, len, 6 + int(slice) / 2, Ls, Lm, T);
-  outSmooth = vec4(Ls * uLutScale, 1.0);
+  vec3 Ls, Lm, T, Lg;
+  integrateScattering(ro + rd * t0, rd, uSunDirW, len, 6 + int(slice) / 2, Ls, Lm, T, Lg);
+  // alpha: how much of the smooth in-scatter is light sent up by the ground (aerialPerspective)
+  float lumS = dot(Ls, vec3(0.2126, 0.7152, 0.0722));
+  outSmooth = vec4(Ls * uLutScale, lumS > 0.0 ? clamp(dot(Lg, vec3(0.2126, 0.7152, 0.0722)) / lumS, 0.0, 1.0) : 0.0);
   outMie = vec4(Lm * uLutScale, 1.0);
   outTrans = vec4(T, 1.0);
 }`;

@@ -9,7 +9,9 @@ export default {
   dayHours: 708.7,              // length of the solar day (sets the time slider's range)
 
   terrain: {
-    maxLevel: 16,               // ~42 m chunks at the finest level (the Moon is half Mars' size)
+    // ~10 m chunks at the finest level (the Moon is half Mars' size): the shadow inside a
+    // crater a few metres across is a crescent half a metre wide, which coarser chunks miss.
+    maxLevel: 18,
     minAltitude: -9100,
     maxAltitude: 10800,
     shadowRange: 220000,
@@ -32,9 +34,13 @@ export default {
       // pixel size of the raster under the point (so real craters are never doubled).
       { op: 'fbm', seed: 3, maxWavelength: 20000, minWavelength: 300, roughness: 0.9, amp: 5.5, belowDem: 2.2 },
       { op: 'craters', seed: 5, radius: [3500, 56000], density: 1.0, layers: 3, depth: 0.11, rim: 0.028, belowDem: 2 },
-      { op: 'craters', seed: 7, radius: [50, 3500], density: 1.0, layers: 4, depth: 0.19, rim: 0.045, belowDem: 2 },
-      // (down to craters a couple of metres across: the ground is saturated with them at walking distance)
-      { op: 'craters', seed: 9, radius: [1.2, 50], density: 1.0, layers: 3, depth: 0.17, rim: 0.04 },
+      // Craters do not last on slopes steeper than about 20 degrees (the walls of the rille,
+      // the mountains' flanks): soil creeps down and fills them (slopeMaskInv, tan slope).
+      { op: 'craters', seed: 7, radius: [50, 3500], density: 1.0, layers: 4, depth: 0.19, rim: 0.045, belowDem: 2, slopeMaskInv: [0.33, 0.5] },
+      // Down to craters a couple of metres across: the ground is saturated with them at
+      // walking distance. Most are worn shallow; the fresh ones (ageSkew) are bowls a fifth
+      // as deep as they are wide, steeper than the morning Sun, so they hold a black crescent.
+      { op: 'craters', seed: 9, radius: [1.2, 50], density: 1.0, layers: 3, depth: 0.30, rim: 0.07, ageSkew: 2, slopeMaskInv: [0.33, 0.5] },
       // Regolith: gentle hummocks, rougher on crater walls.
       { op: 'fbm', seed: 13, maxWavelength: 260, minWavelength: 0.8, roughness: 0.92, amp: 2.0, slopeGain: [0.12, 0.5, 0.5, 1.7], hetero: 0.4 },
     ],

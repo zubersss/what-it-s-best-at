@@ -39,6 +39,8 @@ export class Rocks {
     const def = world.surface.rocks || { count: 0, radius: 100, size: [0.3, 1], albedo: [0.15, 0.1, 0.07] };
     this.def = def; this.capacity = 512;                // fixed instance buffer; a world may use fewer
     this.cell = 7;
+    this.nearRadius = 30;             // rocks the fine shadow tile can see (its half-width, 20 m, plus a margin for the camera moving)
+    this.nearCount = 0;
     this.prob = Math.min(1, Math.min(this.capacity, def.count | 0) / (Math.PI * def.radius * def.radius / (this.cell * this.cell)) * 0.92);
     const base = rockGeometry();
     const geo = new THREE.InstancedBufferGeometry();
@@ -153,8 +155,17 @@ export class Rocks {
     const cam = rig.pos, d = this._d, q = new THREE.Quaternion(), e = new THREE.Euler(), up = new THREE.Vector3(), zAxis = new THREE.Vector3(0, 0, 1), qUp = new THREE.Quaternion();
     let n = 0;
     const maxN = Math.min(this.capacity, def.count | 0);
-    for (let a = -span; a <= span && n < maxN; a++) for (let b = -span; b <= span && n < maxN; b++) {
-      const i = ci + a, j = cj + b;
+    // cells nearest the camera first, so the first instances are the nearest rocks (the fine
+    // shadow tile draws only those: see nearCount)
+    const order = this._order || (this._order = []);
+    if (order.span !== span) {
+      order.length = 0;
+      for (let a = -span; a <= span; a++) for (let b = -span; b <= span; b++) order.push([a, b, a * a + b * b]);
+      order.sort((x, y) => x[2] - y[2]); order.span = span;
+    }
+    let nearN = 0;
+    for (let o = 0; o < order.length && n < maxN; o++) {
+      const i = ci + order[o][0], j = cj + order[o][1];
       const h0 = hash3(i, j, 17, 911);
       if ((h0 & 0xffff) / 65536 >= this.prob) continue;
       const h1 = hash3(i, j, 29, 911), h2 = hash3(i, j, 43, 911);
@@ -165,6 +176,7 @@ export class Rocks {
       const x = d[0] * r, y = d[1] * r, z = d[2] * r;
       const dist = Math.hypot(x - cam.x, y - cam.y, z - cam.z);
       if (dist > radius) continue;
+      if (dist < this.nearRadius) nearN = n + 1;
       const u = (h2 & 0xffff) / 65536;
       const size = def.size[0] * Math.pow(def.size[1] / def.size[0], u * u);
       up.set(d[0], d[1], d[2]);
@@ -180,6 +192,7 @@ export class Rocks {
       n++;
     }
     this.count = n;
+    this.nearCount = nearN;          // the instances that can fall inside nearRadius (they come first)
     this.geometry.instanceCount = Math.floor(n * (this.fraction ?? 1));
     this.aOffset.needsUpdate = this.aQuat.needsUpdate = this.aScale.needsUpdate = this.aMisc.needsUpdate = true;
     void dirToLatLon; void G;

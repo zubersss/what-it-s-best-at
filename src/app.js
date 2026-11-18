@@ -154,7 +154,7 @@ export class App {
     this.terrain = new Terrain(world, data.rasters, data.hs, renderer);
     this.rocks = new Rocks(world, data.hs);
     this.nearScene.add(this.terrain.group, this.rocks.mesh);
-    this.nearShadow.addCaster(this.rocks.mesh, this.rocks.depthMaterial);
+    this.nearShadow.addCaster(this.rocks.mesh, this.rocks.depthMaterial, null, () => this.rocks.nearCount);
     this.placeLander(world, data.hs);
     this.hero = new Hero();
     this.heroScene.add(this.hero.group);

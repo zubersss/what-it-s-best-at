@@ -159,8 +159,15 @@ export class CameraRig {
       this.throttle = Math.min(1, wl);
       // Top speed is proportional to how far the nearest surface is: metres per second near
       // the ground, faster than light between planets, and a smooth arrival at the far end.
+      // Near the ground the fraction is small (a fifth of the height per second), so a 7 km
+      // canyon wall drifts past slowly enough to look 7 km tall: with one fraction at every
+      // height the ground streams by alike at 10 m and at 10 km, and the eye loses the
+      // size of everything. Between 3 and 60 km it grows to 0.85, so trips between worlds
+      // take as long as before.
       const dist = Math.max(1.5, Math.min(this.agl, this.spaceDistance));
-      const base = Math.max(7, dist * 0.85);
+      const xs = Math.min(1, Math.max(0, Math.log(dist / 3000) / Math.log(20)));
+      const base = Math.max(7, dist * (0.2 + 0.65 * xs * xs * (3 - 2 * xs)));
+      const fallBase = Math.max(7, dist * 0.85);     // falling keeps its pace (gravity is not a choice of speed)
       const top = Math.min(SPACE_CAP, base * (fast ? 3 : 1)) * (slow ? 0.12 : 1);
       // What the figure should be doing: what the stick asks for ...
       let tx = w.x * top, ty = w.y * top, tz = w.z * top;
@@ -170,7 +177,7 @@ export class CameraRig {
       // the traveller to gravity.
       const g = this.pull;
       if (!this.hover && this.throttle < 1) {
-        const k = Math.min(SPACE_CAP, base) * (1 - this.throttle) * (1 - this.throttle);
+        const k = Math.min(SPACE_CAP, fallBase) * (1 - this.throttle) * (1 - this.throttle);
         tx += g.x * k; ty += g.y * k; tz += g.z * k;
       }
       // The nearest body may not sweep across the view faster than SWEEP while it is

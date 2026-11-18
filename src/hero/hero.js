@@ -125,6 +125,10 @@ export class Hero {
     this.cloak = new Cloak();
     this.cape = mk(this.cloak.geometry);     // cloth vertices are already in world axes, anchor-relative
     this.group.add(this.cape);
+    // The near shadow map gives the figure's parts a tile of their own that follows it
+    // (its "focus"), fine enough (7 mm) for the hard-edged shadow of a suited figure under
+    // an airless sky.
+    for (const m of this.casters) m.userData.shadowFocus = this.group;
     this.group.visible = false;
     const tris = (m) => m.geometry.attributes.position.count / 3;
     this.triangles = this.cloak.triangles + tris(this.torso) + 2 * (tris(this.arms[0]) + tris(this.forearms[0]) + tris(this.legs[0]) + tris(this.shins[0]));
