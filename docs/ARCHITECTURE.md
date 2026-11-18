@@ -78,7 +78,7 @@ skipped, so frames are evenly spaced.
 | `src/rocks/rocks.js` | Instanced rocks, scattered deterministically near the camera. |
 | `src/ship/lander.js` | Procedural lander geometry, placement, material. |
 | `src/hero/hero.js` / `cloak.js` | The flying character (procedural suited figure, limbs that bend at elbow and knee) and its cloth-simulated cloak. |
-| `src/fx/dust.js` | Dust thrown up by the character near the ground: a fixed pool of 512 sprites on ballistic arcs under the world's gravity, slowed by its air, lit through the lighting chunk and tinted like the ground. The governor can halve it. |
+| `src/fx/dust.js` | Dust thrown up by the character near the ground: a fixed pool of 1024 sprites on ballistic arcs under the world's gravity, slowed by its air, lit through the lighting chunk and tinted like the ground. The governor can halve it. |
 | `src/controls/` | `input.js` (keys, mouse, virtual keys), `touch.js` (phone controls), `cameraRig.js` (walk, fly, zoom). |
 | `src/post/post.js` | HDR target, metering, bloom, tone map, dither. |
 | `src/debug/hud.js` | HUD (compact line / full read-out / off) and time-of-day slider. |
@@ -287,9 +287,10 @@ bloom upsample → composite (~4.5 % bloom mix) → AgX → blue-noise dither. T
 into a sub-viewport of a fixed, native-size target (no reallocations when the resolution
 changes) and the composite pass scales it up to the canvas.
 
-A world may set `exposure.dim: { above, power }`: past that exposure only part of the
-missing light is made up, so the picture darkens as the scene does (the Moon uses it: an
-earthlit night is rendered a few times darker than day, not equal to it).
+A world may set `exposure.dim: { above, power, most }`: past that exposure the target is
+divided by (target / above)^power, at most by `most`, so the picture darkens as the scene
+does (the Moon uses it: an earthlit night and the ground toward a low Sun come out about
+five times darker than full compensation would make them).
 
 ## The governor (`src/perf/governor.js`)
 

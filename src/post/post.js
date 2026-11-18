@@ -328,9 +328,11 @@ export class PostPipeline {
         target = Math.min(target, s.highlight * Math.pow(cap / s.highlight, k) / bright);
       }
       // Dim scenes stay dim: past `dim.above` only part of the missing light is made up
-      // (the picture darkens by the scene's darkening to the power `dim.power`), so an
-      // earthlit night reads as night and the ground toward the Sun as dark.
-      if (s.dim && target > s.dim.above) target = Math.pow(s.dim.above, s.dim.power) * Math.pow(target, 1 - s.dim.power);
+      // (the picture darkens by the scene's darkening to the power `dim.power`), until
+      // the picture is `dim.most` times darker than full compensation would make it. So
+      // an earthlit night reads as night, and a view into a low Sun shows its dark ground
+      // as a camera set by hand would (Apollo crews opened up about two stops for those).
+      if (s.dim && target > s.dim.above) target /= Math.min(s.dim.most ?? Infinity, Math.pow(target / s.dim.above, s.dim.power));
       this.surfaceCover = cover; this.surfaceBright = bright * target;
       target = Math.min(s.max, Math.max(s.min, target));
       this.stableReads = Math.abs(Math.log2(target / used)) < 0.03 ? this.stableReads + 1 : 0;

@@ -586,7 +586,7 @@ export class App {
         const p = hero.group.position, c = env.groundClearance(p);
         at.copy(rig.pos).add(p).addScaledVector(up, -(c - 0.15));
         dust.update(0, rig.pos, up, env.gravity, env.air, viewH, th, sunVis);        // (sets how the air holds dust)
-        dust.emit(at, up, Math.round(110 + 110 * (1 - dust.afloat)), 3.2, 1.1, carry.copy(up).multiplyScalar(0.4));
+        dust.emit(at, up, Math.round(110 * (1 + 2 * dust.vac)), 3.2, 1.1, carry.copy(up).multiplyScalar(0.4));
         for (let i = 0; i < 14; i++) dust.update(0.05, rig.pos, up, env.gravity, env.air, viewH, th, sunVis);
       }
       dust.update(0, rig.pos, up, env.gravity, env.air, viewH, th, sunVis);
@@ -599,9 +599,9 @@ export class App {
         at.copy(rig.pos).add(p).addScaledVector(up, -(c - 0.15));          // the ground under the figure
         const k = dust.amount * dust.dustiness;
         // touching down: a ring thrown outward, bigger the harder the landing
-        if (this._dustClear > 2.2 && vUp < -0.8) dust.emit(at, up, Math.round(Math.min(110, 30 + 14 * -vUp) * k * (2 - dust.afloat)), 1.2 + 0.5 * -vUp, 1.1, carry.copy(v).multiplyScalar(0.15).addScaledVector(up, -0.15 * vUp));
+        if (this._dustClear > 2.2 && vUp < -0.8) dust.emit(at, up, Math.round(Math.min(110, 30 + 14 * -vUp) * k * (1 + 2 * dust.vac)), 1.2 + 0.5 * -vUp, 1.1, carry.copy(v).multiplyScalar(0.15).addScaledVector(up, -0.15 * vUp));
         // pushing off, or skimming along: a steady trail
-        const stir = (vUp > 0.8 && rig.throttle > 0.3 ? 30 : 0) + Math.min(40, along * 2.2) * (c < 1.3 ? 1 : 0.3);
+        const stir = ((vUp > 0.8 && rig.throttle > 0.3 ? 30 : 0) + Math.min(40, along * 2.2) * (c < 1.3 ? 1 : 0.3)) * (1 + 2 * dust.vac);
         this._dustDebt = (this._dustDebt || 0) + stir * k * dt;
         if (this._dustDebt >= 1) { const n = Math.floor(this._dustDebt); this._dustDebt -= n; dust.emit(at, up, n, 0.6 + 0.08 * along, 0.5 + 0.05 * along, carry.copy(v).multiplyScalar(0.25)); }
       }

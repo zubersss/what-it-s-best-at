@@ -79,8 +79,9 @@ export default {
     ship: { east: 1218, north: 3135, heading: 200 },     // the Apollo 15 landing site (26.1322 N, 3.6339 E)
     // shadowFloor: texels darker than this fraction of the frame mean (black sky, hard shadow)
     // barely raise the exposure, so sunlit ground is exposed like a lunar surface photograph.
-    // dim: above this exposure only part of the missing light is made up, so night is night.
-    exposure: { key: 0.06, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.6, highlight: 6, dim: { above: 100, power: 0.35 } },
+    // dim: above this exposure only part of the missing light is made up (at most 5 times
+    // less than full compensation), so night is night and the ground toward a low Sun is dark.
+    exposure: { key: 0.06, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.6, highlight: 6, dim: { above: 60, power: 0.5, most: 5 } },
     // The first five are one place at different moments; the rest are other real places.
     // timeOffsetHours moves the clock from dateUTC to the light that suits the view.
     bookmarks: {

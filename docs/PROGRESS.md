@@ -280,10 +280,14 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
   samples, which over-exposed a thin crescent (the night side counts as lit surface and
   pulls the mean down); it was replaced by skipping the texels within the Sun's radius
   plus 1.6 texels.
-- **Dim scenes stay dim on the Moon** (`exposure.dim`): above an exposure of 400 only
-  80 % of the missing light (in stops) is made up. An earthlit night comes out about four
-  times darker than day instead of equal to it; the ground toward the Sun is darker than
-  the ground away from it.
+- **Dim scenes stay dim on the Moon** (`exposure.dim`): above an exposure of 60 only part
+  of the missing light is made up (the square root of it), and never less than a fifth.
+  An earthlit night comes out about five times darker than full compensation would make
+  it (it used to look like day), and a view into a low Sun keeps its ground dark: Apollo
+  crews opened up only about two stops for into-Sun pictures, the meter had opened five.
+  A plain power law could not do both (the two scenes need the same factor at very
+  different brightness), and the glow drawn around a bright Earth feeds back into the
+  meter, so the numbers were set by looking: ground-level day views (11–66) are unchanged.
 
 ### Worlds
 
