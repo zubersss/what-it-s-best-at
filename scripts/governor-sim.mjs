@@ -37,4 +37,8 @@ run('Smooth, light scene after 30 s (should climb back)', { vsyncMs: 8.333, mode
 run('Smooth, 60 Hz screen', { vsyncMs: 16.667, mode: 'smooth', native: NATIVE, seconds: 60, cost: (p) => 4 + 5 * p / 1e6 });
 run('Smooth, steady + terrain upload every 3rd frame', { vsyncMs: 8.333, mode: 'smooth', native: NATIVE, seconds: 60, uploadsEvery: 3, cost: (p) => 4 + 5 * p / 1e6 });
 run('Smooth then Sharp at 30 s then Smooth at 60 s', { vsyncMs: 8.333, mode: 'smooth', native: NATIVE, seconds: 90, cost: (p) => 4 + 5 * p / 1e6, events: (t, g) => { if (t > 30 && t < 60 && g.mode !== 'sharp') g.setMode('sharp'); if (t > 60 && g.mode !== 'smooth') g.setMode('smooth'); } });
+// The test phone as measured (milestone 1 build): holds native at 60 fps, with a couple of
+// seconds of slow frames now and then that resolution cannot cure. It should dip and
+// then return to native in one step.
+run('Phone-like: holds native; a 2 s burst of slow frames every 90 s', { vsyncMs: 8.333, mode: 'smooth', native: NATIVE, seconds: 300, cost: (p, t) => 3 + 2.5 * p / 1e6 + (t % 90 > 60 && t % 90 < 62 ? 9 : 0) });
 run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native: 1920 * 1080, seconds: 40, cost: (p) => 2 + 1.5 * p / 1e6 });

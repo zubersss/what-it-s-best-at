@@ -15,6 +15,7 @@ import { BUILD } from './core/build.js';
 import { Hud, HUD } from './debug/hud.js';
 import { Input } from './controls/input.js';
 import { CameraRig } from './controls/cameraRig.js';
+import { surroundings } from './controls/gravity.js';
 import { TouchControls } from './controls/touch.js';
 import { Atmosphere } from './atmosphere/atmosphere.js';
 import { makeSkyDome } from './sky/skyDome.js';
@@ -166,6 +167,7 @@ export class App {
     // Interactive sessions start behind the flying character; screenshots stay first person
     // unless asked (?hero=1).
     if (params.hero ?? (!this.shotMode && !params.fly)) this.setHero(true);
+    this.rig.hover = this.shotMode;       // screenshots must hold still; in play gravity is on until HOVER is tapped
     window.addEventListener('resize', () => this.resize());
     // The exact size of the canvas in device pixels, where the browser can tell us: with
     // it the image is drawn pixel for pixel, with no resampling by the browser.
@@ -189,6 +191,13 @@ export class App {
   setHero(on) {
     this.rig.setMode(on ? 'hero' : 'walk');
     this.hero.setVisible(on);
+  }
+
+  // Hover: gravity off, the figure stays where it is. Off: it falls toward whatever pulls.
+  setHover(on) {
+    this.rig.hover = on;
+    this.touch.setLit('KeyX', on);
+    this.toast?.show(on ? 'Hover on — gravity off' : 'Hover off — gravity pulls');
   }
 
   applyBookmark(name) {
@@ -266,11 +275,13 @@ export class App {
     if (this.touch.enabled) immersive();
     keepAwake();
     this.banner.show(true);
+    this.hoverBefore = this.rig.hover; this.rig.hover = true;      // the scripted run flies itself: no gravity, as in every earlier run
     this.benchmark.start(kind);
   }
 
   onBenchmarkDone(text) {
     this.banner.show(false);
+    this.rig.hover = this.hoverBefore ?? false;
     this.menuOpen = true;
     this.results.show(text);
     window.__benchResult = text;
@@ -303,6 +314,7 @@ export class App {
     if (i.hit('KeyF')) { this.hero.setVisible(false); this.rig.toggleMode(); }
     if (i.hit('KeyG')) this.setHero(this.rig.mode !== 'hero');
     if (i.hit('KeyT')) this.nextTarget();
+    if (i.hit('KeyX')) this.setHover(!this.rig.hover);
     if (i.hit('KeyP')) this.paused = !this.paused;
     const tr = this.timeRange;
     if (i.down('BracketRight')) this.timeOffsetHours = Math.min(tr, this.timeOffsetHours + tr / 1200);
@@ -342,7 +354,25 @@ export class App {
       }
       if (clear < nearest) { nearest = clear; name = b.id; }
     }
-    rig.spaceDistance = Math.min(nearest, sunClear);
+    // The Sun has no terrain either: stop just above it.
+    if (sunClear < SOLAR_SYSTEM.sun.radius * 0.02) {
+      const sp = new THREE.Vector3(eph.sunDir[0], eph.sunDir[1], eph.sunDir[2]).multiplyScalar(eph.sunDistance);
+      rig.pos.sub(sp).setLength(SOLAR_SYSTEM.sun.radius * 1.02).add(sp); rig.agl = 0;
+    }
+    rig.spaceDistance = Math.max(0, Math.min(nearest, sunClear));
+    // Gravity and the fly-by limit (controls/gravity.js): every body, the Sun and the
+    // world underfoot, in planet-fixed metres.
+    const list = this._wells || (this._wells = []);
+    list.length = 0;
+    list.push({ x: 0, y: 0, z: 0, radius: this.world.radius, gravity: this.world.gravity });
+    for (const b of this.bodies.bodies) {
+      if (b.id === this.world.body) continue;
+      const q = eph.bodies.get(b.id).pos;
+      list.push({ x: q[0], y: q[1], z: q[2], radius: b.def.radius, gravity: b.def.gravity || 0 });
+    }
+    list.push({ x: eph.sunDir[0] * eph.sunDistance, y: eph.sunDir[1] * eph.sunDistance, z: eph.sunDir[2] * eph.sunDistance, radius: SOLAR_SYSTEM.sun.radius, gravity: SOLAR_SYSTEM.sun.gravity });
+    const s = surroundings(rig.pos, list, this._around || (this._around = {}));
+    rig.pull.set(s.gx, s.gy, s.gz); rig.nearDir.set(s.nx, s.ny, s.nz); rig.nearR = s.nr;
     this.nearestName = rig.agl <= nearest ? this.world.id : name;
     this.nearestClear = Math.min(rig.agl, nearest);
     if (this.shotMode || this.switching || rig.mode === 'walk') return;
@@ -475,7 +505,10 @@ export class App {
     post.render(dt);
     governor.endFrame();
     const settling = cause !== 'unknown' && cause !== 'quality step' && !cause.startsWith('new terrain');
-    governor.update(dtMs, settling ? FRAME.IGNORE : uploads ? FRAME.SOFT : FRAME.NORMAL);
+    // An upload's cost can land a frame or two later (the driver finishes textures and
+    // mip maps on its own time), so the three frames after one count as soft too.
+    this.softFrames = uploads ? 3 : Math.max(0, (this.softFrames || 0) - 1);
+    governor.update(dtMs, settling ? FRAME.IGNORE : this.softFrames > 0 ? FRAME.SOFT : FRAME.NORMAL);
     this.lastUploads = this.terrain.uploads; this.terrain.uploads = 0;
 
     // 8. HUD
@@ -552,6 +585,7 @@ export class App {
       exposure: post.exposure, sunEl: sun.elevation, sunAz: sun.azimuth,
       lat: ll.lat, lon: ll.lon, alt: rig.altitude, agl: rig.agl, heading: rig.heading, pitch: rig.pitch, fov: rig.fov,
       speed: fmtSpeed(rig.velocity.length()), nearest: `${this.nearestName} ${fmtDistance(this.nearestClear)}`, target,
+      hover: rig.hover, pull: rig.pull.length(),
     };
   }
 }

@@ -44,6 +44,63 @@ changes behaviour.
 
 Status: all six done; waiting for the owner's first benchmark results from the phone.
 
+## The owner's first phone results (milestone 1 build, Galaxy S23 Ultra)
+
+Four runs on build b236727, screen 823×384 CSS px at pixel ratio 3.75 (3088×1440),
+Adreno 740.
+
+| Run | fps | 1 % low | Resolution | Steps |
+| --- | --- | --- | --- | --- |
+| Benchmark, Smooth | 59.8 | 45.1 | average 4.22 MP, native after the 23 s climb from the old 2.35 MP start | 3 down, 8 up |
+| Benchmark, Sharp | 30.0 | 29.2 | native 4.45 MP throughout | none |
+| Soak 10 min, Smooth | 59.4 | 30.2 | average 4.35 MP; 58.7–60.0 fps every minute | 7 down, 12 up |
+| Soak 10 min, Sharp | 30.0 | 28.7 | native throughout | none |
+
+No hitch over 100 ms in any run but one (a bookmark jump); worst frame 50 ms; no sign of
+heat throttling in ten minutes; 155 draw calls, 498k triangles, about 175 MB. Refresh
+reads 120 Hz in Smooth and 60 Hz in Sharp (the panel follows the frame rate).
+Lunar chunks took 87–117 ms each on the phone, Martian ones 29–37 ms.
+
+What was changed because of them:
+
+- **Both modes start at native.** The phone holds it at 60 fps; the old head start cost
+  23 seconds of needless climbing.
+- **Dips were terrain loading, not resolution** (they cluster in the flight and arrival
+  part of each lap). Finished chunks are now uploaded about one per 60th of a second of
+  frame time instead of all at once; the three frames after an upload count as "soft"
+  for the governor as well; and a level that has held for 20 s is remembered, so the way
+  back from a dip is one jump instead of a climb.
+- The results text gains the share of late frames.
+- **Headroom**: Sharp never leaves native and Smooth nearly never does, so the phone has
+  room for an expensive effect behind a governor step. Anti-aliasing is the first
+  candidate (thin bright features shimmer). To be confirmed on the milestone 2 build,
+  which costs more per frame.
+
+## The owner's flight notes (after milestone 2)
+
+"Fix the flying when you're going super fast and miss a planet; add gravity that pulls you
+in if you're not actively flying away or choosing to hover; the Sun should have a much
+stronger gravity."
+
+Reproduced without a browser (`node scripts/flyby.mjs`): leave a Mars-sized world, aim
+once at a Moon-sized world 2000 of its radii away, hold forward and boost, never touch
+the view.
+
+| | Before | After |
+| --- | --- | --- |
+| Aimed at the centre | never arrives: the aim slides off (up to 180°), closest pass 1283 radii, still wandering after 60 s | lands in about 13 s; the aim stays within 0.1° |
+| Aimed 12 radii beside it | misses | lands (close misses are drawn in once the world is underfoot) |
+| Aimed 60 radii beside it, stick held | passes in a blink | passes at 13 radii with the world sweeping at no more than about 45°/s |
+| The same, stick released after the pass | stays where it stopped, 1980 radii out | gravity brings it down to the ground in about 45 s |
+
+Causes found and fixed: the view's direction was tied to a horizon that turns as you move
+away; pitch stopped one degree short of vertical; speed eased down more slowly than the
+distance shrank on arrival, so the traveller shot past. Added: gravity when the stick is
+released (HOVER switches it off), a limit on how fast the nearest body may sweep past, a
+3 AU/s ceiling, and a stop just above the Sun's surface. A first version of gravity that
+also acted while flying bent every aimed trip off its target and was dropped: gravity
+acts when the pilot lets go.
+
 ## Milestone 2 plan — fix the known problems
 
 The owner said "continue" at the milestone 1 checkpoint before any phone results; the

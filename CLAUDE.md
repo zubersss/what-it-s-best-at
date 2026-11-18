@@ -148,6 +148,7 @@ npm run assets         # re-download and convert NASA/Yale data into public/data
 npm run probe          # top-down shaded relief of the height function (no browser)
 node scripts/sky-table.mjs   # where the sky bodies are from a site over time (no browser)
 node scripts/profile-chunks.mjs --world moon   # chunk build times per level (no browser)
+node scripts/flyby.mjs [--miss 60] [--release 1]   # a trip to another world, flown without a browser
 ```
 
 The screenshot scripts need Playwright (`npm i -D playwright && npx playwright install
@@ -171,12 +172,13 @@ benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|hover`,
 
 Keys: `WASD` move, mouse look (click to capture), `Shift` run / boost, `Space` jump /
 up, `Q`/`E` down / up, `G` flying character on/off, `T` aim at the next body in the sky,
+`X` hover on/off (off: gravity pulls when the stick is released),
 `F` walk ↔ free-fly debug camera, `Z` hold for telephoto, mouse wheel = zoom amount,
 `H` HUD (one line → full read-out with the time slider → off), `M` Smooth ↔ Sharp,
 `[` `]` time −/+, `1`–`5` bookmarks, `P` pause time.
 
 Touch: left part of the screen = move stick (push to the rim to run / boost), drag
-anywhere else = look, buttons `HERO`, `TARGET`, `FLY`, `ZOOM` (hold), `VIEW` (next
+anywhere else = look, buttons `HERO`, `TARGET`, `HOVER`, `FLY`, `ZOOM` (hold), `VIEW` (next
 bookmark), `HUD`, `MODE` (Smooth ↔ Sharp), `FULL` (fullscreen + landscape lock + wake
 lock), `▲` up, `▼` down. The time slider is part of the full HUD.
 
@@ -222,6 +224,12 @@ finished benchmark leaves its text in `window.__benchResult`.
   uses it fail silently; the near shadow map is therefore always initialised.
 - On tile-based mobile GPUs: clear before full-screen passes, scissor the scene clear to
   the part of the target that is used, invalidate what will not be read back.
+- Flight must go where it is aimed. Three things once made every aimed trip miss and all
+  three looked harmless: heading and pitch measured against a horizon that turns as you
+  move (now the direction is held in space away from the ground), a pitch limit one
+  degree short of vertical, and a speed that eased down more slowly than the distance
+  shrank. Anything added to flight (gravity, limits) may slow the motion but must not
+  bend it while the stick is pushed. Check with `node scripts/flyby.mjs`.
 - The governor judges a late frame against its target interval, never against the
   measured refresh rate: when every frame is slow the refresh rate reads too low and
   would excuse them. Check governor changes in a simulation before the phone sees them.

@@ -163,7 +163,8 @@ export class Benchmark {
     const L = [];
     L.push(`SOLAR SYSTEM EXPLORER — ${this.kind === 'soak' ? '10-minute soak' : '3-minute benchmark'}${stopped ? ' (stopped early)' : ''}`);
     L.push(`build ${BUILD.commit} · mode ${MODES[g.mode].label} (target ${Math.round(g.targetFps)} fps) · ran ${total.toFixed(0)} s, ${n} frames`);
-    L.push(`average fps ${fps(dts).toFixed(1)} · 1% low ${fps(worst1).toFixed(1)} · worst frame ${Math.round(sorted[0] || 0)} ms`);
+    const target = 1000 / g.targetFps, late = dts.filter((d) => d > target * 1.5).length;
+    L.push(`average fps ${fps(dts).toFixed(1)} · 1% low ${fps(worst1).toFixed(1)} · worst frame ${Math.round(sorted[0] || 0)} ms · late frames (over 1.5x the target) ${late} = ${(100 * late / Math.max(1, n)).toFixed(2)} %`);
     L.push(`render resolution: average ${mp(avgPx)} (${dims(avgPx)}) · minimum ${mp(minPx)} (${dims(minPx)}) · native ${mp(g.nativePixels)} (${post.width}x${post.height})`);
     L.push(`by part: ${WORLDS[FIRST].name} ${part(0).toFixed(1)} fps · flight ${part(1).toFixed(1)} · ${WORLDS[SECOND].name} ${part(2).toFixed(1)}`);
     if (this.kind === 'soak') {
