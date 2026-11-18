@@ -29,6 +29,15 @@ jobs:
       - run: npm run build
         env:
           BUILD_COMMIT: ${{ github.sha }}
+      # The milestone 1 build stays reachable under /m1/ so the owner can run the same
+      # benchmark on the phone before and after later work.
+      - name: Build the milestone 1 site into dist/m1
+        run: |
+          git fetch --depth=1 origin b236727f6fa14b3bb4deec9dc9ddfef1b35ac694
+          git worktree add ../m1 b236727f6fa14b3bb4deec9dc9ddfef1b35ac694
+          cd ../m1
+          npm ci
+          BUILD_COMMIT=b236727 npx vite build --outDir "$GITHUB_WORKSPACE/dist/m1" --emptyOutDir
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
