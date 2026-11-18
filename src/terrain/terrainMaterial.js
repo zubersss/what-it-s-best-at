@@ -50,6 +50,10 @@ uniform vec3 uRipple;          // 2pi / wavelength (per metre), strength, tile s
 uniform float uRoughness;
 uniform float uDetailStrength;
 uniform vec3 uTanU, uTanV;
+uniform sampler2D tAlbedo;     // global map of the world's real brightness or colour (longitude 0..360 E from the left edge, north in the first row)
+uniform vec4 uAlbedoMap;       // rgb = 1 / the map's mean, w = how strongly it tints the palette (0 = no map)
+uniform float uAlbedoChroma;   // how much of the map's colour (not just its brightness) is used, 0..1
+uniform vec2 uAlbedoFade;      // sines of the latitudes between which the map fades out toward the poles
 in vec2 vUv;
 in vec2 vGrid;
 in vec2 vDetailUv;
@@ -101,6 +105,19 @@ void main() {
   vec3 flatC = mix(uDust, uSand, sandW * (0.55 + 0.45 * d0.b));
   vec3 albedo = rock * rockW + scree * screeW + flatC * flatW;
   albedo *= 0.93 + 0.14 * d1.a;
+  if (uAlbedoMap.w > 0.0) {
+    // The world's real large-scale brightness and colour: maria, rays, dark sands.
+    // Longitude jumps by a full turn somewhere, so the map's footprint on screen is worked
+    // out from the direction itself (which has no seam) and handed to the sampler.
+    vec2 uvA = vec2(atan(up.y, up.x) * 0.15915494, acos(clamp(up.z, -1.0, 1.0)) * 0.31830989);
+    vec3 upX = dFdx(up), upY = dFdy(up);
+    float k = 0.15915494 / max(dot(up.xy, up.xy), 1e-5);
+    vec2 gx = vec2((up.x * upX.y - up.y * upX.x) * k, dFdx(uvA.y));
+    vec2 gy = vec2((up.x * upY.y - up.y * upY.x) * k, dFdy(uvA.y));
+    vec3 tint = textureGrad(tAlbedo, uvA, gx, gy).rgb * uAlbedoMap.rgb;
+    tint = mix(vec3(dot(tint, vec3(0.3333))), tint, uAlbedoChroma);
+    albedo *= mix(vec3(1.0), tint, uAlbedoMap.w * (1.0 - smoothstep(uAlbedoFade.x, uAlbedoFade.y, abs(up.z))));
+  }
 
   // --- detail normal: grain everywhere, wind ripples on dust (both vanish with distance via mips / footprint)
   vec2 dn = (d1.rg - 0.5) * 0.9 + (d2.rg - 0.5) * 0.8;
@@ -113,7 +130,8 @@ void main() {
 
   // --- light
   shadow *= nearShadow(vRel, N);
-  vec3 direct = directSun(planetPos) * shadow * diffuseON(N, uSunDir, V, uRoughness);
+  float diffuse = groundDiffuse(N, uSunDir, V, uRoughness);
+  vec3 direct = directSun(planetPos) * shadow * diffuse;
   vec3 ambient = (skyLight(N, up) * ao + planetShine(N)) / PI;
   vec3 col = albedo * (direct + ambient);
   col = aerialPerspective(col, vRel);
@@ -130,6 +148,7 @@ export function makeTerrainShared(world, textures) {
     uSlopes: { value: new THREE.Vector4() }, uStrata: { value: new THREE.Vector4() },
     uSandRange: { value: new THREE.Vector2() }, uRipple: { value: new THREE.Vector3() },
     uRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 },
+    tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
   };
   setTerrainSurface(shared, world);
   return shared;
@@ -146,6 +165,8 @@ export function setTerrainSurface(shared, world) {
   shared.uRipple.value.set(2 * Math.PI / (s.ripples?.wavelength || 1), s.ripples?.strength || 0, DETAIL_TILE);
   shared.uRoughness.value = s.roughness ?? 0.5;
   shared.uDetailStrength.value = s.detailStrength ?? 0.5;
+  shared.uPhotometry.value = s.photometry === 'lunar' ? 1 : 0;
+  shared.uAlbedoMap.value.w = 0;          // until the world's map has loaded (Terrain.loadAlbedoMap)
 }
 
 export const DETAIL_TILE = 64;   // metres covered by one repeat of the detail texture at the coarsest scale

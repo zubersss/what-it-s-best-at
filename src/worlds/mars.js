@@ -11,13 +11,18 @@ export default {
     maxLevel: 17,               // finest quadtree level (~40 m chunks)
     minAltitude: -8300,         // lowest terrain on the planet (m), for culling/atmosphere
     maxAltitude: 21300,
-    shadowCeiling: 7000,        // no terrain near the scene rises above this (m): shadow rays stop there
     shadowRange: 160000,        // how far shadow rays are marched (m)
+    shadowHeadroom: 600,        // the recipe below never adds more than this on top of the elevation maps (m)
     // Elevation rasters (int16 LE metres). Later entries override earlier ones inside
     // their bounds, feathered over `feather` degrees.
     dems: [
       { url: 'data/mars_mola_4ppd.i16', width: 1440, height: 720, lon0: 0, lon1: 360, lat0: 90, lat1: -90, wrap: true },
       { url: 'data/mars_mola_coprates_128ppd.i16', width: 1408, height: 832, lon0: 291, lon1: 302, lat0: -9.5, lat1: -16, feather: 0.6 },
+      // Landmarks (MOLA): the Olympus Mons shield at 1.9 km per pixel, its summit calderas
+      // and Gale crater at 463 m per pixel.
+      { url: 'data/mars_mola_olympus_32ppd.i16', width: 448, height: 416, lon0: 219, lon1: 233, lat0: 25, lat1: 12, feather: 1.0 },
+      { url: 'data/mars_mola_olympus_summit_128ppd.i16', width: 384, height: 384, lon0: 224.75, lon1: 227.75, lat0: 20, lat1: 17, feather: 0.4 },
+      { url: 'data/mars_mola_gale_128ppd.i16', width: 512, height: 512, lon0: 135.75, lon1: 139.75, lat0: -3.25, lat1: -7.25, feather: 0.5 },
     ],
     // Height recipe: evaluated top to bottom. See src/terrain/height/layers.js.
     layers: [
@@ -42,6 +47,11 @@ export default {
   surface: {
     roughness: 0.55,                 // Oren–Nayar sigma (rad)
     meanAlbedo: [0.24, 0.135, 0.07], // regional average, for bounce light and multiple scattering
+    // Viking colour mosaic of the whole planet (sRGB image; mean linear colour below). It
+    // scales the palette place by place: dark basaltic plains, bright dust, polar ice. Only
+    // half of its colour differences are used: the mosaic's dark regions lean blue, more
+    // than the ground itself does.
+    albedoMap: { url: 'data/mars_color_2880.jpg', encoding: 'srgb', mean: [0.197, 0.118, 0.113], strength: 1.0, chroma: 0.5 },
     // Materials blended by slope and height. Albedos are linear reflectance.
     dust: [0.30, 0.165, 0.080],      // bright butterscotch dust on flats
     sand: [0.150, 0.085, 0.050],     // darker basaltic sand, low ground
@@ -86,13 +96,19 @@ export default {
     start: { lat: -13.174286, lon: 296.567862, eye: 1.7, heading: 292, pitch: -7 },
     ship: { east: 66, north: -53, heading: 250 },     // metres from start
     // highlight: how many times over white the brightest lit surface may be pushed
-    exposure: { key: 0.16, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.2, highlight: 6 },
+    // max: how far the exposure may be pushed in the dark. It is what keeps the twilight
+    // glow from burning out an hour and a half after sunset.
+    exposure: { key: 0.16, min: 0.5, max: 2.3e5, speed: 1.6, shadowFloor: 0.2, highlight: 6 },
+    // The first five are one place at different moments; the rest are other real places.
+    // timeOffsetHours moves the clock from dateUTC to the light that suits the view.
     bookmarks: {
-      ledge: { heading: 292, pitch: -7, fov: 60 },
-      sun: { heading: 297, pitch: 3, fov: 22 },
-      wall: { heading: 352, pitch: -2, fov: 34 },
-      ship: { east: 25, north: -20, heading: 123, pitch: 2, fov: 40 },     // from a sunlit bench, looking at the lander
-      dusk: { heading: 298, pitch: 9, fov: 60, timeOffsetHours: 1.7 },
+      ledge: { label: 'Coprates Chasma', heading: 292, pitch: -7, fov: 60 },
+      sun: { label: 'Coprates, the setting Sun', heading: 297, pitch: 3, fov: 22 },
+      wall: { label: 'Coprates, the north wall', heading: 352, pitch: -2, fov: 34 },
+      ship: { label: 'Coprates, the lander', east: 25, north: -20, heading: 123, pitch: 2, fov: 40 },     // from a sunlit bench, looking at the lander
+      dusk: { label: 'Coprates at dusk', heading: 298, pitch: 9, fov: 60, timeOffsetHours: 1.7 },
+      olympus: { label: 'Olympus Mons, the summit caldera', lat: 18.231, lon: 226.1658, heading: 90, pitch: -10, fov: 64, timeOffsetHours: 4.5 },   // the lip of the west wall, 20 km up, late afternoon
+      gale: { label: 'Gale crater, Mount Sharp', lat: -4.5895, lon: 137.4417, heading: 150, pitch: 3, fov: 45, timeOffsetHours: 1.5 },          // where Curiosity landed, morning
     },
   },
 };

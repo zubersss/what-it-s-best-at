@@ -138,6 +138,9 @@ export const OPS = {
   // lattices for busier surfaces. depth / rim are fractions of the radius.
   // Locality: a crater can only affect points in the 2x2x2 cells nearest to it, because
   // cell = 2 * (influence + OMAX) * R. Do not change one without the other.
+  // `belowDem`: only craters the raster under this point cannot show are added, those with
+  // a radius below belowDem x its pixel size (fading out over the upper half of that
+  // range). Where there is no raster every size is added.
   craters(def) {
     const classes = [];
     const INFL = 2.2, OMAX = 0.6;
@@ -146,7 +149,7 @@ export const OPS = {
       for (let l = 0; l < (def.layers || 1); l++) classes.push({ R, cell: 2 * (INFL + OMAX) * R, seed: def.seed * 101 + n * 7 + l * 1013, last: true, list: null, count: 0, buf: null, memoX: NaN, memoY: NaN, memoZ: NaN, memoN: 0, memo: new Float64Array(40) });
     }
     const density = def.density, depthK = def.depth ?? 0.2, rimK = def.rim ?? 0.04;
-    const smi = def.slopeMaskInv, radius = def.planetRadius;
+    const smi = def.slopeMaskInv, radius = def.planetRadius, below = def.belowDem || 0;
     let add = 0, slope = 0;
 
     // Fills cr[] = centre x,y,z, radius, age for the crater of lattice cell (ix,iy,iz), if any.
@@ -191,7 +194,12 @@ export const OPS = {
       for (let ci = 0; ci < classes.length; ci++) {
         const cls = classes[ci];
         if (cls.R * 2 <= c.minWL) { if (cls.last) break; continue; }   // classes run large -> small within a layer
-        const lod = Math.min(1, cls.R * 2 / c.minWL - 1);
+        let lod = Math.min(1, cls.R * 2 / c.minWL - 1);
+        if (below) {
+          const lim = below * c.res;                                   // the raster shows craters larger than this
+          if (cls.R >= lim) continue;
+          if (cls.R > lim * 0.5) lod *= 2 - 2 * cls.R / lim;
+        }
         const list = cls.list;
         if (list) {                                           // craters pre-collected for this region
           for (let k = 0; k < cls.count; k++) apply(c, list[k * 5], list[k * 5 + 1], list[k * 5 + 2], list[k * 5 + 3], list[k * 5 + 4], lod);

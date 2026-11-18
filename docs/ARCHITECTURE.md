@@ -77,7 +77,8 @@ skipped, so frames are evenly spaced.
 | `src/shadows/nearShadow.js` | The single 2048² shadow map + its GLSL. |
 | `src/rocks/rocks.js` | Instanced rocks, scattered deterministically near the camera. |
 | `src/ship/lander.js` | Procedural lander geometry, placement, material. |
-| `src/hero/hero.js` / `cloak.js` | The flying character (procedural suited figure, rigid posed limbs) and its cloth-simulated cloak. |
+| `src/hero/hero.js` / `cloak.js` | The flying character (procedural suited figure, limbs that bend at elbow and knee) and its cloth-simulated cloak. |
+| `src/fx/dust.js` | Dust thrown up by the character near the ground: a fixed pool of 1024 sprites on ballistic arcs under the world's gravity, slowed by its air, lit through the lighting chunk and tinted like the ground. The governor can halve it. |
 | `src/controls/` | `input.js` (keys, mouse, virtual keys), `touch.js` (phone controls), `cameraRig.js` (walk, fly, zoom). |
 | `src/post/post.js` | HDR target, metering, bloom, tone map, dither. |
 | `src/debug/hud.js` | HUD (compact line / full read-out / off) and time-of-day slider. |
@@ -88,12 +89,43 @@ skipped, so frames are evenly spaced.
 A world file exports one plain object (it is `postMessage`d to workers, so it must be
 structured-cloneable): `body` (key into the catalogue), `radius`, `gravity`, `dayHours`,
 `terrain` (rasters, a list of height **layers** `{op: 'name', ...numbers}`, altitude
-range, shadow range/ceiling), `surface` (palette, slope thresholds, strata, BRDF
-roughness, rocks), `atmosphere` (or `null`), `sky` (bodies, star catalogue) and `scene`
-(date, start position, ship offset, exposure, bookmarks). The engine never tests
-`world.id`.
+range, shadow range and headroom), `surface` (palette, slope thresholds, strata, BRDF
+roughness, photometry, albedo map, rocks), `atmosphere` (or `null`), `sky` (bodies, star
+catalogue) and `scene` (date, start position, ship offset, exposure, bookmarks). The
+engine never tests `world.id`.
 
-The Moon (`src/worlds/moon.js`) was added with data only. What it needed from the engine
+**Elevation rasters** (`terrain.dems`): a global one that wraps in longitude, then any
+number of patches. Later entries win inside their bounds and blend over `feather` degrees
+(a patch's feathered edge must lie inside the full-weight part of whatever is under it:
+only two rasters are blended at a point). `scale` is metres per stored unit. The `dem` op
+leaves the pixel size of the raster under the point in the context (`c.res`); `belowDem`
+on an `fbm` or `craters` layer keeps that layer's features smaller than that many pixels,
+so a real crater in a sharp patch is never doubled by a procedural one, while coarse
+regions still get relief.
+
+**Albedo map** (`surface.albedoMap`): one global image (longitude 0–360° E from the left,
+north in the first row) that multiplies the palette place by place, divided by its `mean`
+so the palette keeps its meaning. `encoding` (`srgb` or `linear`), `strength`, `chroma`
+(how much of the colour differences is used) and `latFade` (degrees of latitude between
+which the map hands back to the palette, for mosaics that are bad at the poles). The
+terrain shader looks it up per pixel from the direction to the planet's centre; the
+sampler's footprint is worked out from that direction, which has no seam, never from the
+longitude, which jumps (taking derivatives of the longitude left a whole cube face
+blurred to the map's mean colour). A 512 × 256 copy on the CPU gives the same tint at the
+camera (`Terrain.tintAt` → `uGroundTint`) for the rocks and the kicked-up dust.
+
+**Photometry** (`surface.photometry`): `'lunar'` switches the ground and the rocks from
+Oren–Nayar to the lunar-Lambert function times the Moon's measured phase curve
+(`lunarDiffuse` in the lighting chunk): equal to Lambert at opposition, 0.24 of it at a
+90° phase. The palette's numbers are then normal albedos. `surface.bounce` scales how
+much sunlit ground lights the shadows (a back-scattering surface sends less sideways).
+
+**Bookmarks** (`scene.bookmarks`): the first five are the scene's own place at different
+moments (the benchmark flies exactly these); any further ones are other real places with
+their own `lat`/`lon` and `timeOffsetHours`. `label` is shown when the player jumps there.
+
+The Moon (`src/worlds/moon.js`) was added with data only, first as an invented cratered
+world, since milestone 3 from NASA elevation and brightness maps. What it needed from the engine
 were two *generic* features that Mars also uses: planetshine on surfaces (earthshine is
 the only fill at lunar night) and metering that a black sky cannot fool.
 
@@ -131,7 +163,12 @@ chunk), which makes dense crater fields 3–5× cheaper.
   chunk's own height grid (bilinear lookups); a 17×17 grid of rays continues from the
   chunk edge to 8 chunk widths; a 5×5 grid covers the rest of `shadowRange`. Minimum
   clearance angles are combined per texel and turned into visibility with the Sun's true
-  angular radius. Re-baked when the Sun has moved more than `SHADOW_REBAKE_DEG`.
+  angular radius. Re-baked when the Sun has moved more than `SHADOW_REBAKE_DEG`. A ray
+  stops once it is above everything it could still meet: `hs.ceilingAt(dir)`, the tallest
+  raster height within `shadowRange` of where the ray starts (a 2° grid built from the
+  rasters when the height source is created) plus `shadowHeadroom` for what the recipe
+  can add. That makes shadows right at any place on the planet, a 21 km volcano included,
+  without a per-scene number.
 - Depth: no logarithmic depth. Dynamic near plane (0.25 m on foot), far plane from the
   farthest drawn chunk, front-to-back draw order.
 
@@ -154,17 +191,21 @@ chunk), which makes dense crater fields 3–5× cheaper.
 - Radii: `rBottom` (lowest terrain; LUT domain and where view rays stop), `rOcc`
   (mean local terrain; casts the planet's shadow on the air), `rTop`.
 - `sky-light table` (64×1, once per world): sky-plus-bounce light on level ground against
-  the Sun's height. A second 64×1 pass divides it by its value at the camera; surfaces
-  elsewhere on the globe scale the camera's irradiance map by it (`skyLight` in the
-  lighting chunk), so the night side is dark and a camera at the terminator does not
-  paint twilight over the whole planet.
+  the Sun's height. Seen from high up, every surface takes its sky light from this table
+  at its own Sun height (times the share of the sky its normal faces) instead of from the
+  camera's irradiance map (`skyLight` in the lighting chunk; blended in between 3 and 30
+  km of altitude). So the night side is dark wherever the camera is, and a camera over
+  the night side does not leave the day side without sky light (an earlier version
+  scaled the camera's map by a ratio, which is zero when the camera's own sky is dark).
 - `air-shadow map` (64×64, R16F, filled by a terrain worker): altitude below which
   terrain hides the Sun, on the tangent plane around the camera. The froxel march drops
   direct sunlight below it (`airLit`). `Atmosphere.updateAir` keeps it current.
 - **From space** the sky dome marches each ray through the shell (16 samples, 8 on the
   governor's step) instead of reading the sky-view LUT, and ground seen at a grazing
-  angle marches its own haze (12 or 6 samples) instead of reading the froxels; both use
-  `scatterStep` in `ATMO_LUT_ACCESS`.
+  angle, or anywhere the Sun is less than about 6° up, marches its own haze (12 or 6
+  samples) instead of reading the froxels; both use `scatterStep` in `ATMO_LUT_ACCESS`.
+  (A froxel tile near the planet's edge can hold rays that pass through sunlit air
+  beyond the edge; over dark ground that light showed as bright square blocks.)
 - `atmosphere: null` is not a code path: it becomes an empty medium, the same passes run
   once, the sky stays black and the irradiance map contains only ground bounce.
 
@@ -238,10 +279,18 @@ exposure alone decides whether they are visible (rule 2).
 HDR RGBA16F → bloom downsample (13-tap, clamped; the first level is capped at about
 0.6 M pixels so bloom costs the same at any render size) → metering (32×18 grid,
 centre-weighted log average with a floor at a fraction of the frame mean, plus exact
-single-pixel samples of lit surfaces for the subject-priority limit; async read-back) →
+single-pixel samples of lit surfaces for the subject-priority limit, weighted by the
+square root of their brightness so a white lander on dark ground cannot speak for the
+scene; the highlight peak skips the texels around the Sun's disc, placed by
+`Post.setSun`; async read-back) →
 bloom upsample → composite (~4.5 % bloom mix) → AgX → blue-noise dither. The scene is rendered
 into a sub-viewport of a fixed, native-size target (no reallocations when the resolution
 changes) and the composite pass scales it up to the canvas.
+
+A world may set `exposure.dim: { above, power, most }`: past that exposure the target is
+divided by (target / above)^power, at most by `most`, so the picture darkens as the scene
+does (the Moon uses it: an earthlit night and the ground toward a low Sun come out about
+five times darker than full compensation would make them).
 
 ## The governor (`src/perf/governor.js`)
 

@@ -1,15 +1,17 @@
 // Scripted flight test (headless): start on Mars behind the flying character, climb out,
 // aim at the Moon, fly there and check that the engine hands over to the Moon world.
-//   node scripts/flight-test.mjs <output dir for screenshots>
+//   node scripts/flight-test.mjs [output dir for screenshots, default .cache/flight]
 // Headless frames are slow, so the script acts on distances, not on timers.
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), out = process.argv[2] || '.';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), out = process.argv[2] || path.join(root, '.cache', 'flight');
+mkdirSync(out, { recursive: true });
 const server = await createServer({ root, logLevel: 'error', server: { port: 0, host: '127.0.0.1' } });
 await server.listen();
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });

@@ -2,13 +2,16 @@
 // (C2-smooth, so lighting has no facets even when one raster pixel spans kilometres).
 
 const RAD2DEG = 180 / Math.PI;
+const TOP_CELL = 2;      // degrees per cell of the "tallest ground nearby" grid
 
 export class DemSet {
-  // rasters: [{ data:Int16Array, width, height, lon0, lon1, lat0, lat1, wrap, feather }]
+  // rasters: [{ data:Int16Array, width, height, lon0, lon1, lat0, lat1, wrap, feather, scale }]
+  // scale = metres per unit of the stored numbers (1 when absent).
   constructor(rasters, radius) {
     this.radius = radius;
     this.rasters = rasters.map((r) => ({
       ...r,
+      scale: r.scale || 1,
       ppdX: r.width / (r.lon1 - r.lon0),
       ppdY: r.height / (r.lat0 - r.lat1),
       res: (Math.PI / 180) * radius * (r.lon1 - r.lon0) / r.width,   // metres per pixel at the equator
@@ -16,6 +19,45 @@ export class DemSet {
     // outputs of sample()
     this.h = 0; this.gE = 0; this.gN = 0; this.res = 0;
     this._h = 0; this._gx = 0; this._gy = 0;
+    this.tops = null;
+  }
+
+  // Prepares topAt(): the tallest raster height within `reach` metres of any place, on a
+  // coarse grid (TOP_CELL degrees). Shadow rays use it to stop as soon as nothing ahead
+  // can be in their way, wherever on the planet they start.
+  buildTops(reach) {
+    const W = Math.round(360 / TOP_CELL), H = Math.round(180 / TOP_CELL), raw = new Float32Array(W * H).fill(-1e9);
+    for (const r of this.rasters) {
+      const col = new Int32Array(r.width);
+      for (let i = 0; i < r.width; i++) { const lon = r.lon0 + (i + 0.5) / r.ppdX; col[i] = Math.min(W - 1, Math.floor((((lon % 360) + 360) % 360) / TOP_CELL)); }
+      for (let j = 0; j < r.height; j++) {
+        const o = Math.min(H - 1, Math.max(0, Math.floor((90 - (r.lat0 - (j + 0.5) / r.ppdY)) / TOP_CELL))) * W, row = j * r.width;
+        for (let i = 0; i < r.width; i++) { const v = r.data[row + i] * r.scale; if (v > raw[o + col[i]]) raw[o + col[i]] = v; }
+      }
+    }
+    // widen by the reach (plus one cell: a ray can start anywhere inside its cell)
+    const reachDeg = reach / (this.radius * Math.PI / 180) + TOP_CELL, dj = Math.ceil(reachDeg / TOP_CELL);
+    const tops = new Float32Array(W * H);
+    for (let j = 0; j < H; j++) {
+      const latEdge = Math.min(89.9, Math.max(Math.abs(90 - j * TOP_CELL), Math.abs(90 - (j + 1) * TOP_CELL)) + reachDeg);
+      const di = Math.min(W >> 1, Math.ceil(reachDeg / Math.cos(latEdge / RAD2DEG) / TOP_CELL));
+      for (let i = 0; i < W; i++) {
+        let m = -1e9;
+        for (let b = Math.max(0, j - dj); b <= Math.min(H - 1, j + dj); b++) {
+          for (let a = i - di; a <= i + di; a++) { const v = raw[b * W + ((a % W) + W) % W]; if (v > m) m = v; }
+        }
+        tops[j * W + i] = m;
+      }
+    }
+    this.tops = tops; this.topsW = W; this.topsH = H;
+  }
+
+  // Unit direction -> the tallest raster height (m) anywhere within the reach given to buildTops().
+  topAt(x, y, z) {
+    const lat = Math.asin(z < -1 ? -1 : z > 1 ? 1 : z) * RAD2DEG;
+    let lon = Math.atan2(y, x) * RAD2DEG; if (lon < 0) lon += 360;
+    const j = Math.min(this.topsH - 1, Math.max(0, Math.floor((90 - lat) / TOP_CELL))), i = Math.min(this.topsW - 1, Math.floor(lon / TOP_CELL));
+    return this.tops[j * this.topsW + i];
   }
 
   _bicubic(r, lon, lat) {
@@ -43,10 +85,10 @@ export class DemSet {
       const dy = k === 0 ? dy0 : k === 1 ? dy1 : k === 2 ? dy2 : dy3;
       h += rowH * wy; gx += rowD * wy; gy += rowH * dy;
     }
-    this._h = h;
+    this._h = h * r.scale;
     const cosLat = Math.max(0.02, Math.cos(lat / RAD2DEG));
-    this._gx = gx * r.ppdX * RAD2DEG / (this.radius * cosLat);    // dh/d(east), m/m
-    this._gy = -gy * r.ppdY * RAD2DEG / this.radius;              // dh/d(north), m/m
+    this._gx = gx * r.scale * r.ppdX * RAD2DEG / (this.radius * cosLat);    // dh/d(east), m/m
+    this._gy = -gy * r.scale * r.ppdY * RAD2DEG / this.radius;              // dh/d(north), m/m
   }
 
   // Unit direction -> this.h (m), this.gE / this.gN (slope east / north), this.res (m per pixel).

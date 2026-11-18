@@ -26,6 +26,7 @@ import { NearShadow } from './shadows/nearShadow.js';
 import { Rocks } from './rocks/rocks.js';
 import { Lander } from './ship/lander.js';
 import { Hero } from './hero/hero.js';
+import { Dust } from './fx/dust.js';
 import { createHeightSource, loadRasters } from './terrain/height/heightSource.js';
 import { Terrain } from './terrain/terrain.js';
 
@@ -157,6 +158,8 @@ export class App {
     this.placeLander(world, data.hs);
     this.hero = new Hero();
     this.heroScene.add(this.hero.group);
+    this.dust = new Dust(world);
+    this.heroScene.add(this.dust.points);
     for (const m of this.hero.casters) this.nearShadow.addCaster(m, this.hero.depthMaterial, () => this.hero.group.visible);
     await this.terrain.workers.ready;
 
@@ -212,6 +215,7 @@ export class App {
     this.baseJD = dateToJD(Date.parse(sc.dateUTC));
     this.timeOffsetHours = b.timeOffsetHours ?? 0;
     this.bookmark = name;
+    if (b.label && !this.shotMode && !this.benchmark?.active) this.toast?.show(b.label, 2600);
     if (this.hero) this.hero.started = false;
     this.jumpedAt = performance.now();
   }
@@ -409,6 +413,7 @@ export class App {
       this.atmosphere.setWorld(w);
       this.terrain.setWorld(w, data.rasters, data.hs);
       this.rocks.setWorld(w, data.hs);
+      this.dust.setWorld(w);
       this.placeLander(w, data.hs);
       this.bodies.setWorld(w);
       this.post.setExposureSettings(w.scene.exposure);
@@ -455,6 +460,7 @@ export class App {
     G.uSunIrradiance.value.set(sunC[0] * k, sunC[1] * k, sunC[2] * k);
     G.uPlanetRadius.value = world.radius;
     G.uCamPlanetPos.value.copy(rig.pos);
+    this.terrain.tintAt(rig.pos, G.uGroundTint.value);
 
     // 3. Terrain LOD, rocks, lander, hero
     const aspect0 = post.width / post.height;
@@ -481,6 +487,13 @@ export class App {
     this.stars?.setFrame(eph.icrfToFixed, rig, post.viewH);
     // ?aim=<body>: possible only now, once the bodies have a position for this moment.
     if (this.pendingAim && this.frameCount >= 2) { this.aimAt(this.pendingAim); this.pendingAim = null; }
+
+    // The Sun's place on screen, so the exposure meter can leave its glare out.
+    {
+      const d = G.uSunDir.value, f = d.dot(rig.forward);
+      if (f > 0.05) post.setSun(0.5 + 0.5 * d.dot(rig.right) / (f * th * aspect), 0.5 + 0.5 * d.dot(rig.up) / (f * th), sunHalf / (2 * th), true);
+      else post.setSun(0, 0, 0, false);
+    }
 
     // 5. Near shadow map (ship, rocks, hero)
     this.nearShadow.render(rig.pos, G.uSunDir.value, rig.localUp);
@@ -550,6 +563,7 @@ export class App {
       if (!this.heroSettled) { hero.settle(5, rig, env, pose); this.heroSettled = true; } else hero.update(0, rig, env, pose);
     } else hero.update(dt, rig, env);
     hero.group.updateMatrixWorld(true);
+    this.updateDust(dt, env);
     // Is the hero in a terrain shadow? Ask a worker now and then (cheap single ray).
     if (rig.agl < 20000 && !this.heroVisPending && this.frameCount % 20 === 0) {
       const p = hero.group.position, pts = new Float64Array([rig.pos.x + p.x, rig.pos.y + p.y, rig.pos.z + p.z]);
@@ -557,6 +571,43 @@ export class App {
       const job = this.terrain.workers.run({ type: 'points', points: pts, sun: [eph.sunDir[0], eph.sunDir[1], eph.sunDir[2]], sunHalf, minWL: 2 });
       if (job) { this.heroVisPending = true; job.then((res) => { this.heroVisPending = false; hero.uniforms.uSunVis.value = res.vis[0]; }).catch(() => { this.heroVisPending = false; }); }
     } else if (rig.agl >= 20000) hero.uniforms.uSunVis.value = 1;
+  }
+
+  // Dust: thrown up where the character touches down, pushes off or skims the ground.
+  updateDust(dt, env) {
+    const { hero, rig, dust } = this;
+    const up = dust._up.set(rig.localUp[0], rig.localUp[1], rig.localUp[2]);
+    const at = this._dustAt || (this._dustAt = new THREE.Vector3()), carry = this._dustCarry || (this._dustCarry = new THREE.Vector3());
+    const sunVis = hero.uniforms.uSunVis.value, viewH = this.post.viewH, th = Math.tan(rig.fov * Math.PI / 360);
+    if (this.shotMode) {
+      // ?dust=1: a touch-down frozen 0.7 s after contact, for reference pictures.
+      if (this.params.dust && env.groundClearance && !this._dustShot) {
+        this._dustShot = true;
+        const p = hero.group.position, c = env.groundClearance(p);
+        at.copy(rig.pos).add(p).addScaledVector(up, -(c - 0.15));
+        dust.update(0, rig.pos, up, env.gravity, env.air, viewH, th, sunVis);        // (sets how the air holds dust)
+        dust.emit(at, up, Math.round(110 * (1 + 2 * dust.vac)), 3.2, 1.1, carry.copy(up).multiplyScalar(0.4));
+        for (let i = 0; i < 14; i++) dust.update(0.05, rig.pos, up, env.gravity, env.air, viewH, th, sunVis);
+      }
+      dust.update(0, rig.pos, up, env.gravity, env.air, viewH, th, sunVis);
+      return;
+    }
+    if (dt > 0 && env.groundClearance) {
+      const p = hero.group.position, c = env.groundClearance(p);            // metres of air under the figure
+      const v = rig.velocity, vUp = v.dot(up), speed = v.length(), along = Math.sqrt(Math.max(0, speed * speed - vUp * vUp));
+      if (c < 2.2) {
+        at.copy(rig.pos).add(p).addScaledVector(up, -(c - 0.15));          // the ground under the figure
+        const k = dust.amount * dust.dustiness;
+        // touching down: a ring thrown outward, bigger the harder the landing
+        if (this._dustClear > 2.2 && vUp < -0.8) dust.emit(at, up, Math.round(Math.min(110, 30 + 14 * -vUp) * k * (1 + 2 * dust.vac)), 1.2 + 0.5 * -vUp, 1.1, carry.copy(v).multiplyScalar(0.15).addScaledVector(up, -0.15 * vUp));
+        // pushing off, or skimming along: a steady trail
+        const stir = ((vUp > 0.8 && rig.throttle > 0.3 ? 30 : 0) + Math.min(40, along * 2.2) * (c < 1.3 ? 1 : 0.3)) * (1 + 2 * dust.vac);
+        this._dustDebt = (this._dustDebt || 0) + stir * k * dt;
+        if (this._dustDebt >= 1) { const n = Math.floor(this._dustDebt); this._dustDebt -= n; dust.emit(at, up, n, 0.6 + 0.08 * along, 0.5 + 0.05 * along, carry.copy(v).multiplyScalar(0.25)); }
+      }
+      this._dustClear = c;
+    } else this._dustClear = 99;
+    dust.update(dt, rig.pos, up, env.gravity, env.air, viewH, th, sunVis);
   }
 
   // Estimated GPU memory in use (render targets, terrain pool, lookup tables, shadow map).

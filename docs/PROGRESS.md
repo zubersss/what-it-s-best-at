@@ -6,11 +6,17 @@ changes behaviour.
 
 ## What exists today
 
-- **Mars**: Coprates Chasma (Valles Marineris) on real NASA MOLA elevation, at
-  2014-01-31 09:29 UTC, about 20 minutes before local sunset. Five bookmarks: ledge, sun,
-  wall, ship, dusk.
-- **The Moon**: a procedural cratered world from a data file alone, at 2026-01-15, lunar
-  evening with a gibbous Earth. The same five bookmarks.
+- **Mars**: real NASA MOLA elevation and Viking colour over the whole planet. The main
+  site is Coprates Chasma (Valles Marineris) at 2014-01-31 09:29 UTC, about 20 minutes
+  before local sunset, with five views: ledge, sun, wall, ship, dusk. Two more places with
+  their own sharper elevation: the summit caldera of Olympus Mons and Gale crater.
+- **The Moon**: real elevation (LOLA for the globe, SLDEM2015 for the sites) and real
+  brightness (Clementine). The main site is Hadley Rille and the Apollo 15 landing site on
+  1971-08-01 13:00 UTC, the second day of that mission: five views (the canyon from its
+  bend, sunrise over the Apennines, Mount Hadley, the lander with Hadley Delta behind,
+  night under the Earth). Two more places: Tycho and the Taurus-Littrow valley (Apollo 17).
+- **Dust**: the character throws up dust when it touches down, takes off or skims the
+  ground; low clean arcs on the airless Moon, a lingering cloud on Mars.
 - **The character**: a suited figure with a cloth-simulated cloak. Flight speed grows
   with distance from the nearest surface, so one stick covers hovering, orbit and the
   crossing between worlds; the engine hands over from one world to the other in flight.
@@ -101,6 +107,25 @@ released (HOVER switches it off), a limit on how fast the nearest body may sweep
 also acted while flying bent every aimed trip off its target and was dropped: gravity
 acts when the pilot lets go.
 
+## Milestone 3 plan — make Mars and the Moon beautiful
+
+Started straight after the owner's phone results and flight notes (above). Order: the
+real maps first, because everything else is judged on top of them.
+
+1. The Moon from real data: LOLA elevation for the whole globe, a sharper patch for one
+   real site, Clementine brightness for maria and rays, procedural craters only below
+   the pixel size of the map under the point. Move the lunar scene from the invented
+   crater to a real place.
+2. Mars in colour from the Viking mosaic, laid over the existing palette.
+3. How regolith reflects: bright down-Sun, dark toward the Sun, for ground and rocks.
+4. Both worlds from orbit: day side, terminator, night side. Fix what the maps expose.
+5. More real places as bookmarks, each with its own patch of real elevation: Olympus
+   Mons and Gale on Mars, Tycho and the Apollo 17 valley on the Moon.
+6. Dust thrown up by the character at touch-down, take-off and when skimming.
+7. Ground at walking distance; night exposure.
+8. Reference set, stability test, flight and smoke tests, critic, governor step for the
+   dust, docs, checkpoint.
+
 ## Milestone 2 plan — fix the known problems
 
 The owner said "continue" at the milestone 1 checkpoint before any phone results; the
@@ -185,15 +210,19 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
   figure against the stars keeps the old, looser limit (`highlight`). Ground-level
   bookmarks sit at 0.17–0.24, far below the limit, and are unchanged.
 - **Sky light follows the local Sun.** The irradiance map belongs to the camera's place.
-  Elsewhere on the globe it is scaled by a table of sky-plus-bounce light on level ground
-  against the Sun's height (built once per world on the GPU, divided by its own value at
-  the camera, capped at 32). It is exactly 1 at the camera, and below 3 km of altitude
-  the look-up is skipped altogether (it fades in up to 30 km), so nothing changes on the
-  ground and nothing is paid for there.
+  From high up every surface instead takes the sky-plus-bounce light of level ground at
+  its own Sun height, from a table built once per world (milestone 3; in milestone 2 the
+  camera's map was scaled by the ratio of that table to its value at the camera, which
+  left the day side without any sky light whenever the camera hung over the night side).
+  Below 3 km of altitude the table is not used at all (it fades in up to 30 km), so
+  nothing changes on the ground and nothing is paid for there.
 - **Edge glow from space is marched per pixel**, in the sky dome (rays that cross the
   shell) and on ground seen at a grazing angle (blend from froxels below a view cosine of
-  0.38, fully marched below 0.22). Screen-space froxels cannot follow the path length
-  there: it changes by a factor of two between neighbouring froxels. The sky-view LUT is
+  0.38, fully marched below 0.22), and since milestone 3 everywhere the Sun is less than
+  about 6° up: a froxel tile near the edge can hold rays that pass through sunlit air
+  beyond it, and over the night side that light showed as bright square blocks. Screen-
+  space froxels cannot follow the path length near the edge: it changes by a factor of
+  two between neighbouring froxels. The sky-view LUT is
   used only while the camera is in the air and is cross-faded over the top tenth of the
   atmosphere.
 - **Terrain shadow in the air** is a 64×64 map on the tangent plane around the camera
@@ -233,6 +262,33 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
   24 ms). The rest of the gap is the fractal layers and the shadow rays, which simply
   cost more per sample on a cratered world.
 
+- **Baked sunlight is decided per texel, not per chunk** (milestone 3). The walk across a
+  chunk's own height grid used the Sun's height at the chunk's centre; on a chunk the
+  size of a cube face that put a sixth of Mars in shadow whenever its centre (the south
+  pole, in northern summer) was in night. Each texel now uses its own Sun height, walks no
+  further than the shadow range, and is dark when the Sun is below its own horizon.
+- **A world in black space is exposed lower than a view full of ground** (`globe` 0.32
+  against `surface` 0.6, blended by how much of the frame the lit surface covers): at
+  0.6 the tone curve flattened Mars's markings into cream.
+- **The bright-part meter is weighted by the square root of brightness** (was: by
+  brightness). A crescent still counts as its day side, but a white lander and sunlit
+  rocks on dark lunar soil no longer drag the exposure down until the ground is black.
+- **The highlight meter leaves out the screen around the Sun's disc.** It reads a blurred
+  copy of the frame, and where the Sun sits on a ridge (the lunar sunrise view) the disc's
+  light shared texels with lit ground and counted as ground many times over white: the
+  exposure never settled. A first fix capped that reading at 8 times the mean of the lit
+  samples, which over-exposed a thin crescent (the night side counts as lit surface and
+  pulls the mean down); it was replaced by skipping the texels within the Sun's radius
+  plus 1.6 texels.
+- **Dim scenes stay dim on the Moon** (`exposure.dim`): above an exposure of 60 only part
+  of the missing light is made up (the square root of it), and never less than a fifth.
+  An earthlit night comes out about five times darker than full compensation would make
+  it (it used to look like day), and a view into a low Sun keeps its ground dark: Apollo
+  crews opened up only about two stops for into-Sun pictures, the meter had opened five.
+  A plain power law could not do both (the two scenes need the same factor at very
+  different brightness), and the glow drawn around a bright Earth feeds back into the
+  meter, so the numbers were set by looking: ground-level day views (11–66) are unchanged.
+
 ### Worlds
 
 - **Mars site**: the lip of a bench on the north flank of Coprates' southern ridge
@@ -246,10 +302,44 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
   2.3 MB) around the scene. Everything below ~1 km is procedural.
 - **Dusk bookmark is 1.7 h after the start**: Martian twilight is long, and stars/Earth
   only clear the glow once the Sun is ~17° down.
-- **Moon**: fully procedural for now, site just inside the east rim of a ~3 km crater at
-  7.98°N, 54.95°W. The `ship` and `dusk` bookmarks stand 25 m east on the rim crest;
-  `ship` is two days earlier so the rim's shadow does not cover the lander. Regolith
-  roughness was halved: at a 7° Sun a flat crest dissolved into micro-shadow speckle.
+- **Moon site (milestone 3)**: Hadley Rille and the Apollo 15 landing site, replacing the
+  invented crater. Chosen because one small area holds a 300 m deep canyon, a 4.5 km
+  mountain front and a real landing site, and because Apollo 15's photographs are the
+  reference to compare against. The scene date is the mission's second day (Sun 29° up in
+  the east, 106° azimuth): at 19° (the first day) the canyon's east wall was a black hole.
+  The start is the outside of the rille's bend at the foot of Hadley Delta, looking down
+  the 3 km reach that runs north-north-west, the lit west wall on the left, the shadowed
+  east wall on the right. A view from the rim half-way along (the first attempt) showed
+  only one wall and read as a hillside.
+- **Moon height data**: LOLA 4 px/deg for the globe; SLDEM2015 (LOLA + Kaguya stereo) for
+  the sites, because the LOLA-only 118 m mosaic has kilometre-wide gaps between tracks at
+  this latitude and the rille came out as blocks. Patches: the Apennines at 474 m, Hadley
+  at 59 m (the whole rille), Tycho at 474 m, Taurus-Littrow at 118 m.
+- **Procedural detail only below the map's pixel size** (`belowDem`): crater and relief
+  layers switch themselves off for features the raster under the point can resolve, so
+  the sharp patches show only real craters above ~120 m and the coarse globe still gets
+  its share of invented ones. The old Moon's "dark fines in low ground" (darkening by
+  altitude) is off: the brightness map knows where the maria are.
+- **Brightness and colour maps multiply the palette** (divided by the map's mean), they do
+  not replace it: slope materials, strata and close-up detail keep working, and the
+  palette numbers stay normal albedos. Mars uses half of the Viking mosaic's colour
+  differences: its dark regions lean bluer than the ground looks from the surface. The
+  lunar map fades out between 62° and 75° latitude, where the mosaic is mostly shadows.
+- **Regolith reflects like the Moon** (`photometry: 'lunar'`): lunar-Lambert times the
+  phase curve fitted to the Moon's brightness through the month (0.57 at 30°, 0.37 at
+  60°, 0.24 at 90°, 0.15 at 120°). A first curve (a plain exponential) was 2.7 times too
+  dark at 100°: looking across the sunlight the ground went black beside the lander.
+  Rocks use the same function and the local tint; the lander and the character stay
+  matte, so white paint is far brighter than the soil, as in the Apollo pictures.
+- **Landmarks are bookmarks 6 and up** with their own elevation patch and their own
+  light (`timeOffsetHours`); the first five stay the scene the benchmark flies. Olympus
+  Mons: west rim of the summit caldera, late afternoon. Gale: Curiosity's landing place
+  looking at Mount Sharp, morning. Tycho: south rim, the Earth above the north wall.
+  Taurus-Littrow: the Apollo 17 site, the Earth above the South Massif as in that
+  mission's pictures.
+- **Shadow rays stop at the tallest ground near them**, found from the rasters, instead
+  of at one number per world: a view from a 21 km volcano needs a different ceiling from a
+  canyon, and a wrong one silently removes shadows.
 - **The sky always contains every catalogue body**; the one underfoot is skipped.
 
 ### Character and flight
@@ -284,25 +374,30 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 
 | Problem | Milestone |
 | --- | --- |
-| Governor start level, step sizes and thresholds are first guesses until the owner's phone results arrive | 1 (open) |
-| No contact shadows under the lander and rocks when the site is in terrain shadow | 3 |
-| One-pixel-high bright features alias (ridge highlights, the lunar far rim): no anti-aliasing | 3 |
+| Milestone 2 and 3 builds have not been measured on the phone: the per-pixel haze near a planet's edge, the albedo lookup and the dust are new costs | owner's next benchmark |
+| No contact shadows under the lander and rocks when the site is in terrain shadow | 4 |
+| One-pixel-high bright features alias (ridge highlights, crater rims): no anti-aliasing. The milestone 1 results showed room for it; it waits for numbers from the current build | after the next benchmark |
 | Night scenes need about 570 frames for exposure to settle in screenshot mode | tooling |
 | A chunk that takes over while its parent is itself still fading in starts from the parent's own maps, a small jump during fast streaming | watch |
-| Lunar chunks still build about 1.7× slower than Martian ones (41 vs 24 ms in Node) | watch |
-| From orbit Mars is one colour and soft; the Moon has no maria or rays | 3 |
-| Terminators are geometrically straight; no relief shadows along them from afar | 3 |
-| Twilight glow has a hard upper edge at the highest exposures | 3 |
-| Lunar ground is one grey at every Sun height; craters are soft stamps | 3 |
-| Baked terrain shadows have soft, wobbly edges on an airless world; no long shadows from rocks and lander at a low Sun | 3 |
-| Mars: flat grey sky away from the Sun, olive cast in the sunset views, one-colour ground | 3 |
-| Mars from orbit is veiled in cream haze with faint vertical streaks; the canyon does not show | 3 |
-| An earthlit lunar night is exposed as bright as day | 3 |
+| Chunk builds cost about 10 % more than in milestone 2 on Mars (the rays that keep shadows continuous across chunk borders); lunar chunks are a third cheaper than before | watch |
+| The terminator seen from far away is as sharp as the shadow map's texels: stair-stepped on the Moon at high zoom, no long relief shadows across it | 5 |
+| Looking straight down-Sun on the Moon the ground is featureless (true to life, but nothing to steer by); small craters only show across the light | 4 |
+| The SLDEM patch has faint north-south stripes a few metres high (the altimeter's tracks) | watch |
+| Outside the sharp patches the Moon and Mars are 7 to 15 km per pixel plus invented relief: landing anywhere else shows no real small landforms | 6 / 7 |
+| Mars from orbit is soft: about 40 % of the contrast of the Viking mosaic survives the haze; Valles Marineris shows by its bright rims | 5 |
+| Twilight glow has a hard upper edge at the highest exposures | 5 |
+| Mars: flat grey sky away from the Sun, olive cast in the sunset views | 5 |
 | Deimos burns out to a white blob at dusk exposure | 5 |
+| Earth is a blown-out white disc from the Moon and has no blue | 5 |
 | The character is still a simple figure: no visor detail, no backpack, clean white suit | 4 |
-| Earth is blown out to white in the lunar dusk shot and has no blue | 5 |
+| Dust puffs are soft round sprites: up close the single puffs can be told apart | 4 |
 | Far from every body there is only the HUD read-out to navigate by | 4 / 7 |
-| Triangles sit at ~460–480k of the 500k budget | watch |
+| Triangles sit at ~420–480k of the 500k budget | watch |
+
+Fixed in milestone 3: the Moon had no maria or rays and Mars was one colour from orbit;
+a sixth of Mars drawn washed-out from far away; lunar ground one grey at every Sun
+height; an earthlit lunar night exposed as bright as day; whole benches wrongly in shadow
+at a low Sun, with straight edges where chunks meet.
 
 Fixed in milestone 2: detail popping as terrain refines; no glow (and an inverted band)
 on the planet's edge from orbit; over-exposed globes, lit night sides and the stripe on
@@ -310,6 +405,27 @@ Mars's terminator; the halo around the airless Moon; the roll at the Mars ↔ Mo
 hand-over; lunar chunk build time (72 → 41 ms); haze ignoring terrain shadow; ledges
 reading as dunes; the far wall's haze (in part: 15 % less dust); rigid limbs and the
 cloak passing through arms and legs; Phobos and Deimos checked.
+
+## Tests and measurements, milestone 3
+
+- **Flight**: `flyby` as after the flight fix (an aimed trip lands in 13 s within 0.1°; a
+  60-radius miss passes at 16 radii with the target sweeping at most 46°/s; a released
+  stick ends on the ground). The scripted Mars → orbit → Moon flight passes and now
+  arrives over Hadley.
+- **Smoke test** with a full benchmark: passes; the new dust step was exercised with the
+  others. Most at once in that run: 124 draw calls, 337k triangles, about 142 MB of GPU
+  memory (the brightness or colour map of the current world adds 22 MB).
+- **Chunk builds in Node** (`profile-chunks`, means over the levels down to the start
+  site): the Moon 51 → 36 ms (real maps: far fewer invented craters to stamp), Mars
+  29 → 32 ms (the rays that keep shadows continuous across chunk borders). In the
+  browser run of the benchmark: Mars 50 ms, Moon 56 ms per patch on the test machine.
+- **Shadow continuity across chunk borders** (`bakecmp` in the session's scratch files:
+  mean difference, out of 255, between the two chunks' values along a shared edge, at the
+  Mars start with the Sun 4° up): level 17: 245 → 0; 16: 78 → 0; 14: 155 → 11; 12: 62 → 9.
+  The cause was not the border itself: rays that start under a ledge smaller than the
+  detail their first samples can see came out dark, in whole benches.
+- **Download**: Mars 4.4 → 6.8 MB of map data, the Moon 0 → 7.1 MB (fetched when the
+  Moon is first visited); the page script is 750 kB (212 kB compressed).
 
 ## Tests and measurements, milestone 2
 
@@ -358,6 +474,40 @@ repository (re-create them with `npm run stability`).
 - The first version of the test moved too fast (several pixels per frame) and let
   exposure re-meter between frames; both produced large, honest differences that hid
   what the test is for. Steps are now about a pixel and exposure is held per station.
+
+## Independent critic, milestone 3 (screenshots and art rules only)
+
+Thirty reference pictures, compared with Viking, Pathfinder, the rovers, Hubble and the
+Apollo surface photographs. The five gaps, worst first, and what was done:
+
+1. **Mars is one colour everywhere**: ground, cliffs, rocks and the globe the same tan;
+   from orbit no Solis Lacus, no dark regions; craters and the canyon as white embossed
+   lines. → a helper traced where the colour map's contrast is lost from orbit; another
+   reworked the ground palette (see below).
+2. **Landforms read as sand or dough**: Mount Sharp a rippled heap, canyon slopes like
+   wax, blurry dark "tiger stripes" on the ground, the Olympus caldera wall near-white
+   like snow, identical faceted rocks. → ground palette and texture helper; the large
+   landform shapes are recorded under known problems.
+3. **The Moon's light is soft**: few, small, soft shadows at mid-morning; the figure's
+   shadow blurred; the sunrise view's foreground the whitest thing in the frame;
+   blotches on the rille's far wall. → a helper on crisp shadows; the exposure of
+   into-Sun views and of the night now follows how Apollo crews exposed.
+4. **Bright sky bodies**: Earth a white oval in a glow, Deimos burnt out, Phobos cream
+   and brighter than the sky. → Earth and Deimos belong to milestone 5. Phobos is lit
+   by full sunlight and seen through the whole dusty sky, which adds to it, so it is
+   brighter than the sky behind it; kept.
+5. **The Mars sky**: the twilight a cream lens with a sharp lower edge; the daytime sky
+   away from the Sun flat grey-brown. → milestone 5 (already in the known problems).
+
+Kept, as the critic advised: the Martian sunset (`ledge`, `sun`), the Moon from space with
+its seas and Tycho's rays, the crescent Mars with its bluish rim, the black airless sky,
+Mount Hadley.
+
+Reported as broken: a straight line across the ground at the Mars lander (the lip of a
+small rock bench; in milestone 2 it was the edge of a wrong shadow, now fixed); a curved
+material edge and a stair-stepped far ridge at Olympus; a box-like ledge with stretched
+texture in `mars_wall`; stair-steps on the lunar sunrise ridge (no anti-aliasing yet);
+soft puffs of lunar dust (now a spray of fine grains on clean arcs).
 
 ## Independent critic, milestone 2 (screenshots and art rules only)
 
@@ -438,3 +588,12 @@ Weakest: `mars_ledge_orbit_globe`.
   that stays off them; Phobos and Deimos checked (and their faceted shading fixed);
   tools `sky-table`, `profile-chunks`, `build-check`; shot parameters `aim`, `east`,
   `north`, `debug`.
+- **The owner's phone results and flight notes** (between milestones 2 and 3): both
+  modes start at native resolution, chunk uploads are spread over frames, flight goes
+  where it is aimed, gravity pulls when the stick is released, `HOVER` button.
+- **Milestone 3 built**: the real Moon (LOLA, SLDEM2015, Clementine) with its scene at
+  Hadley Rille; Mars in Viking colour; lunar photometry; landmark bookmarks with their
+  own elevation patches (Olympus Mons, Gale, Tycho, Taurus-Littrow) and labels; dust;
+  automatic shadow ceiling, per-texel baked sunlight, shadow rays that start from the
+  ground as they see it; exposure rules for globes, small bright objects, dim scenes and
+  the Sun on a ridge; `scripts/fetch-maps.py`; shot parameter `dust`.

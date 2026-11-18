@@ -71,9 +71,9 @@ export class Rocks {
           vec3 N = normalize(vN);
           vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel);
           float top = smoothstep(0.45, 0.95, dot(N, up));
-          vec3 albedo = mix(uRockAlbedo * vMisc.y, uDustAlbedo, top * 0.55);       // dust settles on top
+          vec3 albedo = mix(uRockAlbedo * vMisc.y, uDustAlbedo, top * 0.55) * uGroundTint;       // dust settles on top; local rock is the local colour
           float contact = mix(0.55, 1.0, smoothstep(-0.35, 0.25, vLocal.z));        // darker where it meets the ground
-          vec3 direct = directSun(planetPos) * vMisc.x * nearShadow(vRel, N) * diffuseON(N, uSunDir, V, uRoughness);
+          vec3 direct = directSun(planetPos) * vMisc.x * nearShadow(vRel, N) * groundDiffuse(N, uSunDir, V, uRoughness);
           vec3 col = albedo * (direct + (skyLight(N, up) * contact + planetShine(N)) / PI);
           col = aerialPerspective(col, vRel);
           fragColor = vec4(col * uExposure, 1.0);

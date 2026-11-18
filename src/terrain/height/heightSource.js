@@ -3,6 +3,7 @@
 //   const hs = createHeightSource(world, rasters);
 //   hs.height(x, y, z, minWavelength)   -> metres above the datum sphere
 //   hs.baseSlope                         -> large-scale slope at the last query
+//   hs.ceilingAt(x, y, z)                -> no ground within shadow range is higher than this
 //
 // (x, y, z) is a unit direction in the planet-fixed frame. `minWavelength` (m) is the
 // smallest feature the caller can represent (2 x its sample spacing); pass 0 for full
@@ -23,6 +24,10 @@ export function createHeightSource(world, rasters = []) {
     if (layer.op === 'dem' && !env.dem) continue;
     fns.push(make({ ...layer, planetRadius: radius }, env));
   }
+  // Shadow rays stop at the tallest ground within their range: the rasters' maximum
+  // nearby plus `shadowHeadroom` for what the procedural layers can add on top.
+  const reach = terrain.shadowRange ?? 150000, headroom = terrain.shadowHeadroom ?? 1500;
+  if (env.dem) env.dem.buildTops(reach);
   const c = { x: 0, y: 0, z: 1, px: 0, py: 0, pz: 0, h: 0, slope: 0, res: 1e12, minWL: 0 };
   const n = fns.length;
   const regional = fns.filter((f) => f.prepare);
@@ -38,6 +43,8 @@ export function createHeightSource(world, rasters = []) {
       hs.baseSlope = c.slope;
       return c.h;
     },
+    // No ground within the world's shadow range of this place is higher than this (m above datum).
+    ceilingAt(x, y, z) { return env.dem ? Math.min(terrain.maxAltitude, env.dem.topAt(x, y, z) + headroom) : terrain.maxAltitude; },
     // Optional speed-up when many nearby points follow: (x,y,z) unit direction of the
     // region's centre and its radius in metres. Call release() before querying elsewhere.
     prepare(x, y, z, rho) { for (const f of regional) f.prepare(x * radius, y * radius, z * radius, rho); },

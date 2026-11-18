@@ -7,30 +7,30 @@
     "visited": 326,
     "wanted": 0,
     "lodScale": 0.913,
-    "avgBuildMs": 43.9,
-    "exposure": 20.99,
+    "avgBuildMs": 44.9,
+    "exposure": 22.32,
     "surface": [
       0.651,
-      0.279
+      0.125
     ],
-    "frame": 196,
+    "frame": 274,
     "wait": ""
   },
   "sun": {
-    "calls": 128,
-    "triangles": 428267,
-    "chunks": 107,
+    "calls": 131,
+    "triangles": 438827,
+    "chunks": 110,
     "loaded": 480,
-    "visited": 418,
+    "visited": 430,
     "wanted": 23,
-    "lodScale": 0.715,
-    "avgBuildMs": 45,
+    "lodScale": 0.737,
+    "avgBuildMs": 43.9,
     "exposure": 2.913,
     "surface": [
       0.342,
-      0.0715
+      0.0558
     ],
-    "frame": 223,
+    "frame": 218,
     "wait": ""
   },
   "wall": {
@@ -41,13 +41,13 @@
     "visited": 450,
     "wanted": 0,
     "lodScale": 0.885,
-    "avgBuildMs": 46.6,
-    "exposure": 43.78,
+    "avgBuildMs": 45,
+    "exposure": 43.68,
     "surface": [
       0.601,
-      0.219
+      0.161
     ],
-    "frame": 203,
+    "frame": 198,
     "wait": ""
   },
   "ship": {
@@ -58,11 +58,11 @@
     "visited": 330,
     "wanted": 0,
     "lodScale": 0.653,
-    "avgBuildMs": 43.8,
-    "exposure": 139.2,
+    "avgBuildMs": 45.7,
+    "exposure": 73.06,
     "surface": [
       0.911,
-      0.261
+      0.171
     ],
     "frame": 277,
     "wait": ""
@@ -75,13 +75,47 @@
     "visited": 338,
     "wanted": 0,
     "lodScale": 1,
-    "avgBuildMs": 38.7,
-    "exposure": 223300,
+    "avgBuildMs": 32.8,
+    "exposure": 223200,
     "surface": [
       0.403,
-      0.00429
+      0.00453
     ],
-    "frame": 204,
+    "frame": 200,
+    "wait": ""
+  },
+  "olympus": {
+    "calls": 134,
+    "triangles": 471055,
+    "chunks": 116,
+    "loaded": 338,
+    "visited": 314,
+    "wanted": 0,
+    "lodScale": 0.715,
+    "avgBuildMs": 39.6,
+    "exposure": 23.68,
+    "surface": [
+      0.63,
+      0.401
+    ],
+    "frame": 199,
+    "wait": ""
+  },
+  "gale": {
+    "calls": 131,
+    "triangles": 466735,
+    "chunks": 113,
+    "loaded": 444,
+    "visited": 350,
+    "wanted": 0,
+    "lodScale": 0.653,
+    "avgBuildMs": 35.9,
+    "exposure": 37.13,
+    "surface": [
+      0.625,
+      0.135
+    ],
+    "frame": 221,
     "wait": ""
   }
 }

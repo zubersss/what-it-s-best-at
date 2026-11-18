@@ -36,7 +36,8 @@ export class Benchmark {
     this.lastBuilt = app.terrain.built; this.lastBuildMs = app.terrain.buildMs;
     this.builds = { [FIRST]: [0, 0], [SECOND]: [0, 0] };
     this.maxGpuBytes = 0;
-    this.names = { [FIRST]: Object.keys(WORLDS[FIRST].scene.bookmarks), [SECOND]: Object.keys(WORLDS[SECOND].scene.bookmarks) };
+    // the first five bookmarks of each world: its main scene (the rest are landmarks, not benchmarked)
+    this.names = { [FIRST]: Object.keys(WORLDS[FIRST].scene.bookmarks).slice(0, 5), [SECOND]: Object.keys(WORLDS[SECOND].scene.bookmarks).slice(0, 5) };
     app.setHero(true);
   }
 
