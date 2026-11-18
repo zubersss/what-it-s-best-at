@@ -1,8 +1,10 @@
 # Solar System Explorer
 
 A browser game: fly a suited, cloaked character through the real solar system. Today it
-has Mars (Coprates Chasma in Valles Marineris, on real NASA MOLA elevation data), the
-Moon, and the flight between them. Rendered with three.js on WebGL 2.
+has Mars and the Moon, both built from NASA's public-domain maps, and the flight between
+them. On Mars: Coprates Chasma in Valles Marineris, the summit of Olympus Mons, Gale
+crater. On the Moon: Hadley Rille where Apollo 15 landed, Tycho, the Apollo 17 valley.
+Rendered with three.js on WebGL 2.
 
 **Play it:** https://zubersss.github.io/what-it-s-best-at/ (updates on every push to `main`).
 
@@ -28,7 +30,7 @@ button.
 | `HOVER` | `X` | hover on / off. Off (the default): let go of the stick and gravity pulls you toward the nearest world, or the Sun |
 | `FLY` | `F` | walk ↔ free-fly debug camera |
 | `ZOOM` (hold) | `Z` (hold), wheel | telephoto |
-| `VIEW` | `1`–`5` | camera bookmarks: ledge, sun, wall, ship, dusk |
+| `VIEW` | `1`–`9` | places: five views of the world's main site, then its other landmarks (the name appears as you arrive) |
 | `HUD` | `H` | HUD: one line → everything plus the time-of-day slider → off |
 | `MODE` | `M` | Smooth ↔ Sharp |
 | `FULL` | | fullscreen, landscape lock, keep the screen awake |

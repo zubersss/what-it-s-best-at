@@ -18,7 +18,9 @@ export class Terrain {
     this.radius = world.radius;
     this.maxLevel = world.terrain.maxLevel;
     this.relief = world.terrain.maxAltitude - world.terrain.minAltitude;
-    this.textures = { detail: makeDetailTexture(256), strata: makeStrataTexture(world.surface.strata) };
+    const white = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    white.needsUpdate = true;
+    this.textures = { detail: makeDetailTexture(256), strata: makeStrataTexture(world.surface.strata), white, albedo: null };
     this.shared = makeTerrainShared(world, this.textures);
     this.pool = new ChunkPool((n, s) => makeTerrainMaterial(this.shared, n, s), renderer.capabilities.getMaxAnisotropy());
     this.group = this.pool.group;
@@ -37,8 +39,9 @@ export class Terrain {
     this.farDistance = 1e6;
     this.buildMs = 0; this.built = 0;
     this.idleFrames = 0;
-    this.gpuBytes = this.pool.gpuBytes + 256 * 256 * 4 * 4 / 3;
+    this.gpuBytes = this.pool.gpuBytes + 256 * 256 * 4 * 4 / 3 + 2880 * 1440 * 4 * 4 / 3;      // + one global albedo map
     this._cam = new THREE.Vector3(); this._camDir = [0, 0, 1];
+    this.loadAlbedoMap(world);
   }
 
   _initMessage(world, rasters) {
@@ -60,6 +63,7 @@ export class Terrain {
     this.textures.strata.dispose();
     this.textures.strata = makeStrataTexture(world.surface.strata);
     this.shared.tStrata.value = this.textures.strata;
+    this.loadAlbedoMap(world);
     const pool = this.pool;
     pool.free.length = 0;
     for (let i = 0; i < pool.slots.length; i++) { pool.slots[i].node = null; pool.slots[i].mesh.visible = false; pool.free.push(i); }
@@ -69,9 +73,51 @@ export class Terrain {
     this.workers.reinit(this._initMessage(world, rasters));
   }
 
+  // The world's global brightness / colour map (surface.albedoMap), if it has one. Only
+  // the current world's map is kept on the GPU; until it arrives the palette is used alone.
+  loadAlbedoMap(world) {
+    const def = world.surface.albedoMap, u = this.shared;
+    if (this.textures.albedo) { this.textures.albedo.dispose(); this.textures.albedo = null; }
+    u.tAlbedo.value = this.textures.white; u.uAlbedoMap.value.w = 0;
+    this.tint = null;
+    this.albedoBusy = !!def;
+    if (!def) return;
+    const epoch = this.epoch;
+    new THREE.TextureLoader().load(import.meta.env.BASE_URL + def.url, (tex) => {
+      if (epoch !== this.epoch) { tex.dispose(); return; }
+      tex.colorSpace = def.encoding === 'srgb' ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+      tex.flipY = false;                    // row 0 (north) at v = 0, as the shader expects
+      tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = true;
+      tex.anisotropy = 4;
+      this.textures.albedo = tex; u.tAlbedo.value = tex;
+      u.uAlbedoMap.value.set(1 / def.mean[0], 1 / def.mean[1], 1 / def.mean[2], def.strength ?? 1);
+      u.uAlbedoChroma.value = def.chroma ?? 1;
+      const rad = Math.PI / 180;      // latFade: [from, to] degrees of latitude over which the map hands back to the palette
+      if (def.latFade) u.uAlbedoFade.value.set(Math.sin(def.latFade[0] * rad), Math.sin(def.latFade[1] * rad)); else u.uAlbedoFade.value.set(2, 3);
+      this.tint = makeTintGrid(tex.image, def);
+      this.albedoBusy = false;
+    }, undefined, () => { this.albedoBusy = false; });
+  }
+
+  // The albedo map's tint at a place (planet-centred position), as the terrain shader
+  // applies it: for the things that lie on the ground there. (1, 1, 1) without a map.
+  tintAt(pos, out) {
+    const t = this.tint;
+    if (!t) return out.set(1, 1, 1);
+    const r = pos.length(), u = (Math.atan2(pos.y, pos.x) / (2 * Math.PI) + 1) % 1, v = Math.acos(Math.max(-1, Math.min(1, pos.z / r))) / Math.PI;
+    const x = u * t.w - 0.5, y = Math.max(0, Math.min(t.h - 1, v * t.h - 0.5)), x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+    const xa = (x0 + t.w) % t.w, xb = (x0 + 1) % t.w, ya = y0, yb = Math.min(t.h - 1, y0 + 1), d = t.data;
+    for (let c = 0; c < 3; c++) {
+      const top = d[(ya * t.w + xa) * 3 + c] * (1 - fx) + d[(ya * t.w + xb) * 3 + c] * fx, bot = d[(yb * t.w + xa) * 3 + c] * (1 - fx) + d[(yb * t.w + xb) * 3 + c] * fx;
+      out.setComponent(c, top * (1 - fy) + bot * fy);
+    }
+    return out;
+  }
+
   get loadedCount() { return CONFIG.CHUNK_POOL - this.pool.free.length; }
   get queueLength() { return this.wanted.length + this.workers.busy + this.ready.length; }
-  get idle() { return this.idleFrames > 3; }
+  get idle() { return this.idleFrames > 3 && !this.albedoBusy; }
 
   // sunDir: THREE.Vector3 (planet-fixed); sunHalf: the Sun's angular radius in radians.
   update(rig, aspect, sunDir, sunHalf) {
@@ -282,4 +328,26 @@ export class Terrain {
     }
     return busy;
   }
+}
+
+// A small copy of the albedo map on the CPU, already turned into the tint the shader
+// applies (relative to the map's mean, colour differences and strength as configured).
+function makeTintGrid(image, def, w = 512, h = 256) {
+  const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(image, 0, 0, w, h);
+  const px = ctx.getImageData(0, 0, w, h).data, data = new Float32Array(w * h * 3);
+  const lin = def.encoding === 'srgb' ? (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)) : (c) => c;
+  const chroma = def.chroma ?? 1, strength = def.strength ?? 1;
+  for (let i = 0; i < w * h; i++) {
+    const r = lin(px[i * 4] / 255) / def.mean[0], g = lin(px[i * 4 + 1] / 255) / def.mean[1], b = lin(px[i * 4 + 2] / 255) / def.mean[2], grey = (r + g + b) / 3;
+    data[i * 3] = 1 + (grey + (r - grey) * chroma - 1) * strength;
+    data[i * 3 + 1] = 1 + (grey + (g - grey) * chroma - 1) * strength;
+    data[i * 3 + 2] = 1 + (grey + (b - grey) * chroma - 1) * strength;
+    if (def.latFade) {
+      const lat = Math.abs(90 - (Math.floor(i / w) + 0.5) / h * 180), x = Math.min(1, Math.max(0, (lat - def.latFade[0]) / (def.latFade[1] - def.latFade[0]))), k = 1 - x * x * (3 - 2 * x);
+      for (let c = 0; c < 3; c++) data[i * 3 + c] = 1 + (data[i * 3 + c] - 1) * k;
+    }
+  }
+  return { w, h, data };
 }

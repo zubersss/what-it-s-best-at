@@ -21,5 +21,10 @@ export const G = {
   // Quality switches set by the governor: x = close-up ground detail, y = soft shadow edges,
   // z = full sample count for the glow on a planet's edge seen from space.
   uQuality: { value: new THREE.Vector4(1, 1, 1, 1) },
+  // How the world's ground scatters sunlight: 0 = matte dust under air, 1 = airless regolith.
+  uPhotometry: { value: 0 },
+  // The world's albedo map at the camera, relative to its mean (1 when there is no map):
+  // tints the things that lie on the ground there (rocks, kicked-up dust).
+  uGroundTint: { value: new THREE.Vector3(1, 1, 1) },
   // The Atmosphere adds its LUT textures and medium parameters here at start-up.
 };

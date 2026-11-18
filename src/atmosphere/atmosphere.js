@@ -114,7 +114,10 @@ export class Atmosphere {
     u.uMieG.value.set(...(dust?.phaseG || [0, 0, 0]));
     u.uFog.value.set(fog?.density ?? 0, (fog?.baseAltitude ?? 0) * KM, (fog?.scaleHeight ?? 1000) * KM, fog?.maxDensity ?? 8);
     set3(u.uAbsCoef.value, abs?.absorption); u.uAbsLayer.value.set((abs?.centerAltitude ?? 25000) * KM, (abs?.halfWidth ?? 15000) * KM);
-    u.uGroundAlbedo.value.set(...(world.surface.meanAlbedo || world.surface.dust));
+    // What sunlit ground sends back up (bounce light). `surface.bounce` scales it for
+    // ground that is not Lambertian: lunar regolith throws most of its light back toward
+    // the Sun and little sideways into the shadows.
+    u.uGroundAlbedo.value.set(...(world.surface.meanAlbedo || world.surface.dust)).multiplyScalar(world.surface.bounce ?? 1);
     this.staticDone = false; this.froxelDone = false;
     this.lastMu = 99; this.lastR = -1; this.skyScale = 0;
     this.air = null; this.airU.uAirParams.value.z = 0;

@@ -76,14 +76,15 @@ void main() {
   }
   // Lit surfaces only, from single pixels of the scene (alpha is exactly 1 on a lit
   // surface and 0 on sky, stars and the Sun, so nothing bleeds in): how much of the frame
-  // they cover, and how bright their bright parts are (mean weighted by brightness, so a
-  // half-lit globe counts as its day side).
+  // they cover, and how bright their bright parts are. The mean is weighted by the square
+  // root of brightness: a half-lit globe or a crescent counts as its day side, yet a small
+  // white object (a lander on dark ground) cannot speak for the whole scene.
   float s1 = 0.0, s2 = 0.0, n = 0.0;
   for (int y = 0; y < 18; y++) for (int x = 0; x < 32; x++) {
     vec4 c = texelFetch(tScene, ivec2((vec2(float(x), float(y)) + 0.5) / vec2(32.0, 18.0) * uViewSize), 0);
     if (c.a < 0.5) continue;
-    float l = min(dot(c.rgb, vec3(0.2126, 0.7152, 0.0722)), 48.0);
-    s1 += l; s2 += l * l; n += 1.0;
+    float l = min(dot(c.rgb, vec3(0.2126, 0.7152, 0.0722)), 48.0), r = sqrt(l);
+    s1 += r; s2 += l * r; n += 1.0;
   }
   outColor = vec4(sum / wsum, peak, s2 / max(s1, 1e-9), n / 576.0);
 }`;
@@ -153,7 +154,7 @@ export class PostPipeline {
     this.bloomEnabled = true;
 
     // Auto exposure state
-    this.settings = { key: 0.16, min: 0.5, max: 6e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, surface: 0.6, ...exposureSettings };
+    this.settings = { key: 0.16, min: 0.5, max: 6e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, surface: 0.6, globe: 0.32, ...exposureSettings };
     this.exposure = 20;
     this.targetExposure = 20;
     this.measuredLog2 = 0;
@@ -180,7 +181,7 @@ export class PostPipeline {
   }
 
   setExposureSettings(s) {
-    this.settings = { key: 0.16, min: 0.5, max: 6e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, surface: 0.6, ...s };
+    this.settings = { key: 0.16, min: 0.5, max: 6e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, surface: 0.6, globe: 0.32, ...s };
     this.meterMat.uniforms.uFloor.value = this.settings.shadowFloor;
   }
 
@@ -297,16 +298,28 @@ export class PostPipeline {
       let target = s.key / Math.pow(2, this.measuredLog2);
       // Highlight priority: a sunlit surface (the hero in space, a planet filling the view)
       // may not be pushed more than `highlight` times over white, however dark the rest is.
-      const peak = this._readBuf[1] / used;
+      // (The peak comes from a blurred copy of the frame, so the Sun's disc next to a ridge
+      // leaks into it, and that leak is clipped, which no exposure can chase: the peak is
+      // therefore held to 8 times the exactly sampled bright part of the lit surfaces.)
+      const bright = this._readBuf[2] / used, cover = this._readBuf[3];
+      let peak = this._readBuf[1] / used;
+      if (bright > 0) peak = Math.min(peak, 8 * bright);
       if (peak > 0) target = Math.min(target, s.highlight / peak);
       // Subject priority: once lit surfaces are more than a small part of the frame (a
       // planet from space, not a figure against the stars) their bright parts may not go
       // above `surface`, however much black surrounds them.
-      const bright = this._readBuf[2] / used, cover = this._readBuf[3];
       if (bright > 0) {
         const x = Math.min(1, Math.max(0, (cover - 0.01) / 0.05)), k = x * x * (3 - 2 * x);
-        target = Math.min(target, s.highlight * Math.pow(s.surface / s.highlight, k) / bright);
+        // A world in black space (lit surfaces cover a small part of the frame) is held
+        // lower, at `globe`, where its markings and colour still have contrast; a view
+        // filled with ground keeps the higher `surface` limit.
+        const y = Math.min(1, Math.max(0, (cover - 0.35) / 0.3)), cap = s.globe + (s.surface - s.globe) * y * y * (3 - 2 * y);
+        target = Math.min(target, s.highlight * Math.pow(cap / s.highlight, k) / bright);
       }
+      // Dim scenes stay dim: past `dim.above` only part of the missing light is made up
+      // (the picture darkens by the scene's darkening to the power `dim.power`), so an
+      // earthlit night reads as night and the ground toward the Sun as dark.
+      if (s.dim && target > s.dim.above) target = Math.pow(s.dim.above, s.dim.power) * Math.pow(target, 1 - s.dim.power);
       this.surfaceCover = cover; this.surfaceBright = bright * target;
       target = Math.min(s.max, Math.max(s.min, target));
       this.stableReads = Math.abs(Math.log2(target / used)) < 0.03 ? this.stableReads + 1 : 0;

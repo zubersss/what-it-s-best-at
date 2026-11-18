@@ -30,6 +30,8 @@ uniform mat3 uSkyFrame;             // planet-fixed -> local sky frame
 uniform vec3 uShineDir;             // toward the brightest sky body
 uniform vec3 uShineE;               // its irradiance at the ground (planetshine)
 uniform vec4 uQuality;              // governor switches: x close-up detail, y soft shadow edges, z edge-glow samples
+uniform float uPhotometry;          // 0 = matte dust under air (Oren-Nayar), 1 = airless regolith (lunarDiffuse)
+uniform vec3 uGroundTint;           // the world's albedo map at the camera, relative to its mean
 
 // Irradiance of the Sun reaching a point (planet-centred metres), unshadowed:
 // the attenuated direct beam plus the forward-scattered aureole around it.
@@ -136,5 +138,32 @@ float diffuseON(vec3 N, vec3 L, vec3 V, float sigma) {
   float s = dot(L, V) - NL * NV;
   float t = s > 0.0 ? max(NL, NV) : 1.0;
   return NL * max(0.0, A + B * s / max(t, 1e-4)) / PI;
+}
+
+// The Moon's phase curve: brightness of regolith at phase angle a (radians) relative to
+// opposition. Fitted to the Moon's brightness through the month.
+float regolithPhase(float a) { return 0.8 * exp(-0.8 * a) + 0.2 / (1.0 + tan(min(a, 3.0) * 0.5) / 0.05); }
+
+// The same for loose dust in flight (a cloud of the world's grains): 1 under air.
+float dustPhase(vec3 L, vec3 V) { return uPhotometry > 0.5 ? regolithPhase(acos(clamp(dot(L, V), -1.0, 1.0))) : 1.0; }
+
+// Airless regolith, times N.L, per unit irradiance: the lunar-Lambert function (McEwen's
+// limb-darkening weight) times the Moon's phase curve. Equal to Lambert when Sun, surface
+// and eye line up; it falls as the Sun moves round to face the viewer, which is why real
+// lunar ground glares down-Sun and looks dark and rough toward the Sun. The phase curve is
+// fitted to the Moon's brightness through the month (0.57 at 30 degrees, 0.37 at 60, 0.24
+// at 90, 0.15 at 120), with a narrow shadow-hiding surge at opposition.
+float lunarDiffuse(vec3 N, vec3 L, vec3 V) {
+  float NL = dot(N, L);
+  if (NL <= 0.0) return 0.0;
+  float NV = max(dot(N, V), 1e-3);
+  float a = acos(clamp(dot(L, V), -1.0, 1.0)), ad = a * 57.29578;          // phase angle
+  float w = clamp(1.0 - 0.019 * ad + 2.42e-4 * ad * ad - 1.46e-6 * ad * ad * ad, 0.0, 1.0);
+  return (2.0 * w / (NL + NV) + (1.0 - w)) * NL / PI * regolithPhase(a);
+}
+
+// The world's own ground and what lies on it (terrain, rocks).
+float groundDiffuse(vec3 N, vec3 L, vec3 V, float sigma) {
+  return uPhotometry > 0.5 ? lunarDiffuse(N, L, V) : diffuseON(N, L, V, sigma);
 }
 `;

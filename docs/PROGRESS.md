@@ -6,11 +6,17 @@ changes behaviour.
 
 ## What exists today
 
-- **Mars**: Coprates Chasma (Valles Marineris) on real NASA MOLA elevation, at
-  2014-01-31 09:29 UTC, about 20 minutes before local sunset. Five bookmarks: ledge, sun,
-  wall, ship, dusk.
-- **The Moon**: a procedural cratered world from a data file alone, at 2026-01-15, lunar
-  evening with a gibbous Earth. The same five bookmarks.
+- **Mars**: real NASA MOLA elevation and Viking colour over the whole planet. The main
+  site is Coprates Chasma (Valles Marineris) at 2014-01-31 09:29 UTC, about 20 minutes
+  before local sunset, with five views: ledge, sun, wall, ship, dusk. Two more places with
+  their own sharper elevation: the summit caldera of Olympus Mons and Gale crater.
+- **The Moon**: real elevation (LOLA for the globe, SLDEM2015 for the sites) and real
+  brightness (Clementine). The main site is Hadley Rille and the Apollo 15 landing site on
+  1971-08-01 13:00 UTC, the second day of that mission: five views (the canyon from its
+  bend, sunrise over the Apennines, Mount Hadley, the lander with Hadley Delta behind,
+  night under the Earth). Two more places: Tycho and the Taurus-Littrow valley (Apollo 17).
+- **Dust**: the character throws up dust when it touches down, takes off or skims the
+  ground; low clean arcs on the airless Moon, a lingering cloud on Mars.
 - **The character**: a suited figure with a cloth-simulated cloak. Flight speed grows
   with distance from the nearest surface, so one stick covers hovering, orbit and the
   crossing between worlds; the engine hands over from one world to the other in flight.
@@ -100,6 +106,25 @@ released (HOVER switches it off), a limit on how fast the nearest body may sweep
 3 AU/s ceiling, and a stop just above the Sun's surface. A first version of gravity that
 also acted while flying bent every aimed trip off its target and was dropped: gravity
 acts when the pilot lets go.
+
+## Milestone 3 plan — make Mars and the Moon beautiful
+
+Started straight after the owner's phone results and flight notes (above). Order: the
+real maps first, because everything else is judged on top of them.
+
+1. The Moon from real data: LOLA elevation for the whole globe, a sharper patch for one
+   real site, Clementine brightness for maria and rays, procedural craters only below
+   the pixel size of the map under the point. Move the lunar scene from the invented
+   crater to a real place.
+2. Mars in colour from the Viking mosaic, laid over the existing palette.
+3. How regolith reflects: bright down-Sun, dark toward the Sun, for ground and rocks.
+4. Both worlds from orbit: day side, terminator, night side. Fix what the maps expose.
+5. More real places as bookmarks, each with its own patch of real elevation: Olympus
+   Mons and Gale on Mars, Tycho and the Apollo 17 valley on the Moon.
+6. Dust thrown up by the character at touch-down, take-off and when skimming.
+7. Ground at walking distance; night exposure.
+8. Reference set, stability test, flight and smoke tests, critic, governor step for the
+   dust, docs, checkpoint.
 
 ## Milestone 2 plan — fix the known problems
 
@@ -233,6 +258,22 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
   24 ms). The rest of the gap is the fractal layers and the shadow rays, which simply
   cost more per sample on a cratered world.
 
+- **Baked sunlight is decided per texel, not per chunk** (milestone 3). The walk across a
+  chunk's own height grid used the Sun's height at the chunk's centre; on a chunk the
+  size of a cube face that put a sixth of Mars in shadow whenever its centre (the south
+  pole, in northern summer) was in night. Each texel now uses its own Sun height, walks no
+  further than the shadow range, and is dark when the Sun is below its own horizon.
+- **A world in black space is exposed lower than a view full of ground** (`globe` 0.32
+  against `surface` 0.6, blended by how much of the frame the lit surface covers): at
+  0.6 the tone curve flattened Mars's markings into cream.
+- **The bright-part meter is weighted by the square root of brightness** (was: by
+  brightness). A crescent still counts as its day side, but a white lander and sunlit
+  rocks on dark lunar soil no longer drag the exposure down until the ground is black.
+- **Dim scenes stay dim on the Moon** (`exposure.dim`): above an exposure of 400 only
+  80 % of the missing light (in stops) is made up. An earthlit night comes out about four
+  times darker than day instead of equal to it; the ground toward the Sun is darker than
+  the ground away from it.
+
 ### Worlds
 
 - **Mars site**: the lip of a bench on the north flank of Coprates' southern ridge
@@ -246,10 +287,44 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
   2.3 MB) around the scene. Everything below ~1 km is procedural.
 - **Dusk bookmark is 1.7 h after the start**: Martian twilight is long, and stars/Earth
   only clear the glow once the Sun is ~17° down.
-- **Moon**: fully procedural for now, site just inside the east rim of a ~3 km crater at
-  7.98°N, 54.95°W. The `ship` and `dusk` bookmarks stand 25 m east on the rim crest;
-  `ship` is two days earlier so the rim's shadow does not cover the lander. Regolith
-  roughness was halved: at a 7° Sun a flat crest dissolved into micro-shadow speckle.
+- **Moon site (milestone 3)**: Hadley Rille and the Apollo 15 landing site, replacing the
+  invented crater. Chosen because one small area holds a 300 m deep canyon, a 4.5 km
+  mountain front and a real landing site, and because Apollo 15's photographs are the
+  reference to compare against. The scene date is the mission's second day (Sun 29° up in
+  the east, 106° azimuth): at 19° (the first day) the canyon's east wall was a black hole.
+  The start is the outside of the rille's bend at the foot of Hadley Delta, looking down
+  the 3 km reach that runs north-north-west, the lit west wall on the left, the shadowed
+  east wall on the right. A view from the rim half-way along (the first attempt) showed
+  only one wall and read as a hillside.
+- **Moon height data**: LOLA 4 px/deg for the globe; SLDEM2015 (LOLA + Kaguya stereo) for
+  the sites, because the LOLA-only 118 m mosaic has kilometre-wide gaps between tracks at
+  this latitude and the rille came out as blocks. Patches: the Apennines at 474 m, Hadley
+  at 59 m (the whole rille), Tycho at 474 m, Taurus-Littrow at 118 m.
+- **Procedural detail only below the map's pixel size** (`belowDem`): crater and relief
+  layers switch themselves off for features the raster under the point can resolve, so
+  the sharp patches show only real craters above ~120 m and the coarse globe still gets
+  its share of invented ones. The old Moon's "dark fines in low ground" (darkening by
+  altitude) is off: the brightness map knows where the maria are.
+- **Brightness and colour maps multiply the palette** (divided by the map's mean), they do
+  not replace it: slope materials, strata and close-up detail keep working, and the
+  palette numbers stay normal albedos. Mars uses half of the Viking mosaic's colour
+  differences: its dark regions lean bluer than the ground looks from the surface. The
+  lunar map fades out between 62° and 75° latitude, where the mosaic is mostly shadows.
+- **Regolith reflects like the Moon** (`photometry: 'lunar'`): lunar-Lambert times the
+  phase curve fitted to the Moon's brightness through the month (0.57 at 30°, 0.37 at
+  60°, 0.24 at 90°, 0.15 at 120°). A first curve (a plain exponential) was 2.7 times too
+  dark at 100°: looking across the sunlight the ground went black beside the lander.
+  Rocks use the same function and the local tint; the lander and the character stay
+  matte, so white paint is far brighter than the soil, as in the Apollo pictures.
+- **Landmarks are bookmarks 6 and up** with their own elevation patch and their own
+  light (`timeOffsetHours`); the first five stay the scene the benchmark flies. Olympus
+  Mons: west rim of the summit caldera, late afternoon. Gale: Curiosity's landing place
+  looking at Mount Sharp, morning. Tycho: south rim, the Earth above the north wall.
+  Taurus-Littrow: the Apollo 17 site, the Earth above the South Massif as in that
+  mission's pictures.
+- **Shadow rays stop at the tallest ground near them**, found from the rasters, instead
+  of at one number per world: a view from a 21 km volcano needs a different ceiling from a
+  canyon, and a wrong one silently removes shadows.
 - **The sky always contains every catalogue body**; the one underfoot is skipped.
 
 ### Character and flight

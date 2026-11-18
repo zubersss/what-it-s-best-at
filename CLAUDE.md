@@ -144,9 +144,10 @@ npm run stability      # 3 consecutive frames along scripted moves, with a flick
 npm run flight         # scripted Mars -> orbit -> Moon flight (headless)
 npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run
 npm run govsim         # the governor against simulated GPUs (no browser)
-npm run assets         # re-download and convert NASA/Yale data into public/data/
+npm run assets         # re-download and convert the small NASA/Yale files into public/data/
+python3 scripts/fetch-maps.py   # the rest of public/data/ (needs: pip install rasterio numpy pillow), see docs/ASSETS.md
 npm run probe          # top-down shaded relief of the height function (no browser)
-node scripts/sky-table.mjs   # where the sky bodies are from a site over time (no browser)
+node scripts/sky-table.mjs [--lat .. --lon ..]   # where the sky bodies are from a place over time (no browser)
 node scripts/profile-chunks.mjs --world moon   # chunk build times per level (no browser)
 node scripts/flyby.mjs [--miss 60] [--release 1]   # a trip to another world, flown without a browser
 ```
@@ -163,19 +164,22 @@ Headless Chromium renders with software WebGL: a shot takes 1–3 minutes. Run l
 batches in the background, never pipe them through `tail` (it hides all output until the
 end), and take final sets from `dist/` so source edits cannot disturb them.
 
-URL parameters: `world=mars|moon`, `shot=ledge|sun|wall|ship|dusk` (fixed camera
+URL parameters: `world=mars|moon`, `shot=ledge|sun|wall|ship|dusk` and the world's
+landmarks (`olympus`, `gale` on Mars; `tycho`, `taurus` on the Moon) (fixed camera
 bookmark, deterministic screenshot mode, skips the start screen), `t=<hours offset>`,
 `hud=0|1`, `scale=<fixed render scale>`, `mode=smooth|sharp`, `bench=run|soak` (start a
 benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|hover`,
 `lat= lon= alt= heading= pitch= fov=`, `east= north=` (metres from the bookmark's place),
-`aim=<sky body>` (turn the view to it), `debug=noair|airall` (haze shadows off / everywhere).
+`aim=<sky body>` (turn the view to it), `dust=1` (with `hero=1`: a touch-down dust burst
+frozen in mid-flight), `debug=noair|airall` (haze shadows off / everywhere).
 
 Keys: `WASD` move, mouse look (click to capture), `Shift` run / boost, `Space` jump /
 up, `Q`/`E` down / up, `G` flying character on/off, `T` aim at the next body in the sky,
 `X` hover on/off (off: gravity pulls when the stick is released),
 `F` walk ↔ free-fly debug camera, `Z` hold for telephoto, mouse wheel = zoom amount,
 `H` HUD (one line → full read-out with the time slider → off), `M` Smooth ↔ Sharp,
-`[` `]` time −/+, `1`–`5` bookmarks, `P` pause time.
+`[` `]` time −/+, `1`–`9` bookmarks (the first five are the scene, the rest landmarks),
+`P` pause time.
 
 Touch: left part of the screen = move stick (push to the rim to run / boost), drag
 anywhere else = look, buttons `HERO`, `TARGET`, `HOVER`, `FLY`, `ZOOM` (hold), `VIEW` (next
@@ -250,5 +254,13 @@ finished benchmark leaves its text in `window.__benchResult`.
   `sun` and `dusk` after any atmosphere number changes.
 - A terrain op that looks crisp from afar can read as a dune up close: a terrace riser is
   rock only if its cliff fraction makes it steeper than the surface's `rockMin` slope.
+- A map wrapped round a globe has a seam in longitude: give the sampler its footprint
+  from the direction vector (`textureGrad`), never from derivatives of the longitude,
+  and remember three flips an image's rows on upload unless `flipY` is off.
+- LOLA-only lunar elevation has kilometre-wide gaps between tracks at low latitudes
+  (blocky canyons); SLDEM2015 fills them. Look at a top-down probe before trusting a map.
+- Small very bright things (a lander, sunlit rocks on dark regolith) can own a
+  brightness-weighted meter and turn the ground black: check `ship` after any change to
+  how surfaces reflect or to the metering.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.
