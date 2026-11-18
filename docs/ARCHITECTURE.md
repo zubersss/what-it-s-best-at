@@ -120,7 +120,11 @@ chunk), which makes dense crater fields 3–5× cheaper.
 - LOD: split when distance to the node's closest point < `splitFactor × nodeEdge`
   (× zoom for telephoto, × a feedback scale that holds the draw-call cap). Children
   replace a parent only when all four are ready. Vertices morph toward the parent shape
-  with distance (CDLOD-style). Nodes outside a widened frustum use a small split factor.
+  with distance (CDLOD-style), and the fragment shader blends normals, cavities and baked
+  shadows toward the parent's maps by the same factor (`tParentNormal`, `tParentShadow`,
+  `uParent`). For 0.6 s after children take over from their parent the factor is forced
+  from 1 down to 0, so new detail fades in. Nodes outside a widened frustum use a small
+  split factor.
 - Pool: `CHUNK_POOL` slots allocated once. Eviction is least-recently-visited, never a
   node with loaded children, never anything used in the last 20 frames.
 - Shadows: per chunk, split by distance so almost no ray is long — every texel walks the
@@ -149,6 +153,18 @@ chunk), which makes dense crater fields 3–5× cheaper.
   optional absorber layer. All numbers from the world file.
 - Radii: `rBottom` (lowest terrain; LUT domain and where view rays stop), `rOcc`
   (mean local terrain; casts the planet's shadow on the air), `rTop`.
+- `sky-light table` (64×1, once per world): sky-plus-bounce light on level ground against
+  the Sun's height. A second 64×1 pass divides it by its value at the camera; surfaces
+  elsewhere on the globe scale the camera's irradiance map by it (`skyLight` in the
+  lighting chunk), so the night side is dark and a camera at the terminator does not
+  paint twilight over the whole planet.
+- `air-shadow map` (64×64, R16F, filled by a terrain worker): altitude below which
+  terrain hides the Sun, on the tangent plane around the camera. The froxel march drops
+  direct sunlight below it (`airLit`). `Atmosphere.updateAir` keeps it current.
+- **From space** the sky dome marches each ray through the shell (16 samples, 8 on the
+  governor's step) instead of reading the sky-view LUT, and ground seen at a grazing
+  angle marches its own haze (12 or 6 samples) instead of reading the froxels; both use
+  `scatterStep` in `ATMO_LUT_ACCESS`.
 - `atmosphere: null` is not a code path: it becomes an empty medium, the same passes run
   once, the sky stays black and the irradiance map contains only ground bounce.
 
@@ -169,14 +185,15 @@ exposure alone decides whether they are visible (rule 2).
 
 ## The flying character and world-to-world flight
 
-- **Hero** (`src/hero/`): a suited figure built from primitives, drawn ~4 m in front of
-  and a little below the camera, in its own scene. The camera is still what the controls
+- **Hero** (`src/hero/`): a suited figure built from primitives (torso, and upper and
+  lower pieces for each arm and leg, bent at elbow and knee by the pose), drawn ~4 m in
+  front of and a little below the camera, in its own scene. The camera is still what the controls
   move (`rig.mode === 'hero'`); the figure only poses itself from the rig's velocity:
   upright when hovering, horizontal with arms forward in flight, banking into turns.
   Near the ground it shares the terrain's depth buffer; once the terrain's near plane has
   moved past it (higher up) depth is cleared and it renders in its own 0.2–400 m slice.
 - **Cloak**: a 9×14 mass–spring cloth (Verlet, 90 Hz, 4 constraint passes, capsule
-  collision with the body), simulated in an anchor-relative frame so planet-scale
+  collision with the torso and with eight limb capsules the pose writes every frame), simulated in an anchor-relative frame so planet-scale
   coordinates never reach it. Forces: gravity (the world's, falling off with altitude),
   the wearer's acceleration (inertia, clamped), drag toward the passing air, and
   travelling ripples. Air density comes from `atmosphere.surfaceDensity` and scale
@@ -196,16 +213,19 @@ exposure alone decides whether they are visible (rule 2).
   sky bodies, exposure settings and the time slider, and rebuilds the lander. Simulation
   time is continuous across the switch; applying a bookmark sets that world's scene date.
 - **From space**: aerial-perspective slices span from where the view first meets the
-  atmosphere to the far plane and are marched from the entry point; the sky-view LUT
-  (built for a camera inside the air) fades out over two atmosphere thicknesses, so
-  there is no limb glow from high orbit; the terrain's near plane grows with altitude.
+  atmosphere to the far plane and are marched from the entry point; the glow on the
+  planet's edge is marched per pixel (see Atmosphere); the terrain's near plane grows
+  with altitude.
+- **Roll**: `CameraRig.roll` is zero except after a hand-over, when it holds the previous
+  world's "up" until the new world is within 40 radii (then it decays at 1.2 /s).
 
 ## Post
 
 HDR RGBA16F → bloom downsample (13-tap, clamped; the first level is capped at about
 0.6 M pixels so bloom costs the same at any render size) → metering (32×18 grid,
-centre-weighted log average with a floor at 0.6× the frame mean, async read-back) → bloom
-upsample → composite (~4.5 % bloom mix) → AgX → blue-noise dither. The scene is rendered
+centre-weighted log average with a floor at a fraction of the frame mean, plus exact
+single-pixel samples of lit surfaces for the subject-priority limit; async read-back) →
+bloom upsample → composite (~4.5 % bloom mix) → AgX → blue-noise dither. The scene is rendered
 into a sub-viewport of a fixed, native-size target (no reallocations when the resolution
 changes) and the composite pass scales it up to the canvas.
 
@@ -220,9 +240,10 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
 - **Resolution levels**: level k renders `native × 0.88^k` pixels; the lowest level is
   the one closest to 1 M pixels (or native, if the canvas is smaller than that).
 - **Feature steps** (`FEATURE_STEPS`, fixed order, used only once resolution is at its
-  floor): close-up ground detail → soft edges of near shadows → half the rocks → terrain
-  budget ×0.8 → bloom → terrain budget ×0.64 → cloak at half rate. Steps up run in
-  reverse. Every new feature that costs frame time adds its step here.
+  floor): close-up ground detail → soft edges of near shadows → edge-glow samples halved
+  → half the rocks → terrain budget ×0.8 → bloom → terrain budget ×0.64 → cloak at half
+  rate → terrain shadows in the haze. Steps up run in reverse. Every new feature that
+  costs frame time adds its step here.
 - **Measuring**: the display's refresh interval is estimated continuously from the
   spacing of animation-frame callbacks (20th percentile of the last 60, never slower than
   57 Hz). The frame interval is the mode's target rounded to a whole number of refreshes.

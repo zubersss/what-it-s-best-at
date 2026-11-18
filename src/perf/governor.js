@@ -23,11 +23,13 @@ export const MODES = {
 export const FEATURE_STEPS = [
   { id: 'detail', label: 'close-up ground detail', apply: (app, off) => { app.quality.x = off ? 0 : 1; } },
   { id: 'soft-shadows', label: 'soft edges on rock and ship shadows', apply: (app, off) => { app.quality.y = off ? 0 : 1; } },
+  { id: 'edge-glow', label: "glow on a planet's edge at half detail", apply: (app, off) => { app.quality.z = off ? 0 : 1; } },
   { id: 'rocks', label: 'half the rocks', apply: (app, off) => { app.rocks.setFraction(off ? 0.5 : 1); } },
   { id: 'terrain-1', label: 'terrain detail (fewer patches)', apply: (app, off) => { app.terrainBudget(off ? 0.8 : 1, 'terrain-1'); } },
   { id: 'bloom', label: 'glow around bright things', apply: (app, off) => { app.post.bloomEnabled = !off; } },
   { id: 'terrain-2', label: 'terrain detail (fewer patches again)', apply: (app, off) => { app.terrainBudget(off ? 0.64 : 1, 'terrain-2'); } },
   { id: 'cloak', label: 'cloak simulated at half rate', apply: (app, off) => { app.hero.cloak.halfRate = off; } },
+  { id: 'air-shadow', label: 'terrain shadows in the haze', apply: (app, off) => { app.atmosphere.airEnabled = !off; } },
 ];
 
 const RES_STEP = 0.88;          // each resolution step keeps 88 % of the pixels (about 6 % per side)

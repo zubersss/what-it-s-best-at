@@ -8,6 +8,7 @@
 //   far    – a 5x5 grid of rays covers the rest of the range (distant walls).
 // The three minimum clearance angles are combined per texel.
 import { faceToDir, dirToFace, nodeEdge } from './cubeSphere.js';
+import { toHalf } from './halfFloat.js';
 
 const SUN_HALF_ANGLE_MIN = 0.0015;
 const MID = 16, FAR = 4;          // cells of the mid / far ray grids
@@ -156,6 +157,32 @@ export class ShadowBaker {
         }
       }
       out[j * T + i] = Math.round(255 * toVisibility(minAngle, sunHalf));
+    }
+    return out;
+  }
+
+  // Terrain shadow in the air: for each cell of an n x n map on the tangent plane at
+  // `center` (unit direction; `east`/`north` unit vectors, +-`extent` metres), the altitude
+  // above datum (km, half floats) below which the Sun is hidden by terrain. One coarse
+  // height sample per step along the ray toward the Sun: the ray that leaves a column at
+  // altitude h passes a place at (altitude of the h = 0 ray) + h, so the column is
+  // shadowed up to the largest (ground - altitude of the h = 0 ray) found on the way.
+  bakeAir(center, east, north, extent, n, sun) {
+    const hs = this.hs, R = hs.radius, out = new Uint16Array(n * n), cell = 2 * extent / n;
+    const sx = sun[0], sy = sun[1], sz = sun[2], cap = this.ceiling + 30000;
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const x = ((i + 0.5) / n * 2 - 1) * extent, y = ((j + 0.5) / n * 2 - 1) * extent;
+      const z = Math.sqrt(Math.max(0, R * R - x * x - y * y));
+      const px = east[0] * x + north[0] * y + center[0] * z, py = east[1] * x + north[1] * y + center[1] * z, pz = east[2] * x + north[2] * y + center[2] * z;
+      let top = hs.height(px / R, py / R, pz / R, cell * 2);          // the ground itself
+      for (let t = cell * 0.75; t < this.range; t *= 1.3) {
+        const qx = px + sx * t, qy = py + sy * t, qz = pz + sz * t;
+        const r = Math.sqrt(qx * qx + qy * qy + qz * qz), ray = r - R;
+        if (ray + top > this.ceiling) break;                           // nothing ahead is tall enough
+        const need = hs.height(qx / r, qy / r, qz / r, Math.max(cell * 2, t * 0.12)) - ray;
+        if (need > top) { top = need; if (top > cap) break; }           // (night: the planet itself)
+      }
+      out[j * n + i] = toHalf(Math.min(top, cap) / 1000);
     }
     return out;
   }

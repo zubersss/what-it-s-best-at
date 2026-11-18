@@ -1,15 +1,19 @@
 {
   "ledge": {
-    "calls": 148,
+    "calls": 156,
     "triangles": 487497,
     "chunks": 117,
     "loaded": 335,
     "visited": 310,
     "wanted": 0,
     "lodScale": 0.833,
-    "avgBuildMs": 109,
-    "exposure": 27.4,
-    "frame": 252,
+    "avgBuildMs": 63.8,
+    "exposure": 27.35,
+    "surface": [
+      0.566,
+      0.182
+    ],
+    "frame": 249,
     "wait": ""
   }
 }

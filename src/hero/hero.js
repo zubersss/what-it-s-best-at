@@ -1,6 +1,6 @@
-// The flying character: a suited figure built from code (like the lander), posed rigidly
-// between "hover" (upright) and "flight" (horizontal, arms forward), with a simulated
-// cloak. It is drawn a few metres in front of the camera, so the engine's camera, floating
+// The flying character: a suited figure built from code (like the lander), posed between
+// "hover" (upright, relaxed) and "flight" (horizontal, arms forward), with elbows and
+// knees that bend and a simulated cloak that is kept off the body, arms and legs. It is drawn a few metres in front of the camera, so the engine's camera, floating
 // origin and controls stay exactly as they are — the hero is the thing you fly behind.
 //
 // Local frame of the figure: +Y = toward the head, +Z = chest, +X = its left. Metres.
@@ -9,6 +9,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { Cloak } from './cloak.js';
+
+const X_AXIS = new THREE.Vector3(1, 0, 0);
 
 const SUIT = [0.74, 0.73, 0.70], TRIM = [0.20, 0.20, 0.21], BOOT = [0.07, 0.07, 0.075], VISOR = [0.55, 0.38, 0.12];
 export const HERO_DISTANCE = 4.1, HERO_DROP = 1.2;     // metres in front of / below the camera axis
@@ -38,20 +40,17 @@ function torsoGeometry() {
     capsule(0.04, 0.42, TRIM, 0, 0.60, -0.115, 0).rotateZ(Math.PI / 2).translate(0.6, 0.6, 0),   // cloak clasp bar across the shoulders
   ]);
 }
-// A limb hangs along -Y from its pivot at the origin.
-function armGeometry() {
-  return mergeGeometries([
-    capsule(0.052, 0.22, SUIT, 0, -0.15, 0), capsule(0.047, 0.20, SUIT, 0, -0.42, 0),
-    ball(0.056, TRIM, 0, -0.29, 0, 0), ball(0.058, BOOT, 0, -0.60, 0, 0, 1.0, 1.15, 1.0),
-  ]);
-}
-function legGeometry() {
+// A limb hangs along -Y from its pivot at the origin, in two pieces: the upper part
+// (shoulder or hip to the joint, with the joint's ring) and the lower part, whose own
+// origin is the joint (elbow or knee).
+const ELBOW = 0.29, HAND = 0.31, KNEE = 0.41, ANKLE = 0.45;       // segment lengths (m)
+function upperArmGeometry() { return mergeGeometries([capsule(0.052, 0.22, SUIT, 0, -0.15, 0), ball(0.056, TRIM, 0, -ELBOW, 0, 0)]); }
+function forearmGeometry() { return mergeGeometries([capsule(0.047, 0.20, SUIT, 0, -0.13, 0), ball(0.058, BOOT, 0, -HAND, 0, 0, 1.0, 1.15, 1.0)]); }
+function thighGeometry() { return mergeGeometries([capsule(0.075, 0.28, SUIT, 0, -0.20, 0), ball(0.07, TRIM, 0, -KNEE, 0.005, 0)]); }
+function shinGeometry() {
   const boot = new THREE.CapsuleGeometry(0.06, 0.13, 3, 8);
-  boot.rotateX(Math.PI / 2 - 0.3); boot.translate(0, -0.86, 0.055);
-  return mergeGeometries([
-    capsule(0.075, 0.28, SUIT, 0, -0.20, 0), capsule(0.062, 0.28, SUIT, 0, -0.60, 0),
-    ball(0.07, TRIM, 0, -0.41, 0.005, 0), part(boot, BOOT),
-  ]);
+  boot.rotateX(Math.PI / 2 - 0.3); boot.translate(0, -ANKLE, 0.055);
+  return mergeGeometries([capsule(0.062, 0.28, SUIT, 0, -0.19, 0), part(boot, BOOT)]);
 }
 
 const VERT = /* glsl */`
@@ -109,16 +108,26 @@ export class Hero {
     this.group.add(this.body);
     const mk = (geo) => { const m = new THREE.Mesh(geo, this.material); m.frustumCulled = false; return m; };
     this.torso = mk(torsoGeometry());
-    this.arms = [mk(armGeometry()), mk(armGeometry())];
-    this.legs = [mk(legGeometry()), mk(legGeometry())];
+    // Limbs: upper and lower piece are both children of the body (the lower one is
+    // placed at the joint every frame), so each can be drawn into the shadow map alone.
+    this.arms = [mk(upperArmGeometry()), mk(upperArmGeometry())];
+    this.forearms = [mk(forearmGeometry()), mk(forearmGeometry())];
+    this.legs = [mk(thighGeometry()), mk(thighGeometry())];
+    this.shins = [mk(shinGeometry()), mk(shinGeometry())];
     this.arms[0].position.set(0.235, 0.50, 0); this.arms[1].position.set(-0.235, 0.50, 0);
     this.legs[0].position.set(0.095, 0.0, 0); this.legs[1].position.set(-0.095, 0.0, 0);
-    this.body.add(this.torso, ...this.arms, ...this.legs);
+    this.body.add(this.torso, ...this.arms, ...this.forearms, ...this.legs, ...this.shins);
+    // What the cloak must stay out of, in the body's own frame: 8 capsules (two per limb),
+    // each ax, ay, az, bx, by, bz, radius. Filled in by the pose every frame.
+    this.colliders = new Float32Array(8 * 7);
+    this._bend = new THREE.Quaternion(); this._joint = new THREE.Vector3(); this._end = new THREE.Vector3();
+    this.legSwing = 0;
     this.cloak = new Cloak();
     this.cape = mk(this.cloak.geometry);     // cloth vertices are already in world axes, anchor-relative
     this.group.add(this.cape);
     this.group.visible = false;
-    this.triangles = this.cloak.triangles + (this.torso.geometry.attributes.position.count + 2 * this.arms[0].geometry.attributes.position.count + 2 * this.legs[0].geometry.attributes.position.count) / 3;
+    const tris = (m) => m.geometry.attributes.position.count / 3;
+    this.triangles = this.cloak.triangles + tris(this.torso) + 2 * (tris(this.arms[0]) + tris(this.forearms[0]) + tris(this.legs[0]) + tris(this.shins[0]));
 
     this.flight = 0;                          // 0 hover .. 1 flying
     this.bank = 0; this.time = 0;
@@ -131,7 +140,21 @@ export class Hero {
   }
 
   // Meshes that should cast into the near shadow map.
-  get casters() { return [this.torso, ...this.arms, ...this.legs, this.cape]; }
+  get casters() { return [this.torso, ...this.arms, ...this.forearms, ...this.legs, ...this.shins, this.cape]; }
+
+  // Places a limb: the upper piece turns at its pivot (Euler x, z), the lower piece sits at
+  // the joint and bends by `bend` about the limb's own x axis. Also writes the limb's two
+  // collision capsules for the cloak at index k.
+  _limb(upper, lower, rx, rz, bend, jointLen, endLen, r0, r1, k) {
+    upper.rotation.set(rx, 0, rz);
+    const j = this._joint.set(0, -jointLen, 0).applyQuaternion(upper.quaternion).add(upper.position);
+    lower.position.copy(j);
+    lower.quaternion.copy(upper.quaternion).multiply(this._bend.setFromAxisAngle(X_AXIS, bend));
+    const e = this._end.set(0, -endLen, 0).applyQuaternion(lower.quaternion).add(j);
+    const c = this.colliders, o = k * 7, p = upper.position;
+    c[o] = p.x; c[o + 1] = p.y; c[o + 2] = p.z; c[o + 3] = j.x; c[o + 4] = j.y; c[o + 5] = j.z; c[o + 6] = r0;
+    c[o + 7] = j.x; c[o + 8] = j.y; c[o + 9] = j.z; c[o + 10] = e.x; c[o + 11] = e.y; c[o + 12] = e.z; c[o + 13] = r1;
+  }
 
   setVisible(v) { if (v && !this.group.visible) this.started = false; this.group.visible = v; }
 
@@ -163,20 +186,27 @@ export class Hero {
     this.body.updateMatrix();
     this._m3.setFromMatrix4(this.body.matrix);
 
-    // Limbs: arms sweep from the sides to straight ahead, legs trail.
-    const sway = Math.sin(this.time * 1.7) * 0.04 * (1 - fs);
-    const armA = 0.16 + (Math.PI - 0.30) * fs;
-    this.arms[0].rotation.set(-armA + sway, 0, 0.10 - 0.16 * fs); this.arms[1].rotation.set(-armA - sway, 0, -0.10 + 0.16 * fs);
-    this.legs[0].rotation.set(0.10 * (1 - fs) + sway, 0, 0.04); this.legs[1].rotation.set(-0.05 * (1 - fs) - sway, 0, -0.04);
-
-    // Acceleration felt by the figure (for the trailing lag and the cloak's inertia).
-    if (!this.started) { this.prevVel.copy(motion.velocity); this.lag.set(0, 0, 0); }
+    // Acceleration felt by the figure (for the trailing lag, the legs and the cloak's inertia).
+    if (!this.started) { this.prevVel.copy(motion.velocity); this.lag.set(0, 0, 0); this.legSwing = 0; }
     this.accel.copy(motion.velocity).sub(this.prevVel).divideScalar(Math.max(dt, 1e-3));
     this.prevVel.copy(motion.velocity);
     const aLen = this.accel.length();
     if (aLen > 30) this.accel.multiplyScalar(30 / aLen);     // interplanetary thrust would shred any cloth
     this.lag.addScaledVector(this.accel, -0.004).multiplyScalar(Math.exp(-dt * 5));
     if (this.lag.length() > 0.8) this.lag.setLength(0.8);
+
+    // Limbs. Hovering: arms a little out from the sides with relaxed elbows, knees
+    // slightly bent, one more than the other, everything swaying a little. Flying: arms
+    // reach ahead, legs trail nearly straight. Speeding up or braking swings the legs,
+    // and a turn drops the inside arm away from the body.
+    const hov = 1 - fs, sway = Math.sin(this.time * 1.7) * 0.04 * hov, breathe = Math.sin(this.time * 1.1 + 0.6) * 0.03 * hov;
+    const swingTarget = THREE.MathUtils.clamp(this.lag.dot(chest) * 1.4, -0.45, 0.45) * hov;
+    this.legSwing += (swingTarget - this.legSwing) * (1 - Math.exp(-dt * 6));
+    const armA = 0.16 + (Math.PI - 0.30) * fs, out = 0.13 - 0.19 * fs, lean = this.bank * 0.35;
+    this._limb(this.arms[0], this.forearms[0], -armA + sway, out + Math.max(0, lean), -(0.42 * hov + 0.10 * fs) - breathe, ELBOW, HAND, 0.075, 0.07, 0);
+    this._limb(this.arms[1], this.forearms[1], -armA - sway, -out + Math.min(0, lean), -(0.34 * hov + 0.10 * fs) + breathe, ELBOW, HAND, 0.075, 0.07, 2);
+    this._limb(this.legs[0], this.shins[0], 0.10 * hov + sway - this.legSwing - 0.22 * hov, 0.04, 0.50 * hov + 0.06 * fs + this.legSwing * 0.5, KNEE, ANKLE, 0.095, 0.085, 4);
+    this._limb(this.legs[1], this.shins[1], -0.05 * hov - sway - this.legSwing, -0.04, 0.16 * hov + 0.05 * fs + Math.max(0, this.legSwing), KNEE, ANKLE, 0.095, 0.085, 6);
 
     // Place the figure in front of and a little below the camera (camera-relative metres).
     const p = this.group.position;
@@ -193,7 +223,7 @@ export class Hero {
     const flow = Math.min(speed, 42) * (0.3 + 0.7 * env.air);
     const wind = this._wind.copy(dir).multiplyScalar(-flow * (speed > 0.05 ? 1 : 0));
     if (!this.started) { this.cloak.reset(this._m3); this.started = true; }
-    this.cloak.update(dt, this._m3, g, this.accel, wind, env.air);
+    this.cloak.update(dt, this._m3, g, this.accel, wind, env.air, this.colliders);
   }
 
   // Runs the cloak for a while with steady conditions (deterministic screenshots).

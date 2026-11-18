@@ -1,5 +1,89 @@
 [
   {
+    "move": "mars_walk",
+    "station": 0,
+    "changed": 0,
+    "flicker": 0,
+    "worst": 58
+  },
+  {
+    "move": "mars_walk",
+    "station": 1,
+    "changed": 0,
+    "flicker": 0.001,
+    "worst": 44
+  },
+  {
+    "move": "mars_turn",
+    "station": 0,
+    "changed": 0.13,
+    "flicker": 0.002,
+    "worst": 69
+  },
+  {
+    "move": "mars_turn",
+    "station": 1,
+    "changed": 0.1,
+    "flicker": 0.001,
+    "worst": 71
+  },
+  {
+    "move": "mars_wall_tele",
+    "station": 0,
+    "changed": 0.05,
+    "flicker": 0,
+    "worst": 47
+  },
+  {
+    "move": "mars_wall_tele",
+    "station": 1,
+    "changed": 0.05,
+    "flicker": 0,
+    "worst": 48
+  },
+  {
+    "move": "mars_low_flight",
+    "station": 0,
+    "changed": 0.01,
+    "flicker": 0,
+    "worst": 46
+  },
+  {
+    "move": "mars_low_flight",
+    "station": 1,
+    "changed": 0.01,
+    "flicker": 0,
+    "worst": 60
+  },
+  {
+    "move": "mars_high_flight",
+    "station": 0,
+    "changed": 0,
+    "flicker": 0,
+    "worst": 6
+  },
+  {
+    "move": "mars_high_flight",
+    "station": 1,
+    "changed": 0,
+    "flicker": 0,
+    "worst": 6
+  },
+  {
+    "move": "mars_orbit",
+    "station": 0,
+    "changed": 0,
+    "flicker": 0,
+    "worst": 34
+  },
+  {
+    "move": "mars_orbit",
+    "station": 1,
+    "changed": 0,
+    "flicker": 0,
+    "worst": 4
+  },
+  {
     "move": "moon_walk",
     "station": 0,
     "changed": 0.73,
@@ -16,127 +100,43 @@
   {
     "move": "moon_turn",
     "station": 0,
-    "changed": 0.36,
-    "flicker": 0.007,
+    "changed": 0.29,
+    "flicker": 0.006,
     "worst": 127
   },
   {
     "move": "moon_turn",
     "station": 1,
-    "changed": 0.35,
+    "changed": 0.3,
     "flicker": 0.008,
     "worst": 135
   },
   {
     "move": "moon_low_flight",
     "station": 0,
-    "changed": 0.06,
-    "flicker": 0.004,
-    "worst": 142
+    "changed": 0.03,
+    "flicker": 0.003,
+    "worst": 165
   },
   {
     "move": "moon_low_flight",
     "station": 1,
+    "changed": 0.03,
+    "flicker": 0.006,
+    "worst": 131
+  },
+  {
+    "move": "moon_orbit",
+    "station": 0,
+    "changed": 0.04,
+    "flicker": 0,
+    "worst": 134
+  },
+  {
+    "move": "moon_orbit",
+    "station": 1,
     "changed": 0.05,
-    "flicker": 0.007,
-    "worst": 160
-  },
-  {
-    "move": "moon_orbit",
-    "station": 0,
-    "changed": 0.09,
-    "flicker": 0.001,
-    "worst": 128
-  },
-  {
-    "move": "moon_orbit",
-    "station": 1,
-    "changed": 0.14,
-    "flicker": 0.001,
-    "worst": 129
-  },
-  {
-    "move": "mars_walk",
-    "station": 0,
-    "changed": 0,
     "flicker": 0,
-    "worst": 26
-  },
-  {
-    "move": "mars_walk",
-    "station": 1,
-    "changed": 0.02,
-    "flicker": 0.001,
-    "worst": 53
-  },
-  {
-    "move": "mars_turn",
-    "station": 0,
-    "changed": 0.13,
-    "flicker": 0.002,
-    "worst": 65
-  },
-  {
-    "move": "mars_turn",
-    "station": 1,
-    "changed": 0.14,
-    "flicker": 0.001,
-    "worst": 64
-  },
-  {
-    "move": "mars_wall_tele",
-    "station": 0,
-    "changed": 0.01,
-    "flicker": 0,
-    "worst": 30
-  },
-  {
-    "move": "mars_wall_tele",
-    "station": 1,
-    "changed": 0.01,
-    "flicker": 0,
-    "worst": 31
-  },
-  {
-    "move": "mars_low_flight",
-    "station": 0,
-    "changed": 0.02,
-    "flicker": 0,
-    "worst": 51
-  },
-  {
-    "move": "mars_low_flight",
-    "station": 1,
-    "changed": 0.01,
-    "flicker": 0,
-    "worst": 37
-  },
-  {
-    "move": "mars_high_flight",
-    "station": 0,
-    "changed": 0,
-    "flicker": 0,
-    "worst": 5
-  },
-  {
-    "move": "mars_high_flight",
-    "station": 1,
-    "changed": 0,
-    "flicker": 0,
-    "worst": 4
-  },
-  {
-    "move": "mars_orbit",
-    "station": 0,
-    "changed": 0.07,
-    "flicker": 0,
-    "worst": 167
-  },
-  {
-    "move": "mars_orbit",
-    "station": 1,
-    "changed": 0.08,
-    "flicker": 0,
-    "worst": 168
+    "worst": 136
   }
 ]

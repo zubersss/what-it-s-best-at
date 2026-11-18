@@ -1,5 +1,4 @@
 // HDR scene target + post chain: metering, half-res bloom, AgX tone map, sRGB, dither.
-// Nothing else belongs here (see CLAUDE.md "Do not build").
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { makePassMaterial, renderPass } from '../render/fullscreen.js';
@@ -45,6 +44,8 @@ void main() {
 
 const METER_FRAG = /* glsl */`
 uniform sampler2D tSrc;
+uniform sampler2D tScene;  // the full-resolution HDR scene, for exact per-pixel samples
+uniform vec2 uViewSize;    // its used size in pixels
 uniform float uFloor;      // fraction of the frame mean below which texels stop pulling exposure up
 in vec2 vUv;
 out vec4 outColor;
@@ -73,7 +74,18 @@ void main() {
       if (cover > 0.2) peak = max(peak, l / cover);   // brightest region that is a lit surface
     }
   }
-  outColor = vec4(sum / wsum, peak, 0.0, 1.0);
+  // Lit surfaces only, from single pixels of the scene (alpha is exactly 1 on a lit
+  // surface and 0 on sky, stars and the Sun, so nothing bleeds in): how much of the frame
+  // they cover, and how bright their bright parts are (mean weighted by brightness, so a
+  // half-lit globe counts as its day side).
+  float s1 = 0.0, s2 = 0.0, n = 0.0;
+  for (int y = 0; y < 18; y++) for (int x = 0; x < 32; x++) {
+    vec4 c = texelFetch(tScene, ivec2((vec2(float(x), float(y)) + 0.5) / vec2(32.0, 18.0) * uViewSize), 0);
+    if (c.a < 0.5) continue;
+    float l = min(dot(c.rgb, vec3(0.2126, 0.7152, 0.0722)), 48.0);
+    s1 += l; s2 += l * l; n += 1.0;
+  }
+  outColor = vec4(sum / wsum, peak, s2 / max(s1, 1e-9), n / 576.0);
 }`;
 
 const COMPOSITE_FRAG = /* glsl */`
@@ -141,7 +153,7 @@ export class PostPipeline {
     this.bloomEnabled = true;
 
     // Auto exposure state
-    this.settings = { key: 0.16, min: 0.5, max: 6e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, ...exposureSettings };
+    this.settings = { key: 0.16, min: 0.5, max: 6e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, surface: 0.6, ...exposureSettings };
     this.exposure = 20;
     this.targetExposure = 20;
     this.measuredLog2 = 0;
@@ -159,7 +171,7 @@ export class PostPipeline {
 
     this.downMat = makePassMaterial(DOWN_FRAG, { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() }, uUvScale: { value: new THREE.Vector2(1, 1) }, uUvMax: { value: new THREE.Vector2(1, 1) }, uClamp: { value: 1e9 } });
     this.upMat = makePassMaterial(UP_FRAG, { tSrc: { value: null }, tBase: { value: null }, uTexel: { value: new THREE.Vector2() } });
-    this.meterMat = makePassMaterial(METER_FRAG, { tSrc: { value: null }, uFloor: { value: this.settings.shadowFloor } });
+    this.meterMat = makePassMaterial(METER_FRAG, { tSrc: { value: null }, tScene: { value: null }, uViewSize: { value: new THREE.Vector2(1, 1) }, uFloor: { value: this.settings.shadowFloor } });
     this.compositeMat = makePassMaterial(COMPOSITE_FRAG, {
       tScene: { value: null }, tBloom: { value: null }, tBlueNoise: { value: noise },
       uUvScale: { value: new THREE.Vector2(1, 1) }, uUvMax: { value: new THREE.Vector2(1, 1) },
@@ -168,7 +180,7 @@ export class PostPipeline {
   }
 
   setExposureSettings(s) {
-    this.settings = { key: 0.16, min: 0.5, max: 6e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, ...s };
+    this.settings = { key: 0.16, min: 0.5, max: 6e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, surface: 0.6, ...s };
     this.meterMat.uniforms.uFloor.value = this.settings.shadowFloor;
   }
 
@@ -245,6 +257,8 @@ export class PostPipeline {
     // Metering from the 1/16-res level: every part of the frame contributes (a small bright
     // object cannot fall between samples), and the clamp keeps the solar disc from dominating.
     this.meterMat.uniforms.tSrc.value = this.bloomDown[3].texture;
+    this.meterMat.uniforms.tScene.value = this.scene.texture;
+    this.meterMat.uniforms.uViewSize.value.set(this.viewW, this.viewH);
     renderPass(r, this.meterMat, this.meterTarget);
     this._meter(dt);
 
@@ -285,6 +299,15 @@ export class PostPipeline {
       // may not be pushed more than `highlight` times over white, however dark the rest is.
       const peak = this._readBuf[1] / used;
       if (peak > 0) target = Math.min(target, s.highlight / peak);
+      // Subject priority: once lit surfaces are more than a small part of the frame (a
+      // planet from space, not a figure against the stars) their bright parts may not go
+      // above `surface`, however much black surrounds them.
+      const bright = this._readBuf[2] / used, cover = this._readBuf[3];
+      if (bright > 0) {
+        const x = Math.min(1, Math.max(0, (cover - 0.01) / 0.05)), k = x * x * (3 - 2 * x);
+        target = Math.min(target, s.highlight * Math.pow(s.surface / s.highlight, k) / bright);
+      }
+      this.surfaceCover = cover; this.surfaceBright = bright * target;
       target = Math.min(s.max, Math.max(s.min, target));
       this.stableReads = Math.abs(Math.log2(target / used)) < 0.03 ? this.stableReads + 1 : 0;
       this.targetExposure = target;

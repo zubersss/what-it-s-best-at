@@ -146,6 +146,8 @@ export class App {
       this.stars = makeStars(new Float32Array(await res.arrayBuffer()));
       this.farScene.add(this.stars.points);
     }
+    this.atmosphere.airDebugAll = params.debug.includes('airall');                 // ?debug=airall: every bit of air counts as shadowed
+    if (params.debug.includes('noair')) this.atmosphere.airEnabled = false;      // ?debug=noair: no terrain shadows in the haze
     this.nearShadow = new NearShadow(renderer);
     this.terrain = new Terrain(world, data.rasters, data.hs, renderer);
     this.rocks = new Rocks(world, data.hs);
@@ -158,6 +160,7 @@ export class App {
     await this.terrain.workers.ready;
 
     this.applyBookmark(params.shot || 'ledge');
+    this.pendingAim = params.aim || null;
     if (params.timeOffsetHours != null) this.timeOffsetHours = params.timeOffsetHours;
     if (params.fly) this.rig.setMode('fly');
     // Interactive sessions start behind the flying character; screenshots stay first person
@@ -192,7 +195,8 @@ export class App {
     const sc = this.world.scene, s = sc.start, b = sc.bookmarks[name] || {};
     const p = this.params;
     this.rig.setLatLon(p.lat ?? b.lat ?? s.lat, p.lon ?? b.lon ?? s.lon, b.eye ?? s.eye, p.heading ?? b.heading ?? s.heading, p.pitch ?? b.pitch ?? s.pitch);
-    if (b.east || b.north) this.rig.offsetMetres(b.east || 0, b.north || 0, b.eye ?? s.eye);
+    const east = p.east ?? b.east ?? 0, north = p.north ?? b.north ?? 0;
+    if (east || north) this.rig.offsetMetres(east, north, b.eye ?? s.eye);
     if (p.alt != null) { if (this.rig.mode === 'walk') this.rig.setMode('fly'); this.rig.pos.setLength(this.world.radius + p.alt); this.rig.agl = 0; }
     this.rig.baseFov = this.rig.fov = p.fov ?? b.fov ?? CONFIG.DEFAULT_FOV;
     // A bookmark is a place and a moment: it restores its world's scene time.
@@ -359,7 +363,7 @@ export class App {
       // camera state: old planet-fixed frame -> inertial
       const M0 = Array.from(eph.icrfToFixed), h0 = eph.positionICRF(this.world.body, jd, [0, 0, 0]);
       const toI = (v) => [M0[0] * v.x + M0[3] * v.y + M0[6] * v.z, M0[1] * v.x + M0[4] * v.y + M0[7] * v.z, M0[2] * v.x + M0[5] * v.y + M0[8] * v.z];
-      const p = toI(rig.pos), f = toI(rig.forward), vel = toI(rig.velocity);
+      const p = toI(rig.pos), f = toI(rig.forward), vel = toI(rig.velocity), upI = toI(rig.up);
       this.world = w; this.hs = data.hs;
       eph.homeId = w.body;
       eph.update(jd, this.bodies.ids);
@@ -369,6 +373,7 @@ export class App {
       rig.pos.copy(toF([p[0] + h0[0] - h1[0], p[1] + h0[1] - h1[1], p[2] + h0[2] - h1[2]]));
       rig.velocity.copy(toF(vel));
       rig.lookAlong(toF(f));
+      rig.keepUp(toF(upI));                          // no jump of the horizon: see CameraRig.roll
       // everything that depends on the world
       G.uPlanetRadius.value = w.radius;
       this.atmosphere.setWorld(w);
@@ -424,6 +429,7 @@ export class App {
     // 3. Terrain LOD, rocks, lander, hero
     const aspect0 = post.width / post.height;
     const sunHalf = Math.asin(SOLAR_SYSTEM.sun.radius / eph.sunDistance);
+    this.atmosphere.updateAir(rig.pos, G.uSunDir.value, this.terrain);     // before the terrain takes the workers
     this.terrain.update(rig, aspect0, G.uSunDir.value, sunHalf);
     this.rocks.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
     this.lander.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
@@ -439,10 +445,12 @@ export class App {
     G.uCamRight.value.copy(rig.right); G.uCamUp.value.copy(rig.up); G.uCamFwd.value.copy(rig.forward);
     G.uTanHalfFov.value.set(th * aspect, th);
     this.atmosphere.update(rig.pos, G.uSunDir.value, this.terrain.farDistance, post.exposure);
-    this.skyDome.visible = G.uSkyFade.value > 0;
+    this.skyDome.visible = !this.atmosphere.empty;
     this.sun.update(G.uSunDir.value, eph.sunDistance, rig, post.viewH);
     this.bodies.update(eph, rig, post.viewH);
     this.stars?.setFrame(eph.icrfToFixed, rig, post.viewH);
+    // ?aim=<body>: possible only now, once the bodies have a position for this moment.
+    if (this.pendingAim && this.frameCount >= 2) { this.aimAt(this.pendingAim); this.pendingAim = null; }
 
     // 5. Near shadow map (ship, rocks, hero)
     this.nearShadow.render(rig.pos, G.uSunDir.value, rig.localUp);
@@ -482,9 +490,9 @@ export class App {
     }
 
     if (this.shotMode) {
-      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending;
+      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy;
       window.__shotReady = ready;
-      window.__stats = { calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander' : ''}` };
+      window.__stats = { calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow' : ''}` };
     }
   }
 

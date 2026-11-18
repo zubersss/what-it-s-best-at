@@ -20,6 +20,10 @@ export class CameraRig {
     this.heightAt = heightAt;
     this.pos = new THREE.Vector3(world.radius, 0, 0);
     this.heading = 0; this.pitch = 0;
+    // Roll about the view axis (radians). Normally zero: "up" on screen is the world's
+    // up. After a hand-over to another world it holds the previous world's up, so the
+    // view does not jump, and it is let go as the new world gets close.
+    this.roll = 0;
     this.baseFov = CONFIG.DEFAULT_FOV; this.teleFov = CONFIG.TELE_FOV; this.fov = CONFIG.DEFAULT_FOV;
     this.mode = 'walk';
     this.vUp = 0; this.jumpOffset = 0;
@@ -50,6 +54,7 @@ export class CameraRig {
     if (heading != null) this.heading = heading;
     if (pitch != null) this.pitch = pitch;
     this.jumpOffset = 0; this.vUp = 0; this.velocity.set(0, 0, 0); this._prevHeading = this.heading;
+    this.roll = 0;
     this._refresh();
   }
 
@@ -84,12 +89,22 @@ export class CameraRig {
     this._prev.copy(this.pos);
     // Look
     const sens = 0.12 * (this.fov / CONFIG.DEFAULT_FOV);
-    this.heading = (this.heading + input.dx * sens + 360) % 360;
-    this.pitch = Math.max(-89, Math.min(89, this.pitch - input.dy * sens));
     const kx = (input.down('ArrowRight') ? 1 : 0) - (input.down('ArrowLeft') ? 1 : 0);
     const ky = (input.down('ArrowUp') ? 1 : 0) - (input.down('ArrowDown') ? 1 : 0);
-    this.heading = (this.heading + kx * 60 * dt * (this.fov / CONFIG.DEFAULT_FOV) + 360) % 360;
-    this.pitch = Math.max(-89, Math.min(89, this.pitch + ky * 45 * dt * (this.fov / CONFIG.DEFAULT_FOV)));
+    let turn = input.dx * sens + kx * 60 * dt * (this.fov / CONFIG.DEFAULT_FOV);
+    let lift = -input.dy * sens + ky * 45 * dt * (this.fov / CONFIG.DEFAULT_FOV);
+    if (this.roll) {
+      // While the view is rolled, "right" on the stick still means right on the screen.
+      const cr = Math.cos(this.roll), sr = Math.sin(this.roll), t = turn;
+      turn = t * cr - lift * sr; lift = t * sr + lift * cr;
+      // Let the roll go as the world comes close: held beyond 40 radii, gone within a
+      // few seconds inside 10.
+      const R = this.world.radius, x = Math.min(1, Math.max(0, (40 * R - this.agl) / (30 * R)));
+      this.roll *= Math.exp(-dt * 1.2 * x * x * (3 - 2 * x));
+      if (Math.abs(this.roll) < 2e-4) this.roll = 0;
+    }
+    this.heading = (this.heading + turn + 360) % 360;
+    this.pitch = Math.max(-89, Math.min(89, this.pitch + lift));
     if (dt > 0) {
       const dh = ((this.heading - this._prevHeading + 540) % 360) - 180;
       this.yawRate += (dh / dt - this.yawRate) * (1 - Math.exp(-dt * 8));
@@ -158,6 +173,7 @@ export class CameraRig {
   setMode(mode) {
     this.mode = mode;
     this.jumpOffset = 0; this.vUp = 0; this.velocity.set(0, 0, 0);
+    if (mode === 'walk') this.roll = 0;        // feet on the ground: the horizon is level
   }
 
   _snapToGround(eye) {
@@ -178,6 +194,19 @@ export class CameraRig {
     this.forward.set(cp * (sh * E[0] + ch * N[0]) + sp * U[0], cp * (sh * E[1] + ch * N[1]) + sp * U[1], cp * (sh * E[2] + ch * N[2]) + sp * U[2]);
     this.right.set(ch * E[0] - sh * N[0], ch * E[1] - sh * N[1], ch * E[2] - sh * N[2]);
     this.up.crossVectors(this.right, this.forward);
+    if (this.roll) {
+      const cr = Math.cos(this.roll), sr = Math.sin(this.roll), r = this.right, u = this.up;
+      const rx = r.x * cr + u.x * sr, ry = r.y * cr + u.y * sr, rz = r.z * cr + u.z * sr;
+      u.set(u.x * cr - r.x * sr, u.y * cr - r.y * sr, u.z * cr - r.z * sr);
+      r.set(rx, ry, rz);
+    }
+  }
+
+  // Sets the roll so that the screen's up is as close as possible to `up` (planet-fixed).
+  keepUp(up) {
+    this.roll = 0; this._basis();
+    this.roll = Math.atan2(-up.dot(this.right), up.dot(this.up));
+    this._refresh();
   }
 
   _refresh() {

@@ -44,6 +44,26 @@ changes behaviour.
 
 Status: all six done; waiting for the owner's first benchmark results from the phone.
 
+## Milestone 2 plan — fix the known problems
+
+The owner said "continue" at the milestone 1 checkpoint before any phone results; the
+governor is tuned when they arrive. Order: small and safe first, recipe tuning last
+(it moves the ground and needs the most screenshots).
+
+1. Phobos and Deimos: an `aim=` screenshot parameter, telephoto shots, check position,
+   size and phase.
+2. Lunar chunk builds: profile the height recipe in Node, remove the hot spots.
+3. Hand-over roll: carry the camera's roll across the switch and let it go as the new
+   world gets close.
+4. From space: exposure that does not blow out a sunlit globe, sky light that follows
+   the local Sun (dark night side, no stripe), glow on the planet's edge.
+5. Terrain popping: new chunks fade in from their parent's shape, normals and shadows.
+6. Haze in terrain shadow: air below the shadow line gets no direct sunlight.
+7. Far wall: dust numbers re-tuned once the shadowed haze is right.
+8. Ledges: sharper benches at walking scale; re-pick bookmarks if the ground moves.
+9. Character: bending limbs, cloak kept off the arms.
+10. Reference set, stability test, critic, governor steps for anything new, checkpoint.
+
 ## Decisions in force (and why)
 
 ### Rendering and physics
@@ -98,6 +118,64 @@ Status: all six done; waiting for the owner's first benchmark results from the p
 - **The near shadow map's texel grid is anchored to the ground near the camera** and
   re-anchored only when the camera is more than two map radii away.
 
+### From space, exposure and haze (milestone 2)
+
+- **Subject-priority exposure** (`exposure.surface`, default 0.6): single pixels of the
+  HDR scene are sampled on a 32×18 grid; where alpha says "lit surface" they give the
+  share of the frame that is surface and the brightness of its bright parts (mean weighted
+  by brightness, so a half-lit globe counts as its day side). Once surfaces cover more
+  than 1–6 % of the frame, exposure may not push that brightness above `surface`. A small
+  figure against the stars keeps the old, looser limit (`highlight`). Ground-level
+  bookmarks sit at 0.17–0.24, far below the limit, and are unchanged.
+- **Sky light follows the local Sun.** The irradiance map belongs to the camera's place.
+  Elsewhere on the globe it is scaled by a table of sky-plus-bounce light on level ground
+  against the Sun's height (built once per world on the GPU, divided by its own value at
+  the camera, capped at 32). It is exactly 1 at the camera, and below 3 km of altitude
+  the look-up is skipped altogether (it fades in up to 30 km), so nothing changes on the
+  ground and nothing is paid for there.
+- **Edge glow from space is marched per pixel**, in the sky dome (rays that cross the
+  shell) and on ground seen at a grazing angle (blend from froxels below a view cosine of
+  0.38, fully marched below 0.22). Screen-space froxels cannot follow the path length
+  there: it changes by a factor of two between neighbouring froxels. The sky-view LUT is
+  used only while the camera is in the air and is cross-faded over the top tenth of the
+  atmosphere.
+- **Terrain shadow in the air** is a 64×64 map on the tangent plane around the camera
+  (half-width 0.6 × the world's shadow range, growing with altitude) holding the altitude
+  below which the Sun is hidden. One coarse height sample per step toward the Sun; about
+  50–100 ms in a worker, redone when the camera has moved a sixth of the half-width or the
+  Sun 0.4°. At the Mars bookmarks it changes little, and that is correct: the Sun shines
+  along the canyon and its air really is sunlit (`?debug=airall` shows what fully shadowed
+  air would look like; `?debug=noair` switches the map off).
+- **Mars dust re-tuned for the far wall**: 15 % less dust (column optical depth about
+  0.23, a clear season). Direct sunlight at the scene's 4° Sun rises by about half, so
+  benches catch light and cast shadows, and the far wall keeps a third of its light
+  instead of a quarter. Tried and rejected: a tighter forward lobe for red and green. It
+  is closer to measured Martian dust 60° from the Sun (a single Henyey–Greenstein lobe
+  that matches the aureole is about twice too bright there), but it made the aureole a
+  third brighter and whiter and darkened the whole sunset view. A two-lobe phase function
+  is the proper fix and belongs to milestone 3.
+- **Ledges**: a terrace riser reads as rock only when it is steeper than the surface's
+  rock slope, so the 38 m beds went from a 30 % to an 18 % cliff fraction, and a 5 m bed
+  layer adds ledges at walking scale. The masks use the large-scale slope (0.54 at the
+  site, a canyon flank), so the benches themselves carry small steps too.
+- **The lander bookmark moved** 25 m east and 20 m south onto a sunlit bench (the old spot
+  ended up behind a riser). The start position and the lander's place are unchanged.
+- **Character**: each limb is an upper and a lower piece, both children of the body (so
+  each can be drawn into the shadow map on its own); the lower one is placed at the joint
+  every frame. Eight limb capsules are handed to the cloak solver.
+- **New chunks fade in from their parent** (shape, normals, cavities, baked shadows) over
+  0.6 s, and shading morphs with distance exactly like the vertices. A parent's maps are
+  always loaded while its children are drawn (the pool never evicts a node with loaded
+  children).
+- **The hand-over between worlds keeps the camera's roll.** `CameraRig.roll` holds the
+  previous world's "up" and is released (1.2 /s) only inside 40 radii of the new world, so
+  the re-levelling happens while the world grows in view. Look input is rotated by the
+  roll so "right" stays right on screen.
+- **Lunar chunk builds**: the crater op remembers the last 2×2×2 lattice block per class.
+  Heights are bit-identical; the profile went from 72 to 41 ms per chunk in Node (Mars:
+  24 ms). The rest of the gap is the fractal layers and the shadow rays, which simply
+  cost more per sample on a cratered world.
+
 ### Worlds
 
 - **Mars site**: the lip of a bench on the north flank of Coprates' southern ridge
@@ -149,27 +227,54 @@ Status: all six done; waiting for the owner's first benchmark results from the p
 
 | Problem | Milestone |
 | --- | --- |
-| Nothing measured on the phone yet: governor start level, step sizes and thresholds are first guesses | 1 (owner's benchmark results) |
-| Detail pops as terrain refines; telephoto reloads distant chunks | 2 |
-| No atmospheric glow on the planet's edge from orbit | 2 |
-| Horizon rolls once at the Mars ↔ Moon hand-over | 2 |
-| Lunar chunks build ~3× slower than Mars (~90–120 ms vs ~35–40 ms, headless) | 2 |
-| Haze in the shadowed canyon looks sunlit | 2 |
-| Ledges read as smooth dunes up close | 2 |
-| Far wall is over-hazed and soft | 2 |
-| Rigid limbs; cloak clips the arms | 2 |
-| Phobos and Deimos never checked in a screenshot | 2 |
-| From orbit the band just above Mars's edge is darker than the haze higher up, and the edge has a drawn-looking outline | 2 |
-| Whole-globe views over-expose the day side; Mars has a dark stripe along the terminator | 2 |
-| A soft glow surrounds the airless Moon's lit edge from orbit | 2 |
-| A broken bright line along the lunar horizon (far rim, one pixel high) | 2 |
-| No contact shadows under the lander and rocks when the site is in canyon shadow | 2 |
-| Night scenes need about 570 frames for exposure to settle in screenshot mode | 2 (tooling) |
-| From orbit Mars is soft and one colour outside the Coprates inset | 3 |
+| Governor start level, step sizes and thresholds are first guesses until the owner's phone results arrive | 1 (open) |
+| No contact shadows under the lander and rocks when the site is in terrain shadow | 3 |
+| One-pixel-high bright features alias (ridge highlights, the lunar far rim): no anti-aliasing | 3 |
+| Night scenes need about 570 frames for exposure to settle in screenshot mode | tooling |
+| A chunk that takes over while its parent is itself still fading in starts from the parent's own maps, a small jump during fast streaming | watch |
+| Lunar chunks still build about 1.7× slower than Martian ones (41 vs 24 ms in Node) | watch |
+| From orbit Mars is one colour and soft; the Moon has no maria or rays | 3 |
+| Terminators are geometrically straight; no relief shadows along them from afar | 3 |
 | Twilight glow has a hard upper edge at the highest exposures | 3 |
-| Earth is blown out to white in the lunar dusk shot | 5 |
+| Lunar ground is one grey at every Sun height; craters are soft stamps | 3 |
+| Baked terrain shadows have soft, wobbly edges on an airless world; no long shadows from rocks and lander at a low Sun | 3 |
+| Mars: flat grey sky away from the Sun, olive cast in the sunset views, one-colour ground | 3 |
+| Mars from orbit is veiled in cream haze with faint vertical streaks; the canyon does not show | 3 |
+| An earthlit lunar night is exposed as bright as day | 3 |
+| Deimos burns out to a white blob at dusk exposure | 5 |
+| The character is still a simple figure: no visor detail, no backpack, clean white suit | 4 |
+| Earth is blown out to white in the lunar dusk shot and has no blue | 5 |
 | Far from every body there is only the HUD read-out to navigate by | 4 / 7 |
 | Triangles sit at ~460–480k of the 500k budget | watch |
+
+Fixed in milestone 2: detail popping as terrain refines; no glow (and an inverted band)
+on the planet's edge from orbit; over-exposed globes, lit night sides and the stripe on
+Mars's terminator; the halo around the airless Moon; the roll at the Mars ↔ Moon
+hand-over; lunar chunk build time (72 → 41 ms); haze ignoring terrain shadow; ledges
+reading as dunes; the far wall's haze (in part: 15 % less dust); rigid limbs and the
+cloak passing through arms and legs; Phobos and Deimos checked.
+
+## Tests and measurements, milestone 2
+
+- **Stability** (ten moves, two stations each, `docs/shots/stability/report.json`): no
+  pops, no sparkles. Mars from orbit went from 0.07 % of pixels changing to 0 (the edge of
+  the planet is now smooth). The Moon is as before: differences only where a rock a metre
+  from the camera really moves.
+- **Flight test**: Mars → orbit → Moon, hand-over with the roll carried over, no errors.
+- **Smoke test** with a full benchmark: passes; all nine governor steps were exercised.
+- **Final build against the reference set**: `mars_ledge` and both Mars orbit views are
+  identical to within 1/255 after the last two changes (sky-light look-up skipped near the
+  ground; the from-space haze march compiled only into the terrain shader).
+- **Relative cost in the test browser** (software rendering, start view, all features on;
+  only the ratios mean anything, and they are not phone performance): milestone 1 = 584
+  ms per frame; milestone 2 = 784 ms. Known shares: the from-space haze branch in the
+  terrain shader, never taken on the ground, costs about 15 % there (a software renderer
+  pays for masked branches; a phone GPU should not), and the sky-light look-up cost 10 %
+  before it was skipped near the ground. **Open risk**: if the owner's benchmark shows the
+  ground views slower than with the milestone 1 build, compile the from-space haze as a
+  second terrain program and switch to it above the atmosphere.
+- **Lunar chunk builds in the browser**: 59 ms each in the benchmark run (90 before);
+  Martian ones 43 ms (35 before: the extra ledge layer and the busier machine).
 
 ## Stability test, milestone 1
 
@@ -196,6 +301,37 @@ repository (re-create them with `npm run stability`).
 - The first version of the test moved too fast (several pixels per frame) and let
   exposure re-meter between frames; both produced large, honest differences that hid
   what the test is for. Steps are now about a pixel and exposure is held per station.
+
+## Independent critic, milestone 2 (screenshots and art rules only)
+
+Told that real surface maps from orbit and the simple character are scheduled. Ranked:
+
+1. **A low Sun that casts no long shadows.** Rocks, lander and craters sit on evenly lit
+   ground with a small smudge at most; from 120 km lunar craters are pale dimples. Real
+   low-Sun frames are ruled by shadows many times longer than the objects. → 3
+2. **The Moon is soft where it must be razor-sharp.** Blurred, wobbly edge on the big
+   crater shadow, craters shading like blisters, the broken white line on the horizon, a
+   glowing fringe on the globe, a ruler-straight terminator, ground like plaster. → 3
+3. **Mars's colour and sky disagree from shot to shot.** A flat grey sky with no
+   brightening toward the horizon over saturated orange clay in `mars_ship`; an olive
+   drift in `mars_sun` and `mars_dusk`; chocolate ground in `mars_ledge`; the dusk glow
+   is a cream lens with a visible upper edge. → 3
+4. **Mars from orbit looks cloud-covered** even allowing for the missing map: a cream
+   veil, faint vertical streaks in the low-orbit view, a fat fuzzy rim, no relief
+   although the largest canyon lies below in raking light. → 3
+5. **Sky bodies fall apart under a long lens.** Phobos's shadow edge was a staircase of
+   facets (fixed straight away: the moons' meshes had one normal per face); Deimos burns
+   out at dusk; Earth is a grey-white speck with no blue; `moon_dusk` is exposed as
+   bright as day. → Earth 5; night exposure 3.
+
+Strongest image: `mars_ledge` ("at a glance it passes for a rover sunset frame").
+Weakest: `mars_ship` ("grey slab sky, monochrome orange clay, box rocks and a lander with
+no shadow").
+
+Compared with the first review, the gaps about the view from space (blown-out globes,
+lit night sides, the stripe on the terminator, no edge glow) are gone from the list;
+what replaced them is mostly the lunar surface and Martian colour, which milestone 3 is
+for.
 
 ## Independent critic, milestone 1 (screenshots and art rules only)
 
@@ -239,3 +375,9 @@ Weakest: `mars_ledge_orbit_globe`.
   and Sharp, benchmark and soak with a results screen, exact-pixel canvas, three-state
   HUD, `shots:all`, `stability` and `smoke` scripts. Removed `dynamicResolution.js`,
   `MAX_PIXELS`, `TARGET_FPS`, `MIN_SCALE` and the `?fps=` parameter.
+- **Milestone 2 built**: exposure, sky light and edge glow from space; fade-in of new
+  terrain; roll carried across the hand-over; faster lunar chunks; terrain shadow in the
+  haze; clearer Martian air; rock ledges and a new lander view; bending limbs and a cloak
+  that stays off them; Phobos and Deimos checked (and their faceted shading fixed);
+  tools `sky-table`, `profile-chunks`, `build-check`; shot parameters `aim`, `east`,
+  `north`, `debug`.

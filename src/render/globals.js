@@ -18,7 +18,8 @@ export const G = {
   // Planetshine: light reflected onto the ground by the brightest sky body (earthshine on the Moon).
   uShineDir: { value: new THREE.Vector3(0, 0, 1) },
   uShineE: { value: new THREE.Vector3(0, 0, 0) },
-  // Quality switches set by the governor: x = close-up ground detail, y = soft shadow edges.
+  // Quality switches set by the governor: x = close-up ground detail, y = soft shadow edges,
+  // z = full sample count for the glow on a planet's edge seen from space.
   uQuality: { value: new THREE.Vector4(1, 1, 1, 1) },
   // The Atmosphere adds its LUT textures and medium parameters here at start-up.
 };

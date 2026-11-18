@@ -10,6 +10,7 @@ import { makeDetailTexture, makeStrataTexture } from './surfaceTextures.js';
 import { FACES } from './cubeSphere.js';
 
 const _rel = new THREE.Vector3(), _sphere = new THREE.Sphere(), _m = new THREE.Matrix4(), _p = new THREE.Matrix4();
+const FADE_MS = 600;       // how long a new chunk takes to settle from its parent's look into its own
 
 export class Terrain {
   constructor(world, rasters, hs, renderer) {
@@ -74,6 +75,7 @@ export class Terrain {
   // sunDir: THREE.Vector3 (planet-fixed); sunHalf: the Sun's angular radius in radians.
   update(rig, aspect, sunDir, sunHalf) {
     this.frame++;
+    this.now = performance.now();
     this._sun = [sunDir.x, sunDir.y, sunDir.z]; this._sunHalf = sunHalf;
     const cam = this._cam.copy(rig.pos), R = this.radius;
     const camLen = cam.length();
@@ -109,22 +111,32 @@ export class Terrain {
 
     const slots = this.pool.slots;
     for (let i = 0; i < slots.length; i++) slots[i].mesh.visible = false;
-    let far = 1000;
+    let far = 1000, fading = 0;
     for (let i = 0; i < list.length; i++) {
       const n = list[i], s = slots[n.slot];
       s.mesh.visible = true;
       s.mesh.position.subVectors(n.center, cam);
       s.mesh.renderOrder = i;
-      s.material.uniforms.uMorph.value.x = n.parent ? this.splitIn * n.parent.edge : 1e15;
+      const u = s.material.uniforms, par = n.parent, ps = par && par.slot >= 0 ? slots[par.slot] : null;
+      u.uMorph.value.x = par ? this.splitIn * par.edge : 1e15;
+      // Shading morphs toward the parent's maps (they stay loaded while its children are).
+      u.tParentNormal.value = ps ? ps.normalTex : s.normalTex; u.tParentShadow.value = ps ? ps.shadowTex : s.shadowTex;
+      u.uParent.value.set(n.ix & 1 ? 0.5 : 0, n.iy & 1 ? 0.5 : 0, ps ? 1 : 0);
+      // A chunk that has just taken over from its parent starts out looking exactly like
+      // it and settles into its own detail over FADE_MS.
+      let fade = 0;
+      if (par && ps) { const t = (this.now - par.liveAt) / FADE_MS; if (t < 1) { fade = 1 - t * t * (3 - 2 * t); fading++; } }
+      u.uMorph.value.z = fade;
       far = Math.max(far, s.mesh.position.length() + n.radius);
     }
+    this.fading = fading;
     this.farDistance = far;
 
     this.stalled = false;
     this._dispatch();
     this._rebakeShadows();
     // Idle = nothing left to build, or nothing more can be built (pool exhausted).
-    this.idleFrames = (this.workers.busy === 0 && this.staleShadows === 0 && (this.wanted.length === 0 || this.stalled)) ? this.idleFrames + 1 : 0;
+    this.idleFrames = (this.workers.busy === 0 && this.staleShadows === 0 && this.fading === 0 && (this.wanted.length === 0 || this.stalled)) ? this.idleFrames + 1 : 0;
     if (this.frame % 240 === 0) for (const root of this.roots) this._prune(root);
   }
 
@@ -159,8 +171,13 @@ export class Terrain {
         ready = false;
         if (!c.loading) { c.prio = (this._visibility(c) > 0 ? 0 : 1000) + d / node.edge + c.level * 0.01; this.wanted.push(c); }
       }
-      if (ready) { for (const c of node.children) this._visit(c); return; }
+      if (ready) {
+        if (!node.childrenLive) { node.childrenLive = true; node.liveAt = this.now; }   // the moment they take over
+        for (const c of node.children) this._visit(c);
+        return;
+      }
     }
+    node.childrenLive = false;
     if (node.slot >= 0) { if (vis === 2) this.drawList.push(node); }
     else if (!node.loading) { node.prio = -1; this.wanted.push(node); }
   }

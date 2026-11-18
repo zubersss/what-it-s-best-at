@@ -7,9 +7,13 @@
     "visited": 310,
     "wanted": 0,
     "lodScale": 0.833,
-    "avgBuildMs": 108.1,
-    "exposure": 27.57,
-    "frame": 261,
+    "avgBuildMs": 61.8,
+    "exposure": 27.54,
+    "surface": [
+      0.566,
+      0.183
+    ],
+    "frame": 255,
     "wait": ""
   },
   "sun": {
@@ -17,51 +21,67 @@
     "triangles": 409545,
     "chunks": 97,
     "loaded": 480,
-    "visited": 470,
+    "visited": 450,
     "wanted": 0,
-    "lodScale": 0.575,
-    "avgBuildMs": 98.3,
-    "exposure": 6436,
-    "frame": 503,
+    "lodScale": 0.559,
+    "avgBuildMs": 68.9,
+    "exposure": 6458,
+    "surface": [
+      0.278,
+      0.151
+    ],
+    "frame": 482,
     "wait": ""
   },
   "wall": {
     "calls": 130,
     "triangles": 458825,
     "chunks": 111,
-    "loaded": 368,
+    "loaded": 369,
     "visited": 318,
     "wanted": 0,
     "lodScale": 0.614,
-    "avgBuildMs": 112.3,
-    "exposure": 9.837,
-    "frame": 216,
+    "avgBuildMs": 73.8,
+    "exposure": 9.839,
+    "surface": [
+      0.738,
+      0.103
+    ],
+    "frame": 202,
     "wait": ""
   },
   "ship": {
     "calls": 130,
     "triangles": 455945,
     "chunks": 111,
-    "loaded": 347,
+    "loaded": 346,
     "visited": 310,
     "wanted": 0,
     "lodScale": 0.784,
-    "avgBuildMs": 93.6,
-    "exposure": 7.909,
-    "frame": 239,
+    "avgBuildMs": 69,
+    "exposure": 7.91,
+    "surface": [
+      0.354,
+      0.189
+    ],
+    "frame": 229,
     "wait": ""
   },
   "dusk": {
     "calls": 127,
     "triangles": 421509,
     "chunks": 110,
-    "loaded": 338,
+    "loaded": 334,
     "visited": 310,
     "wanted": 0,
     "lodScale": 0.784,
-    "avgBuildMs": 79.2,
-    "exposure": 92520,
-    "frame": 573,
-    "wait": "exposure "
+    "avgBuildMs": 60,
+    "exposure": 92550,
+    "surface": [
+      0.299,
+      0.172
+    ],
+    "frame": 575,
+    "wait": ""
   }
 }

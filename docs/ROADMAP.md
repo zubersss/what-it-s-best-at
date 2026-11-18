@@ -10,8 +10,8 @@ owner's reply or phone results), `done`.
 | # | Milestone | Status |
 | --- | --- | --- |
 | 0 | Foundation: Mars (Coprates Chasma), the Moon, flight between them, the character | done |
-| 1 | Phone link and measurement | checkpoint sent |
-| 2 | Fix the known problems | not started |
+| 1 | Phone link and measurement | done (open: Pages switch, governor tuning from the owner's phone results) |
+| 2 | Fix the known problems | checkpoint sent |
 | 3 | Make Mars and the Moon beautiful | not started |
 | 4 | Character and flight feel | not started |
 | 5 | Earth and the Sun from space | not started |
@@ -49,6 +49,10 @@ those results before milestone 2 starts.
 - The over-hazed far wall.
 - Rigid character limbs and the cloak clipping the arms.
 - Phobos and Deimos never checked.
+
+Built (see `docs/PROGRESS.md` for what each fix is and what is left of each problem).
+Moved on to milestone 3, because they need its real maps or materials: the far wall's
+remaining softness, contact shadows in terrain shade, the two-lobe dust phase function.
 
 ## 3. Make Mars and the Moon beautiful
 

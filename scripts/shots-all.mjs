@@ -16,6 +16,9 @@ const SETS = [
   ['mars', 'ledge', 'alt=6000000&pitch=-89', '_orbit_globe'],
   ['moon', 'ledge', 'alt=120000&pitch=-22', '_orbit_low'],
   ['moon', 'ledge', 'alt=3500000&pitch=-89', '_orbit_globe'],
+  // Mars's moons through a long lens: half-lit Phobos an hour before the scene, Deimos at dusk
+  ['mars', 'ledge', 'aim=phobos&fov=1.0&t=-1', '_phobos'],
+  ['mars', 'ledge', 'aim=deimos&fov=0.35&t=1.5', '_deimos'],
   // the character
   ['mars', 'ledge', 'hero=1', '_hero_flight'],
   ['mars', 'ship', 'hero=1&heropose=hover', '_hero_hover'],
