@@ -19,7 +19,8 @@ export const G = {
   uShineDir: { value: new THREE.Vector3(0, 0, 1) },
   uShineE: { value: new THREE.Vector3(0, 0, 0) },
   // Quality switches set by the governor: x = close-up ground detail, y = soft shadow edges,
-  // z = full sample count for the glow on a planet's edge seen from space.
+  // z = full sample count for the glow on a planet's edge seen from space, w = relief
+  // shading of far ground from the world's slope map.
   uQuality: { value: new THREE.Vector4(1, 1, 1, 1) },
   // How the world's ground scatters sunlight: 0 = matte dust under air, 1 = airless regolith.
   uPhotometry: { value: 0 },

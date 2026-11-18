@@ -39,6 +39,10 @@ export default {
       // Walking scale: beds a few metres thick stand out as crisp ledges, so hillsides
       // read as layered rock, not dunes.
       { op: 'terrace', seed: 43, thickness: 5, cliff: 0.16, rise: 0.80, strength: 0.8, slopeMask: [0.22, 0.42], jitter: 0.5, warpAmp: 1.5, warpWavelength: 70 },
+      // Craters 1-30 km across wherever the elevation map is coarser than that (belowDem):
+      // the old cratered highlands seen from orbit. Martian craters are shallow (infilled,
+      // wind-worn), about a twentieth as deep as they are wide; few are fresh.
+      { op: 'craters', seed: 53, radius: [600, 16000], density: 0.6, layers: 2, depth: 0.10, rim: 0.022, ageSkew: 2, belowDem: 2, slopeMaskInv: [0.12, 0.3] },
       // Sparse small craters on the plateau and canyon floor only.
       { op: 'craters', seed: 41, radius: [30, 900], density: 1.0, layers: 1, depth: 0.2, rim: 0.04, slopeMaskInv: [0.05, 0.14] },
     ],
@@ -46,6 +50,7 @@ export default {
 
   surface: {
     roughness: 0.55,                 // Oren–Nayar sigma (rad)
+    farRoughness: 0.2,               // the same for ground seen from orbit: the disc darkens toward its edge as real Mars does
     meanAlbedo: [0.24, 0.135, 0.07], // regional average, for bounce light and multiple scattering
     // Viking colour mosaic of the whole planet (sRGB image; mean linear colour below). It
     // scales the palette place by place: dark basaltic plains, bright dust, polar ice. All
@@ -53,7 +58,13 @@ export default {
     // 0.4-0.45 as bright in red and 0.75 in blue (Solis Lacus / Syria, Meridiani / Arabia),
     // the spectral contrast of dark basalt against dust; at half, every dark region was
     // the same orange as the dust, only darker.
-    albedoMap: { url: 'data/mars_color_2880.jpg', encoding: 'srgb', mean: [0.197, 0.118, 0.113], strength: 1.0, chroma: 1.0 },
+    // The ground's slope everywhere (MOLA, 16 px/deg box-averaged to 5.2 km): relief shading from far away, where
+    // the terrain's own normal maps are tens of kilometres per texel. strength 1 = true relief;
+    // 2 doubles the slopes of what it adds, so landforms read on a phone from orbit (a stylisation).
+    reliefMap: { url: 'data/mars_slopes_4096.jpg', strength: 2.0, latFade: [80, 88] },
+    albedoMap: { url: 'data/mars_color_4096.jpg', encoding: 'srgb', mean: [0.197, 0.118, 0.113], strength: 1.0, chroma: 1.0 },
+    // (No ceiling (max) on its brightest parts: the mosaic's photographed sunlit walls and
+    // crater rims are a real depth cue from orbit. Held at 1.7 times the mean, Mars lost it.)
     // Materials blended by slope and height. Albedos are linear reflectance.
     dust: [0.30, 0.165, 0.080],      // bright butterscotch dust on flats
     sand: [0.150, 0.085, 0.050],     // darker basaltic sand, low ground

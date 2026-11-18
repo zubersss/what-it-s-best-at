@@ -114,6 +114,24 @@ longitude, which jumps (taking derivatives of the longitude left a whole cube fa
 blurred to the map's mean colour). A 512 × 256 copy on the CPU gives the same tint at the
 camera (`Terrain.tintAt` → `uGroundTint`) for the rocks and the kicked-up dust.
 
+**Slope map** (`surface.reliefMap`): the ground's slope everywhere (east and north, from
+the 16 px/deg global elevation, box-averaged to 4096×2048), one greyscale JPEG twice as
+tall as wide, uploaded as R8. It gives relief shading from far away, where the chunks'
+normal maps are kilometres per texel and, outside the sharp patches, the heights only know
+features a few tens of kilometres across. The terrain shader adds the band between the
+map's resolution (or the screen's, if coarser) and the coarser of the chunk's texels and
+2.5 pixels of the elevation raster in charge there (a 0.25° "data sharpness" texture built
+from the raster list at load, `makeDemResTexture`). So nothing is added inside the sharp
+patches or near the ground, and real craters and canyon walls appear from orbit.
+`strength` scales the slopes it adds (2 for both worlds: a stylisation, so landforms read
+on a phone from orbit). Governor step `far-relief` (`uQuality.w`). `surface.farRoughness`
+replaces the Oren–Nayar roughness for ground whose chunk texels are kilometres: the
+grain-scale value kept a whole disc nearly as bright at its edge as at its centre.
+
+From high up (above about 30 km, fully above `SPACE_BOOST_ALT`) chunks split up to
+`SPLIT_SPACE_BOOST` (2.2) times sooner: only a few dozen are in view there, and a phone has
+several pixels per normal texel.
+
 **Photometry** (`surface.photometry`): `'lunar'` switches the ground and the rocks from
 Oren–Nayar to the lunar-Lambert function times the Moon's measured phase curve
 (`lunarDiffuse` in the lighting chunk): equal to Lambert at opposition, 0.24 of it at a

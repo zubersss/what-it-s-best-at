@@ -150,8 +150,13 @@ export class App {
     }
     this.atmosphere.airDebugAll = params.debug.includes('airall');                 // ?debug=airall: every bit of air counts as shadowed
     if (params.debug.includes('noair')) this.atmosphere.airEnabled = false;      // ?debug=noair: no terrain shadows in the haze
+    if (params.debug.includes('norelief') || params.debug.includes('nofar')) G.uQuality.value.w = 0;   // ?debug=norelief: no relief shading of far ground from the slope map
     this.nearShadow = new NearShadow(renderer);
     this.terrain = new Terrain(world, data.rasters, data.hs, renderer);
+    // ?debug=nofar: none of the far-ground changes (relief, far roughness, finer patches from orbit), for before/after pictures
+    // (or one at a time: nofarrough, noboost)
+    if (params.debug.includes('nofar') || params.debug.includes('nofarrough')) this.terrain.shared.uFarRoughness.value = this.terrain.shared.uRoughness.value;
+    if (params.debug.includes('nofar') || params.debug.includes('noboost')) CONFIG.SPLIT_SPACE_BOOST = 1;
     this.rocks = new Rocks(world, data.hs);
     this.nearScene.add(this.terrain.group, this.rocks.mesh);
     this.nearShadow.addCaster(this.rocks.mesh, this.rocks.depthMaterial, null, () => this.rocks.nearCount);

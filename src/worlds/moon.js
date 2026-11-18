@@ -52,7 +52,11 @@ export default {
     bounce: 0.35,                      // so sunlit ground lights the shadows less than a matte surface would
     // Clementine 750 nm brightness (values are linear, not gamma-encoded). Mean over the sphere
     // 0.32. Toward the poles the mosaic is mostly its own shadows, so it fades out there.
-    albedoMap: { url: 'data/moon_albedo_2880.jpg', encoding: 'linear', mean: [0.32, 0.32, 0.32], strength: 1.0, latFade: [62, 75] },
+    // The ground's slope everywhere (LOLA, 16 px/deg box-averaged to 2.7 km): relief shading from far away, where
+    // the terrain's own normal maps are tens of kilometres per texel. strength 1 = true relief;
+    // 2 doubles the slopes of what it adds, so landforms read on a phone from orbit (a stylisation).
+    reliefMap: { url: 'data/moon_slopes_4096.jpg', strength: 2.0, latFade: [80, 88] },
+    albedoMap: { url: 'data/moon_albedo_4096.jpg', encoding: 'linear', mean: [0.32, 0.32, 0.32], strength: 1.0, latFade: [62, 75] },
     meanAlbedo: [0.118, 0.112, 0.105],
     dust: [0.120, 0.114, 0.107],       // mature regolith
     sand: [0.085, 0.081, 0.077],       // darker fines in low ground

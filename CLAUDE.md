@@ -171,7 +171,9 @@ bookmark, deterministic screenshot mode, skips the start screen), `t=<hours offs
 benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|hover`,
 `lat= lon= alt= heading= pitch= fov=`, `east= north=` (metres from the bookmark's place),
 `aim=<sky body>` (turn the view to it), `dust=1` (with `hero=1`: a touch-down dust burst
-frozen in mid-flight), `debug=noair|airall` (haze shadows off / everywhere).
+frozen in mid-flight), `debug=noair|airall` (haze shadows off / everywhere),
+`debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
+`nofarrough`, `noboost`, `noalbmax`) for before/after pictures.
 
 Keys: `WASD` move, mouse look (click to capture), `Shift` run / boost, `Space` jump /
 up, `Q`/`E` down / up, `G` flying character on/off, `T` aim at the next body in the sky,
@@ -259,6 +261,11 @@ finished benchmark leaves its text in `window.__benchResult`.
   and remember three flips an image's rows on upload unless `flipY` is off.
 - LOLA-only lunar elevation has kilometre-wide gaps between tracks at low latitudes
   (blocky canyons); SLDEM2015 fills them. Look at a top-down probe before trusting a map.
+- The terrain's level of detail does not depend on screen size: a picture 309 px tall says
+  little about a 1440 px phone (4–5x more pixels per texel). Judge sharpness at the phone's
+  density (`--size 880x412 --dsf 3.5`), not with a narrower lens, which also raises detail.
+- A photographic colour map carries its own shading (Viking's sunlit walls and shadows);
+  from orbit that is real depth, so do not flatten it to remove "lines".
 - Small very bright things (a lander, sunlit rocks on dark regolith) can own a
   brightness-weighted meter and turn the ground black: check `ship` after any change to
   how surfaces reflect or to the metering.

@@ -118,6 +118,28 @@ and the canyons, give it depth, deep depths." Three causes found, three changes:
 | A 60° vertical field of view: about 100° across on a phone held sideways, which shrinks everything far away | 48° (about 85° across). Mountains and canyon walls fill more of the screen |
 | The opening view looked along the canyon from a bench among low hills: neither wall nor the depth was in view | The opening view is now the lip of the north rim at 5 km, two hours before sunset, looking down across the 10 km deep canyon to the south wall 60 km away. The sunset view along the canyon stays as an extra place (`canyon`) |
 
+## The owner's space note (during milestone 3)
+
+"Fix the textures up when I'm in outer space, things have no depth, the planet just looks
+like a circle; fix it or find a way around it." Reproduced from 150 km to 12,000 km on both
+worlds. Causes found, by measurement:
+
+| Cause | Change |
+| --- | --- |
+| On the phone a pixel is 4–5 times smaller than in the test pictures, and the terrain's detail does not depend on screen size: from orbit every normal texel covered 5–15 pixels | From high up, patches split 2.2 times sooner (there is plenty of room under the 120-patch cap there) |
+| Outside the six sharp patches the heights come from 15 km (Mars) and 7.6 km (Moon) per pixel data: every crater and canyon wall smaller than a few tens of kilometres was smooth | A slope map of each whole world from the 16 px/deg NASA elevation (5.2 km per texel on Mars, 2.7 km on the Moon) adds the real relief in that band, from far away only |
+| Mars had no invented relief between 1 and 30 km: bumps of tens of metres where the real highlands are covered in craters | Craters 1–30 km across on Mars wherever the elevation map is coarser than that |
+| Real slopes at those sizes are gentle (a few degrees) and barely shade at a mid-day Sun | The slope map's relief is drawn at twice its true strength from far away (a stylisation for a small screen, on the owner's "find a way around it") |
+| Mars's surface model is tuned for grains underfoot: across a whole disc it kept the edge almost as bright as the centre | Far ground uses a smoother model, so the disc darkens toward its edge as real Mars does |
+| Colour maps 2880 wide: blurrier than the phone's pixels from mid-orbit | 4096 wide (Mars 5.2 km, the Moon 2.7 km) |
+
+Tried and rejected: holding the Viking mosaic's brightest parts at 1.7 times its mean (a
+helper's suggestion to remove "white lines" along the canyon): those are the mosaic's
+photographed sunlit walls, the best depth cue Mars has from orbit, and Mars looked flatter
+without them. Lossy WebP for the slope maps: blocky canyon walls; colour JPEG: noisier than
+two greyscale halves at the same size. Not changed, because it is true: a world with the Sun
+behind the viewer looks flat (the full Moon); relief shows wherever the light comes from the side.
+
 ## Milestone 3 plan — make Mars and the Moon beautiful
 
 Started straight after the owner's phone results and flight notes (above). Order: the
