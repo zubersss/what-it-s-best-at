@@ -48,10 +48,12 @@ export default {
     roughness: 0.55,                 // Oren–Nayar sigma (rad)
     meanAlbedo: [0.24, 0.135, 0.07], // regional average, for bounce light and multiple scattering
     // Viking colour mosaic of the whole planet (sRGB image; mean linear colour below). It
-    // scales the palette place by place: dark basaltic plains, bright dust, polar ice. Only
-    // half of its colour differences are used: the mosaic's dark regions lean blue, more
-    // than the ground itself does.
-    albedoMap: { url: 'data/mars_color_2880.jpg', encoding: 'srgb', mean: [0.197, 0.118, 0.113], strength: 1.0, chroma: 0.5 },
+    // scales the palette place by place: dark basaltic plains, bright dust, polar ice. All
+    // of its colour differences are used: against the bright regions its dark ones are
+    // 0.4-0.45 as bright in red and 0.75 in blue (Solis Lacus / Syria, Meridiani / Arabia),
+    // the spectral contrast of dark basalt against dust; at half, every dark region was
+    // the same orange as the dust, only darker.
+    albedoMap: { url: 'data/mars_color_2880.jpg', encoding: 'srgb', mean: [0.197, 0.118, 0.113], strength: 1.0, chroma: 1.0 },
     // Materials blended by slope and height. Albedos are linear reflectance.
     dust: [0.30, 0.165, 0.080],      // bright butterscotch dust on flats
     sand: [0.150, 0.085, 0.050],     // darker basaltic sand, low ground
@@ -98,7 +100,11 @@ export default {
     // highlight: how many times over white the brightest lit surface may be pushed
     // max: how far the exposure may be pushed in the dark. It is what keeps the twilight
     // glow from burning out an hour and a half after sunset.
-    exposure: { key: 0.16, min: 0.5, max: 2.3e5, speed: 1.6, shadowFloor: 0.2, highlight: 6 },
+    // globe: how bright the sunlit part of the planet is held when it is seen as a world in
+    // black space (the engine's default, 0.32, is for grey worlds). Mars at 0.18 is metered
+    // like a mid-grey card, below the tone curve's shoulder, which would otherwise fade its
+    // orange to cream and flatten its dark markings (it kept half of their contrast).
+    exposure: { key: 0.16, min: 0.5, max: 2.3e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, globe: 0.18 },
     // The first five are one place at different moments; the rest are other real places.
     // timeOffsetHours moves the clock from dateUTC to the light that suits the view.
     bookmarks: {

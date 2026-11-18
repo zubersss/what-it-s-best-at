@@ -197,6 +197,13 @@ chunk), which makes dense crater fields 3–5× cheaper.
   km of altitude). So the night side is dark wherever the camera is, and a camera over
   the night side does not leave the day side without sky light (an earlier version
   scaled the camera's map by a ratio, which is zero when the camera's own sky is dark).
+- Haze over the ground follows the ground's own brightness: the multi-scatter LUT's
+  alpha holds the share of its light that set out as sunlight reflected by the ground
+  (of the world's `meanAlbedo`), the froxel A alpha that share of the smooth in-scatter,
+  and the terrain's haze scales that part by its albedo over `meanAlbedo` on steep views
+  (`aerialPerspective(color, rel, albedo)`). Seen from orbit a large dark region keeps its
+  contrast through the dust, as in photographs; along grazing lines the air is lit by all
+  the ground it passes, so the weight fades out there.
 - `air-shadow map` (64×64, R16F, filled by a terrain worker): altitude below which
   terrain hides the Sun, on the tangent plane around the camera. The froxel march drops
   direct sunlight below it (`airLit`). `Atmosphere.updateAir` keeps it current.

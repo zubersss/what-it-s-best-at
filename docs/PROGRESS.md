@@ -270,6 +270,15 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 - **A world in black space is exposed lower than a view full of ground** (`globe` 0.32
   against `surface` 0.6, blended by how much of the frame the lit surface covers): at
   0.6 the tone curve flattened Mars's markings into cream.
+- **Mars from orbit keeps its albedo features** (a helper measured where the Viking
+  mosaic's contrast went: the picture kept half of it). Three causes, three fixes: the
+  globe was exposed into the tone curve's shoulder (Mars now sets `exposure.globe` 0.18,
+  the default 0.32 suits grey worlds); only half of the mosaic's colour differences were
+  used (now all: dark basalt is 0.4 as bright as dust in red, 0.75 in blue); and the haze
+  added the same ground-bounced light over dark and bright ground (now it follows the
+  ground's albedo on steep views). Contrast kept in the displayed day globe: 0.51 → 0.72.
+  Still below Hubble's processed pictures, which stretch it; going further would invent
+  contrast. Ruled out: the low dust layer, the froxels, the sky light.
 - **The bright-part meter is weighted by the square root of brightness** (was: by
   brightness). A crescent still counts as its day side, but a white lander and sunlit
   rocks on dark lunar soil no longer drag the exposure down until the ground is black.
