@@ -141,6 +141,8 @@ export const OPS = {
   // `belowDem`: only craters the raster under this point cannot show are added, those with
   // a radius below belowDem x its pixel size (fading out over the upper half of that
   // range). Where there is no raster every size is added.
+  // `ageSkew` (default 1: freshness spread evenly): above 1 most craters are worn down and
+  // only a few are fresh, deep bowls (their full depth/rim), as on a surface in equilibrium.
   craters(def) {
     const classes = [];
     const INFL = 2.2, OMAX = 0.6;
@@ -149,7 +151,7 @@ export const OPS = {
       for (let l = 0; l < (def.layers || 1); l++) classes.push({ R, cell: 2 * (INFL + OMAX) * R, seed: def.seed * 101 + n * 7 + l * 1013, last: true, list: null, count: 0, buf: null, memoX: NaN, memoY: NaN, memoZ: NaN, memoN: 0, memo: new Float64Array(40) });
     }
     const density = def.density, depthK = def.depth ?? 0.2, rimK = def.rim ?? 0.04;
-    const smi = def.slopeMaskInv, radius = def.planetRadius, below = def.belowDem || 0;
+    const smi = def.slopeMaskInv, radius = def.planetRadius, below = def.belowDem || 0, skew = def.ageSkew ?? 1;
     let add = 0, slope = 0;
 
     // Fills cr[] = centre x,y,z, radius, age for the crater of lattice cell (ix,iy,iz), if any.
@@ -168,7 +170,8 @@ export const OPS = {
       const ql = radius / qlen;
       cr[0] = qx * ql; cr[1] = qy * ql; cr[2] = qz * ql;
       cr[3] = cls.R * (0.5 + 0.5 * ((h2 >>> 16) / 65536));
-      cr[4] = 0.35 + 0.65 * ((h0 >>> 16) / 65536);          // age: older = shallower, softer
+      const u = (h0 >>> 16) / 65536;
+      cr[4] = 0.35 + 0.65 * (skew === 1 ? u : Math.pow(u, skew));   // age: older = shallower, softer
       return true;
     };
     // Adds one crater's profile at the current point.

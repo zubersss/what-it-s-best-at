@@ -41,7 +41,7 @@ skipped, so frames are evenly spaced.
 4. `atmosphere.update` → LUTs (transmittance + multi-scatter once per world; sky-view and
    irradiance when Sun/altitude change; aerial-perspective froxel atlas every frame).
    `sun`, `bodies`, `stars` update their uniforms.
-5. `nearShadow.render` → 2048² depth map of ship + rocks, ±150 m around the camera.
+5. `nearShadow.render` → one 16-bit depth atlas, three tiles along the Sun: rocks and lander ±150 m (15 cm texels), the same ±20 m (4 cm; only the nearest rocks, governor step `fine-shadows`), the character alone ±3.5 m around it (7 mm).
 6. HDR target (RGBA16F, sub-viewport = render scale):
    **far pass** (sky bodies, Sun disc, stars, additive sky in-scatter) → **clear depth** →
    **near pass** (terrain front-to-back, rocks, ship) → depth invalidated.
@@ -74,7 +74,7 @@ skipped, so frames are evenly spaced.
 | `src/atmosphere/` | Hillaire-style LUT atmosphere (`atmosphere.js`, `atmosphereGlsl.js`). |
 | `src/render/` | `globals.js` (uniforms shared by reference), `lightingGlsl.js` (the one lighting chunk), `fullscreen.js`. |
 | `src/sky/` | Far pass: `stars.js` (point sources), `sun.js`, `bodies.js`, `skyDome.js`. |
-| `src/shadows/nearShadow.js` | The single 2048² shadow map + its GLSL. |
+| `src/shadows/nearShadow.js` | The shadow atlas of the things standing on the ground (coarse, fine and character tiles) + its GLSL. On an airless world a shadow's soft edge is about a hundredth of the distance to its caster, so a figure's shadow needs millimetre texels. |
 | `src/rocks/rocks.js` | Instanced rocks, scattered deterministically near the camera. |
 | `src/ship/lander.js` | Procedural lander geometry, placement, material. |
 | `src/hero/hero.js` / `cloak.js` | The flying character (procedural suited figure, limbs that bend at elbow and knee) and its cloth-simulated cloak. |

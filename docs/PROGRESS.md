@@ -281,6 +281,17 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 - **A world in black space is exposed lower than a view full of ground** (`globe` 0.32
   against `surface` 0.6, blended by how much of the frame the lit surface covers): at
   0.6 the tone curve flattened Mars's markings into cream.
+- **Hard lunar shadows** (a helper measured why the Moon's light looked soft). No small
+  crater was steep enough to shade itself at a 29° Sun (inner walls 23°): fresh ones are
+  now bowls a fifth as deep as wide (`ageSkew` keeps most worn), and craters fade out on
+  slopes above about 20° (soil creep), which also removed the camouflage blotches on the
+  rille's far wall. The finest lunar chunks went from 42 m to 10 m (`maxLevel` 18). The
+  rock, lander and figure shadows went from one 15 cm-texel map to an atlas with a 4 cm
+  tile near the camera and a 7 mm tile that follows the figure: its shadow is a crisp
+  silhouette instead of a smudge, and it now shades itself. The fine tile draws only the
+  rocks within 30 m (they are scattered nearest-first), so the triangle budget holds.
+  Baked terrain shadows can store the clearance angle instead of visibility for sharper
+  edges (`CONFIG.SHADOW_ANGLE`); not switched on yet, it needs a decode in the terrain shader.
 - **Mars from orbit keeps its albedo features** (a helper measured where the Viking
   mosaic's contrast went: the picture kept half of it). Three causes, three fixes: the
   globe was exposed into the tone curve's shoulder (Mars now sets `exposure.globe` 0.18,

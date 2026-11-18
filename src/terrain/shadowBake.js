@@ -7,6 +7,14 @@
 //   mid    – a 17x17 grid of rays continues from the chunk's edge out to 8 chunk widths;
 //   far    – a 5x5 grid of rays covers the rest of the range (distant walls).
 // The three minimum clearance angles are combined per texel.
+//
+// What a texel stores (CONFIG.SHADOW_ANGLE): 0 = the Sun's visibility, 0..1. The GPU
+// filters that between texels, so every shadow edge is a ramp a texel wide (35 cm at the
+// finest level, tens of metres on a far wall), whatever the Sun's size. K > 0 = the
+// clearance angle itself in Sun radii, clamped to +-K and stored as 0.5 + 0.5 x / K: the
+// filtering then interpolates the angle, and the terrain shader turns it into visibility
+// afterwards (smoothstep over x = -1..1), so an edge lands between texels where the angle
+// crosses zero and is as sharp as the Sun's disc makes it.
 import { faceToDir, dirToFace, nodeEdge } from './cubeSphere.js';
 import { toHalf } from './halfFloat.js';
 
@@ -18,6 +26,7 @@ export class ShadowBaker {
   constructor(hs, cfg, world) {
     this.hs = hs;
     this.S = cfg.SHADOW_RES;
+    this.angleK = cfg.SHADOW_ANGLE || 0;
     this.range = world.terrain.shadowRange ?? 150000;                           // metres
     this.dir = [0, 0, 0]; this.uv = [0, 0];
     const M = this.S + 3;
@@ -184,7 +193,7 @@ export class ShadowBaker {
           if (a < minAngle) minAngle = a;
         }
       } else if (cosE <= 0.02 && mu < minAngle) minAngle = mu;
-      out[j * T + i] = Math.round(255 * toVisibility(minAngle, sunHalf));
+      out[j * T + i] = this.angleK ? toAngleTexel(minAngle, sunHalf, this.angleK) : Math.round(255 * toVisibility(minAngle, sunHalf));
     }
     return out;
   }
@@ -231,6 +240,12 @@ export class ShadowBaker {
 function toVisibility(minAngle, sunHalf) {
   const v = 0.5 + minAngle / (2 * Math.max(sunHalf, SUN_HALF_ANGLE_MIN));
   return v <= 0 ? 0 : v >= 1 ? 1 : v * v * (3 - 2 * v);
+}
+
+// The clearance angle in Sun radii, clamped to +-K, as a byte (see the top of this file).
+function toAngleTexel(minAngle, sunHalf, K) {
+  const x = minAngle / (Math.max(sunHalf, SUN_HALF_ANGLE_MIN) * K);
+  return Math.round(127.5 + 127.5 * (x <= -1 ? -1 : x >= 1 ? 1 : x));
 }
 
 function bil(A, W, x, y) {
