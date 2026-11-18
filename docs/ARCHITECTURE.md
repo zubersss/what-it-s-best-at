@@ -78,7 +78,7 @@ skipped, so frames are evenly spaced.
 | `src/rocks/rocks.js` | Instanced rocks, scattered deterministically near the camera. |
 | `src/ship/lander.js` | Procedural lander geometry, placement, material. |
 | `src/hero/hero.js` / `cloak.js` | The flying character (procedural suited figure, limbs that bend at elbow and knee) and its cloth-simulated cloak. |
-| `src/fx/dust.js` | Dust thrown up by the character near the ground: a fixed pool of 256 soft sprites on ballistic arcs under the world's gravity, slowed by its air, lit through the lighting chunk and tinted like the ground. The governor can halve it. |
+| `src/fx/dust.js` | Dust thrown up by the character near the ground: a fixed pool of 512 sprites on ballistic arcs under the world's gravity, slowed by its air, lit through the lighting chunk and tinted like the ground. The governor can halve it. |
 | `src/controls/` | `input.js` (keys, mouse, virtual keys), `touch.js` (phone controls), `cameraRig.js` (walk, fly, zoom). |
 | `src/post/post.js` | HDR target, metering, bloom, tone map, dither. |
 | `src/debug/hud.js` | HUD (compact line / full read-out / off) and time-of-day slider. |
@@ -281,7 +281,8 @@ HDR RGBA16F → bloom downsample (13-tap, clamped; the first level is capped at 
 centre-weighted log average with a floor at a fraction of the frame mean, plus exact
 single-pixel samples of lit surfaces for the subject-priority limit, weighted by the
 square root of their brightness so a white lander on dark ground cannot speak for the
-scene; async read-back) →
+scene; the highlight peak skips the texels around the Sun's disc, placed by
+`Post.setSun`; async read-back) →
 bloom upsample → composite (~4.5 % bloom mix) → AgX → blue-noise dither. The scene is rendered
 into a sub-viewport of a fixed, native-size target (no reallocations when the resolution
 changes) and the composite pass scales it up to the canvas.

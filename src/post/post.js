@@ -47,6 +47,7 @@ uniform sampler2D tSrc;
 uniform sampler2D tScene;  // the full-resolution HDR scene, for exact per-pixel samples
 uniform vec2 uViewSize;    // its used size in pixels
 uniform float uFloor;      // fraction of the frame mean below which texels stop pulling exposure up
+uniform vec3 uSunGrid;     // the Sun's disc on the 32 x 18 grid: centre (texels), radius plus margin (texels); radius < 0: not in view
 in vec2 vUv;
 out vec4 outColor;
 float cover;
@@ -71,7 +72,10 @@ void main() {
       float l = lumAt(x, y);
       sum += w * log2(max(l, floorLum));
       wsum += w;
-      if (cover > 0.2) peak = max(peak, l / cover);   // brightest region that is a lit surface
+      // brightest region that is a lit surface; never next to the Sun's disc, whose light
+      // shares those texels and would read as a lit surface many times over white
+      vec2 toSun = (vec2(float(x), float(y)) + 0.5) - uSunGrid.xy;
+      if (cover > 0.2 && dot(toSun, toSun) > uSunGrid.z * uSunGrid.z) peak = max(peak, l / cover);
     }
   }
   // Lit surfaces only, from single pixels of the scene (alpha is exactly 1 on a lit
@@ -172,7 +176,7 @@ export class PostPipeline {
 
     this.downMat = makePassMaterial(DOWN_FRAG, { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() }, uUvScale: { value: new THREE.Vector2(1, 1) }, uUvMax: { value: new THREE.Vector2(1, 1) }, uClamp: { value: 1e9 } });
     this.upMat = makePassMaterial(UP_FRAG, { tSrc: { value: null }, tBase: { value: null }, uTexel: { value: new THREE.Vector2() } });
-    this.meterMat = makePassMaterial(METER_FRAG, { tSrc: { value: null }, tScene: { value: null }, uViewSize: { value: new THREE.Vector2(1, 1) }, uFloor: { value: this.settings.shadowFloor } });
+    this.meterMat = makePassMaterial(METER_FRAG, { tSrc: { value: null }, tScene: { value: null }, uViewSize: { value: new THREE.Vector2(1, 1) }, uFloor: { value: this.settings.shadowFloor }, uSunGrid: { value: new THREE.Vector3(0, 0, -1) } });
     this.compositeMat = makePassMaterial(COMPOSITE_FRAG, {
       tScene: { value: null }, tBloom: { value: null }, tBlueNoise: { value: noise },
       uUvScale: { value: new THREE.Vector2(1, 1) }, uUvMax: { value: new THREE.Vector2(1, 1) },
@@ -282,6 +286,15 @@ export class PostPipeline {
     renderPass(r, this.compositeMat, null);
   }
 
+  // Where the Sun's disc is on screen, for the meter: (u, v) in 0..1 from the bottom left,
+  // its angular radius over the vertical field of view; visible = false when it is not in
+  // front of the camera.
+  setSun(u, v, radiusFraction, visible) {
+    const g = this.meterMat.uniforms.uSunGrid.value;
+    if (!visible) { g.set(0, 0, -1); return; }
+    g.set(u * 32, v * 18, radiusFraction * 18 + 1.6);
+  }
+
   _meter(dt) {
     const s = this.settings;
     // Smooth toward the last known target every frame.
@@ -298,12 +311,10 @@ export class PostPipeline {
       let target = s.key / Math.pow(2, this.measuredLog2);
       // Highlight priority: a sunlit surface (the hero in space, a planet filling the view)
       // may not be pushed more than `highlight` times over white, however dark the rest is.
-      // (The peak comes from a blurred copy of the frame, so the Sun's disc next to a ridge
-      // leaks into it, and that leak is clipped, which no exposure can chase: the peak is
-      // therefore held to 8 times the exactly sampled bright part of the lit surfaces.)
+      // (The peak comes from a blurred copy of the frame: the texels around the Sun's disc
+      // are left out of it in the shader, see setSun.)
       const bright = this._readBuf[2] / used, cover = this._readBuf[3];
-      let peak = this._readBuf[1] / used;
-      if (bright > 0) peak = Math.min(peak, 8 * bright);
+      const peak = this._readBuf[1] / used;
       if (peak > 0) target = Math.min(target, s.highlight / peak);
       // Subject priority: once lit surfaces are more than a small part of the frame (a
       // planet from space, not a figure against the stars) their bright parts may not go

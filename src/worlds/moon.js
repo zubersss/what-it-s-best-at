@@ -80,7 +80,7 @@ export default {
     // shadowFloor: texels darker than this fraction of the frame mean (black sky, hard shadow)
     // barely raise the exposure, so sunlit ground is exposed like a lunar surface photograph.
     // dim: above this exposure only part of the missing light is made up, so night is night.
-    exposure: { key: 0.06, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.6, highlight: 6, dim: { above: 400, power: 0.2 } },
+    exposure: { key: 0.06, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.6, highlight: 6, dim: { above: 100, power: 0.35 } },
     // The first five are one place at different moments; the rest are other real places.
     // timeOffsetHours moves the clock from dateUTC to the light that suits the view.
     bookmarks: {

@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 
-const N = 256;
+const N = 512;            // grains in the pool (one draw call; a lunar touch-down throws up to ~220)
 
 const VERT = /* glsl */`
 in vec4 aState;              // x = age 0..1 (>= 1: dead), y = size in metres, z = brightness variation, w unused
@@ -25,13 +25,15 @@ const FRAG = /* glsl */`
 ${LIGHTING_PARS}
 uniform vec3 uDustAlbedo;
 uniform float uSunVis;
+uniform float uAfloat;      // 0 = vacuum: small hard-edged grains in clean arcs; 1 = air: soft spreading puffs
 in float vAge; in float vTone; in vec3 vRel;
 layout(location = 0) out vec4 fragColor;
 void main() {
   vec2 q = gl_PointCoord * 2.0 - 1.0;
   float r2 = dot(q, q);
   if (r2 > 1.0) discard;
-  float a = (1.0 - r2) * (1.0 - r2) * (1.0 - vAge) * (1.0 - vAge) * min(1.0, vAge * 12.0) * 0.34;
+  float shape = mix(1.0 - smoothstep(0.45, 1.0, r2), (1.0 - r2) * (1.0 - r2), uAfloat);
+  float a = shape * (1.0 - vAge) * (1.0 - vAge) * min(1.0, vAge * 12.0) * mix(0.75, 0.34, uAfloat);
   vec3 planetPos = uCamPlanetPos + vRel;
   vec3 up = normalize(planetPos);
   // a thin cloud of grains: half of the sunlight that reaches it comes back out, whatever
@@ -60,7 +62,7 @@ export class Dust {
     this.aPos = new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage);
     this.aState = new THREE.BufferAttribute(this.state, 4).setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('position', this.aPos); geo.setAttribute('aState', this.aState);
-    this.uniforms = { ...lightingUniforms(), uDustAlbedo: { value: new THREE.Vector3() }, uSunVis: { value: 1 }, uPixelsPerRadian: { value: 500 } };
+    this.uniforms = { ...lightingUniforms(), uDustAlbedo: { value: new THREE.Vector3() }, uSunVis: { value: 1 }, uPixelsPerRadian: { value: 500 }, uAfloat: { value: 0 } };
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: this.uniforms, vertexShader: VERT, fragmentShader: FRAG,
       transparent: true, depthWrite: false,
@@ -104,7 +106,7 @@ export class Dust {
       this.pos[i * 3] = ox + (t.x * cx + b.x * sx) * r; this.pos[i * 3 + 1] = oy + (t.y * cx + b.y * sx) * r; this.pos[i * 3 + 2] = oz + (t.z * cx + b.z * sx) * r;
       this.vel[i * 3] = (t.x * cx + b.x * sx) * s + up.x * l + carry.x; this.vel[i * 3 + 1] = (t.y * cx + b.y * sx) * s + up.y * l + carry.y; this.vel[i * 3 + 2] = (t.z * cx + b.z * sx) * s + up.z * l + carry.z;
       this.life[i] = 0; this.span[i] = (1.5 + 1.8 * this._rnd()) * (1 + 1.4 * this.afloat);
-      this.state[i * 4] = 0; this.state[i * 4 + 1] = 0.14 + 0.26 * this._rnd(); this.state[i * 4 + 2] = 0.85 + 0.3 * this._rnd();
+      this.state[i * 4] = 0; this.state[i * 4 + 1] = (0.14 + 0.26 * this._rnd()) * (0.3 + 0.7 * this.afloat); this.state[i * 4 + 2] = 0.85 + 0.3 * this._rnd();
     }
   }
 
@@ -136,6 +138,7 @@ export class Dust {
     this.points.position.subVectors(this.anchor, camPos);
     this.uniforms.uPixelsPerRadian.value = viewH / (2 * tanHalfFov);
     this.uniforms.uSunVis.value = sunVis;
+    this.uniforms.uAfloat.value = afloat;
     this.aPos.needsUpdate = true; this.aState.needsUpdate = true;
   }
 }

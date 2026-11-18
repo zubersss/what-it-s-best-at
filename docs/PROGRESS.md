@@ -273,6 +273,13 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 - **The bright-part meter is weighted by the square root of brightness** (was: by
   brightness). A crescent still counts as its day side, but a white lander and sunlit
   rocks on dark lunar soil no longer drag the exposure down until the ground is black.
+- **The highlight meter leaves out the screen around the Sun's disc.** It reads a blurred
+  copy of the frame, and where the Sun sits on a ridge (the lunar sunrise view) the disc's
+  light shared texels with lit ground and counted as ground many times over white: the
+  exposure never settled. A first fix capped that reading at 8 times the mean of the lit
+  samples, which over-exposed a thin crescent (the night side counts as lit surface and
+  pulls the mean down); it was replaced by skipping the texels within the Sun's radius
+  plus 1.6 texels.
 - **Dim scenes stay dim on the Moon** (`exposure.dim`): above an exposure of 400 only
   80 % of the missing light (in stops) is made up. An earthlit night comes out about four
   times darker than day instead of equal to it; the ground toward the Sun is darker than

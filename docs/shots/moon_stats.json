@@ -7,13 +7,13 @@
     "visited": 302,
     "wanted": 0,
     "lodScale": 0.808,
-    "avgBuildMs": 63.6,
+    "avgBuildMs": 48.2,
     "exposure": 11.21,
     "surface": [
       0.649,
       0.117
     ],
-    "frame": 166,
+    "frame": 163,
     "wait": ""
   },
   "sun": {
@@ -24,24 +24,24 @@
     "visited": 398,
     "wanted": 0,
     "lodScale": 0.527,
-    "avgBuildMs": 67.5,
+    "avgBuildMs": 49.3,
     "exposure": 1399,
     "surface": [
       0.481,
       0.21
     ],
-    "frame": 325,
+    "frame": 332,
     "wait": ""
   },
   "wall": {
     "calls": 129,
     "triangles": 455145,
     "chunks": 110,
-    "loaded": 467,
+    "loaded": 470,
     "visited": 358,
     "wanted": 0,
     "lodScale": 0.596,
-    "avgBuildMs": 72.5,
+    "avgBuildMs": 48.4,
     "exposure": 65.75,
     "surface": [
       0.543,
@@ -54,17 +54,17 @@
     "calls": 128,
     "triangles": 448105,
     "chunks": 109,
-    "loaded": 362,
+    "loaded": 366,
     "visited": 322,
     "wanted": 0,
     "lodScale": 0.715,
-    "avgBuildMs": 63.8,
+    "avgBuildMs": 47.6,
     "exposure": 34.21,
     "surface": [
       0.587,
       0.124
     ],
-    "frame": 190,
+    "frame": 188,
     "wait": ""
   },
   "dusk": {
@@ -75,14 +75,14 @@
     "visited": 314,
     "wanted": 0,
     "lodScale": 0.885,
-    "avgBuildMs": 52,
-    "exposure": 63840,
+    "avgBuildMs": 36.8,
+    "exposure": 64010,
     "surface": [
       0.188,
-      0.0632
+      0.0634
     ],
-    "frame": 609,
-    "wait": "exposure "
+    "frame": 610,
+    "wait": ""
   },
   "tycho": {
     "calls": 130,
@@ -92,13 +92,13 @@
     "visited": 374,
     "wanted": 0,
     "lodScale": 0.596,
-    "avgBuildMs": 83.6,
+    "avgBuildMs": 56.5,
     "exposure": 18.19,
     "surface": [
       0.556,
       0.125
     ],
-    "frame": 242,
+    "frame": 255,
     "wait": ""
   },
   "taurus": {
@@ -109,13 +109,13 @@
     "visited": 314,
     "wanted": 0,
     "lodScale": 0.833,
-    "avgBuildMs": 78.8,
+    "avgBuildMs": 55.4,
     "exposure": 27.25,
     "surface": [
       0.257,
       0.32
     ],
-    "frame": 216,
+    "frame": 215,
     "wait": ""
   }
 }
