@@ -161,7 +161,7 @@ void integrateToGround(vec3 ro, vec3 rd, vec3 sunDir, float tMax, int steps, out
 // Sky light on level ground as a function of the Sun's height: a 1-D table (SKYE_W
 // texels, u = 0.5 + 0.5 sign(mu) sqrt|mu| like the multi-scatter LUT), built once per
 // world. Includes a share of the light bounced by sunlit ground, so that airless worlds
-// follow the Sun too. Only ratios of this table are used (see SKYGAIN_FRAG).
+// follow the Sun too. Surfaces seen from high up take their sky light from it (skyLight).
 export const SKYE_FRAG = /* glsl */`
 ${ATMO_UNIFORMS}
 ${ATMO_COMMON}
@@ -187,22 +187,6 @@ void main() {
   E *= PI / float(NA * NE);
   E += uGroundAlbedo * transmittanceLut(r, muS) * planetShadow(r, muS) * max(muS, 0.0) * 0.25;
   outColor = vec4(E * SKYE_SCALE, 1.0);
-}`;
-
-// The table above divided by its own value at the camera's Sun height: how much brighter
-// or darker the sky light is at another place on the globe than where the camera is.
-// Exactly 1 at the camera, 0 deep in the night, capped where the camera itself is in the
-// dark (there the camera's sky light is too faint to scale up without noise).
-export const SKYGAIN_FRAG = /* glsl */`
-uniform sampler2D tSkyE;
-uniform float uSunMu;
-in vec2 vUv;
-out vec4 outColor;
-void main() {
-  float uc = 0.5 + 0.5 * sign(uSunMu) * sqrt(abs(uSunMu));
-  uc = (uc * (float(SKYE_W) - 1.0) + 0.5) / float(SKYE_W);
-  vec3 here = max(texture(tSkyE, vec2(uc, 0.5)).rgb, vec3(1e-6));
-  outColor = vec4(min(texture(tSkyE, vUv).rgb / here, vec3(32.0)), 1.0);
 }`;
 
 export const TRANSMITTANCE_FRAG = /* glsl */`

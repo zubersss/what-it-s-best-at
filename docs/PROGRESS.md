@@ -210,15 +210,19 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
   figure against the stars keeps the old, looser limit (`highlight`). Ground-level
   bookmarks sit at 0.17–0.24, far below the limit, and are unchanged.
 - **Sky light follows the local Sun.** The irradiance map belongs to the camera's place.
-  Elsewhere on the globe it is scaled by a table of sky-plus-bounce light on level ground
-  against the Sun's height (built once per world on the GPU, divided by its own value at
-  the camera, capped at 32). It is exactly 1 at the camera, and below 3 km of altitude
-  the look-up is skipped altogether (it fades in up to 30 km), so nothing changes on the
-  ground and nothing is paid for there.
+  From high up every surface instead takes the sky-plus-bounce light of level ground at
+  its own Sun height, from a table built once per world (milestone 3; in milestone 2 the
+  camera's map was scaled by the ratio of that table to its value at the camera, which
+  left the day side without any sky light whenever the camera hung over the night side).
+  Below 3 km of altitude the table is not used at all (it fades in up to 30 km), so
+  nothing changes on the ground and nothing is paid for there.
 - **Edge glow from space is marched per pixel**, in the sky dome (rays that cross the
   shell) and on ground seen at a grazing angle (blend from froxels below a view cosine of
-  0.38, fully marched below 0.22). Screen-space froxels cannot follow the path length
-  there: it changes by a factor of two between neighbouring froxels. The sky-view LUT is
+  0.38, fully marched below 0.22), and since milestone 3 everywhere the Sun is less than
+  about 6° up: a froxel tile near the edge can hold rays that pass through sunlit air
+  beyond it, and over the night side that light showed as bright square blocks. Screen-
+  space froxels cannot follow the path length near the edge: it changes by a factor of
+  two between neighbouring froxels. The sky-view LUT is
   used only while the camera is in the air and is cross-faded over the top tenth of the
   atmosphere.
 - **Terrain shadow in the air** is a 64×64 map on the tangent plane around the camera
@@ -359,25 +363,30 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 
 | Problem | Milestone |
 | --- | --- |
-| Governor start level, step sizes and thresholds are first guesses until the owner's phone results arrive | 1 (open) |
-| No contact shadows under the lander and rocks when the site is in terrain shadow | 3 |
-| One-pixel-high bright features alias (ridge highlights, the lunar far rim): no anti-aliasing | 3 |
+| Milestone 2 and 3 builds have not been measured on the phone: the per-pixel haze near a planet's edge, the albedo lookup and the dust are new costs | owner's next benchmark |
+| No contact shadows under the lander and rocks when the site is in terrain shadow | 4 |
+| One-pixel-high bright features alias (ridge highlights, crater rims): no anti-aliasing. The milestone 1 results showed room for it; it waits for numbers from the current build | after the next benchmark |
 | Night scenes need about 570 frames for exposure to settle in screenshot mode | tooling |
 | A chunk that takes over while its parent is itself still fading in starts from the parent's own maps, a small jump during fast streaming | watch |
-| Lunar chunks still build about 1.7× slower than Martian ones (41 vs 24 ms in Node) | watch |
-| From orbit Mars is one colour and soft; the Moon has no maria or rays | 3 |
-| Terminators are geometrically straight; no relief shadows along them from afar | 3 |
-| Twilight glow has a hard upper edge at the highest exposures | 3 |
-| Lunar ground is one grey at every Sun height; craters are soft stamps | 3 |
-| Baked terrain shadows have soft, wobbly edges on an airless world; no long shadows from rocks and lander at a low Sun | 3 |
-| Mars: flat grey sky away from the Sun, olive cast in the sunset views, one-colour ground | 3 |
-| Mars from orbit is veiled in cream haze with faint vertical streaks; the canyon does not show | 3 |
-| An earthlit lunar night is exposed as bright as day | 3 |
+| Chunk builds cost about 10 % more than in milestone 2 on Mars (the rays that keep shadows continuous across chunk borders); lunar chunks are a third cheaper than before | watch |
+| The terminator seen from far away is as sharp as the shadow map's texels: stair-stepped on the Moon at high zoom, no long relief shadows across it | 5 |
+| Looking straight down-Sun on the Moon the ground is featureless (true to life, but nothing to steer by); small craters only show across the light | 4 |
+| The SLDEM patch has faint north-south stripes a few metres high (the altimeter's tracks) | watch |
+| Outside the sharp patches the Moon and Mars are 7 to 15 km per pixel plus invented relief: landing anywhere else shows no real small landforms | 6 / 7 |
+| Mars from orbit is soft: about 40 % of the contrast of the Viking mosaic survives the haze; Valles Marineris shows by its bright rims | 5 |
+| Twilight glow has a hard upper edge at the highest exposures | 5 |
+| Mars: flat grey sky away from the Sun, olive cast in the sunset views | 5 |
 | Deimos burns out to a white blob at dusk exposure | 5 |
+| Earth is a blown-out white disc from the Moon and has no blue | 5 |
 | The character is still a simple figure: no visor detail, no backpack, clean white suit | 4 |
-| Earth is blown out to white in the lunar dusk shot and has no blue | 5 |
+| Dust puffs are soft round sprites: up close the single puffs can be told apart | 4 |
 | Far from every body there is only the HUD read-out to navigate by | 4 / 7 |
-| Triangles sit at ~460–480k of the 500k budget | watch |
+| Triangles sit at ~420–480k of the 500k budget | watch |
+
+Fixed in milestone 3: the Moon had no maria or rays and Mars was one colour from orbit;
+a sixth of Mars drawn washed-out from far away; lunar ground one grey at every Sun
+height; an earthlit lunar night exposed as bright as day; whole benches wrongly in shadow
+at a low Sun, with straight edges where chunks meet.
 
 Fixed in milestone 2: detail popping as terrain refines; no glow (and an inverted band)
 on the planet's edge from orbit; over-exposed globes, lit night sides and the stripe on
@@ -385,6 +394,27 @@ Mars's terminator; the halo around the airless Moon; the roll at the Mars ↔ Mo
 hand-over; lunar chunk build time (72 → 41 ms); haze ignoring terrain shadow; ledges
 reading as dunes; the far wall's haze (in part: 15 % less dust); rigid limbs and the
 cloak passing through arms and legs; Phobos and Deimos checked.
+
+## Tests and measurements, milestone 3
+
+- **Flight**: `flyby` as after the flight fix (an aimed trip lands in 13 s within 0.1°; a
+  60-radius miss passes at 16 radii with the target sweeping at most 46°/s; a released
+  stick ends on the ground). The scripted Mars → orbit → Moon flight passes and now
+  arrives over Hadley.
+- **Smoke test** with a full benchmark: passes; the new dust step was exercised with the
+  others. Most at once in that run: 124 draw calls, 337k triangles, about 142 MB of GPU
+  memory (the brightness or colour map of the current world adds 22 MB).
+- **Chunk builds in Node** (`profile-chunks`, means over the levels down to the start
+  site): the Moon 51 → 36 ms (real maps: far fewer invented craters to stamp), Mars
+  29 → 32 ms (the rays that keep shadows continuous across chunk borders). In the
+  browser run of the benchmark: Mars 50 ms, Moon 56 ms per patch on the test machine.
+- **Shadow continuity across chunk borders** (`bakecmp` in the session's scratch files:
+  mean difference, out of 255, between the two chunks' values along a shared edge, at the
+  Mars start with the Sun 4° up): level 17: 245 → 0; 16: 78 → 0; 14: 155 → 11; 12: 62 → 9.
+  The cause was not the border itself: rays that start under a ledge smaller than the
+  detail their first samples can see came out dark, in whole benches.
+- **Download**: Mars 4.4 → 6.8 MB of map data, the Moon 0 → 7.1 MB (fetched when the
+  Moon is first visited); the page script is 750 kB (212 kB compressed).
 
 ## Tests and measurements, milestone 2
 
@@ -513,3 +543,12 @@ Weakest: `mars_ledge_orbit_globe`.
   that stays off them; Phobos and Deimos checked (and their faceted shading fixed);
   tools `sky-table`, `profile-chunks`, `build-check`; shot parameters `aim`, `east`,
   `north`, `debug`.
+- **The owner's phone results and flight notes** (between milestones 2 and 3): both
+  modes start at native resolution, chunk uploads are spread over frames, flight goes
+  where it is aimed, gravity pulls when the stick is released, `HOVER` button.
+- **Milestone 3 built**: the real Moon (LOLA, SLDEM2015, Clementine) with its scene at
+  Hadley Rille; Mars in Viking colour; lunar photometry; landmark bookmarks with their
+  own elevation patches (Olympus Mons, Gale, Tycho, Taurus-Littrow) and labels; dust;
+  automatic shadow ceiling, per-texel baked sunlight, shadow rays that start from the
+  ground as they see it; exposure rules for globes, small bright objects, dim scenes and
+  the Sun on a ridge; `scripts/fetch-maps.py`; shot parameter `dust`.

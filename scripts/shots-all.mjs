@@ -27,10 +27,10 @@ const SETS = [
   // the character
   ['mars', 'ledge', 'hero=1', '_hero_flight'],
   ['mars', 'ship', 'hero=1&heropose=hover', '_hero_hover'],
-  ['mars', 'ship', 'hero=1&heropose=hover&dust=1', '_hero_dust'],
+  ['mars', 'ship', 'hero=1&heropose=hover&dust=1&pitch=-28', '_hero_dust'],
   ['mars', 'ledge', 'hero=1&alt=400000&pitch=-20', '_hero_orbit'],
   ['moon', 'ship', 'hero=1&heropose=hover', '_hero_hover'],
-  ['moon', 'ship', 'hero=1&heropose=hover&dust=1', '_hero_dust'],
+  ['moon', 'ship', 'hero=1&heropose=hover&dust=1&pitch=-28', '_hero_dust'],
   ['moon', 'ledge', 'hero=1', '_hero_flight'],
 ];
 
@@ -41,7 +41,7 @@ if (!flag('no-build')) {
 let failed = 0;
 for (const [world, shots, query, suffix] of SETS) {
   if (only && !`${world}${suffix}`.includes(only)) continue;
-  const a = ['scripts/shots.mjs', '--dist', '--world', world, '--shot', shots, '--size', '880x412', '--dsf', '1.25', '--timeout', '480', '--out', out];   // night scenes need ~570 frames for exposure to settle
+  const a = ['scripts/shots.mjs', '--dist', '--world', world, '--shot', shots, '--size', '880x412', '--dsf', '1.25', '--timeout', '720', '--out', out];   // night scenes need ~570 frames for exposure to settle, the busiest day views ~270
   if (query) a.push('--query', query);
   if (suffix) a.push('--suffix', suffix);
   const r = spawnSync('node', a, { cwd: root, stdio: 'inherit' });

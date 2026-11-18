@@ -19,7 +19,7 @@ uniform vec3 uCamPlanetPos;
 uniform float uPlanetRadius;
 uniform vec2 uViewport;
 uniform sampler2D tIrradiance;      // octahedral irradiance map (local sky frame) + circumsolar row
-uniform sampler2D tSkyGain;         // sky light at another Sun height relative to the camera's (1-D)
+uniform sampler2D tSkyE;            // sky light on level ground against the Sun's height (1-D)
 uniform float uSkyGainMix;          // 0 near the ground (everything in view shares the camera's sky), 1 from high up
 uniform sampler2D tFroxelA;         // aerial perspective: smooth in-scatter
 uniform sampler2D tFroxelB;         //                      un-phased dust in-scatter
@@ -50,21 +50,23 @@ vec2 octEncode(vec3 n) {
 }
 
 // Irradiance from the sky (minus the aureole) and from sunlit ground onto a surface with
-// normal N, at a place whose local vertical is up. The irradiance map belongs to the
-// camera's place; elsewhere on the globe it is scaled by how the sky's brightness changes
-// with the Sun's height there (exactly 1 at the camera, 0 on the night side). Near the
-// ground nothing in view is far enough round the globe for that to matter, and the
-// look-up is skipped (uSkyGainMix fades it in between 3 and 30 km of altitude).
+// normal N, at a place whose local vertical is up. Near the ground it comes from the
+// irradiance map of the camera's own place: everything in view shares that sky. From high
+// up that map is the wrong one (it belongs to thin air, or to a camera over the night
+// side), so each place gets the sky light of its own Sun height from the level-ground
+// table, over the part of the sky the surface faces (uSkyGainMix fades this in between 3
+// and 30 km of altitude).
 vec3 skyLight(vec3 N, vec3 up) {
   vec2 e = octEncode(uSkyFrame * N);
   vec2 uv = (e * (float(IRR) - 1.0) + 0.5) / vec2(float(IRR), float(IRR) + 1.0);
-  vec3 gain = vec3(1.0);
+  vec3 E = texture(tIrradiance, uv).rgb * uLutScaleInv.x;
   if (uSkyGainMix > 0.0) {
     float mu = dot(up, uSunDir);
     float ug = 0.5 + 0.5 * sign(mu) * sqrt(abs(mu));
-    gain = mix(gain, texture(tSkyGain, vec2((ug * (float(SKYE_W) - 1.0) + 0.5) / float(SKYE_W), 0.5)).rgb, uSkyGainMix);
+    vec3 there = texture(tSkyE, vec2((ug * (float(SKYE_W) - 1.0) + 0.5) / float(SKYE_W), 0.5)).rgb * ((0.5 + 0.5 * dot(N, up)) / SKYE_SCALE);
+    E = mix(E, there, uSkyGainMix);
   }
-  return texture(tIrradiance, uv).rgb * gain * (uLutScaleInv.x * uSunIrradiance);
+  return E * uSunIrradiance;
 }
 
 // Irradiance from planetshine (sunlight reflected by a sky body) onto a surface with normal N.
@@ -92,8 +94,14 @@ vec3 aerialPerspective(vec3 color, vec3 rel) {
     // air changes too fast from pixel to pixel for the screen-space froxels: there the
     // haze is marched for this pixel. (cosine of the angle between view ray and local vertical)
     vec3 pk = ro + rd * dk;
-    float graze = -dot(rd, pk) / length(pk);
+    float rk = length(pk), graze = -dot(rd, pk) / rk;
     useMarch = 1.0 - smoothstep(0.22, 0.38, graze);
+    // The same over the night side and the day-night line: there a screen tile of the
+    // froxels can hold rays that pass the planet's edge through sunlit air, and that light
+    // was smeared over dark ground as bright square blocks. From space only a few terrain
+    // patches are drawn, so the march costs little.
+    float sunUp = dot(pk, uSunDir) / rk;
+    useMarch = max(useMarch, 1.0 - smoothstep(0.04, 0.14, sunUp));
     if (useMarch > 0.0) {
       // entry point from the closest approach to the centre: accurate in 32-bit floats
       float dc = length(ro - rd * bq);
@@ -143,9 +151,6 @@ float diffuseON(vec3 N, vec3 L, vec3 V, float sigma) {
 // The Moon's phase curve: brightness of regolith at phase angle a (radians) relative to
 // opposition. Fitted to the Moon's brightness through the month.
 float regolithPhase(float a) { return 0.8 * exp(-0.8 * a) + 0.2 / (1.0 + tan(min(a, 3.0) * 0.5) / 0.05); }
-
-// The same for loose dust in flight (a cloud of the world's grains): 1 under air.
-float dustPhase(vec3 L, vec3 V) { return uPhotometry > 0.5 ? regolithPhase(acos(clamp(dot(L, V), -1.0, 1.0))) : 1.0; }
 
 // Airless regolith, times N.L, per unit irradiance: the lunar-Lambert function (McEwen's
 // limb-darkening weight) times the Moon's phase curve. Equal to Lambert when Sun, surface

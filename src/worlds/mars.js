@@ -96,7 +96,9 @@ export default {
     start: { lat: -13.174286, lon: 296.567862, eye: 1.7, heading: 292, pitch: -7 },
     ship: { east: 66, north: -53, heading: 250 },     // metres from start
     // highlight: how many times over white the brightest lit surface may be pushed
-    exposure: { key: 0.16, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.2, highlight: 6 },
+    // max: how far the exposure may be pushed in the dark. It is what keeps the twilight
+    // glow from burning out an hour and a half after sunset.
+    exposure: { key: 0.16, min: 0.5, max: 2.3e5, speed: 1.6, shadowFloor: 0.2, highlight: 6 },
     // The first five are one place at different moments; the rest are other real places.
     // timeOffsetHours moves the clock from dateUTC to the light that suits the view.
     bookmarks: {

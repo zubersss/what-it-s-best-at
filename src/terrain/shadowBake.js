@@ -12,6 +12,7 @@ import { toHalf } from './halfFloat.js';
 
 const SUN_HALF_ANGLE_MIN = 0.0015;
 const MID = 16, FAR = 4;          // cells of the mid / far ray grids
+const EDGE_CELLS = 10;            // how far past the chunk's own height grid a ray is still followed at full detail
 
 export class ShadowBaker {
   constructor(hs, cfg, world) {
@@ -27,8 +28,18 @@ export class ShadowBaker {
 
   // Minimum clearance angle of the ray from (dx,dy,dz)*(R+h) toward the Sun over t in [t0, t1].
   // Returns early (with a very negative value) once the ray is clearly underground.
-  _march(dx, dy, dz, h, sx, sy, sz, t0, t1, minWL, floorStep, stopAngle) {
-    const hs = this.hs, R = hs.radius, r0 = R + h, ceil = R + hs.ceilingAt(dx, dy, dz);   // above this the ray is in the clear
+  // `hWL` is the detail limit `h` was sampled with. When the march starts with a much
+  // coarser one, the ray starts from the ground as that coarser view has it (if higher):
+  // a point in a hollow or under a ledge smaller than the first samples can resolve would
+  // otherwise begin "underground" and come out dark (whole benches did, with straight
+  // edges where chunks meet).
+  _march(dx, dy, dz, h, sx, sy, sz, t0, t1, minWL, floorStep, stopAngle, hWL = 0) {
+    const hs = this.hs, R = hs.radius;
+    if (hWL > 0) {
+      const wl0 = Math.max(minWL, t0 * 0.12);
+      if (wl0 > hWL * 1.5) { const hc = hs.height(dx, dy, dz, wl0) + floorStep * 0.02; if (hc > h) h = hc; }
+    }
+    const r0 = R + h, ceil = R + hs.ceilingAt(dx, dy, dz);   // above this the ray is in the clear
     const px = dx * r0, py = dy * r0, pz = dz * r0;
     let t = t0, minAngle = 1e9;
     for (let k = 0; k < 400 && t < t1; k++) {
@@ -120,7 +131,7 @@ export class ShadowBaker {
       const gx = 1 + i / FAR * cells, gy = 1 + j / FAR * cells;
       let a = 1e9;
       // (a point where the Sun is below the horizon is settled per texel further down)
-      if (dir[0] * sx + dir[1] * sy + dir[2] * sz >= -0.12 && tMid < this.range) a = this._march(dir[0], dir[1], dir[2], heightAt(Math.min(gx, M - 1.001), Math.min(gy, M - 1.001)) + spacing * 0.05, sx, sy, sz, tMid, this.range, minWL, spacing * 2, stop);
+      if (dir[0] * sx + dir[1] * sy + dir[2] * sz >= -0.12 && tMid < this.range) a = this._march(dir[0], dir[1], dir[2], heightAt(Math.min(gx, M - 1.001), Math.min(gy, M - 1.001)) + spacing * 0.05, sx, sy, sz, tMid, this.range, minWL, spacing * 2, stop, minWL);
       farA[j * (FAR + 1) + i] = Math.max(-clampA, Math.min(clampA, a));
     }
     // --- mid field: 17x17 rays from the edge of the height grid out to 8 chunk widths
@@ -132,7 +143,7 @@ export class ShadowBaker {
       const fa = bil(farA, FAR + 1, i / MID * FAR, j / MID * FAR);
       if (fa > stop && dir[0] * sx + dir[1] * sy + dir[2] * sz >= -0.12) {     // not already dark from far away, not night
         const tStart = Math.max(spacing * 1.5, exitCells(gx, gy) * tPerCell * 0.9);
-        if (tStart < tMid) a = this._march(dir[0], dir[1], dir[2], heightAt(Math.min(gx, M - 1.001), Math.min(gy, M - 1.001)) + spacing * 0.05, sx, sy, sz, tStart, tMid, Math.max(minWL * 2, edge / 6), spacing * 2, stop);
+        if (tStart < tMid) a = this._march(dir[0], dir[1], dir[2], heightAt(Math.min(gx, M - 1.001), Math.min(gy, M - 1.001)) + spacing * 0.05, sx, sy, sz, tStart, tMid, Math.max(minWL * 2, edge / 6), spacing * 2, stop, minWL);
       }
       midA[j * (MID + 1) + i] = Math.max(-clampA, Math.min(clampA, a));
     }
@@ -164,6 +175,14 @@ export class ShadowBaker {
         }
         // with no grid cell inside the range (planet-sized chunks) the horizon is the curve itself
         if (sExit <= 0.8 && mu < minAngle) minAngle = mu;
+        // A ray that leaves the grid after only a few cells has seen almost nothing of the
+        // ground next to it, and the coarse rays that take over skip small relief: without
+        // this stretch at full detail the texels along the Sun-ward edge disagree with the
+        // neighbouring chunk's and the border shows as a straight line at a low Sun.
+        if (minAngle > stop && sExit < EDGE_CELLS && sExit * tCell < this.range) {
+          const a = this._march(dir[0], dir[1], dir[2], h0, sx, sy, sz, Math.max(sExit, 0.8) * tCell, Math.min(this.range, EDGE_CELLS * tCell), minWL, spacing * 1.5, stop);
+          if (a < minAngle) minAngle = a;
+        }
       } else if (cosE <= 0.02 && mu < minAngle) minAngle = mu;
       out[j * T + i] = Math.round(255 * toVisibility(minAngle, sunHalf));
     }

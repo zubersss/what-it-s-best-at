@@ -10,9 +10,9 @@ owner's reply or phone results), `done`.
 | # | Milestone | Status |
 | --- | --- | --- |
 | 0 | Foundation: Mars (Coprates Chasma), the Moon, flight between them, the character | done |
-| 1 | Phone link and measurement | done (open: Pages switch, governor tuning from the owner's phone results) |
-| 2 | Fix the known problems | checkpoint sent |
-| 3 | Make Mars and the Moon beautiful | not started |
+| 1 | Phone link and measurement | done |
+| 2 | Fix the known problems | done |
+| 3 | Make Mars and the Moon beautiful | checkpoint sent |
 | 4 | Character and flight feel | not started |
 | 5 | Earth and the Sun from space | not started |
 | 6 | New landable worlds (checkpoint after every two) | not started |
@@ -33,10 +33,9 @@ owner's reply or phone results), `done`.
   cause, GPU string, screen size and pixel ratio, mode, commit hash.
 - The governor, and the Smooth and Sharp modes.
 
-Built. Open items that need the owner: switch GitHub Pages on (Settings → Pages →
-Source: "GitHub Actions"), then run the benchmark in both modes and the soak test on the
-phone and paste the results. The governor's starting level and thresholds are tuned from
-those results before milestone 2 starts.
+Built. Pages is on; the owner ran the benchmark and the soak test in both modes on the
+phone, and the governor was tuned from those results (`docs/PROGRESS.md`, "The owner's
+first phone results").
 
 ## 2. Fix the known problems
 
@@ -62,6 +61,13 @@ remaining softness, contact shadows in terrain shade, the two-lobe dust phase fu
 - More real landmark bookmarks, as data.
 - Ground materials that hold up at walking distance.
 - Dust kicked up on landing.
+
+Built (see `docs/PROGRESS.md`). The Moon is now the real one, with its main site at Hadley
+Rille and the Apollo 15 landing place; Mars has its real colours; each world has two more
+real places with their own elevation (Olympus Mons and Gale; Tycho and the Apollo 17
+valley). Left for later milestones, with the reason, in the known-problems table:
+anti-aliasing (waits for phone numbers from this build), contact shadows in shade, the
+twilight edge and sky colour on Mars, relief shadows along the terminator from far away.
 
 ## 4. Character and flight feel
 

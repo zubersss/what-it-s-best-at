@@ -34,9 +34,10 @@ void main() {
   float a = (1.0 - r2) * (1.0 - r2) * (1.0 - vAge) * (1.0 - vAge) * min(1.0, vAge * 12.0) * 0.34;
   vec3 planetPos = uCamPlanetPos + vRel;
   vec3 up = normalize(planetPos);
-  // a cloud of grains: half of the sunlight that reaches it comes back out (less toward
-  // the Sun on airless regolith, like the ground it came from), plus sky light
-  vec3 E = directSun(planetPos) * (uSunVis * 0.5 * dustPhase(uSunDir, -normalize(vRel))) + skyLight(up, up) + planetShine(up);
+  // a thin cloud of grains: half of the sunlight that reaches it comes back out, whatever
+  // the direction (loose grains do not hide each other's shadows as packed soil does, so
+  // even over dark lunar ground a plume catches the light), plus sky light
+  vec3 E = directSun(planetPos) * (uSunVis * 0.5) + skyLight(up, up) + planetShine(up);
   // (always within a few metres of the eye: no haze in between worth the cost)
   fragColor = vec4(uDustAlbedo * uGroundTint * vTone * E / PI * uExposure, a);
 }`;
@@ -53,6 +54,7 @@ export class Dust {
     this.seed = 12345;                           // own random numbers, so a burst can be replayed exactly
     this.amount = 1;                             // governor: 1 = full, 0.5 = half the grains
     this.afloat = 0;                             // 0 = vacuum (ballistic grains) .. 1 = air that holds dust up
+    this.gravity = 1;                            // m/s^2 at the last update
     this.anchor = new THREE.Vector3();
     const geo = new THREE.BufferGeometry();
     this.aPos = new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage);
@@ -85,8 +87,11 @@ export class Dust {
   }
 
   // Throws `count` grains from `at` (planet-fixed metres): outward along the ground with
-  // speed `spread`, upward with `lift`, plus `carry` (a velocity they inherit).
+  // speed `spread`, upward with `lift`, plus `carry` (a velocity they inherit). In air the
+  // lift is as given; in vacuum it is whatever carries a grain `lift` x 0.6 m high under
+  // this world's gravity (low gravity: slow, long arcs).
   emit(at, up, count, spread, lift, carry) {
+    lift = lift * this.afloat + Math.sqrt(1.2 * lift * this.gravity) * (1 - this.afloat);
     if (this.alive === 0) this.anchor.copy(at);                 // re-anchor when the pool is empty: keeps the numbers small
     const t = this._t.set(up.y, -up.x, 0); if (t.lengthSq() < 1e-6) t.set(1, 0, 0);
     t.addScaledVector(up, -t.dot(up)).normalize();
@@ -109,6 +114,7 @@ export class Dust {
     // Even thin air holds fine dust up: with any real atmosphere a puff slows, hangs and
     // spreads; with none every grain flies its arc and falls straight back.
     const afloat = this.afloat = 1 - Math.exp(-air * 12);
+    this.gravity = gravity;
     const drag = Math.exp(-dt * (0.12 + 2.6 * afloat));
     gravity *= 1 - 0.92 * afloat;
     let alive = 0;

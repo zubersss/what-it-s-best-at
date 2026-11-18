@@ -191,17 +191,21 @@ chunk), which makes dense crater fields 3–5× cheaper.
 - Radii: `rBottom` (lowest terrain; LUT domain and where view rays stop), `rOcc`
   (mean local terrain; casts the planet's shadow on the air), `rTop`.
 - `sky-light table` (64×1, once per world): sky-plus-bounce light on level ground against
-  the Sun's height. A second 64×1 pass divides it by its value at the camera; surfaces
-  elsewhere on the globe scale the camera's irradiance map by it (`skyLight` in the
-  lighting chunk), so the night side is dark and a camera at the terminator does not
-  paint twilight over the whole planet.
+  the Sun's height. Seen from high up, every surface takes its sky light from this table
+  at its own Sun height (times the share of the sky its normal faces) instead of from the
+  camera's irradiance map (`skyLight` in the lighting chunk; blended in between 3 and 30
+  km of altitude). So the night side is dark wherever the camera is, and a camera over
+  the night side does not leave the day side without sky light (an earlier version
+  scaled the camera's map by a ratio, which is zero when the camera's own sky is dark).
 - `air-shadow map` (64×64, R16F, filled by a terrain worker): altitude below which
   terrain hides the Sun, on the tangent plane around the camera. The froxel march drops
   direct sunlight below it (`airLit`). `Atmosphere.updateAir` keeps it current.
 - **From space** the sky dome marches each ray through the shell (16 samples, 8 on the
   governor's step) instead of reading the sky-view LUT, and ground seen at a grazing
-  angle marches its own haze (12 or 6 samples) instead of reading the froxels; both use
-  `scatterStep` in `ATMO_LUT_ACCESS`.
+  angle, or anywhere the Sun is less than about 6° up, marches its own haze (12 or 6
+  samples) instead of reading the froxels; both use `scatterStep` in `ATMO_LUT_ACCESS`.
+  (A froxel tile near the planet's edge can hold rays that pass through sunlit air
+  beyond the edge; over dark ground that light showed as bright square blocks.)
 - `atmosphere: null` is not a code path: it becomes an empty medium, the same passes run
   once, the sky stays black and the irradiance map contains only ground bounce.
 

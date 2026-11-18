@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { G } from '../render/globals.js';
 import { makePassMaterial, renderPass } from '../render/fullscreen.js';
-import { TRANSMITTANCE_FRAG, MULTISCAT_FRAG, SKYVIEW_FRAG, FROXEL_FRAG, IRRADIANCE_FRAG, SKYE_FRAG, SKYGAIN_FRAG } from './atmosphereGlsl.js';
+import { TRANSMITTANCE_FRAG, MULTISCAT_FRAG, SKYVIEW_FRAG, FROXEL_FRAG, IRRADIANCE_FRAG, SKYE_FRAG } from './atmosphereGlsl.js';
 
 const KM = 0.001;
 export const FROXEL_POW = 2.5;
@@ -50,8 +50,7 @@ export class Atmosphere {
     this.froxels = new THREE.WebGLRenderTarget(fw * ax, fh * ay, { ...half, count: 3 });
     this.irradiance = new THREE.WebGLRenderTarget(I, I + 1, half);
     this.skyE = new THREE.WebGLRenderTarget(SKYE_W, 1, half);
-    this.skyGain = new THREE.WebGLRenderTarget(SKYE_W, 1, half);
-    this.gpuBytes = 8 * (tw * th + mw * mh + 2 * sw * sh + 3 * fw * ax * fh * ay + I * (I + 1) + 2 * SKYE_W) + 2 * AIR_N * AIR_N;
+    this.gpuBytes = 8 * (tw * th + mw * mh + 2 * sw * sh + 3 * fw * ax * fh * ay + I * (I + 1) + SKYE_W) + 2 * AIR_N * AIR_N;
 
     const lut = { tTransmittance: { value: this.transmittance.texture }, tMultiScat: { value: this.multiScat.texture } };
     const sky = { tSkySmooth: { value: this.skyView.textures[0] }, tSkyMie: { value: this.skyView.textures[1] }, uSkyParams: { value: new THREE.Vector4(Math.PI / 2, 0.01, 1, 0) } };
@@ -78,12 +77,11 @@ export class Atmosphere {
     this.froxelMat = makePassMaterial(FROXEL_FRAG, { ...u, ...lut, ...this.froxelU, ...this.airU }, { defines });
     this.irrMat = makePassMaterial(IRRADIANCE_FRAG, { ...u, tTransmittance: lut.tTransmittance, ...sky, ...this.cam }, { defines });
     this.skyEMat = makePassMaterial(SKYE_FRAG, { ...u, ...lut }, { defines });
-    this.skyGainMat = makePassMaterial(SKYGAIN_FRAG, { tSkyE: { value: this.skyE.texture }, uSunMu: this.cam.uSunMu }, { defines });
 
     // Publish for consumers (terrain, rocks, ship, hero, sky dome, sun, bodies).
     Object.assign(G, u, {
       tTransmittance: lut.tTransmittance, tMultiScat: lut.tMultiScat, ...sky,
-      tSkyGain: { value: this.skyGain.texture },        // sky light elsewhere on the globe relative to here
+      tSkyE: { value: this.skyE.texture },              // sky light on level ground against the Sun's height
       uSkyGainMix: { value: 0 },                        // how much of it applies (0 near the ground)
       tIrradiance: { value: this.irradiance.texture },
       tFroxelA: { value: this.froxels.textures[0] }, tFroxelB: { value: this.froxels.textures[1] }, tFroxelC: { value: this.froxels.textures[2] },
@@ -202,7 +200,6 @@ export class Atmosphere {
       G.uSkyParams.value.set(Math.PI - beta, Math.max(beta, 1e-4), 1 / scale, 0);
       renderPass(r, this.skyMat, this.skyView);
       renderPass(r, this.irrMat, this.irradiance);
-      renderPass(r, this.skyGainMat, this.skyGain);
     }
 
     // Aerial perspective froxels follow the camera every frame (one draw call). From

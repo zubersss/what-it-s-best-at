@@ -7,11 +7,11 @@
     "visited": 326,
     "wanted": 0,
     "lodScale": 0.913,
-    "avgBuildMs": 43.9,
-    "exposure": 20.99,
+    "avgBuildMs": 55.7,
+    "exposure": 23.31,
     "surface": [
       0.651,
-      0.279
+      0.131
     ],
     "frame": 196,
     "wait": ""
@@ -24,11 +24,11 @@
     "visited": 418,
     "wanted": 23,
     "lodScale": 0.715,
-    "avgBuildMs": 45,
-    "exposure": 2.913,
+    "avgBuildMs": 53.7,
+    "exposure": 2.912,
     "surface": [
       0.342,
-      0.0715
+      0.0556
     ],
     "frame": 223,
     "wait": ""
@@ -41,13 +41,13 @@
     "visited": 450,
     "wanted": 0,
     "lodScale": 0.885,
-    "avgBuildMs": 46.6,
-    "exposure": 43.78,
+    "avgBuildMs": 57,
+    "exposure": 43.68,
     "surface": [
       0.601,
-      0.219
+      0.161
     ],
-    "frame": 203,
+    "frame": 190,
     "wait": ""
   },
   "ship": {
@@ -58,14 +58,14 @@
     "visited": 330,
     "wanted": 0,
     "lodScale": 0.653,
-    "avgBuildMs": 43.8,
-    "exposure": 139.2,
+    "avgBuildMs": 56.7,
+    "exposure": 73.06,
     "surface": [
       0.911,
-      0.261
+      0.171
     ],
-    "frame": 277,
-    "wait": ""
+    "frame": 255,
+    "wait": "exposure "
   },
   "dusk": {
     "calls": 122,
@@ -75,13 +75,47 @@
     "visited": 338,
     "wanted": 0,
     "lodScale": 1,
-    "avgBuildMs": 38.7,
-    "exposure": 223300,
+    "avgBuildMs": 43.1,
+    "exposure": 600000,
     "surface": [
       0.403,
-      0.00429
+      0.0148
     ],
-    "frame": 204,
+    "frame": 166,
+    "wait": ""
+  },
+  "olympus": {
+    "calls": 134,
+    "triangles": 471055,
+    "chunks": 116,
+    "loaded": 339,
+    "visited": 314,
+    "wanted": 0,
+    "lodScale": 0.715,
+    "avgBuildMs": 51.1,
+    "exposure": 28.97,
+    "surface": [
+      0.63,
+      0.469
+    ],
+    "frame": 195,
+    "wait": ""
+  },
+  "gale": {
+    "calls": 131,
+    "triangles": 466735,
+    "chunks": 113,
+    "loaded": 444,
+    "visited": 350,
+    "wanted": 0,
+    "lodScale": 0.653,
+    "avgBuildMs": 48.7,
+    "exposure": 37.13,
+    "surface": [
+      0.625,
+      0.135
+    ],
+    "frame": 219,
     "wait": ""
   }
 }

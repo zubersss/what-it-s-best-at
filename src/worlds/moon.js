@@ -33,7 +33,8 @@ export default {
       { op: 'fbm', seed: 3, maxWavelength: 20000, minWavelength: 300, roughness: 0.9, amp: 5.5, belowDem: 2.2 },
       { op: 'craters', seed: 5, radius: [3500, 56000], density: 1.0, layers: 3, depth: 0.11, rim: 0.028, belowDem: 2 },
       { op: 'craters', seed: 7, radius: [50, 3500], density: 1.0, layers: 4, depth: 0.19, rim: 0.045, belowDem: 2 },
-      { op: 'craters', seed: 9, radius: [3, 50], density: 1.0, layers: 3, depth: 0.17, rim: 0.04 },
+      // (down to craters a couple of metres across: the ground is saturated with them at walking distance)
+      { op: 'craters', seed: 9, radius: [1.2, 50], density: 1.0, layers: 3, depth: 0.17, rim: 0.04 },
       // Regolith: gentle hummocks, rougher on crater walls.
       { op: 'fbm', seed: 13, maxWavelength: 260, minWavelength: 0.8, roughness: 0.92, amp: 2.0, slopeGain: [0.12, 0.5, 0.5, 1.7], hetero: 0.4 },
     ],
@@ -55,7 +56,7 @@ export default {
     slopes: { dustMax: 0.34, screeMin: 0.50, screeMax: 0.70, rockMin: 0.92 },
     sandBelow: -20000, sandFade: 1500,   // no darkening by altitude: the brightness map knows where the maria are
     ripples: { wavelength: 1, strength: 0 },
-    detailStrength: 0.32,
+    detailStrength: 0.7,               // loose soil: every clod shows in the raking light
     rocks: { count: 420, radius: 120, size: [0.25, 2.0], albedo: [0.19, 0.182, 0.172] },
   },
 
