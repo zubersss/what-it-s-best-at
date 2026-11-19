@@ -97,6 +97,11 @@ export class Cloak {
     const wlen = Math.hypot(wind.x, wind.y, wind.z);
     const drag = 0.9 + 5.5 * air;                       // 1/s: how quickly cloth follows the air
     const damp = 0.992 - 0.01 * air;
+    // Flag flutter: waves pushing along the cloak's own normal (the wearer's back, local z)
+    // that run down its length, quicker and stronger with the flow. Drag alone lines the
+    // cloth up with the air into a flat sheet, which seen from the side was a stick or a plank.
+    const fl = (1.4 + 3.0 * air) * Math.min(2, wlen / 8), fw = Math.min(26, 4 + 0.9 * wlen);     // (up to twice as strong in a fast stream, or it is pulled flat)
+    const bx = e[6], by = e[7], bz = e[8], sx = e[0], sy = e[1], sz = e[2];
     // forces
     for (let i = NX; i < n; i++) {
       const o = i * 3, ix = i % NX, iy = (i / NX) | 0;
@@ -104,7 +109,11 @@ export class Cloak {
       // travelling ripples: stronger with speed and with real air
       const ph = t * (5 + wlen * 0.5) - iy * 0.9 + ix * 0.6;
       const gust = (0.45 + 2.0 * air) * Math.min(1, wlen / 12 + 0.10) * (iy / NY);
-      const gx = Math.sin(ph) * gust * 6, gy = Math.cos(ph * 0.83 + 1.7) * gust * 4, gz = Math.sin(ph * 1.31 + 0.5) * gust * 6;
+      const flap = fl * (iy / NY) * Math.sin(t * fw - iy * 0.75 + 0.35 * Math.sin(ix * 0.9 + t * 1.3));
+      const twist = 0.35 * fl * (iy / NY) * Math.sin(t * fw * 0.6 - iy * 0.5 + 1.1) * (ix / (NX - 1) - 0.5);
+      const gx = Math.sin(ph) * gust * 6 + bx * flap * 6 + sx * twist * 6;
+      const gy = Math.cos(ph * 0.83 + 1.7) * gust * 4 + by * flap * 6 + sy * twist * 6;
+      const gz = Math.sin(ph * 1.31 + 0.5) * gust * 6 + bz * flap * 6 + sz * twist * 6;
       const ax = gravity.x - accel.x + (wind.x - vx) * drag + gx;
       const ay = gravity.y - accel.y + (wind.y - vy) * drag + gy;
       const az = gravity.z - accel.z + (wind.z - vz) * drag + gz;

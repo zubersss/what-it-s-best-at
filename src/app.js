@@ -15,6 +15,9 @@ import { BUILD } from './core/build.js';
 import { Hud, HUD } from './debug/hud.js';
 import { Input } from './controls/input.js';
 import { CameraRig } from './controls/cameraRig.js';
+import { aimDirection, gapTo, standoff, transferMult, tripTime, groundDistance, OVER_PLACE } from './controls/autopilot.js';
+import { TargetMarker } from './ui/targetMarker.js';
+import { TargetPicker } from './ui/targetPicker.js';
 import { surroundings } from './controls/gravity.js';
 import { TouchControls } from './controls/touch.js';
 import { Atmosphere } from './atmosphere/atmosphere.js';
@@ -46,8 +49,18 @@ function fmtSpeed(v) {
   return (v / C_LIGHT).toFixed(2) + ' c';
 }
 
+function fmtTime(s) {
+  if (!Number.isFinite(s)) return '';
+  if (s < 90) return `${Math.max(1, Math.round(s))} s`;
+  if (s < 5400) return `${Math.round(s / 60)} min`;
+  return `${(s / 3600).toFixed(1)} h`;
+}
+const titleCase = (id) => id.charAt(0).toUpperCase() + id.slice(1);
+
 // Character poses on foot for screenshots: speed in m/s, and whether it is in the air.
-const FOOT_POSES = { stand: { speed: 0 }, walk: { speed: 1.6 }, run: { speed: 5.5 }, super: { speed: 45 }, jump: { speed: 4, jump: true } };
+// land: 0.35 s into a hard landing (the three-point kneel); launch: up held in a jump.
+const FOOT_POSES = { stand: { speed: 0 }, walk: { speed: 1.6 }, run: { speed: 5.5 }, super: { speed: 45 }, jump: { speed: 4, jump: true },
+  land: { speed: 0.6, landSpeed: 14 }, launch: { speed: 0, jump: true, upHeld: 0.3 } };     // (land creeps sideways so the figure turns side-on)
 
 export class App {
   constructor({ canvas, context, world, params }) {
@@ -80,7 +93,7 @@ export class App {
     this.lastNow = 0;
     this.stats = {};
     this.worldData = new Map();        // world id -> { world, rasters, hs }
-    this.targetIndex = -1;
+    this.targetId = null; this.transfer = false; this.targetEta = Infinity;
     this.nearestName = ''; this.nearestClear = Infinity;
     const gl = renderer.getContext(), dbg = gl.getExtension('WEBGL_debug_renderer_info');
     this.gpuName = String((dbg && gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) || gl.getParameter(gl.RENDERER) || 'unknown');
@@ -131,9 +144,10 @@ export class App {
     this.timeRange = (world.dayHours || 24) / 2;
     this.hud.setTimeRange(this.timeRange);
     this.input = new Input(this.canvas);
-    this.touch = new TouchControls(this.canvas, this.input, { view: () => this.cycleBookmark() });
+    this.touch = new TouchControls(this.canvas, this.input, { view: () => this.cycleBookmark(), target: () => this.openPicker(), go: () => this.toggleTransfer() });
     if (params.touch) this.touch.enable();
     this.touch.setVisible(!this.menuOpen);
+    this.targetMarker = new TargetMarker();
     document.addEventListener('visibilitychange', () => {
       // Coming back from the background: the long gap is not a slow frame.
       if (document.visibilityState === 'visible') { this.lastNow = 0; this.resumedAt = performance.now(); } else this.hiddenCount++;
@@ -353,6 +367,7 @@ export class App {
     if (i.hit('KeyF')) { this.hero.setVisible(false); this.rig.toggleMode(); }
     if (i.hit('KeyG')) this.setHero(this.rig.mode !== 'hero');
     if (i.hit('KeyT')) this.nextTarget();
+    if (i.hit('Enter') || i.hit('NumpadEnter')) this.toggleTransfer();
     if (i.hit('KeyX')) this.setHover(!this.rig.hover);
     if (i.hit('KeyP')) this.paused = !this.paused;
     const tr = this.timeRange;
@@ -362,18 +377,161 @@ export class App {
     for (let k = 0; k < names.length && k < 9; k++) if (i.hit('Digit' + (k + 1))) this.applyBookmark(names[k]);
   }
 
-  // Turns the view toward the next body in the sky (Sun included) — the way to aim a trip.
-  nextTarget() {
-    const list = [...this.bodies.bodies.filter((b) => b.id !== this.world.body).map((b) => b.id), 'sun'];
-    this.targetIndex = (this.targetIndex + 1) % list.length;
-    this.aimAt(list[this.targetIndex]);
+  // --- targets: this world's real places, the other bodies, the Sun --------------------
+
+  // Every target there is now, in the list's order.
+  targetList() {
+    const places = (this.world.places || []).map((p) => ({ id: 'place:' + p.id, name: p.name }));
+    const sky = this.bodies.bodies.filter((b) => b.id !== this.world.body).map((b) => ({ id: b.id, name: titleCase(b.id) }));
+    sky.push({ id: 'sun', name: 'Sun' });
+    return { places, sky };
   }
 
+  // Where a target is now (planet-fixed), in the shape autopilot.js uses, or null if it
+  // is not there any more (a place on a world that is no longer the home world).
+  resolveTarget(id, out) {
+    if (!id) return null;
+    out.pos = out.pos || [0, 0, 0];
+    if (id.startsWith('place:')) {
+      const p = (this.world.places || []).find((q) => 'place:' + q.id === id);
+      if (!p) return null;
+      const d = latLonToDir(p.lat, p.lon), r = this.world.radius + this.hs.height(d[0], d[1], d[2], 50);
+      out.kind = 'place'; out.radius = 0; out.name = p.name;
+      out.pos[0] = d[0] * r; out.pos[1] = d[1] * r; out.pos[2] = d[2] * r;
+      return out;
+    }
+    out.kind = 'body';
+    if (id === 'sun') {
+      const e = this.ephemeris;
+      out.radius = SOLAR_SYSTEM.sun.radius; out.name = 'Sun';
+      out.pos[0] = e.sunDir[0] * e.sunDistance; out.pos[1] = e.sunDir[1] * e.sunDistance; out.pos[2] = e.sunDir[2] * e.sunDistance;
+      return out;
+    }
+    out.name = titleCase(id);
+    if (id === this.world.body) { out.radius = this.world.radius; out.pos[0] = out.pos[1] = out.pos[2] = 0; return out; }
+    const b = this.bodies.byId.get(id);
+    if (!b) return null;
+    out.radius = b.def.radius; out.pos[0] = b.pos.x; out.pos[1] = b.pos.y; out.pos[2] = b.pos.z;
+    return out;
+  }
+
+  // T: the next target in the list (and after the last, none).
+  nextTarget() {
+    const { places, sky } = this.targetList();
+    const ids = [...places, ...sky].map((t) => t.id);
+    ids.push(null);
+    this.pickTarget(ids[(ids.indexOf(this.targetId ?? null) + 1) % ids.length]);
+  }
+
+  // Chooses a target (null: none) and turns the view to it.
+  pickTarget(id) {
+    this.stopTransfer();
+    if (!id) { this.targetId = null; this.targetMarker?.hide(); this.toast?.show('No target'); return; }
+    this.aimAt(id);
+    if (this.targetId === id && !this.shotMode) this.toast?.show(`Target: ${this.resolveTarget(id, this._tgtT || (this._tgtT = {}))?.name ?? id}`);
+  }
+
+  // The TARGET button on a phone: the list of targets, each with how far it is.
+  openPicker() {
+    if (!this.picker) this.picker = new TargetPicker((id) => this.pickTarget(id));
+    const { places, sky } = this.targetList(), t = this._tgtP || (this._tgtP = {}), p = this.rig.pos, cam = [p.x, p.y, p.z];
+    const info = (id) => { const r = this.resolveTarget(id, t); return r ? fmtDistance(Math.max(0, r.kind === 'place' ? groundDistance(cam, r, this.world.radius) : gapTo(cam, r))) : ''; };
+    this.picker.show([
+      { title: `On ${titleCase(this.world.id)}`, items: places.map((x) => ({ ...x, info: info(x.id) })) },
+      { title: 'In the sky', items: sky.map((x) => ({ ...x, info: info(x.id) })) },
+    ], this.targetId);
+  }
+
+  // Turns the view to a target: straight at a body in the sky; toward a place the way a GO
+  // trip would set off (over the horizon, autopilot.js).
   aimAt(id) {
-    if (id !== 'sun' && (!this.bodies.byId.has(id) || id === this.world.body)) return;
+    const t = this.resolveTarget(id, this._tgtA || (this._tgtA = {}));
+    if (!t) return;
     this.targetId = id;
-    const dir = id === 'sun' ? G.uSunDir.value.clone() : this.bodies.byId.get(id).pos.clone().sub(this.rig.pos);
-    this.rig.lookAlong(dir);
+    const p = this.rig.pos;
+    if (t.kind === 'body') { this.rig.lookAlong(new THREE.Vector3(t.pos[0] - p.x, t.pos[1] - p.y, t.pos[2] - p.z)); return; }
+    const a = aimDirection([p.x, p.y, p.z], t, this.world.radius, this._aimA || (this._aimA = [0, 0, 0]));
+    this.rig.lookAlong(new THREE.Vector3(a[0], a[1], a[2]));
+  }
+
+  // GO: a hands-off trip to the target (autopilot.js). Any stick, key or look input hands
+  // control back; it ends above the target.
+  toggleTransfer() { if (this.transfer) this.stopTransfer('You have control'); else this.startTransfer(); }
+  startTransfer() {
+    if (!this.targetId) { this.toast?.show('Choose a target first (TARGET)'); return; }
+    if (this.rig.mode !== 'hero') this.setHero(true);
+    if (this.rig.onFoot) this.rig._takeOff(8);
+    this.transfer = true; this.rig.auto = { mult: 1, dir: this.rig.forward.clone() };
+    this.toast?.show(`Flying to ${this.resolveTarget(this.targetId, this._tgtT || (this._tgtT = {}))?.name ?? this.targetId}`);
+  }
+  stopTransfer(msg) {
+    if (!this.transfer) return;
+    this.transfer = false; this.rig.auto = null;
+    if (msg) this.toast?.show(msg);
+  }
+
+  // Each frame of a trip, before the rig moves: steer the flight along the planned path
+  // (turning onto it smoothly at first), set the transfer's boost, and stop on arrival.
+  // The view looks toward the target (kept above the world's edge), so the world and the
+  // marker stay in sight; dragging to look around is allowed and pauses that for 3 s.
+  updateTransfer(dt, input) {
+    if (!this.transfer) return;
+    const rig = this.rig;
+    const touched = input.moveX || input.moveY || ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyE', 'KeyQ', 'Space'].some((k) => input.down(k));
+    if (touched) { this.stopTransfer('You have control'); return; }
+    const t = this.resolveTarget(this.targetId, this._tgtU || (this._tgtU = {}));
+    if (!t) { this.stopTransfer(); return; }
+    const p = rig.pos, cam = [p.x, p.y, p.z];
+    if (gapTo(cam, t) < standoff(t)) { this.stopTransfer(`Arrived: ${t.name}`); return; }
+    const a = aimDirection(cam, t, this.world.radius, this._aimU || (this._aimU = [0, 0, 0]));
+    const want = (this._wantU || (this._wantU = new THREE.Vector3())).set(a[0], a[1], a[2]);
+    const dir = rig.auto.dir || (rig.auto.dir = rig.forward.clone());
+    const q = (this._qU || (this._qU = new THREE.Quaternion())).setFromUnitVectors(dir, want);
+    dir.applyQuaternion((this._qI || (this._qI = new THREE.Quaternion())).identity().slerp(q, 1 - Math.exp(-dt * 2.5))).normalize();
+    const clear = Math.max(1, Math.min(rig.agl, rig.spaceDistance));
+    rig.auto.mult = transferMult(clear, rig.nearR - clear);         // nearR: to the nearest body's centre
+    // the view
+    const now = performance.now() / 1000;
+    if (input.dx || input.dy) this._lookedAt = now;
+    if (now - (this._lookedAt ?? -99) > 3) {
+      // toward the target, but not lower than 10 degrees above the world's edge: on the way
+      // up the curved horizon sits in the lower half with the target's direction in the
+      // middle; coming down (and for a body in the sky) the view is on the target itself
+      const view = (this._viewU || (this._viewU = new THREE.Vector3())).set(t.pos[0] - p.x, t.pos[1] - p.y, t.pos[2] - p.z).normalize();
+      const r = p.length(), up = (this._upU || (this._upU = new THREE.Vector3())).copy(p).divideScalar(r);
+      const dip = Math.acos(Math.min(1, this.world.radius / r)), eMin = -dip + 10 * Math.PI / 180;
+      const e = Math.asin(Math.max(-1, Math.min(1, view.dot(up))));
+      if (e < eMin) {
+        const h = view.addScaledVector(up, -view.dot(up));
+        if (h.lengthSq() < 1e-9) h.copy(dir).addScaledVector(up, -dir.dot(up));
+        h.normalize().multiplyScalar(Math.cos(eMin)).addScaledVector(up, Math.sin(eMin));
+      }
+      view.normalize();
+      const qv = this._qV || (this._qV = new THREE.Quaternion());
+      qv.setFromUnitVectors(rig.forward, view);
+      rig.lookAlong(rig.forward.clone().applyQuaternion(this._qI.identity().slerp(qv, 1 - Math.exp(-dt * 2))));
+    }
+  }
+
+  // The marker on the target: where it is on screen, how far, how long the trip takes.
+  updateTargetMarker() {
+    const m = this.targetMarker;
+    if (!m) return;
+    this.touch?.setGo(!!this.targetId, this.transfer);
+    const t = this.targetId && !this.menuOpen && !this.benchmark?.active && (this.hud.visible || this.shotMode) ? this.resolveTarget(this.targetId, this._tgtM || (this._tgtM = {})) : null;
+    if (!t) { if (m.visible) m.hide(); if (this.targetId && !this.resolveTarget(this.targetId, this._tgtM || (this._tgtM = {}))) this.targetId = null; return; }
+    const rig = this.rig, p = rig.pos, cam = [p.x, p.y, p.z];
+    const v = (this._vM || (this._vM = new THREE.Vector3())).set(t.pos[0] - p.x, t.pos[1] - p.y, t.pos[2] - p.z);
+    const dist = v.length(), gap = Math.max(0, gapTo(cam, t)), stop = standoff(t);
+    // How long a GO trip from here takes (flown quickly in autopilot.js), twice a second.
+    if (this.frameCount % 30 === 0 || this._etaFor !== this.targetId) {
+      this._etaFor = this.targetId;
+      this.targetEta = gap > stop ? tripTime(cam, t, this.world.radius, p.length() - this.world.radius - rig.agl) : 0;
+    }
+    const here = gap <= stop * 1.05 || (t.kind === 'place' && gap < OVER_PLACE * 1.3);
+    const when = here ? 'here' : this.transfer ? `arriving in ${fmtTime(this.targetEta)}` : `GO ${fmtTime(this.targetEta)}`;
+    const shown = t.kind === 'place' ? groundDistance(cam, t, this.world.radius) : gap;     // a place: along the ground; a body: to its surface
+    m.update(rig.camera, v.divideScalar(dist || 1), t.radius ? Math.asin(Math.min(1, t.radius / dist)) : 0, t.name, `${fmtDistance(shown)} · ${when}`);
   }
 
   // Distances to everything else in the sky: speed limit for hero flight, collision with
@@ -477,7 +635,7 @@ export class App {
       this.benchmark.update(dtMs, cause);
       if (this.frameCount % 15 === 0) this.banner.set(this.benchmark.status);
     }
-    const input = this.menuOpen ? NO_INPUT : this.input;
+    const input = this.menuOpen || this.picker?.visible ? NO_INPUT : this.input;
 
     // 1. Time and sky geometry
     if (!this.menuOpen && !bench) this.handleKeys();
@@ -487,7 +645,8 @@ export class App {
     eph.update(jd, this.bodies.ids);
     G.uTime.value = this.shotMode ? 0.25 : now / 1000;
 
-    // 2. Camera
+    // 2. Camera (a hands-off trip steers it first)
+    this.updateTransfer(dt, input);
     rig.update(dt, input, input.down('KeyZ'));
     this.space(eph);
     const world = this.world;                       // may have just changed
@@ -506,6 +665,7 @@ export class App {
     this.rocks.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
     this.lander.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
     this.updateHero(dt, sunHalf);
+    this.updateOccluders();                         // (also with the character hidden: the lander and rocks)
 
     // 4. Atmosphere LUTs
     governor.beginFrame();
@@ -523,6 +683,8 @@ export class App {
     this.stars?.setFrame(eph.icrfToFixed, rig, post.viewH);
     // ?aim=<body>: possible only now, once the bodies have a position for this moment.
     if (this.pendingAim && this.frameCount >= 2) { this.aimAt(this.pendingAim); this.pendingAim = null; }
+    // ?target=<id>: the marker on that target (place:<id> for a place), the view left alone.
+    if (this.params.target && this.frameCount === 2) this.targetId = this.params.target;
 
     // The Sun's place on screen, so the exposure meter can leave its glare out.
     {
@@ -564,6 +726,7 @@ export class App {
     const info = renderer.info;
     this.stats.calls = info.render.calls; this.stats.triangles = info.render.triangles;
     this.hud.update(dtMs, () => this.collectStats(jd));
+    this.updateTargetMarker();
     this.input.endFrame();
     if (!this.loaded && this.frameCount > 3 && this.terrain.drawList.length > 0) {
       this.loaded = true; this.loadedAt = now;
@@ -598,23 +761,30 @@ export class App {
       } : null,
     };
     if (this.shotMode) {
-      // Deterministic pose for screenshots: flying forward (or hovering with ?heropose=hover),
-      // or on foot (?heropose=stand|walk|run|super|jump; &posedir=side: moving to the right).
+      // Deterministic pose for screenshots: flying forward (?heropose=fly|fast|bank|climb, or
+      // hovering with ?heropose=hover), or on foot (?heropose=stand|walk|run|super|jump; &posedir=side: moving to the right).
       const fp = FOOT_POSES[this.params.heropose];
       let pose;
       if (fp) {
         const U = new THREE.Vector3(...rig.localUp), d = (this.params.posedir === 'side' ? rig.right : rig.forward).clone();
         d.addScaledVector(U, -d.dot(U)).normalize();
-        pose = { onFoot: true, velocity: d.multiplyScalar(fp.speed), throttle: fp.speed > 0 ? 1 : 0, yawRate: 0, airborne: fp.jump, vUp: fp.jump ? 2.5 : 0, heroRel: rig.heroRel, clock: 0, landedAt: -99, landSpeed: 0 };
+        pose = { onFoot: true, velocity: d.multiplyScalar(fp.speed), throttle: fp.speed > 0 ? 1 : 0, yawRate: 0, airborne: fp.jump, vUp: fp.jump ? 2.5 : 0, heroRel: rig.heroRel,
+          clock: 0, landedAt: fp.landSpeed ? -0.35 : -99, landSpeed: fp.landSpeed || 0, upHeld: fp.upHeld || 0 };
         if (fp.jump) pose.heroRel = rig.heroRel.clone().addScaledVector(U, 1.6);
       } else {
-        const flying = this.params.heropose !== 'hover';
-        pose = { velocity: rig.forward.clone().multiplyScalar(flying ? 30 : 0), throttle: flying ? 1 : 0, yawRate: 0 };
+        // fly: cruising; fast: boosting; bank: cruising in a right turn; climb: straight up
+        const hp = this.params.heropose, flying = hp !== 'hover';
+        const along = this.params.posedir === 'side' ? rig.right : rig.forward;     // side: flying across the view, to the right
+        const v = hp === 'climb' ? new THREE.Vector3(...rig.localUp).multiplyScalar(30) : along.clone().multiplyScalar(flying ? 30 : 0);
+        pose = { velocity: v, throttle: flying ? 1 : 0, yawRate: hp === 'bank' ? 45 : 0, boost: hp === 'fast' };
       }
       if (!this.heroSettled) { hero.settle(5, rig, env, pose); this.heroSettled = true; } else hero.update(0, rig, env, pose);
     } else hero.update(dt, rig, env);
+    // Through the telephoto the figure a few metres ahead would fill the screen: it steps
+    // out of the picture while the lens is long (its shadow stays).
+    const zoomed = rig.fov < rig.baseFov * 0.55;
+    hero.body.visible = hero.cape.visible = !zoomed;
     hero.group.updateMatrixWorld(true);
-    this.updateOccluders();
     this.updateDust(dt, env);
     // Is the hero in a terrain shadow? Ask a worker now and then (cheap single ray).
     if (rig.agl < 20000 && !this.heroVisPending && this.frameCount % 20 === 0) {
@@ -625,17 +795,62 @@ export class App {
     } else if (rig.agl >= 20000) hero.uniforms.uSunVis.value = 1;
   }
 
-  // The character's body as four spheres for the sky light of the ground around it (see
-  // figureSky in the lighting chunk): torso, legs, and the two feet at the ends of the shins.
+  // What hides the sky from the ground beside it (contactSky in the lighting chunk), as
+  // camera-relative spheres in three groups: the character's body (torso, legs, two feet),
+  // the lander (cabin and descent stage), and the nearest rocks. Governor step "contact"
+  // turns the lander's and the rocks' off.
   updateOccluders() {
-    const occ = G.uOccluders.value, hero = this.hero;
-    if (!hero.group.visible) { for (const o of occ) o.w = 0; return; }
-    const b = hero.body, p = hero.group.position, c = hero.colliders, v = this._occV || (this._occV = new THREE.Vector3());
-    const at = (o, x, y, z, r) => { v.set(x, y, z).applyMatrix4(b.matrix).add(p); o.set(v.x, v.y, v.z, r); };
-    at(occ[0], 0, 0.30, 0, 0.27);
-    at(occ[1], 0, -0.42, 0, 0.17);
-    at(occ[2], c[5 * 7 + 10], c[5 * 7 + 11], c[5 * 7 + 12] + 0.04, 0.09);     // left foot (end of the left shin)
-    at(occ[3], c[7 * 7 + 10], c[7 * 7 + 11], c[7 * 7 + 12] + 0.04, 0.09);     // right foot
+    const occ = G.uOccluders.value, grp = G.uOccGroups.value, hero = this.hero, rig = this.rig;
+    const v = this._occV || (this._occV = new THREE.Vector3()), up = this._occU || (this._occU = new THREE.Vector3());
+    // the character
+    if (hero.group.visible) {
+      const b = hero.body, p = hero.group.position, c = hero.colliders;
+      const at = (o, x, y, z, r) => { v.set(x, y, z).applyMatrix4(b.matrix).add(p); o.set(v.x, v.y, v.z, r); };
+      at(occ[0], 0, 0.30, 0, 0.27);
+      at(occ[1], 0, -0.42, 0, 0.17);
+      at(occ[2], c[5 * 7 + 10], c[5 * 7 + 11], c[5 * 7 + 12] + 0.04, 0.09);     // left foot (end of the left shin)
+      at(occ[3], c[7 * 7 + 10], c[7 * 7 + 11], c[7 * 7 + 12] + 0.04, 0.09);     // right foot
+      grp[0].set(occ[0].x, occ[0].y, occ[0].z, 6);
+    } else { grp[0].w = 0; for (let i = 0; i < 4; i++) occ[i].w = 0; }
+    const contact = this.contact !== false;
+    this._occX ??= this.params.debug.includes('contactx4') ? 4 : 1;      // ?debug=contactx4: rock spheres 4x (to see it work)
+    // the lander (its position is the ground under its centre)
+    const lm = this.lander.mesh;
+    if (contact && lm.visible && lm.position.lengthSq() < 80 * 80) {
+      up.copy(this.lander.position).normalize();
+      v.copy(lm.position).addScaledVector(up, 2.6); occ[4].set(v.x, v.y, v.z, 2.0);
+      v.copy(lm.position).addScaledVector(up, 1.1); occ[5].set(v.x, v.y, v.z, 1.6);
+      occ[6].w = occ[7].w = 0;
+      v.copy(lm.position).addScaledVector(up, 1.5); grp[1].set(v.x, v.y, v.z, 10);
+    } else { grp[1].w = 0; occ[4].w = occ[5].w = 0; }
+    // the eight nearest rocks in front of the camera within 25 m, from the first 96 of the
+    // scatter (it comes nearest cells first)
+    const rk = this.rocks, n = contact ? Math.min(rk.count ?? 0, rk.geometry.instanceCount, 96) : 0, f = rig.forward;
+    const best = this._occBest || (this._occBest = []);
+    best.length = 0;
+    for (let i = 0; i < n; i++) {
+      const x = rk.points[i * 3] - rig.pos.x, y = rk.points[i * 3 + 1] - rig.pos.y, z = rk.points[i * 3 + 2] - rig.pos.z;
+      const d2 = x * x + y * y + z * z;
+      if (d2 > 25 * 25 || x * f.x + y * f.y + z * f.z < -2) continue;
+      best.push(Math.floor(d2 * 10) * 1000 + i);       // sorts by distance (0.1 m^2 steps), carries the index (< 1000)
+    }
+    best.sort((a, b) => a - b);
+    let k = 0, cx = 0, cy = 0, cz = 0, reach = 0;
+    for (; k < Math.min(8, best.length); k++) {
+      const i = best[k] % 1000;
+      // a sphere as wide as the rock's half-width, centred at its middle (the scatter's point
+      // is higher, near its top: there the sphere hid too little of the sky at its foot)
+      const r = 0.5 * (rk.aScale.getX(i) + rk.aScale.getY(i)) * 0.5, l = Math.hypot(rk.points[i * 3], rk.points[i * 3 + 1], rk.points[i * 3 + 2]);
+      const drop = 0.45 * r / l;
+      const x = rk.points[i * 3] * (1 - drop) - rig.pos.x, y = rk.points[i * 3 + 1] * (1 - drop) - rig.pos.y, z = rk.points[i * 3 + 2] * (1 - drop) - rig.pos.z;
+      occ[8 + k].set(x, y, z, this._occX * r); cx += x; cy += y; cz += z;
+    }
+    for (let i = 8 + k; i < 16; i++) occ[i].w = 0;
+    if (k) {
+      cx /= k; cy /= k; cz /= k;
+      for (let i = 0; i < k; i++) { const o = occ[8 + i]; reach = Math.max(reach, Math.hypot(o.x - cx, o.y - cy, o.z - cz) + 6 * o.w); }
+      grp[2].set(cx, cy, cz, reach);
+    } else grp[2].w = 0;
   }
 
   // Dust: thrown up where the character touches down, pushes off or skims the ground.
@@ -665,6 +880,8 @@ export class App {
         const k = dust.amount * dust.dustiness;
         // touching down: a ring thrown outward, bigger the harder the landing
         if (this._dustClear > 2.2 && vUp < -0.8) dust.emit(at, up, Math.round(Math.min(110, 30 + 14 * -vUp) * k * (1 + 2 * dust.vac)), 1.2 + 0.5 * -vUp, 1.1, carry.copy(v).multiplyScalar(0.15).addScaledVector(up, -0.15 * vUp));
+        // taking off: a ring, as from a push off the ground
+        if ((rig.takeoffs || 0) !== (this._takeoffsSeen || 0) && c < 3.5) dust.emit(at, up, Math.round(70 * k * (1 + 2 * dust.vac)), 2.6, 1.0, carry.copy(up).multiplyScalar(0.6));
         // pushing off, or skimming along: a steady trail
         const stir = ((vUp > 0.8 && rig.throttle > 0.3 ? 30 : 0) + Math.min(40, along * 2.2) * (c < 1.3 ? 1 : 0.3)) * (1 + 2 * dust.vac);
         this._dustDebt = (this._dustDebt || 0) + stir * k * dt;
@@ -672,6 +889,7 @@ export class App {
       }
       this._dustClear = c;
     } else this._dustClear = 99;
+    this._takeoffsSeen = rig.takeoffs || 0;
     dust.update(dt, rig.pos, up, env.gravity, env.air, viewH, th, sunVis);
   }
 
@@ -686,10 +904,8 @@ export class App {
     const d = new Date(jdToDate(jd));
     this.hud.setTime(Math.round(this.timeOffsetHours * 100) / 100, `${this.timeOffsetHours >= 0 ? '+' : ''}${this.timeOffsetHours.toFixed(2)} h   ${d.toISOString().slice(0, 19)}Z${this.paused ? '  (paused)' : ''}`);
     let target = '';
-    if (this.targetId) {
-      const dist = this.targetId === 'sun' ? this.ephemeris.sunDistance : this.bodies.byId.get(this.targetId).dist;
-      target = `${this.targetId} ${fmtDistance(dist)}`;
-    }
+    const tg = this.resolveTarget(this.targetId, this._tgtH || (this._tgtH = {}));
+    if (tg) target = `${tg.name} ${fmtDistance(Math.max(0, tg.kind === 'place' ? groundDistance(site, tg, world.radius) : gapTo(site, tg)))}${this.transfer ? ' (GO)' : ''}`;
     return {
       world: world.name, mode: rig.mode, shot: this.shotMode ? this.bookmark : '',
       build: BUILD.commit, governor: this.governor.summary, modeLabel: MODES[this.governor.mode].label,

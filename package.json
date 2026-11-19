@@ -16,7 +16,9 @@
     "flight": "node scripts/flight-test.mjs",
     "smoke": "node scripts/smoke.mjs",
     "govsim": "node scripts/governor-sim.mjs",
-    "foot": "node scripts/foot-test.mjs"
+    "foot": "node scripts/foot-test.mjs",
+    "transfer": "node scripts/transfer.mjs",
+    "target": "node scripts/target-test.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"

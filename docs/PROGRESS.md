@@ -186,6 +186,30 @@ without them. Lossy WebP for the slope maps: blocky canyon walls; colour JPEG: n
 two greyscale halves at the same size. Not changed, because it is true: a world with the Sun
 behind the viewer looks flat (the full Moon); relief shows wherever the light comes from the side.
 
+## Milestone 4 plan — character and flight feel
+
+The owner accepted milestone 3 ("it's all good, continue"). Plan, in this order:
+
+1. **Flight poses** from what the pilot asks for, not from raw speed (speeds run from 7 m/s
+   to astronomical): hover (upright), cruise (stick pushed: one arm ahead, body tipped),
+   fast flight (boost: streamlined, both arms ahead, legs together), banking (roll into the
+   turn), climbing straight up (arm raised) and a feet-first slow descent near the ground.
+2. **Take-off and landing**: a crouch that builds while up is held, then a spring with a
+   ring of dust; the figure turns upright before touching down; a crouch scaled by the
+   landing speed, a three-point landing for hard ones, dust on every landing.
+3. **Target selector**: a marker on the chosen target (another body, the Sun, or one of
+   this world's landmarks) with its name, distance and time to arrival from the real
+   speed rule; an arrow at the screen's edge when it is behind. `TARGET` cycles.
+4. **A boost for long transfers**: with a target chosen, `GO` flies there hands-off,
+   faster than the manual boost in open space, slowing to arrive above the target; any
+   stick input takes back control. Checked without a browser like `flyby`.
+5. **Camera**: the figure leads turns and drifts back to the centre, the camera keeps it
+   in sight over ridges on foot and low down, pulls back a little at super speed, and the
+   telephoto does not fill the screen with the figure.
+6. **Known problems marked 4**: the suit (visor, backpack, gloves, worn dust), darkening
+   under the lander and rocks where the site is in shade, irregular dust puffs.
+7. Reference set, independent critic, stability test, governor steps, checkpoint.
+
 ## Milestone 3 plan — make Mars and the Moon beautiful
 
 Started straight after the owner's phone results and flight notes (above). Order: the
@@ -459,7 +483,29 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
   the ground (see the owner's scale note): far faster than light between planets,
   automatic slow arrival.
 - The camera is the thing that moves; the figure is drawn ~4 m ahead of it.
-- `TARGET` snaps the view to the next body.
+- **Targets** (milestone 4): each world lists real places in its data file (`places`);
+  `TARGET` opens a list of them, the bodies in the sky and the Sun, with distances; `T`
+  cycles. The marker (thin brackets, name, distance, how long a GO trip takes) is plain
+  DOM over the canvas: no draw calls. Turning to a body looks straight at it; turning to a
+  place looks along the way a trip would set off (over the horizon).
+- **GO** (milestone 4) is the boost for long transfers: hands-off, full stick with the
+  boost, and twice that again when every body is more than 20 radii away; near the ground
+  it keeps the open-space pace (0.85 of the height per second, not hand flight's fifth).
+  From the ground to another world takes about 15 s. It climbs away first (speed grows with
+  height, so skimming the ground toward a body on the horizon crawled at 21 m/s), never
+  aims through the world, and ends 5 % of a radius above a body or 500 m above a place,
+  where gravity takes over unless HOVER is on. The view looks toward the target, kept
+  10° above the world's edge (along the path, or a third of the way toward the target, it
+  showed black space for most of a trip); looking around
+  is free; the stick or a movement key takes control back.
+- **Poses from the pilot's intent, not raw speed** (speeds span 7 m/s to astronomical):
+  stick pushed = cruise (one arm ahead), boost = streamlined, nearly straight down = feet
+  first. Landing: an upright flare in the last second when diving at the ground; landing
+  faster than 9 m/s (a fall of about 20 m on Mars) is a three-point landing that brakes
+  the skid and holds 0.45 s. Up held after a jump: a fist-up launch, and a ring of dust.
+- **Chase camera**: the figure drifts up to 0.7 m against a turn and settles back; on
+  foot the camera rises to keep the figure's chest in sight over ridges and drops back
+  2.5 m at super speed; through the telephoto the figure steps out of the picture.
 - **The cloak trails in vacuum too** (30 % of the atmospheric flow is kept). This is the
   one deliberate departure from physics, at the owner's request.
 - World hand-over (Mars ↔ Moon) happens when the other world's surface is nearer than
@@ -485,13 +531,12 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 | Problem | Milestone |
 | --- | --- |
 | Milestone 2 and 3 builds have not been measured on the phone: the per-pixel haze near a planet's edge, the albedo lookup and the dust are new costs | owner's next benchmark |
-| No contact shadows under the lander and rocks when the site is in terrain shadow | 4 |
 | One-pixel-high bright features alias (ridge highlights, crater rims): no anti-aliasing. The milestone 1 results showed room for it; it waits for numbers from the current build | after the next benchmark |
 | Night scenes need about 570 frames for exposure to settle in screenshot mode | tooling |
 | A chunk that takes over while its parent is itself still fading in starts from the parent's own maps, a small jump during fast streaming | watch |
 | Chunk builds cost about 10 % more than in milestone 2 on Mars (the rays that keep shadows continuous across chunk borders); lunar chunks are a third cheaper than before | watch |
 | The terminator seen from far away is as sharp as the shadow map's texels: stair-stepped on the Moon at high zoom, no long relief shadows across it | 5 |
-| Looking straight down-Sun on the Moon the ground is featureless (true to life, but nothing to steer by); small craters only show across the light | 4 |
+| Looking straight down-Sun on the Moon the ground is featureless (true to life; the target marker now gives something to steer by); small craters only show across the light | watch |
 | The SLDEM patch has faint north-south stripes a few metres high (the altimeter's tracks) | watch |
 | Outside the sharp patches the Moon and Mars are 7 to 15 km per pixel plus invented relief: landing anywhere else shows no real small landforms | 6 / 7 |
 | Mars from orbit is soft: about 40 % of the contrast of the Viking mosaic survives the haze; Valles Marineris shows by its bright rims | 5 |
@@ -499,10 +544,22 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 | Mars: flat grey sky away from the Sun, olive cast in the sunset views | 5 |
 | Deimos burns out to a white blob at dusk exposure | 5 |
 | Earth is a blown-out white disc from the Moon and has no blue | 5 |
-| The character is still a simple figure: no visor detail, no backpack, clean white suit | 4 |
-| Dust puffs are soft round sprites: up close the single puffs can be told apart | 4 |
-| Far from every body there is only the HUD read-out to navigate by | 4 / 7 |
+| The cost of the Mars dust cloud's noise on the phone's fill rate is not measured (the governor's dust step drops most of it) | owner's next benchmark |
+| Through a very long lens (under 10°) looking down-Sun at a grazing angle, the sand ripples stretch into vertical stripes (seen at the lander bench near sunset; not at normal lenses) | watch |
+| Rocks look pale, bluish grey against the Martian ground (real ones are dark and dust-coated) | 6 |
+| Landforms soft from close up: Mount Sharp, the Coprates wall, the Olympus caldera wall, Hadley Rille, Tycho's peak read as rounded heaps (milestone 4 critic) | 6 / 7 |
+| Mars daylight haze too thick: far walls dissolve, flat khaki sky (milestone 4 critic) | 5 |
+| Chalk-white outlines on canyon walls and crater rims in Mars from orbit; a bluish Mars crescent | 5 |
+| No light from the planet below on things in orbit (the figure's legs go black over sunlit Mars; the visor reflects black) | 5 |
+| Black shadow slivers with no visible relief in the low lunar orbit view | 5 |
+| Far from every body only the target marker shows the way; there is no map yet | 7 |
+| Places on other worlds cannot be chosen until that world is home (no map yet) | 7 |
 | Triangles sit at ~420–480k of the 500k budget | watch |
+
+Fixed in milestone 4: no darkening under the lander and rocks in shade (sky occlusion at
+their foot); the simple white figure (visor, lamps, pack, joints, gloves, boots, dust);
+round dust puffs (a lumpy cloud on Mars, a fine spray on the Moon); nothing but the HUD to
+navigate by (target marker, list and GO); the figure banked away from turns.
 
 Fixed in milestone 3: the Moon had no maria or rays and Mars was one colour from orbit;
 a sixth of Mars drawn washed-out from far away; lunar ground one grey at every Sun
@@ -515,6 +572,40 @@ Mars's terminator; the halo around the airless Moon; the roll at the Mars ↔ Mo
 hand-over; lunar chunk build time (72 → 41 ms); haze ignoring terrain shadow; ledges
 reading as dunes; the far wall's haze (in part: 15 % less dust); rigid limbs and the
 cloak passing through arms and legs; Phobos and Deimos checked.
+
+## Tests and measurements, milestone 4
+
+- **GO trips without a browser** (`npm run transfer`, a Mars-sized world): to a Moon-sized
+  world 2000 of its radii away, made home halfway as in the game, 15.5 s (the marker
+  predicted 14.7 s); to a place 71° away from ground 5 km up, 18.6 s (17.5 s); 169° away,
+  23.1 s (19.9 s); a 3° hop, 11.2 s (11.9 s). Each ends within 20 m of the point 500 m
+  over the place. Before trips kept the open-space pace near the ground they took 28–45 s,
+  most of it drifting up the first kilometres. No trip touches the ground; the
+  straight-line distance grows by at most 4 % on the way except to the far side (31 %, it
+  goes up and over), which is why a place's distance is shown along the ground. Found on
+  the way: after the target body became home, the "never through the world" rule kept the
+  aim on its edge, so a trip to another world would never have landed.
+- **Target list and GO in the game** (`npm run target`, final build): the list holds 16
+  entries on Mars; picking one closes it; the marker reads "Olympus Mons · 4487 km · GO
+  17 s"; GO climbs to 200 km and closes from 4487 to 422 km along the ground; the marker
+  counts down; `T` picks the next target and ends the trip.
+- **Smoke** (final build): start screen, modes, HUD and a full benchmark pass; most at once
+  90 draw calls, 237k triangles, about 183 MB; 21 shaders, the fullest (terrain) reads 15
+  of a phone's 16 textures; none fails to compile.
+- **On foot** (`npm run foot`, final build): both worlds pass; jumps peak at 3.37 m (Mars)
+  and 7.64 m (Moon); a hard landing's kneel does not stop the test's walk afterwards.
+- **Fly-bys** (`scripts/flyby.mjs`): aimed trips still land; a 60-radii miss passes at 1.3
+  radii and lands once released, the sweep held to 44°/s.
+- **Governor simulation**: unchanged behaviour with the new `contact` step.
+- **Poses** checked by eye from the side and behind over Gale (cruise, boost, turning,
+  climbing, hover, three-point landing, launch). Found and fixed on the way: the figure
+  banked away from turns (sign error since milestone 2), faced the camera when climbing
+  straight up, and dove feet first when boosting downward; the trailing legs were cut off
+  by the frame's bottom edge (the figure now sits 0.9 m below the view's axis, was 1.2).
+- **Suit** (helper): 3,568 → 5,242 triangles without the cloak, no new meshes or
+  textures; exposure unchanged by the visor's glints (Mars 223.9 → 224.3).
+- **Dust** (helper): one draw call, 1024 particles, no textures; the governor's dust
+  step now also drops the cloud's small lumps and its self-shadowing.
 
 ## Tests and measurements, milestone 3
 
@@ -566,6 +657,17 @@ cloak passing through arms and legs; Phobos and Deimos checked.
 - **Lunar chunk builds in the browser**: 59 ms each in the benchmark run (90 before);
   Martian ones 43 ms (35 before: the extra ledge layer and the busier machine).
 
+## Stability test, milestone 4
+
+Two stations on each of the ten moves, final builds. Pixels that flicker (change one way
+then back across three frames): Mars walking 0.05 % and 0.006 %, turning 0.006 % and
+0.002 %, telephoto on the wall 0, high flight 0, orbit 0; Moon walking 0.015 %, turning
+0.005 %, low flight 0.001 %, orbit 0.001 %. The largest, Mars low flight at 0.4 %, is the
+character itself between frames (the cloak's new flutter and the hover sway) and the
+edges of terrain moving past: nothing static pops, crawls or sparkles. The dust was not
+part of the moves (the helper flagged the Mars cloud's small lumps and the lunar streak
+heads as things to watch while the camera turns).
+
 ## Stability test, milestone 1
 
 Three consecutive frames at two stations along ten scripted moves (walking, turning,
@@ -591,6 +693,38 @@ repository (re-create them with `npm run stability`).
 - The first version of the test moved too fast (several pixels per frame) and let
   exposure re-meter between frames; both produced large, honest differences that hid
   what the test is for. Steps are now about a pixel and exposure is held per station.
+
+## Independent critic, milestone 4 (screenshots and art rules only)
+
+The five biggest gaps, as ranked (all about the worlds, none about this milestone's
+character and flight work; each is in the known-problems table with its milestone):
+1. Landforms read as soft sand and clay, not as the real places: Mount Sharp a rounded
+   heap of even corrugations, the Coprates wall a flat band, the Olympus caldera wall one
+   smooth slab, Hadley Rille a shallow trough, Tycho's peak a mound.
+2. Mars daylight haze at dust-storm level: the 60 km wall nearly dissolved, a flat khaki
+   sky (clear-day rover views see rims 30–40 km away crisply).
+3. Earth and Deimos colourless blown-out blobs; few stars in the earthlit lunar night.
+4. The lunar surface lacks Apollo's hard high-key light (dim, soft, plaster-like craters).
+5. Invented colour: an olive cast in the Mars sunset sky, a hard-edged cream twilight
+   ellipse, chalk-white outlines on canyon walls from orbit, a bluish Mars crescent; the
+   figure's legs near black in orbit over sunlit Mars (no light from the planet below).
+
+Kept: the Mars canyon sunset (blue aureole, ridges into warm haze), the whole-Moon and
+day-side Mars globes, the black lunar sky with hard shadows and the lander in the same light.
+
+"Visibly broken", and what was done:
+- The figure's shadow a stick figure without a cloak (mars_ship_hero_dust), a black
+  parallelogram (moon_ship_hero_jump): checked, both are the figure's own long low-Sun
+  shadow (the first cut by the frame's top edge, the second the cloak streaming flat).
+- The cloak a stiff stick or plank seen from the side (run, super speed): it streamed into
+  a flat sheet; it now flutters like a flag along its own normal.
+- Lunar dust like comic speed lines or sparks, brighter than the regolith: shorter,
+  fainter, scattering less. Re-checked in the re-rendered picture.
+- No three-point landing visible (moon_ship_hero_land): the pose was there but seen from
+  behind under the cloak; the picture is now side-on.
+- Pale bluish rocks on Mars, smeared ripple texture at the lander bench, the striped
+  foreground slab in mars_wall, black shadow slivers in moon_ledge_orbit_low: existing
+  terrain and rock work, listed as known problems.
 
 ## Independent critic, milestone 3 (screenshots and art rules only)
 
@@ -721,3 +855,13 @@ Weakest: `mars_ledge_orbit_globe`.
   Mars's colours from orbit (helper); walking, super speed and real-gravity jumps on foot.
   Tools `foot-test`, `vista`/`cliff` searches (session scratch only), shot parameters
   `heropose=stand|walk|run|super|jump`, `posedir`, `debug=nofar|norelief|nofarrough|noboost`.
+- **Milestone 4 (character and flight feel)**: cruise, boost, banking, climbing and
+  feet-first poses; landing flare, three-point landing, launch pose, take-off dust; target
+  list (this world's real places, the bodies in the sky, the Sun) with a marker, distance
+  and trip time; GO hands-off trips with a transfer boost; chase-camera drift, sight over
+  ridges, super-speed pull-back, figure hidden through the telephoto; darkening at the
+  foot of the figure, the lander and rocks; the suit's detail (helper); dust clouds and
+  sprays (helper). Tools `transfer`, `target`, `scripts/lib/glLimits.mjs` (phone shader
+  limits in smoke and every screenshot run), `--distdir`; shot parameters
+  `heropose=fast|bank|climb|land|launch`, `target=`, `debug=contactx4`.
+

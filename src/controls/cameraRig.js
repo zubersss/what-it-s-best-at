@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { latLonToDir, localFrame, dirToLatLon } from '../core/ephemeris.js';
 import { SWEEP, SPACE_CAP } from './gravity.js';
+import { flightBase, BOOST } from './speedLaw.js';
 import { HERO_DISTANCE, HERO_DROP } from '../hero/hero.js';
 
 const DEG = Math.PI / 180;
@@ -36,6 +37,8 @@ export const FOOT = {
   camRise: 10,         // how fast the camera follows the ground up and down (1/s)
   camBack: 6.0,        // the camera on foot: this far behind the figure's hips along the view,
   camDrop: 0.9,        //   and the hips this far below the view's axis (the whole figure in view)
+  hard: 9,             // landing faster than this (m/s) is a hard landing: the skid is braked and
+  hardHold: 0.45,      //   the figure holds its three-point landing this long before the stick moves it
 };
 
 export class CameraRig {
@@ -85,6 +88,7 @@ export class CameraRig {
     // groundAt(dir, camDist) -> height of the ground as drawn (or null): set by the app, so
     // the character stands on the ground the player sees, not on the finer height function.
     this.groundAt = null;
+    this.auto = null;        // { mult } during a hands-off trip (set by the app)
     this._h = new THREE.Vector3(); this._r = new THREE.Vector3(); this._u = new THREE.Vector3(); this._t = new THREE.Vector3();
   }
 
@@ -165,12 +169,18 @@ export class CameraRig {
     this.fov = Math.exp(Math.log(this.fov) + (Math.log(target) - Math.log(this.fov)) * k);
 
     this._basis();
-    const fwd = (input.down('KeyW') ? 1 : 0) - (input.down('KeyS') ? 1 : 0) + input.moveY;
-    const strafe = (input.down('KeyD') ? 1 : 0) - (input.down('KeyA') ? 1 : 0) + input.moveX;
+    let fwd = (input.down('KeyW') ? 1 : 0) - (input.down('KeyS') ? 1 : 0) + input.moveY;
+    let strafe = (input.down('KeyD') ? 1 : 0) - (input.down('KeyA') ? 1 : 0) + input.moveX;
     // Touch stick pushed to its rim = run / fly fast.
-    const fast = input.down('ShiftLeft') || input.down('ShiftRight') || Math.hypot(input.moveX, input.moveY) > 0.96;
+    let fast = input.down('ShiftLeft') || input.down('ShiftRight') || Math.hypot(input.moveX, input.moveY) > 0.96;
     const slow = input.down('ControlLeft');
-    const upDown = (input.down('KeyE') || input.down('Space') ? 1 : 0) - (input.down('KeyQ') ? 1 : 0);
+    let upDown = (input.down('KeyE') || input.down('Space') ? 1 : 0) - (input.down('KeyQ') ? 1 : 0);
+    // A hands-off trip (GO, autopilot.js): full stick with the boost along this.auto.dir
+    // (not the view: the app turns the view partly toward the target), times the
+    // transfer's own extra (this.auto.mult).
+    const auto = this.auto && this.mode === 'hero' && !this.onFoot ? this.auto : null;
+    if (auto) { fwd = 1; strafe = 0; upDown = 0; fast = true; }
+    this.boost = this.mode === 'hero' && !this.onFoot && fast;       // the figure's streamlined pose reads it
     const p = this.pos;
 
     if (this.mode === 'walk') {
@@ -189,21 +199,17 @@ export class CameraRig {
     } else if (this.mode === 'hero') {
       const w = this._wish.set(0, 0, 0).addScaledVector(this.forward, fwd).addScaledVector(this.right, strafe);
       w.x += this.localUp[0] * upDown; w.y += this.localUp[1] * upDown; w.z += this.localUp[2] * upDown;
+      if (auto?.dir) w.copy(auto.dir);
       const wl = w.length();
       if (wl > 1) w.divideScalar(wl);
       this.throttle = Math.min(1, wl);
       // Top speed is proportional to how far the nearest surface is: metres per second near
-      // the ground, faster than light between planets, and a smooth arrival at the far end.
-      // Near the ground the fraction is small (a fifth of the height per second), so a 7 km
-      // canyon wall drifts past slowly enough to look 7 km tall: with one fraction at every
-      // height the ground streams by alike at 10 m and at 10 km, and the eye loses the
-      // size of everything. Between 3 and 60 km it grows to 0.85, so trips between worlds
-      // take as long as before.
+      // the ground, faster than light between planets, and a smooth arrival at the far end
+      // (speedLaw.js).
       const dist = Math.max(1.5, Math.min(this.agl, this.spaceDistance));
-      const xs = Math.min(1, Math.max(0, Math.log(dist / 3000) / Math.log(20)));
-      const base = Math.max(7, dist * (0.2 + 0.65 * xs * xs * (3 - 2 * xs)));
+      const base = flightBase(dist);
       const fallBase = Math.max(7, dist * 0.85);     // falling keeps its pace (gravity is not a choice of speed)
-      const top = Math.min(SPACE_CAP, base * (fast ? 3 : 1)) * (slow ? 0.12 : 1);
+      const top = Math.min(SPACE_CAP, base * (fast ? BOOST : 1) * (this.auto ? this.auto.mult : 1)) * (slow ? 0.12 : 1);
       // What the figure should be doing: what the stick asks for ...
       let tx = w.x * top, ty = w.y * top, tz = w.z * top;
       // ... plus the fall toward whatever pulls, unless hovering. The fall fades out as
@@ -252,7 +258,7 @@ export class CameraRig {
       // Back on foot, with HOVER off: touching the ground while not climbing lands, and
       // letting go of the stick near the ground drops the figure under the world's real
       // gravity (a person's fall, not the flight's gentle pull) until it lands.
-      if (!this.hover && this.landing !== false && upDown <= 0) {
+      if (!this.hover && !this.auto && this.landing !== false && upDown <= 0) {
         const c = this._r.copy(p).add(rel), cl = c.length(), d = this._dir; d[0] = c.x / cl; d[1] = c.y / cl; d[2] = c.z / cl;
         const clear = cl - this.world.radius - this._ground(d, HERO_DISTANCE) - FOOT.body;
         const vu = v.x * this.localUp[0] + v.y * this.localUp[1] + v.z * this.localUp[2];
@@ -358,7 +364,7 @@ export class CameraRig {
     this.onFoot = true; this.upHeld = 0; this.airTime = 0; this.roll = 0;
     if (clear > 0.05) { this.airborne = true; this.vUp = Math.min(vu, 0); }
     else {
-      this.airborne = false; this.vUp = 0; this.landSpeed = Math.max(0, -vu); this.landedAt = this.clock;
+      this.airborne = false; this.vUp = 0; this._landed(Math.max(0, -vu));
       this.feet.setLength(this.feet.length() - clear);
     }
     this._camAlt = this.pos.length(); this._camBack = HERO_DISTANCE; this._camDrop = HERO_DROP;
@@ -366,8 +372,16 @@ export class CameraRig {
     this._placeBehind(1 / 60);
   }
 
+  // Feet on the ground at `speed` m/s: a hard landing brakes the skid (the three-point
+  // landing digs in).
+  _landed(speed) {
+    this.landSpeed = speed; this.landedAt = this.clock;
+    if (speed > FOOT.hard) this.footVel.multiplyScalar(0.3);
+  }
+
   // Leaves the ground: the figure keeps its motion and flies.
   _takeOff(upSpeed) {
+    this.takeoffs = (this.takeoffs || 0) + 1;          // the app throws up dust for each
     this.onFoot = false; this.airborne = false;
     this.velocity.copy(this.footVel).addScaledVector(this._u.set(this.localUp[0], this.localUp[1], this.localUp[2]), upSpeed);
     this._relFrom.copy(this.heroRel); this._relBlend = 1;
@@ -384,6 +398,7 @@ export class CameraRig {
     const hf = this._h.set(sh * E[0] + ch * N[0], sh * E[1] + ch * N[1], sh * E[2] + ch * N[2]);
     const hr = this._r.set(ch * E[0] - sh * N[0], ch * E[1] - sh * N[1], ch * E[2] - sh * N[2]);
     let wf = fwd, ws = strafe; const wl = Math.hypot(wf, ws);
+    if (this.landSpeed > FOOT.hard && this.clock - this.landedAt < FOOT.hardHold) { wf = 0; ws = 0; }     // still down on one knee
     if (wl > 1) { wf /= wl; ws /= wl; }
     const top = (fast ? FOOT.super : FOOT.walk) * (slow ? 0.3 : 1);
     const tx = (hf.x * wf + hr.x * ws) * top, ty = (hf.y * wf + hr.y * ws) * top, tz = (hf.z * wf + hr.z * ws) * top;
@@ -419,7 +434,7 @@ export class CameraRig {
     const ground = this._ground(d, camDist);
     if (this.airborne) {
       if (alt <= ground) {
-        this.landSpeed = -this.vUp; this.landedAt = this.clock;
+        this._landed(-this.vUp);
         alt = ground; this.vUp = 0; this.airborne = false;
       } else if (this.vUp < 0 && alt - ground > FOOT.fallToFlight) {
         // Off a cliff and falling far: the rest of the fall is flight (stick released, gravity on).
@@ -450,12 +465,24 @@ export class CameraRig {
     const U = this._u.set(this.localUp[0], this.localUp[1], this.localUp[2]);
     const body = this._t.copy(this.feet).addScaledVector(U, FOOT.body);
     // (after a landing the camera eases back from where it sat in flight)
-    const k = dt > 0 ? 1 - Math.exp(-dt * 3) : 1;
-    this._camBack += (FOOT.camBack - this._camBack) * k; this._camDrop += (FOOT.camDrop - this._camDrop) * k;
+    // At super speed the camera drops back a little and rises, to see more of the ground ahead.
+    const k = dt > 0 ? 1 - Math.exp(-dt * 3) : 1, sup = Math.min(1, Math.max(0, (this.footVel.length() - 12) / 30));
+    this._camBack += (FOOT.camBack + 2.5 * sup - this._camBack) * k; this._camDrop += (FOOT.camDrop + 0.5 * sup - this._camDrop) * k;
     p.copy(body).addScaledVector(this.forward, -this._camBack).addScaledVector(this.up, this._camDrop);
     const l = p.length(), d = this._dir; d[0] = p.x / l; d[1] = p.y / l; d[2] = p.z / l;
     const ground = this.world.radius + Math.max(this.heightAt(d), this._ground(d, 0));
     let r = Math.max(l, ground + 0.6);
+    // Keep the figure in sight: if the ground rises between the camera and the figure's
+    // chest (a ridge, the lip of a slope), lift the camera until the line clears it.
+    const chest = this._c || (this._c = new THREE.Vector3()), q = this._q2 || (this._q2 = new THREE.Vector3());
+    chest.copy(body).addScaledVector(U, 0.45);
+    const camAt = q.copy(p).setLength(r), dq = this._dq || (this._dq = [0, 0, 0]);
+    for (let i = 1; i <= 4; i++) {
+      const t = i / 5, x = chest.x + (camAt.x - chest.x) * t, y = chest.y + (camAt.y - chest.y) * t, z = chest.z + (camAt.z - chest.z) * t;
+      const ql = Math.sqrt(x * x + y * y + z * z); dq[0] = x / ql; dq[1] = y / ql; dq[2] = z / ql;
+      const short = this.world.radius + this.heightAt(dq) + 0.35 - ql;          // how far the line is under the ground there
+      if (short > 0) r = Math.max(r, l + short / t);
+    }
     if (this._camAlt == null || dt <= 0) this._camAlt = r;
     else this._camAlt = Math.max(ground + 0.6, this._camAlt + (r - this._camAlt) * (1 - Math.exp(-dt * FOOT.camRise)));
     r = this._camAlt;

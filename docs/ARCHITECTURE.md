@@ -77,9 +77,10 @@ skipped, so frames are evenly spaced.
 | `src/shadows/nearShadow.js` | The shadow atlas of the things standing on the ground (coarse, fine and character tiles) + its GLSL. On an airless world a shadow's soft edge is about a hundredth of the distance to its caster, so a figure's shadow needs millimetre texels. |
 | `src/rocks/rocks.js` | Instanced rocks, scattered deterministically near the camera. |
 | `src/ship/lander.js` | Procedural lander geometry, placement, material. |
-| `src/hero/hero.js` / `cloak.js` | The flying character (procedural suited figure, limbs that bend at elbow and knee) and its cloth-simulated cloak. |
+| `src/hero/hero.js` / `heroModel.js` / `cloak.js` | The character: how it moves and poses (`hero.js`), how it looks: parts, colours and shader (`heroModel.js`), and its cloth-simulated cloak. |
 | `src/fx/dust.js` | Dust thrown up by the character near the ground: a fixed pool of 1024 sprites on ballistic arcs under the world's gravity, slowed by its air, lit through the lighting chunk and tinted like the ground. The governor can halve it. |
-| `src/controls/` | `input.js` (keys, mouse, virtual keys), `touch.js` (phone controls), `cameraRig.js` (walk, fly, zoom). |
+| `src/controls/` | `input.js` (keys, mouse, virtual keys), `touch.js` (phone controls), `cameraRig.js` (walk, fly, zoom, on foot), `speedLaw.js` (flight speed against the nearest surface), `gravity.js` (pull, fly-by limit), `autopilot.js` (GO trips: aim, extra boost, arrival, trip time). |
+| `src/ui/` | `screens.js` (start and results screens, toast), `targetMarker.js` (brackets, name, distance and trip time on the target; an edge arrow off screen), `targetPicker.js` (the target list). |
 | `src/post/post.js` | HDR target, metering, bloom, tone map, dither. |
 | `src/debug/hud.js` | HUD (compact line / full read-out / off) and time-of-day slider. |
 | `scripts/` | `shots.mjs` (headless screenshots of bookmarks), `shots-all.mjs` (the full reference set), `stability.mjs` (consecutive-frame flicker test), `smoke.mjs` (start screen, modes and a full benchmark run, headless), `governor-sim.mjs` (the governor against simulated GPUs), `flight-test.mjs`, `probe-terrain.mjs` (shaded relief in Node), `find-ledge.mjs`, `fetch-assets.mjs`, `gen-bluenoise.mjs`, `lib/` (shared browser launcher, PNG read/write). |
@@ -292,9 +293,10 @@ exposure alone decides whether they are visible (rule 2).
   The soles stand on the ground as it is drawn (`rig.groundAt` → `terrain.drawnHeight`:
   the deepest live chunk's triangle under the feet, morph included), blended to the exact
   height function when the two differ by 2–6 m (first drafts while loading). Ledges are
-  judged drawn-against-drawn. The figure hides sky light from the ground under it
-  (`uOccluders`, four spheres written by `app.updateOccluders`, `figureSky` in the
-  lighting chunk).
+  judged drawn-against-drawn. The figure, the lander and the eight nearest rocks hide sky
+  light from the ground at their foot (`uOccluders`: 16 spheres in three groups with a
+  reach each, `uOccGroups`, written by `app.updateOccluders`; `contactSky` in the lighting
+  chunk; governor step `contact` drops the lander's and the rocks').
   Near the ground it shares the terrain's depth buffer; once the terrain's near plane has
   moved past it (higher up) depth is cleared and it renders in its own 0.2–400 m slice.
 - **Cloak**: a 9×14 mass–spring cloth (Verlet, 90 Hz, 4 constraint passes, capsule
@@ -304,8 +306,9 @@ exposure alone decides whether they are visible (rule 2).
   travelling ripples. Air density comes from `atmosphere.surfaceDensity` and scale
   height. In vacuum a reduced "flow" (30 %) is kept on purpose so the cloak still trails
   in flight — a deliberate, owner-requested departure from physics.
-- **Speed law** (`cameraRig.js`): top speed = 0.85 × distance to the nearest surface of
-  any body per second (×3 with boost, floor 7 m/s, ceiling 3 AU/s), never more than 40 %
+- **Speed law** (`speedLaw.js`): top speed = 0.85 × distance to the nearest surface of
+  any body per second (0.2 near the ground, rising between 3 and 60 km; ×3 with boost,
+  floor 7 m/s, ceiling 3 AU/s), never more than 40 %
   of the remaining gap per frame. Speeding up is eased over ~0.4 s; slowing down is five
   times quicker, so the speed follows the shrinking limit on arrival instead of carrying
   the traveller past. Leaving, cruising and arriving are the same control at every scale.
@@ -322,6 +325,25 @@ exposure alone decides whether they are visible (rule 2).
   ever-slowing approach because speed shrinks with distance.
 - **Fly-by limit**: while approaching or passing the nearest body, the motion is slowed
   (never bent) so that the body sweeps across the view at no more than 0.45 rad/s.
+- **Targets and GO** (`autopilot.js`, `App.updateTransfer`): a target is another body,
+  the Sun, or one of the home world's `places` (world data: name, latitude, longitude).
+  GO holds full stick and the boost (`rig.auto`) along `aimDirection`: a body straight on, climbing at 40° or more while within two radii of
+  the world being left; a place by a point a little ahead on an arc that rises to a third
+  of the arc still to go and comes down onto it; never a line through the world (unless
+  the target has become the world underfoot). Extra boost ×2 when every body is more than
+  20 radii away, and near the ground the open-space pace (0.85 of the height per second). The trip ends at 5 % of a body's
+  radius above it, or 500 m above a place; gravity takes over unless HOVER is on. The
+  marker's trip time flies the same path quickly as a point (`tripTime`); `scripts/
+  transfer.mjs` checks both against the rig. The flight follows the path (`rig.auto.dir`)
+  while the view looks toward the target, never lower than 10° above the world's edge
+  (world and marker in sight);
+  dragging to look around pauses that for 3 s. The stick or a movement key ends a trip.
+- **Poses** (`hero.js`): hover, cruise and boost blended by the flight amount (from the
+  stick) and the boost; banking from the view's turn rate and sideways flight; an upright
+  flare in the last second before touching down; a three-point kneel after a hard landing
+  (over 9 m/s: the skid is braked and the stick waits 0.45 s); a fist-up launch while up is
+  held after a jump. In flight the figure drifts against turns (the chase camera) and
+  steps out of the picture through the telephoto.
 - **The sky is the whole catalogue**: `SkyBodies` always holds every body in
   `solarSystem.js` and skips the one you are on. `App.space()` measures clearances each
   frame (speed limit, collision with bodies that have no terrain) and calls

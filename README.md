@@ -26,7 +26,8 @@ button.
 | --- | --- | --- |
 | left stick / drag | `WASD` / mouse | move / look |
 | `HERO` | `G` | flying character on / off (on by default) |
-| `TARGET` | `T` | aim at the next body in the sky (Earth, Moon, Phobos, Deimos, Sun) |
+| `TARGET` | `T` | choose where to go: this world's real places (Olympus Mons, Gale, the Apollo sites…), the bodies in the sky, the Sun. A marker shows its name, distance and how long the trip takes |
+| `GO` | `Enter` | fly there hands-off (shown once there is a target); the stick or a movement key takes control back |
 | `HOVER` | `X` | hover on / off. Off (the default): let go of the stick and gravity pulls you toward the nearest world, or the Sun |
 | `FLY` | `F` | walk ↔ free-fly debug camera |
 | `ZOOM` (hold) | `Z` (hold), wheel | telephoto |
@@ -42,7 +43,8 @@ You start on your feet: walk, run at super speed, and jump under each world's re
 gravity (about 3.4 m on Mars, 7.7 m on the Moon). Hold ▲ to take off; with HOVER off,
 touching the ground lands you back on your feet. You fly behind a suited figure with a cloak. Speed grows with distance from the nearest
 surface, so the same stick hovers over a rock, climbs to orbit and crosses to another
-world in well under a minute: tap `TARGET` until the full HUD shows `moon`, push forward.
+world in well under a minute: choose the Moon with `TARGET` and push forward, or press
+`GO` and watch (about 15 s from the ground).
 
 Everything else — the project charter, roadmap, architecture, status, asset licences — is
 in [`CLAUDE.md`](CLAUDE.md) and [`docs/`](docs/). Reference screenshots:

@@ -1,19 +1,19 @@
 {
-  "ledge": {
-    "calls": 21,
-    "triangles": 17615,
-    "chunks": 5,
-    "loaded": 6,
-    "visited": 6,
+  "canyon": {
+    "calls": 32,
+    "triangles": 56335,
+    "chunks": 16,
+    "loaded": 26,
+    "visited": 26,
     "wanted": 0,
     "lodScale": 1,
-    "avgBuildMs": 82.2,
-    "exposure": 27.88,
+    "avgBuildMs": 38.4,
+    "exposure": 13.19,
     "surface": [
       0.167,
-      0.32
+      0.18
     ],
-    "frame": 171,
+    "frame": 140,
     "wait": ""
   }
 }

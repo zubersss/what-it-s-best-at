@@ -104,4 +104,13 @@ export default {
       taurus: { label: 'Taurus-Littrow valley (Apollo 17)', lat: 20.1816, lon: 30.7914, heading: 240, pitch: 24, fov: 68, timeOffsetHours: -72 },   // 600 m from the landing place: the Earth above the South Massif
     },
   },
+  // Real places to fly to (the target selector): name, latitude, longitude (degrees east).
+  places: [
+    { id: 'hadley', name: 'Hadley Rille (Apollo 15)', lat: 26.13, lon: 3.63 },
+    { id: 'taurus', name: 'Taurus-Littrow (Apollo 17)', lat: 20.19, lon: 30.77 },
+    { id: 'tranquility', name: 'Tranquility Base (Apollo 11)', lat: 0.674, lon: 23.473 },
+    { id: 'tycho', name: 'Tycho', lat: -43.31, lon: 348.64 },
+    { id: 'copernicus', name: 'Copernicus', lat: 9.62, lon: 339.92 },
+    { id: 'shackleton', name: 'Shackleton crater (south pole)', lat: -89.67, lon: 129.78 },
+  ],
 };

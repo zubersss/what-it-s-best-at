@@ -1,103 +1,26 @@
-// The flying character: a suited figure built from code (like the lander), posed between
+// The flying character: how it moves. A suited figure (heroModel.js) posed between
 // "hover" (upright, relaxed) and "flight" (horizontal, arms forward), with elbows and
-// knees that bend and a simulated cloak that is kept off the body, arms and legs. It is drawn a few metres in front of the camera, so the engine's camera, floating
-// origin and controls stay exactly as they are — the hero is the thing you fly behind.
+// knees that bend and a simulated cloak that is kept off the body, arms and legs. In
+// flight it is drawn a few metres in front of the camera, so the engine's camera, floating
+// origin and controls stay exactly as they are: the hero is the thing you fly behind.
 //
 // Local frame of the figure: +Y = toward the head, +Z = chest, +X = its left. Metres.
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
+import { lightingUniforms } from '../render/lightingGlsl.js';
+import { torsoGeometry, upperArmGeometry, forearmGeometry, thighGeometry, shinGeometry, ELBOW, HAND, KNEE, ANKLE, SHOULDER, HIP, HERO_VERT, HERO_FRAG } from './heroModel.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { Cloak } from './cloak.js';
 
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 
-const SUIT = [0.74, 0.73, 0.70], TRIM = [0.20, 0.20, 0.21], BOOT = [0.07, 0.07, 0.075], VISOR = [0.55, 0.38, 0.12];
-export const HERO_DISTANCE = 4.1, HERO_DROP = 1.2;     // metres in front of / below the camera axis
-
-function part(geo, col, mat = 0) {
-  const g = geo.index ? geo.toNonIndexed() : geo;
-  g.deleteAttribute('uv');
-  const n = g.attributes.position.count;
-  const c = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) c.set(col, i * 3);
-  g.setAttribute('aCol', new THREE.BufferAttribute(c, 3));
-  g.setAttribute('aMat', new THREE.BufferAttribute(new Float32Array(n).fill(mat), 1));
-  return g;
-}
-const capsule = (r, len, col, x, y, z, mat) => { const g = new THREE.CapsuleGeometry(r, len, 3, 8); g.translate(x, y, z); return part(g, col, mat); };
-const ball = (r, col, x, y, z, mat, sx = 1, sy = 1, sz = 1) => { const g = new THREE.SphereGeometry(r, 12, 9); g.scale(sx, sy, sz); g.translate(x, y, z); return part(g, col, mat); };
-
-function torsoGeometry() {
-  return mergeGeometries([
-    capsule(0.165, 0.30, SUIT, 0, 0.30, 0),                         // chest
-    ball(0.185, SUIT, 0, 0.47, 0.01, 0, 1.12, 0.8, 0.9),            // shoulders
-    ball(0.165, SUIT, 0, 0.04, 0, 0, 1.0, 0.85, 0.9),               // hips
-    capsule(0.05, 0.03, TRIM, 0, 0.64, 0),                          // neck ring
-    ball(0.135, SUIT, 0, 0.80, 0, 0),                               // helmet
-    ball(0.108, VISOR, 0, 0.805, 0.052, 1, 1.0, 0.86, 0.8),         // visor
-    ball(0.09, TRIM, 0, 0.34, 0.15, 0, 1.3, 1.0, 0.45),             // chest unit
-    capsule(0.04, 0.42, TRIM, 0, 0.60, -0.115, 0).rotateZ(Math.PI / 2).translate(0.6, 0.6, 0),   // cloak clasp bar across the shoulders
-  ]);
-}
-// A limb hangs along -Y from its pivot at the origin, in two pieces: the upper part
-// (shoulder or hip to the joint, with the joint's ring) and the lower part, whose own
-// origin is the joint (elbow or knee).
-const ELBOW = 0.29, HAND = 0.31, KNEE = 0.41, ANKLE = 0.45;       // segment lengths (m)
-function upperArmGeometry() { return mergeGeometries([capsule(0.052, 0.22, SUIT, 0, -0.15, 0), ball(0.056, TRIM, 0, -ELBOW, 0, 0)]); }
-function forearmGeometry() { return mergeGeometries([capsule(0.047, 0.20, SUIT, 0, -0.13, 0), ball(0.058, BOOT, 0, -HAND, 0, 0, 1.0, 1.15, 1.0)]); }
-function thighGeometry() { return mergeGeometries([capsule(0.075, 0.28, SUIT, 0, -0.20, 0), ball(0.07, TRIM, 0, -KNEE, 0.005, 0)]); }
-function shinGeometry() {
-  const boot = new THREE.CapsuleGeometry(0.06, 0.13, 3, 8);
-  boot.rotateX(Math.PI / 2 - 0.3); boot.translate(0, -ANKLE, 0.055);
-  return mergeGeometries([capsule(0.062, 0.28, SUIT, 0, -0.19, 0), part(boot, BOOT)]);
-}
-
-const VERT = /* glsl */`
-in vec3 aCol; in float aMat;
-out vec3 vRel; out vec3 vN; out vec3 vCol; out float vMat;
-void main() {
-  vec4 w = modelMatrix * vec4(position, 1.0);
-  vRel = w.xyz; vCol = aCol; vMat = aMat;
-  vN = normalize(mat3(modelMatrix) * normal);
-  gl_Position = projectionMatrix * viewMatrix * w;
-}`;
-
-const FRAG = /* glsl */`
-${LIGHTING_PARS}
-uniform float uSunVis;
-in vec3 vRel; in vec3 vN; in vec3 vCol; in float vMat;
-layout(location = 0) out vec4 fragColor;
-void main() {
-  int m = int(vMat + 0.5);
-  vec3 N = normalize(vN);
-  if (!gl_FrontFacing) N = -N;
-  vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel), L = uSunDir;
-  float NL = dot(N, L), NV = max(dot(N, V), 1e-3);
-  vec3 Esun = directSun(planetPos) * uSunVis * nearShadow(vRel, N);
-  vec3 sky = skyLight(N, up) + planetShine(N);
-  vec3 col = vCol * (Esun * max(NL, 0.0) + sky) / PI;
-  vec3 H = normalize(L + V);
-  if (m == 1) {
-    // visor: dark, glossy, mirrors the sky and a sharp Sun glint
-    vec3 env = skyLight(reflect(-V, N), up) / PI;
-    float F = 0.08 + 0.92 * pow(1.0 - NV, 5.0);
-    col = vCol * 0.12 * (Esun * max(NL, 0.0) + sky) / PI + vCol * env * (0.6 + F) + Esun * pow(max(dot(N, H), 0.0), 220.0) * 6.0 * step(0.0, NL);
-  } else if (m == 2) {
-    // cloth: a little sunlight comes through from behind, soft sheen at grazing angles
-    col += vCol * Esun * max(-NL, 0.0) * 0.22 / PI;
-    col += vCol * sky * pow(1.0 - NV, 3.0) * 0.35 / PI;
-  } else {
-    col += Esun * max(NL, 0.0) * pow(max(dot(N, H), 0.0), 26.0) * 0.045;     // suit fabric highlight
-  }
-  col = aerialPerspective(col, vRel);
-  fragColor = vec4(min(col * uExposure, vec3(60000.0)), 1.0);
-}`;
+// metres in front of / below the camera axis in flight (0.9 below keeps the trailing legs in
+// the frame; 1.2 cut them off at the bottom edge)
+export const HERO_DISTANCE = 4.1, HERO_DROP = 0.9;
 
 export class Hero {
   constructor() {
     this.uniforms = { ...lightingUniforms(), uSunVis: { value: 1 } };
-    this.material = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: this.uniforms, vertexShader: VERT, fragmentShader: FRAG, side: THREE.DoubleSide });
+    this.material = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: this.uniforms, vertexShader: HERO_VERT, fragmentShader: HERO_FRAG, side: THREE.DoubleSide });
     this.depthMaterial = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, side: THREE.DoubleSide, colorWrite: false,
       vertexShader: `void main() { gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`,
@@ -114,8 +37,8 @@ export class Hero {
     this.forearms = [mk(forearmGeometry()), mk(forearmGeometry())];
     this.legs = [mk(thighGeometry()), mk(thighGeometry())];
     this.shins = [mk(shinGeometry()), mk(shinGeometry())];
-    this.arms[0].position.set(0.235, 0.50, 0); this.arms[1].position.set(-0.235, 0.50, 0);
-    this.legs[0].position.set(0.095, 0.0, 0); this.legs[1].position.set(-0.095, 0.0, 0);
+    this.arms[0].position.set(...SHOULDER); this.arms[1].position.set(-SHOULDER[0], SHOULDER[1], SHOULDER[2]);
+    this.legs[0].position.set(...HIP); this.legs[1].position.set(-HIP[0], HIP[1], HIP[2]);
     this.body.add(this.torso, ...this.arms, ...this.forearms, ...this.legs, ...this.shins);
     // What the cloak must stay out of, in the body's own frame: 8 capsules (two per limb),
     // each ax, ay, az, bx, by, bz, radius. Filled in by the pose every frame.
@@ -139,6 +62,10 @@ export class Hero {
     this.facing = new THREE.Vector3();        // where the figure faces on foot (horizontal, planet-fixed)
     this._f = new THREE.Vector3(); this._hv = new THREE.Vector3();
     this.bank = 0; this.time = 0;
+    this.boost = 0;                           // 0 cruising .. 1 boosting (the streamlined pose)
+    this.flare = 0;                           // 0 .. 1 swinging upright to land
+    this.kneel = 0; this.launch = 0;          // the hard-landing kneel, the fist-up launch while taking off
+    this.turnLead = new THREE.Vector2();      // where the chase camera leaves the figure while the view turns (m, right / up)
     this.vel = new THREE.Vector3(); this.prevVel = new THREE.Vector3(); this.accel = new THREE.Vector3();
     this.lag = new THREE.Vector3();           // the figure trails slightly behind sudden moves
     this._x = new THREE.Vector3(); this._y = new THREE.Vector3(); this._z = new THREE.Vector3();
@@ -182,10 +109,24 @@ export class Hero {
     if (!this.started) this.foot = onFoot ? 1 : 0;
     const speed = motion.velocity.length();
     const hv = this._hv.copy(motion.velocity).addScaledVector(up, -motion.velocity.dot(up)), hspeed = hv.length();
-    const target = onFoot ? 0 : Math.min(1, motion.throttle * 1.2) * (speed > 0.5 ? 1 : 0);
+    // (going nearly straight down without the boost, it descends feet first, upright; a dive
+    // forward, or with the boost, stays head first)
+    const sinking = speed > 0.5 && !motion.boost ? THREE.MathUtils.smoothstep(-motion.velocity.dot(up) / speed, 0.6, 0.92) : 0;
+    const target = onFoot ? 0 : Math.min(1, motion.throttle * 1.2) * (speed > 0.5 ? 1 : 0) * (1 - sinking);
     this.flight += (target - this.flight) * (1 - Math.exp(-dt * 3.2));
-    this.bank += (THREE.MathUtils.clamp(-motion.yawRate / 70, -1, 1) * 0.6 - this.bank) * (1 - Math.exp(-dt * 4));
-    const f = this.flight, fs = f * f * (3 - 2 * f);
+    const boostTarget = !onFoot && motion.boost && motion.throttle > 0.5 ? 1 : 0;
+    this.boost += (boostTarget - this.boost) * (1 - Math.exp(-dt * (boostTarget ? 2.5 : 1.8)));
+    // Banking: into a turn of the view, and into sideways flight (the stick pushed to a side).
+    const side = speed > 0.5 ? THREE.MathUtils.clamp(motion.velocity.dot(rig.right) / speed, -1, 1) : 0;
+    // (yawRate > 0: turning right; bank > 0 rolls the right side down, into the turn)
+    const bankTarget = THREE.MathUtils.clamp(motion.yawRate / 60 + side * 0.9, -1, 1) * 0.75;
+    this.bank += (bankTarget - this.bank) * (1 - Math.exp(-dt * 4));
+    // Coming in to land (flying, not hovering): in the last second or so before the feet
+    // would touch, the body swings upright and the legs reach down.
+    const vDown = -motion.velocity.dot(up), feetClear = (motion.agl ?? rig.agl ?? 99) - HERO_DROP - 0.9;
+    const flareTarget = onFoot ? 0 : (1 - THREE.MathUtils.smoothstep(feetClear, 2, 3 + 1.2 * Math.max(0, vDown))) * THREE.MathUtils.smoothstep(vDown, 0.6, 2.0);
+    this.flare += (flareTarget - this.flare) * (1 - Math.exp(-dt * 7));
+    const f = this.flight * (1 - this.flare), fs = f * f * (3 - 2 * f), b = this.boost * this.boost * (3 - 2 * this.boost);
 
     // Body axes: head direction goes from "up" to the direction of travel; the chest turns
     // from facing forward to facing the ground.
@@ -195,18 +136,27 @@ export class Hero {
     if (want.lengthSq() > 1e-8) want.normalize();
     if (!this.started || this.facing.lengthSq() < 0.5) this.facing.copy(want);
     this.facing.addScaledVector(up, -this.facing.dot(up)).lerp(want, 1 - Math.exp(-dt * 9)).normalize();
-    const head = this._y.copy(up).lerp(dir, fs).normalize();
-    const chest = this._x.copy(rig.forward).lerp(this.facing, this.foot).lerp(this._g.copy(rig.up).negate(), fs);
-    chest.addScaledVector(head, -chest.dot(head)).normalize();
+    // Cruising, the body is tipped a little short of the direction of travel (head up);
+    // boosting, it lies along it.
+    const head = this._y.copy(up).lerp(dir, fs * (0.82 + 0.18 * b)).normalize();
+    // The chest faces the ground in flight (down from the view), and away from the camera
+    // when the body is upright: climbing straight up, "down from the view" lies along the
+    // body, and on its own it left the chest to a rounding error that turned the figure to
+    // face the camera. The small share of the view's forward settles that case.
+    const flyChest = this._g.copy(rig.up).negate().addScaledVector(rig.forward, 0.35);
+    const chest = this._x.copy(rig.forward).lerp(this.facing, this.foot).lerp(flyChest, fs);
+    chest.addScaledVector(head, -chest.dot(head));
+    if (chest.lengthSq() < 1e-6) chest.copy(rig.forward).addScaledVector(head, -rig.forward.dot(head));
+    chest.normalize();
     const left = this._g.crossVectors(head, chest).normalize();
     this._m4.makeBasis(left, head, chest);
     this.body.quaternion.setFromRotationMatrix(this._m4);
-    this.body.rotateY(this.bank * (0.4 + 0.6 * fs) * (1 - this.foot));        // lean into turns (about the head axis)
+    this.body.rotateY(this.bank * (0.4 + 0.6 * fs) * (1 - 0.5 * b) * (1 - this.foot));     // lean into turns (about the head axis)
     // Running leans forward (a sprinter's lean, more at super speed); braking leans back.
     const run = THREE.MathUtils.smoothstep(hspeed, 2.5, 6.5), sup = THREE.MathUtils.smoothstep(hspeed, 8, 40);
     const leanTarget = onFoot && !motion.airborne ? 0.10 * run + 0.42 * sup : 0;
     this.lean += (leanTarget - this.lean) * (1 - Math.exp(-dt * 6));
-    this.body.rotateX(this.lean * this.foot);
+    this.body.rotateX((this.lean + 0.55 * this.kneel) * this.foot);
     this.body.updateMatrix();
     this._m3.setFromMatrix4(this.body.matrix);
 
@@ -219,20 +169,37 @@ export class Hero {
     this.lag.addScaledVector(this.accel, -0.004).multiplyScalar(Math.exp(-dt * 5));
     if (this.lag.length() > 0.8) this.lag.setLength(0.8);
 
-    // Limbs. Hovering: arms a little out from the sides with relaxed elbows, knees
-    // slightly bent, one more than the other, everything swaying a little. Flying: arms
-    // reach ahead, legs trail nearly straight. Speeding up or braking swings the legs,
-    // and a turn drops the inside arm away from the body.
+    // Limbs, as [shoulder or hip x, z, elbow or knee] for left arm, right arm, left leg,
+    // right leg (x < 0 swings a limb toward the chest side, z > 0 away from the body on
+    // the left). Three poses blended by how much it flies and how much it boosts:
+    // hovering: arms a little out from the sides with relaxed elbows, knees slightly bent,
+    //   one more than the other, everything swaying a little; speeding up or braking
+    //   swings the legs;
+    // cruising: the right arm reaches ahead, the left lies back along the body, one knee
+    //   bent (the classic flying pose); a turn swings the outside arm out and drops the
+    //   inside one;
+    // boosting: streamlined, both arms straight ahead and together, legs straight and
+    //   together.
     const hov = 1 - fs, sway = Math.sin(this.time * 1.7) * 0.04 * hov, breathe = Math.sin(this.time * 1.1 + 0.6) * 0.03 * hov;
     const swingTarget = THREE.MathUtils.clamp(this.lag.dot(chest) * 1.4, -0.45, 0.45) * hov;
     this.legSwing += (swingTarget - this.legSwing) * (1 - Math.exp(-dt * 6));
-    const armA = 0.16 + (Math.PI - 0.30) * fs, out = 0.13 - 0.19 * fs, lean = this.bank * 0.35;
-    // [hip or shoulder x, z, knee or elbow] for left arm, right arm, left leg, right leg
     const P = this._pose || (this._pose = new Float32Array(12)), F = this._footPose || (this._footPose = new Float32Array(12));
-    P.set([-armA + sway, out + Math.max(0, lean), -(0.42 * hov + 0.10 * fs) - breathe,
-      -armA - sway, -out + Math.min(0, lean), -(0.34 * hov + 0.10 * fs) + breathe,
-      0.10 * hov + sway - this.legSwing - 0.22 * hov, 0.04, 0.50 * hov + 0.06 * fs + this.legSwing * 0.5,
-      -0.05 * hov - sway - this.legSwing, -0.04, 0.16 * hov + 0.05 * fs + Math.max(0, this.legSwing)]);
+    const H = this._hovPose || (this._hovPose = new Float32Array(12)), C = this._cruisePose || (this._cruisePose = new Float32Array(12));
+    const B = this._boostPose || (this._boostPose = new Float32Array(12));
+    const lean = this.bank * 0.35, flutter = Math.sin(this.time * 2.3) * 0.03;
+    H.set([-0.16 + sway, 0.13 + Math.max(0, lean), -0.42 - breathe,
+      -0.16 - sway, -0.13 + Math.min(0, lean), -0.34 + breathe,
+      -0.12 + sway - this.legSwing, 0.04, 0.50 + this.legSwing * 0.5,
+      -0.05 - sway - this.legSwing, -0.04, 0.16 + Math.max(0, this.legSwing)]);
+    C.set([0.30 + flutter, Math.max(0.03, 0.16 + lean * 1.4), -0.30,          // (the trailing arm swings out in a right turn, tucks in a left one)
+      -(Math.PI - 0.22), -0.06 + Math.min(0, lean), -0.14,
+      0.06, 0.06, 0.62 + flutter,
+      -0.06, -0.03, 0.10]);
+    B.set([-(Math.PI - 0.10), -0.07, -0.04,
+      -(Math.PI - 0.10), 0.07, -0.04,
+      0.02, -0.012, 0.05,
+      0.02, 0.012, 0.05]);
+    for (let i = 0; i < 12; i++) P[i] = H[i] + (C[i] + (B[i] - C[i]) * b - H[i]) * fs;
     let crouch = 0;
     if (this.foot > 0.001) {
       // Gait: one stride (two steps) per cycle; longer strides the faster it goes, and at
@@ -247,6 +214,13 @@ export class Hero {
       // Landing: a crouch that absorbs the impact, deeper for harder landings.
       const since = (motion.clock ?? 0) - (motion.landedAt ?? -99);
       crouch = since >= 0 && since < 1.5 ? Math.exp(-since * 5) * THREE.MathUtils.clamp((motion.landSpeed || 0) / 7, 0, 1) : 0;
+      // A hard landing (a fall of some 20 m on Mars) ends in a three-point landing: one knee
+      // down, a hand on the ground, held for a moment before standing.
+      const hard = THREE.MathUtils.smoothstep(motion.landSpeed || 0, 9, 16);
+      this.kneel = since >= 0 && since < 2.2 ? hard * (since < 0.6 ? 1 : Math.exp(-(since - 0.6) * 3.5)) : 0;
+      crouch *= 1 - hard;
+      // Up still held after a jump: the launch into flight, fist up, legs together.
+      this.launch += ((motion.airborne ? THREE.MathUtils.smoothstep(motion.upHeld || 0, 0.06, 0.3) : 0) - this.launch) * (1 - Math.exp(-dt * 12));
       const ga = (1 - this.air) * amp;
       for (let i = 0; i < 2; i++) {
         const ph = this.gait + i * Math.PI, sn = Math.sin(ph), cs = Math.cos(ph), sd = i ? -1 : 1;
@@ -259,6 +233,14 @@ export class Hero {
         F[1 + i * 3] = sd * (0.10 + 0.30 * this.air + 0.08 * run);
         F[2 + i * 3] = -(elbow * (0.6 + 0.4 * ga) + 0.15 * this.air);
       }
+      const K = this._kneelPose || (this._kneelPose = new Float32Array([
+        0.65, 0.55, -0.35,        // left arm out behind, for balance
+        -0.45, -0.22, -0.08,      // right arm straight down to the ground
+        -1.45, 0.10, 1.55,        // left leg: foot planted ahead
+        -0.25, -0.06, 2.05]));    // right leg: knee on the ground, shin along it
+      const L = this._launchPose || (this._launchPose = new Float32Array([
+        0.12, 0.12, -0.25,  -(Math.PI - 0.12), -0.04, -0.05,  0.05, 0.02, 0.08,  0.03, -0.02, 0.06]));
+      for (let i = 0; i < 12; i++) F[i] += (K[i] - F[i]) * this.kneel + (L[i] - F[i]) * this.launch * (1 - this.kneel);
       const k = this.foot;
       for (let i = 0; i < 12; i++) P[i] += (F[i] - P[i]) * k;
     }
@@ -273,10 +255,18 @@ export class Hero {
     const p = this.group.position;
     if (onFoot || (rig._relBlend > 0.01 && motion === rig)) {
       p.copy(motion.heroRel || rig.heroRel);
-      p.addScaledVector(up, -(crouch * 0.30 + 0.05 * run * (1 - this.air)) * this.foot);
+      p.addScaledVector(up, -(crouch * 0.30 + 0.05 * run * (1 - this.air) + 0.40 * this.kneel) * this.foot);
       this.lag.multiplyScalar(Math.exp(-dt * 8));
     } else {
+      // A chase camera: turning the view swings the camera round the figure, so the figure
+      // drifts against the turn for a moment (up to ~0.7 m) and settles back to the centre.
+      const pr = rig.pitch ?? 0, pitchRate = dt > 0 ? (pr - (this._pitch0 ?? pr)) / dt : 0;
+      this._pitch0 = pr;
+      const lx = THREE.MathUtils.clamp(-(motion.yawRate || 0) * 0.011, -0.7, 0.7), ly = THREE.MathUtils.clamp(-pitchRate * 0.008, -0.45, 0.45);
+      const kl = 1 - Math.exp(-dt * 5);
+      this.turnLead.x += (lx - this.turnLead.x) * kl; this.turnLead.y += (ly - this.turnLead.y) * kl;
       p.copy(rig.forward).multiplyScalar(HERO_DISTANCE).addScaledVector(rig.up, -HERO_DROP).add(this.lag);
+      p.addScaledVector(rig.right, this.turnLead.x).addScaledVector(rig.up, this.turnLead.y);
       p.addScaledVector(up, Math.sin(this.time * 0.9) * 0.05 * (1 - fs));      // gentle hover bob
       if (env.groundClearance) {
         const c = env.groundClearance(p);                     // metres of air under the figure's centre

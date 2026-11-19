@@ -145,6 +145,8 @@ npm run flight         # scripted Mars -> orbit -> Moon flight (headless)
 npm run foot           # the character on foot in the real game: walk, jump, super speed, take off, land (headless)
 npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run
 npm run govsim         # the governor against simulated GPUs (no browser)
+npm run transfer       # GO trips flown without a browser: arrival, time against the marker's estimate
+npm run target         # the target list, marker and a GO trip in the real game (headless)
 npm run assets         # re-download and convert the small NASA/Yale files into public/data/
 python3 scripts/fetch-maps.py   # the rest of public/data/ (needs: pip install rasterio numpy pillow), see docs/ASSETS.md
 npm run probe          # top-down shaded relief of the height function (no browser)
@@ -158,7 +160,9 @@ chromium` on a normal PC; cloud sessions have it pre-installed — do not reinst
 there). `scripts/shots.mjs` starts a Vite dev server (or serves `dist/` with `--dist`),
 loads `?shot=<name>&world=<id>` and waits for `window.__shotReady`. Options:
 `--world mars|moon`, `--shot ledge,sun`, `--size 880x412`, `--dsf 1.25`, `--touch`,
-`--out docs/shots`, `--query "t=-1&hud=1"`, `--suffix _x`, `--timeout 500`, `--dist`.
+`--out docs/shots`, `--query "t=-1&hud=1"`, `--suffix _x`, `--timeout 500`, `--dist`,
+`--distdir <copy of a build>` (serve a frozen copy, so rebuilding during a batch cannot
+change it).
 Reference shots use the phone shape: `--size 880x412 --dsf 1.25`.
 
 Headless Chromium renders with software WebGL: a shot takes 1–3 minutes. Run long
@@ -169,9 +173,11 @@ URL parameters: `world=mars|moon`, `shot=ledge|sun|wall|ship|dusk` and the world
 landmarks (`olympus`, `gale` on Mars; `tycho`, `taurus` on the Moon) (fixed camera
 bookmark, deterministic screenshot mode, skips the start screen), `t=<hours offset>`,
 `hud=0|1`, `scale=<fixed render scale>`, `mode=smooth|sharp`, `bench=run|soak` (start a
-benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|hover`,
-`heropose=stand|walk|run|super|jump` (with `hero=1`: the character on foot, `posedir=side`
-to see it from the side), `lat= lon= alt= heading= pitch= fov=`, `east= north=` (metres from the bookmark's place),
+benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|fast|bank|climb|hover`
+(cruising, boosting, turning, straight up, hovering), `heropose=stand|walk|run|super|jump|land|launch`
+(with `hero=1`: on foot; `land` is the three-point kneel after a hard landing, `launch` the
+fist-up take-off), `posedir=side` (seen from the side), `target=<body>|sun|place:<id>`
+(the target marker, view unchanged), `lat= lon= alt= heading= pitch= fov=`, `east= north=` (metres from the bookmark's place),
 `aim=<sky body>` (turn the view to it), `dust=1` (with `hero=1`: a touch-down dust burst
 frozen in mid-flight), `debug=noair|airall` (haze shadows off / everywhere),
 `debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
@@ -179,7 +185,9 @@ frozen in mid-flight), `debug=noair|airall` (haze shadows off / everywhere),
 
 Keys: `WASD` move, mouse look (click to capture), `Shift` super speed on foot / boost in
 flight, `Space` (or `E`) jump on foot (tap), take off (hold, or tap again in the air), up in
-flight, `Q` down, `G` character on/off, `T` aim at the next body in the sky,
+flight, `Q` down, `G` character on/off, `T` next target (this world's places, the bodies in the
+sky, the Sun, none) and turn to it, `Enter` GO: fly to the target hands-off (the stick
+or a movement key takes control back; looking around does not),
 `X` hover on/off (off: gravity pulls when the stick is released, and touching the
 ground stands the character on its feet),
 `F` walk ↔ free-fly debug camera, `Z` hold for telephoto, mouse wheel = zoom amount,
@@ -189,7 +197,8 @@ ground stands the character on its feet),
 
 Touch: left part of the screen = move stick (push to the rim for super speed on foot /
 boost in flight), `▲` jump (tap) / take off (hold, or tap again in the air) / up, drag
-anywhere else = look, buttons `HERO`, `TARGET`, `HOVER`, `FLY`, `ZOOM` (hold), `VIEW` (next
+anywhere else = look, buttons `HERO`, `TARGET` (the list of targets with distances), `GO`
+(shown with a target: the hands-off trip), `HOVER`, `FLY`, `ZOOM` (hold), `VIEW` (next
 bookmark), `HUD`, `MODE` (Smooth ↔ Sharp), `FULL` (fullscreen + landscape lock + wake
 lock), `▲` up, `▼` down. The time slider is part of the full HUD.
 
