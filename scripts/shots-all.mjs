@@ -32,6 +32,10 @@ const SETS = [
   ['moon', 'ship', 'hero=1&heropose=hover', '_hero_hover'],
   ['moon', 'ship', 'hero=1&heropose=hover&dust=1&pitch=-28', '_hero_dust'],
   ['moon', 'ledge', 'hero=1', '_hero_flight'],
+  // the character on foot: running on Mars, jumping on the Moon (both from the side)
+  ['mars', 'gale', 'hero=1&heropose=run&posedir=side', '_hero_run'],
+  ['mars', 'gale', 'hero=1&heropose=super&posedir=side', '_hero_super'],
+  ['moon', 'ship', 'hero=1&heropose=jump&posedir=side', '_hero_jump'],
 ];
 
 if (!flag('no-build')) {
