@@ -15,6 +15,7 @@ import { BUILD } from './core/build.js';
 import { Hud, HUD } from './debug/hud.js';
 import { Input } from './controls/input.js';
 import { CameraRig } from './controls/cameraRig.js';
+import { flightBase } from './controls/speedLaw.js';
 import { aimDirection, gapTo, standoff, transferMult, tripTime, groundDistance, OVER_PLACE } from './controls/autopilot.js';
 import { TargetMarker } from './ui/targetMarker.js';
 import { TargetPicker } from './ui/targetPicker.js';
@@ -193,7 +194,10 @@ export class App {
     this.hero = new Hero();
     this.heroScene.add(this.hero.group);
     this.dust = new Dust(world);
-    this.heroScene.add(this.dust.points);
+    // (a scene of its own: high up it is drawn before the hero's depth slice, so the ground,
+    // rocks and lander in front of a lingering cloud still hide it)
+    this.dustScene = new THREE.Scene();
+    this.dustScene.add(this.dust.points);
     for (const m of this.hero.casters) this.nearShadow.addCaster(m, this.hero.depthMaterial, () => this.hero.group.visible);
     await this.terrain.workers.ready;
 
@@ -237,11 +241,15 @@ export class App {
   // Hover: gravity off, the figure stays where it is. Off: it falls toward whatever pulls.
   setHover(on) {
     this.rig.hover = on;
+    // in the middle of a fall on foot: gravity off means it stops falling and flies
+    if (on && this.rig.mode === 'hero' && this.rig.onFoot && this.rig.airborne) this.rig._takeOff(Math.max(0, this.rig.vUp));
     this.touch.setLit('KeyX', on);
     this.toast?.show(on ? 'Hover on — gravity off' : 'Hover off — gravity pulls');
   }
 
   applyBookmark(name) {
+    this.stopTransfer();                  // a bookmark is a jump somewhere else: the trip is over
+    this.dust?.clear();
     const sc = this.world.scene, s = sc.start, b = sc.bookmarks[name] || {};
     const p = this.params;
     this.rig.setLatLon(p.lat ?? b.lat ?? s.lat, p.lon ?? b.lon ?? s.lon, b.eye ?? s.eye, p.heading ?? b.heading ?? s.heading, p.pitch ?? b.pitch ?? s.pitch);
@@ -467,6 +475,11 @@ export class App {
   stopTransfer(msg) {
     if (!this.transfer) return;
     this.transfer = false; this.rig.auto = null;
+    // The trip's speed is far above what hand flight allows this close to a surface (its
+    // easing lags the shrinking distance): hand back the speed the stick would give here,
+    // or the figure plunged from 60 km to the ground in a few frames after arriving.
+    const c = Math.max(1.5, Math.min(this.rig.agl, this.rig.spaceDistance ?? Infinity));
+    this.rig.velocity.clampLength(0, flightBase(c));
     if (msg) this.toast?.show(msg);
   }
 
@@ -477,6 +490,8 @@ export class App {
   updateTransfer(dt, input) {
     if (!this.transfer) return;
     const rig = this.rig;
+    // the figure was put away (HERO), first person (F) or stood on its feet: no trip
+    if (rig.mode !== 'hero' || rig.onFoot) { this.stopTransfer(); return; }
     const touched = input.moveX || input.moveY || ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyE', 'KeyQ', 'Space'].some((k) => input.down(k));
     if (touched) { this.stopTransfer('You have control'); return; }
     const t = this.resolveTarget(this.targetId, this._tgtU || (this._tgtU = {}));
@@ -518,7 +533,7 @@ export class App {
     const m = this.targetMarker;
     if (!m) return;
     this.touch?.setGo(!!this.targetId, this.transfer);
-    const t = this.targetId && !this.menuOpen && !this.benchmark?.active && (this.hud.visible || this.shotMode) ? this.resolveTarget(this.targetId, this._tgtM || (this._tgtM = {})) : null;
+    const t = this.targetId && !this.menuOpen && !this.benchmark?.active ? this.resolveTarget(this.targetId, this._tgtM || (this._tgtM = {})) : null;
     if (!t) { if (m.visible) m.hide(); if (this.targetId && !this.resolveTarget(this.targetId, this._tgtM || (this._tgtM = {}))) this.targetId = null; return; }
     const rig = this.rig, p = rig.pos, cam = [p.x, p.y, p.z];
     const v = (this._vM || (this._vM = new THREE.Vector3())).set(t.pos[0] - p.x, t.pos[1] - p.y, t.pos[2] - p.z);
@@ -531,7 +546,22 @@ export class App {
     const here = gap <= stop * 1.05 || (t.kind === 'place' && gap < OVER_PLACE * 1.3);
     const when = here ? 'here' : this.transfer ? `arriving in ${fmtTime(this.targetEta)}` : `GO ${fmtTime(this.targetEta)}`;
     const shown = t.kind === 'place' ? groundDistance(cam, t, this.world.radius) : gap;     // a place: along the ground; a body: to its surface
-    m.update(rig.camera, v.divideScalar(dist || 1), t.radius ? Math.asin(Math.min(1, t.radius / dist)) : 0, t.name, `${fmtDistance(shown)} · ${when}`);
+    v.divideScalar(dist || 1);
+    // A place hidden behind the world's curve is marked where the way to it crosses the
+    // horizon, not through the ground (it seemed to label whatever lay in front of it).
+    let beyond = false;
+    if (t.kind === 'place') {
+      const R = this.world.radius, r = p.length(), tc = -(p.x * v.x + p.y * v.y + p.z * v.z);   // closest approach to the centre
+      if (tc > 0 && tc < dist && r * r - tc * tc < (R * 0.999) * (R * 0.999) && r > R) {
+        beyond = true;
+        const up = (this._upM || (this._upM = new THREE.Vector3())).copy(p).divideScalar(r);
+        const dip = Math.acos(Math.min(1, R / r));
+        v.addScaledVector(up, -v.dot(up));
+        if (v.lengthSq() < 1e-12) v.copy(rig.forward).addScaledVector(up, -rig.forward.dot(up));
+        v.normalize().multiplyScalar(Math.cos(dip)).addScaledVector(up, -Math.sin(dip));
+      }
+    }
+    m.update(rig.camera, v, t.radius ? Math.asin(Math.min(1, t.radius / dist)) : 0, t.name, `${fmtDistance(shown)}${beyond ? ' over the horizon' : ''} · ${when}`);
   }
 
   // Distances to everything else in the sky: speed limit for hero flight, collision with
@@ -591,6 +621,7 @@ export class App {
       const M0 = Array.from(eph.icrfToFixed), h0 = eph.positionICRF(this.world.body, jd, [0, 0, 0]);
       const toI = (v) => [M0[0] * v.x + M0[3] * v.y + M0[6] * v.z, M0[1] * v.x + M0[4] * v.y + M0[7] * v.z, M0[2] * v.x + M0[5] * v.y + M0[8] * v.z];
       const p = toI(rig.pos), f = toI(rig.forward), vel = toI(rig.velocity), upI = toI(rig.up);
+      const dirI = rig.auto?.dir ? toI(rig.auto.dir) : null;
       this.world = w; this.hs = data.hs;
       eph.homeId = w.body;
       eph.update(jd, this.bodies.ids);
@@ -602,6 +633,18 @@ export class App {
       rig.velocity.copy(toF(vel));
       rig.lookAlong(toF(f));
       rig.keepUp(toF(upI));                          // no jump of the horizon: see CameraRig.roll
+      // a trip's heading (GO may have been cancelled while the world data loaded)
+      if (dirI && rig.auto?.dir) rig.auto.dir.copy(toF(dirI)).normalize();
+      // The character's own state in world axes (the cloak's cloth, its trailing offset,
+      // the velocity it last felt, where it faces) turns with the frame: left in the old
+      // axes the cloak whipped round at every hand-over.
+      {
+        const hero = this.hero, tmp = this._swV || (this._swV = new THREE.Vector3());
+        for (const v of [hero.prevVel, hero.lag, hero.facing]) v.copy(toF(toI(v)));
+        for (const a of [hero.cloak.pos, hero.cloak.prev]) {
+          for (let i = 0; i < a.length; i += 3) { tmp.set(a[i], a[i + 1], a[i + 2]); const r = toF(toI(tmp)); a[i] = r.x; a[i + 1] = r.y; a[i + 2] = r.z; }
+        }
+      }
       // everything that depends on the world
       G.uPlanetRadius.value = w.radius;
       this.atmosphere.setWorld(w);
@@ -707,8 +750,14 @@ export class App {
     if (this.hero.group.visible) {
       // Near the ground the hero shares the terrain's depth buffer (rocks can hide it);
       // higher up the terrain's near plane has moved past it, so it gets its own slice.
-      if (near > 1.0) { renderer.clearDepth(); rig.finalize(aspect, 0.2, 400); }
-      renderer.render(this.heroScene, rig.camera);
+      if (near > 1.0) {
+        renderer.render(this.dustScene, rig.camera);        // still the terrain's depth
+        renderer.clearDepth(); rig.finalize(aspect, 0.2, 400);
+        renderer.render(this.heroScene, rig.camera);
+      } else {
+        renderer.render(this.heroScene, rig.camera);
+        renderer.render(this.dustScene, rig.camera);
+      }
     }
     post.endScene();
 
@@ -780,6 +829,7 @@ export class App {
       }
       if (!this.heroSettled) { hero.settle(5, rig, env, pose); this.heroSettled = true; } else hero.update(0, rig, env, pose);
     } else hero.update(dt, rig, env);
+    rig.chaseBack = hero.chaseBack;                 // (the rig lands the feet where the figure is drawn)
     // Through the telephoto the figure a few metres ahead would fill the screen: it steps
     // out of the picture while the lens is long (its shadow stays).
     const zoomed = rig.fov < rig.baseFov * 0.55;
@@ -805,23 +855,26 @@ export class App {
     // the character
     if (hero.group.visible) {
       const b = hero.body, p = hero.group.position, c = hero.colliders;
-      const at = (o, x, y, z, r) => { v.set(x, y, z).applyMatrix4(b.matrix).add(p); o.set(v.x, v.y, v.z, r); };
+      const at = (o, x, y, z, r) => { v.set(x, y, z).applyMatrix4(b.matrix).add(p); if (Number.isFinite(v.x + v.y + v.z)) o.set(v.x, v.y, v.z, r); else o.w = 0; };
       at(occ[0], 0, 0.30, 0, 0.27);
       at(occ[1], 0, -0.42, 0, 0.17);
-      at(occ[2], c[5 * 7 + 10], c[5 * 7 + 11], c[5 * 7 + 12] + 0.04, 0.09);     // left foot (end of the left shin)
-      at(occ[3], c[7 * 7 + 10], c[7 * 7 + 11], c[7 * 7 + 12] + 0.04, 0.09);     // right foot
+      // the feet: the far ends of the shins (the legs' capsules are limbs 4 and 6, two per limb)
+      at(occ[2], c[4 * 7 + 10], c[4 * 7 + 11], c[4 * 7 + 12] + 0.04, 0.09);     // left foot
+      at(occ[3], c[6 * 7 + 10], c[6 * 7 + 11], c[6 * 7 + 12] + 0.04, 0.09);     // right foot
       grp[0].set(occ[0].x, occ[0].y, occ[0].z, 6);
     } else { grp[0].w = 0; for (let i = 0; i < 4; i++) occ[i].w = 0; }
     const contact = this.contact !== false;
     this._occX ??= this.params.debug.includes('contactx4') ? 4 : 1;      // ?debug=contactx4: rock spheres 4x (to see it work)
     // the lander (its position is the ground under its centre)
     const lm = this.lander.mesh;
-    if (contact && lm.visible && lm.position.lengthSq() < 80 * 80) {
+    // (faded in and out between 60 and 80 m, so it never switches on in one frame)
+    const fl = 1 - THREE.MathUtils.smoothstep(lm.position.length(), 60, 80);
+    if (contact && lm.visible && fl > 0) {
       up.copy(this.lander.position).normalize();
-      v.copy(lm.position).addScaledVector(up, 2.6); occ[4].set(v.x, v.y, v.z, 2.0);
-      v.copy(lm.position).addScaledVector(up, 1.1); occ[5].set(v.x, v.y, v.z, 1.6);
+      v.copy(lm.position).addScaledVector(up, 2.6); occ[4].set(v.x, v.y, v.z, 2.0 * fl);
+      v.copy(lm.position).addScaledVector(up, 1.1); occ[5].set(v.x, v.y, v.z, 1.6 * fl);
       occ[6].w = occ[7].w = 0;
-      v.copy(lm.position).addScaledVector(up, 1.5); grp[1].set(v.x, v.y, v.z, 10);
+      v.copy(lm.position).addScaledVector(up, 1.5); grp[1].set(v.x, v.y, v.z, 10 * fl);
     } else { grp[1].w = 0; occ[4].w = occ[5].w = 0; }
     // the eight nearest rocks in front of the camera within 25 m, from the first 96 of the
     // scatter (it comes nearest cells first)
@@ -835,6 +888,10 @@ export class App {
       best.push(Math.floor(d2 * 10) * 1000 + i);       // sorts by distance (0.1 m^2 steps), carries the index (< 1000)
     }
     best.sort((a, b) => a - b);
+    // Each sphere fades out before it can drop from the list: toward the ninth-nearest rock's
+    // distance (the next to come in), toward 25 m, and as it passes behind the camera. When
+    // the eighth and ninth swap places, the one that leaves has already faded away.
+    const dCut = Math.min(25, best.length > 8 ? Math.sqrt(Math.floor(best[8] / 1000) / 10) : 25);
     let k = 0, cx = 0, cy = 0, cz = 0, reach = 0;
     for (; k < Math.min(8, best.length); k++) {
       const i = best[k] % 1000;
@@ -843,7 +900,9 @@ export class App {
       const r = 0.5 * (rk.aScale.getX(i) + rk.aScale.getY(i)) * 0.5, l = Math.hypot(rk.points[i * 3], rk.points[i * 3 + 1], rk.points[i * 3 + 2]);
       const drop = 0.45 * r / l;
       const x = rk.points[i * 3] * (1 - drop) - rig.pos.x, y = rk.points[i * 3 + 1] * (1 - drop) - rig.pos.y, z = rk.points[i * 3 + 2] * (1 - drop) - rig.pos.z;
-      occ[8 + k].set(x, y, z, this._occX * r); cx += x; cy += y; cz += z;
+      const px = rk.points[i * 3] - rig.pos.x, py = rk.points[i * 3 + 1] - rig.pos.y, pz = rk.points[i * 3 + 2] - rig.pos.z;
+      const fade = (1 - THREE.MathUtils.smoothstep(Math.hypot(px, py, pz), 0.75 * dCut, dCut)) * THREE.MathUtils.smoothstep(px * f.x + py * f.y + pz * f.z, -2, 0);
+      occ[8 + k].set(x, y, z, this._occX * r * fade); cx += x; cy += y; cz += z;
     }
     for (let i = 8 + k; i < 16; i++) occ[i].w = 0;
     if (k) {
@@ -875,13 +934,21 @@ export class App {
     if (dt > 0 && env.groundClearance) {
       const p = hero.group.position, c = env.groundClearance(p);            // metres of air under the figure
       const v = rig.velocity, vUp = v.dot(up), speed = v.length(), along = Math.sqrt(Math.max(0, speed * speed - vUp * vUp));
+      const k = dust.amount * dust.dustiness;
+      if (c < 3.5) at.copy(rig.pos).add(p).addScaledVector(up, -(c - 0.15));   // the ground under the figure
+      // touching down on the feet: a ring thrown outward from them at the moment they touch,
+      // bigger the harder the landing
+      if ((rig.landings || 0) !== (this._landingsSeen || 0) && rig.landSpeed > 0.8) {
+        const s = rig.landSpeed, foot = this._dustFoot || (this._dustFoot = new THREE.Vector3());
+        foot.copy(rig.feet).addScaledVector(up, 0.15);
+        dust.emit(foot, up, Math.round(Math.min(110, 30 + 14 * s) * k * (1 + 2 * dust.vac)), 1.2 + 0.5 * s, 1.1, carry.copy(rig.footVel).multiplyScalar(0.15).addScaledVector(up, 0.15 * s));
+      }
+      // taking off: a ring, as from a push off the ground (holding up takes off from the top
+      // of a jump, the hips some 2.5 m up)
+      if ((rig.takeoffs || 0) !== (this._takeoffsSeen || 0) && c < 3.5) dust.emit(at, up, Math.round(70 * k * (1 + 2 * dust.vac)), 2.6, 1.0, carry.copy(up).multiplyScalar(0.6));
       if (c < 2.2) {
-        at.copy(rig.pos).add(p).addScaledVector(up, -(c - 0.15));          // the ground under the figure
-        const k = dust.amount * dust.dustiness;
-        // touching down: a ring thrown outward, bigger the harder the landing
-        if (this._dustClear > 2.2 && vUp < -0.8) dust.emit(at, up, Math.round(Math.min(110, 30 + 14 * -vUp) * k * (1 + 2 * dust.vac)), 1.2 + 0.5 * -vUp, 1.1, carry.copy(v).multiplyScalar(0.15).addScaledVector(up, -0.15 * vUp));
-        // taking off: a ring, as from a push off the ground
-        if ((rig.takeoffs || 0) !== (this._takeoffsSeen || 0) && c < 3.5) dust.emit(at, up, Math.round(70 * k * (1 + 2 * dust.vac)), 2.6, 1.0, carry.copy(up).multiplyScalar(0.6));
+        // hovering down to the ground (with HOVER on it never stands): a ring as it arrives
+        if (rig.hover && !rig.onFoot && this._dustClear > 2.2 && vUp < -0.8) dust.emit(at, up, Math.round(Math.min(110, 30 + 14 * -vUp) * k * (1 + 2 * dust.vac)), 1.2 + 0.5 * -vUp, 1.1, carry.copy(v).multiplyScalar(0.15).addScaledVector(up, -0.15 * vUp));
         // pushing off, or skimming along: a steady trail
         const stir = ((vUp > 0.8 && rig.throttle > 0.3 ? 30 : 0) + Math.min(40, along * 2.2) * (c < 1.3 ? 1 : 0.3)) * (1 + 2 * dust.vac);
         this._dustDebt = (this._dustDebt || 0) + stir * k * dt;
@@ -889,7 +956,7 @@ export class App {
       }
       this._dustClear = c;
     } else this._dustClear = 99;
-    this._takeoffsSeen = rig.takeoffs || 0;
+    this._takeoffsSeen = rig.takeoffs || 0; this._landingsSeen = rig.landings || 0;
     dust.update(dt, rig.pos, up, env.gravity, env.air, viewH, th, sunVis);
   }
 

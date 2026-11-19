@@ -20,6 +20,9 @@
     #fatal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; color: #cfc8ba; z-index: 30; background: #000;
       font: 14px ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; padding: 40px; text-align: center; }
     .hidden { display: none !important; }
+    /* the full read-out sits below the touch buttons (it ran under them); nothing of the HUD shows through the menus */
+    body:has(#touch:not(.hidden)) #hud:not(.compact) { top: 54px; }
+    body:has(#results:not(.hidden)) #hud, body:has(#start:not(.hidden)) #hud { visibility: hidden; }
     /* Start screen, results screen, benchmark banner */
     #start, #results { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 20;
       background: rgba(4, 3, 2, 0.62); color: #e9e4d8; font: 14px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }

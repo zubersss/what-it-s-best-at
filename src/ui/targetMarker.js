@@ -40,6 +40,14 @@ export class TargetMarker {
     }
     if (this.root.classList.contains('hidden')) this.root.classList.remove('hidden');
     this.visible = true;
+    // the label's text first, and its size (measured only when the text changes) to keep it
+    // inside the screen
+    const text = name + '|' + info;
+    if (text !== this.text) {
+      this.text = text; this.name.textContent = name; this.info.textContent = info;
+      this.lw = this.label.offsetWidth; this.lh = this.label.offsetHeight;
+    }
+    const lw = this.lw || 0, lh = this.lh || 0, clampX = (lx) => Math.min(Math.max(lx, lw / 2 + 4), W - lw / 2 - 4);
     const s = this.root.style;
     if (onScreen) {
       // brackets as large as the target looks (a few pixels at least), none once it fills the view
@@ -48,7 +56,11 @@ export class TargetMarker {
       this.box.style.display = big ? 'none' : '';
       this.box.style.width = this.box.style.height = `${(2 * r).toFixed(0)}px`;
       this.box.style.transform = `translate(${(-r).toFixed(1)}px, ${(-r).toFixed(1)}px)`;
-      this.label.style.transform = `translate(-50%, ${big ? 8 : (r + 6).toFixed(1)}px)`;
+      // below the brackets (above them near the bottom edge), never past a side
+      let ly = y + (big ? 8 : r + 6);
+      if (ly + lh > H - 4) ly = y - (big ? 8 : r + 6) - lh;
+      const lx = clampX(x);
+      this.label.style.transform = `translate(${(lx - x - lw / 2).toFixed(1)}px, ${(ly - y).toFixed(1)}px)`;
       this.arrow.style.display = 'none';
       s.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
     } else {
@@ -65,10 +77,9 @@ export class TargetMarker {
       this.arrow.style.transform = `translate(-50%, -50%) rotate(${ang.toFixed(3)}rad)`;
       // the label just inside the arrow, toward the centre of the screen
       const n = Math.hypot(dx, dy), ox = -dx / n * 46, oy = dy / n * 26;
-      this.label.style.transform = `translate(calc(-50% + ${ox.toFixed(1)}px), calc(-50% + ${oy.toFixed(1)}px))`;
+      const lx = clampX(x + ox), ly = Math.min(Math.max(y + oy, lh / 2 + 4), H - lh / 2 - 4);
+      this.label.style.transform = `translate(${(lx - x - lw / 2).toFixed(1)}px, ${(ly - y - lh / 2).toFixed(1)}px)`;
       s.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
     }
-    const text = name + '|' + info;
-    if (text !== this.text) { this.text = text; this.name.textContent = name; this.info.textContent = info; }
   }
 }

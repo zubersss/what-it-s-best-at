@@ -18,7 +18,6 @@ export class TouchControls {
       <div id="tbuttons">
         <button data-key="KeyG">HERO</button>
         <button data-act="target">TARGET</button>
-        <button data-act="go" class="go hidden">GO</button>
         <button data-key="KeyX">HOVER</button>
         <button data-key="KeyF">FLY</button>
         <button data-key="KeyZ" data-hold="1">ZOOM</button>
@@ -28,6 +27,7 @@ export class TouchControls {
         <button data-act="full">FULL</button>
       </div>
       <div id="tupdown">
+        <button data-act="go" class="go hidden">GO</button>
         <button data-key="Space" data-hold="1">&#9650;</button>
         <button data-key="KeyQ" data-hold="1">&#9660;</button>
       </div>`;

@@ -16,6 +16,8 @@ const X_AXIS = new THREE.Vector3(1, 0, 0);
 // metres in front of / below the camera axis in flight (0.9 below keeps the trailing legs in
 // the frame; 1.2 cut them off at the bottom edge)
 export const HERO_DISTANCE = 4.1, HERO_DROP = 0.9;
+const HOVER_BACK = 1.4;                          // the upright figure is drawn this much farther ahead
+const KNEEL_LEAN = 1.05, KNEEL_DROP = 0.45;      // the three-point landing: torso forward (rad), hips lowered (m)
 
 export class Hero {
   constructor() {
@@ -71,6 +73,7 @@ export class Hero {
     this._x = new THREE.Vector3(); this._y = new THREE.Vector3(); this._z = new THREE.Vector3();
     this._m4 = new THREE.Matrix4(); this._m3 = new THREE.Matrix3(); this._q = new THREE.Quaternion();
     this._g = new THREE.Vector3(); this._wind = new THREE.Vector3(); this._t = new THREE.Vector3();
+    this.chaseBack = HERO_DISTANCE;
     this.started = false;
   }
 
@@ -127,6 +130,11 @@ export class Hero {
     const flareTarget = onFoot ? 0 : (1 - THREE.MathUtils.smoothstep(feetClear, 2, 3 + 1.2 * Math.max(0, vDown))) * THREE.MathUtils.smoothstep(vDown, 0.6, 2.0);
     this.flare += (flareTarget - this.flare) * (1 - Math.exp(-dt * 7));
     const f = this.flight * (1 - this.flare), fs = f * f * (3 - 2 * f), b = this.boost * this.boost * (3 - 2 * this.boost);
+    // The chase distance: upright (hovering, landing) the figure stands 1.8 m tall and at
+    // 4.1 m its boots fell on the frame's edge; it is drawn farther ahead then. The rig reads
+    // it (App.updateHero), so landing puts the feet where the figure is drawn.
+    const backTarget = HERO_DISTANCE + HOVER_BACK * (1 - fs);
+    this.chaseBack = this.started ? this.chaseBack + (backTarget - this.chaseBack) * (1 - Math.exp(-dt * 2.5)) : backTarget;
 
     // Body axes: head direction goes from "up" to the direction of travel; the chest turns
     // from facing forward to facing the ground.
@@ -135,6 +143,9 @@ export class Hero {
     const want = this._f.copy(hspeed > 0.4 ? hv : rig.forward).addScaledVector(up, -(hspeed > 0.4 ? 0 : rig.forward.dot(up)));
     if (want.lengthSq() > 1e-8) want.normalize();
     if (!this.started || this.facing.lengthSq() < 0.5) this.facing.copy(want);
+    // (turning straight round: a lerp between opposite directions never leaves their line,
+    // so nudge it sideways and let it swing round at the usual rate)
+    if (this.facing.dot(want) < -0.98) this.facing.addScaledVector(this._g.crossVectors(up, this.facing), 0.05);
     this.facing.addScaledVector(up, -this.facing.dot(up)).lerp(want, 1 - Math.exp(-dt * 9)).normalize();
     // Cruising, the body is tipped a little short of the direction of travel (head up);
     // boosting, it lies along it.
@@ -156,7 +167,7 @@ export class Hero {
     const run = THREE.MathUtils.smoothstep(hspeed, 2.5, 6.5), sup = THREE.MathUtils.smoothstep(hspeed, 8, 40);
     const leanTarget = onFoot && !motion.airborne ? 0.10 * run + 0.42 * sup : 0;
     this.lean += (leanTarget - this.lean) * (1 - Math.exp(-dt * 6));
-    this.body.rotateX((this.lean + 0.55 * this.kneel) * this.foot);
+    this.body.rotateX((this.lean + KNEEL_LEAN * this.kneel) * this.foot);
     this.body.updateMatrix();
     this._m3.setFromMatrix4(this.body.matrix);
 
@@ -166,7 +177,10 @@ export class Hero {
     this.prevVel.copy(motion.velocity);
     const aLen = this.accel.length();
     if (aLen > 30) this.accel.multiplyScalar(30 / aLen);     // interplanetary thrust would shred any cloth
-    this.lag.addScaledVector(this.accel, -0.004).multiplyScalar(Math.exp(-dt * 5));
+    // (a rate: the same trail at 30, 60 and 120 fps; on foot the figure stands where its feet
+    // are, so there it only fades)
+    if (!onFoot) this.lag.addScaledVector(this.accel, -0.24 * dt);
+    this.lag.multiplyScalar(Math.exp(-dt * 5));
     if (this.lag.length() > 0.8) this.lag.setLength(0.8);
 
     // Limbs, as [shoulder or hip x, z, elbow or knee] for left arm, right arm, left leg,
@@ -217,7 +231,9 @@ export class Hero {
       // A hard landing (a fall of some 20 m on Mars) ends in a three-point landing: one knee
       // down, a hand on the ground, held for a moment before standing.
       const hard = THREE.MathUtils.smoothstep(motion.landSpeed || 0, 9, 16);
-      this.kneel = since >= 0 && since < 2.2 ? hard * (since < 0.6 ? 1 : Math.exp(-(since - 0.6) * 3.5)) : 0;
+      // (a jump or take-off straight out of it lets go of the kneel at once)
+      this.kneel = motion.airborne ? this.kneel * Math.exp(-dt * 10)
+        : since >= 0 && since < 2.2 ? hard * (since < 0.6 ? 1 : Math.exp(-(since - 0.6) * 3.5)) : 0;
       crouch *= 1 - hard;
       // Up still held after a jump: the launch into flight, fist up, legs together.
       this.launch += ((motion.airborne ? THREE.MathUtils.smoothstep(motion.upHeld || 0, 0.06, 0.3) : 0) - this.launch) * (1 - Math.exp(-dt * 12));
@@ -233,11 +249,15 @@ export class Hero {
         F[1 + i * 3] = sd * (0.10 + 0.30 * this.air + 0.08 * run);
         F[2 + i * 3] = -(elbow * (0.6 + 0.4 * ga) + 0.15 * this.air);
       }
+      // (angles are relative to the torso, which leans KNEEL_LEAN forward with the hips
+      // KNEEL_DROP lower: in the world the left thigh is near level and its shin upright,
+      // the right thigh hangs to a knee on the ground with the shin along it, the right arm
+      // reaches straight down to a fist on the ground)
       const K = this._kneelPose || (this._kneelPose = new Float32Array([
-        0.65, 0.55, -0.35,        // left arm out behind, for balance
-        -0.45, -0.22, -0.08,      // right arm straight down to the ground
-        -1.45, 0.10, 1.55,        // left leg: foot planted ahead
-        -0.25, -0.06, 2.05]));    // right leg: knee on the ground, shin along it
+        -0.15, 0.60, -0.40,       // left arm out behind, for balance
+        -1.05, -0.14, -0.05,      // right arm straight down to the ground
+        -2.50, 0.10, 1.15,        // left leg: foot planted ahead
+        -0.95, -0.06, 1.40]));    // right leg: knee on the ground, shin along it
       const L = this._launchPose || (this._launchPose = new Float32Array([
         0.12, 0.12, -0.25,  -(Math.PI - 0.12), -0.04, -0.05,  0.05, 0.02, 0.08,  0.03, -0.02, 0.06]));
       for (let i = 0; i < 12; i++) F[i] += (K[i] - F[i]) * this.kneel + (L[i] - F[i]) * this.launch * (1 - this.kneel);
@@ -255,8 +275,14 @@ export class Hero {
     const p = this.group.position;
     if (onFoot || (rig._relBlend > 0.01 && motion === rig)) {
       p.copy(motion.heroRel || rig.heroRel);
-      p.addScaledVector(up, -(crouch * 0.30 + 0.05 * run * (1 - this.air) + 0.40 * this.kneel) * this.foot);
-      this.lag.multiplyScalar(Math.exp(-dt * 8));
+      p.addScaledVector(up, -(crouch * 0.30 + 0.05 * run * (1 - this.air) + KNEEL_DROP * this.kneel) * this.foot);
+      // The chase offsets of flight fade out on foot instead of dropping (the figure jumped
+      // up to 0.7 m on landing while the view turned, and again after the next take-off),
+      // and the pitch is tracked so it is never stale when flight resumes.
+      const kd = Math.exp(-dt * 8);
+      this.lag.multiplyScalar(kd); this.turnLead.multiplyScalar(kd);
+      this._pitch0 = rig.pitch ?? 0;
+      p.add(this.lag).addScaledVector(rig.right, this.turnLead.x).addScaledVector(rig.up, this.turnLead.y);
     } else {
       // A chase camera: turning the view swings the camera round the figure, so the figure
       // drifts against the turn for a moment (up to ~0.7 m) and settles back to the centre.
@@ -265,7 +291,7 @@ export class Hero {
       const lx = THREE.MathUtils.clamp(-(motion.yawRate || 0) * 0.011, -0.7, 0.7), ly = THREE.MathUtils.clamp(-pitchRate * 0.008, -0.45, 0.45);
       const kl = 1 - Math.exp(-dt * 5);
       this.turnLead.x += (lx - this.turnLead.x) * kl; this.turnLead.y += (ly - this.turnLead.y) * kl;
-      p.copy(rig.forward).multiplyScalar(HERO_DISTANCE).addScaledVector(rig.up, -HERO_DROP).add(this.lag);
+      p.copy(rig.forward).multiplyScalar(this.chaseBack).addScaledVector(rig.up, -HERO_DROP).add(this.lag);
       p.addScaledVector(rig.right, this.turnLead.x).addScaledVector(rig.up, this.turnLead.y);
       p.addScaledVector(up, Math.sin(this.time * 0.9) * 0.05 * (1 - fs));      // gentle hover bob
       if (env.groundClearance) {
