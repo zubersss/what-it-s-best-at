@@ -2,6 +2,8 @@
 
 Future sessions have no memory except this file and `docs/`. Read this file,
 `docs/ROADMAP.md` and `docs/PROGRESS.md` before doing anything, and keep them current.
+**Start with "Where things stand" at the top of `docs/PROGRESS.md`**: it says what was
+last delivered, what the owner was asked for and exactly what to do next.
 
 - `docs/ROADMAP.md` — the nine milestones, in order, with a status for each.
 - `docs/PROGRESS.md` — what exists, decisions taken and why, known problems, session log.
@@ -108,8 +110,9 @@ say plainly what is needed and carry on with everything that does not depend on 
 
 ## What the owner's replies mean
 
-- "continue": start the next unfinished milestone in `docs/ROADMAP.md` and work through
-  it to its checkpoint.
+- "continue": a milestone at `checkpoint sent` is accepted (mark it `done` in
+  `docs/ROADMAP.md`); start the next unfinished milestone and work through it to its
+  checkpoint.
 - Pasted benchmark results: tune the governor and resolution range from them first, then
   continue as above.
 - A complaint about how something looks or feels: reproduce it in a screenshot, fix it,
@@ -291,5 +294,17 @@ finished benchmark leaves its text in `window.__benchResult`.
   vectors. A shader over a phone's limit draws nothing there and works in every headless
   test (the whole ground vanished on the phone at 17). `scripts/lib/glLimits.mjs` checks
   every program in `npm run smoke` and in screenshot runs; the terrain shader is at 15.
+- The cloud machine has 4 cores and software WebGL: run **one headless browser at a
+  time**. Parallel renders gave no extra throughput and made screenshots time out
+  (180 s) and terrain detail drop. The full reference set takes 3–4 hours alone; the
+  stability test about 2. Background commands are cut off after 2 hours, so chain long
+  work in pieces, and wait on a log line (`until grep -q ...`), never on `pgrep -f` with
+  a pattern that also appears in the waiting command (it finds itself and waits forever).
+- Helpers started with an isolated worktree begin from `main`, not from the session
+  branch: tell them to check out the session branch's head first, and keep their
+  worktrees out of commits (`.claude/worktrees/` is ignored).
+- A GO trip to another body crosses the world hand-over halfway: the target becomes the
+  world underfoot. Anything in `autopilot.js` must handle a target at the origin
+  (`npm run transfer` simulates the hand-over).
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

@@ -4,6 +4,41 @@ What exists, what was decided and why, what is wrong, and a short log. The plan 
 is `docs/ROADMAP.md`; the rules are in `CLAUDE.md`. Update this file in every commit that
 changes behaviour.
 
+## Where things stand (read this first)
+
+*Handoff written at the end of milestone 4, for a new session or account that starts
+with the owner typing "continue".*
+
+- **Last delivered**: milestone 4, character and flight feel, merged to `main` and live
+  on the phone link (build `99d7273` and later). `docs/ROADMAP.md` marks it
+  `checkpoint sent`. Everything is on `main`; nothing is pending on any branch.
+- **Asked of the owner**: to try the target list and GO, the new poses and landings, and
+  to paste the Benchmark results (Copy results) in both Smooth and Sharp. The milestone
+  2–4 builds have never been measured on the phone (see the known-problems table).
+- **What to do next**:
+  - If the owner pastes benchmark results: tune the governor and resolution range from
+    them first (CLAUDE.md "What the owner's replies mean"), check the new costs (the Mars
+    dust cloud's noise, the 16 contact spheres in the terrain shader, the per-pixel haze
+    near a planet's edge), then continue.
+  - If the owner says "continue": mark milestone 4 `done` and start **milestone 5,
+    Earth and the Sun from space**. Write its plan in this file first. Its scope (from
+    the roadmap): Earth as a full globe with public-domain NASA colour, a cloud layer,
+    night-side city lights, sun-glint on oceans and a thin blue edge (not landable).
+    The milestone 4 critic's findings that belong there, in the known-problems table:
+    Earth a white blob from the Moon; no light from the planet below on things in orbit
+    (the figure's legs and visor go black over sunlit Mars); Mars daylight haze too
+    thick and the sky a flat khaki; chalk-white canyon outlines and a bluish crescent on
+    Mars from orbit; Deimos burnt out; black shadow slivers in the low lunar orbit view.
+    Earth's maps must be public domain (NASA Blue Marble, Black Marble): record them in
+    `docs/ASSETS.md`.
+  - If the owner complains about something: reproduce it in a screenshot, fix it, show
+    before and after, then return to the roadmap.
+- **How to work here** (all in CLAUDE.md): develop on the session's own branch, open a
+  pull request into `main` and merge it yourself; the phone link updates a minute later
+  and shows the build's commit. Run `./scripts/build-check.sh` before every merge, one
+  headless browser at a time, and the checks listed under "Run and test"
+  (`smoke` includes the phone shader-limit check).
+
 ## What exists today
 
 - **Mars**: real NASA MOLA elevation and Viking colour over the whole planet. The main

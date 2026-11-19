@@ -1,8 +1,9 @@
 # Roadmap
 
 The owner's roadmap, in order. Work one milestone at a time, to its checkpoint, following
-"How to work on every milestone" in `CLAUDE.md`. "continue" from the owner means: start
-the next milestone that is not `done`.
+"How to work on every milestone" in `CLAUDE.md`. "continue" from the owner means: a
+milestone at `checkpoint sent` is accepted (mark it `done`), then start the next milestone
+that is not `done`.
 
 Status values: `not started`, `in progress`, `checkpoint sent` (built, waiting for the
 owner's reply or phone results), `done`.
