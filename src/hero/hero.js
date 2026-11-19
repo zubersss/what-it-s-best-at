@@ -13,7 +13,9 @@ import { Cloak } from './cloak.js';
 
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 
-export const HERO_DISTANCE = 4.1, HERO_DROP = 1.2;     // metres in front of / below the camera axis
+// metres in front of / below the camera axis in flight (0.9 below keeps the trailing legs in
+// the frame; 1.2 cut them off at the bottom edge)
+export const HERO_DISTANCE = 4.1, HERO_DROP = 0.9;
 
 export class Hero {
   constructor() {
@@ -119,7 +121,7 @@ export class Hero {
     this.bank += (bankTarget - this.bank) * (1 - Math.exp(-dt * 4));
     // Coming in to land (flying, not hovering): in the last second or so before the feet
     // would touch, the body swings upright and the legs reach down.
-    const vDown = -motion.velocity.dot(up), feetClear = (motion.agl ?? rig.agl ?? 99) - 2.1;
+    const vDown = -motion.velocity.dot(up), feetClear = (motion.agl ?? rig.agl ?? 99) - HERO_DROP - 0.9;
     const flareTarget = onFoot ? 0 : (1 - THREE.MathUtils.smoothstep(feetClear, 2, 3 + 1.2 * Math.max(0, vDown))) * THREE.MathUtils.smoothstep(vDown, 0.6, 2.0);
     this.flare += (flareTarget - this.flare) * (1 - Math.exp(-dt * 7));
     const f = this.flight * (1 - this.flare), fs = f * f * (3 - 2 * f), b = this.boost * this.boost * (3 - 2 * this.boost);
