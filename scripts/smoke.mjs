@@ -17,7 +17,9 @@ await goto(base);
 await page.waitForSelector('#start', { timeout: 30000 });
 check('start screen is up while loading', await page.isVisible('#start'));
 await page.waitForFunction(() => window.__app?.loaded, null, { timeout: 240000 });
-check('buttons unlock when the terrain is ready', await page.evaluate(() => ![...document.querySelectorAll('#start .row button')].some((b) => b.disabled)));
+// Play waits for the ground under the start (or 20 s after the first terrain)
+await page.waitForFunction(() => window.__app?.groundReady, null, { timeout: 120000 });
+check('buttons unlock when the ground under the start is ready', await page.evaluate(() => ![...document.querySelectorAll('#start .row button')].some((b) => b.disabled)));
 check('build shown on the start screen', /build \w+/.test(await page.textContent('#start .build')));
 await page.waitForTimeout(8000);
 await snap(path.join(out, 'start_screen.png'));
