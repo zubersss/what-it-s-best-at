@@ -18,8 +18,8 @@ uniform float uExposure;
 uniform vec3 uCamPlanetPos;
 uniform float uPlanetRadius;
 uniform vec2 uViewport;
-uniform sampler2D tIrradiance;      // octahedral irradiance map (local sky frame) + circumsolar row
-uniform sampler2D tSkyE;            // sky light on level ground against the Sun's height (1-D)
+uniform sampler2D tIrradiance;      // octahedral irradiance map (local sky frame), circumsolar row, and
+                                    // the sky light on level ground against the Sun's height (row IRR+1)
 uniform float uSkyGainMix;          // 0 near the ground (everything in view shares the camera's sky), 1 from high up
 uniform sampler2D tFroxelA;         // aerial perspective: smooth in-scatter
 uniform sampler2D tFroxelB;         //                      un-phased dust in-scatter
@@ -32,6 +32,7 @@ uniform vec3 uShineE;               // its irradiance at the ground (planetshine
 uniform vec4 uQuality;              // governor switches: x close-up detail, y soft shadow edges, z edge-glow samples
 uniform float uPhotometry;          // 0 = matte dust under air (Oren-Nayar), 1 = airless regolith (lunarDiffuse)
 uniform vec3 uGroundTint;           // the world's albedo map at the camera, relative to its mean
+uniform vec4 uOccluders[4];         // the character's body as spheres (camera-relative centre, radius)
 
 // Irradiance of the Sun reaching a point (planet-centred metres), unshadowed:
 // the attenuated direct beam plus the forward-scattered aureole around it.
@@ -58,15 +59,34 @@ vec2 octEncode(vec3 n) {
 // and 30 km of altitude).
 vec3 skyLight(vec3 N, vec3 up) {
   vec2 e = octEncode(uSkyFrame * N);
-  vec2 uv = (e * (float(IRR) - 1.0) + 0.5) / vec2(float(IRR), float(IRR) + 1.0);
+  vec2 uv = (e * (float(IRR) - 1.0) + 0.5) / vec2(float(SKYL_W), float(SKYL_H));
   vec3 E = texture(tIrradiance, uv).rgb * uLutScaleInv.x;
   if (uSkyGainMix > 0.0) {
     float mu = dot(up, uSunDir);
     float ug = 0.5 + 0.5 * sign(mu) * sqrt(abs(mu));
-    vec3 there = texture(tSkyE, vec2((ug * (float(SKYE_W) - 1.0) + 0.5) / float(SKYE_W), 0.5)).rgb * ((0.5 + 0.5 * dot(N, up)) / SKYE_SCALE);
+    vec3 there = texture(tIrradiance, vec2((ug * (float(SKYE_W) - 1.0) + 0.5) / float(SKYL_W), (float(IRR) + 1.5) / float(SKYL_H))).rgb * ((0.5 + 0.5 * dot(N, up)) / SKYE_SCALE);
     E = mix(E, there, uSkyGainMix);
   }
   return E * uSunIrradiance;
+}
+
+// How much of the sky a surface at camera-relative position rel (normal N) still sees past
+// the character standing near it: each sphere of radius r at distance d, in the direction
+// of the normal, hides about (r/d)^2 of it. A figure on the ground darkens the ground
+// under its feet in the light of the sky (sunlight is the near shadow map's business):
+// the contact that keeps it from looking pasted on. Nothing is added; light is only lost.
+float figureSky(vec3 rel, vec3 N) {
+  if (uOccluders[0].w <= 0.0 || uQuality.y < 0.5) return 1.0;     // governor step: soft shadow edges
+  vec3 d0 = uOccluders[0].xyz - rel;
+  if (dot(d0, d0) > 36.0) return 1.0;
+  float vis = 1.0;
+  for (int i = 0; i < 4; i++) {
+    vec4 o = uOccluders[i];
+    vec3 d = o.xyz - rel;
+    float l2 = max(dot(d, d), 1e-4);
+    vis *= 1.0 - min(0.9, o.w * o.w / l2 * max(dot(N, d) * inversesqrt(l2), 0.0));
+  }
+  return vis;
 }
 
 // Irradiance from planetshine (sunlight reflected by a sky body) onto a surface with normal N.

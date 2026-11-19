@@ -135,8 +135,9 @@ tall as wide, uploaded as R8. It gives relief shading from far away, where the c
 normal maps are kilometres per texel and, outside the sharp patches, the heights only know
 features a few tens of kilometres across. The terrain shader adds the band between the
 map's resolution (or the screen's, if coarser) and the coarser of the chunk's texels and
-2.5 pixels of the elevation raster in charge there (a 0.25° "data sharpness" texture built
-from the raster list at load, `makeDemResTexture`). So nothing is added inside the sharp
+2.5 pixels of the elevation raster in charge there (`demLog2Res` in the shader, from the
+raster list as uniforms `uDemBox`/`uDemInfo`, up to 8 rasters, set by `setDemList`; it was a
+texture once, and that put the ground's shader over a phone's 16 textures). So nothing is added inside the sharp
 patches or near the ground, and real craters and canyon walls appear from orbit.
 `strength` scales the slopes it adds (2 for both worlds: a stylisation, so landforms read
 on a phone from orbit). Governor step `far-relief` (`uQuality.w`). `surface.farRoughness`
@@ -257,6 +258,17 @@ bounce from the lower hemisphere. Planetshine is the sunlight reflected by the b
 sky body, computed from its albedo, phase and distance. Emissive ship lights do not
 illuminate anything. Everything goes through `src/render/lightingGlsl.js`.
 
+**Texture budget per shader.** Phones allow 16 textures in one fragment shader (the test
+browser allows 32), and a shader over that draws nothing on the phone, with no error in any
+headless test. The terrain's shader is the fullest: 15 (strata, detail, colour and slope
+maps; the chunk's normal and shadow maps and its parent's two; the sky-light texture, three
+aerial-perspective maps, two atmosphere tables and the near shadow map). The two sky-light tables share one texture
+(`tIrradiance`: octahedral map, circumsolar row, and the level-ground sky light against the
+Sun's height in row IRR+1, each pass drawing only its rows). `scripts/lib/glLimits.mjs`
+checks every linked program against the OpenGL ES 3.0 minimums in `npm run smoke` and in
+every screenshot run; a shader that fails on the device shows a message on screen and in
+the benchmark results (`renderer.debug.onShaderError`).
+
 ## Sky bodies
 
 One code path: a body is a lit mesh when it is more than ~2.5 pixels across and a point
@@ -277,6 +289,12 @@ exposure alone decides whether they are visible (rule 2).
   figure blends from the hover pose to a gait (stride, lean, arm swing, jump tuck, landing
   crouch) by `hero.foot`. Hand-overs: `standUp`, `_toFoot` (landing or a real fall from
   flight), `_takeOff`. Constants in `FOOT` (cameraRig.js).
+  The soles stand on the ground as it is drawn (`rig.groundAt` → `terrain.drawnHeight`:
+  the deepest live chunk's triangle under the feet, morph included), blended to the exact
+  height function when the two differ by 2–6 m (first drafts while loading). Ledges are
+  judged drawn-against-drawn. The figure hides sky light from the ground under it
+  (`uOccluders`, four spheres written by `app.updateOccluders`, `figureSky` in the
+  lighting chunk).
   Near the ground it shares the terrain's depth buffer; once the terrain's near plane has
   moved past it (higher up) depth is cleared and it renders in its own 0.2–400 m slice.
 - **Cloak**: a 9×14 mass–spring cloth (Verlet, 90 Hz, 4 constraint passes, capsule

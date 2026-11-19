@@ -6,6 +6,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { open, opt, flag, root } from './lib/browser.mjs';
+import { shaderUse, overPhone } from './lib/glLimits.mjs';
 
 const world = opt('world', 'mars');
 const shots = opt('shot', 'ledge,sun,wall,ship,dusk').split(',');
@@ -35,6 +36,8 @@ for (const shot of shots) {
   }
   const err = await page.evaluate(() => window.__shotError || null);
   if (err) { console.log(`  ${shot}: ERROR ${err}`); failed = true; }
+  // A shader over a phone's limits renders here and draws nothing on the phone.
+  try { for (const l of overPhone(await shaderUse(page))) { console.log(`  ${shot}: OVER A PHONE'S LIMITS — ${l}`); failed = true; } } catch { /* no app */ }
   const stats = await page.evaluate(() => window.__stats || null);
   const file = path.join(outDir, `${world}_${shot}${suffix}.png`);
   if (!(await snap(file))) failed = true;

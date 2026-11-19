@@ -7,6 +7,7 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { open, opt, flag, root } from './lib/browser.mjs';
+import { shaderUse, overPhone, PHONE } from './lib/glLimits.mjs';
 
 const out = path.resolve(root, opt('out', 'docs/shots/ui'));
 await mkdir(out, { recursive: true });
@@ -17,7 +18,9 @@ await goto(base);
 await page.waitForSelector('#start', { timeout: 30000 });
 check('start screen is up while loading', await page.isVisible('#start'));
 await page.waitForFunction(() => window.__app?.loaded, null, { timeout: 240000 });
-check('buttons unlock when the terrain is ready', await page.evaluate(() => ![...document.querySelectorAll('#start .row button')].some((b) => b.disabled)));
+// Play waits for the ground under the start (or 20 s after the first terrain)
+await page.waitForFunction(() => window.__app?.groundReady, null, { timeout: 120000 });
+check('buttons unlock when the ground under the start is ready', await page.evaluate(() => ![...document.querySelectorAll('#start .row button')].some((b) => b.disabled)));
 check('build shown on the start screen', /build \w+/.test(await page.textContent('#start .build')));
 await page.waitForTimeout(8000);
 await snap(path.join(out, 'start_screen.png'));
@@ -63,6 +66,16 @@ if (!flag('no-bench')) {
   console.log('copy button says:', await page.textContent('#results button.primary'));
   await page.click('#results .row button:not(.primary)');
   check('closing the results returns to the start screen', await page.isVisible('#start'));
+}
+// Every shader linked so far (after the benchmark: both worlds, the flight, the sky)
+// against a phone's limits: the test browser would run a shader the phone cannot.
+{
+  const use = await shaderUse(page), over = overPhone(use);
+  const most = use.reduce((a, p) => (p.fragTextures > a.fragTextures ? p : a), use[0]);
+  console.log(`shaders: ${use.length}; most textures in one: ${most.fragTextures} of ${PHONE.fragTextures} (${most.textureNames.join(' ')})`);
+  for (const l of over) console.log('  ' + l);
+  check(`every shader fits a phone's limits (${PHONE.fragTextures} textures, ${PHONE.fragVectors} uniform vectors, ${PHONE.varyings} varyings)`, over.length === 0);
+  check('no shader failed to compile or link', use.every((p) => p.linked) && !(await page.evaluate(() => window.__app.shaderErrors.length)));
 }
 console.log(problems.length ? `PROBLEMS:\n  ${problems.join('\n  ')}` : 'smoke test passed');
 await close();

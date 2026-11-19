@@ -278,5 +278,9 @@ finished benchmark leaves its text in `window.__benchResult`.
 - Small very bright things (a lander, sunlit rocks on dark regolith) can own a
   brightness-weighted meter and turn the ground black: check `ship` after any change to
   how surfaces reflect or to the metering.
+- Phones allow 16 textures per shader; the test browser allows 32 and 4096 uniform
+  vectors. A shader over a phone's limit draws nothing there and works in every headless
+  test (the whole ground vanished on the phone at 17). `scripts/lib/glLimits.mjs` checks
+  every program in `npm run smoke` and in screenshot runs; the terrain shader is at 15.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

@@ -141,6 +141,29 @@ world's real surface gravity (already in the world files), so the same jump goes
 times higher and lasts 2.3 times longer on the Moon than on Mars. See "Character and
 flight" for the rules. Rocks are not obstacles yet; any slope can be walked up.
 
+## The owner's floating note (during milestone 3)
+
+"I've played it and it looks like I'm floating on top of nothing", then a phone screenshot:
+"there is no ground to stand on". The phone drew no ground at all: rocks and the character
+over a brown void. **The cause**: the ground's shader read 17 textures and phones allow 16
+(the test browser allows 32, so every headless picture had ground). It went over when the
+slope map and its "data sharpness" map were added for the owner's space note. Fixed: the
+sharpness map is now a list of numbers (exact instead of blurred), and the two sky-light
+tables share one texture, so the shader reads 15. To stop it happening again: every
+screenshot run and the smoke test check each shader against a phone's limits, and a shader
+that fails on the device shows a message on screen and in the benchmark results.
+
+Before the screenshot I looked for other reasons it could look like floating, and fixed
+these as well:
+
+| Cause | Change |
+| --- | --- |
+| The character cast no shadow at all, nor did the lander: when the rocks' shadows learned to draw only the nearest rocks into the fine shadow tile, every caster without instances (the character, the lander) was given an instance count of "none" and skipped | Only instanced casters have their count changed |
+| The feet stood on the exact surface while the drawn ground under them is a coarser mesh: measured up to 6.5 m below the feet in the first seconds and still 0.5–2 m on slopes once detailed | The feet stand on the drawn triangles (morph included) wherever those are within 2 m of the true surface, and blend to the true surface between 2 and 6 m (so nobody walks on a first draft hundreds of metres off) |
+| Ledge detection compared the ground under the feet with the ground a step ahead, and two different levels of detail could differ by metres: the character dropped into a fall on flat ground | It compares like with like (both drawn) |
+| Play could be pressed while the ground under the start was still a first draft | Play (and the benchmarks) wait until the ground under the start is the detailed one, 20 s at most |
+| Sky light reached the ground under the character as if nothing stood there | The figure's torso, legs and feet darken the sky light they hide from the ground (four spheres, within 6 m only) |
+
 ## The owner's space note (during milestone 3)
 
 "Fix the textures up when I'm in outer space, things have no depth, the planet just looks
@@ -511,8 +534,15 @@ cloak passing through arms and legs; Phobos and Deimos checked.
   Mars start with the Sun 4° up): level 17: 245 → 0; 16: 78 → 0; 14: 155 → 11; 12: 62 → 9.
   The cause was not the border itself: rays that start under a ledge smaller than the
   detail their first samples can see came out dark, in whole benches.
-- **Download**: Mars 4.4 → 6.8 MB of map data, the Moon 0 → 7.1 MB (fetched when the
-  Moon is first visited); the page script is 750 kB (212 kB compressed).
+- **Download**: Mars 4.4 → 13.7 MB of map data, the Moon 0 → 13.6 MB (fetched when the
+  Moon is first visited); the page script is 782 kB (224 kB compressed). The slope maps are
+  most of the growth (4.6 and 6.4 MB).
+- **Final benchmark run in the test browser** (after all of milestone 3 and the owner's
+  notes): most at once 97 draw calls, 281k triangles, about 183 MB of GPU memory (the
+  slope and colour maps add about 40 MB); chunks Mars 41 ms, Moon 43 ms each.
+- **On foot** (`npm run foot`, both worlds): starts on its feet, walks at 4.5 m/s, a jump
+  peaks at 3.37 m on Mars and 7.70 m on the Moon, super speed passes 25 m/s within the
+  test's wait, holding up takes off, letting go lands on the feet; no page errors.
 
 ## Tests and measurements, milestone 2
 
@@ -684,3 +714,10 @@ Weakest: `mars_ledge_orbit_globe`.
   automatic shadow ceiling, per-texel baked sunlight, shadow rays that start from the
   ground as they see it; exposure rules for globes, small bright objects, dim scenes and
   the Sun on a ridge; `scripts/fetch-maps.py`; shot parameter `dust`.
+- **During milestone 3, from the owner's notes**: Mars opens on the canyon's north rim;
+  slower flight near the ground; a narrower lens; slope maps of both worlds for depth from
+  space, Mars craters 1–30 km, finer detail from orbit, 4096-wide colour maps; Mars ground
+  cover (dust, dark sand, bedrock), block rocks (helper); hard lunar shadows (helper);
+  Mars's colours from orbit (helper); walking, super speed and real-gravity jumps on foot.
+  Tools `foot-test`, `vista`/`cliff` searches (session scratch only), shot parameters
+  `heropose=stand|walk|run|super|jump`, `posedir`, `debug=nofar|norelief|nofarrough|noboost`.
