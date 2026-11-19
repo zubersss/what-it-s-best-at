@@ -657,6 +657,17 @@ cloak passing through arms and legs; Phobos and Deimos checked.
 - **Lunar chunk builds in the browser**: 59 ms each in the benchmark run (90 before);
   Martian ones 43 ms (35 before: the extra ledge layer and the busier machine).
 
+## Stability test, milestone 4
+
+Two stations on each of the ten moves, final builds. Pixels that flicker (change one way
+then back across three frames): Mars walking 0.05 % and 0.006 %, turning 0.006 % and
+0.002 %, telephoto on the wall 0, high flight 0, orbit 0; Moon walking 0.015 %, turning
+0.005 %, low flight 0.001 %, orbit 0.001 %. The largest, Mars low flight at 0.4 %, is the
+character itself between frames (the cloak's new flutter and the hover sway) and the
+edges of terrain moving past: nothing static pops, crawls or sparkles. The dust was not
+part of the moves (the helper flagged the Mars cloud's small lumps and the lunar streak
+heads as things to watch while the camera turns).
+
 ## Stability test, milestone 1
 
 Three consecutive frames at two stations along ten scripted moves (walking, turning,

@@ -13,7 +13,7 @@ owner's reply or phone results), `done`.
 | 1 | Phone link and measurement | done |
 | 2 | Fix the known problems | done |
 | 3 | Make Mars and the Moon beautiful | done |
-| 4 | Character and flight feel | in progress |
+| 4 | Character and flight feel | checkpoint sent |
 | 5 | Earth and the Sun from space | not started |
 | 6 | New landable worlds (checkpoint after every two) | not started |
 | 7 | Getting around | not started |
@@ -76,6 +76,15 @@ twilight edge and sky colour on Mars, relief shadows along the terminator from f
 - A target selector with marker, distance and time to arrival.
 - A boost for long transfers.
 - A camera that keeps the character in view.
+
+Built (see `docs/PROGRESS.md`). Poses for cruising, boosting, turning, climbing and
+coming down; a launch, a landing flare and a three-point landing; a target list of each
+world's real places and everything in the sky, with a marker, distance and trip time; GO,
+a hands-off trip with its own boost (the ground to another world in about 15 s); a chase
+camera; and, from the known problems, a suit with detail, darkening at the foot of the
+lander and rocks, and dust that reads as dust. The critic's main gaps were about the
+worlds (soft landforms, thick Martian haze, white Earth, flat lunar light): they are in
+the known-problems table under milestones 5 to 7.
 
 ## 5. Earth and the Sun from space
 
