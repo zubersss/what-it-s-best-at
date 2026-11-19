@@ -225,8 +225,11 @@ void main() {
     float far = smoothstep(6.0, 48.0, (abs(dFdx(vDetailUv.x)) + abs(dFdy(vDetailUv.x)) + abs(dFdx(vDetailUv.y)) + abs(dFdy(vDetailUv.y))) * 128.0);
     sandM = mix(cSand, sandM, uCoverContrast * (1.0 - far)); bedM = mix(cBed, bedM, uCoverContrast * (1.0 - far));
   }
-  vec3 dust = uDust * mix(vec3(1.0), band, uStrataFlat);
-  vec3 flatC = dust * (1.0 - sandM - bedM) + uSand * sandM + bedrock * band * bedM;
+  // (on gentle ground the bands follow the height, so from far away they would draw
+  // contour lines across the plains: they show near the ground only)
+  vec3 bandFlat = mix(band, vec3(1.0), farW);
+  vec3 dust = uDust * mix(vec3(1.0), bandFlat, uStrataFlat);
+  vec3 flatC = dust * (1.0 - sandM - bedM) + uSand * sandM + bedrock * bandFlat * bedM;
   // The map gives the mean brightness of the ground; the cover only shares it out.
   vec3 meanFlat = uDust * (1.0 - cSand - cBed) + uSand * cSand + bedrock * cBed;
   flatC *= mix(1.0, luma(uDust) / luma(meanFlat), mapW);
