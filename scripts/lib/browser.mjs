@@ -14,8 +14,11 @@ export const opt = (name, def) => (args.includes('--' + name) ? args[args.indexO
 export const flag = (name) => args.includes('--' + name);
 
 export async function open({ dist = false, width = 880, height = 412, dsf = 1.25, touch = false } = {}) {
+  // --distdir <path>: serve that copy of a build instead of dist/ (a frozen build, so a
+  // rebuild while a long batch of pictures runs cannot change them halfway).
+  const distDir = opt('distdir', null);
   const server = dist
-    ? await preview({ root, logLevel: 'error', preview: { port: 4179, strictPort: false, host: '127.0.0.1' } })
+    ? await preview({ root, logLevel: 'error', preview: { port: 4179, strictPort: false, host: '127.0.0.1' }, ...(distDir ? { build: { outDir: path.resolve(distDir) } } : {}) })
     : await createServer({ root, logLevel: 'error', server: { port: 0, host: '127.0.0.1' } });
   if (!dist) await server.listen();
   const browser = await chromium.launch({

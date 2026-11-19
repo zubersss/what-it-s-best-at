@@ -60,6 +60,10 @@ export class Hero {
     this.facing = new THREE.Vector3();        // where the figure faces on foot (horizontal, planet-fixed)
     this._f = new THREE.Vector3(); this._hv = new THREE.Vector3();
     this.bank = 0; this.time = 0;
+    this.boost = 0;                           // 0 cruising .. 1 boosting (the streamlined pose)
+    this.flare = 0;                           // 0 .. 1 swinging upright to land
+    this.kneel = 0; this.launch = 0;          // the hard-landing kneel, the fist-up launch while taking off
+    this.turnLead = new THREE.Vector2();      // where the chase camera leaves the figure while the view turns (m, right / up)
     this.vel = new THREE.Vector3(); this.prevVel = new THREE.Vector3(); this.accel = new THREE.Vector3();
     this.lag = new THREE.Vector3();           // the figure trails slightly behind sudden moves
     this._x = new THREE.Vector3(); this._y = new THREE.Vector3(); this._z = new THREE.Vector3();
@@ -105,8 +109,18 @@ export class Hero {
     const hv = this._hv.copy(motion.velocity).addScaledVector(up, -motion.velocity.dot(up)), hspeed = hv.length();
     const target = onFoot ? 0 : Math.min(1, motion.throttle * 1.2) * (speed > 0.5 ? 1 : 0);
     this.flight += (target - this.flight) * (1 - Math.exp(-dt * 3.2));
-    this.bank += (THREE.MathUtils.clamp(-motion.yawRate / 70, -1, 1) * 0.6 - this.bank) * (1 - Math.exp(-dt * 4));
-    const f = this.flight, fs = f * f * (3 - 2 * f);
+    const boostTarget = !onFoot && motion.boost && motion.throttle > 0.5 ? 1 : 0;
+    this.boost += (boostTarget - this.boost) * (1 - Math.exp(-dt * (boostTarget ? 2.5 : 1.8)));
+    // Banking: into a turn of the view, and into sideways flight (the stick pushed to a side).
+    const side = speed > 0.5 ? THREE.MathUtils.clamp(motion.velocity.dot(rig.right) / speed, -1, 1) : 0;
+    const bankTarget = THREE.MathUtils.clamp(-motion.yawRate / 60 - side * 0.9, -1, 1) * 0.75;
+    this.bank += (bankTarget - this.bank) * (1 - Math.exp(-dt * 4));
+    // Coming in to land (flying, not hovering): in the last second or so before the feet
+    // would touch, the body swings upright and the legs reach down.
+    const vDown = -motion.velocity.dot(up), feetClear = (motion.agl ?? rig.agl ?? 99) - 2.1;
+    const flareTarget = onFoot ? 0 : (1 - THREE.MathUtils.smoothstep(feetClear, 2, 3 + 1.2 * Math.max(0, vDown))) * THREE.MathUtils.smoothstep(vDown, 0.6, 2.0);
+    this.flare += (flareTarget - this.flare) * (1 - Math.exp(-dt * 7));
+    const f = this.flight * (1 - this.flare), fs = f * f * (3 - 2 * f), b = this.boost * this.boost * (3 - 2 * this.boost);
 
     // Body axes: head direction goes from "up" to the direction of travel; the chest turns
     // from facing forward to facing the ground.
@@ -116,18 +130,20 @@ export class Hero {
     if (want.lengthSq() > 1e-8) want.normalize();
     if (!this.started || this.facing.lengthSq() < 0.5) this.facing.copy(want);
     this.facing.addScaledVector(up, -this.facing.dot(up)).lerp(want, 1 - Math.exp(-dt * 9)).normalize();
-    const head = this._y.copy(up).lerp(dir, fs).normalize();
+    // Cruising, the body is tipped a little short of the direction of travel (head up);
+    // boosting, it lies along it.
+    const head = this._y.copy(up).lerp(dir, fs * (0.82 + 0.18 * b)).normalize();
     const chest = this._x.copy(rig.forward).lerp(this.facing, this.foot).lerp(this._g.copy(rig.up).negate(), fs);
     chest.addScaledVector(head, -chest.dot(head)).normalize();
     const left = this._g.crossVectors(head, chest).normalize();
     this._m4.makeBasis(left, head, chest);
     this.body.quaternion.setFromRotationMatrix(this._m4);
-    this.body.rotateY(this.bank * (0.4 + 0.6 * fs) * (1 - this.foot));        // lean into turns (about the head axis)
+    this.body.rotateY(this.bank * (0.4 + 0.6 * fs) * (1 - 0.5 * b) * (1 - this.foot));     // lean into turns (about the head axis)
     // Running leans forward (a sprinter's lean, more at super speed); braking leans back.
     const run = THREE.MathUtils.smoothstep(hspeed, 2.5, 6.5), sup = THREE.MathUtils.smoothstep(hspeed, 8, 40);
     const leanTarget = onFoot && !motion.airborne ? 0.10 * run + 0.42 * sup : 0;
     this.lean += (leanTarget - this.lean) * (1 - Math.exp(-dt * 6));
-    this.body.rotateX(this.lean * this.foot);
+    this.body.rotateX((this.lean + 0.55 * this.kneel) * this.foot);
     this.body.updateMatrix();
     this._m3.setFromMatrix4(this.body.matrix);
 
@@ -140,20 +156,37 @@ export class Hero {
     this.lag.addScaledVector(this.accel, -0.004).multiplyScalar(Math.exp(-dt * 5));
     if (this.lag.length() > 0.8) this.lag.setLength(0.8);
 
-    // Limbs. Hovering: arms a little out from the sides with relaxed elbows, knees
-    // slightly bent, one more than the other, everything swaying a little. Flying: arms
-    // reach ahead, legs trail nearly straight. Speeding up or braking swings the legs,
-    // and a turn drops the inside arm away from the body.
+    // Limbs, as [shoulder or hip x, z, elbow or knee] for left arm, right arm, left leg,
+    // right leg (x < 0 swings a limb toward the chest side, z > 0 away from the body on
+    // the left). Three poses blended by how much it flies and how much it boosts:
+    // hovering: arms a little out from the sides with relaxed elbows, knees slightly bent,
+    //   one more than the other, everything swaying a little; speeding up or braking
+    //   swings the legs;
+    // cruising: the right arm reaches ahead, the left lies back along the body, one knee
+    //   bent (the classic flying pose); a turn swings the outside arm out and drops the
+    //   inside one;
+    // boosting: streamlined, both arms straight ahead and together, legs straight and
+    //   together.
     const hov = 1 - fs, sway = Math.sin(this.time * 1.7) * 0.04 * hov, breathe = Math.sin(this.time * 1.1 + 0.6) * 0.03 * hov;
     const swingTarget = THREE.MathUtils.clamp(this.lag.dot(chest) * 1.4, -0.45, 0.45) * hov;
     this.legSwing += (swingTarget - this.legSwing) * (1 - Math.exp(-dt * 6));
-    const armA = 0.16 + (Math.PI - 0.30) * fs, out = 0.13 - 0.19 * fs, lean = this.bank * 0.35;
-    // [hip or shoulder x, z, knee or elbow] for left arm, right arm, left leg, right leg
     const P = this._pose || (this._pose = new Float32Array(12)), F = this._footPose || (this._footPose = new Float32Array(12));
-    P.set([-armA + sway, out + Math.max(0, lean), -(0.42 * hov + 0.10 * fs) - breathe,
-      -armA - sway, -out + Math.min(0, lean), -(0.34 * hov + 0.10 * fs) + breathe,
-      0.10 * hov + sway - this.legSwing - 0.22 * hov, 0.04, 0.50 * hov + 0.06 * fs + this.legSwing * 0.5,
-      -0.05 * hov - sway - this.legSwing, -0.04, 0.16 * hov + 0.05 * fs + Math.max(0, this.legSwing)]);
+    const H = this._hovPose || (this._hovPose = new Float32Array(12)), C = this._cruisePose || (this._cruisePose = new Float32Array(12));
+    const B = this._boostPose || (this._boostPose = new Float32Array(12));
+    const lean = this.bank * 0.35, flutter = Math.sin(this.time * 2.3) * 0.03;
+    H.set([-0.16 + sway, 0.13 + Math.max(0, lean), -0.42 - breathe,
+      -0.16 - sway, -0.13 + Math.min(0, lean), -0.34 + breathe,
+      -0.12 + sway - this.legSwing, 0.04, 0.50 + this.legSwing * 0.5,
+      -0.05 - sway - this.legSwing, -0.04, 0.16 + Math.max(0, this.legSwing)]);
+    C.set([0.30 + flutter, 0.16 + Math.max(0, lean) * 1.6 + Math.max(0, -this.bank) * 0.5, -0.30,
+      -(Math.PI - 0.22), -0.06 + Math.min(0, lean), -0.14,
+      0.06, 0.06, 0.62 + flutter,
+      -0.06, -0.03, 0.10]);
+    B.set([-(Math.PI - 0.10), -0.07, -0.04,
+      -(Math.PI - 0.10), 0.07, -0.04,
+      0.02, -0.012, 0.05,
+      0.02, 0.012, 0.05]);
+    for (let i = 0; i < 12; i++) P[i] = H[i] + (C[i] + (B[i] - C[i]) * b - H[i]) * fs;
     let crouch = 0;
     if (this.foot > 0.001) {
       // Gait: one stride (two steps) per cycle; longer strides the faster it goes, and at
@@ -168,6 +201,13 @@ export class Hero {
       // Landing: a crouch that absorbs the impact, deeper for harder landings.
       const since = (motion.clock ?? 0) - (motion.landedAt ?? -99);
       crouch = since >= 0 && since < 1.5 ? Math.exp(-since * 5) * THREE.MathUtils.clamp((motion.landSpeed || 0) / 7, 0, 1) : 0;
+      // A hard landing (a fall of some 20 m on Mars) ends in a three-point landing: one knee
+      // down, a hand on the ground, held for a moment before standing.
+      const hard = THREE.MathUtils.smoothstep(motion.landSpeed || 0, 9, 16);
+      this.kneel = since >= 0 && since < 2.2 ? hard * (since < 0.6 ? 1 : Math.exp(-(since - 0.6) * 3.5)) : 0;
+      crouch *= 1 - hard;
+      // Up still held after a jump: the launch into flight, fist up, legs together.
+      this.launch += ((motion.airborne ? THREE.MathUtils.smoothstep(motion.upHeld || 0, 0.06, 0.3) : 0) - this.launch) * (1 - Math.exp(-dt * 12));
       const ga = (1 - this.air) * amp;
       for (let i = 0; i < 2; i++) {
         const ph = this.gait + i * Math.PI, sn = Math.sin(ph), cs = Math.cos(ph), sd = i ? -1 : 1;
@@ -180,6 +220,14 @@ export class Hero {
         F[1 + i * 3] = sd * (0.10 + 0.30 * this.air + 0.08 * run);
         F[2 + i * 3] = -(elbow * (0.6 + 0.4 * ga) + 0.15 * this.air);
       }
+      const K = this._kneelPose || (this._kneelPose = new Float32Array([
+        0.65, 0.55, -0.35,        // left arm out behind, for balance
+        -0.45, -0.22, -0.08,      // right arm straight down to the ground
+        -1.45, 0.10, 1.55,        // left leg: foot planted ahead
+        -0.25, -0.06, 2.05]));    // right leg: knee on the ground, shin along it
+      const L = this._launchPose || (this._launchPose = new Float32Array([
+        0.12, 0.12, -0.25,  -(Math.PI - 0.12), -0.04, -0.05,  0.05, 0.02, 0.08,  0.03, -0.02, 0.06]));
+      for (let i = 0; i < 12; i++) F[i] += (K[i] - F[i]) * this.kneel + (L[i] - F[i]) * this.launch * (1 - this.kneel);
       const k = this.foot;
       for (let i = 0; i < 12; i++) P[i] += (F[i] - P[i]) * k;
     }
@@ -194,10 +242,18 @@ export class Hero {
     const p = this.group.position;
     if (onFoot || (rig._relBlend > 0.01 && motion === rig)) {
       p.copy(motion.heroRel || rig.heroRel);
-      p.addScaledVector(up, -(crouch * 0.30 + 0.05 * run * (1 - this.air)) * this.foot);
+      p.addScaledVector(up, -(crouch * 0.30 + 0.05 * run * (1 - this.air) + 0.40 * this.kneel) * this.foot);
       this.lag.multiplyScalar(Math.exp(-dt * 8));
     } else {
+      // A chase camera: turning the view swings the camera round the figure, so the figure
+      // drifts against the turn for a moment (up to ~0.7 m) and settles back to the centre.
+      const pr = rig.pitch ?? 0, pitchRate = dt > 0 ? (pr - (this._pitch0 ?? pr)) / dt : 0;
+      this._pitch0 = pr;
+      const lx = THREE.MathUtils.clamp(-(motion.yawRate || 0) * 0.011, -0.7, 0.7), ly = THREE.MathUtils.clamp(-pitchRate * 0.008, -0.45, 0.45);
+      const kl = 1 - Math.exp(-dt * 5);
+      this.turnLead.x += (lx - this.turnLead.x) * kl; this.turnLead.y += (ly - this.turnLead.y) * kl;
       p.copy(rig.forward).multiplyScalar(HERO_DISTANCE).addScaledVector(rig.up, -HERO_DROP).add(this.lag);
+      p.addScaledVector(rig.right, this.turnLead.x).addScaledVector(rig.up, this.turnLead.y);
       p.addScaledVector(up, Math.sin(this.time * 0.9) * 0.05 * (1 - fs));      // gentle hover bob
       if (env.groundClearance) {
         const c = env.groundClearance(p);                     // metres of air under the figure's centre

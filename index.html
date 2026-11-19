@@ -39,6 +39,31 @@
     @media (orientation: portrait) and (pointer: coarse) { .card .rotate { display: block; } }
     #toast { position: fixed; left: 50%; top: 22%; transform: translateX(-50%); z-index: 16; padding: 8px 16px; border-radius: 8px; pointer-events: none;
       background: rgba(0, 0, 0, 0.66); color: #f0ebe0; font: 600 15px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    /* Target marker: corner brackets, name, distance and trip time; an arrow at the edge when off screen */
+    #target { position: fixed; left: 0; top: 0; z-index: 12; pointer-events: none; color: #e6e0d2; }
+    #target .box { position: absolute; left: 0; top: 0; opacity: 0.85;
+      --c: #e6e0d2; --l: 7px; --t: 1.5px;
+      background: linear-gradient(var(--c), var(--c)) left top / var(--l) var(--t) no-repeat, linear-gradient(var(--c), var(--c)) left top / var(--t) var(--l) no-repeat,
+        linear-gradient(var(--c), var(--c)) right top / var(--l) var(--t) no-repeat, linear-gradient(var(--c), var(--c)) right top / var(--t) var(--l) no-repeat,
+        linear-gradient(var(--c), var(--c)) left bottom / var(--l) var(--t) no-repeat, linear-gradient(var(--c), var(--c)) left bottom / var(--t) var(--l) no-repeat,
+        linear-gradient(var(--c), var(--c)) right bottom / var(--l) var(--t) no-repeat, linear-gradient(var(--c), var(--c)) right bottom / var(--t) var(--l) no-repeat; }
+    #target .label { position: absolute; left: 0; top: 0; white-space: nowrap; text-align: center; font: 11px/1.3 ui-monospace, Menlo, Consolas, monospace;
+      text-shadow: 0 0 3px #000, 0 0 1px #000; }
+    #target .label b { display: block; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+    #target .label span { display: block; opacity: 0.9; }
+    #target .arrow { position: absolute; left: 0; top: 0; width: 0; height: 0; border-left: 13px solid #e6e0d2; border-top: 7px solid transparent;
+      border-bottom: 7px solid transparent; opacity: 0.9; filter: drop-shadow(0 0 2px #000); }
+    /* Target list */
+    #picker { position: fixed; inset: 0; z-index: 18; display: flex; align-items: center; justify-content: center; background: rgba(4, 3, 2, 0.45); }
+    #picker .panel { max-width: min(94vw, 760px); max-height: 88vh; overflow-y: auto; padding: 10px 14px; border-radius: 10px; background: rgba(12, 10, 8, 0.86);
+      color: #e9e4d8; font: 13px/1.3 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; touch-action: pan-y; }
+    #picker h2 { margin: 6px 2px 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #b9b0a0; }
+    #picker .items { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+    #picker button { min-height: 44px; padding: 4px 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.22); background: rgba(255, 255, 255, 0.06);
+      color: #f0ebe0; text-align: left; font: 13px system-ui, sans-serif; }
+    #picker button.on { border-color: #d9c7a3; background: rgba(217, 199, 163, 0.18); }
+    #picker button b { display: block; font-weight: 600; }
+    #picker button span { display: block; font-size: 11px; color: #b9b0a0; }
     .card .status, .card .build { margin: 0; color: #a59c8c; font-size: 12px; }
     #results pre { margin: 0; overflow: auto; flex: 1; padding: 10px; background: rgba(255, 255, 255, 0.06); border-radius: 6px;
       font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; -webkit-user-select: text; user-select: text; }
@@ -58,6 +83,8 @@
     #tupdown button { width: 50px; height: 46px; font-size: 15px; }
     #touch button.on { background: rgba(255, 255, 255, 0.3); }
     #touch button.lit { background: rgba(217, 199, 163, 0.55); color: #1b150c; border-color: #d9c7a3; }
+    #touch button.go { border-color: #d9c7a3; color: #f3e6c8; }
+    #touch button.go.active { background: rgba(217, 199, 163, 0.55); color: #1b150c; }
   </style>
 </head>
 <body>

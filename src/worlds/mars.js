@@ -147,4 +147,17 @@ export default {
       gale: { label: 'Gale crater, Mount Sharp', lat: -4.5895, lon: 137.4417, heading: 150, pitch: 3, fov: 45, timeOffsetHours: 1.5 },          // where Curiosity landed, morning
     },
   },
+  // Real places to fly to (the target selector): name, latitude, longitude (degrees east).
+  places: [
+    { id: 'coprates', name: 'Coprates Chasma', lat: -13.17, lon: 296.57 },               // the opening place, in Valles Marineris
+    { id: 'olympus', name: 'Olympus Mons', lat: 18.65, lon: 226.2 },                     // summit caldera
+    { id: 'ascraeus', name: 'Ascraeus Mons', lat: 11.92, lon: 255.92 },
+    { id: 'pavonis', name: 'Pavonis Mons', lat: 1.48, lon: 247.04 },
+    { id: 'arsia', name: 'Arsia Mons', lat: -8.26, lon: 239.17 },
+    { id: 'gale', name: 'Gale crater (Curiosity)', lat: -4.59, lon: 137.44 },
+    { id: 'jezero', name: 'Jezero crater (Perseverance)', lat: 18.44, lon: 77.45 },
+    { id: 'elysium', name: 'Elysium Mons', lat: 24.8, lon: 146.9 },
+    { id: 'hellas', name: 'Hellas basin', lat: -42.4, lon: 70.5 },
+    { id: 'northcap', name: 'North polar cap', lat: 87.0, lon: 0 },
+  ],
 };

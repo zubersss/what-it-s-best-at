@@ -17,7 +17,8 @@ export class TouchControls {
       <div id="stick"><div id="knob"></div></div>
       <div id="tbuttons">
         <button data-key="KeyG">HERO</button>
-        <button data-key="KeyT">TARGET</button>
+        <button data-act="target">TARGET</button>
+        <button data-act="go" class="go hidden">GO</button>
         <button data-key="KeyX">HOVER</button>
         <button data-key="KeyF">FLY</button>
         <button data-key="KeyZ" data-hold="1">ZOOM</button>
@@ -40,6 +41,8 @@ export class TouchControls {
         b.setPointerCapture?.(e.pointerId);
         if (key) input.virtualDown(key);
         if (act === 'view') actions.view();
+        if (act === 'target') actions.target?.();
+        if (act === 'go') actions.go?.();
         if (act === 'full') this.fullscreen();
         b.classList.add('on');
       });
@@ -94,6 +97,12 @@ export class TouchControls {
   setLit(key, on) { this.root.querySelector(`button[data-key="${key}"]`)?.classList.toggle('lit', on); }
 
   // Hidden while a benchmark plays by itself or a full-screen panel is up.
+  // GO shows only while there is a target; lit while a trip is under way.
+  setGo(show, on) {
+    const b = this._go || (this._go = this.root.querySelector('button.go'));
+    if (!b) return;
+    b.classList.toggle('hidden', !show); b.classList.toggle('active', !!on);
+  }
   setVisible(v) { this.suppressed = !v; if (this.enabled) this.root.classList.toggle('hidden', !v); }
 
   fullscreen() { immersive(true); keepAwake(); }
