@@ -493,7 +493,9 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
   from the ground takes about half a minute. It climbs away first (speed grows with
   height, so skimming the ground toward a body on the horizon crawled at 21 m/s), never
   aims through the world, and ends 5 % of a radius above a body or 500 m above a place,
-  where gravity takes over unless HOVER is on. Any input takes control back.
+  where gravity takes over unless HOVER is on. The view looks partly toward the target
+  (flying straight along the path showed black space for most of a trip); looking around
+  is free; the stick or a movement key takes control back.
 - **Poses from the pilot's intent, not raw speed** (speeds span 7 m/s to astronomical):
   stick pushed = cruise (one arm ahead), boost = streamlined, nearly straight down = feet
   first. Landing: an upright flare in the last second when diving at the ground; landing

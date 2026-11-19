@@ -461,7 +461,7 @@ export class App {
     if (!this.targetId) { this.toast?.show('Choose a target first (TARGET)'); return; }
     if (this.rig.mode !== 'hero') this.setHero(true);
     if (this.rig.onFoot) this.rig._takeOff(8);
-    this.transfer = true; this.rig.auto = { mult: 1 };
+    this.transfer = true; this.rig.auto = { mult: 1, dir: this.rig.forward.clone() };
     this.toast?.show(`Flying to ${this.resolveTarget(this.targetId, this._tgtT || (this._tgtT = {}))?.name ?? this.targetId}`);
   }
   stopTransfer(msg) {
@@ -470,12 +470,14 @@ export class App {
     if (msg) this.toast?.show(msg);
   }
 
-  // Each frame of a trip, before the rig moves: keep the view on the target (turning to it
-  // smoothly at first), set the transfer's boost, and stop on arrival.
+  // Each frame of a trip, before the rig moves: steer the flight along the planned path
+  // (turning onto it smoothly at first), set the transfer's boost, and stop on arrival.
+  // The view looks a third of the way from the path toward the target, so the world and
+  // the marker stay in sight; dragging to look around is allowed and pauses that for 3 s.
   updateTransfer(dt, input) {
     if (!this.transfer) return;
     const rig = this.rig;
-    const touched = input.moveX || input.moveY || input.dx || input.dy || ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyE', 'KeyQ', 'Space'].some((k) => input.down(k));
+    const touched = input.moveX || input.moveY || ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyE', 'KeyQ', 'Space'].some((k) => input.down(k));
     if (touched) { this.stopTransfer('You have control'); return; }
     const t = this.resolveTarget(this.targetId, this._tgtU || (this._tgtU = {}));
     if (!t) { this.stopTransfer(); return; }
@@ -483,12 +485,23 @@ export class App {
     if (gapTo(cam, t) < standoff(t)) { this.stopTransfer(`Arrived: ${t.name}`); return; }
     const a = aimDirection(cam, t, this.world.radius, this._aimU || (this._aimU = [0, 0, 0]));
     const want = (this._wantU || (this._wantU = new THREE.Vector3())).set(a[0], a[1], a[2]);
-    const q = (this._qU || (this._qU = new THREE.Quaternion())).setFromUnitVectors(rig.forward, want);
-    const k = 1 - Math.exp(-dt * 2.5);
-    const dir = (this._dirU || (this._dirU = new THREE.Vector3())).copy(rig.forward).applyQuaternion((this._qI || (this._qI = new THREE.Quaternion())).identity().slerp(q, k));
-    rig.lookAlong(dir);
+    const dir = rig.auto.dir || (rig.auto.dir = rig.forward.clone());
+    const q = (this._qU || (this._qU = new THREE.Quaternion())).setFromUnitVectors(dir, want);
+    dir.applyQuaternion((this._qI || (this._qI = new THREE.Quaternion())).identity().slerp(q, 1 - Math.exp(-dt * 2.5))).normalize();
     const clear = Math.max(1, Math.min(rig.agl, rig.spaceDistance));
     rig.auto.mult = transferMult(clear, rig.nearR - clear);         // nearR: to the nearest body's centre
+    // the view
+    const now = performance.now() / 1000;
+    if (input.dx || input.dy) this._lookedAt = now;
+    if (now - (this._lookedAt ?? -99) > 3) {
+      const toT = (this._toTU || (this._toTU = new THREE.Vector3())).set(t.pos[0] - p.x, t.pos[1] - p.y, t.pos[2] - p.z).normalize();
+      const view = (this._viewU || (this._viewU = new THREE.Vector3())).copy(dir).lerp(toT, 0.35);
+      if (view.lengthSq() < 1e-6) view.copy(dir);
+      view.normalize();
+      const qv = this._qV || (this._qV = new THREE.Quaternion());
+      qv.setFromUnitVectors(rig.forward, view);
+      rig.lookAlong(rig.forward.clone().applyQuaternion(this._qI.identity().slerp(qv, 1 - Math.exp(-dt * 2))));
+    }
   }
 
   // The marker on the target: where it is on screen, how far, how long the trip takes.

@@ -186,8 +186,8 @@ frozen in mid-flight), `debug=noair|airall` (haze shadows off / everywhere),
 Keys: `WASD` move, mouse look (click to capture), `Shift` super speed on foot / boost in
 flight, `Space` (or `E`) jump on foot (tap), take off (hold, or tap again in the air), up in
 flight, `Q` down, `G` character on/off, `T` next target (this world's places, the bodies in the
-sky, the Sun, none) and turn to it, `Enter` GO: fly to the target hands-off (any input
-takes control back),
+sky, the Sun, none) and turn to it, `Enter` GO: fly to the target hands-off (the stick
+or a movement key takes control back; looking around does not),
 `X` hover on/off (off: gravity pulls when the stick is released, and touching the
 ground stands the character on its feet),
 `F` walk ↔ free-fly debug camera, `Z` hold for telephoto, mouse wheel = zoom amount,

@@ -175,9 +175,11 @@ export class CameraRig {
     let fast = input.down('ShiftLeft') || input.down('ShiftRight') || Math.hypot(input.moveX, input.moveY) > 0.96;
     const slow = input.down('ControlLeft');
     let upDown = (input.down('KeyE') || input.down('Space') ? 1 : 0) - (input.down('KeyQ') ? 1 : 0);
-    // A hands-off trip (GO, autopilot.js): full stick ahead with the boost, times the
-    // transfer's own extra (this.auto.mult); the app keeps the view on the target.
-    if (this.auto && this.mode === 'hero' && !this.onFoot) { fwd = 1; strafe = 0; upDown = 0; fast = true; }
+    // A hands-off trip (GO, autopilot.js): full stick with the boost along this.auto.dir
+    // (not the view: the app turns the view partly toward the target), times the
+    // transfer's own extra (this.auto.mult).
+    const auto = this.auto && this.mode === 'hero' && !this.onFoot ? this.auto : null;
+    if (auto) { fwd = 1; strafe = 0; upDown = 0; fast = true; }
     this.boost = this.mode === 'hero' && !this.onFoot && fast;       // the figure's streamlined pose reads it
     const p = this.pos;
 
@@ -197,6 +199,7 @@ export class CameraRig {
     } else if (this.mode === 'hero') {
       const w = this._wish.set(0, 0, 0).addScaledVector(this.forward, fwd).addScaledVector(this.right, strafe);
       w.x += this.localUp[0] * upDown; w.y += this.localUp[1] * upDown; w.z += this.localUp[2] * upDown;
+      if (auto?.dir) w.copy(auto.dir);
       const wl = w.length();
       if (wl > 1) w.divideScalar(wl);
       this.throttle = Math.min(1, wl);

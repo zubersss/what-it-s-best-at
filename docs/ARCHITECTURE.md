@@ -327,14 +327,15 @@ exposure alone decides whether they are visible (rule 2).
   (never bent) so that the body sweeps across the view at no more than 0.45 rad/s.
 - **Targets and GO** (`autopilot.js`, `App.updateTransfer`): a target is another body,
   the Sun, or one of the home world's `places` (world data: name, latitude, longitude).
-  GO holds full stick and the boost (`rig.auto`) and turns the view each frame toward
-  `aimDirection`: a body straight on, climbing at 40° or more while within two radii of
+  GO holds full stick and the boost (`rig.auto`) along `aimDirection`: a body straight on, climbing at 40° or more while within two radii of
   the world being left; a place by a point a little ahead on an arc that rises to a third
   of the arc still to go and comes down onto it; never a line through the world. Extra
   boost ×2 when every body is more than 20 radii away. The trip ends at 5 % of a body's
   radius above it, or 500 m above a place; gravity takes over unless HOVER is on. The
   marker's trip time flies the same path quickly as a point (`tripTime`); `scripts/
-  transfer.mjs` checks both against the rig. Any stick, key or look input ends a trip.
+  transfer.mjs` checks both against the rig. The flight follows the path (`rig.auto.dir`)
+  while the view looks a third of the way toward the target (world and marker in sight);
+  dragging to look around pauses that for 3 s. The stick or a movement key ends a trip.
 - **Poses** (`hero.js`): hover, cruise and boost blended by the flight amount (from the
   stick) and the boost; banking from the view's turn rate and sideways flight; an upright
   flare in the last second before touching down; a three-point kneel after a hard landing

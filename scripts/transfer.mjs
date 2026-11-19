@@ -32,10 +32,12 @@ function fly(rig, target, world, others, label) {
     if (rig.auto) {
       if (gapTo(cam(), target) < standoff(target)) { arrived = t; rig.auto = null; }
       else {
+        // as App.updateTransfer: the flight follows the planned path (the view is left alone here)
         const a = aimDirection(cam(), target, world.radius, aim);
         want.set(a[0], a[1], a[2]);
-        q.setFromUnitVectors(rig.forward, want);
-        rig.lookAlong(rig.forward.clone().applyQuaternion(qi.identity().slerp(q, 1 - Math.exp(-dt * 2.5))));
+        const dir = rig.auto.dir || (rig.auto.dir = rig.forward.clone());
+        q.setFromUnitVectors(dir, want);
+        dir.applyQuaternion(qi.identity().slerp(q, 1 - Math.exp(-dt * 2.5))).normalize();
         const clear = Math.max(1, Math.min(rig.agl, rig.spaceDistance));
         rig.auto.mult = transferMult(clear, rig.nearR - clear);
         maxMult = Math.max(maxMult, rig.auto.mult);
