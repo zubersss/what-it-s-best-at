@@ -25,13 +25,13 @@ const SETS = [
   ['mars', 'canyon', 'aim=phobos&fov=1.0&t=-1', '_phobos'],
   ['mars', 'canyon', 'aim=deimos&fov=0.35&t=1.5', '_deimos'],
   // the character
-  ['mars', 'ledge', 'hero=1', '_hero_flight'],
+  ['mars', 'ledge', 'hero=1&alt=20', '_hero_flight'],          // 20 m up: from eye height, flying a little downward is a landing (the figure flares upright)
   ['mars', 'ship', 'hero=1&heropose=hover', '_hero_hover'],
   ['mars', 'ship', 'hero=1&heropose=hover&dust=1&pitch=-28', '_hero_dust'],
   ['mars', 'canyon', 'hero=1&alt=400000&pitch=-20', '_hero_orbit'],
   ['moon', 'ship', 'hero=1&heropose=hover', '_hero_hover'],
   ['moon', 'ship', 'hero=1&heropose=hover&dust=1&pitch=-28', '_hero_dust'],
-  ['moon', 'ledge', 'hero=1', '_hero_flight'],
+  ['moon', 'ledge', 'hero=1&alt=20', '_hero_flight'],
   // the character on foot: running on Mars, jumping on the Moon (both from the side)
   ['mars', 'gale', 'hero=1&heropose=run&posedir=side', '_hero_run'],
   ['mars', 'gale', 'hero=1&heropose=super&posedir=side', '_hero_super'],
