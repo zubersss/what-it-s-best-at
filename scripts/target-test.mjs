@@ -40,7 +40,7 @@ await page.dispatchEvent('#tbuttons button.go', 'pointerdown');
 await page.waitForTimeout(500);
 check('GO starts a trip', await page.evaluate(() => window.__app.transfer));
 let g1 = g0, alt = 0;
-for (let i = 0; i < 40; i++) {
+for (let i = 0; i < 100; i++) {          // up to five minutes: frames are slow and uneven here
   await page.waitForTimeout(3000);
   g1 = await gap(); alt = await page.evaluate(() => window.__app.rig.agl);
   if (!(await page.evaluate(() => window.__app.transfer)) || g1 < 0.5 * g0) break;

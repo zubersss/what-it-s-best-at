@@ -472,8 +472,8 @@ export class App {
 
   // Each frame of a trip, before the rig moves: steer the flight along the planned path
   // (turning onto it smoothly at first), set the transfer's boost, and stop on arrival.
-  // The view looks a third of the way from the path toward the target, so the world and
-  // the marker stay in sight; dragging to look around is allowed and pauses that for 3 s.
+  // The view looks toward the target (kept above the world's edge), so the world and the
+  // marker stay in sight; dragging to look around is allowed and pauses that for 3 s.
   updateTransfer(dt, input) {
     if (!this.transfer) return;
     const rig = this.rig;
@@ -494,9 +494,18 @@ export class App {
     const now = performance.now() / 1000;
     if (input.dx || input.dy) this._lookedAt = now;
     if (now - (this._lookedAt ?? -99) > 3) {
-      const toT = (this._toTU || (this._toTU = new THREE.Vector3())).set(t.pos[0] - p.x, t.pos[1] - p.y, t.pos[2] - p.z).normalize();
-      const view = (this._viewU || (this._viewU = new THREE.Vector3())).copy(dir).lerp(toT, 0.35);
-      if (view.lengthSq() < 1e-6) view.copy(dir);
+      // toward the target, but not lower than 10 degrees above the world's edge: on the way
+      // up the curved horizon sits in the lower half with the target's direction in the
+      // middle; coming down (and for a body in the sky) the view is on the target itself
+      const view = (this._viewU || (this._viewU = new THREE.Vector3())).set(t.pos[0] - p.x, t.pos[1] - p.y, t.pos[2] - p.z).normalize();
+      const r = p.length(), up = (this._upU || (this._upU = new THREE.Vector3())).copy(p).divideScalar(r);
+      const dip = Math.acos(Math.min(1, this.world.radius / r)), eMin = -dip + 10 * Math.PI / 180;
+      const e = Math.asin(Math.max(-1, Math.min(1, view.dot(up))));
+      if (e < eMin) {
+        const h = view.addScaledVector(up, -view.dot(up));
+        if (h.lengthSq() < 1e-9) h.copy(dir).addScaledVector(up, -dir.dot(up));
+        h.normalize().multiplyScalar(Math.cos(eMin)).addScaledVector(up, Math.sin(eMin));
+      }
       view.normalize();
       const qv = this._qV || (this._qV = new THREE.Quaternion());
       qv.setFromUnitVectors(rig.forward, view);

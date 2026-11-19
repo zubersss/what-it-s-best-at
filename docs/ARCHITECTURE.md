@@ -334,7 +334,8 @@ exposure alone decides whether they are visible (rule 2).
   radius above it, or 500 m above a place; gravity takes over unless HOVER is on. The
   marker's trip time flies the same path quickly as a point (`tripTime`); `scripts/
   transfer.mjs` checks both against the rig. The flight follows the path (`rig.auto.dir`)
-  while the view looks a third of the way toward the target (world and marker in sight);
+  while the view looks toward the target, never lower than 10° above the world's edge
+  (world and marker in sight);
   dragging to look around pauses that for 3 s. The stick or a movement key ends a trip.
 - **Poses** (`hero.js`): hover, cruise and boost blended by the flight amount (from the
   stick) and the boost; banking from the view's turn rate and sideways flight; an upright
