@@ -530,13 +530,12 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 | Problem | Milestone |
 | --- | --- |
 | Milestone 2 and 3 builds have not been measured on the phone: the per-pixel haze near a planet's edge, the albedo lookup and the dust are new costs | owner's next benchmark |
-| No contact shadows under the lander and rocks when the site is in terrain shadow | 4 |
 | One-pixel-high bright features alias (ridge highlights, crater rims): no anti-aliasing. The milestone 1 results showed room for it; it waits for numbers from the current build | after the next benchmark |
 | Night scenes need about 570 frames for exposure to settle in screenshot mode | tooling |
 | A chunk that takes over while its parent is itself still fading in starts from the parent's own maps, a small jump during fast streaming | watch |
 | Chunk builds cost about 10 % more than in milestone 2 on Mars (the rays that keep shadows continuous across chunk borders); lunar chunks are a third cheaper than before | watch |
 | The terminator seen from far away is as sharp as the shadow map's texels: stair-stepped on the Moon at high zoom, no long relief shadows across it | 5 |
-| Looking straight down-Sun on the Moon the ground is featureless (true to life, but nothing to steer by); small craters only show across the light | 4 |
+| Looking straight down-Sun on the Moon the ground is featureless (true to life; the target marker now gives something to steer by); small craters only show across the light | watch |
 | The SLDEM patch has faint north-south stripes a few metres high (the altimeter's tracks) | watch |
 | Outside the sharp patches the Moon and Mars are 7 to 15 km per pixel plus invented relief: landing anywhere else shows no real small landforms | 6 / 7 |
 | Mars from orbit is soft: about 40 % of the contrast of the Viking mosaic survives the haze; Valles Marineris shows by its bright rims | 5 |
@@ -544,11 +543,17 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 | Mars: flat grey sky away from the Sun, olive cast in the sunset views | 5 |
 | Deimos burns out to a white blob at dusk exposure | 5 |
 | Earth is a blown-out white disc from the Moon and has no blue | 5 |
-| The character is still a simple figure: no visor detail, no backpack, clean white suit | 4 |
-| Dust puffs are soft round sprites: up close the single puffs can be told apart | 4 |
+| The cost of the Mars dust cloud's noise on the phone's fill rate is not measured (the governor's dust step drops most of it) | owner's next benchmark |
+| From orbit the visor's lower half reflects black (the shared sky light gives nothing from below there) | watch |
+| A GO trip from the ground spends its first ten seconds climbing the first kilometres (speed grows with height near the ground, on purpose) | watch |
 | Far from every body only the target marker shows the way; there is no map yet | 7 |
 | Places on other worlds cannot be chosen until that world is home (no map yet) | 7 |
 | Triangles sit at ~420–480k of the 500k budget | watch |
+
+Fixed in milestone 4: no darkening under the lander and rocks in shade (sky occlusion at
+their foot); the simple white figure (visor, lamps, pack, joints, gloves, boots, dust);
+round dust puffs (a lumpy cloud on Mars, a fine spray on the Moon); nothing but the HUD to
+navigate by (target marker, list and GO); the figure banked away from turns.
 
 Fixed in milestone 3: the Moon had no maria or rays and Mars was one colour from orbit;
 a sixth of Mars drawn washed-out from far away; lunar ground one grey at every Sun
