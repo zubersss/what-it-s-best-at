@@ -6,3 +6,4 @@ dist
 docs/shots/stability/*.png
 # progress pictures of the smoke test's benchmark run (re-creatable: npm run smoke)
 docs/shots/ui/bench_*.png
+.claude/worktrees/
