@@ -38,7 +38,7 @@ export class TouchControls {
       const key = b.dataset.key, hold = b.dataset.hold, act = b.dataset.act;
       b.addEventListener('pointerdown', (e) => {
         e.preventDefault(); e.stopPropagation();
-        b.setPointerCapture?.(e.pointerId);
+        try { b.setPointerCapture?.(e.pointerId); } catch { /* no live pointer (a synthetic tap): the press still counts */ }
         if (key) input.virtualDown(key);
         if (act === 'view') actions.view();
         if (act === 'target') actions.target?.();
