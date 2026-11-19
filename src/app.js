@@ -838,8 +838,12 @@ export class App {
     let k = 0, cx = 0, cy = 0, cz = 0, reach = 0;
     for (; k < Math.min(8, best.length); k++) {
       const i = best[k] % 1000;
-      const x = rk.points[i * 3] - rig.pos.x, y = rk.points[i * 3 + 1] - rig.pos.y, z = rk.points[i * 3 + 2] - rig.pos.z;
-      occ[8 + k].set(x, y, z, this._occX * 0.42 * (rk.aScale.getX(i) + rk.aScale.getY(i)) * 0.5); cx += x; cy += y; cz += z;
+      // a sphere as wide as the rock's half-width, centred at its middle (the scatter's point
+      // is higher, near its top: there the sphere hid too little of the sky at its foot)
+      const r = 0.5 * (rk.aScale.getX(i) + rk.aScale.getY(i)) * 0.5, l = Math.hypot(rk.points[i * 3], rk.points[i * 3 + 1], rk.points[i * 3 + 2]);
+      const drop = 0.45 * r / l;
+      const x = rk.points[i * 3] * (1 - drop) - rig.pos.x, y = rk.points[i * 3 + 1] * (1 - drop) - rig.pos.y, z = rk.points[i * 3 + 2] * (1 - drop) - rig.pos.z;
+      occ[8 + k].set(x, y, z, this._occX * r); cx += x; cy += y; cz += z;
     }
     for (let i = 8 + k; i < 16; i++) occ[i].w = 0;
     if (k) {
