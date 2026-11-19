@@ -546,6 +546,8 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 | The cost of the Mars dust cloud's noise on the phone's fill rate is not measured (the governor's dust step drops most of it) | owner's next benchmark |
 | From orbit the visor's lower half reflects black (the shared sky light gives nothing from below there) | watch |
 | A GO trip from the ground spends its first ten seconds climbing the first kilometres (speed grows with height near the ground, on purpose) | watch |
+| Through a very long lens (under 10°) looking down-Sun at a grazing angle, the sand ripples stretch into vertical stripes (seen at the lander bench near sunset; not at normal lenses) | watch |
+| Rocks look pale grey against the Martian ground in low light | watch |
 | Far from every body only the target marker shows the way; there is no map yet | 7 |
 | Places on other worlds cannot be chosen until that world is home (no map yet) | 7 |
 | Triangles sit at ~420–480k of the 500k budget | watch |
