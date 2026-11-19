@@ -6,12 +6,14 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-*Handoff written at the end of milestone 4, for a new session or account that starts
+*Handoff written after the milestone 4 review, for a new session or account that starts
 with the owner typing "continue".*
 
-- **Last delivered**: milestone 4, character and flight feel, merged to `main` and live
-  on the phone link (build `99d7273` and later). `docs/ROADMAP.md` marks it
-  `checkpoint sent`. Everything is on `main`; nothing is pending on any branch.
+- **Last delivered**: milestone 4, character and flight feel, then a full review of it at
+  the owner's request ("review and judge milestone 4 and redo any errors"): two rounds of
+  independent reviewers, every error found fixed, re-tested and merged to `main`
+  ("Milestone 4 review" below). `docs/ROADMAP.md` marks milestone 4 `done`. Everything is
+  on `main`; nothing is pending on any branch.
 - **Asked of the owner**: to try the target list and GO, the new poses and landings, and
   to paste the Benchmark results (Copy results) in both Smooth and Sharp. The milestone
   2–4 builds have never been measured on the phone (see the known-problems table).
@@ -20,7 +22,7 @@ with the owner typing "continue".*
     them first (CLAUDE.md "What the owner's replies mean"), check the new costs (the Mars
     dust cloud's noise, the 16 contact spheres in the terrain shader, the per-pixel haze
     near a planet's edge), then continue.
-  - If the owner says "continue": mark milestone 4 `done` and start **milestone 5,
+  - If the owner says "continue": start **milestone 5,
     Earth and the Sun from space**. Write its plan in this file first. Its scope (from
     the roadmap): Earth as a full globe with public-domain NASA colour, a cloud layer,
     night-side city lights, sun-glint on oceans and a thin blue edge (not landable).
@@ -589,7 +591,7 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 | Black shadow slivers with no visible relief in the low lunar orbit view | 5 |
 | Far from every body only the target marker shows the way; there is no map yet | 7 |
 | Places on other worlds cannot be chosen until that world is home (no map yet) | 7 |
-| Triangles sit at ~420–480k of the 500k budget | watch |
+| Triangles sit at ~480–495k of the 500k budget in the reference views; the interactive start view touched 500k while its terrain was still loading. The next world must not add triangles without taking some away | watch (5) |
 | The cloak reads as a stiff sheet: no folds or sag, even shading, a flat salmon red when backlit on Mars (milestone 4 review critic) | next character pass |
 | The suit reads slim: thin limbs, a small pack, a plain ball of a helmet; real suits are bulky (milestone 4 review critic) | next character pass |
 | No dust from footsteps or a run, no footprints; hovering looks much like standing (milestone 4 review critic) | next character pass |
@@ -787,6 +789,15 @@ problems were found in them and fixed. What changed, for the player:
   every trip with HOVER off and on; the headless tests no longer count the software
   driver's "GPU stall" notes as page faults (target and foot had been failing on them).
 
+Checks on the final build: `target`, `foot`, `smoke` (21 shaders, the terrain at 15 of a
+phone's 16 textures, none failing) and `flight` pass; `transfer`: the trip to another world
+arrives in 15.5 s (marker 14.7 s) through a frame turned 112° at the hand-over and with
+HOVER on holds 71 km over it (before: on the ground in a fraction of a second); a place
+trip holds 480 m up with HOVER on; `flyby` unchanged (an aimed trip lands, a 60-radii miss
+released lands); the governor simulation unchanged; triangle and draw counts of the
+re-rendered reference views identical to before. Re-rendered references: the three-point
+landing, both hovers, both touch-down dusts, the Mars flight, the target marker, the UI.
+
 The critic's remaining gaps are about the character's look (a sheet-like cloak, a slim
 suit, no footstep dust): in the known-problems table for a later character pass.
 
@@ -960,4 +971,10 @@ Weakest: `mars_ledge_orbit_globe`.
   sprays (helper). Tools `transfer`, `target`, `scripts/lib/glLimits.mjs` (phone shader
   limits in smoke and every screenshot run), `--distdir`; shot parameters
   `heropose=fast|bank|climb|land|launch`, `target=`, `debug=contactx4`.
+- **Milestone 4 review** (owner's request after the checkpoint): 32 problems found by
+  independent reviewers and fixed (GO arrival speed and hand-over heading, a real
+  three-point landing, hover framing, dust timing and depth, contact spheres, HOVER in a
+  fall, the GO button's place, the marker beyond the horizon and without the HUD, frame-
+  rate independence); `transfer` flies with HOVER on and off through a turning frame; the
+  headless tests ignore the software driver's performance notes. Milestone 4 `done`.
 

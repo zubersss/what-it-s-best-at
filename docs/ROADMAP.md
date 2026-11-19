@@ -14,7 +14,7 @@ owner's reply or phone results), `done`.
 | 1 | Phone link and measurement | done |
 | 2 | Fix the known problems | done |
 | 3 | Make Mars and the Moon beautiful | done |
-| 4 | Character and flight feel | checkpoint sent |
+| 4 | Character and flight feel | done |
 | 5 | Earth and the Sun from space | not started |
 | 6 | New landable worlds (checkpoint after every two) | not started |
 | 7 | Getting around | not started |
@@ -86,6 +86,12 @@ camera; and, from the known problems, a suit with detail, darkening at the foot 
 lander and rocks, and dust that reads as dust. The critic's main gaps were about the
 worlds (soft landforms, thick Martian haze, white Earth, flat lunar light): they are in
 the known-problems table under milestones 5 to 7.
+
+Reviewed after the checkpoint at the owner's request (two rounds of independent code
+reviewers and a picture critic) and its errors fixed: GO now stops and holds above the
+target, a real three-point landing, the boots in frame while hovering, dust on every
+take-off and landing, a GO button that no longer reshuffles the row, a marker that points
+over the horizon (`docs/PROGRESS.md`, "Milestone 4 review"). Done.
 
 ## 5. Earth and the Sun from space
 
