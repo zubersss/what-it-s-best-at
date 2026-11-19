@@ -45,10 +45,10 @@ void main() {
   float along = length(d) * uPixelsPerRadian, across = uPixelsPerRadian / dist;
   float D = aState.y;
   // in air a puff, drawn out a little while it moves fast; in vacuum a thin packet of
-  // grains strung out along its path by the spread of speeds inside it (6 to 14 % of its
-  // speed: at a fifth to two fifths the frozen burst read as a graphic sunburst of long
-  // lines, not a fine spray), plus the film's blur
-  float Lm = mix(D * (1.0 + 0.15 * min(sp, 3.0)), D + sp * (0.02 + (0.06 + 0.08 * aState.w) * t), uVac);
+  // grains strung out along its path by the spread of speeds inside it (3 to 8 % of its
+  // speed: at a fifth to two fifths, and still at a tenth, the frozen burst read as a
+  // graphic sunburst or sparks, not a fine spray), plus the film's blur
+  float Lm = mix(D * (1.0 + 0.15 * min(sp, 3.0)), D + sp * (0.02 + (0.03 + 0.05 * aState.w) * t), uVac);
   float Wm = mix(D, 0.2 * D + 0.006 * sp * t, uVac);
   float L = max(Lm * along, Wm * across), W = Wm * across;
   // never thinner than 2 pixels (a thinner streak sparkles as it moves), with the same coverage
@@ -61,7 +61,7 @@ void main() {
   vB = vec4(length(d) > 1e-6 ? normalize(d) : vec2(1.0, 0.0), 0.5 * vec2(Ld, Wd) * k);
   vC = vec3(0.5 * size, 1.0 / (across * k), aState.z);
   // a packet's grains spread over a growing area: its sheet thins as it flies
-  vA = vec4(aState.x, 0.85 + 0.3 * fract(aState.w * 7.31), aState.w, cover * mix(1.0, min(0.6, 0.004 / max(Lm * Wm, 1e-6)), uVac));
+  vA = vec4(aState.x, 0.85 + 0.3 * fract(aState.w * 7.31), aState.w, cover * mix(1.0, min(0.5, 0.003 / max(Lm * Wm, 1e-6)), uVac));
   gl_PointSize = aState.x >= 1.0 ? 0.0 : size;
 }`;
 
@@ -167,7 +167,7 @@ void main() {
   // not hide each other's shadows as packed soil does, so even over dark lunar ground a
   // plume catches the light), more of it forward than back; plus sky light.
   float ph = dustPhase(dot(normalize(vRel), uSunDir));
-  vec3 E = directSun(planetPos) * (uSunVis * 0.5 * ph * lump) + skyLight(up, up) + planetShine(up);
+  vec3 E = directSun(planetPos) * (uSunVis * mix(0.5, 0.35, uVac) * ph * lump) + skyLight(up, up) + planetShine(up);
   // (always within a few metres of the eye: no haze in between worth the cost)
   fragColor = vec4(uDustAlbedo * uGroundTint * tone * E / PI * uExposure, alpha);
 }`;

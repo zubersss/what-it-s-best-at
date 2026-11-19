@@ -60,7 +60,7 @@ const titleCase = (id) => id.charAt(0).toUpperCase() + id.slice(1);
 // Character poses on foot for screenshots: speed in m/s, and whether it is in the air.
 // land: 0.35 s into a hard landing (the three-point kneel); launch: up held in a jump.
 const FOOT_POSES = { stand: { speed: 0 }, walk: { speed: 1.6 }, run: { speed: 5.5 }, super: { speed: 45 }, jump: { speed: 4, jump: true },
-  land: { speed: 0, landSpeed: 14 }, launch: { speed: 0, jump: true, upHeld: 0.3 } };
+  land: { speed: 0.6, landSpeed: 14 }, launch: { speed: 0, jump: true, upHeld: 0.3 } };     // (land creeps sideways so the figure turns side-on)
 
 export class App {
   constructor({ canvas, context, world, params }) {
