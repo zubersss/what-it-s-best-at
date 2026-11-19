@@ -186,6 +186,30 @@ without them. Lossy WebP for the slope maps: blocky canyon walls; colour JPEG: n
 two greyscale halves at the same size. Not changed, because it is true: a world with the Sun
 behind the viewer looks flat (the full Moon); relief shows wherever the light comes from the side.
 
+## Milestone 4 plan — character and flight feel
+
+The owner accepted milestone 3 ("it's all good, continue"). Plan, in this order:
+
+1. **Flight poses** from what the pilot asks for, not from raw speed (speeds run from 7 m/s
+   to astronomical): hover (upright), cruise (stick pushed: one arm ahead, body tipped),
+   fast flight (boost: streamlined, both arms ahead, legs together), banking (roll into the
+   turn), climbing straight up (arm raised) and a feet-first slow descent near the ground.
+2. **Take-off and landing**: a crouch that builds while up is held, then a spring with a
+   ring of dust; the figure turns upright before touching down; a crouch scaled by the
+   landing speed, a three-point landing for hard ones, dust on every landing.
+3. **Target selector**: a marker on the chosen target (another body, the Sun, or one of
+   this world's landmarks) with its name, distance and time to arrival from the real
+   speed rule; an arrow at the screen's edge when it is behind. `TARGET` cycles.
+4. **A boost for long transfers**: with a target chosen, `GO` flies there hands-off,
+   faster than the manual boost in open space, slowing to arrive above the target; any
+   stick input takes back control. Checked without a browser like `flyby`.
+5. **Camera**: the figure leads turns and drifts back to the centre, the camera keeps it
+   in sight over ridges on foot and low down, pulls back a little at super speed, and the
+   telephoto does not fill the screen with the figure.
+6. **Known problems marked 4**: the suit (visor, backpack, gloves, worn dust), darkening
+   under the lander and rocks where the site is in shade, irregular dust puffs.
+7. Reference set, independent critic, stability test, governor steps, checkpoint.
+
 ## Milestone 3 plan — make Mars and the Moon beautiful
 
 Started straight after the owner's phone results and flight notes (above). Order: the

@@ -12,8 +12,8 @@ owner's reply or phone results), `done`.
 | 0 | Foundation: Mars (Coprates Chasma), the Moon, flight between them, the character | done |
 | 1 | Phone link and measurement | done |
 | 2 | Fix the known problems | done |
-| 3 | Make Mars and the Moon beautiful | checkpoint sent |
-| 4 | Character and flight feel | not started |
+| 3 | Make Mars and the Moon beautiful | done |
+| 4 | Character and flight feel | in progress |
 | 5 | Earth and the Sun from space | not started |
 | 6 | New landable worlds (checkpoint after every two) | not started |
 | 7 | Getting around | not started |
