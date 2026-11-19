@@ -149,7 +149,7 @@ function ringStrip(rings, centre = null) {
 }
 
 function helmetGeometry() {
-  const N = 26, A = 1.12, B = 0.56, C = -0.07, P = 3.2;      // half width (yaw), half height (pitch), centre pitch, squareness
+  const N = 26, A = 1.24, B = 0.64, C = -0.07, P = 3.2;      // half width (yaw), half height (pitch), centre pitch, squareness
   const edge = [];
   for (let i = 0; i < N; i++) {
     const t = (i / N) * 2 * Math.PI, c = Math.cos(t), s = Math.sin(t);
@@ -183,9 +183,9 @@ export function torsoGeometry() {
   // Life-support pack: a slim slab curved round the back, kept inside the cloak's reach
   // (cloak.js holds the cloth 0.215 m from the spine above the hips; the pack's outer face
   // is at 0.203 m and its top edge rounds in below the shoulder pins).
-  const pack = roundedBox([0.13, 0.18, 0.025], 0.018,
-    [[-0.13, -0.112, -0.07, -0.025, 0.025, 0.07, 0.112, 0.13], [-0.18, -0.162, 0.162, 0.18], [-0.025, -0.007, 0.007, 0.025]],
-    () => [SHELL, HARD], bendAround(0.178, Math.PI));
+  const pack = roundedBox([0.14, 0.19, 0.045], 0.026,
+    [[-0.14, -0.114, -0.07, -0.025, 0.025, 0.07, 0.114, 0.14], [-0.19, -0.164, 0.164, 0.19], [-0.045, -0.019, 0.019, 0.045]],
+    () => [SHELL, HARD], bendAround(0.20, Math.PI));
   pack.translate(0, 0.335, 0);
   // Chest control unit: a housing curved a little to the chest, with a dark panel face.
   const unit = roundedBox([0.105, 0.058, 0.028], 0.014,
@@ -193,15 +193,19 @@ export function torsoGeometry() {
     (q, ax, s) => (ax === 2 && s > 0 && Math.abs(q[0]) < 0.068 && Math.abs(q[1]) < 0.026 ? [DARK, HARD] : [UNIT, HARD]),
     bendAround(0.30, 0, -0.12));
   unit.translate(0, 0.33, 0);
-  return mergeGeometries([
+  // (the soft suit is scaled out round the spine: a pressurised suit is bulky)
+  const body = mergeGeometries([
     capsule(0.165, 0.30, SUIT, 0, 0.30, 0, FAB, 4, 12),            // chest
     ball(0.185, SUIT, 0, 0.47, 0.01, FAB, 1.12, 0.8, 0.9),          // shoulders
     ball(0.165, SUIT, 0, 0.04, 0, FAB, 1.0, 0.85, 0.9),             // hips
     lathe([[0.150, 0.148], [0.166, 0.141, ...M], [0.171, 0.132, ...M], [0.171, 0.112, ...M], [0.166, 0.103, ...M], [0.150, 0.096, ...M]], 16),   // waist ring
+  ]).scale(1.12, 1, 1.1);
+  return mergeGeometries([
+    body,
     lathe([[0.097, 0.682], [0.110, 0.676, ...M], [0.121, 0.664, ...M], [0.123, 0.646, ...M], [0.119, 0.632, ...M], [0.104, 0.622, ...M], [0.085, 0.600, ...M]], 14),   // neck ring
     ...helmetGeometry(),
     unit, pack,
-    capsule(0.04, 0.42, TRIM, 0, 0.60, -0.115, MET).rotateZ(Math.PI / 2).translate(0.6, 0.6, 0),   // cloak clasp bar across the shoulders
+    capsule(0.04, 0.42, TRIM, 0, 0.60, -0.175, MET).rotateZ(Math.PI / 2).translate(0.6, 0.6, 0),   // cloak clasp bar across the shoulders
   ]);
 }
 
@@ -217,13 +221,18 @@ function dusty(g, yFull, yClean, amount) {
   return g;
 }
 
+const bulk = (k, parts) => mergeGeometries(parts).scale(k, 1, k);
+
 // A limb hangs along -Y from its pivot at the origin, in two pieces: the upper part
 // (shoulder or hip to the joint, with the joint's convolute) and the lower part, whose own
 // origin is the joint (elbow or knee).
 export const ELBOW = 0.29, HAND = 0.31, KNEE = 0.41, ANKLE = 0.45;       // segment lengths (m)
+// The limbs are drawn wider than their profiles (LIMB_BULK across, not along): a
+// pressurised suit's arms and legs are nearly as thick as a torso seen from the side.
+export const ARM_BULK = 1.28, LEG_BULK = 1.22;
 export function upperArmGeometry() {
   const R = 0.052;
-  return mergeGeometries([lathe([
+  return bulk(ARM_BULK, [lathe([
     [0, 0.012], [0.026, 0.005, ...F], [0.045, -0.014, ...F], [R, -0.040, ...F],
     [R, -0.044, ...F], [0.057, -0.049, ...M], [0.057, -0.069, ...M], [R, -0.074, ...M],      // shoulder bearing
     [R, -0.112, ...F], [R, -0.150, ...S],                                                       // red band
@@ -232,7 +241,7 @@ export function upperArmGeometry() {
 }
 export function forearmGeometry() {
   const R = 0.047;
-  return mergeGeometries([lathe([
+  return bulk(ARM_BULK, [lathe([
     [0, 0.017], [0.0235, 0.0107, ...F], [0.0407, -0.0065, ...F], [R, -0.030, ...F],
     [R, -0.185, ...F], [0.051, -0.189, ...M], [0.051, -0.207, ...M], [R, -0.211, ...M],      // wrist ring
     [0.049, -0.214, ...G], [0.052, -0.244, ...G], [0.045, -0.257, ...G], [0, -0.260, ...G],    // glove gauntlet
@@ -240,7 +249,7 @@ export function forearmGeometry() {
 }
 export function thighGeometry() {
   const R = 0.075;
-  return mergeGeometries([lathe([
+  return bulk(LEG_BULK, [lathe([
     [0, 0.015], [0.0375, 0.005, ...F], [0.065, -0.0225, ...F], [R, -0.060, ...F],
     [R, -0.072, ...F], [0.080, -0.077, ...M], [0.080, -0.097, ...M], [R, -0.102, ...M],      // hip bearing
     [R, -0.165, ...F], [R, -0.205, ...S],                                                       // red band
@@ -259,7 +268,7 @@ export function shinGeometry() {
     [[-0.055, -0.033, 0.033, 0.055], [-0.036, -0.014, 0.014, 0.036], [-0.13, -0.108, -0.04, 0.04, 0.108, 0.13]],
     (q) => (q[1] < -0.014 ? [SOLE, FAB] : [BOOT, HARD]));
   foot.translate(0, -0.04, 0.058); foot.rotateX(-0.06); foot.translate(0, -ANKLE, 0);
-  return dusty(mergeGeometries([leg, foot]), -0.45, -0.05, 0.6);
+  return dusty(bulk(LEG_BULK, [leg, foot]), -0.45, -0.05, 0.6);
 }
 
 export const HERO_VERT = /* glsl */`

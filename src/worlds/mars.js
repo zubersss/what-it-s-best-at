@@ -109,7 +109,7 @@ export default {
       phaseG: [0.70, 0.76, 0.85],
       scaleHeight: 11100,
       // Low dust layer pooled in the canyon (exponential height fog).
-      fog: { density: 0.6, baseAltitude: -4800, scaleHeight: 1900 },
+      fog: { density: 0.3, baseAltitude: -4800, scaleHeight: 1900 },     // (0.6 dissolved the far wall: clear-season views carry 30-40 km crisply)
     },
     absorber: null,
   },

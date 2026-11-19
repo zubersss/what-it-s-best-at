@@ -923,7 +923,20 @@ export class App {
     const sunVis = hero.uniforms.uSunVis.value, viewH = this.post.viewH, th = Math.tan(rig.fov * Math.PI / 360);
     if (this.shotMode) {
       // ?dust=1: a touch-down frozen 0.7 s after contact, for reference pictures.
-      if (this.params.dust && env.groundClearance && !this._dustShot) {
+      // ?dust=run (with an on-foot pose): the puffs of the last footfalls, left behind the runner.
+      if (this.params.dust === 'run' && rig.onFoot && !this._dustShot) {
+        this._dustShot = true;
+        const fp = FOOT_POSES[this.params.heropose] || FOOT_POSES.run, speed = Math.max(1.5, fp.speed);
+        const dir = (this.params.posedir === 'side' ? rig.right : rig.forward).clone().projectOnPlane(up).normalize();
+        const side = new THREE.Vector3().crossVectors(dir, up).normalize(), stride = Math.min(2.8, 0.9 + 0.32 * speed), step = stride / 2, dts = step / speed;
+        dust.update(0, rig.pos, up, env.gravity, env.air, viewH, th, sunVis);
+        const n = Math.min(10, Math.ceil(2.5 / dts));
+        for (let i = n; i >= 1; i--) {
+          at.copy(rig.feet).addScaledVector(up, 0.05).addScaledVector(dir, -i * step).addScaledVector(side, i % 2 ? 0.11 : -0.11);
+          dust.emit(at, up, Math.round(Math.min(26, 3 + 0.9 * speed) * (1 + 2 * dust.vac)), 0.25 + 0.035 * speed, 0.35 + 0.02 * speed, carry.copy(dir).multiplyScalar(0.35 * speed));
+          for (let t = 0; t < dts - 1e-6; t += 0.05) dust.update(Math.min(0.05, dts - t), rig.pos, up, env.gravity, env.air, viewH, th, sunVis);
+        }
+      } else if (this.params.dust && env.groundClearance && !this._dustShot) {
         this._dustShot = true;
         const p = hero.group.position, c = env.groundClearance(p);
         at.copy(rig.pos).add(p).addScaledVector(up, -(c - 0.15));
@@ -949,17 +962,25 @@ export class App {
       // taking off: a ring, as from a push off the ground (holding up takes off from the top
       // of a jump, the hips some 2.5 m up)
       if ((rig.takeoffs || 0) !== (this._takeoffsSeen || 0) && c < 3.5) dust.emit(at, up, Math.round(70 * k * (1 + 2 * dust.vac)), 2.6, 1.0, carry.copy(up).multiplyScalar(0.6));
+      // footfalls: a small kick of dust from the foot that lands, bigger the faster the run
+      if ((hero.steps || 0) !== (this._stepsSeen || 0) && rig.onFoot && !rig.airborne) {
+        const foot = this._dustFoot || (this._dustFoot = new THREE.Vector3()), s = hero.stepSpeed || 0;
+        const side = this._dustSide || (this._dustSide = new THREE.Vector3());
+        side.crossVectors(hero.facing, up).normalize().multiplyScalar(hero.stepSide ? 0.11 : -0.11);
+        foot.copy(rig.feet).addScaledVector(up, 0.05).add(side);
+        dust.emit(foot, up, Math.round(Math.min(26, 3 + 0.9 * s) * k * (1 + 2 * dust.vac)), 0.25 + 0.035 * s, 0.35 + 0.02 * s, carry.copy(rig.footVel).multiplyScalar(0.35));
+      }
       if (c < 2.2) {
         // hovering down to the ground (with HOVER on it never stands): a ring as it arrives
         if (rig.hover && !rig.onFoot && this._dustClear > 2.2 && vUp < -0.8) dust.emit(at, up, Math.round(Math.min(110, 30 + 14 * -vUp) * k * (1 + 2 * dust.vac)), 1.2 + 0.5 * -vUp, 1.1, carry.copy(v).multiplyScalar(0.15).addScaledVector(up, -0.15 * vUp));
         // pushing off, or skimming along: a steady trail
-        const stir = ((vUp > 0.8 && rig.throttle > 0.3 ? 30 : 0) + Math.min(40, along * 2.2) * (c < 1.3 ? 1 : 0.3)) * (1 + 2 * dust.vac);
+        const stir = ((vUp > 0.8 && rig.throttle > 0.3 ? 30 : 0) + Math.min(40, along * 2.2) * (c < 1.3 ? 1 : 0.3) * (rig.onFoot ? 0.25 : 1)) * (1 + 2 * dust.vac);     // (on foot the footfalls carry most of it)
         this._dustDebt = (this._dustDebt || 0) + stir * k * dt;
         if (this._dustDebt >= 1) { const n = Math.floor(this._dustDebt); this._dustDebt -= n; dust.emit(at, up, n, 0.6 + 0.08 * along, 0.5 + 0.05 * along, carry.copy(v).multiplyScalar(0.25)); }
       }
       this._dustClear = c;
     } else this._dustClear = 99;
-    this._takeoffsSeen = rig.takeoffs || 0; this._landingsSeen = rig.landings || 0;
+    this._takeoffsSeen = rig.takeoffs || 0; this._landingsSeen = rig.landings || 0; this._stepsSeen = hero.steps || 0;
     dust.update(dt, rig.pos, up, env.gravity, env.air, viewH, th, sunVis);
   }
 
