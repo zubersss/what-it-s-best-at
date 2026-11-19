@@ -613,8 +613,10 @@ cloak passing through arms and legs; Phobos and Deimos checked.
 - **GO trips without a browser** (`npm run transfer`, a Mars-sized world): to a Moon-sized
   world 2000 of its radii away, made home halfway as in the game, 15.5 s (the marker
   predicted 14.7 s); to a place 71° away from ground 5 km up, 18.6 s (17.5 s); 169° away,
-  23.1 s (19.9 s); a 3° hop, 11.2 s (11.9 s). Each ends within 20 m of the point 500 m
-  over the place. Before trips kept the open-space pace near the ground they took 28–45 s,
+  23.1 s (19.9 s); a 3° hop, 11.2 s (11.9 s). (Corrected in the milestone 4 review: a place trip stops
+  about 245 m short of the point 500 m over the place, at about 1.2 km/s, and its speed is
+  then cut to what the stick would give there; with HOVER on it stays about 480 m up, with
+  it off it comes down about 540 m from that point.) Before trips kept the open-space pace near the ground they took 28–45 s,
   most of it drifting up the first kilometres. No trip touches the ground; the
   straight-line distance grows by at most 4 % on the way except to the far side (31 %, it
   goes up and over), which is why a place's distance is shown along the ground. Found on
