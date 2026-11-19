@@ -545,9 +545,13 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 | Deimos burns out to a white blob at dusk exposure | 5 |
 | Earth is a blown-out white disc from the Moon and has no blue | 5 |
 | The cost of the Mars dust cloud's noise on the phone's fill rate is not measured (the governor's dust step drops most of it) | owner's next benchmark |
-| From orbit the visor's lower half reflects black (the shared sky light gives nothing from below there) | watch |
 | Through a very long lens (under 10°) looking down-Sun at a grazing angle, the sand ripples stretch into vertical stripes (seen at the lander bench near sunset; not at normal lenses) | watch |
-| Rocks look pale grey against the Martian ground in low light | watch |
+| Rocks look pale, bluish grey against the Martian ground (real ones are dark and dust-coated) | 6 |
+| Landforms soft from close up: Mount Sharp, the Coprates wall, the Olympus caldera wall, Hadley Rille, Tycho's peak read as rounded heaps (milestone 4 critic) | 6 / 7 |
+| Mars daylight haze too thick: far walls dissolve, flat khaki sky (milestone 4 critic) | 5 |
+| Chalk-white outlines on canyon walls and crater rims in Mars from orbit; a bluish Mars crescent | 5 |
+| No light from the planet below on things in orbit (the figure's legs go black over sunlit Mars; the visor reflects black) | 5 |
+| Black shadow slivers with no visible relief in the low lunar orbit view | 5 |
 | Far from every body only the target marker shows the way; there is no map yet | 7 |
 | Places on other worlds cannot be chosen until that world is home (no map yet) | 7 |
 | Triangles sit at ~420–480k of the 500k budget | watch |
@@ -673,6 +677,38 @@ repository (re-create them with `npm run stability`).
 - The first version of the test moved too fast (several pixels per frame) and let
   exposure re-meter between frames; both produced large, honest differences that hid
   what the test is for. Steps are now about a pixel and exposure is held per station.
+
+## Independent critic, milestone 4 (screenshots and art rules only)
+
+The five biggest gaps, as ranked (all about the worlds, none about this milestone's
+character and flight work; each is in the known-problems table with its milestone):
+1. Landforms read as soft sand and clay, not as the real places: Mount Sharp a rounded
+   heap of even corrugations, the Coprates wall a flat band, the Olympus caldera wall one
+   smooth slab, Hadley Rille a shallow trough, Tycho's peak a mound.
+2. Mars daylight haze at dust-storm level: the 60 km wall nearly dissolved, a flat khaki
+   sky (clear-day rover views see rims 30–40 km away crisply).
+3. Earth and Deimos colourless blown-out blobs; few stars in the earthlit lunar night.
+4. The lunar surface lacks Apollo's hard high-key light (dim, soft, plaster-like craters).
+5. Invented colour: an olive cast in the Mars sunset sky, a hard-edged cream twilight
+   ellipse, chalk-white outlines on canyon walls from orbit, a bluish Mars crescent; the
+   figure's legs near black in orbit over sunlit Mars (no light from the planet below).
+
+Kept: the Mars canyon sunset (blue aureole, ridges into warm haze), the whole-Moon and
+day-side Mars globes, the black lunar sky with hard shadows and the lander in the same light.
+
+"Visibly broken", and what was done:
+- The figure's shadow a stick figure without a cloak (mars_ship_hero_dust), a black
+  parallelogram (moon_ship_hero_jump): checked, both are the figure's own long low-Sun
+  shadow (the first cut by the frame's top edge, the second the cloak streaming flat).
+- The cloak a stiff stick or plank seen from the side (run, super speed): it streamed into
+  a flat sheet; it now flutters like a flag along its own normal.
+- Lunar dust like comic speed lines or sparks, brighter than the regolith: shorter,
+  fainter, scattering less. Re-checked in the re-rendered picture.
+- No three-point landing visible (moon_ship_hero_land): the pose was there but seen from
+  behind under the cloak; the picture is now side-on.
+- Pale bluish rocks on Mars, smeared ripple texture at the lander bench, the striped
+  foreground slab in mars_wall, black shadow slivers in moon_ledge_orbit_low: existing
+  terrain and rock work, listed as known problems.
 
 ## Independent critic, milestone 3 (screenshots and art rules only)
 
