@@ -329,8 +329,9 @@ exposure alone decides whether they are visible (rule 2).
   the Sun, or one of the home world's `places` (world data: name, latitude, longitude).
   GO holds full stick and the boost (`rig.auto`) along `aimDirection`: a body straight on, climbing at 40° or more while within two radii of
   the world being left; a place by a point a little ahead on an arc that rises to a third
-  of the arc still to go and comes down onto it; never a line through the world. Extra
-  boost ×2 when every body is more than 20 radii away. The trip ends at 5 % of a body's
+  of the arc still to go and comes down onto it; never a line through the world (unless
+  the target has become the world underfoot). Extra boost ×2 when every body is more than
+  20 radii away, and near the ground the open-space pace (0.85 of the height per second). The trip ends at 5 % of a body's
   radius above it, or 500 m above a place; gravity takes over unless HOVER is on. The
   marker's trip time flies the same path quickly as a point (`tripTime`); `scripts/
   transfer.mjs` checks both against the rig. The flight follows the path (`rig.auto.dir`)

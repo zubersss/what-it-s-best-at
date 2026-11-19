@@ -16,7 +16,11 @@ const A = { radius: 3389500, gravity: 3.71 }, B = { radius: 1737400, gravity: 1.
 const DEG = Math.PI / 180, dt = 1 / 60;
 const input = { dx: 0, dy: 0, wheel: 0, moveX: 0, moveY: 0, down: () => false, hit: () => false };
 
-function fly(rig, target, world, others, label) {
+// hand (optional): { world, at: [x, y, z] } the target body as a world, centred at `at`: when
+// its surface becomes nearer than the ground being left, the engine makes it home (as
+// App.switchWorld does): everything shifts so its centre is the origin, and the target
+// is then the world underfoot.
+function fly(rig, target, world, others, label, hand) {
   const around = {}, q = new THREE.Quaternion(), qi = new THREE.Quaternion(), want = new THREE.Vector3(), aim = [0, 0, 0];
   const p = rig.pos, cam = () => [p.x, p.y, p.z];
   const predicted = tripTime(cam(), target, world.radius, rig.pos.length() - world.radius - rig.agl);
@@ -29,6 +33,15 @@ function fly(rig, target, world, others, label) {
     const s = surroundings(p, wells, around);
     rig.pull.set(s.gx, s.gy, s.gz); rig.nearDir.set(s.nx, s.ny, s.nz); rig.nearR = s.nr;
     rig.spaceDistance = Math.min(...others.map((o) => Math.hypot(o.pos[0] - p.x, o.pos[1] - p.y, o.pos[2] - p.z) - o.radius), Infinity);
+    if (hand && !hand.done && rig.spaceDistance < rig.agl * 0.8) {
+      const at = hand.at, f = rig.forward.clone(), u = rig.up.clone(), v = rig.velocity.clone(), auto = rig.auto;
+      p.set(p.x - at[0], p.y - at[1], p.z - at[2]);
+      others = [{ pos: [-at[0], -at[1], -at[2]], radius: world.radius, gravity: world.gravity }];
+      world = hand.world; target.pos = [0, 0, 0];
+      rig.setWorld(world, () => 0); rig.velocity.copy(v); rig.lookAlong(f); if (rig.keepUp) rig.keepUp(u);
+      rig.auto = auto; hand.done = t;
+      rig.spaceDistance = Math.hypot(p.x - others[0].pos[0], p.y - others[0].pos[1], p.z - others[0].pos[2]) - others[0].radius;
+    }
     if (rig.auto) {
       if (gapTo(cam(), target) < standoff(target)) { arrived = t; rig.auto = null; }
       else {
@@ -45,11 +58,12 @@ function fly(rig, target, world, others, label) {
     }
     rig.update(dt, input, false);
     if (rig.auto && t > 1) minAlt = Math.min(minAlt, rig.agl);
+    if (process.env.TRACE && Math.round(t / dt) % 120 === 0) console.log(`    t ${t.toFixed(0)} s: height ${rig.agl.toExponential(2)} m, to the target ${gapTo(cam(), target).toExponential(2)} m, space ${rig.spaceDistance.toExponential(2)} m`);
     if (rig.auto) maxGap = Math.max(maxGap, gapTo(cam(), target));
     if (arrived >= 0 && t > arrived + 30) break;
   }
   const gapEnd = gapTo(cam(), target);
-  console.log(`${label}:`);
+  console.log(`${label}:${hand ? ` (the target became home at ${hand.done ? hand.done.toFixed(1) + ' s' : 'no point'})` : ''}`);
   console.log(`  predicted by the marker: ${predicted.toFixed(1)} s · arrived after ${arrived < 0 ? 'never' : arrived.toFixed(1) + ' s'} · largest extra boost x${maxMult.toFixed(2)}`);
   console.log(`  lowest height above the ground on the way (after the first second): ${Number.isFinite(minAlt) ? minAlt.toFixed(0) + ' m' : '-'}; farthest from the target on the way: ${(100 * maxGap / gapStart).toFixed(1)} % of the start`);
   console.log(`  30 s after arriving: ${gapEnd.toFixed(0)} m from the target (stop distance ${standoff(target).toFixed(0)} m), speed ${rig.velocity.length().toFixed(1)} m/s`);
@@ -57,13 +71,13 @@ function fly(rig, target, world, others, label) {
 }
 
 if (which === 'body' || which === 'both') {
-  // Leave A from 2 m up; B 2000 of its radii away (no world hand-over here: B is a target body seen from A's frame).
+  // Leave A from 2 m up; B 2000 of its radii away, and made home on the way as in the game.
   const rig = new CameraRig(A, () => 0);
   rig.setMode('hero'); rig.hover = false;
   rig.pos.set(0, A.radius + 2, 0); rig.agl = 2;
   rig.lookAlong(new THREE.Vector3(0, 1, 0));
   const tB = { kind: 'body', pos: [2000 * B.radius, 0, 0], radius: B.radius };
-  fly(rig, tB, A, [{ pos: tB.pos, radius: B.radius, gravity: B.gravity }], 'to a Moon-sized world 2000 radii away');
+  fly(rig, tB, A, [{ pos: tB.pos, radius: B.radius, gravity: B.gravity }], 'to a Moon-sized world 2000 radii away', { world: B, at: tB.pos.slice() });
 }
 if (which === 'place' || which === 'both') {
   const arc = +opt('arc', '60') * DEG, lat = +opt('lat', '30') * DEG, G = +opt('ground', '0');     // --ground: the whole world's ground this high above the datum

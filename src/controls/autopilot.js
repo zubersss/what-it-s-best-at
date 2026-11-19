@@ -68,8 +68,9 @@ export function aimDirection(cam, t, R, out) {
     need = Math.max(need, (40 * Math.PI / 180) * (1 - x * x * (3 - 2 * x)));
   }
   // never through the world: if the segment dips under 1.02 R, at least the angle that grazes it
+  // (unless the target is the world itself: a body that has become home on the way)
   const along = -(cam[0] * dx + cam[1] * dy + cam[2] * dz);
-  if (along > 0 && along < dl) {
+  if (along > 0 && along < dl && hyp(...t.pos) > R) {
     const m = hyp(cam[0] + dx * along, cam[1] + dy * along, cam[2] + dz * along);
     if (m < 1.02 * R) need = Math.max(need, (cl > 1.02 * R ? -Math.acos(1.02 * R / cl) : 0) + 3 * Math.PI / 180);
   }
@@ -87,11 +88,15 @@ export function aimDirection(cam, t, R, out) {
 
 // Extra boost for the transfer: TRANSFER times the boost when every body is more than 20 of
 // its radii away, the plain boost within 4 (clear: metres to the nearest surface, nearR:
-// that body's radius; gravity.js's `nr` minus `clear`). The speed rule still scales with the distance left, so the arrival
-// is as gentle as ever.
+// that body's radius; gravity.js's `nr` minus `clear`). And near the ground a trip keeps
+// the open-space pace (0.85 of the height per second, not the fifth that makes hand flight
+// near the ground feel big): otherwise a launch spent its first twenty seconds drifting up
+// the first kilometres. The speed rule still scales with the distance left, so arrivals are
+// as gentle as ever.
 export function transferMult(clear, nearR) {
   const x = Math.min(1, Math.max(0, (clear / Math.max(nearR, 1) - 4) / 16));
-  return 1 + (TRANSFER - 1) * x * x * (3 - 2 * x);
+  const d = Math.max(1.5, clear), low = Math.max(7, 0.85 * d) / flightBase(d);
+  return low * (1 + (TRANSFER - 1) * x * x * (3 - 2 * x));
 }
 
 

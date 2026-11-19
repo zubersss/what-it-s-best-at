@@ -489,8 +489,9 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
   DOM over the canvas: no draw calls. Turning to a body looks straight at it; turning to a
   place looks along the way a trip would set off (over the horizon).
 - **GO** (milestone 4) is the boost for long transfers: hands-off, full stick with the
-  boost, and twice that again when every body is more than 20 radii away. Mars to the Moon
-  from the ground takes about half a minute. It climbs away first (speed grows with
+  boost, and twice that again when every body is more than 20 radii away; near the ground
+  it keeps the open-space pace (0.85 of the height per second, not hand flight's fifth).
+  From the ground to another world takes about 15 s. It climbs away first (speed grows with
   height, so skimming the ground toward a body on the horizon crawled at 21 m/s), never
   aims through the world, and ends 5 % of a radius above a body or 500 m above a place,
   where gravity takes over unless HOVER is on. The view looks toward the target, kept
@@ -545,7 +546,6 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 | Earth is a blown-out white disc from the Moon and has no blue | 5 |
 | The cost of the Mars dust cloud's noise on the phone's fill rate is not measured (the governor's dust step drops most of it) | owner's next benchmark |
 | From orbit the visor's lower half reflects black (the shared sky light gives nothing from below there) | watch |
-| A GO trip from the ground spends its first ten seconds climbing the first kilometres (speed grows with height near the ground, on purpose) | watch |
 | Through a very long lens (under 10°) looking down-Sun at a grazing angle, the sand ripples stretch into vertical stripes (seen at the lander bench near sunset; not at normal lenses) | watch |
 | Rocks look pale grey against the Martian ground in low light | watch |
 | Far from every body only the target marker shows the way; there is no map yet | 7 |
@@ -572,12 +572,15 @@ cloak passing through arms and legs; Phobos and Deimos checked.
 ## Tests and measurements, milestone 4
 
 - **GO trips without a browser** (`npm run transfer`, a Mars-sized world): to a Moon-sized
-  world 2000 of its radii away, 27.6 s (the marker predicted 26.6 s), extra boost ×2 in
-  open space; to a place 64° away, 39.7 s (predicted 38.8 s); 70° from ground 5 km up,
-  40.1 s (38.5 s); 169° away, 44.9 s (41.3 s); a 3° hop, 21.7 s (33.3 s: the estimate is
-  long for short hops). No trip touches the ground; the straight-line distance grows by at
-  most 4 % on the way except to the far side (31 %, it goes up and over), which is why a
-  place's distance is shown along the ground.
+  world 2000 of its radii away, made home halfway as in the game, 15.5 s (the marker
+  predicted 14.7 s); to a place 71° away from ground 5 km up, 18.6 s (17.5 s); 169° away,
+  23.1 s (19.9 s); a 3° hop, 11.2 s (11.9 s). Each ends within 20 m of the point 500 m
+  over the place. Before trips kept the open-space pace near the ground they took 28–45 s,
+  most of it drifting up the first kilometres. No trip touches the ground; the
+  straight-line distance grows by at most 4 % on the way except to the far side (31 %, it
+  goes up and over), which is why a place's distance is shown along the ground. Found on
+  the way: after the target body became home, the "never through the world" rule kept the
+  aim on its edge, so a trip to another world would never have landed.
 - **Target list and GO in the game** (`npm run target`): the list holds 16 entries on
   Mars; picking one closes it; the marker reads "Olympus Mons · 4487 km · GO 37 s"; GO
   climbs to 1176 km and closes from 4487 to 1540 km along the ground; the marker counts
