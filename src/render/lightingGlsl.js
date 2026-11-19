@@ -18,8 +18,8 @@ uniform float uExposure;
 uniform vec3 uCamPlanetPos;
 uniform float uPlanetRadius;
 uniform vec2 uViewport;
-uniform sampler2D tIrradiance;      // octahedral irradiance map (local sky frame) + circumsolar row
-uniform sampler2D tSkyE;            // sky light on level ground against the Sun's height (1-D)
+uniform sampler2D tIrradiance;      // octahedral irradiance map (local sky frame), circumsolar row, and
+                                    // the sky light on level ground against the Sun's height (row IRR+1)
 uniform float uSkyGainMix;          // 0 near the ground (everything in view shares the camera's sky), 1 from high up
 uniform sampler2D tFroxelA;         // aerial perspective: smooth in-scatter
 uniform sampler2D tFroxelB;         //                      un-phased dust in-scatter
@@ -59,12 +59,12 @@ vec2 octEncode(vec3 n) {
 // and 30 km of altitude).
 vec3 skyLight(vec3 N, vec3 up) {
   vec2 e = octEncode(uSkyFrame * N);
-  vec2 uv = (e * (float(IRR) - 1.0) + 0.5) / vec2(float(IRR), float(IRR) + 1.0);
+  vec2 uv = (e * (float(IRR) - 1.0) + 0.5) / vec2(float(SKYL_W), float(SKYL_H));
   vec3 E = texture(tIrradiance, uv).rgb * uLutScaleInv.x;
   if (uSkyGainMix > 0.0) {
     float mu = dot(up, uSunDir);
     float ug = 0.5 + 0.5 * sign(mu) * sqrt(abs(mu));
-    vec3 there = texture(tSkyE, vec2((ug * (float(SKYE_W) - 1.0) + 0.5) / float(SKYE_W), 0.5)).rgb * ((0.5 + 0.5 * dot(N, up)) / SKYE_SCALE);
+    vec3 there = texture(tIrradiance, vec2((ug * (float(SKYE_W) - 1.0) + 0.5) / float(SKYL_W), (float(IRR) + 1.5) / float(SKYL_H))).rgb * ((0.5 + 0.5 * dot(N, up)) / SKYE_SCALE);
     E = mix(E, there, uSkyGainMix);
   }
   return E * uSunIrradiance;

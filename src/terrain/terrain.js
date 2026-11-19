@@ -5,7 +5,7 @@ import { CONFIG } from '../config.js';
 import { Node } from './quadtree.js';
 import { ChunkPool } from './chunkPool.js';
 import { WorkerPool } from './workerPool.js';
-import { makeTerrainMaterial, makeTerrainShared, setTerrainSurface, DETAIL_TILE } from './terrainMaterial.js';
+import { makeTerrainMaterial, makeTerrainShared, setTerrainSurface, setDemList, DETAIL_TILE } from './terrainMaterial.js';
 import { makeDetailTexture, makeStrataTexture } from './surfaceTextures.js';
 import { FACES, dirToFace } from './cubeSphere.js';
 
@@ -125,9 +125,8 @@ export class Terrain {
     if (this.textures.relief) { this.textures.relief.dispose(); this.textures.relief = null; }
     u.tRelief.value = this.textures.white; u.uRelief.value.x = 0;
     this.reliefBusy = !!def;
-    if (this.textures.demRes) { this.textures.demRes.dispose(); this.textures.demRes = null; }
     if (!def) return;
-    this.textures.demRes = u.tDemRes.value = makeDemResTexture(world);
+    setDemList(u, world);
     const epoch = this.epoch;
     new THREE.TextureLoader().load(import.meta.env.BASE_URL + def.url, (tex) => {
       if (epoch !== this.epoch) { tex.dispose(); return; }
@@ -410,40 +409,6 @@ function makeTintGrid(image, def, w = 512, h = 256) {
     }
   }
   return { w, h, data };
-}
-
-// How sharp the elevation data is at every place (0.25 degree cells): log2 of the metres per
-// pixel of the raster in charge there, times 16, as one byte. Built from the world's raster
-// list with the same feathered hand-over as DemSet. The terrain shader adds the slope map's
-// real relief only where the heights themselves are coarser than it.
-function makeDemResTexture(world) {
-  const W = 1440, H = 720, data = new Uint8Array(W * H), R = world.radius;
-  const rs = (world.terrain.dems || []).map((r) => ({ ...r, res: (Math.PI / 180) * R * (r.lon1 - r.lon0) / r.width }));
-  for (let j = 0; j < H; j++) {
-    const lat = 90 - (j + 0.5) * 180 / H, cosLat = Math.max(0.05, Math.cos(lat * Math.PI / 180));
-    for (let i = 0; i < W; i++) {
-      const lon = (i + 0.5) * 360 / W;
-      let res = 1e5, topW = 0, topRes = 0;
-      for (let k = rs.length - 1; k >= 0; k--) {
-        const r = rs[k];
-        let w = 1;
-        if (!r.wrap) {
-          if (lon <= r.lon0 || lon >= r.lon1 || lat >= r.lat0 || lat <= r.lat1) continue;
-          const e = Math.min((lon - r.lon0) * cosLat, (r.lon1 - lon) * cosLat, r.lat0 - lat, lat - r.lat1) / (r.feather || 0.25);
-          w = e >= 1 ? 1 : e * e * (3 - 2 * e);
-        }
-        if (topW <= 0) { if (w >= 1) { res = r.res; break; } topW = w; topRes = r.res; }
-        else { res = r.res * Math.pow(topRes / r.res, topW); topW = 2; break; }
-      }
-      if (topW > 0 && topW < 2) res = topRes;
-      data[j * W + i] = Math.max(0, Math.min(255, Math.round(Math.log2(res) * 16)));
-    }
-  }
-  const tex = new THREE.DataTexture(data, W, H, THREE.RedFormat, THREE.UnsignedByteType);
-  tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
-  tex.minFilter = tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = false;
-  tex.needsUpdate = true;
-  return tex;
 }
 
 // The same as albedoRange in terrainMaterial.js (keep the two alike).

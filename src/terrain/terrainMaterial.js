@@ -82,8 +82,34 @@ uniform vec2 uAlbedoRange;     // soft limits of the map's brightness relative t
 uniform sampler2D tRelief;     // the ground's slope everywhere: east slope in the top half, north in the bottom (fetch-maps.py)
 uniform vec4 uRelief;          // x = strength (0 = no map), y = metres per map texel (north-south), z = texels across, w unused
 uniform vec2 uReliefFade;      // sines of the latitudes between which it fades out toward the poles
-uniform sampler2D tDemRes;     // how sharp the elevation data is at each place: log2(metres per pixel) * 16 / 255
+// How sharp the elevation data is at each place, from the world's raster list (setDemList):
+// per raster lon0, lon1, lat0, lat1 in degrees; and log2(metres per pixel), 1 / feather in
+// degrees, whole world (1/0), in use (1/0). Numbers, not a map: the ground's shader may read
+// at most 16 textures on a phone, and it was over that with a map here.
+#define DEM_N 8
+uniform vec4 uDemBox[DEM_N];
+uniform vec4 uDemInfo[DEM_N];
 uniform vec4 uDetail;          // (per chunk) xy = offset in tiles, zw = chunk extent in tiles of DETAIL_TILE metres
+
+// log2 of the metres per pixel of the elevation data at a longitude and latitude (degrees):
+// the last raster in the list that covers the place, blended across its feather with the
+// one under it (the same rule as the height function's blend; see DemSet).
+float demLog2Res(float lon, float lat) {
+  float cosLat = max(0.05, cos(radians(lat)));
+  float topW = -1.0, topRes = 17.0;
+  for (int k = DEM_N - 1; k >= 0; k--) {
+    vec4 b = uDemBox[k], f = uDemInfo[k];
+    if (f.w < 0.5) continue;
+    float w = 1.0;
+    if (f.z < 0.5) {
+      if (lon <= b.x || lon >= b.y || lat >= b.z || lat <= b.w) continue;
+      w = smoothstep(0.0, 1.0, min(min(lon - b.x, b.y - lon) * cosLat, min(b.z - lat, lat - b.w)) * f.y);
+    }
+    if (topW < 0.0) { if (w >= 1.0) return f.x; topW = w; topRes = f.x; }
+    else return mix(f.x, topRes, topW);
+  }
+  return topRes;
+}
 
 // Slope (east, north; metres per metre) of the relief map at a level of detail.
 vec2 reliefSlope(vec2 uv, float lod) {
@@ -257,7 +283,7 @@ void main() {
   // map, it fades out, so the shading never disagrees with the ground underfoot.
   if (uRelief.x * uQuality.w > 0.0) {
     float lodC = log2(chunkTexel * (1.0 + pk) / uRelief.y);
-    float demRes = exp2(texture(tDemRes, uvA).r * 15.9375);
+    float demRes = exp2(demLog2Res(fract(uvA.x) * 360.0, 90.0 - uvA.y * 180.0));
     float lodRef = max(lodC, log2(2.5 * demRes / uRelief.y));
     vec2 ts = vec2(uRelief.z, uRelief.z * 0.5);
     float lodF = max(0.5 * log2(max(dot(gx * ts, gx * ts), dot(gy * ts, gy * ts))), 0.0);
@@ -299,10 +325,26 @@ export function makeTerrainShared(world, textures) {
     uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 },
     tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
     uAlbedoRange: { value: new THREE.Vector2() }, uRockHue: { value: new THREE.Vector2() }, uCoverContrast: { value: 1 }, uBedrockSlope: { value: 0 },
-    tDemRes: { value: textures.white }, tRelief: { value: textures.white }, uRelief: { value: new THREE.Vector4(0, 1, 1, 0) }, uReliefFade: { value: new THREE.Vector2(2, 3) },
+    uDemBox: { value: Array.from({ length: DEM_N }, () => new THREE.Vector4()) }, uDemInfo: { value: Array.from({ length: DEM_N }, () => new THREE.Vector4()) },
+    tRelief: { value: textures.white }, uRelief: { value: new THREE.Vector4(0, 1, 1, 0) }, uReliefFade: { value: new THREE.Vector2(2, 3) },
   };
   setTerrainSurface(shared, world);
   return shared;
+}
+
+const DEM_N = 8;
+// The world's elevation rasters as the shader's sharpness list (uDemBox / uDemInfo, see
+// demLog2Res). Rasters past DEM_N are left out (the far relief is then added a little
+// where a sharp patch already has it).
+export function setDemList(shared, world) {
+  const R = world.radius, dems = world.terrain.dems || [];
+  for (let k = 0; k < DEM_N; k++) {
+    const r = dems[k], box = shared.uDemBox.value[k], info = shared.uDemInfo.value[k];
+    if (!r) { box.set(0, 0, 0, 0); info.set(0, 0, 0, 0); continue; }
+    const res = (Math.PI / 180) * R * (r.lon1 - r.lon0) / r.width;
+    box.set(r.lon0, r.lon1, r.lat0, r.lat1);
+    info.set(Math.log2(res), 1 / (r.feather || 0.25), r.wrap ? 1 : 0, 1);
+  }
 }
 
 // Writes a world's surface numbers into the shared uniforms (also used when switching worlds).

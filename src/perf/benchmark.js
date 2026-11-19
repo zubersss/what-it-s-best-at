@@ -193,6 +193,7 @@ export class Benchmark {
     L.push(`most at once: ${this.maxCalls} draw calls, ${Math.round(this.maxTris / 1000)}k triangles, about ${Math.round(this.maxGpuBytes / 1048576)} MB of GPU memory`);
     L.push(`terrain patches built: ${builds}`);
     L.push(`screen ${window.innerWidth}x${window.innerHeight} CSS px · pixel ratio ${(+(window.devicePixelRatio || 1).toFixed(3))} · refresh ${g.vsync ? Math.round(1000 / g.vsync) : '?'} Hz`);
+    if (app.shaderErrors?.length) L.push(`SHADERS THAT FAILED ON THIS DEVICE: ${app.shaderErrors.length} — ${app.shaderErrors.join(' / ')}`);
     L.push(`GPU: ${app.gpuName}${g.gpuMs != null ? ` · GPU time ${g.gpuMs.toFixed(1)} ms` : ''}`);
     if (app.hiddenCount !== this.hiddenFrom) L.push('note: the page was in the background for part of this run, so the numbers are not reliable');
     L.push(navigator.userAgent);

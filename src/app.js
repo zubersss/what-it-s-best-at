@@ -60,6 +60,17 @@ export class App {
     renderer.info.autoReset = false;
     renderer.sortObjects = true;
     this.renderer = renderer;
+    // A shader that fails to compile or link on this device draws nothing, silently (on
+    // phones the ground vanished when its shader read one texture more than they allow).
+    // Say so on screen and in the benchmark results.
+    this.shaderErrors = [];
+    renderer.debug.onShaderError = (gl, program, vs, fs) => {
+      const log = [gl.getProgramInfoLog(program), gl.getShaderInfoLog(vs), gl.getShaderInfoLog(fs)].filter(Boolean).join(' | ').trim();
+      const first = (log.split('\n').find((l) => l.trim()) || 'no log').slice(0, 200);
+      this.shaderErrors.push(first);
+      console.error('A shader failed on this device:', log);
+      this.toast?.show(`Something failed to draw on this device. Please send a screenshot: ${first}`, 20000);
+    };
 
     this.ephemeris = new Ephemeris(SOLAR_SYSTEM, world.body);
     this.baseJD = dateToJD(Date.parse(world.scene.dateUTC));

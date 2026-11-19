@@ -23,7 +23,7 @@ export function atmosphereDefines() {
   return {
     SKY_W: fl(sw), SKY_H: fl(sh), MS_W: fl(mw), MS_H: fl(mh), MS_SCALE: '10000.0',
     FROX_W: fl(fw), FROX_H: fl(fh), FROX_D: fd, ATLAS_X: ax, ATLAS_Y: ay, FROX_POW: fl(FROXEL_POW), IRR: CONFIG.IRRADIANCE,
-    SKYE_W: SKYE_W, SKYE_SCALE: '1000.0',
+    SKYE_W: SKYE_W, SKYE_SCALE: '1000.0', SKYL_W: Math.max(CONFIG.IRRADIANCE, SKYE_W), SKYL_H: CONFIG.IRRADIANCE + 2,
   };
 }
 
@@ -48,9 +48,14 @@ export class Atmosphere {
     this.multiScat = new THREE.WebGLRenderTarget(mw, mh, half);
     this.skyView = new THREE.WebGLRenderTarget(sw, sh, { ...half, count: 2 });
     this.froxels = new THREE.WebGLRenderTarget(fw * ax, fh * ay, { ...half, count: 3 });
-    this.irradiance = new THREE.WebGLRenderTarget(I, I + 1, half);
-    this.skyE = new THREE.WebGLRenderTarget(SKYE_W, 1, half);
-    this.gpuBytes = 8 * (tw * th + mw * mh + 2 * sw * sh + 3 * fw * ax * fh * ay + I * (I + 1) + SKYE_W) + 2 * AIR_N * AIR_N;
+    // Both sky-light tables share one texture (a phone's shaders may read only 16 textures,
+    // and every lit surface reads these): rows 0..IRR-1 the octahedral irradiance map, row
+    // IRR the circumsolar term, row IRR+1 the sky light on level ground against the Sun's
+    // height. Each pass draws only its own rows (viewport and scissor).
+    const LW = Math.max(I, SKYE_W);
+    this.irradiance = new THREE.WebGLRenderTarget(LW, I + 2, half);
+    this.irradiance.scissorTest = true;
+    this.gpuBytes = 8 * (tw * th + mw * mh + 2 * sw * sh + 3 * fw * ax * fh * ay + LW * (I + 2)) + 2 * AIR_N * AIR_N;
 
     const lut = { tTransmittance: { value: this.transmittance.texture }, tMultiScat: { value: this.multiScat.texture } };
     const sky = { tSkySmooth: { value: this.skyView.textures[0] }, tSkyMie: { value: this.skyView.textures[1] }, uSkyParams: { value: new THREE.Vector4(Math.PI / 2, 0.01, 1, 0) } };
@@ -81,9 +86,8 @@ export class Atmosphere {
     // Publish for consumers (terrain, rocks, ship, hero, sky dome, sun, bodies).
     Object.assign(G, u, {
       tTransmittance: lut.tTransmittance, tMultiScat: lut.tMultiScat, ...sky,
-      tSkyE: { value: this.skyE.texture },              // sky light on level ground against the Sun's height
       uSkyGainMix: { value: 0 },                        // how much of it applies (0 near the ground)
-      tIrradiance: { value: this.irradiance.texture },
+      tIrradiance: { value: this.irradiance.texture },  // + the sky light on level ground against the Sun's height (row IRR+1)
       tFroxelA: { value: this.froxels.textures[0] }, tFroxelB: { value: this.froxels.textures[1] }, tFroxelC: { value: this.froxels.textures[2] },
       uFroxelRange: this.froxelU.uFroxelRange,          // x = slice distribution exponent, y = far limit (km)
       uLutScaleInv: { value: new THREE.Vector2(1, 1) },
@@ -159,6 +163,9 @@ export class Atmosphere {
     }).catch(() => { this.airPending = false; });
   }
 
+  // Points the next pass into the shared sky-light texture at rows y..y+h-1, columns 0..w-1.
+  _rows(y, w, h) { const t = this.irradiance; t.viewport.set(0, y, w, h); t.scissor.set(0, y, w, h); }
+
   // camPos: planet-centred metres (doubles). sunDir: unit, planet-fixed. farDistance: metres.
   update(camPos, sunDir, farDistance, exposure) {
     const scale = Math.min(1e7, Math.max(1e-2, exposure));
@@ -166,7 +173,8 @@ export class Atmosphere {
     if (!this.staticDone) {
       renderPass(r, this.transMat, this.transmittance);
       renderPass(r, this.msMat, this.multiScat);
-      renderPass(r, this.skyEMat, this.skyE);
+      this._rows(CONFIG.IRRADIANCE + 1, SKYE_W, 1);
+      renderPass(r, this.skyEMat, this.irradiance);
       this.staticDone = true;
     }
     const up = this._up.copy(camPos).normalize();
@@ -199,6 +207,7 @@ export class Atmosphere {
       const beta = Math.acos(Math.min(1, Math.sqrt(Math.max(0, camR * camR - rG * rG)) / camR));
       G.uSkyParams.value.set(Math.PI - beta, Math.max(beta, 1e-4), 1 / scale, 0);
       renderPass(r, this.skyMat, this.skyView);
+      this._rows(0, CONFIG.IRRADIANCE, CONFIG.IRRADIANCE + 1);
       renderPass(r, this.irrMat, this.irradiance);
     }
 

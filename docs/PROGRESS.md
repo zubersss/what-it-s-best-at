@@ -143,8 +143,18 @@ flight" for the rules. Rocks are not obstacles yet; any slope can be walked up.
 
 ## The owner's floating note (during milestone 3)
 
-"I've played it and it looks like I'm floating on top of nothing." Reproduced in the real
-game (pressing Play like the owner, then walking) and measured. Causes found:
+"I've played it and it looks like I'm floating on top of nothing", then a phone screenshot:
+"there is no ground to stand on". The phone drew no ground at all: rocks and the character
+over a brown void. **The cause**: the ground's shader read 17 textures and phones allow 16
+(the test browser allows 32, so every headless picture had ground). It went over when the
+slope map and its "data sharpness" map were added for the owner's space note. Fixed: the
+sharpness map is now a list of numbers (exact instead of blurred), and the two sky-light
+tables share one texture, so the shader reads 15. To stop it happening again: every
+screenshot run and the smoke test check each shader against a phone's limits, and a shader
+that fails on the device shows a message on screen and in the benchmark results.
+
+Before the screenshot I looked for other reasons it could look like floating, and fixed
+these as well:
 
 | Cause | Change |
 | --- | --- |
