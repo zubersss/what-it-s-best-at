@@ -483,7 +483,25 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
   the ground (see the owner's scale note): far faster than light between planets,
   automatic slow arrival.
 - The camera is the thing that moves; the figure is drawn ~4 m ahead of it.
-- `TARGET` snaps the view to the next body.
+- **Targets** (milestone 4): each world lists real places in its data file (`places`);
+  `TARGET` opens a list of them, the bodies in the sky and the Sun, with distances; `T`
+  cycles. The marker (thin brackets, name, distance, how long a GO trip takes) is plain
+  DOM over the canvas: no draw calls. Turning to a body looks straight at it; turning to a
+  place looks along the way a trip would set off (over the horizon).
+- **GO** (milestone 4) is the boost for long transfers: hands-off, full stick with the
+  boost, and twice that again when every body is more than 20 radii away. Mars to the Moon
+  from the ground takes about half a minute. It climbs away first (speed grows with
+  height, so skimming the ground toward a body on the horizon crawled at 21 m/s), never
+  aims through the world, and ends 5 % of a radius above a body or 500 m above a place,
+  where gravity takes over unless HOVER is on. Any input takes control back.
+- **Poses from the pilot's intent, not raw speed** (speeds span 7 m/s to astronomical):
+  stick pushed = cruise (one arm ahead), boost = streamlined, nearly straight down = feet
+  first. Landing: an upright flare in the last second when diving at the ground; landing
+  faster than 9 m/s (a fall of about 20 m on Mars) is a three-point landing that brakes
+  the skid and holds 0.45 s. Up held after a jump: a fist-up launch, and a ring of dust.
+- **Chase camera**: the figure drifts up to 0.7 m against a turn and settles back; on
+  foot the camera rises to keep the figure's chest in sight over ridges and drops back
+  2.5 m at super speed; through the telephoto the figure steps out of the picture.
 - **The cloak trails in vacuum too** (30 % of the atmospheric flow is kept). This is the
   one deliberate departure from physics, at the owner's request.
 - World hand-over (Mars ↔ Moon) happens when the other world's surface is nearer than
@@ -525,7 +543,8 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 | Earth is a blown-out white disc from the Moon and has no blue | 5 |
 | The character is still a simple figure: no visor detail, no backpack, clean white suit | 4 |
 | Dust puffs are soft round sprites: up close the single puffs can be told apart | 4 |
-| Far from every body there is only the HUD read-out to navigate by | 4 / 7 |
+| Far from every body only the target marker shows the way; there is no map yet | 7 |
+| Places on other worlds cannot be chosen until that world is home (no map yet) | 7 |
 | Triangles sit at ~420–480k of the 500k budget | watch |
 
 Fixed in milestone 3: the Moon had no maria or rays and Mars was one colour from orbit;

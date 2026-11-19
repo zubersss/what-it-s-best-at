@@ -442,12 +442,15 @@ export class App {
     ], this.targetId);
   }
 
-  // Turns the view to a target: the way a GO trip would set off (autopilot.js).
+  // Turns the view to a target: straight at a body in the sky; toward a place the way a GO
+  // trip would set off (over the horizon, autopilot.js).
   aimAt(id) {
     const t = this.resolveTarget(id, this._tgtA || (this._tgtA = {}));
     if (!t) return;
     this.targetId = id;
-    const p = this.rig.pos, a = aimDirection([p.x, p.y, p.z], t, this.world.radius, this._aimA || (this._aimA = [0, 0, 0]));
+    const p = this.rig.pos;
+    if (t.kind === 'body') { this.rig.lookAlong(new THREE.Vector3(t.pos[0] - p.x, t.pos[1] - p.y, t.pos[2] - p.z)); return; }
+    const a = aimDirection([p.x, p.y, p.z], t, this.world.radius, this._aimA || (this._aimA = [0, 0, 0]));
     this.rig.lookAlong(new THREE.Vector3(a[0], a[1], a[2]));
   }
 
@@ -492,6 +495,7 @@ export class App {
   updateTargetMarker() {
     const m = this.targetMarker;
     if (!m) return;
+    this.touch?.setGo(!!this.targetId, this.transfer);
     const t = this.targetId && !this.menuOpen && !this.benchmark?.active && (this.hud.visible || this.shotMode) ? this.resolveTarget(this.targetId, this._tgtM || (this._tgtM = {})) : null;
     if (!t) { if (m.visible) m.hide(); if (this.targetId && !this.resolveTarget(this.targetId, this._tgtM || (this._tgtM = {}))) this.targetId = null; return; }
     const rig = this.rig, p = rig.pos, cam = [p.x, p.y, p.z];
@@ -506,7 +510,6 @@ export class App {
     const when = here ? 'here' : this.transfer ? `arriving in ${fmtTime(this.targetEta)}` : `GO ${fmtTime(this.targetEta)}`;
     const shown = t.kind === 'place' ? dist : gap;          // a place: straight-line distance; a body: to its surface
     m.update(rig.camera, v.divideScalar(dist || 1), t.radius ? Math.asin(Math.min(1, t.radius / dist)) : 0, t.name, `${fmtDistance(shown)} · ${when}`);
-    this.touch?.setGo(true, this.transfer);
   }
 
   // Distances to everything else in the sky: speed limit for hero flight, collision with
@@ -770,17 +773,49 @@ export class App {
     } else if (rig.agl >= 20000) hero.uniforms.uSunVis.value = 1;
   }
 
-  // The character's body as four spheres for the sky light of the ground around it (see
-  // figureSky in the lighting chunk): torso, legs, and the two feet at the ends of the shins.
+  // What hides the sky from the ground beside it (contactSky in the lighting chunk), as
+  // camera-relative spheres in three groups: the character's body (torso, legs, two feet),
+  // the lander (cabin and descent stage), and the nearest rocks. Governor step "contact"
+  // turns the lander's and the rocks' off.
   updateOccluders() {
-    const occ = G.uOccluders.value, hero = this.hero;
-    if (!hero.group.visible) { for (const o of occ) o.w = 0; return; }
-    const b = hero.body, p = hero.group.position, c = hero.colliders, v = this._occV || (this._occV = new THREE.Vector3());
-    const at = (o, x, y, z, r) => { v.set(x, y, z).applyMatrix4(b.matrix).add(p); o.set(v.x, v.y, v.z, r); };
-    at(occ[0], 0, 0.30, 0, 0.27);
-    at(occ[1], 0, -0.42, 0, 0.17);
-    at(occ[2], c[5 * 7 + 10], c[5 * 7 + 11], c[5 * 7 + 12] + 0.04, 0.09);     // left foot (end of the left shin)
-    at(occ[3], c[7 * 7 + 10], c[7 * 7 + 11], c[7 * 7 + 12] + 0.04, 0.09);     // right foot
+    const occ = G.uOccluders.value, grp = G.uOccGroups.value, hero = this.hero, rig = this.rig;
+    const v = this._occV || (this._occV = new THREE.Vector3()), up = this._occU || (this._occU = new THREE.Vector3());
+    // the character
+    if (hero.group.visible) {
+      const b = hero.body, p = hero.group.position, c = hero.colliders;
+      const at = (o, x, y, z, r) => { v.set(x, y, z).applyMatrix4(b.matrix).add(p); o.set(v.x, v.y, v.z, r); };
+      at(occ[0], 0, 0.30, 0, 0.27);
+      at(occ[1], 0, -0.42, 0, 0.17);
+      at(occ[2], c[5 * 7 + 10], c[5 * 7 + 11], c[5 * 7 + 12] + 0.04, 0.09);     // left foot (end of the left shin)
+      at(occ[3], c[7 * 7 + 10], c[7 * 7 + 11], c[7 * 7 + 12] + 0.04, 0.09);     // right foot
+      grp[0].set(occ[0].x, occ[0].y, occ[0].z, 6);
+    } else { grp[0].w = 0; for (let i = 0; i < 4; i++) occ[i].w = 0; }
+    const contact = this.contact !== false;
+    // the lander (its position is the ground under its centre)
+    const lm = this.lander.mesh;
+    if (contact && lm.visible && lm.position.lengthSq() < 80 * 80) {
+      up.copy(this.lander.position).normalize();
+      v.copy(lm.position).addScaledVector(up, 2.6); occ[4].set(v.x, v.y, v.z, 2.0);
+      v.copy(lm.position).addScaledVector(up, 1.1); occ[5].set(v.x, v.y, v.z, 1.6);
+      occ[6].w = occ[7].w = 0;
+      v.copy(lm.position).addScaledVector(up, 1.5); grp[1].set(v.x, v.y, v.z, 10);
+    } else { grp[1].w = 0; occ[4].w = occ[5].w = 0; }
+    // the nearest rocks (they come first in the scatter), within 25 m
+    const rk = this.rocks, n = contact ? Math.min(rk.count ?? 0, rk.geometry.instanceCount) : 0;
+    let k = 0, cx = 0, cy = 0, cz = 0, reach = 0;
+    for (let i = 0; i < n && k < 8; i++) {
+      const x = rk.points[i * 3] - rig.pos.x, y = rk.points[i * 3 + 1] - rig.pos.y, z = rk.points[i * 3 + 2] - rig.pos.z;
+      const d2 = x * x + y * y + z * z;
+      if (d2 > 25 * 25) continue;
+      const r = 0.42 * (rk.aScale.getX(i) + rk.aScale.getY(i)) * 0.5;
+      occ[8 + k].set(x, y, z, r); cx += x; cy += y; cz += z; k++;
+    }
+    for (let i = 8 + k; i < 16; i++) occ[i].w = 0;
+    if (k) {
+      cx /= k; cy /= k; cz /= k;
+      for (let i = 0; i < k; i++) { const o = occ[8 + i]; reach = Math.max(reach, Math.hypot(o.x - cx, o.y - cy, o.z - cz) + 6 * o.w); }
+      grp[2].set(cx, cy, cz, reach);
+    } else grp[2].w = 0;
   }
 
   // Dust: thrown up where the character touches down, pushes off or skims the ground.

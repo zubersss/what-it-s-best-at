@@ -36,6 +36,12 @@ const SETS = [
   ['mars', 'gale', 'hero=1&heropose=run&posedir=side', '_hero_run'],
   ['mars', 'gale', 'hero=1&heropose=super&posedir=side', '_hero_super'],
   ['moon', 'ship', 'hero=1&heropose=jump&posedir=side', '_hero_jump'],
+  // flight poses (milestone 4): boosting and turning seen from the side over Gale, a
+  // three-point landing on the Moon, and the target marker on Olympus Mons from orbit
+  ['mars', 'gale', 'hero=1&heropose=fast&posedir=side&alt=30&pitch=-6', '_hero_fast'],
+  ['mars', 'gale', 'hero=1&heropose=bank&alt=30&pitch=-6', '_hero_bank'],
+  ['moon', 'ship', 'hero=1&heropose=land&posedir=side', '_hero_land'],
+  ['mars', 'canyon', 'alt=900000&pitch=-30&heading=280&target=place:olympus', '_target'],
 ];
 
 if (!flag('no-build')) {

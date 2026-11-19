@@ -29,6 +29,7 @@ export const G = {
   uGroundTint: { value: new THREE.Vector3(1, 1, 1) },
   // The character's body as four spheres (camera-relative centre, radius; radius 0 = none):
   // it hides part of the sky from the ground right under and around it.
-  uOccluders: { value: [new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4()] },
+  uOccluders: { value: Array.from({ length: 16 }, () => new THREE.Vector4()) },     // see contactSky in the lighting chunk
+  uOccGroups: { value: Array.from({ length: 3 }, () => new THREE.Vector4()) },
   // The Atmosphere adds its LUT textures and medium parameters here at start-up.
 };

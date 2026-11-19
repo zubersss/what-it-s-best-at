@@ -23,6 +23,7 @@ export const MODES = {
 export const FEATURE_STEPS = [
   { id: 'detail', label: 'close-up ground detail', apply: (app, off) => { app.quality.x = off ? 0 : 1; } },
   { id: 'soft-shadows', label: 'soft edges on rock and ship shadows', apply: (app, off) => { app.quality.y = off ? 0 : 1; } },
+  { id: 'contact', label: 'darkening at the foot of rocks and the lander', apply: (app, off) => { app.contact = !off; } },
   { id: 'edge-glow', label: "glow on a planet's edge at half detail", apply: (app, off) => { app.quality.z = off ? 0 : 1; } },
   { id: 'dust', label: 'half the kicked-up dust', apply: (app, off) => { app.dust.amount = off ? 0.5 : 1; } },
   { id: 'rocks', label: 'half the rocks', apply: (app, off) => { app.rocks.setFraction(off ? 0.5 : 1); } },
