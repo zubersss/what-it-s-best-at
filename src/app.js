@@ -504,7 +504,7 @@ export class App {
     // How long a GO trip from here takes (flown quickly in autopilot.js), twice a second.
     if (this.frameCount % 30 === 0 || this._etaFor !== this.targetId) {
       this._etaFor = this.targetId;
-      this.targetEta = gap > stop ? tripTime(cam, t, this.world.radius) : 0;
+      this.targetEta = gap > stop ? tripTime(cam, t, this.world.radius, p.length() - this.world.radius - rig.agl) : 0;
     }
     const here = gap <= stop * 1.05 || (t.kind === 'place' && gap < OVER_PLACE * 1.3);
     const when = here ? 'here' : this.transfer ? `arriving in ${fmtTime(this.targetEta)}` : `GO ${fmtTime(this.targetEta)}`;

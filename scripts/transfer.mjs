@@ -1,7 +1,7 @@
 // A hands-off trip (GO) flown without a browser, the way App.updateTransfer flies it, to
 // check that it arrives, how long it takes against the time the target marker predicts,
 // and that a trip to a place on the same world never touches the ground on the way.
-//   node scripts/transfer.mjs [--case body|place|both] [--arc 60] [--lat 30]
+//   node scripts/transfer.mjs [--case body|place|both] [--arc 60] [--lat 30] [--ground 0]
 // body: from 2 m above a Mars-sized world to a Moon-sized world 2000 of its radii away.
 // place: from 2 m above the ground to a place --arc degrees away along the surface (smooth
 // ground at height 0), the place --lat degrees off the start's latitude.
@@ -19,7 +19,7 @@ const input = { dx: 0, dy: 0, wheel: 0, moveX: 0, moveY: 0, down: () => false, h
 function fly(rig, target, world, others, label) {
   const around = {}, q = new THREE.Quaternion(), qi = new THREE.Quaternion(), want = new THREE.Vector3(), aim = [0, 0, 0];
   const p = rig.pos, cam = () => [p.x, p.y, p.z];
-  const predicted = tripTime(cam(), target, world.radius);
+  const predicted = tripTime(cam(), target, world.radius, rig.pos.length() - world.radius - rig.agl);
   rig.auto = { mult: 1 };
   if (rig.onFoot) rig._takeOff(8);
   let t = 0, minAlt = Infinity, arrived = -1, maxMult = 1;
@@ -62,13 +62,13 @@ if (which === 'body' || which === 'both') {
   fly(rig, tB, A, [{ pos: tB.pos, radius: B.radius, gravity: B.gravity }], 'to a Moon-sized world 2000 radii away');
 }
 if (which === 'place' || which === 'both') {
-  const arc = +opt('arc', '60') * DEG, lat = +opt('lat', '30') * DEG;
-  const rig = new CameraRig(A, () => 0);
+  const arc = +opt('arc', '60') * DEG, lat = +opt('lat', '30') * DEG, G = +opt('ground', '0');     // --ground: the whole world's ground this high above the datum
+  const rig = new CameraRig(A, () => G);
   rig.setMode('hero'); rig.hover = false;
-  rig.pos.set(A.radius + 2, 0, 0); rig.agl = 2;
+  rig.pos.set(A.radius + G + 2, 0, 0); rig.agl = 2;
   rig.lookAlong(new THREE.Vector3(0, 1, 0));
   const d = [Math.cos(lat) * Math.cos(arc), Math.cos(lat) * Math.sin(arc), Math.sin(lat)];
-  const tP = { kind: 'place', pos: d.map((x) => x * A.radius), radius: 0 };
+  const tP = { kind: 'place', pos: d.map((x) => x * (A.radius + G)), radius: 0 };
   const sep = Math.acos(d[0]) / DEG;
   fly(rig, tP, A, [], `to a place ${sep.toFixed(0)} degrees away on the same world`);
 }

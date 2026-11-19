@@ -23,7 +23,8 @@ const entries = await page.$$eval('#picker button b', (b) => b.map((x) => x.text
 check('the list has this world\'s places and the sky', entries.includes('Olympus Mons') && entries.includes('Phobos') && entries.includes('Sun'), entries.length + ' entries');
 await snap(path.join(out, '1_list.png'));
 await page.click('#picker button:has-text("Olympus Mons")');
-await page.waitForTimeout(4000);
+// frames are slow here: wait for the marker to carry its label
+await page.waitForFunction(() => /GO \d/.test(document.querySelector('#target')?.textContent || ''), null, { timeout: 120000 }).catch(() => {});
 check('picking closes the list', await page.isHidden('#picker'));
 const label = async () => page.evaluate(() => document.querySelector('#target')?.textContent || '');
 const l1 = await label();
@@ -50,7 +51,7 @@ check('during the trip the marker counts down', /arriving in|here/.test(l2), l2)
 
 // T cycles the targets; the stick takes control back
 await page.keyboard.press('KeyT');
-await page.waitForTimeout(1500);
+await page.waitForFunction(() => window.__app.targetId !== 'place:olympus', null, { timeout: 120000 }).catch(() => {});
 check('a key press of T picks the next target and ends the trip', !(await page.evaluate(() => window.__app.transfer)) && (await page.evaluate(() => window.__app.targetId)) !== 'place:olympus');
 await snap(path.join(out, '4_next.png'));
 

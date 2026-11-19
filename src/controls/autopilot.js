@@ -90,14 +90,17 @@ export function transferMult(clear, nearR) {
 // underfoot, or the target body). LAG covers what the point leaves out: the speed easing up
 // to its limit and the turn at the start, about a second and a half (measured with
 // scripts/transfer.mjs: within a few seconds of the trips it flies, longer for short hops).
-export function tripTime(cam, t, R, out = [0, 0, 0]) {
+// ground: the ground's height above the datum under the camera (metres); the speed rule
+// counts height above the ground, which near a place is the place's own ground height.
+export function tripTime(cam, t, R, ground = 0, out = [0, 0, 0]) {
   let x = cam[0], y = cam[1], z = cam[2], time = 0;
-  const stop = standoff(t), p = [0, 0, 0];
+  const stop = standoff(t), p = [0, 0, 0], gap0 = Math.max(1, gapTo(cam, t)), gEnd = t.kind === 'place' ? hyp(...t.pos) - R : ground;
   for (let n = 0; n < 4000; n++) {
     p[0] = x; p[1] = y; p[2] = z;
     const gap = gapTo(p, t);
     if (gap < stop) return time + 1.5;
-    const height = Math.max(0, hyp(x, y, z) - R);
+    const s = Math.min(1, Math.max(0, 1 - gap / gap0));
+    const height = Math.max(0, hyp(x, y, z) - R - (ground + (gEnd - ground) * s));
     const near = Math.max(1.5, t.kind === 'body' ? Math.min(height, gap) : height);
     const nearRadius = t.kind === 'body' && gap < height ? t.radius : R;
     const v = Math.min(SPACE_CAP, flightBase(near) * BOOST * transferMult(near, nearRadius));
@@ -105,7 +108,8 @@ export function tripTime(cam, t, R, out = [0, 0, 0]) {
     aimDirection(p, t, R, out);
     x += out[0] * ds; y += out[1] * ds; z += out[2] * ds;
     const r = hyp(x, y, z);
-    if (r < R + 1.2) { const k = (R + 1.2) / r; x *= k; y *= k; z *= k; }
+    const floor = R + ground + (gEnd - ground) * Math.min(1, Math.max(0, 1 - gap / gap0)) + 1.2;
+    if (r < floor) { const k = floor / r; x *= k; y *= k; z *= k; }
     time += ds / v;
   }
   return Infinity;

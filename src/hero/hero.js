@@ -109,8 +109,9 @@ export class Hero {
     if (!this.started) this.foot = onFoot ? 1 : 0;
     const speed = motion.velocity.length();
     const hv = this._hv.copy(motion.velocity).addScaledVector(up, -motion.velocity.dot(up)), hspeed = hv.length();
-    // (going nearly straight down, it descends feet first, upright; a dive forward stays head first)
-    const sinking = speed > 0.5 ? THREE.MathUtils.smoothstep(-motion.velocity.dot(up) / speed, 0.6, 0.92) : 0;
+    // (going nearly straight down without the boost, it descends feet first, upright; a dive
+    // forward, or with the boost, stays head first)
+    const sinking = speed > 0.5 && !motion.boost ? THREE.MathUtils.smoothstep(-motion.velocity.dot(up) / speed, 0.6, 0.92) : 0;
     const target = onFoot ? 0 : Math.min(1, motion.throttle * 1.2) * (speed > 0.5 ? 1 : 0) * (1 - sinking);
     this.flight += (target - this.flight) * (1 - Math.exp(-dt * 3.2));
     const boostTarget = !onFoot && motion.boost && motion.throttle > 0.5 ? 1 : 0;
