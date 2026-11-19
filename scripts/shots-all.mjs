@@ -1,6 +1,6 @@
 // The full reference set: every bookmark on every world, each world from orbit, and the
 // character. Builds the site first and takes every picture from dist/, in the phone's
-// shape (880 x 412 CSS px).   node scripts/shots-all.mjs [--no-build] [--only moon] [--out docs/shots]
+// shape (880 x 412 CSS px).   node scripts/shots-all.mjs [--no-build] [--only moon] [--out docs/shots] [--distdir <frozen build>]
 // Software WebGL: expect 1-3 minutes per picture. Run it in the background.
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -44,7 +44,9 @@ const SETS = [
   ['mars', 'canyon', 'alt=900000&pitch=-30&heading=280&target=place:olympus', '_target'],
 ];
 
-if (!flag('no-build')) {
+// --distdir <copy of a build>: take every picture from that frozen copy (and do not build)
+const distDir = opt('distdir', null);
+if (!flag('no-build') && !distDir) {
   const b = spawnSync('npx', ['vite', 'build'], { cwd: root, stdio: 'inherit' });
   if (b.status !== 0) process.exit(1);
 }
@@ -52,6 +54,7 @@ let failed = 0;
 for (const [world, shots, query, suffix] of SETS) {
   if (only && !`${world}${suffix}`.includes(only)) continue;
   const a = ['scripts/shots.mjs', '--dist', '--world', world, '--shot', shots, '--size', '880x412', '--dsf', '1.25', '--timeout', '720', '--out', out];   // night scenes need ~570 frames for exposure to settle, the busiest day views ~270
+  if (distDir) a.push('--distdir', distDir);
   if (query) a.push('--query', query);
   if (suffix) a.push('--suffix', suffix);
   const r = spawnSync('node', a, { cwd: root, stdio: 'inherit' });
