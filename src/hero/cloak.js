@@ -100,7 +100,7 @@ export class Cloak {
     // Flag flutter: waves pushing along the cloak's own normal (the wearer's back, local z)
     // that run down its length, quicker and stronger with the flow. Drag alone lines the
     // cloth up with the air into a flat sheet, which seen from the side was a stick or a plank.
-    const fl = (1.4 + 3.0 * air) * Math.min(1, wlen / 8), fw = Math.min(26, 4 + 0.9 * wlen);
+    const fl = (1.4 + 3.0 * air) * Math.min(2, wlen / 8), fw = Math.min(26, 4 + 0.9 * wlen);     // (up to twice as strong in a fast stream, or it is pulled flat)
     const bx = e[6], by = e[7], bz = e[8], sx = e[0], sy = e[1], sz = e[2];
     // forces
     for (let i = NX; i < n; i++) {

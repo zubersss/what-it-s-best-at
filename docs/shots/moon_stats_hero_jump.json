@@ -3,17 +3,17 @@
     "calls": 154,
     "triangles": 478925,
     "chunks": 114,
-    "loaded": 375,
+    "loaded": 376,
     "visited": 342,
     "wanted": 0,
     "lodScale": 0.808,
-    "avgBuildMs": 49.6,
-    "exposure": 31.62,
+    "avgBuildMs": 80.5,
+    "exposure": 31.47,
     "surface": [
       0.592,
-      0.129
+      0.131
     ],
-    "frame": 235,
+    "frame": 243,
     "wait": ""
   }
 }
