@@ -665,6 +665,7 @@ export class App {
     this.rocks.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
     this.lander.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
     this.updateHero(dt, sunHalf);
+    this.updateOccluders();                         // (also with the character hidden: the lander and rocks)
 
     // 4. Atmosphere LUTs
     governor.beginFrame();
@@ -784,7 +785,6 @@ export class App {
     const zoomed = rig.fov < rig.baseFov * 0.55;
     hero.body.visible = hero.cape.visible = !zoomed;
     hero.group.updateMatrixWorld(true);
-    this.updateOccluders();
     this.updateDust(dt, env);
     // Is the hero in a terrain shadow? Ask a worker now and then (cheap single ray).
     if (rig.agl < 20000 && !this.heroVisPending && this.frameCount % 20 === 0) {
