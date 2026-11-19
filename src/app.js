@@ -822,15 +822,23 @@ export class App {
       occ[6].w = occ[7].w = 0;
       v.copy(lm.position).addScaledVector(up, 1.5); grp[1].set(v.x, v.y, v.z, 10);
     } else { grp[1].w = 0; occ[4].w = occ[5].w = 0; }
-    // the nearest rocks (they come first in the scatter), within 25 m
-    const rk = this.rocks, n = contact ? Math.min(rk.count ?? 0, rk.geometry.instanceCount) : 0;
-    let k = 0, cx = 0, cy = 0, cz = 0, reach = 0;
-    for (let i = 0; i < n && k < 8; i++) {
+    // the eight nearest rocks in front of the camera within 25 m, from the first 96 of the
+    // scatter (it comes nearest cells first)
+    const rk = this.rocks, n = contact ? Math.min(rk.count ?? 0, rk.geometry.instanceCount, 96) : 0, f = rig.forward;
+    const best = this._occBest || (this._occBest = []);
+    best.length = 0;
+    for (let i = 0; i < n; i++) {
       const x = rk.points[i * 3] - rig.pos.x, y = rk.points[i * 3 + 1] - rig.pos.y, z = rk.points[i * 3 + 2] - rig.pos.z;
       const d2 = x * x + y * y + z * z;
-      if (d2 > 25 * 25) continue;
-      const r = 0.42 * (rk.aScale.getX(i) + rk.aScale.getY(i)) * 0.5;
-      occ[8 + k].set(x, y, z, r); cx += x; cy += y; cz += z; k++;
+      if (d2 > 25 * 25 || x * f.x + y * f.y + z * f.z < -2) continue;
+      best.push(Math.floor(d2 * 10) * 1000 + i);       // sorts by distance (0.1 m^2 steps), carries the index (< 1000)
+    }
+    best.sort((a, b) => a - b);
+    let k = 0, cx = 0, cy = 0, cz = 0, reach = 0;
+    for (; k < Math.min(8, best.length); k++) {
+      const i = best[k] % 1000;
+      const x = rk.points[i * 3] - rig.pos.x, y = rk.points[i * 3 + 1] - rig.pos.y, z = rk.points[i * 3 + 2] - rig.pos.z;
+      occ[8 + k].set(x, y, z, 0.42 * (rk.aScale.getX(i) + rk.aScale.getY(i)) * 0.5); cx += x; cy += y; cz += z;
     }
     for (let i = 8 + k; i < 16; i++) occ[i].w = 0;
     if (k) {
