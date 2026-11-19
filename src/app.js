@@ -749,7 +749,7 @@ export class App {
           clock: 0, landedAt: fp.landSpeed ? -0.35 : -99, landSpeed: fp.landSpeed || 0, upHeld: fp.upHeld || 0 };
         if (fp.jump) pose.heroRel = rig.heroRel.clone().addScaledVector(U, 1.6);
       } else {
-        // fly: cruising; fast: boosting; bank: cruising in a left turn; climb: straight up
+        // fly: cruising; fast: boosting; bank: cruising in a right turn; climb: straight up
         const hp = this.params.heropose, flying = hp !== 'hover';
         const along = this.params.posedir === 'side' ? rig.right : rig.forward;     // side: flying across the view, to the right
         const v = hp === 'climb' ? new THREE.Vector3(...rig.localUp).multiplyScalar(30) : along.clone().multiplyScalar(flying ? 30 : 0);

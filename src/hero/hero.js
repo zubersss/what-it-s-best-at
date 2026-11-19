@@ -117,7 +117,8 @@ export class Hero {
     this.boost += (boostTarget - this.boost) * (1 - Math.exp(-dt * (boostTarget ? 2.5 : 1.8)));
     // Banking: into a turn of the view, and into sideways flight (the stick pushed to a side).
     const side = speed > 0.5 ? THREE.MathUtils.clamp(motion.velocity.dot(rig.right) / speed, -1, 1) : 0;
-    const bankTarget = THREE.MathUtils.clamp(-motion.yawRate / 60 - side * 0.9, -1, 1) * 0.75;
+    // (yawRate > 0: turning right; bank > 0 rolls the right side down, into the turn)
+    const bankTarget = THREE.MathUtils.clamp(motion.yawRate / 60 + side * 0.9, -1, 1) * 0.75;
     this.bank += (bankTarget - this.bank) * (1 - Math.exp(-dt * 4));
     // Coming in to land (flying, not hovering): in the last second or so before the feet
     // would touch, the body swings upright and the legs reach down.
@@ -182,7 +183,7 @@ export class Hero {
       -0.16 - sway, -0.13 + Math.min(0, lean), -0.34 + breathe,
       -0.12 + sway - this.legSwing, 0.04, 0.50 + this.legSwing * 0.5,
       -0.05 - sway - this.legSwing, -0.04, 0.16 + Math.max(0, this.legSwing)]);
-    C.set([0.30 + flutter, 0.16 + Math.max(0, lean) * 1.6 + Math.max(0, -this.bank) * 0.5, -0.30,
+    C.set([0.30 + flutter, Math.max(0.03, 0.16 + lean * 1.4), -0.30,          // (the trailing arm swings out in a right turn, tucks in a left one)
       -(Math.PI - 0.22), -0.06 + Math.min(0, lean), -0.14,
       0.06, 0.06, 0.62 + flutter,
       -0.06, -0.03, 0.10]);
