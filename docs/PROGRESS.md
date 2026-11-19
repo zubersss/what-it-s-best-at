@@ -569,6 +569,32 @@ hand-over; lunar chunk build time (72 → 41 ms); haze ignoring terrain shadow; 
 reading as dunes; the far wall's haze (in part: 15 % less dust); rigid limbs and the
 cloak passing through arms and legs; Phobos and Deimos checked.
 
+## Tests and measurements, milestone 4
+
+- **GO trips without a browser** (`npm run transfer`, a Mars-sized world): to a Moon-sized
+  world 2000 of its radii away, 27.6 s (the marker predicted 26.6 s), extra boost ×2 in
+  open space; to a place 64° away, 39.7 s (predicted 38.8 s); 70° from ground 5 km up,
+  40.1 s (38.5 s); 169° away, 44.9 s (41.3 s); a 3° hop, 21.7 s (33.3 s: the estimate is
+  long for short hops). No trip touches the ground; the straight-line distance grows by at
+  most 4 % on the way except to the far side (31 %, it goes up and over), which is why a
+  place's distance is shown along the ground.
+- **Target list and GO in the game** (`npm run target`): the list holds 16 entries on
+  Mars; picking one closes it; the marker reads "Olympus Mons · 4487 km · GO 37 s"; GO
+  climbs to 1176 km and closes from 4487 to 1540 km along the ground; the marker counts
+  down; `T` picks the next target and ends the trip.
+- **Fly-bys** (`scripts/flyby.mjs`): aimed trips still land; a 60-radii miss passes at 1.3
+  radii and lands once released, the sweep held to 44°/s.
+- **Governor simulation**: unchanged behaviour with the new `contact` step.
+- **Poses** checked by eye from the side and behind over Gale (cruise, boost, turning,
+  climbing, hover, three-point landing, launch). Found and fixed on the way: the figure
+  banked away from turns (sign error since milestone 2), faced the camera when climbing
+  straight up, and dove feet first when boosting downward; the trailing legs were cut off
+  by the frame's bottom edge (the figure now sits 0.9 m below the view's axis, was 1.2).
+- **Suit** (helper): 3,568 → 5,242 triangles without the cloak, no new meshes or
+  textures; exposure unchanged by the visor's glints (Mars 223.9 → 224.3).
+- **Dust** (helper): one draw call, 1024 particles, no textures; the governor's dust
+  step now also drops the cloud's small lumps and its self-shadowing.
+
 ## Tests and measurements, milestone 3
 
 - **Flight**: `flyby` as after the flight fix (an aimed trip lands in 13 s within 0.1°; a
@@ -774,3 +800,13 @@ Weakest: `mars_ledge_orbit_globe`.
   Mars's colours from orbit (helper); walking, super speed and real-gravity jumps on foot.
   Tools `foot-test`, `vista`/`cliff` searches (session scratch only), shot parameters
   `heropose=stand|walk|run|super|jump`, `posedir`, `debug=nofar|norelief|nofarrough|noboost`.
+- **Milestone 4 (character and flight feel)**: cruise, boost, banking, climbing and
+  feet-first poses; landing flare, three-point landing, launch pose, take-off dust; target
+  list (this world's real places, the bodies in the sky, the Sun) with a marker, distance
+  and trip time; GO hands-off trips with a transfer boost; chase-camera drift, sight over
+  ridges, super-speed pull-back, figure hidden through the telephoto; darkening at the
+  foot of the figure, the lander and rocks; the suit's detail (helper); dust clouds and
+  sprays (helper). Tools `transfer`, `target`, `scripts/lib/glLimits.mjs` (phone shader
+  limits in smoke and every screenshot run), `--distdir`; shot parameters
+  `heropose=fast|bank|climb|land|launch`, `target=`, `debug=contactx4`.
+
