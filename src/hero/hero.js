@@ -139,8 +139,15 @@ export class Hero {
     // Cruising, the body is tipped a little short of the direction of travel (head up);
     // boosting, it lies along it.
     const head = this._y.copy(up).lerp(dir, fs * (0.82 + 0.18 * b)).normalize();
-    const chest = this._x.copy(rig.forward).lerp(this.facing, this.foot).lerp(this._g.copy(rig.up).negate(), fs);
-    chest.addScaledVector(head, -chest.dot(head)).normalize();
+    // The chest faces the ground in flight (down from the view), and away from the camera
+    // when the body is upright: climbing straight up, "down from the view" lies along the
+    // body, and on its own it left the chest to a rounding error that turned the figure to
+    // face the camera. The small share of the view's forward settles that case.
+    const flyChest = this._g.copy(rig.up).negate().addScaledVector(rig.forward, 0.35);
+    const chest = this._x.copy(rig.forward).lerp(this.facing, this.foot).lerp(flyChest, fs);
+    chest.addScaledVector(head, -chest.dot(head));
+    if (chest.lengthSq() < 1e-6) chest.copy(rig.forward).addScaledVector(head, -rig.forward.dot(head));
+    chest.normalize();
     const left = this._g.crossVectors(head, chest).normalize();
     this._m4.makeBasis(left, head, chest);
     this.body.quaternion.setFromRotationMatrix(this._m4);
