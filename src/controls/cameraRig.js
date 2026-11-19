@@ -342,9 +342,9 @@ export class CameraRig {
   standUp() {
     if (this.mode !== 'hero') return;
     this._basis();
-    const c = this._t.copy(this.pos).addScaledVector(this.forward, this.chaseBack).addScaledVector(this.up, -HERO_DROP);
+    const c = this._t.copy(this.pos).addScaledVector(this.forward, HERO_DISTANCE).addScaledVector(this.up, -HERO_DROP);     // (a jump to a new place: the bookmarks' distance)
     const l = c.length(), d = this._dir; d[0] = c.x / l; d[1] = c.y / l; d[2] = c.z / l;
-    this.feet.copy(c).setLength(this.world.radius + this._ground(d, this.chaseBack));
+    this.feet.copy(c).setLength(this.world.radius + this._ground(d, HERO_DISTANCE));
     this.onFoot = true; this.airborne = false; this.airTime = 0; this.vUp = 0; this.upHeld = 0;
     this.footVel.set(0, 0, 0); this.velocity.set(0, 0, 0);
     this.roll = 0; this._camAlt = null; this._camBack = FOOT.camBack; this._camDrop = FOOT.camDrop;
@@ -386,6 +386,7 @@ export class CameraRig {
   _takeOff(upSpeed) {
     this.takeoffs = (this.takeoffs || 0) + 1;          // the app throws up dust for each
     this.onFoot = false; this.airborne = false; this._jumped = false;
+    this.landSpeed = 0;                                // (no kneel or stick lock left over for later)
     this.velocity.copy(this.footVel).addScaledVector(this._u.set(this.localUp[0], this.localUp[1], this.localUp[2]), upSpeed);
     this._relFrom.copy(this.heroRel); this._relBlend = 1;
   }

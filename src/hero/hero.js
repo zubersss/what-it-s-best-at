@@ -172,7 +172,7 @@ export class Hero {
     this._m3.setFromMatrix4(this.body.matrix);
 
     // Acceleration felt by the figure (for the trailing lag, the legs and the cloak's inertia).
-    if (!this.started) { this.prevVel.copy(motion.velocity); this.lag.set(0, 0, 0); this.legSwing = 0; }
+    if (!this.started) { this.prevVel.copy(motion.velocity); this.lag.set(0, 0, 0); this.turnLead.set(0, 0); this._pitch0 = rig.pitch ?? 0; this.legSwing = 0; }
     this.accel.copy(motion.velocity).sub(this.prevVel).divideScalar(Math.max(dt, 1e-3));
     this.prevVel.copy(motion.velocity);
     const aLen = this.accel.length();
@@ -227,12 +227,13 @@ export class Hero {
       const rising = THREE.MathUtils.clamp((motion.vUp || 0) / 2, 0, 1);
       // Landing: a crouch that absorbs the impact, deeper for harder landings.
       const since = (motion.clock ?? 0) - (motion.landedAt ?? -99);
-      crouch = since >= 0 && since < 1.5 ? Math.exp(-since * 5) * THREE.MathUtils.clamp((motion.landSpeed || 0) / 7, 0, 1) : 0;
+      crouch = onFoot && since >= 0 && since < 1.5 ? Math.exp(-since * 5) * THREE.MathUtils.clamp((motion.landSpeed || 0) / 7, 0, 1) : 0;
       // A hard landing (a fall of some 20 m on Mars) ends in a three-point landing: one knee
       // down, a hand on the ground, held for a moment before standing.
-      const hard = THREE.MathUtils.smoothstep(motion.landSpeed || 0, 9, 16);
+      // (all or nothing: the pose reaches the ground only at full weight)
+      const hard = THREE.MathUtils.smoothstep(motion.landSpeed || 0, 9, 10.5);
       // (a jump or take-off straight out of it lets go of the kneel at once)
-      this.kneel = motion.airborne ? this.kneel * Math.exp(-dt * 10)
+      this.kneel = motion.airborne || !onFoot ? this.kneel * Math.exp(-dt * 10)
         : since >= 0 && since < 2.2 ? hard * (since < 0.6 ? 1 : Math.exp(-(since - 0.6) * 3.5)) : 0;
       crouch *= 1 - hard;
       // Up still held after a jump: the launch into flight, fist up, legs together.
@@ -255,8 +256,8 @@ export class Hero {
       // reaches straight down to a fist on the ground)
       const K = this._kneelPose || (this._kneelPose = new Float32Array([
         -0.15, 0.60, -0.40,       // left arm out behind, for balance
-        -1.05, -0.14, -0.05,      // right arm straight down to the ground
-        -2.50, 0.10, 1.15,        // left leg: foot planted ahead
+        -1.12, -0.14, -0.05,      // right arm straight down to the ground
+        -2.70, 0.10, 1.55,        // left leg: foot planted ahead
         -0.95, -0.06, 1.40]));    // right leg: knee on the ground, shin along it
       const L = this._launchPose || (this._launchPose = new Float32Array([
         0.12, 0.12, -0.25,  -(Math.PI - 0.12), -0.04, -0.05,  0.05, 0.02, 0.08,  0.03, -0.02, 0.06]));
@@ -282,7 +283,9 @@ export class Hero {
       const kd = Math.exp(-dt * 8);
       this.lag.multiplyScalar(kd); this.turnLead.multiplyScalar(kd);
       this._pitch0 = rig.pitch ?? 0;
-      p.add(this.lag).addScaledVector(rig.right, this.turnLead.x).addScaledVector(rig.up, this.turnLead.y);
+      const o = this._x.copy(this.lag).addScaledVector(rig.right, this.turnLead.x).addScaledVector(rig.up, this.turnLead.y);
+      if (onFoot) o.addScaledVector(up, -o.dot(up));        // (on foot the soles stay on the ground)
+      p.add(o);
     } else {
       // A chase camera: turning the view swings the camera round the figure, so the figure
       // drifts against the turn for a moment (up to ~0.7 m) and settles back to the centre.

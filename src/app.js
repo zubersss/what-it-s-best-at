@@ -551,8 +551,11 @@ export class App {
     // horizon, not through the ground (it seemed to label whatever lay in front of it).
     let beyond = false;
     if (t.kind === 'place') {
-      const R = this.world.radius, r = p.length(), tc = -(p.x * v.x + p.y * v.y + p.z * v.z);   // closest approach to the centre
-      if (tc > 0 && tc < dist && r * r - tc * tc < (R * 0.999) * (R * 0.999) && r > R) {
+      // (against a sphere through whichever is lower, the eye or the place, 50 m down: the
+      // ground there can lie kilometres below the datum, on the Moon and at Gale)
+      const r = p.length(), tc = -(p.x * v.x + p.y * v.y + p.z * v.z);   // closest approach to the centre
+      const R = Math.min(r, Math.hypot(t.pos[0], t.pos[1], t.pos[2])) - 50;
+      if (tc > 0 && tc < dist && r * r - tc * tc < R * R) {
         beyond = true;
         const up = (this._upM || (this._upM = new THREE.Vector3())).copy(p).divideScalar(r);
         const dip = Math.acos(Math.min(1, R / r));
