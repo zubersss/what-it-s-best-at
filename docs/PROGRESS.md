@@ -585,10 +585,15 @@ cloak passing through arms and legs; Phobos and Deimos checked.
   goes up and over), which is why a place's distance is shown along the ground. Found on
   the way: after the target body became home, the "never through the world" rule kept the
   aim on its edge, so a trip to another world would never have landed.
-- **Target list and GO in the game** (`npm run target`): the list holds 16 entries on
-  Mars; picking one closes it; the marker reads "Olympus Mons · 4487 km · GO 37 s"; GO
-  climbs to 1176 km and closes from 4487 to 1540 km along the ground; the marker counts
-  down; `T` picks the next target and ends the trip.
+- **Target list and GO in the game** (`npm run target`, final build): the list holds 16
+  entries on Mars; picking one closes it; the marker reads "Olympus Mons · 4487 km · GO
+  17 s"; GO climbs to 200 km and closes from 4487 to 422 km along the ground; the marker
+  counts down; `T` picks the next target and ends the trip.
+- **Smoke** (final build): start screen, modes, HUD and a full benchmark pass; most at once
+  90 draw calls, 237k triangles, about 183 MB; 21 shaders, the fullest (terrain) reads 15
+  of a phone's 16 textures; none fails to compile.
+- **On foot** (`npm run foot`, final build): both worlds pass; jumps peak at 3.37 m (Mars)
+  and 7.64 m (Moon); a hard landing's kneel does not stop the test's walk afterwards.
 - **Fly-bys** (`scripts/flyby.mjs`): aimed trips still land; a 60-radii miss passes at 1.3
   radii and lands once released, the sweep held to 44°/s.
 - **Governor simulation**: unchanged behaviour with the new `contact` step.
