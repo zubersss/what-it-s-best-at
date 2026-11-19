@@ -813,6 +813,7 @@ export class App {
       grp[0].set(occ[0].x, occ[0].y, occ[0].z, 6);
     } else { grp[0].w = 0; for (let i = 0; i < 4; i++) occ[i].w = 0; }
     const contact = this.contact !== false;
+    this._occX ??= this.params.debug.includes('contactx4') ? 4 : 1;      // ?debug=contactx4: rock spheres 4x (to see it work)
     // the lander (its position is the ground under its centre)
     const lm = this.lander.mesh;
     if (contact && lm.visible && lm.position.lengthSq() < 80 * 80) {
@@ -838,7 +839,7 @@ export class App {
     for (; k < Math.min(8, best.length); k++) {
       const i = best[k] % 1000;
       const x = rk.points[i * 3] - rig.pos.x, y = rk.points[i * 3 + 1] - rig.pos.y, z = rk.points[i * 3 + 2] - rig.pos.z;
-      occ[8 + k].set(x, y, z, 0.42 * (rk.aScale.getX(i) + rk.aScale.getY(i)) * 0.5); cx += x; cy += y; cz += z;
+      occ[8 + k].set(x, y, z, this._occX * 0.42 * (rk.aScale.getX(i) + rk.aScale.getY(i)) * 0.5); cx += x; cy += y; cz += z;
     }
     for (let i = 8 + k; i < 16; i++) occ[i].w = 0;
     if (k) {
