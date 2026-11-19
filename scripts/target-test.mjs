@@ -11,7 +11,7 @@ await mkdir(out, { recursive: true });
 const { base, page, problems, snap, goto, close } = await open({ dist: flag('dist'), touch: true });
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${extra ? '  (' + extra + ')' : ''}`); if (!ok) problems.push(name); };
 
-await goto(`${base}?world=mars&touch=1`);
+await goto(`${base}?world=mars&touch=1&scale=0.4`);          // (a low render scale: frames are slow here)
 await page.waitForFunction(() => window.__app?.groundReady, null, { timeout: 400000 });
 await page.click('#start button.primary');
 await page.waitForTimeout(3000);
@@ -39,11 +39,15 @@ const g0 = await gap();
 await page.dispatchEvent('#tbuttons button.go', 'pointerdown');
 await page.waitForTimeout(500);
 check('GO starts a trip', await page.evaluate(() => window.__app.transfer));
+// Frames are slow and uneven here, and each counts as at most 0.1 s of flight: wait for
+// 300 frames (30 s of the trip or more) rather than for a time, at most 15 minutes.
 let g1 = g0, alt = 0;
-for (let i = 0; i < 100; i++) {          // up to five minutes: frames are slow and uneven here
+const f0 = await page.evaluate(() => window.__app.frameCount), t0 = Date.now();
+while (Date.now() - t0 < 900000) {
   await page.waitForTimeout(3000);
   g1 = await gap(); alt = await page.evaluate(() => window.__app.rig.agl);
   if (!(await page.evaluate(() => window.__app.transfer)) || g1 < 0.5 * g0) break;
+  if ((await page.evaluate(() => window.__app.frameCount)) - f0 > 300) break;
 }
 check('the trip climbs and closes on the place', g1 < 0.9 * g0 && alt > 100, `${(g0 / 1e3).toFixed(0)} km -> ${(g1 / 1e3).toFixed(0)} km, ${(alt / 1e3).toFixed(1)} km up`);
 await snap(path.join(out, '3_trip.png'));
