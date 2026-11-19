@@ -278,7 +278,7 @@ void main() {
   float sigma = mix(uRoughness, uFarRoughness, farW);
   float diffuse = groundDiffuse(N, uSunDir, V, sigma);
   vec3 direct = directSun(planetPos) * shadow * diffuse;
-  vec3 ambient = (skyLight(N, up) * ao + planetShine(N)) / PI;
+  vec3 ambient = (skyLight(N, up) * ao + planetShine(N)) * figureSky(vRel, N) / PI;
   vec3 col = albedo * (direct + ambient);
   col = aerialPerspective(col, vRel, albedo);      // the haze above depends on how bright the ground is
   fragColor = vec4(col * uExposure, 1.0);

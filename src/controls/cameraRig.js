@@ -82,6 +82,9 @@ export class CameraRig {
     this.heroRel = new THREE.Vector3(0, -HERO_DROP, -HERO_DISTANCE);
     this._relFrom = new THREE.Vector3(); this._relBlend = 0;
     this._camAlt = null; this._camBack = FOOT.camBack; this._camDrop = FOOT.camDrop;
+    // groundAt(dir, camDist) -> height of the ground as drawn (or null): set by the app, so
+    // the character stands on the ground the player sees, not on the finer height function.
+    this.groundAt = null;
     this._h = new THREE.Vector3(); this._r = new THREE.Vector3(); this._u = new THREE.Vector3(); this._t = new THREE.Vector3();
   }
 
@@ -251,7 +254,7 @@ export class CameraRig {
       // gravity (a person's fall, not the flight's gentle pull) until it lands.
       if (!this.hover && this.landing !== false && upDown <= 0) {
         const c = this._r.copy(p).add(rel), cl = c.length(), d = this._dir; d[0] = c.x / cl; d[1] = c.y / cl; d[2] = c.z / cl;
-        const clear = cl - this.world.radius - this.heightAt(d) - FOOT.body;
+        const clear = cl - this.world.radius - this._ground(d, HERO_DISTANCE) - FOOT.body;
         const vu = v.x * this.localUp[0] + v.y * this.localUp[1] + v.z * this.localUp[2];
         if ((clear < 0.25 && vu < 0.5) || (this.throttle < 0.05 && clear < FOOT.dropBelow)) this._toFoot(c, clear);
       }
@@ -310,6 +313,17 @@ export class CameraRig {
     this.onFoot = false;                       // (the app stands the character up where it should: standUp)
   }
 
+  // The ground under a direction for anything standing on it: as drawn if known.
+  // While the ground is still loading (the drawn chunk metres off the real height) the real
+  // height is used, blended over 2-6 m: standing on a coarse first draft would carry the
+  // character up and down by hundreds of metres as the detail arrives.
+  _ground(d, camDist) {
+    const e = this.heightAt(d), g = this.groundAt ? this.groundAt(d, camDist) : null;
+    if (g == null) return e;
+    const x = Math.min(1, Math.max(0, (Math.abs(g - e) - 2) / 4));
+    return g + (e - g) * x * x * (3 - 2 * x);
+  }
+
   // Metres between the camera and the ground below it (agl can be a stale placeholder).
   clearance() {
     const p = this.pos, l = p.length(), d = this._dir; d[0] = p.x / l; d[1] = p.y / l; d[2] = p.z / l;
@@ -323,7 +337,7 @@ export class CameraRig {
     this._basis();
     const c = this._t.copy(this.pos).addScaledVector(this.forward, HERO_DISTANCE).addScaledVector(this.up, -HERO_DROP);
     const l = c.length(), d = this._dir; d[0] = c.x / l; d[1] = c.y / l; d[2] = c.z / l;
-    this.feet.copy(c).setLength(this.world.radius + this.heightAt(d));
+    this.feet.copy(c).setLength(this.world.radius + this._ground(d, HERO_DISTANCE));
     this.onFoot = true; this.airborne = false; this.airTime = 0; this.vUp = 0; this.upHeld = 0;
     this.footVel.set(0, 0, 0); this.velocity.set(0, 0, 0);
     this.roll = 0; this._camAlt = null; this._camBack = FOOT.camBack; this._camDrop = FOOT.camDrop;
@@ -390,13 +404,19 @@ export class CameraRig {
     if (this.upHeld > FOOT.takeoffHold) { this._takeOff(Math.max(this.vUp, 6)); return; }
 
     // Move: horizontally along the ground's tangent plane, vertically under gravity.
-    const r0 = f.length(), alt0 = r0 - R;
+    const r0 = f.length();
+    let alt0 = r0 - R;
+    const d0 = this._d0 || (this._d0 = [0, 0, 0]); d0[0] = f.x / r0; d0[1] = f.y / r0; d0[2] = f.z / r0;
+    const camDist = this.pos.distanceTo(f);
+    // The ground where the feet were, as drawn now: when finer detail has arrived there since
+    // the last frame, the ground moved under a standing figure; that is not a ledge.
+    if (!this.airborne) alt0 = this._ground(d0, camDist);
     const g = this.world.gravity * (R / r0) * (R / r0);
     f.addScaledVector(v, dt);
     let alt = alt0;
     if (this.airborne) { alt += this.vUp * dt - 0.5 * g * dt * dt; this.vUp -= g * dt; this.airTime += dt; }
     const l = f.length(), d = this._dir; d[0] = f.x / l; d[1] = f.y / l; d[2] = f.z / l;
-    const ground = this.heightAt(d);
+    const ground = this._ground(d, camDist);
     if (this.airborne) {
       if (alt <= ground) {
         this.landSpeed = -this.vUp; this.landedAt = this.clock;
@@ -434,7 +454,7 @@ export class CameraRig {
     this._camBack += (FOOT.camBack - this._camBack) * k; this._camDrop += (FOOT.camDrop - this._camDrop) * k;
     p.copy(body).addScaledVector(this.forward, -this._camBack).addScaledVector(this.up, this._camDrop);
     const l = p.length(), d = this._dir; d[0] = p.x / l; d[1] = p.y / l; d[2] = p.z / l;
-    const ground = this.world.radius + this.heightAt(d);
+    const ground = this.world.radius + Math.max(this.heightAt(d), this._ground(d, 0));
     let r = Math.max(l, ground + 0.6);
     if (this._camAlt == null || dt <= 0) this._camAlt = r;
     else this._camAlt = Math.max(ground + 0.6, this._camAlt + (r - this._camAlt) * (1 - Math.exp(-dt * FOOT.camRise)));

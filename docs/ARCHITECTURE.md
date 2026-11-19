@@ -277,6 +277,12 @@ exposure alone decides whether they are visible (rule 2).
   figure blends from the hover pose to a gait (stride, lean, arm swing, jump tuck, landing
   crouch) by `hero.foot`. Hand-overs: `standUp`, `_toFoot` (landing or a real fall from
   flight), `_takeOff`. Constants in `FOOT` (cameraRig.js).
+  The soles stand on the ground as it is drawn (`rig.groundAt` → `terrain.drawnHeight`:
+  the deepest live chunk's triangle under the feet, morph included), blended to the exact
+  height function when the two differ by 2–6 m (first drafts while loading). Ledges are
+  judged drawn-against-drawn. The figure hides sky light from the ground under it
+  (`uOccluders`, four spheres written by `app.updateOccluders`, `figureSky` in the
+  lighting chunk).
   Near the ground it shares the terrain's depth buffer; once the terrain's near plane has
   moved past it (higher up) depth is cleared and it renders in its own 0.2–400 m slice.
 - **Cloak**: a 9×14 mass–spring cloth (Verlet, 90 Hz, 4 constraint passes, capsule

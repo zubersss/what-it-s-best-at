@@ -7,7 +7,7 @@ import { ChunkPool } from './chunkPool.js';
 import { WorkerPool } from './workerPool.js';
 import { makeTerrainMaterial, makeTerrainShared, setTerrainSurface, DETAIL_TILE } from './terrainMaterial.js';
 import { makeDetailTexture, makeStrataTexture } from './surfaceTextures.js';
-import { FACES } from './cubeSphere.js';
+import { FACES, dirToFace } from './cubeSphere.js';
 
 const _rel = new THREE.Vector3(), _sphere = new THREE.Sphere(), _m = new THREE.Matrix4(), _p = new THREE.Matrix4();
 const FADE_MS = 600;       // how long a new chunk takes to settle from its parent's look into its own
@@ -142,6 +142,34 @@ export class Terrain {
       u.uReliefFade.value.set(Math.sin(f[0] * rad), Math.sin(f[1] * rad));
       this.reliefBusy = false;
     }, undefined, () => { this.reliefBusy = false; });
+  }
+
+  // Height above datum of the ground as it is drawn at unit direction d: the finest live
+  // chunk there, its triangles, and its morph toward its parent (camDist: metres from the
+  // camera). The terrain mesh carries less detail than the height function wherever a
+  // coarser chunk is drawn (while finer ones load, far away, or on a governor step), so
+  // anything that must stand on the ground the player sees asks here. null: none loaded.
+  drawnHeight(d, camDist) {
+    const uv = this._uvDH || (this._uvDH = [0, 0]);
+    let node = null;
+    for (let f = 0; f < 6; f++) if (dirToFace(f, d[0], d[1], d[2], uv) && Math.abs(uv[0]) <= 1 && Math.abs(uv[1]) <= 1) { node = this.roots[f]; break; }
+    if (!node) return null;
+    let live = node.slot >= 0 ? node : null;
+    while (node.children && node.childrenLive) {
+      const half = node.size / 2;
+      node = node.children[(uv[1] >= node.b0 + half ? 2 : 0) + (uv[0] >= node.a0 + half ? 1 : 0)];
+      if (node.slot >= 0) live = node; else break;
+    }
+    if (!live) return null;
+    const s = this.pool.slots[live.slot], hm = s.geometry.attributes.aHM.array, G = CONFIG.GRID, V = G + 1;
+    const x = Math.min(G - 1e-6, Math.max(0, (uv[0] - live.a0) / live.size * G)), y = Math.min(G - 1e-6, Math.max(0, (uv[1] - live.b0) / live.size * G));
+    const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j;
+    const m = s.material.uniforms.uMorph.value;
+    const k = Math.max(Math.min(1, Math.max(0, (camDist / m.x - m.y) / (0.96 - m.y))), m.z);
+    const at = (ii, jj) => { const o = (jj * V + ii) * 2; return hm[o] + hm[o + 1] * k; };
+    const a = at(i, j), b = at(i + 1, j), c = at(i, j + 1), dd = at(i + 1, j + 1);
+    // the two triangles of a cell split along its (i, j)-(i+1, j+1) diagonal (buildIndices)
+    return fx >= fy ? a + (b - a) * fx + (dd - b) * fy : a + (c - a) * fy + (dd - c) * fx;
   }
 
   get loadedCount() { return CONFIG.CHUNK_POOL - this.pool.free.length; }

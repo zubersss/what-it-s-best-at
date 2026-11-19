@@ -156,6 +156,7 @@ export class App {
     if (params.debug.includes('norelief') || params.debug.includes('nofar')) G.uQuality.value.w = 0;   // ?debug=norelief: no relief shading of far ground from the slope map
     this.nearShadow = new NearShadow(renderer);
     this.terrain = new Terrain(world, data.rasters, data.hs, renderer);
+    this.rig.groundAt = (d, dist) => this.terrain.drawnHeight(d, dist);   // the character stands on the ground as drawn
     // ?debug=nofar: none of the far-ground changes (relief, far roughness, finer patches from orbit), for before/after pictures
     // (or one at a time: nofarrough, noboost)
     if (params.debug.includes('nofar') || params.debug.includes('nofarrough')) this.terrain.shared.uFarRoughness.value = this.terrain.shared.uRoughness.value;
@@ -269,6 +270,14 @@ export class App {
   }
 
   // --- start screen, modes, benchmark -------------------------------------------------
+
+  // True when the drawn ground under the character (or the camera) is the detailed one.
+  groundSettled() {
+    if (this.terrain.idle) return true;
+    const r = this.rig, p = r.onFoot ? r.feet : r.pos, l = p.length(), d = [p.x / l, p.y / l, p.z / l];
+    const g = this.terrain.drawnHeight(d, r.pos.distanceTo(p));
+    return g != null && Math.abs(g - r.heightAt(d)) < 1;
+  }
 
   play() {
     this.startScreen.hide();
@@ -547,8 +556,13 @@ export class App {
     this.input.endFrame();
     if (!this.loaded && this.frameCount > 3 && this.terrain.drawList.length > 0) {
       this.loaded = true; this.loadedAt = now;
-      this.startScreen?.setReady(true);
       if (this.params.bench && this.benchmark) this.startBenchmark(this.params.bench);
+    }
+    // Play waits until the ground under the start is drawn at full detail (first drafts
+    // of the terrain can sit metres below the real surface), or 20 s at most.
+    if (this.loaded && !this.groundReady && (this.groundSettled() || now > this.loadedAt + 20000)) {
+      this.groundReady = true;
+      this.startScreen?.setReady(true);
     }
 
     if (this.shotMode) {
@@ -589,6 +603,7 @@ export class App {
       if (!this.heroSettled) { hero.settle(5, rig, env, pose); this.heroSettled = true; } else hero.update(0, rig, env, pose);
     } else hero.update(dt, rig, env);
     hero.group.updateMatrixWorld(true);
+    this.updateOccluders();
     this.updateDust(dt, env);
     // Is the hero in a terrain shadow? Ask a worker now and then (cheap single ray).
     if (rig.agl < 20000 && !this.heroVisPending && this.frameCount % 20 === 0) {
@@ -597,6 +612,19 @@ export class App {
       const job = this.terrain.workers.run({ type: 'points', points: pts, sun: [eph.sunDir[0], eph.sunDir[1], eph.sunDir[2]], sunHalf, minWL: 2 });
       if (job) { this.heroVisPending = true; job.then((res) => { this.heroVisPending = false; hero.uniforms.uSunVis.value = res.vis[0]; }).catch(() => { this.heroVisPending = false; }); }
     } else if (rig.agl >= 20000) hero.uniforms.uSunVis.value = 1;
+  }
+
+  // The character's body as four spheres for the sky light of the ground around it (see
+  // figureSky in the lighting chunk): torso, legs, and the two feet at the ends of the shins.
+  updateOccluders() {
+    const occ = G.uOccluders.value, hero = this.hero;
+    if (!hero.group.visible) { for (const o of occ) o.w = 0; return; }
+    const b = hero.body, p = hero.group.position, c = hero.colliders, v = this._occV || (this._occV = new THREE.Vector3());
+    const at = (o, x, y, z, r) => { v.set(x, y, z).applyMatrix4(b.matrix).add(p); o.set(v.x, v.y, v.z, r); };
+    at(occ[0], 0, 0.30, 0, 0.27);
+    at(occ[1], 0, -0.42, 0, 0.17);
+    at(occ[2], c[5 * 7 + 10], c[5 * 7 + 11], c[5 * 7 + 12] + 0.04, 0.09);     // left foot (end of the left shin)
+    at(occ[3], c[7 * 7 + 10], c[7 * 7 + 11], c[7 * 7 + 12] + 0.04, 0.09);     // right foot
   }
 
   // Dust: thrown up where the character touches down, pushes off or skims the ground.

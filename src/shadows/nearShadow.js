@@ -143,12 +143,13 @@ export class NearShadow {
       for (const c of this.casters) {
         const isFocus = !!c.mesh.userData.shadowFocus;
         if (!this._on(c) || isFocus !== (k === 2) || (!isFocus && !this._reaches(c, k))) continue;
-        const keep = c.mesh.material, g = c.mesh.geometry, all = g.instanceCount;
-        if (k === 1 && c.fineCount) g.instanceCount = Math.min(all, c.fineCount());
+        // (only instanced geometry has an instance count; the fine tile may draw fewer)
+        const keep = c.mesh.material, g = c.mesh.geometry, inst = !!g.isInstancedBufferGeometry, all = g.instanceCount;
+        if (inst && k === 1 && c.fineCount) g.instanceCount = Math.min(all, c.fineCount());
         c.mesh.material = c.depthMaterial;
-        if (g.instanceCount > 0) r.render(c.mesh, cam);
+        if (!inst || g.instanceCount > 0) r.render(c.mesh, cam);
         c.mesh.material = keep;
-        g.instanceCount = all;
+        if (inst) g.instanceCount = all;
       }
     }
     tgt.viewport.set(0, 0, this.width, this.height);

@@ -32,6 +32,7 @@ uniform vec3 uShineE;               // its irradiance at the ground (planetshine
 uniform vec4 uQuality;              // governor switches: x close-up detail, y soft shadow edges, z edge-glow samples
 uniform float uPhotometry;          // 0 = matte dust under air (Oren-Nayar), 1 = airless regolith (lunarDiffuse)
 uniform vec3 uGroundTint;           // the world's albedo map at the camera, relative to its mean
+uniform vec4 uOccluders[4];         // the character's body as spheres (camera-relative centre, radius)
 
 // Irradiance of the Sun reaching a point (planet-centred metres), unshadowed:
 // the attenuated direct beam plus the forward-scattered aureole around it.
@@ -67,6 +68,25 @@ vec3 skyLight(vec3 N, vec3 up) {
     E = mix(E, there, uSkyGainMix);
   }
   return E * uSunIrradiance;
+}
+
+// How much of the sky a surface at camera-relative position rel (normal N) still sees past
+// the character standing near it: each sphere of radius r at distance d, in the direction
+// of the normal, hides about (r/d)^2 of it. A figure on the ground darkens the ground
+// under its feet in the light of the sky (sunlight is the near shadow map's business):
+// the contact that keeps it from looking pasted on. Nothing is added; light is only lost.
+float figureSky(vec3 rel, vec3 N) {
+  if (uOccluders[0].w <= 0.0 || uQuality.y < 0.5) return 1.0;     // governor step: soft shadow edges
+  vec3 d0 = uOccluders[0].xyz - rel;
+  if (dot(d0, d0) > 36.0) return 1.0;
+  float vis = 1.0;
+  for (int i = 0; i < 4; i++) {
+    vec4 o = uOccluders[i];
+    vec3 d = o.xyz - rel;
+    float l2 = max(dot(d, d), 1e-4);
+    vis *= 1.0 - min(0.9, o.w * o.w / l2 * max(dot(N, d) * inversesqrt(l2), 0.0));
+  }
+  return vis;
 }
 
 // Irradiance from planetshine (sunlight reflected by a sky body) onto a surface with normal N.
