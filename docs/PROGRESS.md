@@ -590,6 +590,22 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 | Far from every body only the target marker shows the way; there is no map yet | 7 |
 | Places on other worlds cannot be chosen until that world is home (no map yet) | 7 |
 | Triangles sit at ~420–480k of the 500k budget | watch |
+| The cloak reads as a stiff sheet: no folds or sag, even shading, a flat salmon red when backlit on Mars (milestone 4 review critic) | next character pass |
+| The suit reads slim: thin limbs, a small pack, a plain ball of a helmet; real suits are bulky (milestone 4 review critic) | next character pass |
+| No dust from footsteps or a run, no footprints; hovering looks much like standing (milestone 4 review critic) | next character pass |
+
+Fixed in the milestone 4 review: GO arriving at tens of thousands of km/s (the figure hit
+the ground a fraction of a second after "Arrived", even with HOVER on); the trip's heading
+and the cloak left in the old axes at the world hand-over; a trip that kept running after
+HERO, FLY, a bookmark or standing up; a three-point landing that read as a stumble, and its
+kneel carried into a jump or take-off; the figure jumping up to 0.7 m on landing while the
+view turned; the take-off dust missing for a held take-off and the landing dust a quarter
+of a second early; dust shown through rocks from higher up, and its noise breaking up far
+from where the pool was anchored; the feet's contact spheres read from the wrong slots
+(one was NaN); lander and rock darkening switching on in one frame; HOVER doing nothing in
+a fall on foot; GO reshuffling the touch buttons; the marker gone with the HUD off, its
+label cut at the screen's edge, and a place beyond the horizon marked on the ground in
+front; the boots of the hovering figure cut by the frame.
 
 Fixed in milestone 4: no darkening under the lander and rocks in shade (sky occlusion at
 their foot); the simple white figure (visor, lamps, pack, joints, gloves, boots, dust);
@@ -730,6 +746,49 @@ repository (re-create them with `npm run stability`).
 - The first version of the test moved too fast (several pixels per frame) and let
   exposure re-meter between frames; both produced large, honest differences that hid
   what the test is for. Steps are now about a pixel and exposure is held per station.
+
+## Milestone 4 review (after the checkpoint, at the owner's request)
+
+The owner asked for milestone 4 to be reviewed, judged and its errors redone before it is
+called done. Done as two rounds of independent reviewers (code read along five lines:
+character and poses, targets and GO, camera and flight, rendering cost, phone screen and
+documentation), each finding checked by a second reviewer told to disprove it, plus a
+critic that saw only the pictures and the art rules. 25 findings held (about 19 once the
+duplicates were merged); the fixes themselves were then reviewed the same way and 7 more
+problems were found in them and fixed. What changed, for the player:
+
+- **GO** now stops above the target and stays there with HOVER on (before, its speed on
+  arrival was about 70,000 km/s near the Moon and the figure hit the ground at once). A
+  trip ends when the character is put away, the free camera is taken, a bookmark is chosen
+  or it stands up. Across the world hand-over the trip keeps its heading (it veered by
+  about 110° and arrived 4 s late) and the cloak no longer whips round.
+- **Three-point landing**: a real kneel (left foot planted, right knee and fist on the
+  ground, head low), for every landing over about 10 m/s; a jump or take-off straight out
+  of it lets go of it.
+- **Chase camera**: while the figure hovers upright it is drawn 5.5 m ahead instead of
+  4.1 m, so its boots are in the picture (cruising with the stick pushed is unchanged). No
+  jump of the figure on landing or after the next take-off while the view turns. The
+  figure's trailing offset is the same at 30, 60 and 120 fps (it was four times larger at
+  120 Hz than at 30). Turning straight round on foot turns the figure at once (it ran
+  backwards for over a second). On a steep slope just past a crest the camera rises enough
+  to keep the figure in sight.
+- **Dust**: a ring at take-off when up is held (the usual phone take-off threw none); the
+  landing ring at the moment the feet touch; from higher up a lingering cloud is hidden by
+  rocks and ground in front of it; a long run or a bookmark jump no longer breaks it up.
+- **Darkening under things**: the feet's spheres were read from the wrong slots (one of
+  them NaN); the lander's and the rocks' spheres now fade in and out.
+- **HOVER** pressed during a fall on foot stops the fall, as its message says.
+- **Screen**: `GO` sits above `▲` (showing it pushed every button after it one place
+  along); the target marker stays when the HUD is off, keeps its label inside the screen,
+  and a place beyond the horizon is marked where the way to it crosses the horizon, with
+  "over the horizon"; the full read-out starts below the buttons; the HUD no longer shows
+  through the start and results screens.
+- **Tests**: `npm run transfer` turns the frame at the hand-over as the game does and flies
+  every trip with HOVER off and on; the headless tests no longer count the software
+  driver's "GPU stall" notes as page faults (target and foot had been failing on them).
+
+The critic's remaining gaps are about the character's look (a sheet-like cloak, a slim
+suit, no footstep dust): in the known-problems table for a later character pass.
 
 ## Independent critic, milestone 4 (screenshots and art rules only)
 
