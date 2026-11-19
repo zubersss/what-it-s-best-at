@@ -201,7 +201,7 @@ ground stands the character on its feet),
 Touch: left part of the screen = move stick (push to the rim for super speed on foot /
 boost in flight), `▲` jump (tap) / take off (hold, or tap again in the air) / up, drag
 anywhere else = look, buttons `HERO`, `TARGET` (the list of targets with distances), `GO`
-(shown with a target: the hands-off trip), `HOVER`, `FLY`, `ZOOM` (hold), `VIEW` (next
+(above `▲`, shown with a target: the hands-off trip), `HOVER`, `FLY`, `ZOOM` (hold), `VIEW` (next
 bookmark), `HUD`, `MODE` (Smooth ↔ Sharp), `FULL` (fullscreen + landscape lock + wake
 lock), `▲` up, `▼` down. The time slider is part of the full HUD.
 
@@ -306,5 +306,11 @@ finished benchmark leaves its text in `window.__benchResult`.
 - A GO trip to another body crosses the world hand-over halfway: the target becomes the
   world underfoot. Anything in `autopilot.js` must handle a target at the origin
   (`npm run transfer` simulates the hand-over).
+- Every vector kept in planet-fixed axes must be turned in `App.switchWorld`: the axes turn
+  by about 112° between Mars and the Moon. The trip's heading and the cloak's cloth were
+  missed once (the trip veered off and arrived 4 s late; the cloak whipped round).
+- A GO trip's speed when it arrives is far above what hand flight allows there (it plunged
+  from 60 km to the ground in a few frames): `stopTransfer` hands back the stick's speed.
+  `npm run transfer` flies every trip with HOVER on and off and prints the height after.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

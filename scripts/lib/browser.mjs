@@ -26,7 +26,9 @@ export async function open({ dist = false, width = 880, height = 412, dsf = 1.25
   });
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: dsf, hasTouch: touch, isMobile: touch });
   const problems = [];
-  page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') { problems.push(m.text().slice(0, 400)); console.log(`[browser ${m.type()}]`, m.text().slice(0, 600)); } });
+  // The software GL driver's performance notes ("GPU stall due to ReadPixels") are not faults.
+  const benign = (t) => /GL Driver Message \(OpenGL, Performance/.test(t);
+  page.on('console', (m) => { if ((m.type() === 'error' || m.type() === 'warning') && !benign(m.text())) { problems.push(m.text().slice(0, 400)); console.log(`[browser ${m.type()}]`, m.text().slice(0, 600)); } });
   page.on('pageerror', (e) => { problems.push(String(e).slice(0, 400)); console.log('[pageerror]', String(e).slice(0, 600)); });
   // Software WebGL frames can take a long time; never let one slow screenshot kill a run.
   const snap = async (file) => {

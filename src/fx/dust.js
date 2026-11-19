@@ -72,6 +72,7 @@ uniform float uSunVis;
 uniform float uVac;         // 1 = vacuum: grains in clean arcs; 0 = any real air: billowing cloud
 uniform float uDustTime;    // seconds of dust time (stops in screenshot mode)
 uniform float uDustDetail;  // 1: full detail; 0: the governor's dust step (large lumps only)
+uniform vec3 uDustCell;     // the anchor's whole-cell offset of the large lumps' lattice (integers)
 in vec3 vRel;
 in vec3 vLocal;
 in vec4 vA;
@@ -83,15 +84,18 @@ float dustHash(uvec3 q) {
   q *= uvec3(1597334673u, 3812015801u, 2798796415u);
   return float((q.x ^ q.y ^ q.z) * 1597334673u) * (1.0 / 4294967296.0);
 }
-// value noise, 0..1 (lattice kept positive: the packets stay within a few hundred metres)
-float dustNoise(vec3 p) {
-  vec3 i = floor(p), f = p - i;
+// value noise, 0..1, on a lattice shifted by whole cells o (the pool's anchor moves by
+// whole cells, so the lumps fixed in space stay put) and wrapped every 8192 cells (integer
+// arithmetic: no undefined float-to-unsigned conversion of negative cells)
+float dustHashI(ivec3 c) { return dustHash(uvec3(c & 8191)); }
+float dustNoise(vec3 p, ivec3 o) {
+  vec3 fi = floor(p), f = p - fi;
   f = f * f * (3.0 - 2.0 * f);
-  uvec3 c = uvec3(i + 4096.0);
-  float a = mix(dustHash(c), dustHash(c + uvec3(1u, 0u, 0u)), f.x);
-  float b = mix(dustHash(c + uvec3(0u, 1u, 0u)), dustHash(c + uvec3(1u, 1u, 0u)), f.x);
-  float e = mix(dustHash(c + uvec3(0u, 0u, 1u)), dustHash(c + uvec3(1u, 0u, 1u)), f.x);
-  float g = mix(dustHash(c + uvec3(0u, 1u, 1u)), dustHash(c + uvec3(1u, 1u, 1u)), f.x);
+  ivec3 c = ivec3(fi) + o;
+  float a = mix(dustHashI(c), dustHashI(c + ivec3(1, 0, 0)), f.x);
+  float b = mix(dustHashI(c + ivec3(0, 1, 0)), dustHashI(c + ivec3(1, 1, 0)), f.x);
+  float e = mix(dustHashI(c + ivec3(0, 0, 1)), dustHashI(c + ivec3(1, 0, 1)), f.x);
+  float g = mix(dustHashI(c + ivec3(0, 1, 1)), dustHashI(c + ivec3(1, 1, 1)), f.x);
   return mix(mix(a, b, f.y), mix(e, g, f.y), f.z);
 }
 // Henyey-Greenstein relative to isotropic scattering (1 on average over all directions)
@@ -125,10 +129,11 @@ void main() {
       // small lumps carried and grown by each puff (faded out below a pixel or two, and
       // left out by the governor's dust step)
       vec3 boil = uDustTime * vec3(0.05, -0.04, 0.09);
-      float n1 = dustNoise(P * 2.4 + boil), n = n1;
+      ivec3 cell = ivec3(uDustCell);
+      float n1 = dustNoise(P * 2.4 + boil, cell), n = n1;
       if (uDustDetail > 0.5) {
         float fine = 1.0 - smoothstep(0.06, 0.14, vMetres);
-        float n2 = dustNoise(mat3(0.8, 0.36, -0.48, -0.6, 0.48, -0.64, 0.0, 0.8, 0.6) * ((P - vLocal) * (3.2 / Rm)) + vSeed * 61.0);
+        float n2 = dustNoise(mat3(0.8, 0.36, -0.48, -0.6, 0.48, -0.64, 0.0, 0.8, 0.6) * ((P - vLocal) * (3.2 / Rm)) + vSeed * 61.0, ivec3(0));
         n = mix(n1, 0.5 * n1 + 0.5 * n2, fine);
       }
       // dense lumps and thin gaps, thinning toward the puff's edge; as it ages only the
@@ -137,7 +142,7 @@ void main() {
       alpha = (1.0 - exp(-2.0 * dens)) * fade;
       // a lump's sunward side catches the Sun; its far side lies in the lump's own shadow
       if (uDustDetail > 0.5) {
-        float n1s = dustNoise((P + uSunDir * 0.18) * 2.4 + boil);
+        float n1s = dustNoise((P + uSunDir * 0.18) * 2.4 + boil, cell);
         lump = mix(1.0, clamp(1.0 + 1.8 * (n1 - n1s), 0.4, 1.4), dens);
       }
       tone = mix(1.0, vTone, 0.3) * (0.92 + 0.16 * n1);
@@ -193,7 +198,7 @@ export class Dust {
     this.aMotion = new THREE.BufferAttribute(this.motion, 4).setUsage(THREE.DynamicDrawUsage);
     this.aState = new THREE.BufferAttribute(this.state, 4).setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('position', this.aPos); geo.setAttribute('aMotion', this.aMotion); geo.setAttribute('aState', this.aState);
-    this.uniforms = { ...lightingUniforms(), uDustAlbedo: { value: new THREE.Vector3() }, uSunVis: { value: 1 }, uPixelsPerRadian: { value: 500 }, uVac: { value: 1 }, uDustTime: { value: 0 }, uDustDetail: { value: 1 } };
+    this.uniforms = { ...lightingUniforms(), uDustAlbedo: { value: new THREE.Vector3() }, uSunVis: { value: 1 }, uPixelsPerRadian: { value: 500 }, uVac: { value: 1 }, uDustTime: { value: 0 }, uDustDetail: { value: 1 }, uDustCell: { value: new THREE.Vector3() } };
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: this.uniforms, vertexShader: VERT, fragmentShader: FRAG,
       transparent: true, depthWrite: false,
@@ -215,8 +220,14 @@ export class Dust {
   setWorld(world) {
     this.uniforms.uDustAlbedo.value.set(...world.surface.dust);
     this.dustiness = world.surface.dustiness ?? 1;
+    this.clear();
+  }
+
+  // No dust anywhere (a jump to another place or world).
+  clear() {
     for (let i = 0; i < N; i++) this.state[i * 4] = 1;
-    this.alive = 0; this.aState.needsUpdate = true;
+    this.alive = 0; this.aState.needsUpdate = true; this.points.visible = false;
+    this.uniforms.uDustCell.value.set(0, 0, 0);
   }
 
   // Throws `count` packets from `at` (planet-fixed metres): outward along the ground with
@@ -228,7 +239,11 @@ export class Dust {
   emit(at, up, count, spread, lift, carry) {
     const af = this.afloat, vac = this.vac;
     lift = 0.55 * lift * af + Math.sqrt(1.2 * lift * this.gravity) * (1 - af);
-    if (this.alive === 0) this.anchor.copy(at);                 // re-anchor when the pool is empty: keeps the numbers small
+    // Keep the numbers small: re-anchor when the pool is empty, and move the anchor along
+    // (by whole cells of the large lumps' lattice) when dust is thrown far from it, as it
+    // is on a long run (float precision, and the lattice, held only near the anchor).
+    if (this.alive === 0) { this.anchor.copy(at); this.uniforms.uDustCell.value.set(0, 0, 0); }
+    else if (at.distanceToSquared(this.anchor) > 256 * 256) this._rebase(at, up);
     const t = this._t.set(up.y, -up.x, 0); if (t.lengthSq() < 1e-6) t.set(1, 0, 0);
     t.addScaledVector(up, -t.dot(up)).normalize();
     const b = this._b.crossVectors(up, t);
@@ -251,6 +266,19 @@ export class Dust {
       this.state[i * 4] = 0; this.state[i * 4 + 1] = (0.14 + 0.26 * this._rnd()) * (1 - 0.84 * vac); this.state[i * 4 + 2] = 0;
       this.state[i * 4 + 3] = this._rnd();
     }
+  }
+
+  _rebase(at, up) {
+    const c = 1 / 2.4, A = this.anchor, cell = this.uniforms.uDustCell.value;
+    const dx = Math.round((at.x - A.x) / c), dy = Math.round((at.y - A.y) / c), dz = Math.round((at.z - A.z) / c);
+    const sx = dx * c, sy = dy * c, sz = dz * c, sh = sx * up.x + sy * up.y + sz * up.z;
+    for (let i = 0; i < N; i++) {
+      if (this.state[i * 4] >= 1) continue;
+      this.pos[i * 3] -= sx; this.pos[i * 3 + 1] -= sy; this.pos[i * 3 + 2] -= sz; this.base[i] -= sh;
+    }
+    A.x += sx; A.y += sy; A.z += sz;
+    const wrap = (v) => ((v % 8192) + 8192) % 8192;
+    cell.set(wrap(cell.x + dx), wrap(cell.y + dy), wrap(cell.z + dz));
   }
 
   // dt seconds; camPos: planet-fixed camera position; gravity m/s^2; air 0..1 (drag);

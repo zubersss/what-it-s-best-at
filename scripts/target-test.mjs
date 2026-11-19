@@ -29,14 +29,14 @@ check('picking closes the list', await page.isHidden('#picker'));
 const label = async () => page.evaluate(() => document.querySelector('#target')?.textContent || '');
 const l1 = await label();
 check('the marker names the target, its distance and the trip time', /Olympus Mons/.test(l1) && /km/.test(l1) && /GO \d/.test(l1), l1);
-check('GO appears', await page.isVisible('#tbuttons button.go'));
+check('GO appears', await page.isVisible('#touch button[data-act="go"]'));
 await snap(path.join(out, '2_marker.png'));
 
 // GO: the distance shrinks
 // distance along the ground to the place (the straight line runs through the world)
 const gap = () => page.evaluate(() => { const a = window.__app, t = a.resolveTarget(a.targetId, {}), p = a.rig.pos; const c = (p.x * t.pos[0] + p.y * t.pos[1] + p.z * t.pos[2]) / (p.length() * Math.hypot(...t.pos)); return Math.acos(Math.min(1, c)) * a.world.radius; });
 const g0 = await gap();
-await page.dispatchEvent('#tbuttons button.go', 'pointerdown');
+await page.dispatchEvent('#touch button[data-act="go"]', 'pointerdown');
 await page.waitForTimeout(500);
 check('GO starts a trip', await page.evaluate(() => window.__app.transfer));
 // Frames are slow and uneven here, and each counts as at most 0.1 s of flight: wait for

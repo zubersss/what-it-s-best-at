@@ -27,12 +27,12 @@ button.
 | left stick / drag | `WASD` / mouse | move / look |
 | `HERO` | `G` | flying character on / off (on by default) |
 | `TARGET` | `T` | choose where to go: this world's real places (Olympus Mons, Gale, the Apollo sites…), the bodies in the sky, the Sun. A marker shows its name, distance and how long the trip takes |
-| `GO` | `Enter` | fly there hands-off (shown once there is a target); the stick or a movement key takes control back |
+| `GO` (above `▲`) | `Enter` | fly there hands-off (shown once there is a target); the stick, a movement key, `HERO`, `FLY` or a `VIEW` takes control back. It stops above the target: with HOVER on you stay there, with it off you come down |
 | `HOVER` | `X` | hover on / off. Off (the default): let go of the stick and gravity pulls you toward the nearest world, or the Sun |
 | `FLY` | `F` | walk ↔ free-fly debug camera |
 | `ZOOM` (hold) | `Z` (hold), wheel | telephoto |
 | `VIEW` | `1`–`9` | places: five views of the world's main site, then its other landmarks (the name appears as you arrive) |
-| `HUD` | `H` | HUD: one line → everything plus the time-of-day slider → off |
+| `HUD` | `H` | HUD: one line → everything plus the time-of-day slider → off (the target marker stays) |
 | `MODE` | `M` | Smooth ↔ Sharp |
 | `FULL` | | fullscreen, landscape lock, keep the screen awake |
 | `▲` | `Space` / `E` | on foot: tap to jump (higher on the Moon: real gravity), hold to take off; flying: up |
