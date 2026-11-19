@@ -20,6 +20,14 @@ export function gapTo(cam, t) {
   return hyp(t.pos[0] * k - cam[0], t.pos[1] * k - cam[1], t.pos[2] * k - cam[2]);
 }
 
+// How far a place is along the ground (the great circle under the camera to it), metres:
+// what the marker shows for a place, since the straight line runs through the world.
+export function groundDistance(cam, t, R) {
+  const cl = hyp(...cam) || 1, pl = hyp(...t.pos) || 1;
+  const c = (cam[0] * t.pos[0] + cam[1] * t.pos[1] + cam[2] * t.pos[2]) / (cl * pl);
+  return Math.acos(Math.max(-1, Math.min(1, c))) * R;
+}
+
 // Where the trip stops: a little above a body (in a low orbit's place), or within a few
 // hundred metres of the point above a place. Gravity takes over from there unless HOVER is on.
 export function standoff(t) { return t.kind === 'place' ? 250 : Math.max(2000, 0.05 * t.radius); }
@@ -28,7 +36,7 @@ export function standoff(t) { return t.kind === 'place' ? 250 : Math.max(2000, 0
 // of radius R centred at the origin.
 // A place on this world: follow a point a little ahead on an arc over the ground, as high
 // as a third of the arc still to go (at most half the world's radius), so the trip climbs
-// steeply at first, cruises high and comes down onto the place.
+// at about 60 degrees at first, cruises high and comes down onto the place.
 // A body: straight at it, but climbing at 40 degrees or more while still within two radii
 // of the world being left (speed grows with height: skimming the ground toward a body on
 // the horizon would crawl).
@@ -46,7 +54,9 @@ export function aimDirection(cam, t, R, out) {
     const sa = Math.sin(a), wa = sa > 1e-9 ? Math.sin((1 - f) * a) / sa : 1 - f, wb = sa > 1e-9 ? Math.sin(f * a) / sa : f;
     const c0 = u0 * wa + q0 * wb, c1 = u1 * wa + q1 * wb, c2 = u2 * wa + q2 * wb, cn = hyp(c0, c1, c2) || 1;
     const lift = Math.max(OVER_PLACE, Math.min(0.5 * R, 0.35 * Math.max(0, a - ahead) * R));
-    const r = pl + lift;
+    // no steeper than about 60 degrees: the carrot at most 1.7 leads above the camera, so the
+    // trip heads for the place from the start instead of rising straight up first
+    const r = Math.min(pl + lift, cl + 1.7 * ahead * R);
     px = c0 / cn * r; py = c1 / cn * r; pz = c2 / cn * r;
   } else { px = t.pos[0]; py = t.pos[1]; pz = t.pos[2]; }
   let dx = px - cam[0], dy = py - cam[1], dz = pz - cam[2];

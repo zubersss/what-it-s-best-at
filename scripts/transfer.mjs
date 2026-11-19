@@ -22,7 +22,8 @@ function fly(rig, target, world, others, label) {
   const predicted = tripTime(cam(), target, world.radius, rig.pos.length() - world.radius - rig.agl);
   rig.auto = { mult: 1 };
   if (rig.onFoot) rig._takeOff(8);
-  let t = 0, minAlt = Infinity, arrived = -1, maxMult = 1;
+  let t = 0, minAlt = Infinity, arrived = -1, maxMult = 1, maxGap = 0;
+  const gapStart = gapTo(cam(), target);
   for (; t < 600; t += dt) {
     const wells = [{ x: 0, y: 0, z: 0, radius: world.radius, gravity: world.gravity }, ...others.map((o) => ({ x: o.pos[0], y: o.pos[1], z: o.pos[2], radius: o.radius, gravity: o.gravity }))];
     const s = surroundings(p, wells, around);
@@ -42,12 +43,13 @@ function fly(rig, target, world, others, label) {
     }
     rig.update(dt, input, false);
     if (rig.auto && t > 1) minAlt = Math.min(minAlt, rig.agl);
+    if (rig.auto) maxGap = Math.max(maxGap, gapTo(cam(), target));
     if (arrived >= 0 && t > arrived + 30) break;
   }
   const gapEnd = gapTo(cam(), target);
   console.log(`${label}:`);
   console.log(`  predicted by the marker: ${predicted.toFixed(1)} s · arrived after ${arrived < 0 ? 'never' : arrived.toFixed(1) + ' s'} · largest extra boost x${maxMult.toFixed(2)}`);
-  console.log(`  lowest height above the ground on the way (after the first second): ${Number.isFinite(minAlt) ? minAlt.toFixed(0) + ' m' : '-'}`);
+  console.log(`  lowest height above the ground on the way (after the first second): ${Number.isFinite(minAlt) ? minAlt.toFixed(0) + ' m' : '-'}; farthest from the target on the way: ${(100 * maxGap / gapStart).toFixed(1)} % of the start`);
   console.log(`  30 s after arriving: ${gapEnd.toFixed(0)} m from the target (stop distance ${standoff(target).toFixed(0)} m), speed ${rig.velocity.length().toFixed(1)} m/s`);
   return { predicted, arrived };
 }

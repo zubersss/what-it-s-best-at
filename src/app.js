@@ -15,7 +15,7 @@ import { BUILD } from './core/build.js';
 import { Hud, HUD } from './debug/hud.js';
 import { Input } from './controls/input.js';
 import { CameraRig } from './controls/cameraRig.js';
-import { aimDirection, gapTo, standoff, transferMult, tripTime, OVER_PLACE } from './controls/autopilot.js';
+import { aimDirection, gapTo, standoff, transferMult, tripTime, groundDistance, OVER_PLACE } from './controls/autopilot.js';
 import { TargetMarker } from './ui/targetMarker.js';
 import { TargetPicker } from './ui/targetPicker.js';
 import { surroundings } from './controls/gravity.js';
@@ -435,7 +435,7 @@ export class App {
   openPicker() {
     if (!this.picker) this.picker = new TargetPicker((id) => this.pickTarget(id));
     const { places, sky } = this.targetList(), t = this._tgtP || (this._tgtP = {}), p = this.rig.pos, cam = [p.x, p.y, p.z];
-    const info = (id) => { const r = this.resolveTarget(id, t); return r ? fmtDistance(Math.max(0, gapTo(cam, r))) : ''; };
+    const info = (id) => { const r = this.resolveTarget(id, t); return r ? fmtDistance(Math.max(0, r.kind === 'place' ? groundDistance(cam, r, this.world.radius) : gapTo(cam, r))) : ''; };
     this.picker.show([
       { title: `On ${titleCase(this.world.id)}`, items: places.map((x) => ({ ...x, info: info(x.id) })) },
       { title: 'In the sky', items: sky.map((x) => ({ ...x, info: info(x.id) })) },
@@ -508,7 +508,7 @@ export class App {
     }
     const here = gap <= stop * 1.05 || (t.kind === 'place' && gap < OVER_PLACE * 1.3);
     const when = here ? 'here' : this.transfer ? `arriving in ${fmtTime(this.targetEta)}` : `GO ${fmtTime(this.targetEta)}`;
-    const shown = t.kind === 'place' ? dist : gap;          // a place: straight-line distance; a body: to its surface
+    const shown = t.kind === 'place' ? groundDistance(cam, t, this.world.radius) : gap;     // a place: along the ground; a body: to its surface
     m.update(rig.camera, v.divideScalar(dist || 1), t.radius ? Math.asin(Math.min(1, t.radius / dist)) : 0, t.name, `${fmtDistance(shown)} · ${when}`);
   }
 
@@ -870,7 +870,7 @@ export class App {
     this.hud.setTime(Math.round(this.timeOffsetHours * 100) / 100, `${this.timeOffsetHours >= 0 ? '+' : ''}${this.timeOffsetHours.toFixed(2)} h   ${d.toISOString().slice(0, 19)}Z${this.paused ? '  (paused)' : ''}`);
     let target = '';
     const tg = this.resolveTarget(this.targetId, this._tgtH || (this._tgtH = {}));
-    if (tg) target = `${tg.name} ${fmtDistance(Math.max(0, gapTo(site, tg)))}${this.transfer ? ' (GO)' : ''}`;
+    if (tg) target = `${tg.name} ${fmtDistance(Math.max(0, tg.kind === 'place' ? groundDistance(site, tg, world.radius) : gapTo(site, tg)))}${this.transfer ? ' (GO)' : ''}`;
     return {
       world: world.name, mode: rig.mode, shot: this.shotMode ? this.bookmark : '',
       build: BUILD.commit, governor: this.governor.summary, modeLabel: MODES[this.governor.mode].label,

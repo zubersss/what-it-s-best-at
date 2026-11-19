@@ -33,7 +33,8 @@ check('GO appears', await page.isVisible('#tbuttons button.go'));
 await snap(path.join(out, '2_marker.png'));
 
 // GO: the distance shrinks
-const gap = () => page.evaluate(() => { const a = window.__app, t = a.resolveTarget(a.targetId, {}); const p = a.rig.pos; return Math.hypot(t.pos[0] - p.x, t.pos[1] - p.y, t.pos[2] - p.z); });
+// distance along the ground to the place (the straight line runs through the world)
+const gap = () => page.evaluate(() => { const a = window.__app, t = a.resolveTarget(a.targetId, {}), p = a.rig.pos; const c = (p.x * t.pos[0] + p.y * t.pos[1] + p.z * t.pos[2]) / (p.length() * Math.hypot(...t.pos)); return Math.acos(Math.min(1, c)) * a.world.radius; });
 const g0 = await gap();
 await page.dispatchEvent('#tbuttons button.go', 'pointerdown');
 await page.waitForTimeout(500);
