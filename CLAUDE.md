@@ -142,6 +142,7 @@ npm run shots          # headless screenshots of every bookmark of one world -> 
 npm run shots:all      # the full reference set: both worlds, orbit, character
 npm run stability      # 3 consecutive frames along scripted moves, with a flicker report
 npm run flight         # scripted Mars -> orbit -> Moon flight (headless)
+npm run foot           # the character on foot in the real game: walk, jump, super speed, take off, land (headless)
 npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run
 npm run govsim         # the governor against simulated GPUs (no browser)
 npm run assets         # re-download and convert the small NASA/Yale files into public/data/
@@ -169,21 +170,25 @@ landmarks (`olympus`, `gale` on Mars; `tycho`, `taurus` on the Moon) (fixed came
 bookmark, deterministic screenshot mode, skips the start screen), `t=<hours offset>`,
 `hud=0|1`, `scale=<fixed render scale>`, `mode=smooth|sharp`, `bench=run|soak` (start a
 benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|hover`,
-`lat= lon= alt= heading= pitch= fov=`, `east= north=` (metres from the bookmark's place),
+`heropose=stand|walk|run|super|jump` (with `hero=1`: the character on foot, `posedir=side`
+to see it from the side), `lat= lon= alt= heading= pitch= fov=`, `east= north=` (metres from the bookmark's place),
 `aim=<sky body>` (turn the view to it), `dust=1` (with `hero=1`: a touch-down dust burst
 frozen in mid-flight), `debug=noair|airall` (haze shadows off / everywhere),
 `debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
 `nofarrough`, `noboost`) for before/after pictures.
 
-Keys: `WASD` move, mouse look (click to capture), `Shift` run / boost, `Space` jump /
-up, `Q`/`E` down / up, `G` flying character on/off, `T` aim at the next body in the sky,
-`X` hover on/off (off: gravity pulls when the stick is released),
+Keys: `WASD` move, mouse look (click to capture), `Shift` super speed on foot / boost in
+flight, `Space` (or `E`) jump on foot (tap), take off (hold, or tap again in the air), up in
+flight, `Q` down, `G` character on/off, `T` aim at the next body in the sky,
+`X` hover on/off (off: gravity pulls when the stick is released, and touching the
+ground stands the character on its feet),
 `F` walk ↔ free-fly debug camera, `Z` hold for telephoto, mouse wheel = zoom amount,
 `H` HUD (one line → full read-out with the time slider → off), `M` Smooth ↔ Sharp,
 `[` `]` time −/+, `1`–`9` bookmarks (the first five are the scene, the rest landmarks),
 `P` pause time.
 
-Touch: left part of the screen = move stick (push to the rim to run / boost), drag
+Touch: left part of the screen = move stick (push to the rim for super speed on foot /
+boost in flight), `▲` jump (tap) / take off (hold, or tap again in the air) / up, drag
 anywhere else = look, buttons `HERO`, `TARGET`, `HOVER`, `FLY`, `ZOOM` (hold), `VIEW` (next
 bookmark), `HUD`, `MODE` (Smooth ↔ Sharp), `FULL` (fullscreen + landscape lock + wake
 lock), `▲` up, `▼` down. The time slider is part of the full HUD.
@@ -223,8 +228,9 @@ finished benchmark leaves its text in `window.__benchResult`.
   comment on `craters` in `layers.js`).
 - After changing a terrain recipe, re-pick the start position, ship offset and bookmarks
   (`scripts/find-ledge.mjs`, `scripts/probe-terrain.mjs`): the ground moves.
-- The character is drawn at a fixed offset in front of the camera; the camera is still
-  the thing that moves. Never write a pose velocity into `rig.velocity` — in hero mode
+- The character is drawn relative to the camera (`rig.heroRel`); the camera is still the
+  thing that moves. In flight the figure sits at a fixed offset ahead; on foot the rig
+  moves the soles (`rig.feet`) and places the camera behind them. Never write a pose velocity into `rig.velocity` — in hero mode
   the rig integrates it (use the `motion` argument of `Hero.update`).
 - A `sampler2DShadow` bound to a never-rendered depth texture makes every draw call that
   uses it fail silently; the near shadow map is therefore always initialised.

@@ -34,10 +34,13 @@ button.
 | `HUD` | `H` | HUD: one line → everything plus the time-of-day slider → off |
 | `MODE` | `M` | Smooth ↔ Sharp |
 | `FULL` | | fullscreen, landscape lock, keep the screen awake |
-| `▲` `▼` | `Space`, `Q`/`E` | jump / fly up and down |
-| stick at the rim | `Shift` | run / boost |
+| `▲` | `Space` / `E` | on foot: tap to jump (higher on the Moon: real gravity), hold to take off; flying: up |
+| `▼` | `Q` | down |
+| stick at the rim | `Shift` | super speed on foot / boost in flight |
 
-You fly behind a suited figure with a cloak. Speed grows with distance from the nearest
+You start on your feet: walk, run at super speed, and jump under each world's real
+gravity (about 3.4 m on Mars, 7.7 m on the Moon). Hold ▲ to take off; with HOVER off,
+touching the ground lands you back on your feet. You fly behind a suited figure with a cloak. Speed grows with distance from the nearest
 surface, so the same stick hovers over a rock, climbs to orbit and crosses to another
 world in well under a minute: tap `TARGET` until the full HUD shows `moon`, push forward.
 

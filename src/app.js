@@ -46,6 +46,9 @@ function fmtSpeed(v) {
   return (v / C_LIGHT).toFixed(2) + ' c';
 }
 
+// Character poses on foot for screenshots: speed in m/s, and whether it is in the air.
+const FOOT_POSES = { stand: { speed: 0 }, walk: { speed: 1.6 }, run: { speed: 5.5 }, super: { speed: 45 }, jump: { speed: 4, jump: true } };
+
 export class App {
   constructor({ canvas, context, world, params }) {
     this.canvas = canvas; this.world = world; this.params = params;
@@ -176,6 +179,9 @@ export class App {
     // unless asked (?hero=1).
     if (params.hero ?? (!this.shotMode && !params.fly)) this.setHero(true);
     this.rig.hover = this.shotMode;       // screenshots must hold still; in play gravity is on until HOVER is tapped
+    // Screenshots of the character on foot (?heropose=stand|walk|run|super|jump) stand it on
+    // the ground; the other character shots keep it in the air.
+    if (this.shotMode && this.rig.mode === 'hero') { if (FOOT_POSES[params.heropose] && params.alt == null) this.rig.standUp(); else this.rig.onFoot = false; }
     window.addEventListener('resize', () => this.resize());
     // The exact size of the canvas in device pixels, where the browser can tell us: with
     // it the image is drawn pixel for pixel, with no resampling by the browser.
@@ -199,6 +205,7 @@ export class App {
   setHero(on) {
     this.rig.setMode(on ? 'hero' : 'walk');
     this.hero.setVisible(on);
+    if (on && !this.rig.hover && this.rig.clearance() < 4) this.rig.standUp();     // on the ground: on its feet
   }
 
   // Hover: gravity off, the figure stays where it is. Off: it falls toward whatever pulls.
@@ -221,6 +228,9 @@ export class App {
     this.timeOffsetHours = b.timeOffsetHours ?? 0;
     this.bookmark = name;
     if (b.label && !this.shotMode && !this.benchmark?.active) this.toast?.show(b.label, 2600);
+    // With the character: a place on the ground is stood on (unless hovering); a view from
+    // up high is flown.
+    if (this.rig.mode === 'hero') { if (p.alt == null && !this.rig.hover) this.rig.standUp(); else this.rig.onFoot = false; }
     if (this.hero) this.hero.started = false;
     this.jumpedAt = performance.now();
   }
@@ -409,6 +419,7 @@ export class App {
       const M1 = eph.icrfToFixed, h1 = eph.positionICRF(w.body, jd, [0, 0, 0]);
       const toF = (a) => new THREE.Vector3(M1[0] * a[0] + M1[1] * a[1] + M1[2] * a[2], M1[3] * a[0] + M1[4] * a[1] + M1[5] * a[2], M1[6] * a[0] + M1[7] * a[1] + M1[8] * a[2]);
       rig.setWorld(w, this.heightFn(w, data.hs));
+      rig.onFoot = false;                           // a hand-over only ever happens in flight
       rig.pos.copy(toF([p[0] + h0[0] - h1[0], p[1] + h0[1] - h1[1], p[2] + h0[2] - h1[2]]));
       rig.velocity.copy(toF(vel));
       rig.lookAlong(toF(f));
@@ -562,9 +573,19 @@ export class App {
       } : null,
     };
     if (this.shotMode) {
-      // Deterministic pose for screenshots: flying forward (or hovering with ?heropose=hover).
-      const flying = this.params.heropose !== 'hover';
-      const pose = { velocity: rig.forward.clone().multiplyScalar(flying ? 30 : 0), throttle: flying ? 1 : 0, yawRate: 0 };
+      // Deterministic pose for screenshots: flying forward (or hovering with ?heropose=hover),
+      // or on foot (?heropose=stand|walk|run|super|jump; &posedir=side: moving to the right).
+      const fp = FOOT_POSES[this.params.heropose];
+      let pose;
+      if (fp) {
+        const U = new THREE.Vector3(...rig.localUp), d = (this.params.posedir === 'side' ? rig.right : rig.forward).clone();
+        d.addScaledVector(U, -d.dot(U)).normalize();
+        pose = { onFoot: true, velocity: d.multiplyScalar(fp.speed), throttle: fp.speed > 0 ? 1 : 0, yawRate: 0, airborne: fp.jump, vUp: fp.jump ? 2.5 : 0, heroRel: rig.heroRel, clock: 0, landedAt: -99, landSpeed: 0 };
+        if (fp.jump) pose.heroRel = rig.heroRel.clone().addScaledVector(U, 1.6);
+      } else {
+        const flying = this.params.heropose !== 'hover';
+        pose = { velocity: rig.forward.clone().multiplyScalar(flying ? 30 : 0), throttle: flying ? 1 : 0, yawRate: 0 };
+      }
       if (!this.heroSettled) { hero.settle(5, rig, env, pose); this.heroSettled = true; } else hero.update(0, rig, env, pose);
     } else hero.update(dt, rig, env);
     hero.group.updateMatrixWorld(true);
@@ -641,7 +662,7 @@ export class App {
       exposure: post.exposure, sunEl: sun.elevation, sunAz: sun.azimuth,
       lat: ll.lat, lon: ll.lon, alt: rig.altitude, agl: rig.agl, heading: rig.heading, pitch: rig.pitch, fov: rig.fov,
       speed: fmtSpeed(rig.velocity.length()), nearest: `${this.nearestName} ${fmtDistance(this.nearestClear)}`, target,
-      hover: rig.hover, pull: rig.pull.length(),
+      hover: rig.hover, pull: rig.pull.length(), onFoot: rig.mode === 'hero' && rig.onFoot, airborne: rig.airborne,
     };
   }
 }
