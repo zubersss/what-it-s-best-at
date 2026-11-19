@@ -271,6 +271,12 @@ exposure alone decides whether they are visible (rule 2).
   front of and a little below the camera, in its own scene. The camera is still what the controls
   move (`rig.mode === 'hero'`); the figure only poses itself from the rig's velocity:
   upright when hovering, horizontal with arms forward in flight, banking into turns.
+  On foot (`rig.onFoot`) the rig integrates the soles (`rig.feet`, horizontal velocity
+  `footVel`, `vUp` under the world's gravity × (R/r)²), places the camera behind the
+  figure (`_placeBehind`), and hands the figure's position over as `rig.heroRel`; the
+  figure blends from the hover pose to a gait (stride, lean, arm swing, jump tuck, landing
+  crouch) by `hero.foot`. Hand-overs: `standUp`, `_toFoot` (landing or a real fall from
+  flight), `_takeOff`. Constants in `FOOT` (cameraRig.js).
   Near the ground it shares the terrain's depth buffer; once the terrain's near plane has
   moved past it (higher up) depth is cleared and it renders in its own 0.2–400 m slice.
 - **Cloak**: a 9×14 mass–spring cloth (Verlet, 90 Hz, 4 constraint passes, capsule

@@ -15,7 +15,8 @@
     "stability": "node scripts/stability.mjs",
     "flight": "node scripts/flight-test.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "govsim": "node scripts/governor-sim.mjs"
+    "govsim": "node scripts/governor-sim.mjs",
+    "foot": "node scripts/foot-test.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"

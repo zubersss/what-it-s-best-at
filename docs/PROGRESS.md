@@ -131,6 +131,16 @@ continuous across chunks, the map's range held near the ground, detail mapped on
 faces, rocks cut into blocks. Kept open: the Olympus wall is still pale (the exposure keys
 on the ground there), the 5 m ledges have box-like edges, Mount Sharp's layers are faint.
 
+## The owner's on-foot request (during milestone 3)
+
+"I want to be able to walk on the ground, and super speed on the ground as well, with
+gravity different by the size of the planet, so on the Moon I can jump much higher."
+Built: the character stands, walks, runs at super speed (60 m/s), jumps and lands, with
+walking, running, sprinting-lean, jumping and landing-crouch poses; gravity is each
+world's real surface gravity (already in the world files), so the same jump goes 2.3
+times higher and lasts 2.3 times longer on the Moon than on Mars. See "Character and
+flight" for the rules. Rocks are not obstacles yet; any slope can be walked up.
+
 ## The owner's space note (during milestone 3)
 
 "Fix the textures up when I'm in outer space, things have no depth, the planet just looks
@@ -410,10 +420,21 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 
 ### Character and flight
 
-- Interactive sessions start behind the character; bookmarks in screenshot mode stay
-  first person unless `?hero=1`.
-- Speed is 0.85 × distance-to-nearest-surface per second (×3 boost): slow near the
-  ground, far faster than light between planets, automatic slow arrival.
+- Interactive sessions start behind the character, on its feet; bookmarks in screenshot
+  mode stay first person unless `?hero=1`.
+- **On foot** (owner's request during milestone 3): walk at up to 4.5 m/s, super speed up
+  to 60 m/s with the stick at its rim, jump at 5 m/s under the world's real gravity
+  (3.4 m and 2.7 s in the air on Mars, 7.7 m and 6.2 s on the Moon; a future Earth 1.3 m).
+  A tap of up jumps; holding it 0.35 s, or a second tap in the air, takes off. With HOVER
+  off, touching the ground while not climbing lands on the feet, and letting go of the
+  stick within 30 m of the ground is a real fall (the flight's own pull is a gentle,
+  scaled one, which made the last metres float). Running off a cliff and falling more
+  than 40 m hands over to flight. The camera follows from where it sits in flight, so
+  landing and taking off do not move it; it never goes below the ground and follows its
+  rises smoothly. The first-person walk (HERO off) jumps at the same speed.
+- Speed in flight is 0.85 × distance-to-nearest-surface per second (×3 boost), 0.2 × near
+  the ground (see the owner's scale note): far faster than light between planets,
+  automatic slow arrival.
 - The camera is the thing that moves; the figure is drawn ~4 m ahead of it.
 - `TARGET` snaps the view to the next body.
 - **The cloak trails in vacuum too** (30 % of the atmospheric flow is kept). This is the
