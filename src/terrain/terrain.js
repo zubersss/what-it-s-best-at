@@ -95,7 +95,6 @@ export class Terrain {
       this.textures.albedo = tex; u.tAlbedo.value = tex;
       u.uAlbedoMap.value.set(1 / def.mean[0], 1 / def.mean[1], 1 / def.mean[2], def.strength ?? 1);
       u.uAlbedoChroma.value = def.chroma ?? 1;
-      u.uAlbedoMax.value = (typeof location !== 'undefined' && location.search.includes('noalbmax')) ? 1e6 : def.max ?? 1e6;   // ?debug=noalbmax: no ceiling (tests)
       const rad = Math.PI / 180;      // latFade: [from, to] degrees of latitude over which the map hands back to the palette
       if (def.latFade) u.uAlbedoFade.value.set(Math.sin(def.latFade[0] * rad), Math.sin(def.latFade[1] * rad)); else u.uAlbedoFade.value.set(2, 3);
       this.tint = makeTintGrid(tex.image, def);
@@ -371,12 +370,12 @@ function makeTintGrid(image, def, w = 512, h = 256) {
   const lin = def.encoding === 'srgb' ? (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)) : (c) => c;
   const chroma = def.chroma ?? 1, strength = def.strength ?? 1;
   for (let i = 0; i < w * h; i++) {
-    const r = lin(px[i * 4] / 255) / def.mean[0], g = lin(px[i * 4 + 1] / 255) / def.mean[1], b = lin(px[i * 4 + 2] / 255) / def.mean[2], grey = (r + g + b) / 3;
+    // (the things that lie on the ground are near it: the map's range applies, as in the
+    // terrain shader near the ground; see albedoRange in terrainMaterial.js)
+    const [r, g, b] = albedoRange(lin(px[i * 4] / 255) / def.mean[0], lin(px[i * 4 + 1] / 255) / def.mean[1], lin(px[i * 4 + 2] / 255) / def.mean[2], def.range), grey = (r + g + b) / 3;
     data[i * 3] = 1 + (grey + (r - grey) * chroma - 1) * strength;
     data[i * 3 + 1] = 1 + (grey + (g - grey) * chroma - 1) * strength;
     data[i * 3 + 2] = 1 + (grey + (b - grey) * chroma - 1) * strength;
-    const lum = 0.2126 * data[i * 3] + 0.7152 * data[i * 3 + 1] + 0.0722 * data[i * 3 + 2];
-    if (def.max && lum > def.max) for (let c = 0; c < 3; c++) data[i * 3 + c] *= def.max / lum;
     if (def.latFade) {
       const lat = Math.abs(90 - (Math.floor(i / w) + 0.5) / h * 180), x = Math.min(1, Math.max(0, (lat - def.latFade[0]) / (def.latFade[1] - def.latFade[0]))), k = 1 - x * x * (3 - 2 * x);
       for (let c = 0; c < 3; c++) data[i * 3 + c] = 1 + (data[i * 3 + c] - 1) * k;
@@ -417,4 +416,15 @@ function makeDemResTexture(world) {
   tex.minFilter = tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = false;
   tex.needsUpdate = true;
   return tex;
+}
+
+// The same as albedoRange in terrainMaterial.js (keep the two alike).
+function albedoRange(r, g, b, range) {
+  if (!range || range[1] <= 0) return [r, g, b];
+  const L = Math.max((r + g + b) / 3, 1e-4), lo = range[0], hi = range[1], a = lo + (hi - lo) * 0.15, k = lo + (hi - lo) * 0.7;
+  let x = L;
+  if (x > k) x = hi - (hi - k) * Math.exp(-(x - k) / (hi - k));
+  if (x < a) x = lo + (a - lo) * Math.exp(-(a - x) / (a - lo));
+  const trust = Math.min(x / L, L / x), t2 = trust * trust;
+  return [x * (1 + (r / L - 1) * t2), x * (1 + (g / L - 1) * t2), x * (1 + (b / L - 1) * t2)];
 }

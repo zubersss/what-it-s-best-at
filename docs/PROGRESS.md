@@ -118,6 +118,19 @@ and the canyons, give it depth, deep depths." Three causes found, three changes:
 | A 60° vertical field of view: about 100° across on a phone held sideways, which shrinks everything far away | 48° (about 85° across). Mountains and canyon walls fill more of the screen |
 | The opening view looked along the canyon from a bench among low hills: neither wall nor the depth was in view | The opening view is now the lip of the north rim at 5 km, two hours before sunset, looking down across the 10 km deep canyon to the south wall 60 km away. The sunset view along the canyon stays as an extra place (`canyon`) |
 
+## Mars ground at walking distance (helper, milestone 3)
+
+The critic's "Mars is one colour everywhere", "tiger stripes", "Olympus wall like snow" and
+"identical gem rocks". Causes: every material had the same red-to-green ratio, sand came
+only by altitude; ripples covered all dust and broke along chunk edges (their phase was not
+a whole number of cycles per detail tile); the Viking mosaic's sunlit caldera wall is three
+times its mean and bluish white; every rock was the same 80-facet icosahedron. Changes:
+ground cover of dust, dark grey-brown sand and bedrock driven by the map's darkness, darker
+grey-brown rock and boulders (darker than the dust, as at Gale), ripples on sand only and
+continuous across chunks, the map's range held near the ground, detail mapped onto steep
+faces, rocks cut into blocks. Kept open: the Olympus wall is still pale (the exposure keys
+on the ground there), the 5 m ledges have box-like edges, Mount Sharp's layers are faint.
+
 ## The owner's space note (during milestone 3)
 
 "Fix the textures up when I'm in outer space, things have no depth, the planet just looks

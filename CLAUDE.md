@@ -173,7 +173,7 @@ benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|hover`,
 `aim=<sky body>` (turn the view to it), `dust=1` (with `hero=1`: a touch-down dust burst
 frozen in mid-flight), `debug=noair|airall` (haze shadows off / everywhere),
 `debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
-`nofarrough`, `noboost`, `noalbmax`) for before/after pictures.
+`nofarrough`, `noboost`) for before/after pictures.
 
 Keys: `WASD` move, mouse look (click to capture), `Shift` run / boost, `Space` jump /
 up, `Q`/`E` down / up, `G` flying character on/off, `T` aim at the next body in the sky,
@@ -264,6 +264,9 @@ finished benchmark leaves its text in `window.__benchResult`.
 - The terrain's level of detail does not depend on screen size: a picture 309 px tall says
   little about a 1440 px phone (4–5x more pixels per texel). Judge sharpness at the phone's
   density (`--size 880x412 --dsf 3.5`), not with a narrower lens, which also raises detail.
+- Any pattern phased by the detail texture's coordinates must have a whole number of
+  cycles per 64 m tile: each chunk knows its tile offset only modulo one tile, and a
+  fractional count breaks the pattern along chunk edges (the ripples did).
 - A photographic colour map carries its own shading (Viking's sunlit walls and shadows);
   from orbit that is real depth, so do not flatten it to remove "lines".
 - Small very bright things (a lander, sunlit rocks on dark regolith) can own a

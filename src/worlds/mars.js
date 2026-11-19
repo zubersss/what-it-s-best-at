@@ -57,26 +57,42 @@ export default {
     // of its colour differences are used: against the bright regions its dark ones are
     // 0.4-0.45 as bright in red and 0.75 in blue (Solis Lacus / Syria, Meridiani / Arabia),
     // the spectral contrast of dark basalt against dust; at half, every dark region was
-    // the same orange as the dust, only darker.
+    // the same orange as the dust, only darker. `range`: the mosaic also holds the
+    // photographed shading of steep slopes and some haze and cloud (Olympus Mons's caldera
+    // rim reads three times the mean, bluish white; Mount Sharp more than twice); real
+    // ground lies between about 0.4 and 1.4 of the mean. The range holds near the ground
+    // only: from orbit the photographed sunlit walls and shadows are real depth, and Mars
+    // looked flatter without them.
+    albedoMap: { url: 'data/mars_color_4096.jpg', encoding: 'srgb', mean: [0.197, 0.118, 0.113], strength: 1.0, chroma: 1.0, range: [0.4, 1.4] },
     // The ground's slope everywhere (MOLA, 16 px/deg box-averaged to 5.2 km): relief shading from far away, where
     // the terrain's own normal maps are tens of kilometres per texel. strength 1 = true relief;
     // 2 doubles the slopes of what it adds, so landforms read on a phone from orbit (a stylisation).
     reliefMap: { url: 'data/mars_slopes_4096.jpg', strength: 2.0, latFade: [80, 88] },
-    albedoMap: { url: 'data/mars_color_4096.jpg', encoding: 'srgb', mean: [0.197, 0.118, 0.113], strength: 1.0, chroma: 1.0 },
-    // (No ceiling (max) on its brightest parts: the mosaic's photographed sunlit walls and
-    // crater rims are a real depth cue from orbit. Held at 1.7 times the mean, Mars lost it.)
     // Materials blended by slope and height. Albedos are linear reflectance.
     dust: [0.30, 0.165, 0.080],      // bright butterscotch dust on flats
-    sand: [0.150, 0.085, 0.050],     // darker basaltic sand, low ground
-    scree: [0.205, 0.115, 0.064],    // talus aprons
-    rock: [0.170, 0.098, 0.060],     // cliff rock base colour
-    // Strata tint bands multiplied onto rock (period in metres of altitude).
-    strata: { seed: 7, period: 1900, contrast: 0.55, fine: 0.30, finePeriod: 140, colors: [[1.25, 1.02, 0.86], [0.72, 0.70, 0.74], [1.05, 0.90, 0.72], [0.55, 0.52, 0.55], [1.15, 0.98, 0.80]] },
+    sand: [0.125, 0.088, 0.058],     // dark basaltic sand: grey-brown beside the dust
+    bedrock: [0.165, 0.112, 0.080],  // bare bedrock plates on gentle ground: grey-brown, darker than dust
+    scree: [0.165, 0.103, 0.066],    // talus aprons
+    rock: [0.125, 0.084, 0.060],     // cliff rock base colour: grey-brown, darker than the dust
+    // Strata tint bands multiplied onto rock (period in metres of altitude); `flat`: how
+    // much of them shows through the dust on gentle ground (bedrock shows them fully).
+    strata: { seed: 7, period: 1900, contrast: 0.55, fine: 0.30, finePeriod: 140, flat: 0.9, colors: [[1.25, 1.02, 0.86], [0.72, 0.70, 0.74], [1.05, 0.90, 0.72], [0.55, 0.52, 0.55], [1.15, 0.98, 0.80]] },
     slopes: { dustMax: 0.30, screeMin: 0.42, screeMax: 0.74, rockMin: 0.80 },   // tan(slope)
-    sandBelow: -3600, sandFade: 900,   // dark sand appears below this altitude (m)
-    ripples: { wavelength: 0.9, strength: 0.10 },
+    sandBelow: -3600, sandFade: 900,   // more dark sand below this altitude (m)
+    // Gentle ground is shared between dust, dark sand and bare bedrock, in patches a few
+    // metres to tens of metres across. The colour map sets the shares: `sandMap` = its
+    // brightness (relative to its mean) on all-dust ground and on dark ground, where sand
+    // covers whatever bedrock leaves; `bedrock` = bedrock's share on each, and on gentle
+    // slopes just short of scree (dust slides off them); `sandMin` anywhere, `sandLow`
+    // below sandBelow. Sand gathers in hollows (`hollows`: how strongly), bedrock stays on
+    // the rises. The map's brightness is kept on average: the cover only shares it out
+    // (`contrast`: how pure the patches are). `rockHue`: how much of the dust's hue rock,
+    // scree and bedrock wear on each (dust-mantled Tharsis, bare rock at Gale).
+    cover: { sandMap: [1.2, 0.2], sandMin: 0, sandLow: 0.45, bedrock: [0.10, 0.25, 0.45], hollows: 0.6, contrast: 0.75, rockHue: [1.0, 0.1] },
+    ripples: { wavelength: 0.9, strength: 0.10, onDust: 0 },   // wind ripples on the sand only
     detailStrength: 0.38,
-    rocks: { count: 480, radius: 120, size: [0.3, 2.4], albedo: [0.150, 0.090, 0.058] },
+    // dark grey-brown basalt; dustCap: how much dust lies on their tops
+    rocks: { count: 480, radius: 120, size: [0.3, 2.4], albedo: [0.095, 0.067, 0.049], dustCap: 0.35 },
   },
 
   atmosphere: {

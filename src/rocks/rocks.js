@@ -7,29 +7,59 @@ import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { noise3, hash3 } from '../terrain/height/noise.js';
 import { latLonToDir, dirToLatLon } from '../core/ephemeris.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const INSTANCE_VERT = /* glsl */`
-in vec3 aOffset; in vec4 aQuat; in vec3 aScale; in vec2 aMisc;
+in vec3 aOffset; in vec4 aQuat; in vec3 aScale; in vec2 aMisc; in vec4 aShape;
 uniform float uFadeRadius;
 vec3 qrot(vec3 v, vec4 q) { return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v); }
-vec3 rockPosition(out vec3 centre) {
+vec3 sphDir(float u, float z) { float s = sqrt(max(0.0, 1.0 - z * z)), a = 6.2831853 * u; return vec3(cos(a) * s, sin(a) * s, z); }
+// Every rock is a block: the same lump trimmed by four to six fracture planes round its
+// sides and one across its top, placed, tilted and sized differently on each rock
+// (aShape), so no two rocks are alike. nrm comes in as the lump's smooth normal and
+// leaves as the surface's.
+vec3 rockShape(vec3 p, inout vec3 nrm) {
+  float r = length(p);
+  vec3 d = p / r;
+  float az = aShape.x * 6.2831853, sides = 4.0 + floor(aShape.w * 2.999);
+  for (int i = 0; i < 7; i++) {
+    float fi = float(i);
+    if (fi > sides) break;
+    vec3 n; float h;
+    if (fi < sides) {
+      float a = az + fi * 6.2831853 / sides + (fract(aShape.y * 7.13 + fi * 0.618034) - 0.5) * 0.9;
+      n = sphDir(a * 0.15915494, (fract(aShape.z * 5.71 + fi * 0.381966) - 0.45) * 0.55);
+      h = mix(0.5, 0.82, fract(aShape.y * 3.31 + fi * 0.754878));
+    } else {
+      n = sphDir(aShape.z, mix(0.6, 0.97, aShape.y));
+      h = mix(0.35, 0.7, aShape.x);
+    }
+    float c = dot(d, n);
+    if (c > 1e-3 && r * c > h) { r = h / c; nrm = n; }
+  }
+  return d * r;
+}
+vec3 rockPosition(out vec3 centre, inout vec3 nrm) {
   centre = (modelMatrix * vec4(aOffset, 1.0)).xyz;
   float fade = 1.0 - smoothstep(uFadeRadius * 0.72, uFadeRadius, length(centre));
-  return centre + qrot(position * aScale, aQuat) * fade;
+  return centre + qrot(rockShape(position, nrm) * aScale, aQuat) * fade;
 }`;
 
+// A rounded lump (80 triangles on 42 shared vertices); the fracture planes that make each
+// rock a different block are cut in the vertex shader.
 function rockGeometry() {
-  const geo = new THREE.IcosahedronGeometry(1, 1);          // 80 flat triangles
+  const ico = new THREE.IcosahedronGeometry(1, 1);
+  ico.deleteAttribute('normal'); ico.deleteAttribute('uv');
+  const geo = mergeVertices(ico, 1e-4);
   const p = geo.attributes.position, v = new THREE.Vector3();
   for (let i = 0; i < p.count; i++) {
     v.fromBufferAttribute(p, i).normalize();
-    const r = 0.78 + 0.34 * noise3(v.x * 1.7 + 3.1, v.y * 1.7 - 1.2, v.z * 1.7 + 8.8) + 0.12 * noise3(v.x * 4.1, v.y * 4.1, v.z * 4.1);
+    const r = 0.86 + 0.24 * noise3(v.x * 1.7 + 3.1, v.y * 1.7 - 1.2, v.z * 1.7 + 8.8) + 0.06 * noise3(v.x * 4.1, v.y * 4.1, v.z * 4.1);
     v.multiplyScalar(r);
     if (v.z < -0.35) v.z = -0.35 - (v.z + 0.35) * 0.15;       // flattened base sits in the ground
     p.setXYZ(i, v.x, v.y, v.z);
   }
-  geo.computeVertexNormals();                                 // non-indexed -> face normals
-  geo.deleteAttribute('uv');
+  geo.computeVertexNormals();
   return geo;
 }
 
@@ -44,36 +74,46 @@ export class Rocks {
     this.prob = Math.min(1, Math.min(this.capacity, def.count | 0) / (Math.PI * def.radius * def.radius / (this.cell * this.cell)) * 0.92);
     const base = rockGeometry();
     const geo = new THREE.InstancedBufferGeometry();
-    geo.setAttribute('position', base.attributes.position); geo.setAttribute('normal', base.attributes.normal);
+    geo.setAttribute('position', base.attributes.position); geo.setAttribute('normal', base.attributes.normal); geo.setIndex(base.index);
     const n = this.capacity;
     this.aOffset = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
     this.aQuat = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4);
     this.aScale = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
     this.aMisc = new THREE.InstancedBufferAttribute(new Float32Array(n * 2).fill(1), 2);
+    this.aShape = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4);
     geo.setAttribute('aOffset', this.aOffset); geo.setAttribute('aQuat', this.aQuat); geo.setAttribute('aScale', this.aScale); geo.setAttribute('aMisc', this.aMisc);
+    geo.setAttribute('aShape', this.aShape);
     geo.instanceCount = 0;
     this.geometry = geo;
-    this.trianglesPerRock = base.attributes.position.count / 3;
+    this.trianglesPerRock = base.index.count / 3;
     const fade = { value: def.radius };
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: atmosphereDefines(),
-      uniforms: { ...lightingUniforms(), uFadeRadius: fade, uRockAlbedo: { value: new THREE.Vector3(...def.albedo) }, uDustAlbedo: { value: new THREE.Vector3(...world.surface.dust) }, uRoughness: { value: world.surface.roughness ?? 0.5 } },
+      uniforms: {
+        ...lightingUniforms(), uFadeRadius: fade, uRockAlbedo: { value: new THREE.Vector3(...def.albedo) }, uDustAlbedo: { value: new THREE.Vector3(...world.surface.dust) },
+        uRoughness: { value: world.surface.roughness ?? 0.5 },
+        uDustCap: { value: def.dustCap ?? 0.55 },
+      },
       vertexShader: /* glsl */`${INSTANCE_VERT}
         out vec3 vRel; out vec3 vN; out vec3 vLocal; out vec2 vMisc;
         void main() {
-          vec3 c; vec3 rel = rockPosition(c);
-          vRel = rel; vN = qrot(normal / aScale, aQuat); vLocal = position; vMisc = aMisc;
+          vec3 c, nrm = normal; vec3 rel = rockPosition(c, nrm);
+          vRel = rel; vN = qrot(nrm / aScale, aQuat); vLocal = position; vMisc = aMisc;
           gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
         }`,
       fragmentShader: /* glsl */`${LIGHTING_PARS}
-        uniform vec3 uRockAlbedo, uDustAlbedo; uniform float uRoughness;
+        uniform vec3 uRockAlbedo, uDustAlbedo; uniform float uRoughness, uDustCap;
         in vec3 vRel; in vec3 vN; in vec3 vLocal; in vec2 vMisc;
         layout(location = 0) out vec4 fragColor;
         void main() {
-          vec3 N = normalize(vN);
           vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel);
+          // Shaded by the true faces: the fracture planes are flat, the narrow faces between
+          // them read as worn edges (the smooth normal only softens them a little).
+          vec3 F = normalize(cross(dFdx(vRel), dFdy(vRel)));
+          F *= sign(dot(F, V));
+          vec3 N = normalize(mix(F, normalize(vN), 0.3));
           float top = smoothstep(0.45, 0.95, dot(N, up));
-          vec3 albedo = mix(uRockAlbedo * vMisc.y, uDustAlbedo, top * 0.55) * uGroundTint;       // dust settles on top; local rock is the local colour
+          vec3 albedo = mix(uRockAlbedo * vMisc.y, uDustAlbedo, top * uDustCap) * uGroundTint;   // (the map's range is already in uGroundTint: Terrain.tintAt)       // dust settles on top; local rock is the local colour
           float contact = mix(0.55, 1.0, smoothstep(-0.35, 0.25, vLocal.z));        // darker where it meets the ground
           vec3 direct = directSun(planetPos) * vMisc.x * nearShadow(vRel, N) * groundDiffuse(N, uSunDir, V, uRoughness);
           vec3 col = albedo * (direct + (skyLight(N, up) * contact + planetShine(N)) / PI);
@@ -84,7 +124,7 @@ export class Rocks {
     this.depthMaterial = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, colorWrite: false, uniforms: { uFadeRadius: fade },
       vertexShader: /* glsl */`${INSTANCE_VERT}
-        void main() { vec3 c; gl_Position = projectionMatrix * viewMatrix * vec4(rockPosition(c), 1.0); }`,
+        void main() { vec3 c, nrm = normal; gl_Position = projectionMatrix * viewMatrix * vec4(rockPosition(c, nrm), 1.0); }`,
       fragmentShader: /* glsl */`layout(location = 0) out vec4 fragColor; void main() { fragColor = vec4(1.0); }`,
     });
     this.mesh = new THREE.Mesh(geo, this.material);
@@ -110,6 +150,7 @@ export class Rocks {
     const u = this.material.uniforms;
     u.uFadeRadius.value = def.radius; u.uRockAlbedo.value.set(...def.albedo); u.uDustAlbedo.value.set(...world.surface.dust);
     u.uRoughness.value = world.surface.roughness ?? 0.5;
+    u.uDustCap.value = def.dustCap ?? 0.55;
     this.mesh.visible = (def.count | 0) > 0;
     this.cellKey = ''; this.count = 0; this.geometry.instanceCount = 0; this.needVis = false;
   }
@@ -188,13 +229,15 @@ export class Rocks {
       const sx = 0.8 + 0.5 * ((h0 >>> 8) & 0xff) / 255, sy = 0.7 + 0.5 * ((h1 >>> 8) & 0xff) / 255, sz = 0.5 + 0.4 * ((h2 >>> 8) & 0xff) / 255;
       this.aScale.setXYZ(n, size * sx, size * sy, size * sz);
       this.aMisc.setXY(n, this.aMisc.array[n * 2] ?? 1, 0.8 + 0.4 * ((h2 >>> 4) & 0xff) / 255);
+      const h3 = hash3(i, j, 61, 911);
+      this.aShape.setXYZW(n, (h3 & 0xff) / 256, ((h3 >>> 8) & 0xff) / 256, ((h3 >>> 16) & 0xff) / 256, (h3 >>> 24) / 256);
       this.points[n * 3] = x + d[0] * size * 0.4; this.points[n * 3 + 1] = y + d[1] * size * 0.4; this.points[n * 3 + 2] = z + d[2] * size * 0.4;
       n++;
     }
     this.count = n;
     this.nearCount = nearN;          // the instances that can fall inside nearRadius (they come first)
     this.geometry.instanceCount = Math.floor(n * (this.fraction ?? 1));
-    this.aOffset.needsUpdate = this.aQuat.needsUpdate = this.aScale.needsUpdate = this.aMisc.needsUpdate = true;
+    this.aOffset.needsUpdate = this.aQuat.needsUpdate = this.aScale.needsUpdate = this.aMisc.needsUpdate = this.aShape.needsUpdate = true;
     void dirToLatLon; void G;
   }
 }

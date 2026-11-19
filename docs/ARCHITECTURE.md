@@ -114,6 +114,21 @@ longitude, which jumps (taking derivatives of the longitude left a whole cube fa
 blurred to the map's mean colour). A 512 × 256 copy on the CPU gives the same tint at the
 camera (`Terrain.tintAt` → `uGroundTint`) for the rocks and the kicked-up dust.
 
+**Ground cover** (milestone 3): gentle ground is shared between dust, dark sand and bare
+`bedrock`, in patches a few metres to tens of metres across from one pattern that gathers
+sand in hollows and leaves bedrock on the rises. `surface.cover` sets the shares from the
+albedo map's darkness (`sandMap`, `bedrock`, `sandMin`, `sandLow`, `hollows`, `contrast`)
+and `rockHue` how much of the dust's hue rock wears (dust-mantled Tharsis, bare rock at
+Gale); the cover only shares out the map's brightness, it keeps the mean. `strata.flat`
+lets the bands show through the dust. `ripples.onDust` / `direction`: wind ripples, their
+wave vector rounded to whole cycles per 64 m detail tile so crests continue across chunk
+edges (any pattern phased by the detail UV must be). `albedoMap.range`: soft limits of the
+map's brightness relative to its mean, held near the ground only (the mosaic's photographed
+sunlit walls made the Olympus scarp white; from orbit they are real depth). Steep faces
+take the close-up detail mapped onto the face itself (no streaks down cliffs). Rocks are
+one lump cut by four to six fracture planes per instance (`aShape`), shaded by their true
+faces; `rocks.dustCap` is how much dust lies on their tops.
+
 **Slope map** (`surface.reliefMap`): the ground's slope everywhere (east and north, from
 the 16 px/deg global elevation, box-averaged to 4096×2048), one greyscale JPEG twice as
 tall as wide, uploaded as R8. It gives relief shading from far away, where the chunks'

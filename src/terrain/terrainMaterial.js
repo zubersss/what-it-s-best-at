@@ -6,6 +6,23 @@ import { CONFIG } from '../config.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 
+// Holds an albedo map's brightness (relative to its mean) inside the range the real ground
+// spans, with soft knees: a mosaic also records the shading of steep slopes, haze and
+// cloud, which would otherwise turn into ground two or three times too bright or dark.
+// The colour of a pixel pulled back into range is trusted even less than its brightness
+// (a bluish-white cloud or sunlit wall is not bluish-white ground). r = (lowest, highest);
+// r.y = 0: no limit. Shared with the rocks (uGroundTint).
+export const ALBEDO_RANGE_GLSL = /* glsl */`
+vec3 albedoRange(vec3 t, vec2 r) {
+  if (r.y <= 0.0) return t;
+  float L = max(dot(t, vec3(0.3333)), 1e-4), x = L;
+  float a = mix(r.x, r.y, 0.15), b = mix(r.x, r.y, 0.7);
+  if (x > b) x = r.y - (r.y - b) * exp(-(x - b) / (r.y - b));
+  if (x < a) x = r.x + (a - r.x) * exp(-(a - x) / (a - r.x));
+  float trust = min(x / L, L / x);
+  return x * (1.0 + (t / L - 1.0) * trust * trust);
+}`;
+
 const VERT = /* glsl */`
 in vec2 aGrid;
 in vec2 aHM;                 // x = height above datum, y = morph delta toward the parent LOD
@@ -42,11 +59,17 @@ uniform sampler2D tParentShadow;   // toward them exactly as the vertices morph 
 uniform vec3 uParent;          // xy = this chunk's corner inside the parent (0 or 0.5), z = parent maps bound
 uniform sampler2D tStrata;
 uniform sampler2D tDetail;
-uniform vec3 uDust, uSand, uScree, uRock;
+uniform vec3 uDust, uSand, uScree, uRock, uBedrock;
 uniform vec4 uSlopes;          // dustMax, screeMin, screeMax, rockMin (tan slope)
 uniform vec4 uStrata;          // 1/period, contrast, 1/finePeriod, fine contrast
+uniform float uStrataFlat;     // how much of the bands shows through the dust on gentle ground
 uniform vec2 uSandRange;       // below altitude, fade
-uniform vec3 uRipple;          // 2pi / wavelength (per metre), strength, tile size (m)
+uniform vec4 uCover;           // x, y = map brightness of dust-covered and of dark ground; z = least sand anywhere; w = sand below uSandRange
+uniform vec4 uCoverPattern;    // x, y = bedrock share on dust-covered and on dark ground, z = pull of hollows, w = spread of the pattern
+uniform vec2 uRockHue;         // how much of the dust's hue rock wears on dust-covered and on dark ground
+uniform float uCoverContrast;  // how pure the cover's patches are (1: all sand or all dust)
+uniform float uBedrockSlope;   // bedrock share on gentle slopes just short of scree (dust and sand slide off)
+uniform vec4 uRipple;          // xy = ripple wave vector (whole cycles per detail tile), z = strength, w = share on dust
 uniform float uRoughness;
 uniform float uFarRoughness;  // the same for ground whose chunk texels are kilometres (seen from orbit)
 uniform float uDetailStrength;
@@ -55,12 +78,12 @@ uniform sampler2D tAlbedo;     // global map of the world's real brightness or c
 uniform vec4 uAlbedoMap;       // rgb = 1 / the map's mean, w = how strongly it tints the palette (0 = no map)
 uniform float uAlbedoChroma;   // how much of the map's colour (not just its brightness) is used, 0..1
 uniform vec2 uAlbedoFade;      // sines of the latitudes between which the map fades out toward the poles
-uniform float uAlbedoMax;      // the map's tint is held below this brightness (the mosaic's photographed sunlit walls)
+uniform vec2 uAlbedoRange;     // soft limits of the map's brightness relative to its mean (y = 0: none), held near the ground only
 uniform sampler2D tRelief;     // the ground's slope everywhere: east slope in the top half, north in the bottom (fetch-maps.py)
 uniform vec4 uRelief;          // x = strength (0 = no map), y = metres per map texel (north-south), z = texels across, w unused
 uniform vec2 uReliefFade;      // sines of the latitudes between which it fades out toward the poles
 uniform sampler2D tDemRes;     // how sharp the elevation data is at each place: log2(metres per pixel) * 16 / 255
-uniform vec4 uDetail;          // (per chunk) xy = offset in tiles, zw = chunk extent in tiles of uRipple.z metres
+uniform vec4 uDetail;          // (per chunk) xy = offset in tiles, zw = chunk extent in tiles of DETAIL_TILE metres
 
 // Slope (east, north; metres per metre) of the relief map at a level of detail.
 vec2 reliefSlope(vec2 uv, float lod) {
@@ -75,6 +98,17 @@ in float vHeight;
 in vec3 vRel;
 in float vMorph;
 layout(location = 0) out vec4 fragColor;
+
+float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+
+// Pattern level below which a share c of the ground lies (the pattern is roughly normal
+// around 0.5 with the spread uCoverPattern.w; logistic fit of its distribution).
+float coverLevel(float c) {
+  c = clamp(c, 1e-3, 1.0 - 1e-3);
+  return 0.5 + uCoverPattern.w * log(c / (1.0 - c));
+}
+
+${ALBEDO_RANGE_GLSL}
 
 void main() {
   vec4 nt = texture(tNormal, vUv);
@@ -97,8 +131,37 @@ void main() {
 
   vec4 d0 = texture(tDetail, vDetailUv);
   vec4 d1 = vec4(0.5), d2 = vec4(0.5);
+  vec3 grain = vec3(0.0);                       // close-up detail normal (planet axes, before scaling)
   bool fine = uQuality.x > 0.5;                 // governor step: close-up ground detail
-  if (fine) { d1 = texture(tDetail, vDetailUv * 9.0); d2 = texture(tDetail, vDetailUv * 83.0); }
+  if (fine) {
+    // Mapped from above on gentle ground. A steep face also takes it mapped onto itself
+    // (along it and up it, the height wrapped by one tile: the texture repeats), else
+    // the texture stretches down the face into streaks. Weights reach 0 where the slope
+    // turns gentle, so the plain mapping takes over there without a seam.
+    vec2 gx = dFdx(vDetailUv), gy = dFdy(vDetailUv);
+    float hy = mod(vHeight, float(DETAIL_TILE)) / float(DETAIL_TILE);
+    vec2 hg = vec2(dFdx(vHeight), dFdy(vHeight)) / float(DETAIL_TILE);
+    vec3 w = max(abs(vec3(dot(N, uTanU), dot(N, uTanV), dot(N, up))) - 0.42, 0.0);
+    w *= w; w /= w.x + w.y + w.z + 1e-8;
+    vec4 a, b;
+    if (w.z > 0.0) {
+      a = textureGrad(tDetail, vDetailUv * 9.0, gx * 9.0, gy * 9.0); b = textureGrad(tDetail, vDetailUv * 83.0, gx * 83.0, gy * 83.0);
+      d1 += (a - 0.5) * w.z; d2 += (b - 0.5) * w.z;
+      grain += (uTanU * ((a.r - 0.5) * 0.9 + (b.r - 0.5) * 0.8) + uTanV * ((a.g - 0.5) * 0.9 + (b.g - 0.5) * 0.8)) * w.z;
+    }
+    if (w.x > 0.0) {             // a face looking along U: along V and up
+      vec2 uv = vec2(vDetailUv.y, hy), sx = vec2(gx.y, hg.x), sy = vec2(gy.y, hg.y);
+      a = textureGrad(tDetail, uv * 9.0, sx * 9.0, sy * 9.0); b = textureGrad(tDetail, uv * 83.0, sx * 83.0, sy * 83.0);
+      d1 += (a - 0.5) * w.x; d2 += (b - 0.5) * w.x;
+      grain += (uTanV * ((a.r - 0.5) * 0.9 + (b.r - 0.5) * 0.8) + up * ((a.g - 0.5) * 0.9 + (b.g - 0.5) * 0.8)) * w.x;
+    }
+    if (w.y > 0.0) {             // a face looking along V: along U and up
+      vec2 uv = vec2(vDetailUv.x, hy), sx = vec2(gx.x, hg.x), sy = vec2(gy.x, hg.y);
+      a = textureGrad(tDetail, uv * 9.0, sx * 9.0, sy * 9.0); b = textureGrad(tDetail, uv * 83.0, sx * 83.0, sy * 83.0);
+      d1 += (a - 0.5) * w.y; d2 += (b - 0.5) * w.y;
+      grain += (uTanU * ((a.r - 0.5) * 0.9 + (b.r - 0.5) * 0.8) + up * ((a.g - 0.5) * 0.9 + (b.g - 0.5) * 0.8)) * w.y;
+    }
+  }
 
   // --- materials by slope
   float cosS = clamp(dot(N, up), 0.0, 1.0);
@@ -108,17 +171,6 @@ void main() {
   float screeW = smoothstep(uSlopes.x, uSlopes.y, ts) * (1.0 - rockW);
   float flatW = 1.0 - rockW - screeW;
 
-  // --- colour
-  float hs = vHeight + (d0.b - 0.5) * 24.0;
-  vec3 tint = texture(tStrata, vec2(hs * uStrata.x, 0.25)).rgb * 2.0;
-  vec3 tintFine = texture(tStrata, vec2(hs * uStrata.z, 0.75)).rgb * 2.0;
-  vec3 band = mix(vec3(1.0), tint, uStrata.y) * mix(vec3(1.0), tintFine, uStrata.w);
-  vec3 rock = uRock * band;
-  vec3 scree = uScree * mix(vec3(1.0), band, 0.35);
-  float sandW = smoothstep(uSandRange.x + uSandRange.y, uSandRange.x, vHeight + (d0.a - 0.5) * 900.0);
-  vec3 flatC = mix(uDust, uSand, sandW * (0.55 + 0.45 * d0.b));
-  vec3 albedo = rock * rockW + scree * screeW + flatC * flatW;
-  albedo *= 0.93 + 0.14 * d1.a;
   // Global maps (longitude 0..360 E from the left edge, north in the first row). Longitude
   // jumps by a full turn somewhere, so a map's footprint on screen is worked out from the
   // direction itself (which has no seam) and handed to the sampler.
@@ -127,22 +179,70 @@ void main() {
   float kA = 0.15915494 / max(dot(up.xy, up.xy), 1e-5);
   vec2 gx = vec2((up.x * upX.y - up.y * upX.x) * kA, dFdx(uvA.y));
   vec2 gy = vec2((up.x * upY.y - up.y * upY.x) * kA, dFdy(uvA.y));
+  // metres per texel of this chunk's normal map: how far away (in detail) this ground is
+  float chunkTexel = uDetail.z * float(DETAIL_TILE) / float(NORMAL_RES);
+  float farW = smoothstep(200.0, 2000.0, chunkTexel);
+
+  // --- the world's real large-scale brightness and colour: maria, rays, dark sands
+  vec3 mapTint = vec3(1.0);
+  float mapW = 0.0;
   if (uAlbedoMap.w > 0.0) {
-    // The world's real large-scale brightness and colour: maria, rays, dark sands.
-    vec3 tint = textureGrad(tAlbedo, uvA, gx, gy).rgb * uAlbedoMap.rgb;
-    tint = mix(vec3(dot(tint, vec3(0.3333))), tint, uAlbedoChroma);
-    tint *= min(1.0, uAlbedoMax / max(dot(tint, vec3(0.2126, 0.7152, 0.0722)), 1e-3));
-    albedo *= mix(vec3(1.0), tint, uAlbedoMap.w * (1.0 - smoothstep(uAlbedoFade.x, uAlbedoFade.y, abs(up.z))));
+    vec3 raw = textureGrad(tAlbedo, uvA, gx, gy).rgb * uAlbedoMap.rgb;
+    vec3 t = mix(albedoRange(raw, uAlbedoRange), raw, farW);
+    mapW = uAlbedoMap.w * (1.0 - smoothstep(uAlbedoFade.x, uAlbedoFade.y, abs(up.z)));
+    mapTint = mix(vec3(1.0), mix(vec3(dot(t, vec3(0.3333))), t, uAlbedoChroma), mapW);
   }
 
-  // --- detail normal: grain everywhere, wind ripples on dust (both vanish with distance via mips / footprint)
-  vec2 dn = (d1.rg - 0.5) * 0.9 + (d2.rg - 0.5) * 0.8;
-  dn *= uDetailStrength * (0.55 + 0.9 * rockW + 0.5 * screeW);
-  vec2 wind = vec2(0.82, 0.57);
-  float phase = dot(vDetailUv * uRipple.z, wind) * uRipple.x + (d1.b - 0.5) * 9.0 + (d0.b - 0.5) * 30.0;
-  float ripFade = fine ? (1.0 - smoothstep(0.5, 1.6, fwidth(phase))) * flatW * (1.0 - sandW * 0.5) : 0.0;
-  dn += wind * cos(phase) * uRipple.y * ripFade;
-  N = normalize(N + uTanU * dn.x + uTanV * dn.y);
+  // --- colour
+  float hs = vHeight + (d0.b - 0.5) * 24.0;
+  vec3 tint = texture(tStrata, vec2(hs * uStrata.x, 0.25)).rgb * 2.0;
+  vec3 tintFine = texture(tStrata, vec2(hs * uStrata.z, 0.75)).rgb * 2.0;
+  vec3 band = mix(vec3(1.0), tint, uStrata.y) * mix(vec3(1.0), tintFine, uStrata.w);
+  // How dark the map is here: dark ground is bare rock and sand, bright ground is mantled in dust.
+  float dark = clamp((uCover.x - dot(mapTint, vec3(0.3333))) / (uCover.x - uCover.y), 0.0, 1.0);
+  // Where dust mantles everything, rock and scree wear its hue (at their own brightness).
+  float hue = mix(uRockHue.x, uRockHue.y, dark);
+  vec3 dustHue = uDust / luma(uDust);
+  vec3 rock = mix(uRock, dustHue * luma(uRock), hue) * band;
+  vec3 scree = mix(uScree, dustHue * luma(uScree), hue) * mix(vec3(1.0), band, 0.35);
+  vec3 bedrock = mix(uBedrock, dustHue * luma(uBedrock), hue);
+
+  // What covers gentle ground: dust, dark sand and bare bedrock. How much of each comes
+  // from the place (the map's darkness, the altitude); where, from one pattern of patches
+  // a few metres to tens of metres across that gathers sand in hollows and leaves bedrock
+  // on the rises. Edges are crisp up close; once the patches are smaller than a pixel the
+  // ground takes their mean colour.
+  float cBed = mix(uCoverPattern.x, uCoverPattern.y, dark);
+  cBed = mix(cBed, max(cBed, uBedrockSlope), smoothstep(0.0, uSlopes.x, ts));
+  float cSand = max(max(uCover.z, uCover.w * smoothstep(uSandRange.x + uSandRange.y, uSandRange.x, vHeight)), dark) * (1.0 - cBed);
+  float sandM = 0.0, bedM = 0.0;
+  if (uCover.x > 0.0 || uCover.z + uCover.w + uCoverPattern.x + uCoverPattern.y > 0.0) {
+    float pat = d0.a + 0.3 * (d1.a - 0.5) - (1.0 - ao) * uCoverPattern.z;
+    float aa = fwidth(pat) + 0.012;
+    float tS = coverLevel(cSand), tB = coverLevel(1.0 - cBed);
+    sandM = 1.0 - smoothstep(tS - aa, tS + aa, pat);
+    bedM = min(smoothstep(tB - aa, tB + aa, pat), 1.0 - sandM);
+    float far = smoothstep(6.0, 48.0, (abs(dFdx(vDetailUv.x)) + abs(dFdy(vDetailUv.x)) + abs(dFdx(vDetailUv.y)) + abs(dFdy(vDetailUv.y))) * 128.0);
+    sandM = mix(cSand, sandM, uCoverContrast * (1.0 - far)); bedM = mix(cBed, bedM, uCoverContrast * (1.0 - far));
+  }
+  vec3 dust = uDust * mix(vec3(1.0), band, uStrataFlat);
+  vec3 flatC = dust * (1.0 - sandM - bedM) + uSand * sandM + bedrock * band * bedM;
+  // The map gives the mean brightness of the ground; the cover only shares it out.
+  vec3 meanFlat = uDust * (1.0 - cSand - cBed) + uSand * cSand + bedrock * cBed;
+  flatC *= mix(1.0, luma(uDust) / luma(meanFlat), mapW);
+  vec3 albedo = rock * rockW + scree * screeW + flatC * flatW;
+  albedo *= (0.93 + 0.14 * d1.a) * mapTint;
+
+  // --- detail normal: grain everywhere (above), wind ripples on sand (both vanish with distance via mips / footprint)
+  grain *= uDetailStrength * (0.55 + 0.9 * rockW + 0.5 * screeW);
+  vec2 dn = vec2(0.0);
+  // A whole number of ripples per detail tile, so crests run on unbroken across chunk edges
+  // (each chunk's tile offset is only known modulo one tile). Large gentle bends only.
+  vec2 wind = normalize(uRipple.xy + 1e-6);
+  float phase = 6.2831853 * dot(vDetailUv, uRipple.xy) + (d0.b - 0.5) * 18.0 + (d1.b - 0.5) * 2.0;
+  float ripFade = fine ? (1.0 - smoothstep(0.5, 1.6, fwidth(phase))) * flatW * mix(uRipple.w, 1.0, sandM) : 0.0;
+  dn += wind * cos(phase) * uRipple.z * ripFade;
+  N = normalize(N + grain + uTanU * dn.x + uTanV * dn.y);
 
   // --- relief from far away. Outside the sharp landmark patches the heights come from a
   // global elevation map that only knows features some tens of kilometres across, and a
@@ -153,8 +253,7 @@ void main() {
   // (about 2.5 raster pixels). Near the ground, where the chunks are far finer than the
   // map, it fades out, so the shading never disagrees with the ground underfoot.
   if (uRelief.x * uQuality.w > 0.0) {
-    float chunkTexel = uDetail.z * uRipple.z / float(NORMAL_RES) * (1.0 + pk);
-    float lodC = log2(chunkTexel / uRelief.y);
+    float lodC = log2(chunkTexel * (1.0 + pk) / uRelief.y);
     float demRes = exp2(texture(tDemRes, uvA).r * 15.9375);
     float lodRef = max(lodC, log2(2.5 * demRes / uRelief.y));
     vec2 ts = vec2(uRelief.z, uRelief.z * 0.5);
@@ -173,7 +272,7 @@ void main() {
   // Oren-Nayar roughness describes the grains and clods underfoot; at the scale of a whole
   // disc it kept the limb nearly as bright as the centre (71 % at 72 degrees off the
   // vertical; real Mars is about half). Far ground blends to the world's farRoughness.
-  float sigma = mix(uRoughness, uFarRoughness, smoothstep(200.0, 2000.0, uDetail.z * uRipple.z / float(NORMAL_RES)));
+  float sigma = mix(uRoughness, uFarRoughness, farW);
   float diffuse = groundDiffuse(N, uSunDir, V, sigma);
   vec3 direct = directSun(planetPos) * shadow * diffuse;
   vec3 ambient = (skyLight(N, up) * ao + planetShine(N)) / PI;
@@ -188,12 +287,16 @@ export function makeTerrainShared(world, textures) {
     ...lightingUniforms(),
     tStrata: { value: textures.strata }, tDetail: { value: textures.detail },
     uDust: { value: new THREE.Vector3() }, uSand: { value: new THREE.Vector3() },
-    uScree: { value: new THREE.Vector3() }, uRock: { value: new THREE.Vector3() },
-    uSlopes: { value: new THREE.Vector4() }, uStrata: { value: new THREE.Vector4() },
-    uSandRange: { value: new THREE.Vector2() }, uRipple: { value: new THREE.Vector3() },
+    uScree: { value: new THREE.Vector3() }, uRock: { value: new THREE.Vector3() }, uBedrock: { value: new THREE.Vector3() },
+    uSlopes: { value: new THREE.Vector4() }, uStrata: { value: new THREE.Vector4() }, uStrataFlat: { value: 0 },
+    uSandRange: { value: new THREE.Vector2() }, uRipple: { value: new THREE.Vector4() },
+    uCover: { value: new THREE.Vector4() },
+    // w: the cover pattern (d0.a + 0.3 d1.a) is about normal; logistic scale = its spread / 1.702
+    uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
     uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 },
     tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
-    uAlbedoMax: { value: 1e6 }, tDemRes: { value: textures.white }, tRelief: { value: textures.white }, uRelief: { value: new THREE.Vector4(0, 1, 1, 0) }, uReliefFade: { value: new THREE.Vector2(2, 3) },
+    uAlbedoRange: { value: new THREE.Vector2() }, uRockHue: { value: new THREE.Vector2() }, uCoverContrast: { value: 1 }, uBedrockSlope: { value: 0 },
+    tDemRes: { value: textures.white }, tRelief: { value: textures.white }, uRelief: { value: new THREE.Vector4(0, 1, 1, 0) }, uReliefFade: { value: new THREE.Vector2(2, 3) },
   };
   setTerrainSurface(shared, world);
   return shared;
@@ -203,17 +306,28 @@ export function makeTerrainShared(world, textures) {
 export function setTerrainSurface(shared, world) {
   const s = world.surface, st = s.strata || {};
   shared.uDust.value.set(...s.dust); shared.uSand.value.set(...s.sand);
-  shared.uScree.value.set(...s.scree); shared.uRock.value.set(...s.rock);
+  shared.uScree.value.set(...s.scree); shared.uRock.value.set(...s.rock); shared.uBedrock.value.set(...(s.bedrock || s.rock));
   shared.uSlopes.value.set(s.slopes.dustMax, s.slopes.screeMin, s.slopes.screeMax, s.slopes.rockMin);
   shared.uStrata.value.set(1 / (st.period || 1000), st.contrast || 0, 1 / (st.finePeriod || 100), st.fine || 0);
+  shared.uStrataFlat.value = st.flat || 0;
   shared.uSandRange.value.set(s.sandBelow ?? -1e9, s.sandFade ?? 1);
-  shared.uRipple.value.set(2 * Math.PI / (s.ripples?.wavelength || 1), s.ripples?.strength || 0, DETAIL_TILE);
+  // Cover of gentle ground (see the Mars file). Without `sandMap` the map never brings sand.
+  const cv = s.cover || {}, bed = cv.bedrock ?? [0, 0];
+  shared.uCover.value.set(cv.sandMap?.[0] ?? -1, cv.sandMap?.[1] ?? -2, cv.sandMin ?? 0, cv.sandLow ?? 0.78);
+  shared.uCoverPattern.value.x = bed[0]; shared.uCoverPattern.value.y = bed[1]; shared.uBedrockSlope.value = bed[2] ?? 0;
+  shared.uCoverPattern.value.z = cv.hollows ?? 0;
+  shared.uRockHue.value.set(...(cv.rockHue || [0, 0]));
+  shared.uCoverContrast.value = cv.contrast ?? 1;
+  // Ripples: the wave vector is rounded to whole cycles per detail tile (crests continue across chunks).
+  const rw = s.ripples?.wavelength || 1, dir = s.ripples?.direction ?? 34.8, cyc = DETAIL_TILE / rw;
+  shared.uRipple.value.set(Math.round(cyc * Math.cos(dir * Math.PI / 180)), Math.round(cyc * Math.sin(dir * Math.PI / 180)), s.ripples?.strength || 0, s.ripples?.onDust ?? 1);
   shared.uRoughness.value = s.roughness ?? 0.5;
   shared.uFarRoughness.value = s.farRoughness ?? shared.uRoughness.value;
   shared.uDetailStrength.value = s.detailStrength ?? 0.5;
   shared.uPhotometry.value = s.photometry === 'lunar' ? 1 : 0;
   shared.uAlbedoMap.value.w = 0;          // until the world's map has loaded (Terrain.loadAlbedoMap)
   shared.uRelief.value.x = 0;             // until the world's slope map has loaded (Terrain.loadReliefMap)
+  shared.uAlbedoRange.value.set(...(s.albedoMap?.range || [0, 0]));
 }
 
 export const DETAIL_TILE = 64;   // metres covered by one repeat of the detail texture at the coarsest scale
@@ -221,7 +335,7 @@ export const DETAIL_TILE = 64;   // metres covered by one repeat of the detail t
 export function makeTerrainMaterial(shared, normalTex, shadowTex) {
   return new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
-    defines: { ...atmosphereDefines(), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1 },
+    defines: { ...atmosphereDefines(), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, DETAIL_TILE },
     vertexShader: VERT, fragmentShader: FRAG,
     uniforms: {
       ...shared,
