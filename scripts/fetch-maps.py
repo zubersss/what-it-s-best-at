@@ -3,7 +3,7 @@
 only the rows or windows that are needed are read, over HTTP range requests.
 
     pip install rasterio numpy pillow
-    python3 scripts/fetch-maps.py [moon-dem] [landmarks] [moon-albedo] [mars-color]      (default: all)
+    python3 scripts/fetch-maps.py [moon-dem] [landmarks] [relief] [moon-albedo] [mars-color]      (default: all)
 
 Writes into public/data/ (see docs/ASSETS.md for sources and licences):
     moon_lola_4ppd.i16            global lunar elevation, 1440 x 720, int16 LE metres
@@ -11,8 +11,9 @@ Writes into public/data/ (see docs/ASSETS.md for sources and licences):
     moon_sldem_hadley_512ppd.i16  Hadley Rille at the full 59 m of SLDEM2015, 1024 x 1152, 0.5 m units
     mars_mola_olympus_32ppd.i16, mars_mola_olympus_summit_128ppd.i16, mars_mola_gale_128ppd.i16,
     moon_sldem_tycho_64ppd.i16, moon_sldem_taurus_littrow_256ppd.i16      landmark patches
-    moon_albedo_2880.jpg          global lunar brightness (Clementine 750 nm), 2880 x 1440
-    mars_color_2880.jpg           global Mars colour (Viking MDIM 2.1), 2880 x 1440
+    mars_slopes_4096.jpg, moon_slopes_4096.jpg   the ground's slope everywhere (relief shading from space)
+    moon_albedo_4096.jpg          global lunar brightness (Clementine 750 nm), 4096 x 2048
+    mars_color_4096.jpg           global Mars colour (Viking MDIM 2.1), 4096 x 2048
 All rasters are simple cylindrical, longitude 0..360 E from the left edge, latitude +90 at
 the top, matching the engine's planet-fixed frame.
 """
@@ -124,11 +125,36 @@ def global_map(name, out, width=2880, rows_per=2, quality=88):
     Image.fromarray(arr[:, :, 0] if bands == 1 else arr[:, :, :3]).save(os.path.join(OUT, out), quality=quality, optimize=True)
     print(out, arr.shape, 'mean', arr.reshape(-1, bands).mean(axis=0))
 
+MOLA16 = 'https://pds-geosciences.wustl.edu/mgs/mgs-m-mola-5-megdr-l3-v1/mgsl_300x/meg016/megt90n000eb.img'
+LOLA16 = PDS_LOLA + 'ldem_16.img'
+
+def slope_map(world, url, dtype, unit, radius, out, width=4096, quality=90):
+    """The ground's slope everywhere (16 px/deg elevation box-averaged to width x width/2),
+    for relief shading from space. One greyscale JPEG twice as tall as wide: east slope in
+    the top half, north slope in the bottom half, each stored as 127.5 + 127.5 sign(s)
+    sqrt(min(|s|, 1)), so gentle slopes keep their precision. Greyscale, because JPEG
+    compresses colour channels much more coarsely."""
+    raw = urllib.request.urlopen(url, timeout=600).read()
+    H = np.frombuffer(raw, dtype=dtype).reshape(2880, 5760).astype(np.float32) * unit
+    h = np.asarray(Image.fromarray(H, mode='F').resize((width, width // 2), Image.BOX), dtype=np.float64)
+    rows = width // 2
+    lat = 90.0 - (np.arange(rows) + 0.5) * 180.0 / rows
+    dx = 2 * np.pi * radius * np.maximum(np.cos(np.radians(lat)), 0.05)[:, None] / width
+    dy = np.pi * radius / rows
+    sE = (np.roll(h, -1, axis=1) - np.roll(h, 1, axis=1)) / (2 * dx)
+    hn = np.vstack([h[:1], h, h[-1:]])
+    sN = (hn[:-2] - hn[2:]) / (2 * dy)
+    enc = lambda s: np.clip(np.round(127.5 + 127.5 * np.sign(s) * np.sqrt(np.minimum(np.abs(s), 1.0))), 0, 255).astype(np.uint8)
+    Image.fromarray(np.vstack([enc(sE), enc(sN)])).save(os.path.join(OUT, out), quality=quality)
+    print(out, 'p99 slope', float(np.percentile(np.abs(sE), 99)), f'{os.path.getsize(os.path.join(OUT, out)) / 1e6:.2f} MB')
+
 JOBS = {
     'moon-dem': moon_dem,
     'landmarks': landmarks,
-    'moon-albedo': lambda: global_map('Lunar_Clementine_UVVIS_750nm_Global_Mosaic_118m_v2.tif', 'moon_albedo_2880.jpg'),
-    'mars-color': lambda: global_map('Mars_Viking_MDIM21_ClrMosaic_global_232m.tif', 'mars_color_2880.jpg'),
+    'relief': lambda: (slope_map('mars', MOLA16, '>i2', 1.0, 3389500.0, 'mars_slopes_4096.jpg'),
+                       slope_map('moon', LOLA16, '<i2', 0.5, 1737400.0, 'moon_slopes_4096.jpg')),
+    'moon-albedo': lambda: global_map('Lunar_Clementine_UVVIS_750nm_Global_Mosaic_118m_v2.tif', 'moon_albedo_4096.jpg', width=4096),
+    'mars-color': lambda: global_map('Mars_Viking_MDIM21_ClrMosaic_global_232m.tif', 'mars_color_4096.jpg', width=4096),
 }
 for job in (sys.argv[1:] or list(JOBS)):
     JOBS[job]()

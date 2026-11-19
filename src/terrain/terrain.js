@@ -20,7 +20,7 @@ export class Terrain {
     this.relief = world.terrain.maxAltitude - world.terrain.minAltitude;
     const white = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
     white.needsUpdate = true;
-    this.textures = { detail: makeDetailTexture(256), strata: makeStrataTexture(world.surface.strata), white, albedo: null };
+    this.textures = { detail: makeDetailTexture(256), strata: makeStrataTexture(world.surface.strata), white, albedo: null, relief: null };
     this.shared = makeTerrainShared(world, this.textures);
     this.pool = new ChunkPool((n, s) => makeTerrainMaterial(this.shared, n, s), renderer.capabilities.getMaxAnisotropy());
     this.group = this.pool.group;
@@ -39,9 +39,10 @@ export class Terrain {
     this.farDistance = 1e6;
     this.buildMs = 0; this.built = 0;
     this.idleFrames = 0;
-    this.gpuBytes = this.pool.gpuBytes + 256 * 256 * 4 * 4 / 3 + 2880 * 1440 * 4 * 4 / 3;      // + one global albedo map
+    this.gpuBytes = this.pool.gpuBytes + 256 * 256 * 4 * 4 / 3 + 4096 * 2048 * 4 * 4 / 3 + 4096 * 4096 * 4 / 3;      // + one global albedo map (RGBA8) and one slope map (R8)
     this._cam = new THREE.Vector3(); this._camDir = [0, 0, 1];
     this.loadAlbedoMap(world);
+    this.loadReliefMap(world);
   }
 
   _initMessage(world, rasters) {
@@ -64,6 +65,7 @@ export class Terrain {
     this.textures.strata = makeStrataTexture(world.surface.strata);
     this.shared.tStrata.value = this.textures.strata;
     this.loadAlbedoMap(world);
+    this.loadReliefMap(world);
     const pool = this.pool;
     pool.free.length = 0;
     for (let i = 0; i < pool.slots.length; i++) { pool.slots[i].node = null; pool.slots[i].mesh.visible = false; pool.free.push(i); }
@@ -115,9 +117,36 @@ export class Terrain {
     return out;
   }
 
+  // The world's slope map (surface.reliefMap): relief shading from far away, where the
+  // chunks' own normal maps are far coarser than the screen (see terrainMaterial.js).
+  // A greyscale image twice as tall as wide, uploaded as one channel (R8).
+  loadReliefMap(world) {
+    const def = world.surface.reliefMap, u = this.shared;
+    if (this.textures.relief) { this.textures.relief.dispose(); this.textures.relief = null; }
+    u.tRelief.value = this.textures.white; u.uRelief.value.x = 0;
+    this.reliefBusy = !!def;
+    if (this.textures.demRes) { this.textures.demRes.dispose(); this.textures.demRes = null; }
+    if (!def) return;
+    this.textures.demRes = u.tDemRes.value = makeDemResTexture(world);
+    const epoch = this.epoch;
+    new THREE.TextureLoader().load(import.meta.env.BASE_URL + def.url, (tex) => {
+      if (epoch !== this.epoch) { tex.dispose(); return; }
+      tex.format = THREE.RedFormat; tex.colorSpace = THREE.NoColorSpace;
+      tex.flipY = false;
+      tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = true;
+      this.textures.relief = tex; u.tRelief.value = tex;
+      const W = tex.image.width, rad = Math.PI / 180;
+      u.uRelief.value.set(def.strength ?? 1, Math.PI * world.radius / (W / 2), W, 0);
+      const f = def.latFade || [80, 88];
+      u.uReliefFade.value.set(Math.sin(f[0] * rad), Math.sin(f[1] * rad));
+      this.reliefBusy = false;
+    }, undefined, () => { this.reliefBusy = false; });
+  }
+
   get loadedCount() { return CONFIG.CHUNK_POOL - this.pool.free.length; }
   get queueLength() { return this.wanted.length + this.workers.busy + this.ready.length; }
-  get idle() { return this.idleFrames > 3 && !this.albedoBusy; }
+  get idle() { return this.idleFrames > 3 && !this.albedoBusy && !this.reliefBusy; }
 
   // sunDir: THREE.Vector3 (planet-fixed); sunHalf: the Sun's angular radius in radians.
   update(rig, aspect, sunDir, sunHalf) {
@@ -149,7 +178,8 @@ export class Terrain {
 
     // Telephoto needs detail further away; fewer chunks are in view, so the budget holds.
     const zoom = Math.min(6, Math.tan(CONFIG.DEFAULT_FOV * Math.PI / 360) / Math.tan(rig.fov * Math.PI / 360));
-    this.splitIn = CONFIG.SPLIT_FACTOR * this.lodScale * Math.max(1, zoom);
+    const hx = Math.min(1, Math.max(0, (Math.log10(Math.max(1, rig.agl)) - Math.log10(CONFIG.SPACE_BOOST_ALT * 0.1)))), space = 1 + (CONFIG.SPLIT_SPACE_BOOST - 1) * hx * hx * (3 - 2 * hx);
+    this.splitIn = CONFIG.SPLIT_FACTOR * this.lodScale * Math.max(1, zoom, space);
     this.splitOut = CONFIG.SPLIT_FACTOR_OFFSCREEN;
 
     this.drawList.length = 0; this.wanted.length = 0; this.visited = 0;
@@ -340,7 +370,9 @@ function makeTintGrid(image, def, w = 512, h = 256) {
   const lin = def.encoding === 'srgb' ? (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)) : (c) => c;
   const chroma = def.chroma ?? 1, strength = def.strength ?? 1;
   for (let i = 0; i < w * h; i++) {
-    const r = lin(px[i * 4] / 255) / def.mean[0], g = lin(px[i * 4 + 1] / 255) / def.mean[1], b = lin(px[i * 4 + 2] / 255) / def.mean[2], grey = (r + g + b) / 3;
+    // (the things that lie on the ground are near it: the map's range applies, as in the
+    // terrain shader near the ground; see albedoRange in terrainMaterial.js)
+    const [r, g, b] = albedoRange(lin(px[i * 4] / 255) / def.mean[0], lin(px[i * 4 + 1] / 255) / def.mean[1], lin(px[i * 4 + 2] / 255) / def.mean[2], def.range), grey = (r + g + b) / 3;
     data[i * 3] = 1 + (grey + (r - grey) * chroma - 1) * strength;
     data[i * 3 + 1] = 1 + (grey + (g - grey) * chroma - 1) * strength;
     data[i * 3 + 2] = 1 + (grey + (b - grey) * chroma - 1) * strength;
@@ -350,4 +382,49 @@ function makeTintGrid(image, def, w = 512, h = 256) {
     }
   }
   return { w, h, data };
+}
+
+// How sharp the elevation data is at every place (0.25 degree cells): log2 of the metres per
+// pixel of the raster in charge there, times 16, as one byte. Built from the world's raster
+// list with the same feathered hand-over as DemSet. The terrain shader adds the slope map's
+// real relief only where the heights themselves are coarser than it.
+function makeDemResTexture(world) {
+  const W = 1440, H = 720, data = new Uint8Array(W * H), R = world.radius;
+  const rs = (world.terrain.dems || []).map((r) => ({ ...r, res: (Math.PI / 180) * R * (r.lon1 - r.lon0) / r.width }));
+  for (let j = 0; j < H; j++) {
+    const lat = 90 - (j + 0.5) * 180 / H, cosLat = Math.max(0.05, Math.cos(lat * Math.PI / 180));
+    for (let i = 0; i < W; i++) {
+      const lon = (i + 0.5) * 360 / W;
+      let res = 1e5, topW = 0, topRes = 0;
+      for (let k = rs.length - 1; k >= 0; k--) {
+        const r = rs[k];
+        let w = 1;
+        if (!r.wrap) {
+          if (lon <= r.lon0 || lon >= r.lon1 || lat >= r.lat0 || lat <= r.lat1) continue;
+          const e = Math.min((lon - r.lon0) * cosLat, (r.lon1 - lon) * cosLat, r.lat0 - lat, lat - r.lat1) / (r.feather || 0.25);
+          w = e >= 1 ? 1 : e * e * (3 - 2 * e);
+        }
+        if (topW <= 0) { if (w >= 1) { res = r.res; break; } topW = w; topRes = r.res; }
+        else { res = r.res * Math.pow(topRes / r.res, topW); topW = 2; break; }
+      }
+      if (topW > 0 && topW < 2) res = topRes;
+      data[j * W + i] = Math.max(0, Math.min(255, Math.round(Math.log2(res) * 16)));
+    }
+  }
+  const tex = new THREE.DataTexture(data, W, H, THREE.RedFormat, THREE.UnsignedByteType);
+  tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.minFilter = tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// The same as albedoRange in terrainMaterial.js (keep the two alike).
+function albedoRange(r, g, b, range) {
+  if (!range || range[1] <= 0) return [r, g, b];
+  const L = Math.max((r + g + b) / 3, 1e-4), lo = range[0], hi = range[1], a = lo + (hi - lo) * 0.15, k = lo + (hi - lo) * 0.7;
+  let x = L;
+  if (x > k) x = hi - (hi - k) * Math.exp(-(x - k) / (hi - k));
+  if (x < a) x = lo + (a - lo) * Math.exp(-(a - x) / (a - lo));
+  const trust = Math.min(x / L, L / x), t2 = trust * trust;
+  return [x * (1 + (r / L - 1) * t2), x * (1 + (g / L - 1) * t2), x * (1 + (b / L - 1) * t2)];
 }

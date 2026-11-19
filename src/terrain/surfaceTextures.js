@@ -32,6 +32,7 @@ export function makeDetailTexture(size = 256) {
     L[j * size + i] = fbm2(x, y, 2, 4, 977, 0.6);
   }
   const data = new Uint8Array(size * size * 4);
+  let s1 = 0, s2 = 0;                       // spread of the a channel (the terrain shader turns cover shares into pattern levels with it)
   const at = (i, j) => H[((j + size) % size) * size + ((i + size) % size)];
   for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
     const dx = (at(i + 1, j) - at(i - 1, j)) * size * 0.012, dy = (at(i, j + 1) - at(i, j - 1)) * size * 0.012;
@@ -40,8 +41,11 @@ export function makeDetailTexture(size = 256) {
     data[o + 1] = Math.max(0, Math.min(255, 127.5 - dy * 127.5));
     data[o + 2] = Math.max(0, Math.min(255, 127.5 + H[j * size + i] * 210));
     data[o + 3] = Math.max(0, Math.min(255, 127.5 + L[j * size + i] * 230));
+    s1 += data[o + 3] / 255; s2 += (data[o + 3] / 255) ** 2;
   }
   const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.UnsignedByteType);
+  const n = size * size;
+  tex.userData.lowSpread = Math.sqrt(Math.max(0, s2 / n - (s1 / n) ** 2));
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter;
   tex.generateMipmaps = true; tex.anisotropy = 4;

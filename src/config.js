@@ -9,6 +9,11 @@ export const CONFIG = {
   MAX_RENDER_CHUNKS: 120,   // hard cap of terrain draw calls
   SPLIT_FACTOR: 0.95,       // split when distance < factor * node edge
   SPLIT_FACTOR_OFFSCREEN: 0.3,
+  // From high up only a few dozen patches are in view, far below the draw-call cap, and a
+  // phone's screen has several pixels per patch texel: patches split this many times sooner
+  // above SPACE_BOOST_ALT (blended in from a tenth of it).
+  SPLIT_SPACE_BOOST: 2.2,
+  SPACE_BOOST_ALT: 300000,
   MORPH_START: 0.72,        // fraction of the merge distance where geomorphing starts
   WORKERS: 3,
   SHADOW_REBAKE_DEG: 1.0,

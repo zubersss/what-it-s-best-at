@@ -5,7 +5,7 @@
 import { Governor, FRAME } from '../src/perf/governor.js';
 const stubGl = { getExtension: () => null };
 function run(label, { vsyncMs, mode, native, cost, seconds, events = () => {}, uploadsEvery = 0 }) {
-  const app = { renderer: { getContext: () => stubGl }, quality: { x: 1, y: 1, z: 1 }, dust: { amount: 1 }, rocks: { setFraction() {} }, terrainBudget() {}, post: { bloomEnabled: true }, hero: { cloak: {} }, atmosphere: { airEnabled: true } };
+  const app = { renderer: { getContext: () => stubGl }, quality: { x: 1, y: 1, z: 1, w: 1 }, dust: { amount: 1 }, rocks: { setFraction() {} }, terrainBudget() {}, post: { bloomEnabled: true }, hero: { cloak: {} }, atmosphere: { airEnabled: true }, nearShadow: { fine: true } };
   const g = new Governor(app, mode); g.setNative(native);
   let prevSoft = false, bucket = -1, now = 0, last = 0, busyUntil = 0, frames = 0, lateFrames = 0, lastRender = -1, n = 0;
   const trace = [];
