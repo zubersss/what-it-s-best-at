@@ -16,11 +16,11 @@ owner's reply or phone results), `done`.
 | 3 | Make Mars and the Moon beautiful | done |
 | 4 | Character and flight feel | done |
 | — | **Benchmark on the phone**: the gate before anything new was built. The owner ran it on 2026-11-20 (Smooth); the charter's limits were lifted (`CLAUDE.md`, "The one goal") | done |
-| 5 | Earth and the Sun from space | checkpoint sent |
-| 6 | New landable worlds (checkpoint after every two) | not started |
+| 5 | Earth and the Sun from space | done |
+| 6 | New landable worlds | in progress |
 | 7 | Getting around | not started |
 | 8 | Things to do | not started |
-| 9 | Earth's surface — **write a plan and ask the owner before starting** | not started |
+| 9 | Earth's surface — write its plan in `docs/PROGRESS.md` before starting | not started |
 
 ## 1. Phone link and measurement
 
@@ -102,12 +102,14 @@ lights, sun-glint on oceans and a thin blue edge. Not landable yet.
 Built (see `docs/PROGRESS.md`, "Milestone 5: what was built"). Earth is a real globe from
 NASA's maps with clouds of a real day, city lights, the Sun's glint on its seas and a
 thin blue edge; the Sun grows as you approach and shows its surface; eclipses dim the
-light; a bright body keeps its colour in a dark scene. Waiting for the owner's benchmark.
+light; a bright body keeps its colour in a dark scene. Accepted by the owner ("finish up
+the rest of the milestones", with the third benchmark).
 
 ## 6. New landable worlds
 
-One at a time, each as a data file with real maps where they exist. Checkpoint after
-every two worlds.
+One at a time, each as a data file with real maps where they exist. (The owner asked for
+the rest of the milestones in one go: no stop after every two worlds; each stage is
+merged and reported.)
 
 - Phobos and Deimos
 - Mercury
@@ -130,4 +132,4 @@ journal, progress saved in the browser, procedural audio for suit, wind and ambi
 
 ## 9. Earth's surface
 
-The riskiest part. Write a plan and ask the owner before starting.
+The riskiest part. Write its plan in `docs/PROGRESS.md` before starting.

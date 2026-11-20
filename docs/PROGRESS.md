@@ -6,24 +6,25 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-*Handoff written at the start of milestone 5.*
+*Handoff written after the owner's third phone results, at the start of milestone 6.*
 
-- **The gate opened (2026-11-20)**: the owner pasted the first benchmark after milestone
-  4 ("The owner's second phone results" below) and the charter's limits were lifted: one
-  goal, the best possible product a Samsung Galaxy S23 Ultra runs without lag
-  (`CLAUDE.md`, "The one goal"). The owner was told so in the first message after the
-  results. Helpers: workflows only for the most challenging parts.
-- **Last delivered**: milestone 5, Earth and the Sun from space ("Milestone 5: what was
-  built" below), `checkpoint sent`, merged to `main`.
-- **Asked of the owner** (still open): a new benchmark after milestone 5 (the governor
-  was changed from the last one and the results now name each stop and the page's own
-  work per frame); whether a 3D model file of the character exists.
-- **What to do next**: with a benchmark, tune from it first (each stop and the page's own
-  work per frame are on their own lines now). On "continue": milestone 6 (new landable
-  worlds; Phobos and Deimos first). Before more terrain detail: the terrain draws one draw call per patch
-  (about 200 calls a frame at 180 patches), which is the likely cost the phone cannot
-  hold at 60 fps; drawing all patches in one or a few calls (texture arrays, instancing)
-  is the next performance project.
+- **The goal** (owner, 2026-11-20): the best possible product a Samsung Galaxy S23 Ultra
+  runs without lag (`CLAUDE.md`, "The one goal"). Helpers: workflows only for the most
+  challenging parts.
+- **The owner's last word**: pasted Sharp and Smooth benchmarks of build 27e1973 and said
+  "finish up the rest of the milestones". Milestone 5 is accepted. Work goes through
+  milestones 6, 7, 8 and 9 without waiting; every stage is merged so the phone link
+  moves, with a short message to the owner at each.
+- **Smooth was not steady** in those results (49 fps, 13 % late). What was found and
+  changed is under "The owner's third phone results" below: the ground is now drawn in
+  one draw call and new ground reaches the GPU between frames. **Not yet confirmed on
+  the phone**: the owner has been asked for a new Smooth benchmark; its new lines
+  ("frames that took in new terrain", "frame lengths in screen refreshes") say whether
+  arriving ground is still what is late.
+- **Asked of the owner** (still open): that benchmark; whether a 3D model file of the
+  character exists.
+- **What to do next**: see the roadmap's status column and the newest plan section in
+  this file (each milestone writes its plan here before it starts).
 - **How to work here** (all in CLAUDE.md): develop on the session's own branch, open a
   pull request into `main` and merge it yourself; the phone link updates a minute later
   and shows the build's commit. Run `./scripts/build-check.sh` before every merge, one
@@ -140,6 +141,99 @@ What was changed:
   that fewer patches cure, and that nothing cures: resolution stays native in both).
 
 Not known until the next benchmark: whether Smooth is steady again.
+
+## The owner's third phone results (after milestone 5, build 27e1973)
+
+Two runs. **Sharp** (30 fps): 29.7 fps, 1 % low 17.4, 1.9 % late, 4.32 MP on average, the
+page's own work 9.8 ms of 33 ms: steady. **Smooth** (60 fps): **49.1 fps, 1 % low 12.3,
+12.9 % late**, 2.39 MP on average with dips to 0.96 MP, own work 7.2 ms of 16.8 ms. The
+changes made after the second results had made Smooth worse, not better.
+
+What the numbers said (the stops are in the results, line by line):
+
+- Stops that look at the sky (Mars `sun` and `dusk`, the Moon's `dusk`) held 60 fps.
+  Stops that look at ground were late in step with how much new ground arrives there, at
+  any resolution: 13 % late at 1.14 MP (Mars `ship`), 17 % at 1.50 MP (Moon `ledge`).
+- At the Moon's `wall` and `ship` the picture was at full size, **49 % of the frames were
+  late for 24 seconds and the governor did nothing**. That is the pace lever's signature:
+  at its slowest setting one patch is uploaded every other frame, and every frame with
+  an upload came late.
+- So the cost was per frame with an upload, not per patch, and spreading the uploads out
+  (the "fix" after the second results) multiplied the late frames. The first run after
+  milestone 4, which uploaded several patches in one frame, had 5 % late.
+
+Why a frame with an upload is late (not measurable from here; the reasoning, and what
+the next benchmark will confirm or refute): three uploads a changed texture at the draw
+call that first uses it, which is in the middle of the scene's render pass, and asks the
+GPU to build its mip maps there. A phone's GPU draws in tiles: to run that second job it
+must write the half-drawn picture out and read it back afterwards, at a cost that grows
+with the picture's size. That matches every line above.
+
+What was changed:
+
+- **The ground is one draw call.** All chunks share four texture arrays (vertices, morph
+  heights, normal maps with their mip maps, baked shadows), one layer per pool slot, and
+  one instanced mesh draws every visible chunk; an instance is sixteen numbers
+  (`src/terrain/chunkPool.js`, the vertex shader's notes in `terrainMaterial.js`). The
+  480 meshes, materials and pairs of textures are gone. Draw calls at the Mars ledge:
+  156 before, 20 after. The page's own work per frame in the headless profile
+  (`scratch/prof.mjs`, software GL, so only the ratio means anything): 5.5 ms before,
+  2.8 ms after; drawing the ground went from 2.67 ms to 0.10 ms.
+- **New ground reaches the GPU between frames**, at the start of a frame's work and
+  before any of its drawing, with plain WebGL calls into one layer of each array. The
+  worker makes the normal map's mip maps (a box filter by area, as the GPU's own); the
+  GPU is never asked to build any. Re-baked shadows wait for the same moment.
+- **The governor**: a third of all frames late is acted on whatever their kind (the bar
+  for frames with terrain arriving was 0.6, which is how half the frames stayed late
+  for 24 seconds); when terrain is already let in at its slowest pace the patches go
+  next, then pixels. Shadow re-bakes no longer count as arriving terrain (they made
+  every frame after a clock jump "soft").
+- **The benchmark reports** how many frames took in new terrain and how many of those
+  were late against the rest, and how many screen refreshes the frames took.
+- The picture is unchanged: `ledge` and `wall` on Mars differ from the reference by a
+  mean of 0.03 and 0.00 of 255.
+- Smooth still draws 0.8 of the patch cap. With one draw call a patch costs the page
+  almost nothing, so this can probably go back to all 180: decide from the next results
+  (one change at a time; the phone is the judge).
+
+## Milestone 6 plan: the new worlds
+
+The owner's word: "finish up the rest of the milestones". No stop after every two worlds;
+each stage is merged and the owner gets a short message.
+
+**Sources** (all on the USGS planetary map server, public domain, which the cloud machine
+may reach; the bucket behind it lists itself, see `scripts/fetch-worlds.py`):
+elevation for Phobos (HRSC), Mercury (MESSENGER, 665 m), Venus (Magellan, 4.6 km),
+Enceladus (Cassini shape model), Pluto and Charon (New Horizons, 300 m, the sunlit
+hemisphere), Ceres (Dawn, 60 px/deg); image mosaics for all of those and for Deimos, Io,
+Europa, Ganymede, Callisto, Mimas, Tethys, Dione, Rhea, Iapetus, Titan (ISS, through the
+haze), Triton; whole-disc maps of Jupiter, Saturn and Neptune. Where no elevation exists
+(Deimos, Io, Europa, Titan, Triton) the shape of the ground comes from terrain recipes
+written for what the place is known to look like, under the real image map.
+**Orbits and spin**: fitted to JPL Horizons and checked against it by a script that
+fails beyond a tolerance (`scripts/fit-orbits.py`, `scripts/check-ephemeris.mjs`); the
+owner allowed the Horizons server for this.
+
+**Engine work first** (generic, no world-specific code):
+1. A world's data loads when you come near it or aim a trip at it, not at start-up, and
+   only the last few worlds stay in memory.
+2. Every body of the catalogue is in every sky (a point, then a disc, then a globe).
+3. Sky globes from one colour map (the moons you cannot land on, the gas giants), a globe
+   whose bands drift at their own speeds (Jupiter, Saturn, Neptune), rings with their
+   shadow on the planet and the planet's shadow on them (Saturn).
+4. Thick air: Venus and Titan (the Sun is not a disc from the ground; the light is the
+   sky's). Thin air: Triton, Pluto.
+5. Small bodies: Phobos and Deimos are tens of kilometres across with almost no gravity;
+   walking, jumping and the speed law have to stay sane there.
+6. Terrain recipes for what elevation data cannot give: grooves (Phobos), lava plains and
+   calderas (Io), ridged ice (Europa), tiger stripes (Enceladus), dune seas (Titan),
+   cantaloupe ground (Triton), nitrogen ice plains with polygons (Pluto).
+
+**Order**: engine items 1 and 2 with Phobos and Deimos (they are already in the sky);
+Mercury; Jupiter with Io and Europa; Saturn, rings, Enceladus and Titan; Venus; Neptune
+and Triton; Pluto and Charon; Ceres. Each world: data file, start site at a real place
+and a real date, five views, two or three landmarks, a place list for the target picker,
+screenshots judged against spacecraft pictures.
 
 ## Milestone 5 plan: Earth and the Sun from space
 

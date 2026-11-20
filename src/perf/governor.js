@@ -216,7 +216,8 @@ export class Governor {
   // dtMs: time since the previous rendered frame. kind:
   //   FRAME.NORMAL  an ordinary frame;
   //   FRAME.SOFT    new terrain was uploaded during it: if it is late, resolution is
-  //                 probably not why, so it only counts when most frames are late;
+  //                 probably not why: terrain is let in more slowly first, then fewer
+  //                 patches are drawn, and only then does the picture give way;
   //   FRAME.IGNORE  slow for a reason resolution cannot fix (a jump, a world switch).
   // scriptMs (optional): how long the page's own work for the frame took (everything but
   // the GPU drawing it): tells slow pixels from slow work.
@@ -253,7 +254,10 @@ export class Governor {
     for (let i = 0; i < WINDOW; i++) { const v = this._ring[i]; if (v & 1) allLate++; if (!(v & 2)) { hard++; if (v & 1) hardLate++; } }
     const hardFraction = hard >= WINDOW / 2 ? hardLate / hard : 0, allFraction = allLate / WINDOW;
 
-    if (hardFraction > 0.2 || allFraction > 0.6) {
+    // (A third of all frames late is too many whatever their kind. The bar for frames with
+    // terrain arriving used to be 0.6: on the test phone half the frames at two stops then
+    // came late for 24 seconds, every one of them "soft", and nothing was done.)
+    if (hardFraction > 0.2 || allFraction > 0.3) {
       // Missing the target. If we only just stepped up, that step was a mistake: take it
       // back and wait longer before trying again.
       const tookBack = this.sinceUp < 4;
@@ -271,7 +275,9 @@ export class Governor {
       this._hold = lateScript > this.interval;
       if (tookBack) { this.holdUp = Math.min(60, this.holdUp * 2); this.lastUpFailed = true; this._takeBack(); }
       else if (streaming && this.streamLevel < 2) { this.streamLevel++; this.app.terrainPace(this.streamLevel); this._note(`terrain let in more slowly (${this.streamLevel})`); this.sinceStep = 0; }
-      else this._down(Math.max(hardFraction, allFraction) > 0.6 ? 2 : 1, work);
+      // (still late with terrain at its slowest pace: the arriving ground is the work that
+      // is slow, so patches go before pixels)
+      else this._down(Math.max(hardFraction, allFraction) > 0.6 ? 2 : 1, work || streaming);
       this.cooldown = 0.7; this._filled = 0; this.cleanTime = this.leverClean = 0;
       return;
     }

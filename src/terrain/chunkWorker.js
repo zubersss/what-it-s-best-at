@@ -18,7 +18,7 @@ self.onmessage = (ev) => {
       const t0 = performance.now();
       const c = builder.build(m.face, m.level, m.ix, m.iy, m.sun, m.sunHalf);
       c.type = 'chunk'; c.id = m.id; c.ms = performance.now() - t0;
-      self.postMessage(c, [c.positions.buffer, c.attrs.buffer, c.normals.buffer, c.shadow.buffer]);
+      self.postMessage(c, [c.verts.buffer, c.morph.buffer, c.normals.buffer, c.shadow.buffer]);
     } else if (m.type === 'shadow') {
       // Re-bake of an existing chunk after the Sun moved.
       const t0 = performance.now();

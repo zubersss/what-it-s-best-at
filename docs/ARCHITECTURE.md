@@ -74,7 +74,7 @@ skipped, so frames are evenly spaced.
 | `src/terrain/shadowBake.js` | Sun-shadow ray-marching (chunk maps and point queries). |
 | `src/terrain/chunkWorker.js` / `workerPool.js` | Worker entry (jobs: chunk, shadow, points) and a queue-less pool. |
 | `src/terrain/quadtree.js` | Node tree and distance-to-node. |
-| `src/terrain/chunkPool.js` | Fixed-size pool of geometries + textures + meshes. |
+| `src/terrain/chunkPool.js` | Fixed-size pool of chunk slots: four texture arrays with one layer per slot (vertices, morph heights, normal map with mips, baked shadow), filled with plain WebGL calls between frames, and the one instanced mesh that draws every visible chunk. |
 | `src/terrain/terrainMaterial.js` / `surfaceTextures.js` | Terrain GLSL; generated detail and strata textures. |
 | `src/terrain/terrain.js` | Manager: selection, patch-cap feedback, dispatch, eviction, shadow re-bakes. |
 | `src/atmosphere/` | Hillaire-style LUT atmosphere (`atmosphere.js`, `atmosphereGlsl.js`). |
@@ -204,10 +204,20 @@ chunk), which makes dense crater fields 3–5× cheaper.
   180, times the governor's terrain steps). Children
   replace a parent only when all four are ready. Vertices morph toward the parent shape
   with distance (CDLOD-style), and the fragment shader blends normals, cavities and baked
-  shadows toward the parent's maps by the same factor (`tParentNormal`, `tParentShadow`,
-  `uParent`). For 0.6 s after children take over from their parent the factor is forced
+  shadows toward the parent's maps by the same factor (the parent's layer of the same
+  texture arrays). For 0.6 s after children take over from their parent the factor is forced
   from 1 down to 0, so new detail fades in. Nodes outside a widened frustum use a small
   split factor.
+- Drawing: one instanced draw call for all visible chunks, nearest first. The vertices
+  are not attributes: the vertex shader reads them from a texture array by vertex number
+  and layer (`tVert` xyz + height, `tMorph`), and each instance carries sixteen numbers
+  (centre relative to the camera, morph distance, centre in planet axes, fade, detail
+  offset and extent, its layer, the parent's layer and corner, the cube face; the list is
+  above the vertex shader in `terrainMaterial.js`). three never uploads these textures:
+  they are `ExternalTexture`s around WebGL textures that `chunkPool.js` allocates once and
+  fills one layer at a time. Uploads happen in `Terrain.update`, before any drawing of the
+  frame, never inside a render pass, and no mip map is built on the GPU (the worker makes
+  them): on a phone's tile-based GPU either one interrupts the picture being drawn.
 - Pool: `CHUNK_POOL` slots allocated once. Eviction is least-recently-visited, never a
   node with loaded children, never anything used in the last 20 frames.
 - Shadows: per chunk, split by distance so almost no ray is long — every texel walks the
