@@ -249,6 +249,7 @@ export class App {
 
   applyBookmark(name) {
     this.stopTransfer();                  // a bookmark is a jump somewhere else: the trip is over
+    if (this.carry) this.carry.w = 0;     // (and so is being carried along with another body)
     this.dust?.clear();
     const sc = this.world.scene, s = sc.start, b = sc.bookmarks[name] || {};
     const p = this.params;
@@ -266,6 +267,7 @@ export class App {
     // up high is flown.
     if (this.rig.mode === 'hero') { if (p.alt == null && !this.rig.hover) this.rig.standUp(); else this.rig.onFoot = false; }
     if (this.hero) this.hero.started = false;
+    this.heroVisKnown = false;            // (its terrain shadow is asked again for the new place)
     this.jumpedAt = performance.now();
   }
 
@@ -368,19 +370,22 @@ export class App {
     return 'unknown';
   }
 
-  handleKeys() {
+  handleKeys(dt = 1 / 60) {
     const i = this.input;
     if (i.hit('KeyH')) this.hud.toggle();
     if (i.hit('KeyM')) this.toggleMode();
-    if (i.hit('KeyF')) { this.hero.setVisible(false); this.rig.toggleMode(); }
+    // F: the free camera where you are (from the character or from the walk); from the free
+    // camera, down to the first-person walk
+    if (i.hit('KeyF')) { this.stopTransfer(); this.hero.setVisible(false); this.rig.setMode(this.rig.mode === 'fly' ? 'walk' : 'fly'); }
     if (i.hit('KeyG')) this.setHero(this.rig.mode !== 'hero');
     if (i.hit('KeyT')) this.nextTarget();
     if (i.hit('Enter') || i.hit('NumpadEnter')) this.toggleTransfer();
     if (i.hit('KeyX')) this.setHover(!this.rig.hover);
     if (i.hit('KeyP')) this.paused = !this.paused;
     const tr = this.timeRange;
-    if (i.down('BracketRight')) this.timeOffsetHours = Math.min(tr, this.timeOffsetHours + tr / 1200);
-    if (i.down('BracketLeft')) this.timeOffsetHours = Math.max(-tr, this.timeOffsetHours - tr / 1200);
+    // (per second, not per frame: the same pace in Smooth and Sharp)
+    if (i.down('BracketRight')) this.timeOffsetHours = Math.min(tr, this.timeOffsetHours + tr / 20 * dt);
+    if (i.down('BracketLeft')) this.timeOffsetHours = Math.max(-tr, this.timeOffsetHours - tr / 20 * dt);
     const names = Object.keys(this.world.scene.bookmarks);
     for (let k = 0; k < names.length && k < 9; k++) if (i.hit('Digit' + (k + 1))) this.applyBookmark(names[k]);
   }
@@ -419,7 +424,10 @@ export class App {
     if (id === this.world.body) { out.radius = this.world.radius; out.pos[0] = out.pos[1] = out.pos[2] = 0; return out; }
     const b = this.bodies.byId.get(id);
     if (!b) return null;
-    out.radius = b.def.radius; out.pos[0] = b.pos.x; out.pos[1] = b.pos.y; out.pos[2] = b.pos.z;
+    // (from the ephemeris, which is current for this frame and this home world; its size as drawn)
+    const e = this.ephemeris.bodies.get(id);
+    if (!e) return null;
+    out.radius = b.reach; out.pos[0] = e.pos[0]; out.pos[1] = e.pos[1]; out.pos[2] = e.pos[2];
     return out;
   }
 
@@ -567,29 +575,84 @@ export class App {
     m.update(rig.camera, v, t.radius ? Math.asin(Math.min(1, t.radius / dist)) : 0, t.name, `${fmtDistance(shown)}${beyond ? ' over the horizon' : ''} · ${when}`);
   }
 
+  // Where a body (or 'sun') is now, in the home world's axes; null for the home world itself.
+  bodyPosition(id, out) {
+    const eph = this.ephemeris;
+    if (id === 'sun') return out.set(eph.sunDir[0], eph.sunDir[1], eph.sunDir[2]).multiplyScalar(eph.sunDistance);
+    const b = id !== this.world.body && eph.bodies.get(id);
+    return b ? out.set(b.pos[0], b.pos[1], b.pos[2]) : null;
+  }
+
+  // Keeps the traveller where it was relative to body `carry.id` over the step the
+  // ephemeris just made: M0 the home axes before it, b0 the body's place before it. The
+  // home axes turned by R = M1 * M0^T meanwhile; position and every vector kept in those
+  // axes turn with them (by the share carry.w: 1 near the body, fading out far from it).
+  carryWith(M0, b0, carry) {
+    const b1 = this.bodyPosition(carry.id, this._carryB1 || (this._carryB1 = new THREE.Vector3()));
+    if (!b1) return;
+    const M1 = this.ephemeris.icrfToFixed, m = this._carryM || (this._carryM = new THREE.Matrix4()), q = this._carryQ || (this._carryQ = new THREE.Quaternion());
+    const R = (i, j) => M1[i * 3] * M0[j * 3] + M1[i * 3 + 1] * M0[j * 3 + 1] + M1[i * 3 + 2] * M0[j * 3 + 2];
+    m.set(R(0, 0), R(0, 1), R(0, 2), 0, R(1, 0), R(1, 1), R(1, 2), 0, R(2, 0), R(2, 1), R(2, 2), 0, 0, 0, 0, 1);
+    q.setFromRotationMatrix(m);
+    const rig = this.rig, t = this._carryT || (this._carryT = new THREE.Vector3());
+    // one large step of the clock (the time slider): go with the body or stay, never part
+    // of the way (the straight line between could run through the home world)
+    let w = carry.w;
+    if (b1.distanceTo(b0) > rig.pos.distanceTo(b0)) { if (w < 0.5) return; w = 1; }
+    if (w < 1) q.slerp(this._carryI || (this._carryI = new THREE.Quaternion()), 1 - w);
+    t.copy(rig.pos).sub(b0).applyQuaternion(q).add(b0).addScaledVector(b1.sub(b0), w);
+    rig.pos.copy(t);
+    this.turnAxes((v) => v.applyQuaternion(q));
+  }
+
+  // Turns every vector that is kept in the home world's axes (the view, the velocity, a
+  // trip's heading, the character's cloth and what it remembers of its motion). `turn`
+  // changes a Vector3 in place. Used when the axes themselves change: at a world
+  // hand-over and when the traveller is carried along with another body.
+  turnAxes(turn) {
+    const rig = this.rig, hero = this.hero, tmp = this._taV || (this._taV = new THREE.Vector3());
+    const f = (this._taF || (this._taF = new THREE.Vector3())).copy(rig.forward), u = (this._taU || (this._taU = new THREE.Vector3())).copy(rig.up);
+    turn(rig.velocity);
+    rig.lookAlong(turn(f)); rig.keepUp(turn(u));          // no jump of the horizon: see CameraRig.roll
+    if (rig.auto?.dir) turn(rig.auto.dir).normalize();
+    for (const v of [hero.prevVel, hero.lag, hero.facing]) turn(v);
+    for (const a of [hero.robe.pos, hero.robe.prev]) {
+      for (let i = 0; i < a.length; i += 3) { turn(tmp.set(a[i], a[i + 1], a[i + 2])); a[i] = tmp.x; a[i + 1] = tmp.y; a[i + 2] = tmp.z; }
+    }
+  }
+
   // Distances to everything else in the sky: speed limit for hero flight, collision with
   // bodies that have no terrain, and the hand-over to another world when it becomes nearer.
   space(eph) {
     const rig = this.rig;
-    let nearest = Infinity, name = '';
-    const sunClear = eph.sunDistance - SOLAR_SYSTEM.sun.radius;      // close enough from anywhere near a planet
+    let nearest = Infinity, name = '', nearReach = 1;
+    const sunAt = this.bodyPosition('sun', this._sunAt || (this._sunAt = new THREE.Vector3()));
+    const sunClear = rig.pos.distanceTo(sunAt) - SOLAR_SYSTEM.sun.radius;
     for (const b of this.bodies.bodies) {
       if (b.id === this.world.body) continue;
-      const R = b.def.radius, d = rig.pos.distanceTo(new THREE.Vector3(...eph.bodies.get(b.id).pos));
+      const R = b.reach, d = rig.pos.distanceTo(new THREE.Vector3(...eph.bodies.get(b.id).pos));
       let clear = d - R;
       if (clear < R * 0.02) {                                       // do not fly into a body without terrain
         const pos = new THREE.Vector3(...eph.bodies.get(b.id).pos);
-        rig.pos.sub(pos).setLength(R * 1.02).add(pos); rig.agl = 0;
+        rig.pos.sub(pos).setLength(R * 1.02).add(pos); rig.agl = rig.clearance();     // (its true height over the home world: 0 here made flight crawl at walking pace)
         clear = R * 0.02;
       }
-      if (clear < nearest) { nearest = clear; name = b.id; }
+      if (clear < nearest) { nearest = clear; name = b.id; nearReach = R; }
     }
     // The Sun has no terrain either: stop just above it.
     if (sunClear < SOLAR_SYSTEM.sun.radius * 0.02) {
-      const sp = new THREE.Vector3(eph.sunDir[0], eph.sunDir[1], eph.sunDir[2]).multiplyScalar(eph.sunDistance);
-      rig.pos.sub(sp).setLength(SOLAR_SYSTEM.sun.radius * 1.02).add(sp); rig.agl = 0;
+      rig.pos.sub(sunAt).setLength(SOLAR_SYSTEM.sun.radius * 1.02).add(sunAt); rig.agl = rig.clearance();
     }
     rig.spaceDistance = Math.max(0, Math.min(nearest, sunClear));
+    // Which body the traveller is carried along with next frame (carryWith): the nearest
+    // one that is not home, fully within 10 of its radii, not at all beyond 50, and only
+    // when it is nearer than the home world's ground.
+    {
+      const sunNear = sunClear < nearest, clear = sunNear ? sunClear : nearest, Rb = sunNear ? SOLAR_SYSTEM.sun.radius : nearReach;
+      const x = Math.min(1, Math.max(0, (clear / Rb - 10) / 40));
+      const c = this.carry || (this.carry = { id: '', w: 0 });
+      c.id = sunNear ? 'sun' : name; c.w = clear < rig.agl ? 1 - x * x * (3 - 2 * x) : 0;
+    }
     // Gravity and the fly-by limit (controls/gravity.js): every body, the Sun and the
     // world underfoot, in planet-fixed metres.
     const list = this._wells || (this._wells = []);
@@ -598,7 +661,7 @@ export class App {
     for (const b of this.bodies.bodies) {
       if (b.id === this.world.body) continue;
       const q = eph.bodies.get(b.id).pos;
-      list.push({ x: q[0], y: q[1], z: q[2], radius: b.def.radius, gravity: b.def.gravity || 0 });
+      list.push({ x: q[0], y: q[1], z: q[2], radius: b.reach, gravity: b.def.gravity || 0 });
     }
     list.push({ x: eph.sunDir[0] * eph.sunDistance, y: eph.sunDir[1] * eph.sunDistance, z: eph.sunDir[2] * eph.sunDistance, radius: SOLAR_SYSTEM.sun.radius, gravity: SOLAR_SYSTEM.sun.gravity });
     const s = surroundings(rig.pos, list, this._around || (this._around = {}));
@@ -606,10 +669,21 @@ export class App {
     this.nearestName = rig.agl <= nearest ? this.world.id : name;
     this.nearestClear = Math.min(rig.agl, nearest);
     if (this.shotMode || this.switching || rig.mode === 'walk') return;
+    const fail = this._loadFail || (this._loadFail = new Map());
     for (const w of Object.values(WORLDS)) {
       if (w.body === this.world.body) continue;
       const d = rig.pos.distanceTo(new THREE.Vector3(...eph.bodies.get(w.body).pos)) - w.radius;
-      if (d < rig.agl * 0.8) { this.switchWorld(w); break; }
+      const f = fail.get(w.id);
+      if (f && performance.now() < f.until) continue;          // its data would not load: wait before trying again
+      if (d < rig.agl * 0.8) {
+        this.switchWorld(w).then(() => fail.delete(w.id), (e) => {
+          const n = (f?.n || 0) + 1;
+          fail.set(w.id, { n, until: performance.now() + Math.min(60000, 5000 * 2 ** (n - 1)) });
+          console.warn('world load failed', w.id, e);
+          this.toast?.show(`Could not load ${titleCase(w.id)} — trying again`);
+        });
+        break;
+      }
     }
   }
 
@@ -623,8 +697,7 @@ export class App {
       // camera state: old planet-fixed frame -> inertial
       const M0 = Array.from(eph.icrfToFixed), h0 = eph.positionICRF(this.world.body, jd, [0, 0, 0]);
       const toI = (v) => [M0[0] * v.x + M0[3] * v.y + M0[6] * v.z, M0[1] * v.x + M0[4] * v.y + M0[7] * v.z, M0[2] * v.x + M0[5] * v.y + M0[8] * v.z];
-      const p = toI(rig.pos), f = toI(rig.forward), vel = toI(rig.velocity), upI = toI(rig.up);
-      const dirI = rig.auto?.dir ? toI(rig.auto.dir) : null;
+      const p = toI(rig.pos);
       this.world = w; this.hs = data.hs;
       eph.homeId = w.body;
       eph.update(jd, this.bodies.ids);
@@ -633,21 +706,10 @@ export class App {
       rig.setWorld(w, this.heightFn(w, data.hs));
       rig.onFoot = false;                           // a hand-over only ever happens in flight
       rig.pos.copy(toF([p[0] + h0[0] - h1[0], p[1] + h0[1] - h1[1], p[2] + h0[2] - h1[2]]));
-      rig.velocity.copy(toF(vel));
-      rig.lookAlong(toF(f));
-      rig.keepUp(toF(upI));                          // no jump of the horizon: see CameraRig.roll
-      // a trip's heading (GO may have been cancelled while the world data loaded)
-      if (dirI && rig.auto?.dir) rig.auto.dir.copy(toF(dirI)).normalize();
-      // The character's own state in world axes (the cloak's cloth, its trailing offset,
-      // the velocity it last felt, where it faces) turns with the frame: left in the old
-      // axes the cloak whipped round at every hand-over.
-      {
-        const hero = this.hero, tmp = this._swV || (this._swV = new THREE.Vector3());
-        for (const v of [hero.prevVel, hero.lag, hero.facing]) v.copy(toF(toI(v)));
-        for (const a of [hero.cloak.pos, hero.cloak.prev]) {
-          for (let i = 0; i < a.length; i += 3) { tmp.set(a[i], a[i + 1], a[i + 2]); const r = toF(toI(tmp)); a[i] = r.x; a[i + 1] = r.y; a[i + 2] = r.z; }
-        }
-      }
+      // every vector kept in the home axes turns with them (the view with no jump of the
+      // horizon, the velocity, a trip's heading, the character's cloth and motion: left in
+      // the old axes the trip veered off and the cloth whipped round)
+      this.turnAxes((v) => v.copy(toF(toI(v))));
       // everything that depends on the world
       G.uPlanetRadius.value = w.radius;
       this.atmosphere.setWorld(w);
@@ -657,6 +719,9 @@ export class App {
       this.placeLander(w, data.hs);
       this.bodies.setWorld(w);
       this.post.setExposureSettings(w.scene.exposure);
+      // the moment stays, the time slider is centred on it (the offset carried over into a
+      // shorter range made the clock jump by days at the first touch of a time key)
+      this.baseJD += this.timeOffsetHours / 24; this.timeOffsetHours = 0;
       this.timeRange = (w.dayHours || 24) / 2;
       this.hud.setTimeRange(this.timeRange);
       this.bookmark = '';
@@ -684,11 +749,17 @@ export class App {
     const input = this.menuOpen || this.picker?.visible ? NO_INPUT : this.input;
 
     // 1. Time and sky geometry
-    if (!this.menuOpen && !bench) this.handleKeys();
+    if (!this.menuOpen && !bench) this.handleKeys(dt);
     if (!this.paused) this.timeOffsetHours += dt / 3600;
     const jd = this.baseJD + this.timeOffsetHours / 24;
     const eph = this.ephemeris;
+    // Beside a body that is not the home world (hovering at Phobos, over the Sun), the
+    // traveller stays put relative to that body: everything is kept in the home world's
+    // spinning axes, in which such a body races by at kilometres per second.
+    const carry = this.carry, M0 = carry && carry.w > 0 && !this.switching && this.rig.mode !== 'walk' && !this.rig.onFoot ? Array.from(eph.icrfToFixed) : null;
+    const b0 = M0 ? this.bodyPosition(carry.id, this._carryB0 || (this._carryB0 = new THREE.Vector3())) : null;
     eph.update(jd, this.bodies.ids);
+    if (b0) this.carryWith(M0, b0, carry);
     G.uTime.value = this.shotMode ? 0.25 : now / 1000;
 
     // 2. Camera (a hands-off trip steers it first)
@@ -707,6 +778,7 @@ export class App {
     const aspect0 = post.width / post.height;
     const sunHalf = Math.asin(SOLAR_SYSTEM.sun.radius / eph.sunDistance);
     this.atmosphere.updateAir(rig.pos, G.uSunDir.value, this.terrain);     // before the terrain takes the workers
+    this.requestHeroVis(dt, sunHalf);
     this.terrain.update(rig, aspect0, G.uSunDir.value, sunHalf);
     this.rocks.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
     this.lander.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
@@ -792,7 +864,7 @@ export class App {
     }
 
     if (this.shotMode) {
-      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy;
+      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
       window.__shotReady = ready;
       window.__stats = { calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow' : ''}` };
     }
@@ -819,9 +891,12 @@ export class App {
       let pose;
       if (fp) {
         const U = new THREE.Vector3(...rig.localUp), d = (this.params.posedir === 'side' ? rig.right : rig.forward).clone();
+        if (this.params.posedir === 'front') d.negate();          // toward the camera (to see the face)
+        const face = d.clone();
         d.addScaledVector(U, -d.dot(U)).normalize();
         pose = { onFoot: true, velocity: d.multiplyScalar(fp.speed), throttle: fp.speed > 0 ? 1 : 0, yawRate: 0, airborne: fp.jump, vUp: fp.jump ? 2.5 : 0, heroRel: rig.heroRel,
-          clock: 0, landedAt: fp.landSpeed ? -0.35 : -99, landSpeed: fp.landSpeed || 0, upHeld: fp.upHeld || 0 };
+          clock: 0, landedAt: fp.landSpeed ? -0.35 : -99, landSpeed: fp.landSpeed || 0, upHeld: fp.upHeld || 0,
+          facing: fp.speed === 0 ? face : null };      // (a standing pose has no motion to turn it)
         if (fp.jump) pose.heroRel = rig.heroRel.clone().addScaledVector(U, 1.6);
       } else {
         // fly: cruising; fast: boosting; bank: cruising in a right turn; climb: straight up
@@ -839,13 +914,36 @@ export class App {
     hero.body.visible = hero.cape.visible = !zoomed;
     hero.group.updateMatrixWorld(true);
     this.updateDust(dt, env);
-    // Is the hero in a terrain shadow? Ask a worker now and then (cheap single ray).
-    if (rig.agl < 20000 && !this.heroVisPending && this.frameCount % 20 === 0) {
-      const p = hero.group.position, pts = new Float64Array([rig.pos.x + p.x, rig.pos.y + p.y, rig.pos.z + p.z]);
-      const eph = this.ephemeris;
-      const job = this.terrain.workers.run({ type: 'points', points: pts, sun: [eph.sunDir[0], eph.sunDir[1], eph.sunDir[2]], sunHalf, minWL: 2 });
-      if (job) { this.heroVisPending = true; job.then((res) => { this.heroVisPending = false; hero.uniforms.uSunVis.value = res.vis[0]; }).catch(() => { this.heroVisPending = false; }); }
-    } else if (rig.agl >= 20000) hero.uniforms.uSunVis.value = 1;
+    // Terrain shadow on the character: eased toward the workers' last answer (requestHeroVis),
+    // so stepping into a canyon's shadow dims it over a moment instead of in one frame.
+    // (high up no worker is asked: the Sun's disc against the world's own round shadow,
+    // or the figure stayed sunlit on the night side of an airless world)
+    if (rig.agl >= 20000) {
+      const r = rig.pos.length(), sd = G.uSunDir.value, mu = (rig.pos.x * sd.x + rig.pos.y * sd.y + rig.pos.z * sd.z) / r;
+      const q = this.world.radius / r, hor = -Math.sqrt(Math.max(0, 1 - q * q));
+      const t = Math.min(1, Math.max(0, (mu - (hor - sunHalf)) / (2 * sunHalf)));
+      this.heroVisTarget = t * t * (3 - 2 * t);
+    }
+    const u = hero.uniforms.uSunVis, tgt = this.heroVisTarget ?? 1;
+    u.value += (tgt - u.value) * (dt > 0 ? 1 - Math.exp(-dt / 0.08) : 1);
+  }
+
+  // Is the character in a terrain shadow? Asks a worker every 0.12 s (a cheap single ray),
+  // before the terrain takes the workers for the frame: asked after it, the question went
+  // unanswered for as long as terrain was loading, and the light then snapped.
+  requestHeroVis(dt, sunHalf) {
+    const { hero, rig } = this;
+    this.heroVisClock = (this.heroVisClock ?? 1) + (dt > 0 ? dt : 0.02);
+    if (!hero.group.visible || !hero.started || rig.agl >= 20000 || this.heroVisPending || this.heroVisClock < 0.12) return;     // (started: the figure has been placed)
+    // (a screenshot holds still: one answer is enough, and a worker kept busy every other
+    // frame would never let the terrain count as settled)
+    if (this.shotMode && this.heroVisKnown) return;
+    const p = hero.group.position, pts = new Float64Array([rig.pos.x + p.x, rig.pos.y + p.y, rig.pos.z + p.z]);
+    const eph = this.ephemeris, epoch = this.terrain.epoch;
+    const job = this.terrain.workers.run({ type: 'points', points: pts, sun: [eph.sunDir[0], eph.sunDir[1], eph.sunDir[2]], sunHalf, minWL: 2 });
+    if (!job) return;                                  // no worker free: ask again next frame
+    this.heroVisClock = 0; this.heroVisPending = true;
+    job.then((res) => { this.heroVisPending = false; if (epoch === this.terrain.epoch) { this.heroVisTarget = res.vis[0]; this.heroVisKnown = true; } }).catch(() => { this.heroVisPending = false; });
   }
 
   // What hides the sky from the ground beside it (contactSky in the lighting chunk), as
@@ -1001,7 +1099,7 @@ export class App {
       world: world.name, mode: rig.mode, shot: this.shotMode ? this.bookmark : '',
       build: BUILD.commit, governor: this.governor.summary, modeLabel: MODES[this.governor.mode].label,
       nativeW: post.width, nativeH: post.height, refresh: this.governor.vsyncMeasured ? Math.round(1000 / this.governor.vsync) : '?',
-      calls: this.stats.calls, triangles: this.stats.triangles, maxCalls: CONFIG.MAX_DRAW_CALLS, maxTriangles: CONFIG.MAX_TRIANGLES,
+      calls: this.stats.calls, triangles: this.stats.triangles,
       chunksDrawn: this.terrain.drawList.length, chunksLoaded: this.terrain.loadedCount, chunkPool: CONFIG.CHUNK_POOL, queue: this.terrain.queueLength,
       scale: post.scale, viewW: post.viewW, viewH: post.viewH, gpuMs: this.governor.gpuMs,
       gpuBytes: this.gpuBytes, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries,

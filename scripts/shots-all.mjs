@@ -1,16 +1,18 @@
 // The full reference set: every bookmark on every world, each world from orbit, and the
 // character. Builds the site first and takes every picture from dist/, in the phone's
-// shape (880 x 412 CSS px).   node scripts/shots-all.mjs [--no-build] [--only moon] [--out docs/shots] [--distdir <frozen build>]
+// shape (880 x 412 CSS px).   node scripts/shots-all.mjs [--no-build] [--only moon] [--out docs/shots] [--distdir <frozen build>] [--strict]
 // Software WebGL: expect 1-3 minutes per picture. Run it in the background.
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { root, opt, flag } from './lib/browser.mjs';
+import { WORLDS } from '../src/worlds/index.js';
 
 const out = opt('out', 'docs/shots'), only = opt('only', '');
 // [world, bookmarks, extra URL query, file suffix]
 const SETS = [
-  ['mars', 'ledge,sun,wall,ship,dusk,canyon,olympus,gale', '', ''],
-  ['moon', 'ledge,sun,wall,ship,dusk,tycho,taurus', '', ''],
+  // every bookmark of every world in the registry (src/worlds/index.js): a new world's
+  // bookmarks are in the set as soon as its file is
+  ...Object.entries(WORLDS).map(([id, w]) => [id, Object.keys(w.scene.bookmarks).join(','), '', '']),
   // from orbit (above the sunset view along the canyon): low and oblique, then the whole globe from straight above (north
   // up) at the scene's own moment, by day and by night
   ['mars', 'canyon', 'alt=250000&pitch=-22', '_orbit_low'],
@@ -45,6 +47,23 @@ const SETS = [
   ['mars', 'canyon', 'alt=900000&pitch=-30&heading=280&target=place:olympus', '_target'],
 ];
 
+// The orbit and character pictures above are composed by hand for the worlds they name.
+// A row that names a world or bookmark that is gone stops the run; a world without any
+// such rows is said out loud (and fails the run with --strict), so that "every world from
+// orbit, and the character" cannot quietly leave one out.
+let incomplete = 0;
+for (const [world, shots, , suffix] of SETS) {
+  for (const shot of shots.split(',')) {
+    if (!WORLDS[world]?.scene.bookmarks[shot]) { console.log(`set ${world}${suffix}: there is no bookmark "${shot}" on world "${world}" (see src/worlds/)`); process.exit(1); }
+  }
+}
+for (const id of Object.keys(WORLDS)) {
+  const has = (re) => SETS.some(([w, , , suffix]) => w === id && re.test(suffix));
+  const missing = [!has(/^_orbit/) && 'from orbit', !has(/^_hero/) && 'the character'].filter(Boolean);
+  if (missing.length) { incomplete++; console.log(`WARNING: no pictures of "${id}" ${missing.join(' or of ')} — add rows for it to SETS in scripts/shots-all.mjs`); }
+}
+if (incomplete && flag('strict')) process.exit(1);
+
 // --distdir <copy of a build>: take every picture from that frozen copy (and do not build)
 const distDir = opt('distdir', null);
 if (!flag('no-build') && !distDir) {
@@ -61,5 +80,5 @@ for (const [world, shots, query, suffix] of SETS) {
   const r = spawnSync('node', a, { cwd: root, stdio: 'inherit' });
   if (r.status !== 0) failed++;
 }
-console.log(failed ? `${failed} set(s) had problems` : `reference set saved in ${path.join(out)}`);
+console.log(failed ? `${failed} set(s) had problems` : `reference set saved in ${path.join(out)}${incomplete ? ` — but ${incomplete} world(s) have no orbit or character pictures (see the WARNING lines at the top)` : ''}`);
 process.exit(failed ? 1 : 0);

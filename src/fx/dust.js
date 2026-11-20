@@ -250,7 +250,12 @@ export class Dust {
     const ox = at.x - this.anchor.x, oy = at.y - this.anchor.y, oz = at.z - this.anchor.z;
     const h0 = ox * up.x + oy * up.y + oz * up.z;
     for (let k = 0; k < count; k++) {
-      const i = this.next; this.next = (this.next + 1) % N;
+      // the next free packet (one still in flight is taken only when none is free: it
+      // vanished in mid-air at full strength)
+      let i = this.next;
+      for (let q = 0; q < N && this.state[i * 4] < 1; q++) i = (i + 1) % N;
+      if (this.state[i * 4] < 1) i = this.next;
+      this.next = (i + 1) % N;
       const u = this._rnd(), a = this._rnd() * Math.PI * 2, r = 0.25 * this._rnd();
       const ul = (1 - vac) * this._rnd() + vac * Math.min(1, Math.max(0, u + 0.14 * (this._rnd() - 0.5)));
       const s = spread * (0.35 + 0.65 * u), l = lift * (0.3 + 0.7 * ul);
@@ -329,7 +334,7 @@ export class Dust {
     this.uniforms.uPixelsPerRadian.value = viewH / (2 * tanHalfFov);
     this.uniforms.uSunVis.value = sunVis;
     this.uniforms.uVac.value = vac;
-    this.uniforms.uDustTime.value = this.time % 1000;
+    this.uniforms.uDustTime.value = this.time % 819200;     // (a whole number of lattice periods on all three axes: no jump of the lumps when it wraps)
     this.uniforms.uDustDetail.value = this.amount >= 1 ? 1 : 0;
     this.aPos.needsUpdate = true; this.aState.needsUpdate = true; this.aMotion.needsUpdate = true;
   }

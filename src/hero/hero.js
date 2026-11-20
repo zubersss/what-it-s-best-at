@@ -1,6 +1,7 @@
-// The flying character: how it moves. A suited figure (heroModel.js) posed between
+// The flying character: how it moves. A robed figure (heroModel.js) posed between
 // "hover" (upright, relaxed) and "flight" (horizontal, arms forward), with elbows and
-// knees that bend and a simulated cloak that is kept off the body, arms and legs. In
+// knees that bend, and simulated cloth (robe.js: the robe's skirt, the wide sleeves, the
+// hair) that is kept off the body, head, arms and legs. In
 // flight it is drawn a few metres in front of the camera, so the engine's camera, floating
 // origin and controls stay exactly as they are: the hero is the thing you fly behind.
 //
@@ -9,7 +10,7 @@ import * as THREE from 'three';
 import { lightingUniforms } from '../render/lightingGlsl.js';
 import { torsoGeometry, upperArmGeometry, forearmGeometry, thighGeometry, shinGeometry, ELBOW, HAND, KNEE, ANKLE, SHOULDER, HIP, HERO_VERT, HERO_FRAG } from './heroModel.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
-import { Cloak } from './cloak.js';
+import { Robe } from './robe.js';
 
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 
@@ -47,16 +48,17 @@ export class Hero {
     this.colliders = new Float32Array(8 * 7);
     this._bend = new THREE.Quaternion(); this._joint = new THREE.Vector3(); this._end = new THREE.Vector3();
     this.legSwing = 0;
-    this.cloak = new Cloak();
-    this.cape = mk(this.cloak.geometry);     // cloth vertices are already in world axes, anchor-relative
+    this.robe = new Robe();
+    this.cape = mk(this.robe.geometry);      // cloth vertices are already in world axes, anchor-relative
     this.group.add(this.cape);
+    this._pins = new Float32Array(8 * 3); this._pv = new THREE.Vector3(); this._bz = new THREE.Vector3();
     // The near shadow map gives the figure's parts a tile of their own that follows it
     // (its "focus"), fine enough (7 mm) for the hard-edged shadow of a suited figure under
     // an airless sky.
     for (const m of this.casters) m.userData.shadowFocus = this.group;
     this.group.visible = false;
     const tris = (m) => m.geometry.attributes.position.count / 3;
-    this.triangles = this.cloak.triangles + tris(this.torso) + 2 * (tris(this.arms[0]) + tris(this.forearms[0]) + tris(this.legs[0]) + tris(this.shins[0]));
+    this.triangles = this.robe.triangles + tris(this.torso) + 2 * (tris(this.arms[0]) + tris(this.forearms[0]) + tris(this.legs[0]) + tris(this.shins[0]));
 
     this.flight = 0;                          // 0 hover .. 1 flying
     this.foot = 0;                            // 0 in the air .. 1 on foot (walking pose)
@@ -94,6 +96,19 @@ export class Hero {
     c[o + 7] = j.x; c[o + 8] = j.y; c[o + 9] = j.z; c[o + 10] = e.x; c[o + 11] = e.y; c[o + 12] = e.z; c[o + 13] = r1;
   }
 
+  // The wide sleeve of arm i lies over the arm from the upper arm to the wrist: the line it
+  // is fixed along, in the body's frame, on the outer side of the limb as posed this frame.
+  _sleevePins(i, name) {
+    const up = this.arms[i], lo = this.forearms[i], pts = this._pins, v = this._pv, n = 6, sx = i ? -0.05 : 0.05;
+    for (let k = 0; k < n; k++) {
+      const along = 0.10 + (k / (n - 1)) * 0.52;
+      if (along <= ELBOW) v.set(sx, -along, 0).applyQuaternion(up.quaternion).add(up.position);
+      else v.set(sx, -(along - ELBOW), 0).applyQuaternion(lo.quaternion).add(lo.position);
+      pts[k * 3] = v.x; pts[k * 3 + 1] = v.y; pts[k * 3 + 2] = v.z;
+    }
+    this.robe.setPins(name, pts);
+  }
+
   setVisible(v) { if (v && !this.group.visible) this.started = false; this.group.visible = v; }
 
   // rig: camera rig (pos, forward, right, up, localUp, velocity in m/s, throttle 0..1, yawRate deg/s).
@@ -129,7 +144,9 @@ export class Hero {
     const vDown = -motion.velocity.dot(up), feetClear = (motion.agl ?? rig.agl ?? 99) - HERO_DROP - 0.9;
     const flareTarget = onFoot ? 0 : (1 - THREE.MathUtils.smoothstep(feetClear, 2, 3 + 1.2 * Math.max(0, vDown))) * THREE.MathUtils.smoothstep(vDown, 0.6, 2.0);
     this.flare += (flareTarget - this.flare) * (1 - Math.exp(-dt * 7));
-    const f = this.flight * (1 - this.flare), fs = f * f * (3 - 2 * f), b = this.boost * this.boost * (3 - 2 * this.boost);
+    // (nothing of the flight tilt on foot: after a flared landing the standing figure tipped
+    // forward 22 degrees while the flight amount faded)
+    const f = this.flight * (1 - this.flare) * (1 - this.foot), fs = f * f * (3 - 2 * f), b = this.boost * this.boost * (3 - 2 * this.boost);
     // The chase distance: upright (hovering, landing) the figure stands 1.8 m tall and at
     // 4.1 m its boots fell on the frame's edge; it is drawn farther ahead then. The rig reads
     // it (App.updateHero), so landing puts the feet where the figure is drawn.
@@ -140,9 +157,14 @@ export class Hero {
     // from facing forward to facing the ground.
     const dir = speed > 0.5 ? this._z.copy(motion.velocity).divideScalar(speed) : this._z.copy(rig.forward);
     // On foot the figure faces where it runs (or, standing, where it last faced), turning smoothly.
-    const want = this._f.copy(hspeed > 0.4 ? hv : rig.forward).addScaledVector(up, -(hspeed > 0.4 ? 0 : rig.forward.dot(up)));
+    // (standing, it keeps facing where it last faced: the view can be turned round it to
+    // see its face; it followed the view before, whatever the comment said)
+    const moving = hspeed > 0.4, keep = onFoot && !moving && this.started && this.facing.lengthSq() > 0.5;
+    const src = moving ? hv : keep ? this.facing : rig.forward;
+    const want = this._f.copy(src).addScaledVector(up, -src.dot(up));
     if (want.lengthSq() > 1e-8) want.normalize();
     if (!this.started || this.facing.lengthSq() < 0.5) this.facing.copy(want);
+    if (motion.facing) this.facing.copy(motion.facing);          // (screenshot poses)
     // (turning straight round: a lerp between opposite directions never leaves their line,
     // so nudge it sideways and let it swing round at the usual rate)
     if (this.facing.dot(want) < -0.98) this.facing.addScaledVector(this._g.crossVectors(up, this.facing), 0.05);
@@ -236,10 +258,13 @@ export class Hero {
       // A hard landing (a fall of some 20 m on Mars) ends in a three-point landing: one knee
       // down, a hand on the ground, held for a moment before standing.
       // (all or nothing: the pose reaches the ground only at full weight)
-      const hard = THREE.MathUtils.smoothstep(motion.landSpeed || 0, 9, 10.5);
+      // The rig's own threshold and hold (it brakes the skid and locks the stick for
+      // exactly that long: held longer, the figure slid a metre on one knee), and the pose
+      // lets go as soon as the figure really moves.
+      const hard = (motion.landSpeed || 0) > (rig.hardSpeed ?? 9) ? 1 : 0, hold = rig.hardHold ?? 0.45;
       // (a jump or take-off straight out of it lets go of the kneel at once)
       this.kneel = motion.airborne || !onFoot ? this.kneel * Math.exp(-dt * 10)
-        : since >= 0 && since < 2.2 ? hard * (since < 0.6 ? 1 : Math.exp(-(since - 0.6) * 3.5)) : 0;
+        : since >= 0 && since < 2.2 ? hard * (since < hold ? 1 : Math.exp(-(since - hold) * 6)) * (1 - THREE.MathUtils.smoothstep(hspeed, 0.5, 2.0)) : 0;
       crouch *= 1 - hard;
       // Up still held after a jump: the launch into flight, fist up, legs together.
       this.launch += ((motion.airborne ? THREE.MathUtils.smoothstep(motion.upHeld || 0, 0.06, 0.3) : 0) - this.launch) * (1 - Math.exp(-dt * 12));
@@ -270,10 +295,11 @@ export class Hero {
       const k = this.foot;
       for (let i = 0; i < 12; i++) P[i] += (F[i] - P[i]) * k;
     }
-    this._limb(this.arms[0], this.forearms[0], P[0], P[1], P[2], ELBOW, HAND, 0.09, 0.085, 0);
-    this._limb(this.arms[1], this.forearms[1], P[3], P[4], P[5], ELBOW, HAND, 0.09, 0.085, 2);
-    this._limb(this.legs[0], this.shins[0], P[6], P[7], P[8], KNEE, ANKLE, 0.11, 0.10, 4);
-    this._limb(this.legs[1], this.shins[1], P[9], P[10], P[11], KNEE, ANKLE, 0.11, 0.10, 6);
+    this._limb(this.arms[0], this.forearms[0], P[0], P[1], P[2], ELBOW, HAND, 0.065, 0.06, 0);
+    this._limb(this.arms[1], this.forearms[1], P[3], P[4], P[5], ELBOW, HAND, 0.065, 0.06, 2);
+    this._limb(this.legs[0], this.shins[0], P[6], P[7], P[8], KNEE, ANKLE, 0.085, 0.078, 4);
+    this._limb(this.legs[1], this.shins[1], P[9], P[10], P[11], KNEE, ANKLE, 0.085, 0.078, 6);
+    this._sleevePins(0, 'sleeveL'); this._sleevePins(1, 'sleeveR');
 
     // Place the figure: on foot where the rig puts it (standing on the ground, lowered in a
     // landing crouch and by the bent knees of a run); flying, in front of and a little
@@ -289,7 +315,8 @@ export class Hero {
       this.lag.multiplyScalar(kd); this.turnLead.multiplyScalar(kd);
       this._pitch0 = rig.pitch ?? 0;
       const o = this._x.copy(this.lag).addScaledVector(rig.right, this.turnLead.x).addScaledVector(rig.up, this.turnLead.y);
-      if (onFoot) o.addScaledVector(up, -o.dot(up));        // (on foot the soles stay on the ground)
+      // (on foot the soles never go under the ground; an offset upward fades with the rest)
+      if (onFoot) { const vu = o.dot(up); o.addScaledVector(up, -(vu > 0 ? vu * this.foot : vu)); }
       p.add(o);
     } else {
       // A chase camera: turning the view swings the camera round the figure, so the figure
@@ -308,13 +335,29 @@ export class Hero {
       }
     }
 
-    // Cloak: gravity, inertia, and the air streaming past. In vacuum there is no air, but
-    // the cloak is still made to trail the direction of flight a little (owner's request).
+    // The cloth: gravity, inertia, and the air streaming past. In vacuum there is no air, but
+    // it is still made to trail the direction of flight a little (owner's request).
     const g = this._g.copy(up).multiplyScalar(-env.gravity);
-    const flow = Math.min(speed, 42) * (0.3 + 0.7 * env.air);
+    // (the cloth is tuned for thin air: under a dense sky its forces would tear it, so the
+    // air it feels stops at 0.2)
+    const air = Math.min(env.air, 0.2);
+    const flow = Math.min(speed, 42) * (0.3 + 0.7 * air);
     const wind = this._wind.copy(dir).multiplyScalar(-flow * (speed > 0.05 ? 1 : 0));
-    if (!this.started) { this.cloak.reset(this._m3); this.started = true; }
-    this.cloak.update(dt, this._m3, g, this.accel, wind, env.air, this.colliders);
+    // A breeze is always blowing through the robe and the hair (gently, from ahead and a
+    // little to one side, its strength drifting), even standing still and in vacuum: the
+    // owner wants the robe flowing. Like the cloak trailing in vacuum before it, a
+    // deliberate departure from physics.
+    // (its push is a share of this world's gravity, so the cloth leans and ripples instead
+    // of standing straight out: about a third of its weight, gusting to a half)
+    const bt = this.time, push = env.gravity * (0.30 + 0.14 * Math.sin(bt * 0.53) + 0.08 * Math.sin(bt * 1.37 + 1.0));
+    const bs = push / (0.9 + 5.5 * air);                  // (cloth follows the air at this rate: robe.js)
+    const bl = this._bz.set((0.75 + 0.2 * Math.sin(bt * 0.21)) * bs, 0.1 * bs, -0.65 * bs).applyMatrix3(this._m3);
+    wind.add(bl);
+    if (!this.started) { this.robe.reset(this._m3); this.started = true; }
+    // the ground under the figure, as a plane for the cloth (kneeling put half a metre of the
+    // skirt under it)
+    const clear = env.groundClearance ? env.groundClearance(p) : null;
+    this.robe.update(dt, this._m3, g, this.accel, wind, air, this.colliders, up, clear != null && clear < 4 ? -clear : null);
   }
 
   // Runs the cloak for a while with steady conditions (deterministic screenshots).

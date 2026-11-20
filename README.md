@@ -1,6 +1,6 @@
 # Solar System Explorer
 
-A browser game: fly a suited, cloaked character through the real solar system. Today it
+A browser game: fly a robed, long-haired character through the real solar system. Today it
 has Mars and the Moon, both built from NASA's public-domain maps, and the flight between
 them. On Mars: Coprates Chasma in Valles Marineris, the summit of Olympus Mons, Gale
 crater. On the Moon: Hadley Rille where Apollo 15 landed, Tycho, the Apollo 17 valley.
@@ -27,21 +27,22 @@ button.
 | left stick / drag | `WASD` / mouse | move / look |
 | `HERO` | `G` | flying character on / off (on by default) |
 | `TARGET` | `T` | choose where to go: this world's real places (Olympus Mons, Gale, the Apollo sites…), the bodies in the sky, the Sun. A marker shows its name, distance and how long the trip takes |
-| `GO` (above `▲`) | `Enter` | fly there hands-off (shown once there is a target); the stick, a movement key, `HERO`, `FLY` or a `VIEW` takes control back. It stops above the target: with HOVER on you stay there, with it off you come down |
+| `GO` (above `▲`) | `Enter` | fly there hands-off (shown once there is a target); the stick, a movement key, `HERO`, `CAM` or a `VIEW` takes control back. It stops above the target: with HOVER on you stay there, with it off you come down |
 | `HOVER` | `X` | hover on / off. Off (the default): let go of the stick and gravity pulls you toward the nearest world, or the Sun |
-| `FLY` | `F` | walk ↔ free-fly debug camera |
+| `CAM` | `F` | free-fly debug camera, from where you are (the character is put away); again: down to a first-person walk. `HERO` / `G` brings the character back |
 | `ZOOM` (hold) | `Z` (hold), wheel | telephoto |
-| `VIEW` | `1`–`9` | places: five views of the world's main site, then its other landmarks (the name appears as you arrive) |
+| `VIEW` | `1`–`9` | places: the views of the world's main site (five on the Moon, six on Mars), then its other landmarks (the name appears as you arrive) |
 | `HUD` | `H` | HUD: one line → everything plus the time-of-day slider → off (the target marker stays) |
 | `MODE` | `M` | Smooth ↔ Sharp |
 | `FULL` | | fullscreen, landscape lock, keep the screen awake |
 | `▲` | `Space` / `E` | on foot: tap to jump (higher on the Moon: real gravity), hold to take off; flying: up |
 | `▼` | `Q` | down |
 | stick at the rim | `Shift` | super speed on foot / boost in flight |
+| | left `Ctrl` (hold) | slow, for precise moves |
 
 You start on your feet: walk, run at super speed, and jump under each world's real
 gravity (about 3.4 m on Mars, 7.7 m on the Moon). Hold ▲ to take off; with HOVER off,
-touching the ground lands you back on your feet. You fly behind a suited figure with a cloak. Speed grows with distance from the nearest
+touching the ground lands you back on your feet. You fly behind a figure in a white and silver robe with long hair; the robe's skirt, its wide sleeves and the hair move as cloth. Speed grows with distance from the nearest
 surface, so the same stick hovers over a rock, climbs to orbit and crosses to another
 world in well under a minute: choose the Moon with `TARGET` and push forward, or press
 `GO` and watch (about 15 s from the ground).

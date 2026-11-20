@@ -6,33 +6,42 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-*Handoff written after the milestone 4 review, for a new session or account that starts
-with the owner typing "continue".*
+*Handoff written after the foundation review and the owner's character, for a new
+session or account that starts with the owner typing "continue".*
 
-- **Last delivered**: milestone 4, character and flight feel, then a full review of it at
-  the owner's request ("review and judge milestone 4 and redo any errors"): two rounds of
-  independent reviewers, every error found fixed, re-tested and merged to `main`
-  ("Milestone 4 review" below). `docs/ROADMAP.md` marks milestone 4 `done`. Everything is
-  on `main`; nothing is pending on any branch.
-- **Asked of the owner**: to try the target list and GO, the new poses and landings, and
-  to paste the Benchmark results (Copy results) in both Smooth and Sharp. The milestone
-  2–4 builds have never been measured on the phone (see the known-problems table).
+- **Last delivered**: milestone 4 (`done` in `docs/ROADMAP.md`), reviewed three times at
+  the owner's request. The last round ("look over everything … make sure it is a good
+  foundation") ran a 57-reviewer foundation review of all the work since milestone 3 and
+  its fixes, rebuilt the character from the owner's reference pictures (a robed,
+  long-haired figure: "The owner's character" below), and dropped the fixed budgets at
+  the owner's word ("No fixed budgets" in CLAUDE.md). Everything is merged to `main`.
+- **Asked of the owner**: (1) the Benchmark results (Copy results) in Smooth and Sharp:
+  nothing since milestone 1 has been measured on the phone, and the build now draws 180
+  ground patches instead of 120 and simulates more cloth; (2) whether a 3D model file of
+  the character exists (the reference sheet says "Character Model 1.0, 125k polygons"):
+  a real model, if it is the owner's to use, would replace the code-built figure.
 - **What to do next**:
   - If the owner pastes benchmark results: tune the governor and resolution range from
-    them first (CLAUDE.md "What the owner's replies mean"), check the new costs (the Mars
-    dust cloud's noise, the 16 contact spheres in the terrain shader, the per-pixel haze
-    near a planet's edge), then continue.
-  - If the owner says "continue": start **milestone 5,
-    Earth and the Sun from space**. Write its plan in this file first. Its scope (from
-    the roadmap): Earth as a full globe with public-domain NASA colour, a cloud layer,
-    night-side city lights, sun-glint on oceans and a thin blue edge (not landable).
-    The milestone 4 critic's findings that belong there, in the known-problems table:
-    Earth a white blob from the Moon; no light from the planet below on things in orbit
-    (the figure's legs and visor go black over sunlit Mars); Mars daylight haze too
-    thick and the sky a flat khaki; chalk-white canyon outlines and a bluish crescent on
-    Mars from orbit; Deimos burnt out; black shadow slivers in the low lunar orbit view.
-    Earth's maps must be public domain (NASA Blue Marble, Black Marble): record them in
-    `docs/ASSETS.md`.
+    them first (CLAUDE.md "What the owner's replies mean"). Look first at what is new and
+    unmeasured: 180 patches (if Smooth cannot hold native, try 150 or put a terrain step
+    earlier in the governor's order), the robe and hair simulation (about 0.8 ms a frame
+    in Node on the cloud machine; the `cloak` step halves it), the Mars dust cloud's
+    noise, the contact spheres, the per-pixel haze near a planet's edge.
+  - If the owner sends a model file: check its licence is the owner's to give, record it
+    in `docs/ASSETS.md`, load it with three's GLTFLoader, keep `robe.js` for the cloth
+    or use the model's own skinning; the pose code in `hero.js` drives eight limb pieces.
+  - If the owner says "continue": start **milestone 5, Earth and the Sun from space**.
+    Write its plan in this file first. Its scope (from the roadmap): Earth as a full
+    globe with public-domain NASA colour, a cloud layer, night-side city lights, sun-glint
+    on oceans and a thin blue edge (not landable). What the reviews left for it, in the
+    known-problems table: sky bodies are one generated pattern on a fixed sphere in the
+    home world's air (Earth needs its own maps and air); no eclipse of the Sun by another
+    body; Earth a white blob from the Moon; no light from the planet below on things in
+    orbit; Mars daylight haze too thick and the sky a flat khaki; chalk-white canyon
+    outlines and a bluish crescent on Mars from orbit; Deimos burnt out; black shadow
+    slivers in the low lunar orbit view. Flight beside a body that is not the home world
+    now works (the traveller is carried with it: `App.carryWith`). Earth's maps must be
+    public domain (NASA Blue Marble, Black Marble): record them in `docs/ASSETS.md`.
   - If the owner complains about something: reproduce it in a screenshot, fix it, show
     before and after, then return to the roadmap.
 - **How to work here** (all in CLAUDE.md): develop on the session's own branch, open a
@@ -54,7 +63,9 @@ with the owner typing "continue".*
   night under the Earth). Two more places: Tycho and the Taurus-Littrow valley (Apollo 17).
 - **Dust**: the character throws up dust when it touches down, takes off or skims the
   ground; low clean arcs on the airless Moon, a lingering cloud on Mars.
-- **The character**: a suited figure with a cloth-simulated cloak. Flight speed grows
+- **The character**: the owner's design, a figure in a white-silver robe with long
+  magenta-purple hair; the robe's skirt, the wide sleeves and the hair are simulated cloth
+  that flows in the wind and in flight. Flight speed grows
   with distance from the nearest surface, so one stick covers hovering, orbit and the
   crossing between worlds; the engine hands over from one world to the other in flight.
 - **Engine**: cube-sphere terrain with worker-built chunks and baked Sun shadows, a
@@ -304,8 +315,13 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
   frame in space, stars and distant planets are not visible.
 - **Exposure metering floor** (`scene.exposure.shadowFloor`) is a per-world number: 0.2
   on Mars, 0.6 on the Moon, where a black sky would otherwise over-expose the ground.
-- **Chunk grid 40×40, normal map 120², shadow map 60², 120-chunk draw cap**: the draw-call
-  budget, not the triangle budget, limits terrain detail, so chunks were made denser.
+- **Chunk grid 40×40, normal map 120², shadow map 60², at most 180 patches drawn** (120
+  until the owner dropped the fixed budgets on 2026-11-20; the governor's terrain steps
+  lower it to 144 and 115). Whether the phone holds 180 is not measured yet.
+- **No fixed budgets** (owner, 2026-11-20: "if they are limits set by me get rid of them,
+  you are making the best game possible"). The 200 draw calls / 500,000 triangles / 300 MB
+  limits are gone from the charter, the config and the HUD. What limits the picture now is
+  the steady frame rate on the phone, which the governor keeps; pools stay fixed-size.
 - **Mobile GPU care**: clears before full-screen passes, depth and unused colour
   invalidated, GL context loss reloads the page.
 
@@ -314,10 +330,9 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 - **The canvas is drawn pixel for pixel** (`devicePixelContentBox`), so "native" really
   is the panel's own pixels. A guard at 8.3 M pixels protects the memory budget on
   monitors above 4K only.
-- **Smooth starts at about half of native's pixels, Sharp at native.** Coming down is
-  quick (under a second per step) and climbing is slow on purpose, so starting high
-  settles fastest, but starting Smooth at native would mean a second or two of stutter
-  on a phone that cannot hold it. To be tuned from the first benchmark.
+- **Both modes start at native resolution** (since the owner's first phone results; the
+  first design started Smooth at half). Coming down is quick (under a second per step) and
+  climbing is slow on purpose.
 - **Lateness is judged against the target interval (×1.2), not against the measured
   refresh rate.** When every frame is slow the refresh rate cannot be measured (all
   callbacks are late), and a tolerance based on it excused 40 fps as "on time" in
@@ -418,7 +433,7 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
   rock, lander and figure shadows went from one 15 cm-texel map to an atlas with a 4 cm
   tile near the camera and a 7 mm tile that follows the figure: its shadow is a crisp
   silhouette instead of a smudge, and it now shades itself. The fine tile draws only the
-  rocks within 30 m (they are scattered nearest-first), so the triangle budget holds.
+  rocks within 30 m (they are scattered nearest-first), so its cost stays small.
   Baked terrain shadows can store the clearance angle instead of visibility for sharper
   edges (`CONFIG.SHADOW_ANGLE`); not switched on yet, it needs a decode in the terrain shader.
 - **Mars from orbit keeps its albedo features** (a helper measured where the Viking
@@ -543,25 +558,108 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 - **Chase camera**: the figure drifts up to 0.7 m against a turn and settles back; on
   foot the camera rises to keep the figure's chest in sight over ridges and drops back
   2.5 m at super speed; through the telephoto the figure steps out of the picture.
-- **The cloak trails in vacuum too** (30 % of the atmospheric flow is kept). This is the
-  one deliberate departure from physics, at the owner's request.
+- **The robe and hair flow in vacuum too**: 30 % of the atmospheric flow is kept in
+  flight, and a breeze always blows through the cloth, even standing still on the Moon
+  (its push is about a third of the cloth's weight on that world, so it leans and ripples).
+  These are the two deliberate departures from physics, both at the owner's request
+  ("the robe should be flowing in the wind or flight").
 - World hand-over (Mars ↔ Moon) happens when the other world's surface is nearer than
   the current one's; in practice about half-way, where both are dots. Simulation time
   runs on across worlds; pressing a bookmark jumps to that world's own scene date.
 
 ## Known limits of what is built
 
-- Air is not shadowed by terrain; haze inside the shadowed canyon is lit as if sunlit.
-- No sky-visibility bake: sky light is not reduced inside the canyon.
-- Shadow maps are 60² per chunk; shadows cast from far away have soft edges.
-- Gullies below MOLA resolution are not aligned downslope.
+Every limit in the code today that holds back the picture or its detail, checked against
+the code on 2026-11-20. Faults that will be fixed are in the table below; these are the
+ceilings the engine was built with. Since the owner dropped the fixed budgets (CLAUDE.md,
+"No fixed budgets"), none of the numbers here is a rule any more: each one can be raised
+when the phone's benchmark shows it holds a steady frame rate.
+
+The picture
+
+- No anti-aliasing of any kind: thin bright edges (ridge lines, crater rims) shimmer.
+- Render resolution is whatever holds the frame rate: from native down to about 1 million
+  pixels, then features switch off in the governor's order. Above 8.3 million pixels (a
+  monitor larger than 4K) the canvas is capped.
+- Smooth mode asks for 60 frames a second, so each frame has half the time Sharp gives it.
+- None of the expensive effects in CLAUDE.md is built: volumetric clouds, screen-space
+  reflections, ambient occlusion, global illumination, motion blur, temporal
+  anti-aliasing. Each waits for phone results that show headroom.
+- Bloom is one cheap pass (5 levels, about 4.5 % of the light).
+- Photo mode (one frame at full native resolution) is not built yet (milestone 8).
+- A phone allows 16 textures in one shader and the ground's shader uses 15: one more map
+  on the ground means merging or dropping another.
+
+The ground
+
+- At most 180 terrain patches are drawn at once (120 until 2026-11-20), from a pool of
+  480; the governor can lower that to 144 and 115. Detail in the distance is what this cap
+  leaves after the patches near the camera.
+- Every patch is a 40 × 40 grid of quads with a 120 × 120 normal map, whatever its size.
+  The finest patches are about 40 m across on Mars (1 m quads, 34 cm normal texels) and
+  10 m on the Moon (26 cm quads, 9 cm texels). Nothing smaller has real shape.
+- Below that, grain comes from one generated 256-pixel pattern repeated at three sizes
+  (64 m, 7 m and 0.8 m tiles): no photographed or scanned surfaces (art rule 3).
+- Real elevation is coarse outside a few sites. Mars: 15 km per pixel everywhere, 463 m at
+  Coprates, the Olympus summit and Gale, 1.9 km over the Olympus shield. The Moon: 7.6 km
+  per pixel everywhere, 59 m at Hadley, 118 m at Taurus-Littrow, 474 m over the Apennines
+  and Tycho. Everything finer is invented relief from the recipe.
+- Real colour is one 4096 × 2048 map per world: 5.2 km per pixel on Mars, 2.7 km on the
+  Moon. Finer colour is the palette and the generated ground cover.
+- Relief shading from far away comes from one slope map per world, 4096 pixels round
+  the globe (5.2 km per pixel on Mars, 2.7 km on the Moon), with its slopes doubled so
+  landforms read on a phone.
+- Gullies below the elevation maps' resolution are noise, not aligned downslope.
+- Rocks: one lump shape cut by fracture planes, at most 512 (480 on Mars, 420 on the
+  Moon), only within 120 m of the camera. No pebbles, boulder fields or footprints.
+- Three workers build terrain: ground that comes into view fast is drawn coarse until
+  they catch up.
+
+Shadows and light
+
+- Terrain shadows are baked per patch at 60 × 60 (half the normal map), re-baked when the
+  Sun has moved 1°. Shadows cast from far away have soft edges, and the day-night line
+  seen from far away is as sharp as those texels (stair-stepped on the Moon at high zoom).
+- Shadows of rocks, the lander and the character are drawn within 150 m of the camera
+  (15 cm texels; 4 cm within 20 m; 7 mm round the character). Farther away the lander
+  casts none. Kicked-up dust casts none.
+- No sky-visibility bake: sky light is not reduced inside a canyon or a crater, only in
+  one-texel hollows (the normal map's cavity term) and at the foot of the character, the
+  lander and the eight nearest rocks.
 - Planetshine is unshadowed and comes only from the single brightest sky body.
+- The lander's lamps light nothing. Nothing in orbit is lit by the planet below it.
+
+The air
+
+- The air is a set of small tables: sky 160 × 100, 32 × 32 × 32 cells of haze in front of
+  the camera, a 64 × 64 map of where terrain shadows the air. So shadows in the haze are
+  soft.
+- From space the glow on a planet's edge is marched per pixel with 16 samples (12 over
+  ground), halved by the governor.
+- No clouds, no dust storms, no weather: a world's air changes with height only, it is
+  the same over every place.
+
+The sky
+
+- Only Mars and the Moon have terrain; any other body stops you just above its drawn
+  surface (2 % of its size).
+- The catalogue holds the Sun, Earth, the Moon, Mars, Phobos and Deimos. No other planets
+  yet (milestone 6).
+- A body seen in the sky is a ball with a generated pattern, not its real map: Mars and
+  the Moon too, seen from the other world. Earth's is a procedural ocean/land/cloud
+  pattern, not real geography (milestone 5).
+- Stars are the 9,096 of the Yale Bright Star Catalogue as points; no Milky Way.
 - The Moon's rotation uses mean elements (no libration); Earth can be a few degrees off.
-- No anti-aliasing.
-- Earth's disc is a procedural ocean/land/cloud pattern, not real geography.
-- Only Mars and the Moon have terrain; other bodies stop you 2 % above their radius.
-- The sky's in-scatter fades out above the atmosphere: no glow on the planet's edge.
-- The character has rigid limbs; the cloak collides with a single capsule.
+
+The character
+
+- No textures: detail is geometry coloured per vertex; face and hands are simple shapes
+  and do not move (no fingers, no expression).
+- The robe, sleeves and hair are about 500 simulated points at 75 steps a second (half
+  that on the governor's last-but-one step), drawn finer than they are simulated. The
+  cloth is kept off the body, head and limbs, not off the ground, rocks or lander, and the
+  hair is not kept off the arms.
+- Kicked-up dust is a pool of 1,024 sprites, each at most 256 pixels across.
 
 ## Known problems (and where the roadmap deals with them)
 
@@ -591,10 +689,18 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 | Black shadow slivers with no visible relief in the low lunar orbit view | 5 |
 | Far from every body only the target marker shows the way; there is no map yet | 7 |
 | Places on other worlds cannot be chosen until that world is home (no map yet) | 7 |
-| Triangles sit at ~480–495k of the 500k budget in the reference views; the interactive start view touched 500k while its terrain was still loading. The next world must not add triangles without taking some away | watch (5) |
-| The cloak in shade on Mars reads a pale salmon rather than deep red (sky light through the tone curve); folds were added after the milestone 4 review | next character pass |
-| The helmet is still a plain ball from behind (the suit's limbs, pack and visor were made bulkier after the milestone 4 review) | next character pass |
-| No footprints (footfalls throw dust since the milestone 4 review) | next character pass |
+| The terrain patch cap went from 120 to 180 when the owner dropped the fixed budgets (2026-11-20), so more triangles and draw calls are drawn than in any build the phone has measured (the reference views sat at 480–495 thousand triangles before) | owner's next benchmark |
+| No footprints (footfalls throw dust) | 8 |
+| The character is built from code: clean shapes and per-vertex colour, no sculpted face, no painted embroidery, none of the fine ornament of the owner's reference pictures. A real model file from the owner would replace it | owner (asked) |
+| In fast flight the robe's skirt streams back as a smooth tube; little billow. The face is a few simple shapes | next character pass |
+| The robe and hair simulation (about 500 points, 75 steps a second) and the 180 patches are not measured on the phone | owner's next benchmark |
+| The reference pictures of the worlds without the character (bookmarks, orbit views) were rendered with 120 patches; with 180 the ground is finer than they show. Re-render with `npm run shots:all` (3–4 hours) | tooling |
+| Sky bodies seen from another world are one generated pattern on a fixed 3,380-triangle sphere, drawn in the home world's air: Earth up close cannot be more than that (foundation review) | 5 |
+| No eclipse: when another body covers the Sun the ground stays fully sunlit (foundation review) | 5 |
+| Far from every body the traveller still rides the home world's spinning axes, so a time change swings distant bodies round it (near a body it is now carried along with that body) (foundation review) | 7 |
+| Every world's elevation data is downloaded at start-up and kept: fine for two worlds, not for ten (foundation review) | 6 |
+| `scripts/transfer.mjs` flies a hand copy of the trip code in `App`; a change to one can miss the other. The trip's steering belongs in `autopilot.js`, used by both. `transfer` and `flyby` print their numbers but never fail: they need pass marks (foundation and final reviews) | 5 (before touching trips again) |
+| Stars load from the starting world's data file only; the `sky.bodies` field of the world files is unused (foundation review) | 6 |
 
 Fixed in the milestone 4 review: GO arriving at tens of thousands of km/s (the figure hit
 the ground a fraction of a second after "Arrived", even with HOVER on); the trip's heading
@@ -801,6 +907,85 @@ landing, both hovers, both touch-down dusts, the Mars flight, the target marker,
 The critic's remaining gaps are about the character's look (a sheet-like cloak, a slim
 suit, no footstep dust): in the known-problems table for a later character pass.
 
+## Foundation review and the owner's character (after milestone 4)
+
+The owner sent three reference pictures of the character (a cultivator in a white-silver
+robe, long magenta-purple hair, wide sleeves, a silver sash with pearls and tassels) and
+asked for the robe to flow in the wind and in flight, for everything built so far to be
+reviewed, judged and fixed, and for milestone 4 to be a good foundation. In the same
+session the owner dropped the fixed budgets.
+
+**The character** (`src/hero/heroModel.js`, `src/hero/robe.js`; `cloak.js` is gone).
+The suit, helmet and cloak are replaced. The body: a slim torso in a crossed-collar robe,
+silver shoulder pieces with a fringe of drops, a wide silver sash with a polished clasp,
+strings of pearls with lavender tassels on the hips and down the back, silver bracers,
+bare hands, loose trousers gathered into silver-topped boots, a head with a simple face
+and two locks of hair framing it. The cloth, one draw call and about 500 simulated points:
+three panels of the long skirt with slits at the front and sides, two wide sleeves (a
+sheet laid over each arm, fixed along it and sewn underneath, hanging deep at the wrist),
+three long locks of hair down the back. It is drawn finer than it is simulated, with
+folds. Five materials in one shader: silk (a satin sheen), skin, silver embroidery,
+polished silver and pearls, hair (highlights along the strands). No textures. About
+9,400 triangles (the suit had 6,300). A breeze always blows through the cloth. Limits,
+honestly: a code-built figure cannot match the paintings' face, ornament or painted
+detail; the owner was asked whether the 3D model named on the reference sheet exists.
+
+**The foundation review**: six lines of review over all work since milestone 3 (flight,
+character logic, rendering, phone screen and tests, foundation for milestones 5–8,
+documentation truth), every finding checked by a second reviewer told to disprove it:
+51 findings, 48 upheld. Fixed in this round:
+
+- *Flight*. Held against a body without terrain (Earth, the Sun, Phobos, Deimos) flight
+  crawled at walking pace (a placeholder height of zero): now its true height. Beside such
+  a body the traveller is carried along with it (before, Phobos drifted off at 1.5 km/s
+  and the Sun at 15,000 km/s, because everything is kept in the home world's spinning
+  axes). The camera could fly inside Phobos and Deimos (they are drawn up to 25 % bigger
+  than the sphere that stopped it): now the shape as drawn. A stick pushed part of the way
+  no longer bends the flight toward the ground (at half stick, aimed level, it sank at
+  31°). The last stretch of a GO trip no longer depends on the frame rate (trips to a body
+  take about 1.2 s longer, 16.7 s; the marker's estimate was re-tuned: 16.6 s). Trips to
+  places below the datum (all the Moon's places, Gale) can no longer aim through the
+  world. A hand-over keeps the moment and centres the time slider (the clock jumped by up
+  to weeks at the next touch of a time key); the time keys run per second, not per frame.
+  A world whose data fails to load is retried after a pause, with a message.
+- *Character*. After a hard landing the kneel lets go when the stick unlocks (it slid a
+  metre on one knee). No forward tilt after a flared landing (22° before). Leaving the
+  ground on a steep slope is the same at 30 and 60 fps. Standing, the figure keeps facing
+  where it faced: turn the view round it to see its face. Off a sheer wall it no longer
+  hangs in mid-air. The terrain's shadow on the figure fades in and out and keeps updating
+  while terrain loads (it froze, then snapped).
+- *Rendering*. Rocks keep their own sunlight when the scatter moves (they flickered lit and
+  dark near shadow edges). Dust takes free packets first (at super speed on the Moon,
+  packets vanished in mid-air) and its lumps no longer jump every 1000 s.
+- *Screen*. `F` / the button now labelled `CAM` is the free camera where you are (from
+  flight it dropped the player to the ground in first person).
+- *Tests* (helper). `npm run flight` can now fail (it could not); screenshots fail on page
+  errors and shader failures; the shader-limit check counts varyings properly; the
+  stability test says what it cannot show and gains `--streaming`; the target test works
+  the touch stick and look for real; `--distdir` no longer silently serves live source.
+- *Documentation* (helper): ARCHITECTURE's frame order, governor and world schema, the
+  known limits, the keys and parameters, brought back to what the code does.
+
+Left for later, each in the known-problems table: Earth and other bodies drawn as
+generated patterns, eclipses, the frame far from every body, loading all worlds' data at
+start-up, the trip test's hand copy.
+
+**Final review** of this round's own changes (four lines of review, each finding checked
+by a second reviewer): 23 findings, 22 upheld, all fixed before the merge. The ones that
+showed: the robe, sleeves and hair were lit inside-out (their normals pointed against the
+way their triangles were wound, so the sunlit side was the dark one); the silver trims
+were shaded as skin or as nothing (a material number blended between neighbouring
+points); with the governor's cloth step on, the sleeves came off the arms on three frames
+in eight (it now halves the solver's passes instead of the step); sleeves whipped for
+three frames after a bookmark; the skirt went under the ground when kneeling (the cloth
+now has a ground); a light push of the stick aimed upward flew backward (the first fix
+for the bending pull overshot); off a sheer wall the figure bounced between falling and
+flight (the first fix did not hold: it now falls on foot until the camera is past the
+edge too); a bookmark pressed while being carried with a moon landed far from the place;
+the figure stayed sunlit on the night side of an airless world above 20 km; the collar
+stood 4–8 cm off the neck and the brows off the head. Recorded, not fixed: `transfer`
+and `flyby` print their numbers but still cannot fail.
+
 ## Look pass after the milestone 4 review (owner: "keep refining the looks")
 
 Aimed at the critic's character gaps, the things on screen all the time:
@@ -1002,4 +1187,8 @@ Weakest: `mars_ledge_orbit_globe`.
   fall, the GO button's place, the marker beyond the horizon and without the HUD, frame-
   rate independence); `transfer` flies with HOVER on and off through a turning frame; the
   headless tests ignore the software driver's performance notes. Milestone 4 `done`.
-
+- **Foundation review and the owner's character** (after milestone 4): the robed,
+  long-haired figure from the owner's references (`heroModel.js`, `robe.js`); 48 upheld
+  findings of a 57-reviewer foundation review, fixed or recorded for their milestone;
+  fixed budgets dropped by the owner, 180 terrain patches; `App.carryWith` / `turnAxes`;
+  tests that can fail; shot parameter `posedir=front`. Tools: `stability --streaming`.

@@ -6,10 +6,10 @@ export const CONFIG = {
   SHADOW_RES: 60,           // baked sun-shadow cells per chunk edge (must divide NORMAL_RES)
   SHADOW_ANGLE: 0,          // 0: baked shadows store visibility; K > 0: the clearance angle in Sun radii (+-K), see shadowBake.js
   CHUNK_POOL: 480,          // fixed number of chunk slots (geometry + textures)
-  MAX_RENDER_CHUNKS: 120,   // hard cap of terrain draw calls
+  MAX_RENDER_CHUNKS: 180,   // most terrain patches drawn at once (the governor's terrain steps lower it: x0.8, x0.64)
   SPLIT_FACTOR: 0.95,       // split when distance < factor * node edge
   SPLIT_FACTOR_OFFSCREEN: 0.3,
-  // From high up only a few dozen patches are in view, far below the draw-call cap, and a
+  // From high up only a few dozen patches are in view, far below the patch cap, and a
   // phone's screen has several pixels per patch texel: patches split this many times sooner
   // above SPACE_BOOST_ALT (blended in from a tenth of it).
   SPLIT_SPACE_BOOST: 2.2,
@@ -40,8 +40,6 @@ export const CONFIG = {
   MAX_NATIVE_PIXELS: 8.3e6,
   BLOOM_LEVELS: 5,
   BLOOM_STRENGTH: 0.045,
-  MAX_DRAW_CALLS: 200,
-  MAX_TRIANGLES: 500000,
 
   // Camera
   DEFAULT_FOV: 48,          // vertical, degrees (about 85 across on a phone held sideways: wider makes mountains small)

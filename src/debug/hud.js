@@ -53,13 +53,12 @@ export class Hud {
       this.el.textContent = `${this.fps.toFixed(0)} fps · ${(s.viewW * s.viewH / 1e6).toFixed(2)} MP · ${s.modeLabel}${s.hover ? ' · hover' : ''} · build ${s.build}`;
       return;
     }
-    const warn = (v, lim) => (v > lim ? '  <-- over budget' : '');
     const lines = [
       `${s.world}   ${s.mode}   ${s.shot ? 'shot=' + s.shot : ''}   build ${s.build}`,
       `fps ${this.fps.toFixed(1)}   frame ${this.ms.toFixed(1)} ms (worst ${worst.toFixed(0)})${s.gpuMs != null ? '   gpu ' + s.gpuMs.toFixed(1) + ' ms' : ''}`,
       `quality    ${s.governor}`,
-      `draw calls ${s.calls}${warn(s.calls, s.maxCalls)}`,
-      `triangles  ${(s.triangles / 1000).toFixed(0)}k${warn(s.triangles, s.maxTriangles)}`,
+      `draw calls ${s.calls}`,
+      `triangles  ${(s.triangles / 1000).toFixed(0)}k`,
       `chunks     ${s.chunksDrawn} drawn / ${s.chunksLoaded} loaded / pool ${s.chunkPool}   queue ${s.queue}`,
       `render     ${s.viewW}x${s.viewH} of ${s.nativeW}x${s.nativeH}   screen ${s.refresh} Hz`,
       `gpu mem    ~${(s.gpuBytes / 1048576).toFixed(0)} MB (estimate)   tex ${s.textures} geo ${s.geometries}`,

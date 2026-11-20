@@ -1,32 +1,44 @@
 // How the character looks: its parts (built from code, like the lander), their colours
-// and the shader that lights them. How it moves is hero.js.
+// and the shader that lights them. How it moves is hero.js; the cloth that moves (the
+// robe's skirt, the wide sleeves, the long hair) is robe.js.
 //
 // Local frame of the figure: +Y = toward the head, +Z = chest, +X = its left. Metres.
-// Each part carries a colour (aCol) and a material index (aMat): 0 suit fabric, 1 visor,
-// 2 cloth (the cloak), 3 hard shell (helmet, life-support pack, chest unit, boots),
-// 4 bare metal (the bearings and rings).
+// Each part carries a colour (aCol), a material index (aMat) and a tangent (aTan, for the
+// hair's strands): 0 silk (the robe, trousers, boots), 1 skin, 3 silver embroidery (the
+// shoulder pieces, sash, bracers, trims), 4 polished silver and pearls, 5 hair.
 //
-// A modern EVA suit, simplified: a white hard helmet with a gold sun visor in a dark
-// frame and two lamp housings, a neck ring, a slim life-support pack under the cloak, a
-// control unit on the chest, bearings at the shoulders, waist, hips, wrists and boot
-// tops, grey convolutes at elbows and knees, dark gloves, grey boots with dark soles, red
-// bands on the upper arms and thighs (the commander's stripes of the Apollo and ISS
-// suits), and dust on the boots that fades up the shins. Each limb segment is a single
-// mesh (every mesh is drawn twice more into the shadow atlas), so its bands and rings are
-// geometry merged into it and coloured per triangle; no textures.
+// The owner's design (reference pictures, 2026-11): a cultivator in a white-silver robe
+// of layered silk with a crossed collar, ornate silver shoulder pieces, a wide silver
+// sash with strings of pearls and lavender tassels, silver bracers, loose trousers and
+// silver-trimmed boots; long straight magenta-purple hair to the hips, two locks framing
+// the face; wide sleeves and the long skirt of the outer robe flowing in the wind. Every
+// segment is a single mesh (each is drawn twice more into the shadow atlas): details are
+// geometry merged into it and coloured per vertex; no textures.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { LIGHTING_PARS } from '../render/lightingGlsl.js';
 
-// Albedos (linear). Natural, slightly muted: off-white fabric, a brighter glossy shell.
-// Under a sunlit exposure everything above about 0.4 reads as white, so the parts meant
-// to stand apart from the fabric (gloves, boots, convolutes) sit well below it.
-const SUIT = [0.72, 0.71, 0.68], JOINT = [0.38, 0.38, 0.37], SHELL = [0.78, 0.78, 0.76], UNIT = [0.58, 0.58, 0.58];
-const BOOT = [0.25, 0.245, 0.235], SOLE = [0.06, 0.06, 0.06], GLOVE = [0.11, 0.11, 0.115], METAL = [0.56, 0.57, 0.59];
-const DARK = [0.09, 0.09, 0.10], TRIM = [0.30, 0.30, 0.32], STRIPE = [0.38, 0.075, 0.06], DUST = [0.30, 0.26, 0.22];
-const VISOR = [0.80, 0.58, 0.26];          // gold film: its reflectance at normal incidence
-const FAB = 0, VIS = 1, HARD = 3, MET = 4;
-const F = [SUIT, FAB], M = [METAL, MET], S = [STRIPE, FAB], G = [GLOVE, FAB];
+// Albedos (linear). White silk sits below 0.8 so that sunlit folds keep their shading.
+const SILK = [0.74, 0.74, 0.76], SILK_IN = [0.68, 0.68, 0.71], BOOTC = [0.70, 0.70, 0.73];
+const SILVER = [0.60, 0.61, 0.64], SILVER_DK = [0.40, 0.41, 0.44], POLISH = [0.82, 0.82, 0.84], PEARL = [0.80, 0.79, 0.82];
+const SKIN = [0.60, 0.42, 0.33], LIP = [0.42, 0.20, 0.19], EYE = [0.025, 0.018, 0.016], BROW = [0.07, 0.012, 0.04];
+const HAIR = [0.12, 0.008, 0.115], TASSEL = [0.40, 0.40, 0.50], SOLE = [0.30, 0.30, 0.32], DUST = [0.30, 0.26, 0.22];
+const SILKM = 0, SKINM = 1, EMB = 3, POL = 4, HAIRM = 5;
+const F = [SILK, SILKM], E = [SILVER, EMB], ED = [SILVER_DK, EMB], P = [POLISH, POL], SK = [SKIN, SKINM];
+
+// The strand direction for the hair's highlight: "down" along the surface.
+function addTan(g) {
+  const n = g.attributes.normal, t = new Float32Array(n.count * 3);
+  for (let i = 0; i < n.count; i++) {
+    const nx = n.getX(i), ny = n.getY(i), nz = n.getZ(i);
+    let x = -nx * -ny, y = -1 + ny * ny, z = -nz * -ny;            // (0,-1,0) minus its part along the normal
+    const l = Math.hypot(x, y, z);
+    if (l < 1e-3) { x = 1; y = 0; z = 0; } else { x /= l; y /= l; z /= l; }
+    t[i * 3] = x; t[i * 3 + 1] = y; t[i * 3 + 2] = z;
+  }
+  g.setAttribute('aTan', new THREE.BufferAttribute(t, 3));
+  return g;
+}
 
 function part(geo, col, mat = 0) {
   const g = geo.index ? geo.toNonIndexed() : geo;
@@ -36,10 +48,17 @@ function part(geo, col, mat = 0) {
   for (let i = 0; i < n; i++) c.set(col, i * 3);
   g.setAttribute('aCol', new THREE.BufferAttribute(c, 3));
   g.setAttribute('aMat', new THREE.BufferAttribute(new Float32Array(n).fill(mat), 1));
-  return g;
+  return addTan(g);
 }
 const capsule = (r, len, col, x, y, z, mat, cap = 3, radial = 8) => { const g = new THREE.CapsuleGeometry(r, len, cap, radial); g.translate(x, y, z); return part(g, col, mat); };
 const ball = (r, col, x, y, z, mat, sx = 1, sy = 1, sz = 1, w = 12, h = 9) => { const g = new THREE.SphereGeometry(r, w, h); g.scale(sx, sy, sz); g.translate(x, y, z); return part(g, col, mat); };
+// A bead: an octahedron with round normals (eight triangles look round at its size).
+function bead(r, col, mat, x, y, z) {
+  const g = new THREE.OctahedronGeometry(r, 0), p = g.attributes.position, n = g.attributes.normal;
+  for (let i = 0; i < p.count; i++) { const l = Math.hypot(p.getX(i), p.getY(i), p.getZ(i)); n.setXYZ(i, p.getX(i) / l, p.getY(i) / l, p.getZ(i) / l); }
+  g.translate(x, y, z);
+  return part(g, col, mat);
+}
 
 // Collects coloured triangles; each vertex is [position, normal]. Triangles are wound
 // counter-clockwise seen from outside (the shader flips the normal on back faces).
@@ -54,8 +73,28 @@ class Tris {
     g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
     g.setAttribute('aCol', new THREE.Float32BufferAttribute(this.c, 3));
     g.setAttribute('aMat', new THREE.Float32BufferAttribute(this.m, 1));
-    return g;
+    return addTan(g);
   }
+}
+
+// A flat band along a polyline: pts are [x, y, z], out(p) the direction the band faces at
+// a point; w its width. Both sides are drawn (the material is double-sided).
+function ribbon(pts, w, col, mat, out, w1 = w) {
+  const t = new Tris(), L = pts.length;
+  const side = pts.map((p, i) => {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(L - 1, i + 1)];
+    const tg = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], o = out(p);
+    const s = [tg[1] * o[2] - tg[2] * o[1], tg[2] * o[0] - tg[0] * o[2], tg[0] * o[1] - tg[1] * o[0]], l = Math.hypot(...s) || 1;
+    const ww = (w + (w1 - w) * i / (L - 1)) / 2, ol = Math.hypot(...o) || 1;
+    return [[s[0] / l * ww, s[1] / l * ww, s[2] / l * ww], [o[0] / ol, o[1] / ol, o[2] / ol]];
+  });
+  for (let i = 0; i + 1 < L; i++) {
+    const [s0, n0] = side[i], [s1, n1] = side[i + 1], p0 = pts[i], p1 = pts[i + 1];
+    const a = [[p0[0] - s0[0], p0[1] - s0[1], p0[2] - s0[2]], n0], b = [[p0[0] + s0[0], p0[1] + s0[1], p0[2] + s0[2]], n0];
+    const c = [[p1[0] + s1[0], p1[1] + s1[1], p1[2] + s1[2]], n1], d = [[p1[0] - s1[0], p1[1] - s1[1], p1[2] - s1[2]], n1];
+    t.add(a, b, c, col, mat); t.add(a, c, d, col, mat);
+  }
+  return t.geometry();
 }
 
 // A body of revolution about +Y (x = r sin a, z = r cos a) from a profile listed top to
@@ -116,175 +155,184 @@ function roundedBox(h, rad, grid, paint, warp = null) {
   return t.geometry();
 }
 
-// Bends a box around a vertical axis through (0, ·, z0): the box's x runs along an arc of
-// radius rc centred on the angle th0 (0 = +z, PI = the back), its z points outward.
-const bendAround = (rc, th0, z0 = 0) => (p, n) => {
-  const th = th0 + p[0] / rc, rho = rc + p[2], s = Math.sin(th), c = Math.cos(th);
-  const nt = (n[0] * rc) / rho, l = Math.hypot(nt, n[1], n[2]);
-  return [[rho * s, p[1], z0 + rho * c], [(nt * c + n[2] * s) / l, n[1] / l, (n[2] * c - nt * s) / l]];
-};
+// ---------------------------------------------------------------------------------------
+// The torso: the robe's upper part, the crossed collar, the shoulder pieces, the sash and
+// its pearls and tassels, the neck, the head and the hair on it.
+const CHEST_RX = 0.158, CHEST_RZ = 0.132;
+// a point on the front or back of the chest at (x, y), a few millimetres proud of it
+// (above the chest the body narrows into the shoulders and the neck: the section there)
+const NECK_R = 0.080;
+const chestSect = (y) => { const f = y > 0.46 ? Math.sqrt(Math.max(0, 0.148 ** 2 - (y - 0.46) ** 2)) / 0.148 : 1; return [Math.max(NECK_R, CHEST_RX * f), Math.max(NECK_R, CHEST_RZ * f)]; };
+const onChest = (x, y, z0 = 1, lift = 0.006) => { const [rx, rz] = chestSect(y); return [x, y, z0 * (rz * Math.sqrt(Math.max(0.05, 1 - (x / rx) ** 2)) + lift)]; };
+const chestOut = (p) => [p[0] / CHEST_RX, 0, p[2] / CHEST_RZ];
 
-// The helmet: a sphere on the neck ring. The visor opening is a rounded rectangle in yaw
-// (about +Y, 0 = ahead) and pitch around the helmet's centre.
-const HEAD = [0, 0.78, 0], HEAD_R = 0.14;
-const onHelmet = (yaw, pitch, rho) => [HEAD[0] + rho * Math.sin(yaw) * Math.cos(pitch), HEAD[1] + rho * Math.sin(pitch), HEAD[2] + rho * Math.cos(yaw) * Math.cos(pitch)];
-
-// Closed rings of points (all the same length), optionally around a centre point, as one
-// indexed strip with smooth normals; rings run outward, points counter-clockwise seen from
-// outside.
-function ringStrip(rings, centre = null) {
-  const n = rings[0].length, pos = [], idx = [], base = centre ? 1 : 0;
-  if (centre) pos.push(...centre);
-  for (const r of rings) for (const p of r) pos.push(...p);
-  if (centre) for (let i = 0; i < n; i++) idx.push(0, 1 + i, 1 + ((i + 1) % n));
-  for (let k = 0; k + 1 < rings.length; k++) for (let i = 0; i < n; i++) {
-    const a = base + k * n + i, b = base + k * n + ((i + 1) % n), c = a + n, d = b + n;
-    idx.push(a, c, d, a, d, b);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setIndex(idx);
-  g.computeVertexNormals();
-  return g;
+function collar() {
+  // Right over left: the wearer's left panel crosses to the right hip; the right one meets it.
+  const A = [], B = [];
+  for (let i = 0; i <= 16; i++) { const t = i / 16; A.push(onChest(0.062 - 0.165 * t, 0.615 - 0.44 * t)); }
+  for (let i = 0; i <= 8; i++) { const t = i / 8; B.push(onChest(-0.062 + 0.054 * t, 0.615 - 0.17 * t, 1, 0.004)); }
+  return [
+    ribbon(A, 0.034, SILVER, EMB, chestOut),
+    ribbon(B, 0.030, SILVER, EMB, chestOut),
+    // the inner collar standing round the neck
+    lathe([[0.066, 0.66], [0.072, 0.655, ...F], [0.075, 0.625, ...F], [0.08, 0.605, SILVER, EMB], [0.07, 0.595, SILVER, EMB]], 14),
+  ];
 }
 
-function helmetGeometry() {
-  const N = 26, A = 1.24, B = 0.64, C = -0.07, P = 3.2;      // half width (yaw), half height (pitch), centre pitch, squareness
-  const edge = [];
-  for (let i = 0; i < N; i++) {
-    const t = (i / N) * 2 * Math.PI, c = Math.cos(t), s = Math.sin(t);
-    edge.push([Math.sign(c) * Math.abs(c) ** (2 / P), Math.sign(s) * Math.abs(s) ** (2 / P)]);
+function shoulderPieces() {
+  const out = [];
+  for (const s of [1, -1]) {
+    const cap = new THREE.SphereGeometry(0.092, 14, 6, 0, Math.PI * 2, 0, 1.25);
+    cap.scale(1.2, 0.55, 1.2); cap.rotateZ(-s * 0.5); cap.translate(s * 0.19, 0.505, 0);
+    out.push(part(cap, SILVER, EMB));
+    // a raised rim and a fringe of silver drops along its outer edge
+    for (let k = 0; k < 7; k++) {
+      const ph = -1.25 + k * 2.5 / 6, x = s * (0.19 + 0.098 * Math.cos(ph)), z = 0.108 * Math.sin(ph);
+      { const d = bead(0.011, POLISH, POL, 0, 0, 0); d.scale(0.8, 1.7, 0.8); d.translate(x + s * 0.004, 0.468 - 0.04 * Math.cos(ph), z); out.push(d); }
+    }
   }
-  // a ring at scale s of the opening, pushed d radians beyond it, at radius rho
-  const ring = (s, d, rho) => edge.map(([u, v]) => onHelmet((A * s + d / 0.92) * u, C + (B * s + d) * v, rho));
-  // Visor: a gold film a few millimetres proud of the shell, normals straight out.
-  const RV = HEAD_R + 0.0035;
-  const visor = ringStrip([0.45, 0.75, 0.92, 1.0].map((s) => ring(s, 0, RV)), onHelmet(0, C, RV));
-  const p = visor.attributes.position, nn = visor.attributes.normal;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i) - HEAD[0], y = p.getY(i) - HEAD[1], z = p.getZ(i) - HEAD[2], l = Math.hypot(x, y, z);
-    nn.setXYZ(i, x / l, y / l, z / l);
-  }
-  // Frame round the visor: rises from the visor's edge, a flat top, and sinks into the shell.
-  const frame = ringStrip([ring(1, -0.03, RV + 0.0005), ring(1, 0.006, HEAD_R + 0.0065), ring(1, 0.04, HEAD_R + 0.0065), ring(1, 0.07, HEAD_R - 0.0015)]);
-  // Lamp housings on either side (no light comes from them: their lenses are dark).
-  const lamp = (sx) => {
-    const g = roundedBox([0.014, 0.022, 0.042], 0.01, [[-0.014, -0.004, 0.004, 0.014], [-0.022, -0.012, 0.012, 0.022], [-0.042, -0.032, 0.032, 0.042]],
-      (q, ax, s) => (ax === 2 && s > 0 ? [DARK, HARD] : [UNIT, HARD]));
-    g.translate(sx * 0.149, 0.795, -0.01);
-    return g;
+  return out;
+}
+
+function sash() {
+  const s = lathe([[0.150, 0.176], [0.163, 0.170, ...E], [0.168, 0.160, ...E], [0.169, 0.135, ...ED], [0.169, 0.090, ...ED], [0.168, 0.068, ...E], [0.163, 0.058, ...E], [0.150, 0.052, ...E]], 20);
+  s.scale(1.0, 1, 0.86);
+  const front = roundedBox([0.048, 0.034, 0.011], 0.008, [[-0.048, -0.04, 0.04, 0.048], [-0.034, -0.026, 0.026, 0.034], [-0.011, -0.003, 0.003, 0.011]], () => [POLISH, POL]);
+  front.translate(0, 0.112, 0.15);
+  const back = roundedBox([0.07, 0.048, 0.011], 0.01, [[-0.07, -0.06, 0.06, 0.07], [-0.048, -0.038, 0.038, 0.048], [-0.011, -0.001, 0.001, 0.011]], () => [SILVER, EMB]);
+  back.translate(0, 0.105, -0.15);
+  return [s, front, back];
+}
+
+// Strings of pearls hanging from the sash, with tassels, on the hips (they ride on the
+// skirt's top, where it barely moves).
+function pearls() {
+  const out = [], RX = 0.176, RZ = 0.152, step = 0.024;
+  const at = (th, y, extra = 0) => [(RX + extra) * Math.sin(th), y, (RZ + extra) * Math.cos(th)];
+  const string = (pts) => {
+    let carry = 0;
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i], b = pts[i + 1], l = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+      for (let d = carry; d < l; d += step) { const t = d / l; out.push(bead(0.0095, PEARL, POL, a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t)); carry = d + step - l; }
+    }
   };
-  const shell = new THREE.SphereGeometry(HEAD_R, 16, 12);
-  shell.translate(...HEAD);
-  return [part(shell, SHELL, HARD), part(visor, VISOR, VIS), part(frame, DARK, HARD), lamp(1), lamp(-1)];
+  const tassel = (p) => {
+    const c = new THREE.ConeGeometry(0.017, 0.075, 6, 1, true); c.rotateX(Math.PI); c.translate(p[0], p[1] - 0.045, p[2]);
+    out.push(part(c, TASSEL, SILKM), bead(0.012, POLISH, POL, p[0], p[1] - 0.004, p[2]));
+  };
+  // two swags across the front
+  for (const sag of [0.07, 0.13]) {
+    const pts = []; for (let i = 0; i <= 12; i++) { const u = i / 12 * 2 - 1; pts.push(at(u * 0.95, 0.05 - sag * (1 - u * u), 0.004 + 0.01 * (1 - u * u))); }
+    string(pts);
+  }
+  // strings down the back from its plate, and one on each hip, each ending in a tassel
+  for (const [th, len] of [[Math.PI - 0.22, 0.19], [Math.PI, 0.26], [Math.PI + 0.22, 0.19], [1.25, 0.2], [-1.25, 0.2]]) {
+    const top = at(th, 0.055, 0.004), pts = [top];
+    for (let i = 1; i <= 4; i++) pts.push(at(th, 0.055 - len * i / 4, 0.004 + 0.006 * i));
+    string(pts); tassel(pts[pts.length - 1]);
+  }
+  return out;
+}
+
+const HEAD = [0, 0.765, -0.004];
+function head() {
+  const [hx, hy, hz] = HEAD;
+  const cone = (r, h, col, mat) => { const g = new THREE.ConeGeometry(r, h, 6); g.rotateX(Math.PI / 2 + 0.25); g.translate(0, hy - 0.015, hz + 0.1); return part(g, col, mat); };
+  // (brows and eyes are turned round the head's centre, not slid sideways: their outer ends stood off it)
+  const brow = (s) => { const g = new THREE.SphereGeometry(0.0062, 6, 3); g.scale(3.6, 0.9, 1.1); g.rotateZ(s * 0.16); g.translate(0, 0.022, 0.100); g.rotateY(s * 0.36); g.translate(hx, hy, hz); return part(g, BROW, SKINM); };
+  // hair on the head: the crown, and the back and sides down to the nape, leaving the face
+  const cap1 = new THREE.SphereGeometry(0.113, 18, 6, 0, Math.PI * 2, 0, 0.95);
+  const cap2 = new THREE.SphereGeometry(0.113, 18, 7, Math.PI / 2 + 0.95, Math.PI * 2 - 1.9, 0.95, 1.15);
+  for (const c of [cap1, cap2]) { c.scale(0.94, 1.08, 1.04); c.translate(hx, hy + 0.004, hz - 0.006); }
+  // two locks framing the face, falling over the collar to the chest
+  const locks = [1, -1].map((s) => ribbon([[s * 0.078, 0.815, 0.055], [s * 0.096, 0.74, 0.07], [s * 0.1, 0.66, 0.09], [s * 0.1, 0.57, 0.13], [s * 0.1, 0.47, 0.146], [s * 0.1, 0.40, 0.148]],
+    0.048, HAIR, HAIRM, (p) => [p[0] * 1.2, 0.0, p[2] + 0.05], 0.03));
+  return [
+    lathe([[0, 0.66], [0.046, 0.655, ...SK], [0.048, 0.60, ...SK], [0, 0.595, ...SK]], 10),          // neck
+    ball(0.104, SKIN, hx, hy, hz, SKINM, 0.90, 1.08, 1.0, 14, 10),                                    // skull and brow
+    ball(0.075, SKIN, hx, hy - 0.05, hz + 0.024, SKINM, 0.96, 1.0, 1.0, 12, 8),                       // cheeks, jaw and chin
+    cone(0.013, 0.036, SKIN, SKINM),                                                                    // nose
+    ...[1, -1].map((s) => { const g = new THREE.SphereGeometry(0.0105, 6, 4); g.scale(1.5, 0.72, 0.6); g.translate(0, 0.003, 0.102); g.rotateY(s * 0.34); g.translate(hx, hy, hz); return part(g, EYE, SKINM); }),
+    brow(1), brow(-1),
+    ball(0.009, LIP, 0, hy - 0.06, hz + 0.094, SKINM, 2.2, 0.7, 0.8, 6, 4),                           // lips
+    part(cap1, HAIR, HAIRM), part(cap2, HAIR, HAIRM), ...locks,
+  ];
 }
 
 export function torsoGeometry() {
-  // Life-support pack: a slim slab curved round the back, kept inside the cloak's reach
-  // (cloak.js holds the cloth 0.215 m from the spine above the hips; the pack's outer face
-  // is at 0.203 m and its top edge rounds in below the shoulder pins).
-  const pack = roundedBox([0.14, 0.19, 0.045], 0.026,
-    [[-0.14, -0.114, -0.07, -0.025, 0.025, 0.07, 0.114, 0.14], [-0.19, -0.164, 0.164, 0.19], [-0.045, -0.019, 0.019, 0.045]],
-    () => [SHELL, HARD], bendAround(0.20, Math.PI));
-  pack.translate(0, 0.335, 0);
-  // Chest control unit: a housing curved a little to the chest, with a dark panel face.
-  const unit = roundedBox([0.105, 0.058, 0.028], 0.014,
-    [[-0.105, -0.091, -0.068, 0.068, 0.091, 0.105], [-0.058, -0.044, -0.026, 0.026, 0.044, 0.058], [-0.028, -0.014, 0.014, 0.028]],
-    (q, ax, s) => (ax === 2 && s > 0 && Math.abs(q[0]) < 0.068 && Math.abs(q[1]) < 0.026 ? [DARK, HARD] : [UNIT, HARD]),
-    bendAround(0.30, 0, -0.12));
-  unit.translate(0, 0.33, 0);
-  // (the soft suit is scaled out round the spine: a pressurised suit is bulky)
   const body = mergeGeometries([
-    capsule(0.165, 0.30, SUIT, 0, 0.30, 0, FAB, 4, 12),            // chest
-    ball(0.185, SUIT, 0, 0.47, 0.01, FAB, 1.12, 0.8, 0.9),          // shoulders
-    ball(0.165, SUIT, 0, 0.04, 0, FAB, 1.0, 0.85, 0.9),             // hips
-    lathe([[0.150, 0.148], [0.166, 0.141, ...M], [0.171, 0.132, ...M], [0.171, 0.112, ...M], [0.166, 0.103, ...M], [0.150, 0.096, ...M]], 16),   // waist ring
-  ]).scale(1.12, 1, 1.1);
-  return mergeGeometries([
-    body,
-    lathe([[0.097, 0.682], [0.110, 0.676, ...M], [0.121, 0.664, ...M], [0.123, 0.646, ...M], [0.119, 0.632, ...M], [0.104, 0.622, ...M], [0.085, 0.600, ...M]], 14),   // neck ring
-    ...helmetGeometry(),
-    unit, pack,
-    capsule(0.04, 0.42, TRIM, 0, 0.60, -0.175, MET).rotateZ(Math.PI / 2).translate(0.6, 0.6, 0),   // cloak clasp bar across the shoulders
+    capsule(0.148, 0.32, SILK, 0, 0.30, 0, SILKM, 4, 14).scale(1.07, 1, 0.89),                   // chest (robe)
+    ball(0.16, SILK, 0, 0.485, 0.0, SILKM, 1.2, 0.62, 0.84),                                        // shoulders
+    ball(0.15, SILK_IN, 0, 0.04, 0, SILKM, 1.02, 0.85, 0.9, 10, 7),                                      // hips
   ]);
+  return addTan(mergeGeometries([body, ...collar(), ...shoulderPieces(), ...sash(), ...pearls(), ...head()]));
 }
 
-// Dust from the ground on the lower legs: full below yFull, none above yClean (a smooth
-// fade between); dark parts (the soles) take less of it.
+// Dust from the ground on the boots: full below yFull, none above yClean.
 function dusty(g, yFull, yClean, amount) {
   const p = g.attributes.position, c = g.attributes.aCol;
   for (let i = 0; i < p.count; i++) {
     const t = 1 - THREE.MathUtils.smoothstep(p.getY(i), yFull, yClean);
-    const r = c.getX(i), gg = c.getY(i), b = c.getZ(i), k = amount * t * (r + gg + b < 0.45 ? 0.35 : 1);
+    const r = c.getX(i), gg = c.getY(i), b = c.getZ(i), k = amount * t;
     c.setXYZ(i, r + (DUST[0] - r) * k, gg + (DUST[1] - gg) * k, b + (DUST[2] - b) * k);
   }
   return g;
 }
 
-const bulk = (k, parts) => mergeGeometries(parts).scale(k, 1, k);
-
 // A limb hangs along -Y from its pivot at the origin, in two pieces: the upper part
-// (shoulder or hip to the joint, with the joint's convolute) and the lower part, whose own
-// origin is the joint (elbow or knee).
+// (shoulder or hip to the joint) and the lower part, whose own origin is the joint.
 export const ELBOW = 0.29, HAND = 0.31, KNEE = 0.41, ANKLE = 0.45;       // segment lengths (m)
-// The limbs are drawn wider than their profiles (LIMB_BULK across, not along): a
-// pressurised suit's arms and legs are nearly as thick as a torso seen from the side.
-export const ARM_BULK = 1.28, LEG_BULK = 1.22;
 export function upperArmGeometry() {
-  const R = 0.052;
-  return bulk(ARM_BULK, [lathe([
-    [0, 0.012], [0.026, 0.005, ...F], [0.045, -0.014, ...F], [R, -0.040, ...F],
-    [R, -0.044, ...F], [0.057, -0.049, ...M], [0.057, -0.069, ...M], [R, -0.074, ...M],      // shoulder bearing
-    [R, -0.112, ...F], [R, -0.150, ...S],                                                       // red band
-    [R, -0.260, ...F], [0.045, -0.286, ...F], [0.026, -0.305, ...F], [0, -0.312, ...F],
-  ]), ball(0.056, JOINT, 0, -ELBOW, 0, FAB, 1, 1, 1, 10, 7)]);
+  return mergeGeometries([lathe([
+    [0, 0.014], [0.028, 0.006, ...F], [0.046, -0.02, ...F], [0.052, -0.06, ...F], [0.048, -0.25, ...F], [0.04, -0.29, ...F], [0, -0.30, ...F],
+  ], 12), ball(0.046, SILK, 0, -ELBOW, 0, SILKM, 1, 1, 1, 10, 7)]);
 }
 export function forearmGeometry() {
-  const R = 0.047;
-  return bulk(ARM_BULK, [lathe([
-    [0, 0.017], [0.0235, 0.0107, ...F], [0.0407, -0.0065, ...F], [R, -0.030, ...F],
-    [R, -0.185, ...F], [0.051, -0.189, ...M], [0.051, -0.207, ...M], [R, -0.211, ...M],      // wrist ring
-    [0.049, -0.214, ...G], [0.052, -0.244, ...G], [0.045, -0.257, ...G], [0, -0.260, ...G],    // glove gauntlet
-  ]), ball(0.05, GLOVE, 0, -HAND, 0.004, FAB, 0.62, 1.35, 1.0, 10, 7)]);                       // glove (a mitten: thin across the palm)
+  const hand = [
+    ball(0.036, SKIN, 0, -HAND + 0.012, 0.004, SKINM, 0.55, 1.4, 1.0, 10, 7),                       // hand
+    ball(0.013, SKIN, 0.024, -0.27, 0.018, SKINM, 0.9, 1.7, 0.9, 6, 5),                              // thumb
+  ];
+  return mergeGeometries([lathe([
+    [0, 0.018], [0.025, 0.01, ...F], [0.042, -0.02, ...F], [0.044, -0.09, ...F],
+    [0.047, -0.095, ...P], [0.047, -0.105, ...P], [0.045, -0.11, ...E], [0.041, -0.21, ...E], [0.044, -0.215, ...P], [0.044, -0.225, ...P],   // the silver bracer
+    [0.034, -0.235, ...SK], [0.03, -0.25, ...SK], [0, -0.255, ...SK],
+  ], 12), ...hand]);
 }
 export function thighGeometry() {
-  const R = 0.075;
-  return bulk(LEG_BULK, [lathe([
-    [0, 0.015], [0.0375, 0.005, ...F], [0.065, -0.0225, ...F], [R, -0.060, ...F],
-    [R, -0.072, ...F], [0.080, -0.077, ...M], [0.080, -0.097, ...M], [R, -0.102, ...M],      // hip bearing
-    [R, -0.165, ...F], [R, -0.205, ...S],                                                       // red band
-    [R, -0.340, ...F], [0.065, -0.3775, ...F], [0.0375, -0.405, ...F], [0, -0.415, ...F],
-  ]), ball(0.07, JOINT, 0, -KNEE, 0.005, FAB, 1, 1, 1, 10, 7)]);
+  return mergeGeometries([lathe([
+    [0, 0.016], [0.036, 0.006, ...F], [0.064, -0.03, ...F], [0.072, -0.08, ...F], [0.066, -0.34, ...F], [0.052, -0.39, ...F], [0, -0.41, ...F],
+  ], 12), ball(0.058, SILK, 0, -KNEE, 0.005, SILKM, 1, 1, 1, 10, 7)]);
 }
 export function shinGeometry() {
-  const R = 0.062, B = [BOOT, HARD];
+  const B = [BOOTC, SILKM];
   const leg = lathe([
-    [0, 0.012], [0.031, 0.0037, ...F], [0.0537, -0.019, ...F], [R, -0.050, ...F],
-    [R, -0.262, ...F], [0.067, -0.267, ...M], [0.071, -0.271, ...M], [0.071, -0.287, ...M], [0.068, -0.291, ...M],   // boot-top bearing
-    [0.066, -0.295, ...B], [0.068, -0.400, ...B], [0.064, -0.455, ...B], [0.030, -0.470, ...B], [0, -0.471, ...B],    // boot shaft
-  ]);
-  // Foot: a rounded block with a dark sole, level when the figure stands (knee bent 0.06).
-  const foot = roundedBox([0.055, 0.036, 0.13], 0.022,
-    [[-0.055, -0.033, 0.033, 0.055], [-0.036, -0.014, 0.014, 0.036], [-0.13, -0.108, -0.04, 0.04, 0.108, 0.13]],
-    (q) => (q[1] < -0.014 ? [SOLE, FAB] : [BOOT, HARD]));
-  foot.translate(0, -0.04, 0.058); foot.rotateX(-0.06); foot.translate(0, -ANKLE, 0);
-  return dusty(bulk(LEG_BULK, [leg, foot]), -0.45, -0.05, 0.6);
+    [0, 0.012], [0.03, 0.004, ...F], [0.054, -0.03, ...F], [0.064, -0.12, ...F], [0.062, -0.21, ...F],      // trousers, gathered into the boot
+    [0.06, -0.215, ...E], [0.06, -0.25, ...E],                                                               // the boot's embroidered top
+    [0.056, -0.255, ...B], [0.052, -0.40, ...B], [0.05, -0.455, ...B], [0.028, -0.47, ...B], [0, -0.471, ...B],
+  ], 12);
+  // Foot: a rounded block with a pale sole, level when the figure stands (knee bent 0.06).
+  const foot = roundedBox([0.046, 0.034, 0.125], 0.022,
+    [[-0.046, -0.024, 0.024, 0.046], [-0.034, -0.012, 0.012, 0.034], [-0.125, -0.103, -0.04, 0.04, 0.103, 0.125]],
+    (q) => (q[1] < -0.012 ? [SOLE, SILKM] : Math.abs(q[2]) > 0.09 ? [SILVER, EMB] : [BOOTC, SILKM]));
+  foot.translate(0, -0.04, 0.055); foot.rotateX(-0.06); foot.translate(0, -ANKLE, 0);
+  return dusty(addTan(mergeGeometries([leg, foot])), -0.45, -0.12, 0.45);
 }
 
 export const HERO_VERT = /* glsl */`
-in vec3 aCol; in float aMat;
-out vec3 vRel; out vec3 vN; out vec3 vCol; out float vMat;
+in vec3 aCol; in float aMat; in vec3 aTan;
+out vec3 vRel; out vec3 vN; out vec3 vCol; flat out float vMat; out vec3 vT;
 void main() {
   vec4 w = modelMatrix * vec4(position, 1.0);
   vRel = w.xyz; vCol = aCol; vMat = aMat;
   vN = normalize(mat3(modelMatrix) * normal);
+  vT = mat3(modelMatrix) * aTan;
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 
 export const HERO_FRAG = /* glsl */`
 ${LIGHTING_PARS}
 uniform float uSunVis;
-in vec3 vRel; in vec3 vN; in vec3 vCol; in float vMat;
+in vec3 vRel; in vec3 vN; in vec3 vCol; flat in float vMat; in vec3 vT;
 layout(location = 0) out vec4 fragColor;
 // What a glossy surface mirrors in direction R: the sunlit ground below the horizon, the
 // sky above it, with a line between them as sharp as 'edge' (both from the sky light).
@@ -304,29 +352,40 @@ void main() {
   vec3 col = vCol * (Esun * lit + sky) / PI;
   vec3 H = normalize(L + V);
   float NH = max(dot(N, H), 0.0), fr = pow(1.0 - NV, 5.0);
-  if (m == 1) {
-    // visor: a gold film over dark glass. It mirrors the scene (ground, horizon, sky) and
-    // the Sun as a hard glint, and lets very little through.
-    vec3 F = vCol + (1.0 - vCol) * fr;
-    col = col * 0.05 + mirrored(reflect(-V, N), up, 0.04) * F + Esun * F * pow(NH, 300.0) * 8.0 * step(0.0, NL);
-  } else if (m == 2) {
-    // cloth: a little sunlight comes through from behind, soft sheen at grazing angles
-    col += vCol * Esun * max(-NL, 0.0) * 0.22 / PI;
-    col += vCol * sky * pow(1.0 - NV, 3.0) * 0.35 / PI;
+  if (m == 0 || m == 2) {
+    // silk: a broad satin sheen and a soft glow at grazing angles; through thin cloth
+    // (2: the flowing panels and sleeves, not the body under them) a little sunlight
+    // comes from behind
+    col += vCol * Esun * lit * pow(NH, 14.0) * 0.16;
+    col += vCol * sky * pow(1.0 - NV, 2.0) * 0.22 / PI;
+    if (m == 2) col += vCol * Esun * max(-NL, 0.0) * 0.2 / PI;
+  } else if (m == 1) {
+    // skin: light wraps a little past the terminator (it scatters under the surface),
+    // warmer there; a faint sheen
+    float w = max((NL + 0.3) / 1.3, 0.0);
+    col = vCol * (Esun * (w * vec3(1.0, 0.92, 0.88) + vec3(0.06, 0.02, 0.01) * (1.0 - abs(NL)) * smoothstep(-0.3, -0.1, NL)) + sky) / PI;
+    col += Esun * lit * pow(NH, 40.0) * 0.025;
   } else if (m == 3) {
-    // hard shell (helmet, pack, boots): painted composite under a clear coat
-    float F = 0.04 + 0.96 * fr;
-    col = col * (1.0 - F) + mirrored(reflect(-V, N), up, 0.08) * F + Esun * lit * F * pow(NH, 90.0) * 3.9;
+    // silver embroidery: thread of metal, rough, so its mirror is soft and its highlight wide
+    vec3 Fm = vCol + (1.0 - vCol) * fr;
+    col = col * 0.35 + mirrored(reflect(-V, N), up, 0.25) * Fm * 0.5 + Esun * lit * Fm * pow(NH, 22.0) * 0.9;
   } else if (m == 4) {
-    // bare metal (bearings, rings): little diffuse light, a tinted, slightly rough mirror
-    vec3 F = vCol + (1.0 - vCol) * fr;
-    col = col * 0.3 + mirrored(reflect(-V, N), up, 0.15) * F * 0.7 + Esun * lit * F * pow(NH, 30.0);
-  } else {
-    col += Esun * lit * pow(NH, 26.0) * 0.045;     // suit fabric highlight
+    // polished silver and pearls: a sharper mirror and highlight
+    vec3 Fm = vCol + (1.0 - vCol) * fr;
+    col = col * 0.3 + mirrored(reflect(-V, N), up, 0.1) * Fm * 0.7 + Esun * lit * Fm * pow(NH, 70.0) * 2.5;
+  } else if (m == 5) {
+    // hair: light along the strands (Kajiya-Kay): a white glint, and a second, coloured
+    // one shifted toward the tip; wrapped diffuse
+    vec3 T = vT - N * dot(vT, N);
+    T = dot(T, T) > 1e-6 ? normalize(T) : vec3(0.0, 1.0, 0.0);
+    float th1 = dot(normalize(T + N * 0.12), H), th2 = dot(normalize(T - N * 0.18), H);
+    float s1 = pow(sqrt(max(0.0, 1.0 - th1 * th1)), 90.0), s2 = pow(sqrt(max(0.0, 1.0 - th2 * th2)), 18.0);
+    float w = max((NL + 0.35) / 1.35, 0.0);
+    col = vCol * (Esun * w + sky) / PI + Esun * w * (vec3(0.02) * s1 + vCol * 0.35 * s2);
   }
   col = aerialPerspective(col, vRel);
   fragColor = vec4(min(col * uExposure, vec3(60000.0)), 1.0);
 }`;
 
 // Where the limbs hang from (shoulders, hips), in the body's frame.
-export const SHOULDER = [0.235, 0.50, 0], HIP = [0.095, 0.0, 0];
+export const SHOULDER = [0.20, 0.50, 0], HIP = [0.082, 0.0, 0];

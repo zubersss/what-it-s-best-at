@@ -44,7 +44,13 @@ skipped, so frames are evenly spaced.
 5. `nearShadow.render` → one 16-bit depth atlas, three tiles along the Sun: rocks and lander ±150 m (15 cm texels), the same ±20 m (4 cm; only the nearest rocks, governor step `fine-shadows`), the character alone ±3.5 m around it (7 mm).
 6. HDR target (RGBA16F, sub-viewport = render scale):
    **far pass** (sky bodies, Sun disc, stars, additive sky in-scatter) → **clear depth** →
-   **near pass** (terrain front-to-back, rocks, ship) → depth invalidated.
+   **near pass** (terrain front-to-back, rocks, ship) → if the character is shown, the
+   **character pass** and the **dust pass** (each its own scene). Near the ground (terrain
+   near plane up to 1 m) both use the terrain's depth: character first, then dust. Higher
+   up, where the terrain's near plane has moved past the figure, the dust is drawn first
+   (still against the terrain's depth), then depth is cleared again and the character is
+   drawn in its own slice (near 0.2 m, far 400 m). → depth invalidated. A new pass goes
+   before that second depth clear if it must be hidden by terrain.
 7. `post.render` → bloom downsample chain, luminance metering (async 1×1 read-back, CPU
    adaptation), bloom upsample, AgX tone map, blue-noise dither → canvas.
 8. `governor.update` (may change the render scale or a feature for the next frame), HUD.
@@ -55,13 +61,13 @@ skipped, so frames are evenly spaced.
 | --- | --- |
 | `src/main.js` | Checks WebGL 2 + float targets, loads the world definition, starts `App`. |
 | `src/app.js` | Owns renderer, scenes, frame loop, bookmarks, canvas size, start screen and benchmark flow; wires modules. |
-| `src/config.js` | Engine constants: grid sizes, pool sizes, budgets, LUT sizes. |
+| `src/config.js` | Engine constants: grid sizes, pool sizes, the terrain patch cap, LUT sizes. |
 | `src/worlds/*.js` | World definitions (numbers + recipe names only). `solarSystem.js` is the shared body catalogue (orbits, rotation, radii, albedos, disc looks). `index.js` is the registry. |
 | `src/core/ephemeris.js` | Kepler orbits, IAU rotation models, local-frame helpers. Pure JS. |
 | `src/core/params.js` / `build.js` | URL parameters; the commit the page was built from (injected by Vite). |
 | `src/perf/governor.js` | The governor: render resolution, feature step-down order, frame pacing, Smooth/Sharp. |
 | `src/perf/benchmark.js` | The scripted 3-minute run and 10-minute soak, and the results text. |
-| `src/ui/` | `screens.js` (start screen, results screen, benchmark banner, toast), `device.js` (fullscreen, landscape lock, wake lock). |
+| `src/ui/` | `screens.js` (start screen, results screen, benchmark banner, toast), `device.js` (fullscreen, landscape lock, wake lock), `targetMarker.js` (brackets, name, distance and trip time on the target; an edge arrow off screen), `targetPicker.js` (the target list). |
 | `src/terrain/height/` | **HeightSource**: `noise.js`, `dem.js` (raster sampling), `layers.js` (recipe ops: dem, fbm, ridged, terrace, craters), `heightSource.js`. Pure JS: runs in workers, on the main thread and in Node. |
 | `src/terrain/cubeSphere.js` | Cube-face ↔ direction mapping. |
 | `src/terrain/chunkBuilder.js` | Builds one chunk: band-limited vertices, skirts, morph deltas, normal map, shadow bake. |
@@ -70,30 +76,37 @@ skipped, so frames are evenly spaced.
 | `src/terrain/quadtree.js` | Node tree and distance-to-node. |
 | `src/terrain/chunkPool.js` | Fixed-size pool of geometries + textures + meshes. |
 | `src/terrain/terrainMaterial.js` / `surfaceTextures.js` | Terrain GLSL; generated detail and strata textures. |
-| `src/terrain/terrain.js` | Manager: selection, budget feedback, dispatch, eviction, shadow re-bakes. |
+| `src/terrain/terrain.js` | Manager: selection, patch-cap feedback, dispatch, eviction, shadow re-bakes. |
 | `src/atmosphere/` | Hillaire-style LUT atmosphere (`atmosphere.js`, `atmosphereGlsl.js`). |
 | `src/render/` | `globals.js` (uniforms shared by reference), `lightingGlsl.js` (the one lighting chunk), `fullscreen.js`. |
 | `src/sky/` | Far pass: `stars.js` (point sources), `sun.js`, `bodies.js`, `skyDome.js`. |
 | `src/shadows/nearShadow.js` | The shadow atlas of the things standing on the ground (coarse, fine and character tiles) + its GLSL. On an airless world a shadow's soft edge is about a hundredth of the distance to its caster, so a figure's shadow needs millimetre texels. |
 | `src/rocks/rocks.js` | Instanced rocks, scattered deterministically near the camera. |
 | `src/ship/lander.js` | Procedural lander geometry, placement, material. |
-| `src/hero/hero.js` / `heroModel.js` / `cloak.js` | The character: how it moves and poses (`hero.js`), how it looks: parts, colours and shader (`heroModel.js`), and its cloth-simulated cloak. |
+| `src/hero/hero.js` / `heroModel.js` / `robe.js` | The character, a robed figure with long hair: how it moves and poses (`hero.js`), how it looks: body parts, colours, materials and shader (`heroModel.js`), and its simulated cloth (`robe.js`: the robe's skirt, the two wide sleeves and the hair, one draw call). |
 | `src/fx/dust.js` | Dust thrown up by the character near the ground: a fixed pool of 1024 sprites on ballistic arcs under the world's gravity, slowed by its air, lit through the lighting chunk and tinted like the ground. The governor can halve it. |
 | `src/controls/` | `input.js` (keys, mouse, virtual keys), `touch.js` (phone controls), `cameraRig.js` (walk, fly, zoom, on foot), `speedLaw.js` (flight speed against the nearest surface), `gravity.js` (pull, fly-by limit), `autopilot.js` (GO trips: aim, extra boost, arrival, trip time). |
-| `src/ui/` | `screens.js` (start and results screens, toast), `targetMarker.js` (brackets, name, distance and trip time on the target; an edge arrow off screen), `targetPicker.js` (the target list). |
 | `src/post/post.js` | HDR target, metering, bloom, tone map, dither. |
 | `src/debug/hud.js` | HUD (compact line / full read-out / off) and time-of-day slider. |
-| `scripts/` | `shots.mjs` (headless screenshots of bookmarks), `shots-all.mjs` (the full reference set), `stability.mjs` (consecutive-frame flicker test), `smoke.mjs` (start screen, modes and a full benchmark run, headless), `governor-sim.mjs` (the governor against simulated GPUs), `flight-test.mjs`, `probe-terrain.mjs` (shaded relief in Node), `find-ledge.mjs`, `fetch-assets.mjs`, `gen-bluenoise.mjs`, `lib/` (shared browser launcher, PNG read/write). |
+| `scripts/` | `shots.mjs` (headless screenshots of bookmarks), `shots-all.mjs` (the full reference set), `stability.mjs` (consecutive-frame flicker test), `smoke.mjs` (start screen, modes and a full benchmark run, headless), `governor-sim.mjs` (the governor against simulated GPUs), `flight-test.mjs` (scripted Mars → orbit → Moon flight, headless), `foot-test.mjs` (the character on foot in the real game, headless), `target-test.mjs` (target list, marker and a GO trip in the real game, headless), `transfer.mjs` (GO trips flown without a browser), `flyby.mjs` (a trip to another world flown by the rig, without a browser), `sky-table.mjs` (where the sky bodies are from a place over time), `profile-chunks.mjs` (chunk build times per level), `probe-terrain.mjs` (shaded relief in Node), `find-ledge.mjs`, `fetch-assets.mjs` and `fetch-maps.py` (the data in `public/data/`), `gen-bluenoise.mjs`, `build-check.sh` (a build that fails loudly), `lib/` (shared browser launcher, PNG read/write, the GL limits check, loading a world's data in Node). |
 
 ## Worlds are data
 
 A world file exports one plain object (it is `postMessage`d to workers, so it must be
-structured-cloneable): `body` (key into the catalogue), `radius`, `gravity`, `dayHours`,
-`terrain` (rasters, a list of height **layers** `{op: 'name', ...numbers}`, altitude
-range, shadow range and headroom), `surface` (palette, slope thresholds, strata, BRDF
-roughness, photometry, albedo map, rocks), `atmosphere` (or `null`), `sky` (bodies, star
-catalogue) and `scene` (date, start position, ship offset, exposure, bookmarks). The
-engine never tests `world.id`.
+structured-cloneable): `id` (its key in the registry `src/worlds/index.js` and in
+`?world=`; also shown as a label), `name`, `body` (key into the catalogue), `radius`,
+`gravity`, `dayHours`, `terrain` (rasters, a list of height **layers**
+`{op: 'name', ...numbers}`, altitude range, shadow range and headroom), `surface`
+(palette, slope thresholds, strata, BRDF roughness, photometry, albedo map, rocks),
+`atmosphere` (or `null`), `sky` (bodies, star catalogue), `scene` (`dateUTC`, `start`:
+where the player begins, `ship`: the lander's offset from there in metres, `exposure`,
+`bookmarks`) and `places`. The engine never branches on `world.id`.
+
+**Places** (`places: [{ id, name, lat, lon }]`, longitude in degrees east): the real
+places the player can choose as a target on this world. The target list, the marker and
+GO read them (`App.targetList`, `App.resolveTarget`), and `?target=place:<id>` names one.
+A world file without `places` loads with no error and simply has no places in its list,
+so a new world needs them to be reachable by GO.
 
 **Elevation rasters** (`terrain.dems`): a global one that wraps in longitude, then any
 number of patches. Later entries win inside their bounds and blend over `feather` degrees
@@ -156,8 +169,10 @@ Oren–Nayar to the lunar-Lambert function times the Moon's measured phase curve
 much sunlit ground lights the shadows (a back-scattering surface sends less sideways).
 
 **Bookmarks** (`scene.bookmarks`): the first five are the scene's own place at different
-moments (the benchmark flies exactly these); any further ones are other real places with
-their own `lat`/`lon` and `timeOffsetHours`. `label` is shown when the player jumps there.
+moments (the benchmark flies exactly these five). After them come any further views of the
+same site (Mars has a sixth, `canyon`) and then other real places with their own
+`lat`/`lon` and `timeOffsetHours`. `label` is shown when the player jumps there. Keys
+`1`–`9` and the VIEW button go through them in the file's order.
 
 The Moon (`src/worlds/moon.js`) was added with data only, first as an invented cratered
 world, since milestone 3 from NASA elevation and brightness maps. What it needed from the engine
@@ -185,7 +200,8 @@ chunk), which makes dense crater fields 3–5× cheaper.
   map is world-space RGBA16F (8-bit normals band badly at a grazing Sun); alpha is a
   one-texel cavity term. The baked Sun-shadow map is R8 at `SHADOW_RES` (60).
 - LOD: split when distance to the node's closest point < `splitFactor × nodeEdge`
-  (× zoom for telephoto, × a feedback scale that holds the draw-call cap). Children
+  (× zoom for telephoto, × a feedback scale that holds the patch cap: `MAX_RENDER_CHUNKS`,
+  180, times the governor's terrain steps). Children
   replace a parent only when all four are ready. Vertices morph toward the parent shape
   with distance (CDLOD-style), and the fragment shader blends normals, cavities and baked
   shadows toward the parent's maps by the same factor (`tParentNormal`, `tParentShadow`,
@@ -279,8 +295,14 @@ exposure alone decides whether they are visible (rule 2).
 
 ## The flying character and world-to-world flight
 
-- **Hero** (`src/hero/`): a suited figure built from primitives (torso, and upper and
-  lower pieces for each arm and leg, bent at elbow and knee by the pose), drawn ~4 m in
+- **Hero** (`src/hero/`): a robed figure with long hair, built from code like the lander
+  (`heroModel.js`): a torso piece (robe top, crossed collar, shoulder pieces, sash with
+  pearls and tassels, neck, head and the hair on it), and upper and lower pieces for each
+  arm and leg, bent at elbow and knee by the pose. Nine meshes plus the cloth, no
+  textures: detail is geometry coloured per vertex, and each vertex carries a material
+  number the one shader branches on (silk, skin, silver embroidery, polished silver and
+  pearls, hair with a highlight along the strands). What the metals mirror is the sky
+  light and the sunlit ground from the lighting chunk, so art rule 1 holds. Drawn ~4 m in
   front of and a little below the camera, in its own scene. The camera is still what the controls
   move (`rig.mode === 'hero'`); the figure only poses itself from the rig's velocity:
   upright when hovering, horizontal with arms forward in flight, banking into turns.
@@ -299,13 +321,30 @@ exposure alone decides whether they are visible (rule 2).
   chunk; governor step `contact` drops the lander's and the rocks').
   Near the ground it shares the terrain's depth buffer; once the terrain's near plane has
   moved past it (higher up) depth is cleared and it renders in its own 0.2–400 m slice.
-- **Cloak**: a 9×14 mass–spring cloth (Verlet, 90 Hz, 4 constraint passes, capsule
-  collision with the torso and with eight limb capsules the pose writes every frame), simulated in an anchor-relative frame so planet-scale
-  coordinates never reach it. Forces: gravity (the world's, falling off with altitude),
-  the wearer's acceleration (inertia, clamped), drag toward the passing air, and
-  travelling ripples. Air density comes from `atmosphere.surfaceDensity` and scale
-  height. In vacuum a reduced "flow" (30 %) is kept on purpose so the cloak still trails
-  in flight — a deliberate, owner-requested departure from physics.
+- **Robe and hair** (`robe.js`): one mass–spring cloth simulation on the CPU (Verlet,
+  75 Hz, at most four steps a frame, 4 constraint passes) in eight patches: three skirt
+  panels of the outer robe (back 9×13 points, each side 6×13, slit at the front and the
+  sides so each flows on its own), two wide sleeves (7×6, their middle line pinned along
+  the arm by the pose every frame, the two halves sewn together underneath) and three
+  locks of hair down the back (4×12 each). About 500 points in all. The skirt and the
+  hair are pinned along their top row. Each patch is kept out of a capsule along the
+  spine, the hair also out of the head, and the skirt and sleeves out of the limb capsules
+  the pose writes every frame (eight, two per limb; collisions run on the last two
+  passes). All patches are drawn as one mesh, finer than they are simulated (a smooth
+  surface through the points with folds pressed in along its normal), in one draw call,
+  and it casts a shadow with the rest of the figure. It is simulated in an anchor-relative
+  frame so planet-scale coordinates never reach it. Forces: gravity (the world's, falling
+  off with altitude), the wearer's acceleration (inertia, clamped), drag toward the passing
+  air, gusts and a flutter that runs down each piece. Air density comes from
+  `atmosphere.surfaceDensity` and scale height. Two deliberate, owner-requested departures
+  from physics: in vacuum 30 % of the "flow" is kept, so the cloth still trails in flight,
+  and a gentle breeze always blows through robe and hair, even standing still on the Moon.
+  Governor step `cloak` (`robe.halfRate`) halves the solver's passes (2 instead of 4, the
+  cloth hangs a little looser); the step itself stays at 75 a second and the pinned points
+  are placed every frame, so the sleeves never lag the arms. The cloth has a ground plane
+  (the ground under the figure) and feels at most 0.2 of air, the thin air it is tuned for.
+  Its triangles are wound to match the normals `_draw` writes, and a cell's material is
+  carried flat by the point both its triangles end on (`flat` varying `vMat`).
 - **Speed law** (`speedLaw.js`): top speed = 0.85 × distance to the nearest surface of
   any body per second (0.2 near the ground, rising between 3 and 60 km; ×3 with boost,
   floor 7 m/s, ceiling 3 AU/s), never more than 40 %
@@ -388,15 +427,29 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   monitors above 4K.
 - **Resolution levels**: level k renders `native × 0.88^k` pixels; the lowest level is
   the one closest to 1 M pixels (or native, if the canvas is smaller than that).
-- **Feature steps** (`FEATURE_STEPS`, fixed order, used only once resolution is at its
-  floor): close-up ground detail → soft edges of near shadows → edge-glow samples halved
-  → half the rocks → terrain budget ×0.8 → bloom → terrain budget ×0.64 → cloak at half
-  rate → terrain shadows in the haze. Steps up run in reverse. Every new feature that
-  costs frame time adds its step here.
+- **Feature steps** (`FEATURE_STEPS` in `governor.js` is the source of truth; fixed
+  order, used only once resolution is at its floor). Thirteen steps, by id:
+  1. `detail`: close-up ground detail off;
+  2. `soft-shadows`: soft edges on rock and ship shadows off;
+  3. `contact`: darkening at the foot of rocks and the lander off;
+  4. `edge-glow`: the glow on a planet's edge marched with half the samples;
+  5. `dust`: half the kicked-up dust, and a simpler cloud;
+  6. `rocks`: half the rocks;
+  7. `fine-shadows`: the fine shadow tile of the nearest rocks off (coarser shadows);
+  8. `terrain-1`: terrain patch cap ×0.8;
+  9. `bloom`: bloom off;
+  10. `terrain-2`: terrain patch cap ×0.64;
+  11. `far-relief`: relief shading of far ground off;
+  12. `cloak`: robe and hair simulated with half the solver passes (the id is from the cloak it replaced);
+  13. `air-shadow`: terrain shadows in the haze off.
+
+  Steps up run in reverse. Every new feature that costs frame time adds its step here.
 - **Measuring**: the display's refresh interval is estimated continuously from the
   spacing of animation-frame callbacks (20th percentile of the last 60, never slower than
   57 Hz). The frame interval is the mode's target rounded to a whole number of refreshes.
-  A frame is *late* when it arrives more than half a refresh after its interval.
+  A frame is *late* when it takes more than 1.2 × its interval (`LATE`). Lateness is
+  judged against the target interval, never against the measured refresh: when every
+  frame is slow the refresh reads too long and would excuse them.
 - **Deciding**: over the last 24 frames, step down when more than 20 % of the ordinary
   frames are late, or more than 60 % of all frames (two steps at once above 60 %). Frames
   in which new terrain was uploaded are "soft": lateness there is usually not the
@@ -408,9 +461,9 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   time a step up holds. That is the hysteresis. The first eight frames after a step up
   are watched separately: if five of them are late the step is taken back at once.
 - **Modes**: Smooth (60 fps) and Sharp (30 fps), `M` / the MODE button / the start
-  screen, remembered in `localStorage`. Switching to Sharp jumps to native with every
-  feature on and lets the governor come down; switching to Smooth starts five levels
-  (about half the pixels) lower.
+  screen, remembered in `localStorage`. Both modes start at native. Switching to Sharp
+  jumps to native with every feature on and lets the governor come down; switching to
+  Smooth keeps the current level and comes down from there if it has to.
 - `?scale=` and screenshot mode fix the scale and switch all of this off.
 
 ## Benchmark (`src/perf/benchmark.js`)

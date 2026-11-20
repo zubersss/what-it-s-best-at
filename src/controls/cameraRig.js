@@ -38,6 +38,8 @@ export const FOOT = {
   camBack: 6.0,        // the camera on foot: this far behind the figure's hips along the view,
   camDrop: 0.9,        //   and the hips this far below the view's axis (the whole figure in view)
   hard: 9,             // landing faster than this (m/s) is a hard landing: the skid is braked and
+  maxSlope: 3.0,       // the ground may fall away this steeply (rise over run: 72 degrees) under a walking figure
+  maxSlopeFast: 1.3,   //   before it leaves it; at super speed 52 degrees
   hardHold: 0.45,      //   the figure holds its three-point landing this long before the stick moves it
 };
 
@@ -83,6 +85,7 @@ export class CameraRig {
     this.airborne = false; this.airTime = 0; this.upHeld = 0; this.landedAt = -1; this.landSpeed = 0; this.clock = 0;
     this.footVel = new THREE.Vector3();
     this.heroRel = new THREE.Vector3(0, -HERO_DROP, -HERO_DISTANCE);
+    this.hardSpeed = FOOT.hard; this.hardHold = FOOT.hardHold;      // (read by the Hero's kneel)
     this.chaseBack = HERO_DISTANCE;     // how far ahead the flying figure is drawn (the Hero sets it: farther when it hovers upright)
     this._relFrom = new THREE.Vector3(); this._relBlend = 0;
     this._camAlt = null; this._camBack = FOOT.camBack; this._camDrop = FOOT.camDrop;
@@ -217,10 +220,26 @@ export class CameraRig {
       // the stick is pushed: flying is a decision and goes where it is aimed (a pull
       // that bent the path would make every aimed trip miss); letting go is what hands
       // the traveller to gravity.
+      // A stick pushed even part of the way keeps only the part of the pull that lies along
+      // it (it may speed the motion up or slow it, never bend it: at half stick, aimed
+      // level, the flight sank at 31 degrees); the sideways part is gone by 15 % of travel.
       const g = this.pull;
       if (!this.hover && this.throttle < 1) {
-        const k = Math.min(SPACE_CAP, fallBase) * (1 - this.throttle) * (1 - this.throttle);
-        tx += g.x * k; ty += g.y * k; tz += g.z * k;
+        const t = this.throttle;
+        let gx = g.x, gy = g.y, gz = g.z;
+        if (t > 1e-6) {
+          const ux = w.x / t, uy = w.y / t, uz = w.z / t, gp = gx * ux + gy * uy + gz * uz;
+          const s = Math.min(1, t / 0.15), side = 1 - s * s * (3 - 2 * s);
+          gx = ux * gp + (gx - ux * gp) * side; gy = uy * gp + (gy - uy * gp) * side; gz = uz * gp + (gz - uz * gp) * side;
+        }
+        const k = Math.min(SPACE_CAP, fallBase) * (1 - t) * (1 - t);
+        // ... and the pull may stop the stick's motion but never turn it round (a light push
+        // aimed upward flew backward): faded in over the same first 15 % of travel
+        if (t > 1e-6 && k > 0) {
+          const ux = w.x / t, uy = w.y / t, uz = w.z / t, gp = gx * ux + gy * uy + gz * uz, lim = -t * top / k;
+          if (gp < lim) { const s = Math.min(1, t / 0.15), c = (lim - gp) * s * s * (3 - 2 * s); gx += ux * c; gy += uy * c; gz += uz * c; }
+        }
+        tx += gx * k; ty += gy * k; tz += gz * k;
       }
       // The nearest body may not sweep across the view faster than SWEEP while it is
       // being approached or passed: the whole motion is slowed (never bent, an aimed trip
@@ -238,7 +257,11 @@ export class CameraRig {
       // the distance left, and a speed that lagged behind it carried the traveller
       // straight past the world being approached.
       const v = this.velocity;
-      const kv = 1 - Math.exp(-dt * (v.lengthSq() > tx * tx + ty * ty + tz * tz ? 13 : 2.6));
+      // (slowing keeps pace with the shrinking gap whatever the speed: with a fixed rate a
+      // fast trip's last stretch was set by the per-frame step limit below, and so by the
+      // frame rate)
+      const slowing = v.lengthSq() > tx * tx + ty * ty + tz * tz;
+      const kv = 1 - Math.exp(-dt * (slowing ? Math.max(13, 2 * v.length() / dist) : 2.6));
       v.x += (tx - v.x) * kv; v.y += (ty - v.y) * kv; v.z += (tz - v.z) * kv;
       const step = v.length() * dt, maxStep = dist * 0.4 + 2;       // never cross the gap in one frame
       this._f0.copy(this.forward); this._u0.copy(this.up);
@@ -259,11 +282,13 @@ export class CameraRig {
       // Back on foot, with HOVER off: touching the ground while not climbing lands, and
       // letting go of the stick near the ground drops the figure under the world's real
       // gravity (a person's fall, not the flight's gentle pull) until it lands.
-      if (!this.hover && !this.auto && this.landing !== false && upDown <= 0) {
-        const c = this._r.copy(p).add(rel), cl = c.length(), d = this._dir; d[0] = c.x / cl; d[1] = c.y / cl; d[2] = c.z / cl;
+      if (!this.hover && !this.auto && upDown <= 0) {
+        const c = this._r.copy(p).add(this.heroRel), cl = c.length(), d = this._dir; d[0] = c.x / cl; d[1] = c.y / cl; d[2] = c.z / cl;
         const clear = cl - this.world.radius - this._ground(d, this.chaseBack) - FOOT.body;
         const vu = v.x * this.localUp[0] + v.y * this.localUp[1] + v.z * this.localUp[2];
-        if ((clear < 0.25 && vu < 0.5) || (this.throttle < 0.05 && clear < FOOT.dropBelow)) this._toFoot(c, clear);
+        // (also when the camera itself is held by the ground behind a figure hanging over a drop:
+        // off a sheer wall it hung in mid-air)
+        if ((clear < 0.25 && vu < 0.5) || (this.throttle < 0.05 && (clear < FOOT.dropBelow || this.agl <= 1.2001))) this._toFoot(c, clear);
       }
     } else {
       const base = Math.max(4, Math.min(60000, this.agl * 0.7));
@@ -311,13 +336,13 @@ export class CameraRig {
     this.held = hold;
   }
 
-  toggleMode() { this.setMode(this.mode === 'walk' ? 'fly' : 'walk'); }
 
   setMode(mode) {
     this.mode = mode;
     this.jumpOffset = 0; this.vUp = 0; this.velocity.set(0, 0, 0);
     if (mode === 'walk') this.roll = 0;        // feet on the ground: the horizon is level
     this.onFoot = false;                       // (the app stands the character up where it should: standUp)
+    this._relBlend = 0; this._jumped = false; this.landSpeed = 0;
   }
 
   // The ground under a direction for anything standing on it: as drawn if known.
@@ -346,6 +371,7 @@ export class CameraRig {
     const l = c.length(), d = this._dir; d[0] = c.x / l; d[1] = c.y / l; d[2] = c.z / l;
     this.feet.copy(c).setLength(this.world.radius + this._ground(d, HERO_DISTANCE));
     this.onFoot = true; this.airborne = false; this.airTime = 0; this.vUp = 0; this.upHeld = 0;
+    this._jumped = false; this.landSpeed = 0; this.landedAt = -99; this._relBlend = 0;
     this.footVel.set(0, 0, 0); this.velocity.set(0, 0, 0);
     this.roll = 0; this._camAlt = null; this._camBack = FOOT.camBack; this._camDrop = FOOT.camDrop;
     this._placeBehind(0);
@@ -443,7 +469,7 @@ export class CameraRig {
       if (alt <= ground) {
         this._landed(-this.vUp);
         alt = ground; this.vUp = 0; this.airborne = false;
-      } else if (this.vUp < 0 && alt - ground > FOOT.fallToFlight) {
+      } else if (this.vUp < 0 && alt - ground > FOOT.fallToFlight && alt - this.groundAlt > FOOT.fallToFlight) {     // (only when the ground under the camera is far below too, or flight hands straight back)
         // Off a cliff and falling far: the rest of the fall is flight (stick released, gravity on).
         f.setLength(R + alt);
         this._takeOff(this.vUp);
@@ -453,7 +479,8 @@ export class CameraRig {
       // Glued to the ground unless it drops away faster than walking down a steep slope:
       // then the figure leaves it (running off a ledge).
       const hv = Math.hypot(v.x, v.y, v.z);
-      if (ground < alt0 - Math.max(0.3, hv * dt * 1.3)) { this.airborne = true; this.airTime = 0; this.vUp = 0; alt = alt0; }
+      // (a slope, not a drop per frame: at 30 fps the figure fell off slopes it walked down at 60)
+      if (ground < alt0 - (hv * dt * (fast ? FOOT.maxSlopeFast : FOOT.maxSlope) + 0.02)) { this.airborne = true; this.airTime = 0; this.vUp = 0; alt = alt0; }
       else alt = ground;
     }
     f.setLength(R + alt);

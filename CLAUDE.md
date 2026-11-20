@@ -13,7 +13,8 @@ last delivered, what the owner was asked for and exactly what to do next.
 
 ## What this game is
 
-A browser game where you fly a suited, cloaked character through our real solar system:
+A browser game where you fly a robed, long-haired character (the owner's own design:
+`docs/PROGRESS.md`, "The owner's character") through our real solar system:
 walk on worlds, lift off, reach orbit, cross to other bodies and land. Inspired by No
 Man's Sky, but every place is real. The current build (Mars, the Moon, flight between
 them, the character) is the foundation. Keep everything that works.
@@ -55,8 +56,11 @@ call. Consolidate and restructure when that makes it healthier. Two limits:
   hunt. Two modes on a button: **Smooth** (60 fps target, the default) and **Sharp**
   (30 fps target, favouring native resolution). Photo mode renders a single frame at full
   native resolution.
-- **Budgets**: under 200 draw calls, 500,000 triangles and about 300 MB of GPU memory per
-  frame, with fixed-size pools.
+- **No fixed budgets** (the owner dropped the 200 draw calls / 500,000 triangles / 300 MB
+  limits on 2026-11-20: "make the best game possible"). The only limit is the test-device
+  policy above: a steady frame rate on the phone, kept by the governor. Pools stay
+  fixed-size so memory cannot creep, and anything that adds cost still gets a governor
+  step. Judge by the phone's benchmark, not by a number in a table.
 
 ## Decisions Claude makes alone, and the ones that need approval
 
@@ -101,7 +105,8 @@ say plainly what is needed and carry on with everything that does not depend on 
    independent and touch separate files. Tuning loops, small fixes and shared shader code
    stay with Claude. Brief each helper with the goal, the exact files or screenshots, the
    rules that apply and the output wanted.
-4. Stability test (`npm run stability`): 3 consecutive frames along short scripted moves
+4. Stability test (`npm run stability`, and `-- --streaming` for pops while terrain is
+   still arriving): 3 frames one camera step apart along short scripted moves
    on the ground and in flight; fix anything that pops, crawls, shimmers or sparkles.
 5. Add every new feature to the governor's step-down order (`src/perf/governor.js`).
 6. Commit, push and merge so the phone link updates, update the docs and mark the
@@ -143,7 +148,7 @@ npm run build          # static site in dist/ (relative paths)
 npm run preview        # serve dist/
 npm run shots          # headless screenshots of every bookmark of one world -> docs/shots/
 npm run shots:all      # the full reference set: both worlds, orbit, character
-npm run stability      # 3 consecutive frames along scripted moves, with a flicker report
+npm run stability      # 3 settled frames one camera step apart along scripted moves, with a flicker report (-- --streaming: 3 truly consecutive frames right after a jump)
 npm run flight         # scripted Mars -> orbit -> Moon flight (headless)
 npm run foot           # the character on foot in the real game: walk, jump, super speed, take off, land (headless)
 npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run
@@ -172,36 +177,44 @@ Headless Chromium renders with software WebGL: a shot takes 1–3 minutes. Run l
 batches in the background, never pipe them through `tail` (it hides all output until the
 end), and take final sets from `dist/` so source edits cannot disturb them.
 
-URL parameters: `world=mars|moon`, `shot=ledge|sun|wall|ship|dusk` and the world's
-landmarks (`olympus`, `gale` on Mars; `tycho`, `taurus` on the Moon) (fixed camera
-bookmark, deterministic screenshot mode, skips the start screen), `t=<hours offset>`,
-`hud=0|1`, `scale=<fixed render scale>`, `mode=smooth|sharp`, `bench=run|soak` (start a
-benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|fast|bank|climb|hover`
+URL parameters: `world=mars|moon`, `shot=ledge|sun|wall|ship|dusk`, on Mars also `canyon`
+(a sixth view of the opening site, used for the from-orbit and character reference
+pictures), and the world's landmarks (`olympus`, `gale` on Mars; `tycho`, `taurus` on the
+Moon) (fixed camera bookmark, deterministic screenshot mode, skips the start screen),
+`t=<hours offset>`, `hud=0|1`, `scale=<fixed render scale>`, `dpr=<ratio>` (pretend the
+screen has this device pixel ratio: sets the canvas's pixel size), `mode=smooth|sharp`,
+`bench=run|soak` (start a benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|fast|bank|climb|hover`
 (cruising, boosting, turning, straight up, hovering), `heropose=stand|walk|run|super|jump|land|launch`
 (with `hero=1`: on foot; `land` is the three-point kneel after a hard landing, `launch` the
-fist-up take-off), `posedir=side` (seen from the side), `target=<body>|sun|place:<id>`
+fist-up take-off), `posedir=side` (seen from the side; `front`: a moving on-foot pose coming toward the
+camera, to see the face; a standing one is turned to face it), `target=<body>|sun|place:<id>`
 (the target marker, view unchanged), `lat= lon= alt= heading= pitch= fov=`, `east= north=` (metres from the bookmark's place),
 `aim=<sky body>` (turn the view to it), `dust=1` (with `hero=1`: a touch-down dust burst
 frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last footfalls), `debug=noair|airall` (haze shadows off / everywhere),
+`debug=contactx4` (the rocks' contact-darkening spheres four times larger, to see the effect),
 `debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
 `nofarrough`, `noboost`) for before/after pictures.
 
 Keys: `WASD` move, mouse look (click to capture), `Shift` super speed on foot / boost in
-flight, `Space` (or `E`) jump on foot (tap), take off (hold, or tap again in the air), up in
+flight, left `Ctrl` (hold) slow, for precise moves (flight ×0.12, on foot ×0.3, free-fly
+camera ×0.15), `Space` (or `E`) jump on foot (tap), take off (hold, or tap again in the air), up in
 flight, `Q` down, `G` character on/off, `T` next target (this world's places, the bodies in the
 sky, the Sun, none) and turn to it, `Enter` GO: fly to the target hands-off (the stick
 or a movement key takes control back; looking around does not),
 `X` hover on/off (off: gravity pulls when the stick is released, and touching the
 ground stands the character on its feet),
-`F` walk ↔ free-fly debug camera, `Z` hold for telephoto, mouse wheel = zoom amount,
+`F` free-fly debug camera (keeps your place: from the character or the first-person walk
+the view stays where it is, the character is put away and a GO trip ends; `F` again puts
+you down in the first-person walk; `G` brings the character back), `Z` hold for telephoto, mouse wheel = zoom amount,
 `H` HUD (one line → full read-out with the time slider → off), `M` Smooth ↔ Sharp,
-`[` `]` time −/+, `1`–`9` bookmarks (the first five are the scene, the rest landmarks),
+`[` `]` time −/+, `1`–`9` bookmarks (the views of the world's main site first: five on the Moon, six on
+Mars; then its landmarks),
 `P` pause time.
 
 Touch: left part of the screen = move stick (push to the rim for super speed on foot /
 boost in flight), `▲` jump (tap) / take off (hold, or tap again in the air) / up, drag
 anywhere else = look, buttons `HERO`, `TARGET` (the list of targets with distances), `GO`
-(above `▲`, shown with a target: the hands-off trip), `HOVER`, `FLY`, `ZOOM` (hold), `VIEW` (next
+(above `▲`, shown with a target: the hands-off trip), `HOVER`, `CAM` (the `F` key: free-fly debug camera where you are), `ZOOM` (hold), `VIEW` (next
 bookmark), `HUD`, `MODE` (Smooth ↔ Sharp), `FULL` (fullscreen + landscape lock + wake
 lock), `▲` up, `▼` down. The time slider is part of the full HUD.
 
@@ -312,5 +325,16 @@ finished benchmark leaves its text in `window.__benchResult`.
 - A GO trip's speed when it arrives is far above what hand flight allows there (it plunged
   from 60 km to the ground in a few frames): `stopTransfer` hands back the stick's speed.
   `npm run transfer` flies every trip with HOVER on and off and prints the height after.
+- Everything is kept in the home world's spinning axes, in which any other body races by
+  (Phobos at 1.5 km/s, the Sun at 15,000 km/s seen from Mars). Near such a body the
+  traveller is carried along with it (`App.carryWith`); anything new that must stay
+  beside a body that is not home needs the same.
+- `rig.agl` is the height over the home world's ground and feeds the speed law, the near
+  plane and the hand-over test: never write a placeholder into it (a zero made flight
+  crawl at 7 m/s beside every moon).
+- A worker job sent every frame keeps the terrain from ever counting as settled, and every
+  screenshot then waits out its time limit: ask once per screenshot (`requestHeroVis`).
+- A test that cannot fail is worse than none (`npm run flight` printed "errors: none" for
+  two milestones whatever happened). Every script must exit non-zero on a failed check.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

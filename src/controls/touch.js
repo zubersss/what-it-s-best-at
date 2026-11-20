@@ -19,7 +19,7 @@ export class TouchControls {
         <button data-key="KeyG">HERO</button>
         <button data-act="target">TARGET</button>
         <button data-key="KeyX">HOVER</button>
-        <button data-key="KeyF">FLY</button>
+        <button data-key="KeyF">CAM</button>
         <button data-key="KeyZ" data-hold="1">ZOOM</button>
         <button data-act="view">VIEW</button>
         <button data-key="KeyH">HUD</button>

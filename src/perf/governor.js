@@ -32,7 +32,7 @@ export const FEATURE_STEPS = [
   { id: 'bloom', label: 'glow around bright things', apply: (app, off) => { app.post.bloomEnabled = !off; } },
   { id: 'terrain-2', label: 'terrain detail (fewer patches again)', apply: (app, off) => { app.terrainBudget(off ? 0.64 : 1, 'terrain-2'); } },
   { id: 'far-relief', label: 'relief shading of far ground', apply: (app, off) => { app.quality.w = off ? 0 : 1; } },
-  { id: 'cloak', label: 'cloak simulated at half rate', apply: (app, off) => { app.hero.cloak.halfRate = off; } },
+  { id: 'cloak', label: 'robe and hair simulated more loosely', apply: (app, off) => { app.hero.robe.halfRate = off; } },
   { id: 'air-shadow', label: 'terrain shadows in the haze', apply: (app, off) => { app.atmosphere.airEnabled = !off; } },
 ];
 
