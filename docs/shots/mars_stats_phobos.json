@@ -7,13 +7,13 @@
     "visited": 46,
     "wanted": 0,
     "lodScale": 1,
-    "avgBuildMs": 37.1,
+    "avgBuildMs": 34,
     "exposure": 230000,
     "surface": [
       0,
       0
     ],
-    "frame": 26,
+    "frame": 27,
     "wait": ""
   }
 }
