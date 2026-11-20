@@ -36,11 +36,24 @@ export const SOLAR_SYSTEM = {
     },
     rotation: { ra: [0.0, -0.641], dec: [90.0, -0.557], w: [190.147, 360.9856235] },
     // Look of the resolved disc (used when a body is big enough on screen to be a mesh).
+    // Look of the resolved disc: a real globe from NASA's maps (scripts/fetch-earth.py,
+    // docs/ASSETS.md). `far` copies are always loaded; `full` ones when it fills the view.
     surface: {
-      recipe: 'oceanWorld',
-      ocean: [0.03, 0.07, 0.16], land: [0.20, 0.17, 0.11], cloud: [0.78, 0.80, 0.82],
-      ice: [0.75, 0.78, 0.80], landScale: 2.2, landBias: -0.08, cloudScale: 3.5, cloudCover: 0.48,
-      haze: [0.25, 0.42, 0.75], hazeStrength: 0.35,
+      recipe: 'globe',
+      maps: {
+        colour: { far: 'data/earth_day_512.jpg', full: 'data/earth_day_4096.jpg' },          // Blue Marble Next Generation
+        clouds: { far: 'data/earth_clouds_512.jpg', full: 'data/earth_clouds_4096.jpg' },    // a real day's clouds
+        lights: { far: 'data/earth_lights_512.jpg', full: 'data/earth_lights_2048.jpg' },    // city lights
+        water: { far: 'data/earth_water_512.jpg', full: 'data/earth_water_2048.jpg' },       // seas and lakes
+      },
+      gain: 1.0,                              // the colour map as albedo
+      ocean: [0.010, 0.026, 0.060],           // deep water's own colour (the map's seas are near black)
+      cloud: [0.80, 0.80, 0.80],
+      lights: [0.9e-3, 0.62e-3, 0.30e-3],     // radiance of a city at night (sunlit ground is about 0.05)
+      glint: { roughness: 0.16, strength: 1.0 },
+      // air: vertical optical depth of the clear air per colour (Rayleigh), and the scale
+      // height the rim glows over (the real 8 km, with the haze above it)
+      air: { tau: [0.040, 0.094, 0.225], scaleHeight: 12000 },
     },
   },
 

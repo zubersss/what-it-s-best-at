@@ -776,6 +776,19 @@ export class App {
     G.uSunDir.value.set(eph.sunDir[0], eph.sunDir[1], eph.sunDir[2]);
     const sunC = SOLAR_SYSTEM.sun.color, k = (AU_M / eph.sunDistance) ** 2;
     G.uSunIrradiance.value.set(sunC[0] * k, sunC[1] * k, sunC[2] * k);
+    // An eclipse: a body in front of the Sun takes the share of sunlight it covers.
+    this.sunCover = this.bodies.sunCover(eph, rig.pos);
+    if (this.sunCover > 0) G.uSunIrradiance.value.multiplyScalar(1 - this.sunCover);
+    // Light from the home world below on things high above it (the figure in orbit was
+    // near black on its shaded side over a sunlit planet): its day side as a lamp, by how
+    // much of the sky below it fills and how much of that is in daylight.
+    {
+      const r = rig.pos.length(), R = world.radius, alt = r - R, x = Math.min(1, Math.max(0, (alt - 20e3) / 130e3));
+      const mu0 = (rig.pos.x * eph.sunDir[0] + rig.pos.y * eph.sunDir[1] + rig.pos.z * eph.sunDir[2]) / r;
+      const hd = SOLAR_SYSTEM[world.body] || {}, c = hd.color || [1, 1, 1];
+      const e = x * x * (3 - 2 * x) * (hd.geometricAlbedo ?? 0.2) * 1.2 * Math.min(1, Math.max(0, (mu0 + 0.15) / 1.15)) * (R / r) ** 2;
+      G.uHomeShine.value.copy(G.uSunIrradiance.value).multiplyScalar(e); G.uHomeShine.value.x *= c[0]; G.uHomeShine.value.y *= c[1]; G.uHomeShine.value.z *= c[2];
+    }
     G.uPlanetRadius.value = world.radius;
     G.uCamPlanetPos.value.copy(rig.pos);
     this.terrain.tintAt(rig.pos, G.uGroundTint.value);
@@ -802,11 +815,29 @@ export class App {
     G.uTanHalfFov.value.set(th * aspect, th);
     this.atmosphere.update(rig.pos, G.uSunDir.value, this.terrain.farDistance, post.exposure);
     this.skyDome.visible = !this.atmosphere.empty;
-    this.sun.update(G.uSunDir.value, eph.sunDistance, rig, post.viewH);
+    // (the disc's own brightness is that of the unhidden Sun: an eclipse hides it, it does not dim it)
+    this.sun.update(G.uSunDir.value, eph.sunDistance, rig, post.viewH, (this._sunE || (this._sunE = new THREE.Vector3())).set(sunC[0] * k, sunC[1] * k, sunC[2] * k));
     this.bodies.update(eph, rig, post.viewH);
     this.stars?.setFrame(eph.icrfToFixed, rig, post.viewH);
     // ?aim=<body>: possible only now, once the bodies have a position for this moment.
     if (this.pendingAim && this.frameCount >= 2) { this.aimAt(this.pendingAim); this.pendingAim = null; }
+    // ?at=<body>:<radii>[:<round>[:<up>]]: the camera beside that body, looking at it (pictures
+    // of a body that is not the home world); `round` turns away from the Sun's side.
+    if (this.params.at && this.frameCount === 2) {
+      const [id, radii = '4', round = '0', upDeg = '0'] = this.params.at.split(':');
+      const c = this.bodyPosition(id, new THREE.Vector3()), R = id === 'sun' ? SOLAR_SYSTEM.sun.radius : this.bodies.byId.get(id)?.def.radius;
+      if (c && R) {
+        const sunAt = this.bodyPosition('sun', new THREE.Vector3());
+        const toSun = id === 'sun' ? c.clone().negate().normalize() : sunAt.sub(c).normalize();     // (for the Sun itself: its side facing home)
+        const pole = new THREE.Vector3(0, 0, 1), side = new THREE.Vector3().crossVectors(pole, toSun).normalize(), upv = new THREE.Vector3().crossVectors(toSun, side);
+        const a = +round * Math.PI / 180, e = +upDeg * Math.PI / 180;
+        const d = toSun.clone().multiplyScalar(Math.cos(a) * Math.cos(e)).addScaledVector(side, Math.sin(a) * Math.cos(e)).addScaledVector(upv, Math.sin(e));
+        if (rig.mode === 'walk') rig.setMode('fly');
+        rig.pos.copy(c).addScaledVector(d, +radii * R);
+        rig.lookAlong(d.negate());
+        if (this.carry) this.carry.w = 0;
+      }
+    }
     // ?target=<id>: the marker on that target (place:<id> for a place), the view left alone.
     if (this.params.target && this.frameCount === 2) this.targetId = this.params.target;
 
@@ -872,7 +903,7 @@ export class App {
     }
 
     if (this.shotMode) {
-      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
+      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
       window.__shotReady = ready;
       window.__stats = { calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow' : ''}` };
     }

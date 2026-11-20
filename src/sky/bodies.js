@@ -10,7 +10,30 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { PointSources } from './stars.js';
 import { AU_M } from '../worlds/solarSystem.js';
 
-const RECIPES = { rock: 0, oceanWorld: 1 };
+const RECIPES = { rock: 0, oceanWorld: 1, globe: 2 };
+const SHELL_HEIGHTS = 8;        // the shell of air round a globe reaches this many scale heights up
+const FULL_MAPS_PX = 260;       // a globe this many pixels across gets its full-size maps
+
+// A map wrapped round a globe: rows as stored (north first), mipmaps, repeating in longitude.
+const MAPS = [['colour', 'tColour'], ['clouds', 'tClouds'], ['lights', 'tLights'], ['water', 'tWater']];     // a globe's maps and their samplers
+function mapTexture(url, srgb, onLoad) {
+  const t = new THREE.TextureLoader().load(import.meta.env.BASE_URL + url, onLoad);
+  t.flipY = false; t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+  if (!srgb) t.format = THREE.RedFormat;                 // the grey maps take one byte a pixel
+  t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+  t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = true; t.anisotropy = 4;
+  return t;
+}
+
+// A body far brighter than the scene's exposure allows (the Earth in the lunar night, a
+// moon at dusk) keeps its colour: its brightness is rolled off below white, as the eye
+// does when it looks at a bright thing in a dark place. In daylight nothing changes.
+const GLARE = /* glsl */`
+vec3 glare(vec3 c) {
+  float l = max(c.r, max(c.g, c.b));
+  const float lim = 4.0;
+  return l > 1e-6 ? c * (lim * (1.0 - exp(-l / lim)) / l) : c;
+}`;
 
 const VERT = /* glsl */`
 out vec3 vN; out vec3 vObj; out vec3 vDir;
@@ -27,6 +50,7 @@ ${ATMO_UNIFORMS}
 ${ATMO_COMMON}
 uniform sampler2D tTransmittance;
 uniform float uExposure, uCamRkm;
+uniform float uGain;           // below 1 when the body is far brighter than the scene is exposed for (see update)
 uniform vec3 uUp;
 uniform vec3 uLightDir;        // toward the Sun, at the body
 uniform vec3 uLightE;          // solar irradiance at the body (eclipse included)
@@ -46,6 +70,7 @@ float vnoise(vec3 x) {
              mix(mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), f.x), mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
 }
 float fbm(vec3 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += a * vnoise(p); p = p * 2.03 + 11.7; a *= 0.5; } return s; }
+${GLARE}
 
 void main() {
   vec3 N = normalize(vN);
@@ -72,14 +97,125 @@ void main() {
     float rim = pow(1.0 - NV, 2.5);
     col += uHaze * uParams2.x * uLightE * NL * (0.12 + rim) / PI;
   }
-  vec3 T = texture(tTransmittance, transmittanceUv(uCamRkm, dot(normalize(vDir), uUp))).rgb;
-  fragColor = vec4(min(col * T * uExposure, vec3(60000.0)), 1.0);
+  // (seen through the home world's air only from inside it: far outside, the table has no answer)
+  vec3 T = uCamRkm < uRTop ? texture(tTransmittance, transmittanceUv(uCamRkm, dot(normalize(vDir), uUp))).rgb : vec3(1.0);
+  fragColor = vec4(glare(col * T * uExposure * uGain), 1.0);
 }`;
 
-function lumpyGeometry(def, seed) {
+// A real globe: colour, clouds, city lights and water from maps (equirectangular, longitude
+// -180..180 left to right, north at the top), thin air over it, the Sun's glint on its
+// seas. Numbers come from the body's entry in the catalogue (surface.recipe 'globe').
+const GLOBE_FRAG = /* glsl */`
+${ATMO_UNIFORMS}
+${ATMO_COMMON}
+uniform sampler2D tTransmittance;
+#define TWO_PI 6.28318530718
+uniform sampler2D tColour;     // the day side's colour (sRGB, decoded by the GPU)
+uniform sampler2D tClouds, tLights, tWater;      // one grey map each
+uniform float uExposure, uCamRkm;
+uniform float uGain;           // below 1 when the body is far brighter than the scene is exposed for (see update)
+uniform vec3 uUp;
+uniform vec3 uLightDir;        // toward the Sun, at the body
+uniform vec3 uLightE;          // solar irradiance at the body
+uniform vec3 uShineDir, uShineE;
+uniform vec3 uOcean;           // the sea's own albedo (the map's seas are near black)
+uniform vec3 uCloudCol;        // cloud albedo
+uniform vec3 uLights;          // radiance of a fully lit city pixel
+uniform vec3 uAirTau;          // vertical optical depth of the air, per colour
+uniform vec4 uGlobe;           // x colour gain, y glint roughness, z glint strength
+in vec3 vN; in vec3 vObj; in vec3 vDir;
+layout(location = 0) out vec4 fragColor;
+${GLARE}
+void main() {
+  vec3 p = normalize(vObj);
+  vec3 N = normalize(vN), V = -normalize(vDir), L = uLightDir;      // (p is in the globe's own axes, N in the scene's)
+  // Map coordinates, with their footprint taken from the direction itself: the longitude
+  // jumps by a whole turn at the back of the globe and its own derivatives would draw a seam.
+  vec2 uv = vec2(atan(p.y, p.x) / TWO_PI + 0.5, 0.5 - asin(clamp(p.z, -1.0, 1.0)) / PI);
+  vec3 px = dFdx(p), py = dFdy(p);
+  float r2 = max(p.x * p.x + p.y * p.y, 1e-6), cz = max(sqrt(1.0 - p.z * p.z), 1e-3);
+  vec2 gx = vec2((p.x * px.y - p.y * px.x) / (r2 * TWO_PI), -px.z / (cz * PI));
+  vec2 gy = vec2((p.x * py.y - p.y * py.x) / (r2 * TWO_PI), -py.z / (cz * PI));
+  vec3 base = textureGrad(tColour, uv, gx, gy).rgb * uGlobe.x;
+  float water = textureGrad(tWater, uv, gx, gy).r;
+  float cloud = smoothstep(0.06, 0.94, textureGrad(tClouds, uv, gx, gy).r);
+  float mu0 = dot(N, L), NL = max(mu0, 0.0), mu = max(dot(N, V), 0.02);
+  // land and sea
+  vec3 alb = max(base, uOcean * water);
+  vec3 col = alb * NL / PI;
+  // the Sun's glint on the water: a wide, soft highlight (the sea is rough at this scale)
+  vec3 H = normalize(L + V);
+  float a2 = uGlobe.y * uGlobe.y, nh = max(dot(N, H), 0.0), dd = nh * nh * (a2 - 1.0) + 1.0;
+  float D = a2 / (PI * dd * dd), F = 0.02 + 0.98 * pow(1.0 - max(dot(V, H), 0.0), 5.0);
+  col += vec3(water * uGlobe.z * D * F * NL / (4.0 * max(mu, 0.15) * max(NL, 0.15) + 1e-3));
+  // clouds over both, lit a little past the day-night line (they stand high)
+  float cl = max(mu0 + 0.03, 0.0) / 1.03;
+  vec3 land = col * uLightE, clouds = uCloudCol * (cl / PI) * uLightE;
+  land += alb * uShineE * max(dot(N, uShineDir), 0.0) / PI;
+  // the air: a thin layer that scatters blue (single scattering in a flat layer), so the
+  // day side hazes over toward the edge and the low Sun reddens the day-night line
+  float m = 1.0 / max(mu, 0.05), m0 = 1.0 / max(mu0, 0.05);
+  vec3 Tr = exp(-uAirTau * (m + m0));
+  float cs = dot(-L, V), day = smoothstep(-0.10, 0.06, mu0);
+  vec3 ins = uLightE * (3.0 / (16.0 * PI)) * (1.0 + cs * cs) * (m / (m + m0)) * (1.0 - Tr) * day;
+  // (the clouds stand above most of the air: little of it dims or tints them)
+  col = mix(land * mix(vec3(1.0), Tr, day), clouds * mix(vec3(1.0), Tr, 0.3 * day), cloud) + ins * (1.0 - 0.6 * cloud);
+  // city lights on the night side, under the clouds (not dimmed with the sunlit part: when
+  // the exposure is long enough to show them, they show)
+  // (the map's lowest levels hold only the picture format's noise, which a long exposure
+  // would turn into a glowing mottle over the whole night side)
+  float lamp = max(textureGrad(tLights, uv, gx, gy).r - 0.06, 0.0) / 0.94;
+  vec3 lamps = uLights * lamp * (0.4 + 0.6 * lamp) * (1.0 - 0.85 * cloud) * (1.0 - smoothstep(-0.14, 0.0, mu0));
+  // (seen through the home world's air only from inside it: far outside, the table has no answer)
+  vec3 T = uCamRkm < uRTop ? texture(tTransmittance, transmittanceUv(uCamRkm, dot(normalize(vDir), uUp))).rgb : vec3(1.0);
+  fragColor = vec4(glare((col * uGain + lamps) * T * uExposure), 1.0);
+}`;
+
+// The air beyond a globe's solid edge: a shell a few scale heights thick, drawn from the
+// inside (its far half, so the globe hides all of it but the rim), added to what is there.
+const SHELL_VERT = /* glsl */`
+out vec3 vDir;
+void main() {
+  vec4 w = modelMatrix * vec4(position, 1.0);
+  vDir = w.xyz;
+  gl_Position = projectionMatrix * viewMatrix * w;
+}`;
+const SHELL_FRAG = /* glsl */`
+${ATMO_UNIFORMS}
+${ATMO_COMMON}
+uniform sampler2D tTransmittance;
+uniform float uExposure, uCamRkm;
+uniform float uGain;           // below 1 when the body is far brighter than the scene is exposed for (see update)
+uniform vec3 uUp;
+uniform vec3 uLightDir, uLightE;
+uniform vec3 uAirTau;
+uniform vec3 uCentre;          // the globe's centre, in the far pass's own scale
+uniform vec3 uShell;           // x: the globe's radius in that scale, y: scale height over radius, z: horizon factor sqrt(2 pi R / H)
+in vec3 vDir;
+layout(location = 0) out vec4 fragColor;
+${GLARE}
+void main() {
+  vec3 d = normalize(vDir);
+  float along = dot(uCentre, d);
+  vec3 foot = d * along - uCentre;                  // from the centre to the ray's closest point
+  float b = length(foot);
+  float h = max(b / uShell.x - 1.0, 0.0) / uShell.y;            // height of that point, in scale heights
+  vec3 tau = uAirTau * uShell.z * exp(-h);
+  vec3 pt = foot / max(b, 1e-6);
+  float mu0 = dot(pt, uLightDir), cs = dot(-uLightDir, -d);
+  // lit a little past the day-night line; the low Sun's light has crossed more air (redder)
+  float lit = smoothstep(-0.18, 0.08, mu0);
+  vec3 sunT = exp(-tau * 0.5 * (1.0 - smoothstep(-0.1, 0.5, mu0)));
+  vec3 col = uLightE * (3.0 / (16.0 * PI)) * (1.0 + cs * cs) * (1.0 - exp(-tau)) * sunT * lit;
+  vec3 T = uCamRkm < uRTop ? texture(tTransmittance, transmittanceUv(uCamRkm, dot(d, uUp))).rgb : vec3(1.0);
+  fragColor = vec4(glare(col * T * uExposure * uGain), 0.0);
+}`;
+
+
+function lumpyGeometry(def, seed, detail = 12) {
   // three's polyhedra are triangle soup: without shared vertices the normals come out
   // one per face and the day-night edge of a small moon is a staircase of facets.
-  const soup = new THREE.IcosahedronGeometry(1, 12);    // 2 880 triangles
+  const soup = new THREE.IcosahedronGeometry(1, detail);    // 3 380 triangles at 12; a mapped globe is finer (its edge is seen close up)
   soup.deleteAttribute('uv'); soup.deleteAttribute('normal');
   const geo = mergeVertices(soup, 1e-5);
   const pos = geo.attributes.position, s = def.surface || {};
@@ -104,6 +240,7 @@ export class SkyBodies {
     // The true sky: every body in the catalogue is always there. The one we stand on is
     // simply skipped (it is the terrain).
     this.ids = Object.keys(catalogue).filter((id) => id !== 'sun');
+    this.pending = 0;             // maps still loading
     this.group = new THREE.Group();
     this.points = new PointSources(this.ids.length);
     this.points.points.renderOrder = 19;
@@ -112,7 +249,7 @@ export class SkyBodies {
       const def = catalogue[id], s = def.surface || { recipe: 'rock', albedo: [0.1, 0.1, 0.1] };
       const u = {
         ...G,
-        uCamRkm: { value: 1 }, uUp: { value: new THREE.Vector3(0, 0, 1) },
+        uCamRkm: { value: 1 }, uUp: { value: new THREE.Vector3(0, 0, 1) }, uGain: { value: 1 },
         uLightDir: { value: new THREE.Vector3(1, 0, 0) }, uLightE: { value: new THREE.Vector3(1, 1, 1) },
         uShineDir: { value: new THREE.Vector3(1, 0, 0) }, uShineE: { value: new THREE.Vector3(0, 0, 0) },
         uRecipe: { value: RECIPES[s.recipe] ?? 0 },
@@ -122,15 +259,36 @@ export class SkyBodies {
         uParams: { value: s.recipe === 'oceanWorld' ? new THREE.Vector4(s.landScale, s.landBias, s.cloudScale, s.cloudCover) : new THREE.Vector4(s.mottling || 0, s.mottleScale || 1, 0, 0) },
         uParams2: { value: new THREE.Vector4(s.hazeStrength || 0, 0, 0, 0) },
       };
-      const mat = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: u, vertexShader: VERT, fragmentShader: FRAG, depthTest: true, depthWrite: true });
-      const geo = lumpyGeometry(def, i * 13.7 + 1), mesh = new THREE.Mesh(geo, mat);
+      const globe = s.recipe === 'globe';
+      let shell = null, su = null;
+      if (globe) {
+        // maps: a small copy of each now (the body far away), the full ones when it grows
+        // large in view (see update)
+        for (const [key, name] of MAPS) { this.pending++; u[name] = { value: mapTexture(s.maps[key].far, key === 'colour', () => this.pending--) }; }
+        u.uOcean = { value: new THREE.Vector3(...(s.ocean || [0, 0, 0])) }; u.uCloudCol = { value: new THREE.Vector3(...(s.cloud || [0.8, 0.8, 0.8])) };
+        u.uLights = { value: new THREE.Vector3(...(s.lights || [0, 0, 0])) };
+        const air = s.air || { tau: [0, 0, 0], scaleHeight: 8000 };
+        u.uAirTau = { value: new THREE.Vector3(...air.tau) };
+        u.uGlobe = { value: new THREE.Vector4(s.gain ?? 1, s.glint?.roughness ?? 0.2, s.glint?.strength ?? 1, 0) };
+        if (s.air) {
+          su = { ...G, uCamRkm: u.uCamRkm, uUp: u.uUp, uGain: u.uGain, uLightDir: u.uLightDir, uLightE: u.uLightE, uAirTau: u.uAirTau,
+            uCentre: { value: new THREE.Vector3() }, uShell: { value: new THREE.Vector3(1, air.scaleHeight / def.radius, Math.sqrt(2 * Math.PI * def.radius / air.scaleHeight)) } };
+          const sm = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: su, vertexShader: SHELL_VERT, fragmentShader: SHELL_FRAG,
+            side: THREE.BackSide, depthTest: true, depthWrite: false, transparent: true, blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor });
+          shell = new THREE.Mesh(new THREE.IcosahedronGeometry(def.radius + SHELL_HEIGHTS * air.scaleHeight, 20), sm);
+          shell.frustumCulled = false; shell.renderOrder = 6; shell.matrixAutoUpdate = false; shell.visible = false;
+          this.group.add(shell);
+        }
+      }
+      const mat = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: u, vertexShader: VERT, fragmentShader: globe ? GLOBE_FRAG : FRAG, depthTest: true, depthWrite: true });
+      const geo = lumpyGeometry(def, i * 13.7 + 1, globe ? 24 : 12), mesh = new THREE.Mesh(geo, mat);
       mesh.frustumCulled = false; mesh.renderOrder = 5; mesh.matrixAutoUpdate = false;
       this.group.add(mesh);
       // how far its surface reaches from its centre as drawn (an irregular moon's longest
       // axis and bumps stand well outside its mean radius): what a traveller must stay out of
       let reach = 0;
       for (let k = 0, p = geo.attributes.position; k < p.count; k++) reach = Math.max(reach, Math.hypot(p.getX(k), p.getY(k), p.getZ(k)));
-      return { id, def, mesh, u, reach, info: {}, pos: new THREE.Vector3(), rel: new THREE.Vector3(), dist: Infinity };
+      return { id, def, mesh, u, reach, shell, su, maps: globe ? s.maps : null, full: 0, info: {}, pos: new THREE.Vector3(), rel: new THREE.Vector3(), dist: Infinity };
     });
     this.byId = new Map(this.bodies.map((b) => [b.id, b]));
     this._v = new THREE.Vector3(); this._m = new THREE.Matrix4();
@@ -151,7 +309,7 @@ export class SkyBodies {
       b.pos.set(e.pos[0], e.pos[1], e.pos[2]);
       b.rel.subVectors(b.pos, cam);
       b.dist = b.rel.length();
-      if (b.id === this.world.body) b.mesh.visible = false; else order.push(b);
+      if (b.id === this.world.body) { b.mesh.visible = false; if (b.shell) b.shell.visible = false; } else order.push(b);
     }
     order.sort((a, b) => a.dist - b.dist);
 
@@ -192,7 +350,7 @@ export class SkyBodies {
 
       if (2 * angRadius / pxAngle < 2.5) {
         // Unresolved: point source with the correct integrated brightness (Lambert sphere phase law).
-        b.mesh.visible = false;
+        b.mesh.visible = false; if (b.shell) b.shell.visible = false;
         const phi = (Math.sin(alpha) + (Math.PI - alpha) * Math.cos(alpha)) / Math.PI;
         const flux = E * def.geometricAlbedo * phi * (def.radius / b.dist) ** 2;
         const c = def.color || [1, 1, 1];
@@ -207,9 +365,32 @@ export class SkyBodies {
       this._orientation(b, eph);
       m.matrix.copy(this._m).scale(this._v.set(scale, scale, scale)).setPosition(dir.x * D, dir.y * D, dir.z * D);
       m.matrixWorldNeedsUpdate = true;
+      if (b.shell) {
+        // the rim of air, once the globe is large enough for it to show
+        b.shell.visible = b.info.pixels > 24;
+        b.shell.matrix.copy(m.matrix); b.shell.matrixWorldNeedsUpdate = true;
+        b.su.uCentre.value.set(dir.x * D, dir.y * D, dir.z * D); b.su.uShell.value.x = def.radius * scale;
+      }
+      // full-size maps when it grows large (once: they stay)
+      if (b.maps && !b.full && b.info.pixels > FULL_MAPS_PX) {
+        b.full = 1;
+        for (const [key, name] of MAPS) {
+          this.pending++;           // (screenshots wait for them)
+          const uni = b.u[name], old = uni.value, t = mapTexture(b.maps[key].full, key === 'colour', () => { uni.value = t; old.dispose(); this.pending--; });
+        }
+      }
       b.u.uLightDir.value.subVectors(sunPos, b.pos).normalize();
       b.u.uLightE.value.set(E * sunC[0], E * sunC[1], E * sunC[2]);
       b.u.uCamRkm.value = cam.length() * 0.001;
+      // A body far brighter than the scene is exposed for (the Earth in the lunar night, a
+      // moon at dusk) keeps its colours: the whole of it is dimmed until its sunlit face
+      // sits just under white, as the eye does with a bright thing in a dark place. Seen
+      // from its night side, or in a scene exposed for daylight, nothing changes.
+      {
+        const s = def.surface || {}, peak = (s.recipe === 'globe' ? 0.8 : 1.6 * Math.max(...(s.albedo || [0.1]))) / Math.PI;
+        const litShare = Math.min(1, Math.max(0, (1 + cosA) / 2) / 0.12);
+        b.u.uGain.value = Math.min(1, 0.75 / Math.max(1e-9, G.uExposure.value * E * peak * litShare));
+      }
       b.u.uUp.value.copy(this._up(rig));
       // Planetshine from the home world onto its own moons.
       if (def.parent === this.world.body) {
@@ -226,6 +407,33 @@ export class SkyBodies {
     // Unused point slots: zero flux.
     for (let i = np; i < this.points.capacity; i++) { fx[i * 4] = fx[i * 4 + 1] = fx[i * 4 + 2] = 0; px[i * 3] = 0; px[i * 3 + 1] = 0; px[i * 3 + 2] = 1; }
     this.points.geometry.attributes.position.needsUpdate = true; this.points.geometry.attributes.aFlux.needsUpdate = true;
+  }
+
+  // The share of the Sun's disc that sky bodies cover, seen from `cam` (home axes): an
+  // eclipse. 0 = none, 1 = total. (The home world itself is the night, not an eclipse.)
+  sunCover(eph, cam) {
+    const s = this._sc || (this._sc = new THREE.Vector3()), v = this._bc || (this._bc = new THREE.Vector3());
+    s.set(eph.sunDir[0], eph.sunDir[1], eph.sunDir[2]).multiplyScalar(eph.sunDistance).sub(cam);
+    const ds = s.length(), rs = Math.asin(Math.min(1, this.cat.sun.radius / ds));
+    s.divideScalar(ds);
+    let cover = 0;
+    for (const b of this.bodies) {
+      if (b.id === this.world.body) continue;
+      const e = eph.bodies.get(b.id);
+      v.set(e.pos[0], e.pos[1], e.pos[2]).sub(cam);
+      const db = v.length();
+      if (db >= ds) continue;                                // behind the Sun
+      const rb = Math.asin(Math.min(1, b.def.radius / db)), sep = Math.acos(Math.max(-1, Math.min(1, v.dot(s) / db)));
+      if (sep >= rs + rb) continue;
+      let area;                                              // overlap of two discs (flat: they are small)
+      if (sep <= Math.abs(rb - rs)) area = Math.PI * Math.min(rb, rs) ** 2;
+      else {
+        const a = Math.acos((sep * sep + rs * rs - rb * rb) / (2 * sep * rs)), c = Math.acos((sep * sep + rb * rb - rs * rs) / (2 * sep * rb));
+        area = rs * rs * (a - Math.sin(2 * a) / 2) + rb * rb * (c - Math.sin(2 * c) / 2);
+      }
+      cover = Math.max(cover, area / (Math.PI * rs * rs));
+    }
+    return Math.min(1, cover);
   }
 
   _up(rig) { return (this._upv || (this._upv = new THREE.Vector3())).set(rig.localUp[0], rig.localUp[1], rig.localUp[2]); }

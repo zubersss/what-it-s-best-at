@@ -29,6 +29,7 @@ uniform vec2 uLutScaleInv;          // x: 1 / scale of the irradiance LUT, y: 1 
 uniform mat3 uSkyFrame;             // planet-fixed -> local sky frame
 uniform vec3 uShineDir;             // toward the brightest sky body
 uniform vec3 uShineE;               // its irradiance at the ground (planetshine)
+uniform vec3 uHomeShine;            // sunlight the home world's day side sends up to something high above it
 uniform vec4 uQuality;              // governor switches: x close-up detail, y soft shadow edges, z edge-glow samples
 uniform float uPhotometry;          // 0 = matte dust under air (Oren-Nayar), 1 = airless regolith (lunarDiffuse)
 uniform vec3 uGroundTint;           // the world's albedo map at the camera, relative to its mean
@@ -99,6 +100,9 @@ float contactSky(vec3 rel, vec3 N) {
 
 // Irradiance from planetshine (sunlight reflected by a sky body) onto a surface with normal N.
 vec3 planetShine(vec3 N) { return uShineE * max(dot(N, uShineDir), 0.0); }
+// Light from the world below on something in orbit over it (zero near the ground, where
+// the sky light already carries the ground's bounce): most on what faces down.
+vec3 homeShine(vec3 N, vec3 up) { float d = 0.5 - 0.5 * dot(N, up); return uHomeShine * d * sqrt(d); }
 
 // Attenuates a surface colour and adds in-scattered light along the view ray.
 // Materials that can fill the view from space (the terrain) define SPACE_HAZE to get the

@@ -26,6 +26,7 @@ export const PARAMS = {
   lat: num('lat', null), lon: num('lon', null), alt: num('alt', null),
   heading: num('heading', null), pitch: num('pitch', null), fov: num('fov', null),
   east: num('east', null), north: num('north', null),   // metres from the bookmark's place, standing on the ground
+  at: q.get('at'),                      // put the camera beside a sky body, looking at it: <body>:<distance from its centre in radii>[:<degrees round from the Sun's side>[:<degrees up>]]
   aim: q.get('aim'),                    // turn the view to this sky body (e.g. phobos, earth, sun) once it is placed
   debug: q.get('debug') || '',
 };
