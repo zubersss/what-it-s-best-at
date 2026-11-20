@@ -196,6 +196,45 @@ What was changed:
   almost nothing, so this can probably go back to all 180: decide from the next results
   (one change at a time; the phone is the judge).
 
+## Milestone 6 plan: the new worlds
+
+The owner's word: "finish up the rest of the milestones". No stop after every two worlds;
+each stage is merged and the owner gets a short message.
+
+**Sources** (all on the USGS planetary map server, public domain, which the cloud machine
+may reach; the bucket behind it lists itself, see `scripts/fetch-worlds.py`):
+elevation for Phobos (HRSC), Mercury (MESSENGER, 665 m), Venus (Magellan, 4.6 km),
+Enceladus (Cassini shape model), Pluto and Charon (New Horizons, 300 m, the sunlit
+hemisphere), Ceres (Dawn, 60 px/deg); image mosaics for all of those and for Deimos, Io,
+Europa, Ganymede, Callisto, Mimas, Tethys, Dione, Rhea, Iapetus, Titan (ISS, through the
+haze), Triton; whole-disc maps of Jupiter, Saturn and Neptune. Where no elevation exists
+(Deimos, Io, Europa, Titan, Triton) the shape of the ground comes from terrain recipes
+written for what the place is known to look like, under the real image map.
+**Orbits and spin**: fitted to JPL Horizons and checked against it by a script that
+fails beyond a tolerance (`scripts/fit-orbits.py`, `scripts/check-ephemeris.mjs`); the
+owner allowed the Horizons server for this.
+
+**Engine work first** (generic, no world-specific code):
+1. A world's data loads when you come near it or aim a trip at it, not at start-up, and
+   only the last few worlds stay in memory.
+2. Every body of the catalogue is in every sky (a point, then a disc, then a globe).
+3. Sky globes from one colour map (the moons you cannot land on, the gas giants), a globe
+   whose bands drift at their own speeds (Jupiter, Saturn, Neptune), rings with their
+   shadow on the planet and the planet's shadow on them (Saturn).
+4. Thick air: Venus and Titan (the Sun is not a disc from the ground; the light is the
+   sky's). Thin air: Triton, Pluto.
+5. Small bodies: Phobos and Deimos are tens of kilometres across with almost no gravity;
+   walking, jumping and the speed law have to stay sane there.
+6. Terrain recipes for what elevation data cannot give: grooves (Phobos), lava plains and
+   calderas (Io), ridged ice (Europa), tiger stripes (Enceladus), dune seas (Titan),
+   cantaloupe ground (Triton), nitrogen ice plains with polygons (Pluto).
+
+**Order**: engine items 1 and 2 with Phobos and Deimos (they are already in the sky);
+Mercury; Jupiter with Io and Europa; Saturn, rings, Enceladus and Titan; Venus; Neptune
+and Triton; Pluto and Charon; Ceres. Each world: data file, start site at a real place
+and a real date, five views, two or three landmarks, a place list for the target picker,
+screenshots judged against spacecraft pictures.
+
 ## Milestone 5 plan: Earth and the Sun from space
 
 1. **Earth as a real globe** (not landable; you stop 2 % of its radius up). NASA maps
