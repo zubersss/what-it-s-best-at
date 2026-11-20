@@ -32,7 +32,7 @@ export default {
       // metres across.
       { op: 'craters', seed: 7, radius: [90, 420], density: 1.0, layers: 2, depth: 0.22, rim: 0.0, floor: 0.2, ageSkew: 1.5, where: { at: [[24, 178, 520000], [3, 180, 380000]], alt: [-9000, -800], altFade: 150, cover: 0.4, seed: 9, wavelength: 60000 } },
       // The mountain blocks: spur-and-gully faces on the water-ice massifs.
-      { op: 'ridged', seed: 11, maxWavelength: 5000, minWavelength: 40, roughness: 0.9, amp: 900, slopeMask: [0.12, 0.34], warp: 0.3 },
+      { op: 'ridged', seed: 11, maxWavelength: 5000, minWavelength: 40, roughness: 0.9, amp: 900, slopeMask: [0.12, 0.34], warp: 0.3, where: { alt: [-800, 9000], altFade: 200 } },    // (not on the walls of the ice plain's pits)
       // The bladed terrain of Tartarus Dorsa: knife ridges of methane ice 300 m high.
       { op: 'lineaments', seed: 13, families: 2, spacing: 6000, width: 2400, height: 320, presence: 0.9, segment: 90000, segmentLevel: -0.3, wobble: [1500, 30000], varied: 0.4, where: { at: [[16, 228, 300000]] } },
       // Craters of the old dark lands, where the ice plain is not.

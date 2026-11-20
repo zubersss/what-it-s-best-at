@@ -32,7 +32,7 @@ export default {
       { op: 'lineaments', seed: 7, families: 6, spacing: 1700, width: 420, height: 90, presence: 0.8, segment: 30000, wobble: [600, 12000], varied: 0.6, where: { lat: [48, 90], fade: 6, hemisphere: 'south' } },
       { op: 'lineaments', seed: 9, families: 7, spacing: 5200, width: 700, height: -130, presence: 0.5, segment: 70000, wobble: [1500, 50000], varied: 0.6, where: { cover: 0.45, seed: 4, wavelength: 300000 } },
       // The cratered north: old, softened bowls (the ice has slowly flowed).
-      { op: 'craters', seed: 5, radius: [700, 14000], density: 0.9, layers: 2, depth: 0.09, rim: 0.02, ageSkew: 2, where: { lat: [-90, 40], fade: 12, hemisphere: 'north', invert: false } },
+      { op: 'craters', seed: 5, radius: [700, 14000], density: 0.9, layers: 2, depth: 0.09, rim: 0.02, ageSkew: 2, where: { lat: [15, 90], fade: 12, hemisphere: 'north' } },
       { op: 'craters', seed: 11, radius: [6, 700], density: 0.5, layers: 2, depth: 0.15, rim: 0.035, ageSkew: 2.5, slopeMaskInv: [0.3, 0.5] },
       // Underfoot: loose fresh snow, with blocks of ice the size of houses near the stripes.
       { op: 'fbm', seed: 13, maxWavelength: 200, minWavelength: 0.8, roughness: 0.93, amp: 2.0, slopeGain: [0.1, 0.5, 0.6, 1.6], hetero: 0.4 },

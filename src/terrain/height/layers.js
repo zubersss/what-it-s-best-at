@@ -191,7 +191,7 @@ export const OPS = {
       if (t >= INFL) return;
       const depth = depthK * r * age, rim = rimK * r * age;
       let v, dv;
-      if (t < 1 && floorK > 0) { const w = 1 - smoothstep(floorK, 1, t); v = rim - (depth + rim) * w; dv = t > floorK ? (depth + rim) * 1.5 / ((1 - floorK) * r) : 0; }
+      if (t < 1 && floorK > 0) { const w = 1 - smoothstep(floorK, 1, t); v = rim - (depth + rim) * w; dv = (depth + rim) * 2 / r * smoothstep(floorK, 1, t); }
       else if (t < 1) { const t2 = t * t; v = rim - (depth + rim) * (1 - t2) * (1 - 0.35 * t2 * (1 - age)); dv = (depth + rim) * 2 * t / r; }
       else { const fade = 1 - smoothstep(1.25, INFL, t); const t4 = t * t * t * t; v = rim * fade / (t * t * t); dv = (depth + rim) * 2 / (t4 * r); }   // dv stays continuous across the rim
       add += v * lod; if (dv * lod > slope) slope = dv * lod;
@@ -325,7 +325,8 @@ export const OPS = {
           if (seg) m *= smoothstep(segLevel - 0.15, segLevel + 0.15, noise3(c.px / seg + k * 17.31 + F.seed, c.py / seg - k * 5.77, c.pz / seg + k * 3.19));
           if (m <= 0) continue;
           add += shape(t) * m;
-          if (m > slope) slope = m;
+          const e = m * Math.min(1, (1 - Math.abs(t)) * 4);       // (to nothing at the band's edge: c.slope must be continuous)
+          if (e > slope) slope = e;
         }
       }
       c.h += add * H * lod;
@@ -354,7 +355,10 @@ export const OPS = {
         let m = 0;
         for (let dz = -1; dz <= 1; dz++) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
           const h1 = hash3(ix + dx, iy + dy, iz + dz, seed), h2 = hash3(ix + dx, iy + dy, iz + dz, seed + 1);
-          memo[m] = ix + dx + (h1 & 0xffff) / 65536; memo[m + 1] = iy + dy + (h1 >>> 16) / 65536; memo[m + 2] = iz + dz + (h2 & 0xffff) / 65536; memo[m + 3] = (h2 >>> 16) / 65536;
+          // (each centre in the middle 0.4 of its cell: the second-nearest is then never
+          // farther than 1.25 cells and none outside these 27 is nearer than 1.3; with centres
+          // anywhere in their cells the answer changed across lattice planes, as a wall)
+          memo[m] = ix + dx + 0.3 + 0.4 * (h1 & 0xffff) / 65536; memo[m + 1] = iy + dy + 0.3 + 0.4 * (h1 >>> 16) / 65536; memo[m + 2] = iz + dz + 0.3 + 0.4 * (h2 & 0xffff) / 65536; memo[m + 3] = (h2 >>> 16) / 65536;
           m += 4;
         }
       }
@@ -384,7 +388,7 @@ export const OPS = {
       const ex = -Math.sin(b), ey = Math.cos(b), nx = -Math.sin(a) * Math.cos(b), ny = -Math.sin(a) * Math.sin(b), nz = Math.cos(a);
       return { x, y, z, h, r, tx: ex * Math.cos(t) + nx * Math.sin(t), ty: ey * Math.cos(t) + ny * Math.sin(t), tz: nz * Math.sin(t), seed: def.seed + k * 7.7 };
     });
-    return (c) => {
+    const fn = (c) => {
       for (let k = 0; k < items.length; k++) {
         const m = items[k], dot = c.x * m.x + c.y * m.y + c.z * m.z;
         if (dot < 0.5) continue;
@@ -401,10 +405,21 @@ export const OPS = {
         const edge = 1 - smoothstep(0.6, 1, t);
         const rough = 0.8 + 0.2 * noise3(c.px / (m.r * 0.3) + 3.3, c.py / (m.r * 0.3) + m.seed, c.pz / (m.r * 0.3)) + 0.12 * noise3(c.px / (m.r * 0.11) + 1.3, c.py / (m.r * 0.11), c.pz / (m.r * 0.11) + m.seed);
         c.h += m.h * edge * ramp * rough;
-        const sl = Math.max(0.22 * edge * ramp, m.h / (m.r * 0.4) * (t > 0.6 ? ramp : 0.3));
+        // (continuous, and nothing at the outline: later layers are masked by it)
+        const sl = Math.max(0.22 * edge * ramp, m.h / (m.r * 0.4) * (0.3 + (ramp - 0.3) * smoothstep(0.6, 0.75, t)) * (1 - smoothstep(0.9, 1, t)));
         if (sl > c.slope) c.slope = sl;
       }
     };
+    // The tallest block within `reach` metres of a place (for the shadow rays' ceiling).
+    fn.top = (x, y, z, reach) => {
+      let top = 0;
+      for (let k = 0; k < items.length; k++) {
+        const m = items[k], dot = x * m.x + y * m.y + z * m.z;
+        if (Math.acos(dot > 1 ? 1 : dot < -1 ? -1 : dot) * R < m.r * 1.25 + reach && m.h * 1.15 > top) top = m.h * 1.15;
+      }
+      return top;
+    };
+    return fn;
   },
 
   // A sea: no ground lies below `level` (m). Put it last, so the water stays flat.

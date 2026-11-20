@@ -79,7 +79,7 @@ export default {
   },
 
   // Clouds of one real day (the globe's own cloud map) as a layer overhead (see sky/clouds.js).
-  clouds: { map: 'data/earth_clouds_4096.jpg', lon0: -180, altitude: 4500, cover: 0.62, shadow: 0.6 },
+  clouds: { map: 'data/earth_clouds_4096.jpg', lon0: -180, altitude: 4500, cover: 0.45, shadow: 0.6 },
 
   sky: { stars: { url: 'data/stars_bsc5.f32' } },
 

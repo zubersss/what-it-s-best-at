@@ -18,13 +18,14 @@ export function createHeightSource(world, rasters = []) {
   const radius = world.radius;
   const terrain = world.terrain;
   const env = { dem: rasters.length ? new DemSet(rasters, radius) : null };
-  const fns = [];
+  const fns = [], tops = [];           // tops: what a layer can add near a place, where that is far above the headroom (massifs)
   for (const layer of terrain.layers) {
     const make = OPS[layer.op];
     if (!make) throw new Error(`Unknown terrain op "${layer.op}"`);
     if (layer.op === 'dem' && !env.dem) continue;
     const fn = make({ ...layer, planetRadius: radius }, env);
     fns.push(layer.where ? masked(fn, layer.where, radius) : fn);
+    if (fn.top) tops.push(fn.top);
   }
   // Shadow rays stop at the tallest ground within their range: the rasters' maximum
   // nearby plus `shadowHeadroom` for what the procedural layers can add on top.
@@ -46,7 +47,12 @@ export function createHeightSource(world, rasters = []) {
       return c.h;
     },
     // No ground within the world's shadow range of this place is higher than this (m above datum).
-    ceilingAt(x, y, z) { return env.dem ? Math.min(terrain.maxAltitude, env.dem.topAt(x, y, z) + headroom) : terrain.maxAltitude; },
+    ceilingAt(x, y, z) {
+      if (!env.dem) return terrain.maxAltitude;
+      let top = env.dem.topAt(x, y, z) + headroom;
+      for (let i = 0; i < tops.length; i++) top += tops[i](x, y, z, reach);
+      return Math.min(terrain.maxAltitude, top);
+    },
     // Optional speed-up when many nearby points follow: (x,y,z) unit direction of the
     // region's centre and its radius in metres. Call release() before querying elsewhere.
     prepare(x, y, z, rho) { for (const f of regional) f.prepare(x * radius, y * radius, z * radius, rho); },
@@ -70,21 +76,23 @@ function masked(fn, w, radius) {
   // noise3 is roughly normal with a spread of 0.28: the level a share `cover` lies above
   const cover = w.cover, q = cover == null ? 0 : Math.min(0.999, Math.max(0.001, 1 - cover));
   const level = cover == null ? -9 : 0.28 * 0.6 * Math.log(q / (1 - q));
-  const lat = w.lat ? [Math.sin(w.lat[0] * Math.PI / 180), Math.sin(w.lat[1] * Math.PI / 180), Math.sin((w.fade ?? 4) * Math.PI / 180)] : null;
+  // (degrees; a limit at the equator or at the pole is no limit: nothing fades there)
+  const lat = w.lat ? [w.lat[0] <= 0 ? -1e9 : w.lat[0], w.lat[1] >= 90 ? 1e9 : w.lat[1], w.fade ?? 4] : null;
   const alt = w.alt || null, altFade = w.altFade ?? 200, invert = !!w.invert;
   const hemi = w.hemisphere === 'north' ? 1 : w.hemisphere === 'south' ? -1 : 0;
-  const at = (w.at || []).map(([la, lo, r]) => { const a = la * Math.PI / 180, b = lo * Math.PI / 180; return [Math.cos(a) * Math.cos(b), Math.cos(a) * Math.sin(b), Math.sin(a), r / radius]; });
+  // (the last number: beyond this angle from its centre a place cannot reach, outline noise included)
+  const at = (w.at || []).map(([la, lo, r]) => { const a = la * Math.PI / 180, b = lo * Math.PI / 180; return [Math.cos(a) * Math.cos(b), Math.cos(a) * Math.sin(b), Math.sin(a), r / radius, Math.cos(Math.min(Math.PI, 1.36 * r / radius))]; });
   const out = (c) => {
     let m = 1;
     if (cover != null) m = cover >= 1 ? 1 : (() => { const n = noise3(c.px * f + sx, c.py * f - sx * 0.7, c.pz * f + sx * 0.3); return n <= level - soft ? 0 : n >= level + soft ? 1 : (n - level + soft) / (2 * soft); })();
     else if (at.length) m = 0;
     for (let k = 0; k < at.length && m < 1; k++) {
       const p = at[k], dot = c.x * p[0] + c.y * p[1] + c.z * p[2];
-      if (dot < 0.9) continue;
+      if (dot < p[4]) continue;
       const d = Math.acos(dot > 1 ? 1 : dot) / p[3] * (1 + 0.25 * noise3(c.px * 6 / (p[3] * radius) + k * 3.7, c.py * 6 / (p[3] * radius), c.pz * 6 / (p[3] * radius) - k));
       if (d < 1) m = Math.max(m, d < 0.85 ? 1 : (1 - d) / 0.15);
     }
-    if (m > 0 && lat) { const a = Math.abs(c.z); m *= Math.min(1, Math.max(0, (a - lat[0]) / lat[2] + 0.5)) * Math.min(1, Math.max(0, (lat[1] - a) / lat[2] + 0.5)); }
+    if (m > 0 && lat) { const a = Math.asin(Math.min(1, Math.abs(c.z))) * 57.29577951308232; m *= Math.min(1, Math.max(0, (a - lat[0]) / lat[2] + 0.5)) * Math.min(1, Math.max(0, (lat[1] - a) / lat[2] + 0.5)); }
     if (m > 0 && hemi) m *= Math.min(1, Math.max(0, c.z * hemi / 0.03 + 0.5));
     if (m > 0 && alt) m *= Math.min(1, Math.max(0, (c.h - alt[0]) / altFade + 0.5)) * Math.min(1, Math.max(0, (alt[1] - c.h) / altFade + 0.5));
     m = m * m * (3 - 2 * m);

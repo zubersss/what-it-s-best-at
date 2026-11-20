@@ -232,13 +232,14 @@ void main() {
   // land and sea
   vec3 alb = max(base, uOcean * water);
   // (airless dusty ground is as bright at the edge of the disc as at its middle)
-  if (uRing.y > 0.0 && abs(uLightObj.z) > 1e-4) {
-    // the sunbeam that reaches this spot crossed the ring plane here (if it did)
-    float t = -vObj.z / uLightObj.z;
-    if (t > 0.0) {
-      float r = length(vObj.xy + uLightObj.xy * t);
-      if (r > uRing.x && r < uRing.y) shadow *= exp(-texture(tRing, vec2((r - uRing.x) / (uRing.y - uRing.x), 0.5)).r * uRing.z / abs(uLightObj.z));
-    }
+  {
+    // the rings' shadow: the sunbeam that reaches this spot crossed the ring plane here (if
+    // it did). (Read outside any branch, so the sampler has its footprint.)
+    float lz = abs(uLightObj.z) > 1e-4 ? uLightObj.z : 1e-4;
+    float tr = -vObj.z / lz;
+    float rr = length(vObj.xy + uLightObj.xy * tr);
+    float depth = texture(tRing, vec2((rr - uRing.x) / max(uRing.y - uRing.x, 1.0), 0.5)).r;
+    if (uRing.y > 0.0 && tr > 0.0 && rr > uRing.x && rr < uRing.y) shadow *= exp(-depth * uRing.z / abs(lz));
   }
   vec3 col = alb * (uGlobe.w > 0.5 ? 2.0 * NL / (NL + mu) / (PI * 1.6) : NL / PI) * shadow;
   // the Sun's glint on the water: a wide, soft highlight (the sea is rough at this scale)
@@ -325,6 +326,11 @@ void main() {
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 const RING_FRAG = /* glsl */`
+${ATMO_UNIFORMS}
+${ATMO_COMMON}
+uniform sampler2D tTransmittance;
+uniform float uCamRkm;
+uniform vec3 uUp;
 uniform sampler2D tRing;
 uniform vec3 uRing;            // inner radius, outer radius (the globe's own units), optical depth of a full texel
 uniform vec3 uRadii;           // the planet's equatorial and polar radius (x, z)
@@ -356,7 +362,9 @@ void main() {
   float lit = (b < 0.0 && disc > 0.0) ? 0.0 : 1.0;
   if (b < 0.0) lit = smoothstep(-0.0025, 0.0025, -disc / (uRadii.x * uRadii.x));
   vec3 col = ring.rgb * uLightE * I * lit / PI_R;
-  fragColor = vec4(glare(col * uExposure * uGain), alpha);
+  // (seen through the home world's air only from inside it, like the planet itself)
+  vec3 T = uCamRkm < uRTop ? mix(texture(tTransmittance, transmittanceUv(uCamRkm, dot(normalize(vDir), uUp))).rgb, vec3(1.0), smoothstep(0.9, 1.0, (uCamRkm - uRBottom) / (uRTop - uRBottom))) : vec3(1.0);
+  fragColor = vec4(glare(col * T * uExposure * uGain), alpha);
 }`.replace(/PI_R/g, '3.14159265');
 
 // The row of texture a ring system is drawn from. spec.profile: [radius m, optical depth,
@@ -378,12 +386,12 @@ function ringTexture(spec) {
     data[i * 4 + 3] = Math.round(255 * Math.min(1, tau / full));
   }
   const tex = new THREE.DataTexture(data, N, 1);
-  tex.colorSpace = THREE.SRGBColorSpace; tex.minFilter = tex.magFilter = THREE.LinearFilter; tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = true; tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
   tex.needsUpdate = true;
   // (the shadow on the globe reads the depth from the red channel of a second, grey copy)
   const grey = new Uint8Array(N * 4); for (let i = 0; i < N; i++) { grey[i * 4] = grey[i * 4 + 1] = grey[i * 4 + 2] = data[i * 4 + 3]; grey[i * 4 + 3] = 255; }
   const depth = new THREE.DataTexture(grey, N, 1);
-  depth.minFilter = depth.magFilter = THREE.LinearFilter; depth.wrapS = depth.wrapT = THREE.ClampToEdgeWrapping; depth.needsUpdate = true;
+  depth.minFilter = THREE.LinearMipmapLinearFilter; depth.magFilter = THREE.LinearFilter; depth.generateMipmaps = true; depth.wrapS = depth.wrapT = THREE.ClampToEdgeWrapping; depth.needsUpdate = true;
   return { tex, depth, r0, r1, full };
 }
 
@@ -460,9 +468,9 @@ export class SkyBodies {
         u.uRing = { value: new THREE.Vector3(rg ? rg.r0 : 0, rg ? rg.r1 : 0, rg ? rg.full : 0) };
         if (rg) {
           const radii = def.radii || [def.radius, def.radius, def.radius];
-          ringU = { uExposure: G.uExposure, uGain: u.uGain, uLightE: u.uLightE, uLightObj: u.uLightObj, tRing: { value: rg.tex }, uRing: u.uRing,
+          ringU = { ...G, uCamRkm: u.uCamRkm, uUp: u.uUp, uGain: u.uGain, uLightE: u.uLightE, uLightObj: u.uLightObj, tRing: { value: rg.tex }, uRing: u.uRing,
             uRadii: { value: new THREE.Vector3(radii[0], radii[1], radii[2]) }, uViewObj: { value: new THREE.Vector3(0, 0, 1) } };
-          const rm = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, uniforms: ringU, vertexShader: RING_VERT, fragmentShader: RING_FRAG,
+          const rm = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: ringU, vertexShader: RING_VERT, fragmentShader: RING_FRAG,
             side: THREE.DoubleSide, depthTest: true, depthWrite: false, transparent: true, blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor });
           ring = new THREE.Mesh(new THREE.RingGeometry(rg.r0, rg.r1, 180, 1), rm);
           ring.frustumCulled = false; ring.renderOrder = 7; ring.matrixAutoUpdate = false; ring.visible = false;
@@ -482,9 +490,16 @@ export class SkyBodies {
           const lg = new THREE.BufferGeometry();
           lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts), 3)); lg.setAttribute('aW', new THREE.BufferAttribute(new Float32Array(wts), 1));
           ringU.uEdge = { value: 0 };
-          const lm = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, uniforms: { uExposure: G.uExposure, uGain: u.uGain, uLightE: u.uLightE, uEdge: ringU.uEdge },
-            vertexShader: 'in float aW; out float vW; void main() { vW = aW; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }',
-            fragmentShader: 'uniform float uExposure, uGain, uEdge; uniform vec3 uLightE; in float vW; layout(location = 0) out vec4 fragColor; void main() { fragColor = vec4(vec3(0.80, 0.74, 0.62) * uLightE * (0.05 * vW * uEdge * uExposure * uGain), 0.0); }',
+          const lm = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, uniforms: { uExposure: G.uExposure, uGain: u.uGain, uLightE: u.uLightE, uEdge: ringU.uEdge, uLightObj: u.uLightObj, uRadii: ringU.uRadii },
+            vertexShader: 'in float aW; out float vW; out vec3 vObj; void main() { vW = aW; vObj = position; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }',
+            // (the same shadow of the flattened planet as on the annulus)
+            fragmentShader: `uniform float uExposure, uGain, uEdge; uniform vec3 uLightE, uLightObj, uRadii; in float vW; in vec3 vObj; layout(location = 0) out vec4 fragColor;
+              void main() {
+                vec3 k = vec3(1.0, 1.0, uRadii.x / uRadii.z), o = vObj * k, l = normalize(uLightObj * k);
+                float b = dot(o, l), disc = b * b - (dot(o, o) - uRadii.x * uRadii.x);
+                float lit = b < 0.0 ? smoothstep(-0.0025, 0.0025, -disc / (uRadii.x * uRadii.x)) : 1.0;
+                fragColor = vec4(vec3(0.80, 0.74, 0.62) * uLightE * (0.05 * vW * uEdge * lit * uExposure * uGain), 0.0);
+              }`,
             depthTest: true, depthWrite: false, transparent: true, blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor });
           ring.userData.edge = new THREE.LineSegments(lg, lm);
           ring.userData.edge.frustumCulled = false; ring.userData.edge.renderOrder = 8; ring.userData.edge.matrixAutoUpdate = false; ring.userData.edge.visible = false;
@@ -511,7 +526,7 @@ export class SkyBodies {
       // maps: 0 = stand-ins, 1 = the small copies asked for, 2 = they are in, 3 = the full ones asked for
       const files = globe && s.maps ? MAPS.filter(([key]) => s.maps[key] && !s.maps[key].bands) : [];
       if (ring) reach = Math.max(reach, def.rings.profile[def.rings.profile.length - 1][0]);        // (a traveller keeps out of the rings too)
-      return { id, def, mesh, u, reach, shell, su, ring, ringU, maps: files.length ? s.maps : null, files, got: files.length ? 0 : 2, info: {}, pos: new THREE.Vector3(), rel: new THREE.Vector3(), dist: Infinity };
+      return { id, def, mesh, u, reach, shell, su, ring, ringU, maps: files.length ? s.maps : null, files, small: {}, got: files.length ? 0 : 2, info: {}, pos: new THREE.Vector3(), rel: new THREE.Vector3(), dist: Infinity };
     });
     this.byId = new Map(this.bodies.map((b) => [b.id, b]));
     this._v = new THREE.Vector3(); this._m = new THREE.Matrix4();
@@ -529,11 +544,29 @@ export class SkyBodies {
     for (const [key, name] of list) {
       this.pending++;
       mapTexture(b.maps[key][which], key === 'colour' && !b.maps[key].linear, this.renderer, (t) => {
-        if (t) { const uni = b.u[name], old = uni.value; uni.value = t; old.dispose(); this.mapsAt = performance.now(); if (key === 'relief') b.u.uReliefK.value = b.def.surface.relief ?? 1; }
+        if (t) {
+          const uni = b.u[name], old = uni.value;
+          // (a full map arriving after the body shrank away again is not wanted any more)
+          if (which === 'full' && b.got !== 3) { t.dispose(); this.pending--; return; }
+          uni.value = t; this.mapsAt = performance.now();
+          if (which === 'far' || !b.maps[key].far || b.small[name]) old.dispose(); else b.small[name] = old;      // the small copy is kept for when it is far again
+          if (key === 'relief') b.u.uReliefK.value = b.def.surface.relief ?? 1;
+        }
         this.pending--;
         if (--left === 0 && which === 'far') b.got = 2;
       });
     }
+  }
+
+  // Back to the small copies of a globe's maps (the full ones are freed).
+  _dropFull(b) {
+    for (const [key, name] of b.files) {
+      const small = b.small[name], uni = b.u[name];
+      if (small && uni.value !== small) { uni.value.dispose(); uni.value = small; }
+      else if (!small && !b.maps[key].far && b.maps[key].full) { uni.value.dispose(); uni.value = NONE[name](); if (key === 'relief') b.u.uReliefK.value = 0; }      // (a map with no small copy: none from afar, as before it came)
+      delete b.small[name];
+    }
+    b.got = 2;
   }
 
   // eph: Ephemeris (already updated); rig: camera rig; viewH: render height in pixels.
@@ -553,7 +586,28 @@ export class SkyBodies {
       if (b.id === this.world.body) { b.mesh.visible = false; if (b.shell) b.shell.visible = false; } else order.push(b);
     }
     order.sort((a, b) => a.dist - b.dist);
-
+    // The home world's own maps are fetched while it is home (the terrain is what is seen):
+    // at a hand-over it becomes a globe that fills the sky, with no time to wait for them.
+    const homeB = this.byId.get(this.world.body);
+    // (the small copies always; the full ones once the traveller is on the way up)
+    if (homeB && homeB.maps) { if (homeB.got === 0) this._loadMaps(homeB, 'far'); else if (homeB.got === 2 && rig.agl > 0.03 * Rhome) this._loadMaps(homeB, 'full'); }
+    // Far-pass distances: each resolved body gets a slot behind the one before it, far
+    // enough that the two cannot cross however large either looms (a moon in transit in
+    // front of its planet; rings count as part of their planet). Then all are scaled to
+    // stay inside the far pass's depth range.
+    {
+      let D = 20, rhoPrev = 0, last = 0, first = true;
+      for (const b of order) {
+        const big = 2 * Math.asin(Math.min(1, b.def.radius / b.dist)) / pxAngle >= 2.5 && b.got >= 2;
+        b.slot = 0;
+        if (!big) continue;
+        const rho = Math.min(0.9, b.reach / b.dist);
+        if (!first) D = D * (1 + rhoPrev) / (1 - rho) * 1.02;
+        first = false; b.slot = D; rhoPrev = rho; last = D * (1 + rho);
+      }
+      if (last > 45) { const k = 45 / last; for (const b of order) b.slot *= k; }
+    }
+    const up = this._up(rig);
     let np = 0, shine = 0;
     G.uShineE.value.set(0, 0, 0);
     const fx = this.points.flux, px = this.points.positions;
@@ -606,7 +660,7 @@ export class SkyBodies {
         continue;
       }
       // Resolved: lit mesh at its true angular size. Far-pass distance encodes depth order.
-      const D = 20 + k * 3, scale = D / b.dist;
+      const D = b.slot || 20, scale = D / b.dist;
       const m = b.mesh; m.visible = true;
       this._orientation(b, eph);
       m.matrix.copy(this._m).scale(this._v.set(scale, scale, scale)).setPosition(dir.x * D, dir.y * D, dir.z * D);
@@ -619,6 +673,9 @@ export class SkyBodies {
       }
       // full-size maps when it grows large (once: they stay)
       if (b.maps && b.got === 2 && b.info.pixels > FULL_MAPS_PX) this._loadMaps(b, 'full');
+      // ... and are let go when it is small again (a tour of the planets would otherwise
+      // keep every full map it ever loaded)
+      else if (b.maps && b.got === 3 && b.info.pixels < FULL_MAPS_PX * 0.3 && b.id !== this.world.body) this._dropFull(b);
       if (b.u.uBandN?.value) {
         // each band's drift so far, in turns (degrees a day from the catalogue; days from J2000)
         const days = eph.jd - 2451545.0, dr = def.surface.drift;
@@ -627,6 +684,7 @@ export class SkyBodies {
       b.u.uLightDir.value.subVectors(sunPos, b.pos).normalize();
       b.u.uLightE.value.set(E * sunC[0], E * sunC[1], E * sunC[2]);
       b.u.uCamRkm.value = cam.length() * 0.001;
+      b.u.uUp.value.copy(up);                      // (the camera's own vertical: the home air's table is looked up along it)
       // A body far brighter than the scene is exposed for (the Earth in the lunar night, a
       // moon at dusk) keeps its colours: the whole of it is dimmed until its sunlit face
       // sits just under white, as the eye does with a bright thing in a dark place. Seen

@@ -104,7 +104,7 @@ export class SunDisc {
     this.uniforms.uUp.value.set(rig.localUp[0], rig.localUp[1], rig.localUp[2]);
     this.uniforms.uCamRkm.value = rig.pos.length() * 0.001;
     this.uniforms.uPixelAngle.value = 2 * Math.tan(rig.fov * Math.PI / 360) / viewH * 0.75;
-    const D = 50;                                   // far-pass units (behind every body: those sit at 20 + 3k)
+    const D = 50;                                   // far-pass units (behind every body: their slots end by 45, SkyBodies.update)
     this.mesh.quaternion.copy(rig.camera.quaternion);
     if (ang * 3.0 > 0.5) {
       // Close up, the disc can fill part of the view while its centre is beside or behind

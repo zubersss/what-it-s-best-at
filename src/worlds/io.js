@@ -14,7 +14,7 @@ export default {
     minAltitude: -2500,
     maxAltitude: 18500,
     shadowRange: 260000,
-    shadowHeadroom: 1200,
+    shadowHeadroom: 3000,       // (the carving of the mountains; the mountain blocks themselves report their own height)
     // Made from the colour mosaic (scripts/fetch-worlds.py, io_dem): the lava floors of the
     // paterae, 1.1 km below the plains, exactly where the pictures show dark lava.
     dems: [

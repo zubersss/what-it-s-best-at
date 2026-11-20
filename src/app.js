@@ -179,6 +179,7 @@ export class App {
     document.addEventListener('visibilitychange', () => {
       // Coming back from the background: the long gap is not a slow frame.
       if (document.visibilityState === 'visible') { this.lastNow = 0; this.resumedAt = performance.now(); } else this.hiddenCount++;
+      this.audio?.setAwake(document.visibilityState === 'visible');        // no sound from a page nobody is looking at
     });
     // Mobile browsers drop the GL context when the tab is backgrounded for long: start over.
     this.canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.contextLost = true; });
@@ -345,8 +346,9 @@ export class App {
   // (checked a few times a second, for the home world's places)
   checkPlaces() {
     const w = this.world, p = this.rig.pos, r = p.length();
-    if (this.rig.agl > 120e3 || !w.places) return;
-    const reach = Math.max(15e3, 0.012 * w.radius);
+    // (both limits shrink with the world: 15 km is more than the whole of Deimos)
+    if (this.rig.agl > Math.min(120e3, 2 * w.radius) || !w.places) return;
+    const reach = Math.min(Math.max(15e3, 0.012 * w.radius), 0.2 * w.radius);
     for (const q of w.places) {
       const key = `${w.id}/${q.id}`;
       if (this.save.has(key)) continue;
@@ -595,7 +597,7 @@ export class App {
     if (i.down('BracketRight')) this.timeOffsetHours = Math.min(tr, this.timeOffsetHours + tr / 20 * dt);
     if (i.down('BracketLeft')) this.timeOffsetHours = Math.max(-tr, this.timeOffsetHours - tr / 20 * dt);
     const names = Object.keys(this.world.scene.bookmarks);
-    for (let k = 0; k < names.length && k < 9; k++) if (i.hit('Digit' + (k + 1))) this.applyBookmark(names[k]);
+    if (!this.overlayOpen) for (let k = 0; k < names.length && k < 9; k++) if (i.hit('Digit' + (k + 1))) this.applyBookmark(names[k]);      // (not while a date is being typed)
   }
 
   // --- targets: this world's real places, the other bodies, the Sun --------------------
@@ -753,7 +755,7 @@ export class App {
     const m = this.targetMarker;
     if (!m) return;
     this.touch?.setGo(!!this.targetId, this.transfer);
-    const t = this.targetId && !this.menuOpen && !this.benchmark?.active ? this.resolveTarget(this.targetId, this._tgtM || (this._tgtM = {})) : null;
+    const t = this.targetId && !this.menuOpen && !this.photo && !this.benchmark?.active ? this.resolveTarget(this.targetId, this._tgtM || (this._tgtM = {})) : null;
     if (!t) { if (m.visible) m.hide(); if (this.targetId && !this.resolveTarget(this.targetId, this._tgtM || (this._tgtM = {}))) this.targetId = null; return; }
     const rig = this.rig, p = rig.pos, cam = [p.x, p.y, p.z];
     const v = (this._vM || (this._vM = new THREE.Vector3())).set(t.pos[0] - p.x, t.pos[1] - p.y, t.pos[2] - p.z);
@@ -873,7 +875,7 @@ export class App {
     for (const b of this.bodies.bodies) {
       if (b.id === this.world.body) continue;
       const q = eph.bodies.get(b.id).pos;
-      list.push({ x: q[0], y: q[1], z: q[2], radius: b.reach, gravity: b.def.gravity || 0 });
+      list.push({ x: q[0], y: q[1], z: q[2], radius: b.reach, gr: b.def.radius, gravity: b.def.gravity || 0 });
     }
     list.push({ x: eph.sunDir[0] * eph.sunDistance, y: eph.sunDir[1] * eph.sunDistance, z: eph.sunDir[2] * eph.sunDistance, radius: SOLAR_SYSTEM.sun.radius, gravity: SOLAR_SYSTEM.sun.gravity });
     const s = surroundings(rig.pos, list, this._around || (this._around = {}));
@@ -884,6 +886,7 @@ export class App {
     const fail = this._loadFail || (this._loadFail = new Map());
     for (const w of Object.values(WORLDS)) {
       if (w.body === this.world.body) continue;
+      if (this.benchmark?.active && w.id !== this.benchmark.destination) continue;      // (the benchmark's route is the same every run: no detour by a moon in the way)
       const d = rig.pos.distanceTo(new THREE.Vector3(...eph.bodies.get(w.body).pos)) - w.radius;
       const f = fail.get(w.id);
       if (f && performance.now() < f.until) continue;          // its data would not load: wait before trying again
@@ -894,9 +897,13 @@ export class App {
         fail.set(w.id, { n, until: performance.now() + Math.min(60000, 5000 * 2 ** (n - 1)) });
         console.warn('world load failed', w.id, e);
       };
-      if (d < Math.max(20 * w.radius, rig.agl / 6) || this.targetId === w.body) this.loadWorldData(w).catch(failed);
+      if (d < Math.max(20 * w.radius, rig.agl / 6) || this.targetId === w.body) {
+        // (one failure per download, however many frames asked for it)
+        const p = this.loadWorldData(w), seen = this._loadSeen || (this._loadSeen = new WeakSet());
+        if (!seen.has(p)) { seen.add(p); p.catch(failed); }
+      }
       if (d < rig.agl * 0.8) {
-        this.switchWorld(w).then(() => fail.delete(w.id), (e) => { failed(e); this.toast?.show(`Could not load ${titleCase(w.id)} — trying again`); });
+        this.switchWorld(w).then(() => fail.delete(w.id), (e) => { if (!fail.has(w.id)) failed(e); this.toast?.show(`Could not load ${titleCase(w.id)} — trying again`); });
         break;
       }
     }
@@ -1041,7 +1048,9 @@ export class App {
     this.sun.update(G.uSunDir.value, eph.sunDistance, rig, post.viewH, (this._sunE || (this._sunE = new THREE.Vector3())).set(sunC[0] * k, sunC[1] * k, sunC[2] * k));
     this.bodies.update(eph, rig, post.viewH);
     this.warp.update(rig.velocity.length(), Math.min(rig.agl, rig.spaceDistance ?? Infinity), dt, aspect, th);
-    if (this.frameCount % 12 === 0) { if (this.menu?.visible) this.menu.render(); if (this.map?.visible) this.map.draw(); }
+    if (this.frameCount % 12 === 0) { if (this.menu?.visible) this.menu.tick(); if (this.map?.visible) this.map.draw(); }
+    // (an overlay is clicked with the mouse: let go of it)
+    if (this.overlayOpen && document.pointerLockElement) document.exitPointerLock?.();
     if (!this.shotMode && !this.menuOpen && !bench) {
       if (this.frameCount % 20 === 0) this.checkPlaces();
       // where the traveller is, for next time (on or near the ground only)
@@ -1094,7 +1103,7 @@ export class App {
 
     // 6. Scene into the HDR target: far pass, clear depth, near pass, then the hero.
     post.beginScene();
-    rig.finalize(aspect, 0.1, 100);
+    rig.finalize(aspect, 0.002, 100);         // (the sky bodies' slots can come close when one of them fills the view: SkyBodies.update)
     renderer.render(this.farScene, rig.camera);
     renderer.clearDepth();
     const near = Math.max(0.25, Math.min(2e6, rig.agl * 0.15));

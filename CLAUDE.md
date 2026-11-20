@@ -331,7 +331,7 @@ finished benchmark leaves its text in `window.__benchResult`.
 - Phones allow 16 textures per shader; the test browser allows 32 and 4096 uniform
   vectors. A shader over a phone's limit draws nothing there and works in every headless
   test (the whole ground vanished on the phone at 17). `scripts/lib/glLimits.mjs` checks
-  every program in `npm run smoke` and in screenshot runs; the terrain shader is at 13
+  every program in `npm run smoke` and in screenshot runs; the terrain shader is at 14
   (plus 2 read by its vertex shader).
 - three uploads a changed texture at the draw call that first uses it, in the middle of
   the render pass, and with `generateMipmaps` has the GPU build the mips there. A phone's
@@ -396,5 +396,26 @@ finished benchmark leaves its text in `window.__benchResult`.
 - The cloud machine reaches only the hosts its environment allows (`what-it-s-best-at`:
   NASA GIBS, USGS planetary maps, the PDS geosciences node). NASA's older image server
   (eoimages) drops the connection from here even when allowed: use GIBS.
+- A noise lattice searched over a fixed block of cells (Worley cells, crater lattices) is
+  right only if nothing outside the block can be nearer than what is inside: with a
+  centre anywhere in its cell the answer changed across lattice planes, as walls 100 m
+  high. Bound the jitter so the block is provably enough.
+- A mask's fade centred on its limit is at half strength at the limit: a latitude limit
+  of 0 or 90 degrees left the layer half there at the very place it was made for. And an
+  early-out by distance in a mask must be wider than the mask (a place 34 degrees wide
+  was cut at 26, as a wall).
+- The shadow rays' ceiling is the elevation map's top plus `shadowHeadroom`: an op that
+  adds mountains far above that must report them (`fn.top`, as `massifs` does), or the
+  rays stop under the peaks and nothing casts a shadow.
+- Sky bodies drawn at made-up distances in the far pass need slots that cannot cross:
+  a big planet's near side reaches far in front of its centre (a moon in transit was
+  drawn behind its planet). Each slot starts behind the whole of the one before.
+- A body's "radius" has several meanings (the globe, the keep-out round its rings, what
+  its surface gravity belongs to): passing the widest to gravity made Saturn pull 5.8
+  times too hard.
+- DOM built again on a timer loses clicks (a button replaced between press and release
+  gets none): update text in place. And release the pointer lock when an overlay opens.
+- A scripted benchmark must not depend on the sky: a moon in the way became a world to
+  hand over to and changed the route. During a benchmark only its destination counts.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

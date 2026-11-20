@@ -65,6 +65,7 @@ function rockGeometry() {
 
 export class Rocks {
   constructor(world, hs) {
+    this.seaLevel = null;            // (set from the world just below and in setWorld)
     this.world = world; this.hs = hs;
     const def = world.surface.rocks || { count: 0, radius: 100, size: [0.3, 1], albedo: [0.15, 0.1, 0.07] };
     this.def = def; this.capacity = 512;                // fixed instance buffer; a world may use fewer

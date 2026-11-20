@@ -6,11 +6,12 @@
 // In a vacuum nothing outside the suit is heard: wind needs air (its loudness follows the
 // world's air density), and footsteps are dull thuds through the boots everywhere.
 export class Audio {
-  constructor() { this.ctx = null; this.on = true; this.steps = 0; this.lastAir = false; this.warp = 0; }
+  constructor() { this.ctx = null; this.on = true; this.awake = true; this.steps = 0; this.lastAir = false; this.warp = 0; }
 
   // Call from a tap or key press (the first one starts the sound).
   start() {
-    if (this.ctx || typeof window === 'undefined') { this.ctx?.resume?.(); return; }
+    if (this.ctx || typeof window === 'undefined') { if (this.on && this.awake) this.ctx?.resume?.(); return; }
+    if (!this.on) return;                      // (nothing is made until the sound is wanted)
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     const c = this.ctx = new AC();
@@ -37,7 +38,22 @@ export class Audio {
     this.air = voice('bandpass', 1800, 0.5);
   }
 
-  setOn(on) { this.on = on; if (this.master) this.master.gain.setTargetAtTime(on ? 0.9 : 0, this.ctx.currentTime, 0.05); }
+  setOn(on) {
+    this.on = on;
+    if (on) this.start();
+    if (this.master) this.master.gain.setTargetAtTime(on ? 0.9 : 0, this.ctx.currentTime, 0.05);
+    this._rest();
+  }
+  // The page shown or hidden: a hidden page makes no sound and does no audio work.
+  setAwake(awake) { this.awake = awake; this._rest(); }
+  // The audio engine runs only while there is something to hear (it is stopped a moment
+  // after the fade, so switching off does not click).
+  _rest() {
+    const c = this.ctx; if (!c) return;
+    clearTimeout(this.restTimer);
+    if (this.on && this.awake) c.resume?.();
+    else this.restTimer = setTimeout(() => { if (!(this.on && this.awake)) c.suspend?.(); }, this.awake ? 300 : 0);
+  }
 
   // A short thud (a footstep, a landing): strength 0..1.
   thud(strength, pitch = 1) {

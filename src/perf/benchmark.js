@@ -24,6 +24,8 @@ export class Benchmark {
     this.kind = kind === 'soak' ? 'soak' : 'run';
     this.duration = this.kind === 'soak' ? 600 : LAP;
     this.active = true;
+    this.destination = SECOND;                 // (the flight hands over to this world only: App.space)
+    app.loadWorldData(WORLDS[SECOND]).catch(() => {});      // its download is not part of the flight
     this.t0 = performance.now();
     this.phase = -1; this.lap = -1; this.busy = false; this.flight = 'climb';
     const cap = Math.ceil(this.duration * 125);

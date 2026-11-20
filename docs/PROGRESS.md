@@ -362,6 +362,48 @@ Earth is a world to land on, built on the plan above.
   waves, weather that moves. Low ground that lies below sea level (Death Valley, the
   Dead Sea) is drawn as sea. The player can stand on the water.
 
+## Milestones 6 to 9 review (before the checkpoint)
+
+One workflow: four reviewers (sky, terrain drawing, height code, the app and its new
+screens) read everything changed since build 27e1973; a second reviewer tried to
+disprove each finding, by running the code where it could. 25 findings, all upheld, all
+fixed:
+
+- **Sky**: the world just left collapsed to a point of light at a hand-over (its globe's
+  maps were never fetched while it was home: now the small copies always, the full ones
+  once the traveller climbs); the home air dimmed and reddened the Moon and planets by
+  their declination instead of their height in the sky (`uUp` was never set); a moon
+  crossing in front of its planet was drawn behind it (far-pass slots `20 + 3k`: now
+  each body's slot lies behind the whole of the one before it, rings included, and all
+  are scaled to end by 45; the far pass's near plane is 0.002); rings and their edge-on
+  line ignored the home air and (the line) the planet's shadow; ring textures had no mip
+  maps; full maps were never let go (now freed when a body is small again, the small
+  copy kept); Saturn pulled 5.8 times too hard (its ring radius stood in for its own).
+- **Height code**: every value written to `c.slope` by `massifs`, `lineaments` and the
+  craters' flat floors is continuous now; `cells` keeps each centre in the middle 0.4 of
+  its cell, so the 27 cells searched always hold the two nearest (walls up to 149 m ran
+  along lattice planes on Triton and Europa); a `where.at` place wider than 26 degrees
+  ended in a wall; a `lat` limit of 0 or 90 is open and fades are in degrees (the tiger
+  stripes were at two thirds strength at the start site, the dunes at half on the
+  equator); Enceladus' large craters were on the equator, not in the north; Io's shadow
+  rays stopped at 1 200 m under 17 km mountains (the mountain blocks now report their
+  height to `ceilingAt`). `scratch` check: no jump above the local slope along lines
+  through each of the reported places.
+- **Terrain drawing**: rocks stood on the sea on a page that started on Earth.
+- **App**: the benchmark's flight handed over to Phobos on the way to the Moon (it now
+  hands over to its destination only, and fetches it at the start); most places on
+  Phobos and Deimos were "found" from the start site (reach now at most a fifth of the
+  radius); sound kept running on a hidden page or switched off (the audio engine is now
+  suspended); photo mode: a hidden stick took touches and the target marker came back;
+  one failed download counted as hundreds; the menu was rebuilt 5 times a second and
+  lost clicks (only its clock line is updated now); the mouse stayed captured under the
+  menu, map and journal; a date typed on a keyboard was cut off after its first part.
+
+Behaviour changes for the player: the ground changed a little on Io's mountains,
+Europa's chaos, Triton's cantaloupe ground, Pluto's ice plain, Venus' tessera, Titan's
+dune belt and round Enceladus' south pole (stronger stripes); Saturn's pull is weaker;
+places on the two small moons must be gone to.
+
 ## Milestone 5 plan: Earth and the Sun from space
 
 1. **Earth as a real globe** (not landable; you stop 2 % of its radius up). NASA maps
@@ -1522,3 +1564,12 @@ Weakest: `mars_ledge_orbit_globe`.
   (`scripts/fetch-earth.py`), its air, glint, clouds and lights; the Sun up close;
   eclipses; light from the world below; `at=` for pictures beside a body; a cloud
   environment `what-it-s-best-at` that allows the NASA and USGS map hosts.
+- **Milestones 6 to 9** (the owner: "finish up the rest of the milestones", with the
+  third benchmark): the ground drawn by one instanced mesh from texture arrays, uploads
+  between frames; twelve new worlds as data (Phobos, Deimos, Mercury, Venus, Ceres, Io,
+  Europa, Enceladus, Titan, Triton, Pluto, Charon) and Earth's surface with a sea and
+  clouds; orbits fitted to JPL Horizons, Jupiter's drifting bands, Saturn's rings; the
+  menu, the solar system map, the clock and dates, the warp effect; the journal, photo
+  mode, saves, sound. Reviewed by one workflow (25 findings, all fixed: "Milestones 6 to
+  9 review"). Tools: `worlds`, `ui`, `peek.mjs`, `check-ephemeris.mjs`, `fit-orbits.py`,
+  `fetch-worlds.py`, `fetch-earth-terrain.py`.

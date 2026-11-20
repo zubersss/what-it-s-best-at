@@ -54,7 +54,8 @@ export class TouchControls {
       this.enable();
       e.preventDefault();
       const w = canvas.clientWidth;
-      if (e.clientX < w * 0.38 && this.stickId === null) {
+      // (with the controls put away, in photo mode, every touch is a look: no hidden stick)
+      if (e.clientX < w * 0.38 && this.stickId === null && !this.suppressed) {
         this.stickId = e.pointerId; this.sx = e.clientX; this.sy = e.clientY;
         this.stick.style.left = (e.clientX - 60) + 'px'; this.stick.style.top = (e.clientY - 60) + 'px';
         this.stick.classList.add('on'); this.knob.style.transform = 'translate(0px, 0px)';

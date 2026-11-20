@@ -267,7 +267,8 @@ chunk), which makes dense crater fields 3–5× cheaper.
   stops once it is above everything it could still meet: `hs.ceilingAt(dir)`, the tallest
   raster height within `shadowRange` of where the ray starts (a 2° grid built from the
   rasters when the height source is created) plus `shadowHeadroom` for what the recipe
-  can add. That makes shadows right at any place on the planet, a 21 km volcano included,
+  can add, plus what any op reports through `fn.top(x, y, z, reach)` (`massifs`: mountains
+  no map shows, far above any headroom). That makes shadows right at any place on the planet, a 21 km volcano included,
   without a per-scene number.
 - Depth: no logarithmic depth. Dynamic near plane (0.25 m on foot), far plane from the
   farthest drawn chunk, front-to-back draw order.
@@ -347,6 +348,16 @@ exposure alone decides whether they are visible.
   A globe's maps are fetched when it first shows a disc (it stays a point until its small
   copies are in) and its full maps when it is 260 pixels across; pictures are decoded off
   the main thread and handed to the GPU as they arrive, between frames.
+  The full maps are freed when the body is small again (the small copy is kept). The home
+  world's own globe is fetched while it is home, so it is there at a hand-over.
+- **Where a resolved body is drawn**: at a made-up distance in the far pass (its true
+  direction and angular size). The slots run near to far and none can cross: each starts
+  behind the whole of the one before, `D_k = D_(k-1) (1 + rho_(k-1)) / (1 - rho_k) * 1.02`
+  with `rho` a body's reach (rings included) over its distance, then all are scaled to
+  end by 45 (the Sun's quad is at 50, the stars at 90; far pass near plane 0.002).
+- **The home air in front of them**: globe, air rim, rings and the rings' edge line all
+  look up the home world's transmittance along the camera's own vertical (`uUp`, set
+  every frame), and only from inside the air.
 - **A globe from one map**: `maps.colour` alone is enough; clouds, lights, water and
   relief are optional (stand-in 1 x 1 textures). `linear`: a one-channel map of linear
   values (the Moon's). `tint` and `gain` turn the map into albedo; `airless`: no limb

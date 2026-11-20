@@ -135,7 +135,8 @@ export class SystemMap {
     { const x = X(0), y = Y(0); const g = ctx.createRadialGradient(x, y, 0, x, y, 16); g.addColorStop(0, '#fff6d8'); g.addColorStop(0.3, '#ffd870'); g.addColorStop(1, 'rgba(255, 200, 80, 0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 16, 0, 7); ctx.fill(); this.points.push({ id: 'sun', x, y }); }
     // bodies
     ctx.font = '12px system-ui, sans-serif'; ctx.textBaseline = 'middle';
-    for (const id of ids) {
+    const labels = [];
+    for (const id of ids.slice().sort((p, q) => cat[q].radius - cat[p].radius)) {       // (the larger body's name wins a crowded spot)
       const b = cat[id], parent = b.parent || 'sun';
       if (parent !== 'sun' && b.orbit.a[0] / this.scale < 9) continue;
       SystemMap.flat(pos(id), o);
@@ -148,8 +149,9 @@ export class SystemMap {
       if (s.landable.has(id)) { ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)'; ctx.beginPath(); ctx.arc(x, y, r + 2.5, 0, 7); ctx.stroke(); }
       if (id === s.target) { ctx.strokeStyle = '#ffd98a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r + 7, 0, 7); ctx.stroke(); ctx.lineWidth = 1; }
       if (id === this.sel) { ctx.strokeStyle = '#ffffff'; ctx.strokeRect(x - r - 6, y - r - 6, 2 * r + 12, 2 * r + 12); }
-      ctx.fillStyle = id === this.sel ? '#ffffff' : 'rgba(225, 228, 238, 0.86)';
-      ctx.fillText(this.hooks.names(id), x + r + 6, y);
+      // (a name is left out where it would lie on one already written: zoom in to read it)
+      const lx = x + r + 6, crowded = labels.some((q) => Math.abs(q[1] - y) < 13 && Math.abs(q[0] - lx) < 64);
+      if (!crowded || id === this.sel) { labels.push([lx, y]); ctx.fillStyle = id === this.sel ? '#ffffff' : 'rgba(225, 228, 238, 0.86)'; ctx.fillText(this.hooks.names(id), lx, y); }
       this.points.push({ id, x, y });
     }
     // the traveller
