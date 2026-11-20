@@ -887,9 +887,11 @@ export class App {
       if (fp) {
         const U = new THREE.Vector3(...rig.localUp), d = (this.params.posedir === 'side' ? rig.right : rig.forward).clone();
         if (this.params.posedir === 'front') d.negate();          // toward the camera (to see the face)
+        const face = d.clone();
         d.addScaledVector(U, -d.dot(U)).normalize();
         pose = { onFoot: true, velocity: d.multiplyScalar(fp.speed), throttle: fp.speed > 0 ? 1 : 0, yawRate: 0, airborne: fp.jump, vUp: fp.jump ? 2.5 : 0, heroRel: rig.heroRel,
-          clock: 0, landedAt: fp.landSpeed ? -0.35 : -99, landSpeed: fp.landSpeed || 0, upHeld: fp.upHeld || 0 };
+          clock: 0, landedAt: fp.landSpeed ? -0.35 : -99, landSpeed: fp.landSpeed || 0, upHeld: fp.upHeld || 0,
+          facing: fp.speed === 0 ? face : null };      // (a standing pose has no motion to turn it)
         if (fp.jump) pose.heroRel = rig.heroRel.clone().addScaledVector(U, 1.6);
       } else {
         // fly: cruising; fast: boosting; bank: cruising in a right turn; climb: straight up

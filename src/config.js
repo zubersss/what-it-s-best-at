@@ -9,7 +9,7 @@ export const CONFIG = {
   MAX_RENDER_CHUNKS: 180,   // most terrain patches drawn at once (the governor's terrain steps lower it: x0.8, x0.64)
   SPLIT_FACTOR: 0.95,       // split when distance < factor * node edge
   SPLIT_FACTOR_OFFSCREEN: 0.3,
-  // From high up only a few dozen patches are in view, far below the draw-call cap, and a
+  // From high up only a few dozen patches are in view, far below the patch cap, and a
   // phone's screen has several pixels per patch texel: patches split this many times sooner
   // above SPACE_BOOST_ALT (blended in from a tenth of it).
   SPLIT_SPACE_BOOST: 2.2,

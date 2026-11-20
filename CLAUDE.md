@@ -13,7 +13,8 @@ last delivered, what the owner was asked for and exactly what to do next.
 
 ## What this game is
 
-A browser game where you fly a suited, cloaked character through our real solar system:
+A browser game where you fly a robed, long-haired character (the owner's own design:
+`docs/PROGRESS.md`, "The owner's character") through our real solar system:
 walk on worlds, lift off, reach orbit, cross to other bodies and land. Inspired by No
 Man's Sky, but every place is real. The current build (Mars, the Moon, flight between
 them, the character) is the foundation. Keep everything that works.
@@ -323,5 +324,16 @@ finished benchmark leaves its text in `window.__benchResult`.
 - A GO trip's speed when it arrives is far above what hand flight allows there (it plunged
   from 60 km to the ground in a few frames): `stopTransfer` hands back the stick's speed.
   `npm run transfer` flies every trip with HOVER on and off and prints the height after.
+- Everything is kept in the home world's spinning axes, in which any other body races by
+  (Phobos at 1.5 km/s, the Sun at 15,000 km/s seen from Mars). Near such a body the
+  traveller is carried along with it (`App.carryWith`); anything new that must stay
+  beside a body that is not home needs the same.
+- `rig.agl` is the height over the home world's ground and feeds the speed law, the near
+  plane and the hand-over test: never write a placeholder into it (a zero made flight
+  crawl at 7 m/s beside every moon).
+- A worker job sent every frame keeps the terrain from ever counting as settled, and every
+  screenshot then waits out its time limit: ask once per screenshot (`requestHeroVis`).
+- A test that cannot fail is worse than none (`npm run flight` printed "errors: none" for
+  two milestones whatever happened). Every script must exit non-zero on a failed check.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

@@ -164,6 +164,7 @@ export class Hero {
     const want = this._f.copy(src).addScaledVector(up, -src.dot(up));
     if (want.lengthSq() > 1e-8) want.normalize();
     if (!this.started || this.facing.lengthSq() < 0.5) this.facing.copy(want);
+    if (motion.facing) this.facing.copy(motion.facing);          // (screenshot poses)
     // (turning straight round: a lerp between opposite directions never leaves their line,
     // so nudge it sideways and let it swing round at the usual rate)
     if (this.facing.dot(want) < -0.98) this.facing.addScaledVector(this._g.crossVectors(up, this.facing), 0.05);
@@ -334,8 +335,8 @@ export class Hero {
       }
     }
 
-    // Cloak: gravity, inertia, and the air streaming past. In vacuum there is no air, but
-    // the cloak is still made to trail the direction of flight a little (owner's request).
+    // The cloth: gravity, inertia, and the air streaming past. In vacuum there is no air, but
+    // it is still made to trail the direction of flight a little (owner's request).
     const g = this._g.copy(up).multiplyScalar(-env.gravity);
     const flow = Math.min(speed, 42) * (0.3 + 0.7 * env.air);
     const wind = this._wind.copy(dir).multiplyScalar(-flow * (speed > 0.05 ? 1 : 0));

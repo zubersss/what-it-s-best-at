@@ -133,6 +133,7 @@ export class Rocks {
     this.cellKey = '';
     this.points = new Float64Array(n * 3);
     this.count = 0; this.needVis = false; this.visSun = [0, 0, 0];
+    this.visByCell = new Map(); this.slotKey = [];       // sun visibility per rock (keyed by its cell)
     this._d = [0, 0, 0];
   }
 
@@ -153,7 +154,7 @@ export class Rocks {
     u.uDustCap.value = def.dustCap ?? 0.55;
     this.mesh.visible = (def.count | 0) > 0;
     this.cellKey = ''; this.count = 0; this.geometry.instanceCount = 0; this.needVis = false;
-    this.visByCell = new Map(); this.slotKey = [];       // sun visibility per rock (keyed by its cell)
+    this.visByCell.clear(); this.slotKey.length = 0;
   }
 
   // Re-scatter when the camera enters a new grid cell; keep sun visibility up to date.

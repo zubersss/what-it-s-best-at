@@ -330,7 +330,6 @@ export class CameraRig {
     this.held = hold;
   }
 
-  toggleMode() { this.setMode(this.mode === 'walk' ? 'fly' : 'walk'); }
 
   setMode(mode) {
     this.mode = mode;
