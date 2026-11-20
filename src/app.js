@@ -644,7 +644,7 @@ export class App {
       {
         const hero = this.hero, tmp = this._swV || (this._swV = new THREE.Vector3());
         for (const v of [hero.prevVel, hero.lag, hero.facing]) v.copy(toF(toI(v)));
-        for (const a of [hero.cloak.pos, hero.cloak.prev]) {
+        for (const a of [hero.robe.pos, hero.robe.prev]) {
           for (let i = 0; i < a.length; i += 3) { tmp.set(a[i], a[i + 1], a[i + 2]); const r = toF(toI(tmp)); a[i] = r.x; a[i + 1] = r.y; a[i + 2] = r.z; }
         }
       }
@@ -819,6 +819,7 @@ export class App {
       let pose;
       if (fp) {
         const U = new THREE.Vector3(...rig.localUp), d = (this.params.posedir === 'side' ? rig.right : rig.forward).clone();
+        if (this.params.posedir === 'front') d.negate();          // toward the camera (to see the face)
         d.addScaledVector(U, -d.dot(U)).normalize();
         pose = { onFoot: true, velocity: d.multiplyScalar(fp.speed), throttle: fp.speed > 0 ? 1 : 0, yawRate: 0, airborne: fp.jump, vUp: fp.jump ? 2.5 : 0, heroRel: rig.heroRel,
           clock: 0, landedAt: fp.landSpeed ? -0.35 : -99, landSpeed: fp.landSpeed || 0, upHeld: fp.upHeld || 0 };
@@ -1001,7 +1002,7 @@ export class App {
       world: world.name, mode: rig.mode, shot: this.shotMode ? this.bookmark : '',
       build: BUILD.commit, governor: this.governor.summary, modeLabel: MODES[this.governor.mode].label,
       nativeW: post.width, nativeH: post.height, refresh: this.governor.vsyncMeasured ? Math.round(1000 / this.governor.vsync) : '?',
-      calls: this.stats.calls, triangles: this.stats.triangles, maxCalls: CONFIG.MAX_DRAW_CALLS, maxTriangles: CONFIG.MAX_TRIANGLES,
+      calls: this.stats.calls, triangles: this.stats.triangles,
       chunksDrawn: this.terrain.drawList.length, chunksLoaded: this.terrain.loadedCount, chunkPool: CONFIG.CHUNK_POOL, queue: this.terrain.queueLength,
       scale: post.scale, viewW: post.viewW, viewH: post.viewH, gpuMs: this.governor.gpuMs,
       gpuBytes: this.gpuBytes, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries,

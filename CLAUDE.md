@@ -55,8 +55,11 @@ call. Consolidate and restructure when that makes it healthier. Two limits:
   hunt. Two modes on a button: **Smooth** (60 fps target, the default) and **Sharp**
   (30 fps target, favouring native resolution). Photo mode renders a single frame at full
   native resolution.
-- **Budgets**: under 200 draw calls, 500,000 triangles and about 300 MB of GPU memory per
-  frame, with fixed-size pools.
+- **No fixed budgets** (the owner dropped the 200 draw calls / 500,000 triangles / 300 MB
+  limits on 2026-11-20: "make the best game possible"). The only limit is the test-device
+  policy above: a steady frame rate on the phone, kept by the governor. Pools stay
+  fixed-size so memory cannot creep, and anything that adds cost still gets a governor
+  step. Judge by the phone's benchmark, not by a number in a table.
 
 ## Decisions Claude makes alone, and the ones that need approval
 
@@ -179,7 +182,7 @@ bookmark, deterministic screenshot mode, skips the start screen), `t=<hours offs
 benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|fast|bank|climb|hover`
 (cruising, boosting, turning, straight up, hovering), `heropose=stand|walk|run|super|jump|land|launch`
 (with `hero=1`: on foot; `land` is the three-point kneel after a hard landing, `launch` the
-fist-up take-off), `posedir=side` (seen from the side), `target=<body>|sun|place:<id>`
+fist-up take-off), `posedir=side` (seen from the side; `front`: an on-foot pose facing the camera), `target=<body>|sun|place:<id>`
 (the target marker, view unchanged), `lat= lon= alt= heading= pitch= fov=`, `east= north=` (metres from the bookmark's place),
 `aim=<sky body>` (turn the view to it), `dust=1` (with `hero=1`: a touch-down dust burst
 frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last footfalls), `debug=noair|airall` (haze shadows off / everywhere),

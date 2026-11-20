@@ -1,6 +1,7 @@
-// The flying character: how it moves. A suited figure (heroModel.js) posed between
+// The flying character: how it moves. A robed figure (heroModel.js) posed between
 // "hover" (upright, relaxed) and "flight" (horizontal, arms forward), with elbows and
-// knees that bend and a simulated cloak that is kept off the body, arms and legs. In
+// knees that bend, and simulated cloth (robe.js: the robe's skirt, the wide sleeves, the
+// hair) that is kept off the body, head, arms and legs. In
 // flight it is drawn a few metres in front of the camera, so the engine's camera, floating
 // origin and controls stay exactly as they are: the hero is the thing you fly behind.
 //
@@ -9,7 +10,7 @@ import * as THREE from 'three';
 import { lightingUniforms } from '../render/lightingGlsl.js';
 import { torsoGeometry, upperArmGeometry, forearmGeometry, thighGeometry, shinGeometry, ELBOW, HAND, KNEE, ANKLE, SHOULDER, HIP, HERO_VERT, HERO_FRAG } from './heroModel.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
-import { Cloak } from './cloak.js';
+import { Robe } from './robe.js';
 
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 
@@ -47,16 +48,17 @@ export class Hero {
     this.colliders = new Float32Array(8 * 7);
     this._bend = new THREE.Quaternion(); this._joint = new THREE.Vector3(); this._end = new THREE.Vector3();
     this.legSwing = 0;
-    this.cloak = new Cloak();
-    this.cape = mk(this.cloak.geometry);     // cloth vertices are already in world axes, anchor-relative
+    this.robe = new Robe();
+    this.cape = mk(this.robe.geometry);      // cloth vertices are already in world axes, anchor-relative
     this.group.add(this.cape);
+    this._pins = new Float32Array(8 * 3); this._pv = new THREE.Vector3(); this._bz = new THREE.Vector3();
     // The near shadow map gives the figure's parts a tile of their own that follows it
     // (its "focus"), fine enough (7 mm) for the hard-edged shadow of a suited figure under
     // an airless sky.
     for (const m of this.casters) m.userData.shadowFocus = this.group;
     this.group.visible = false;
     const tris = (m) => m.geometry.attributes.position.count / 3;
-    this.triangles = this.cloak.triangles + tris(this.torso) + 2 * (tris(this.arms[0]) + tris(this.forearms[0]) + tris(this.legs[0]) + tris(this.shins[0]));
+    this.triangles = this.robe.triangles + tris(this.torso) + 2 * (tris(this.arms[0]) + tris(this.forearms[0]) + tris(this.legs[0]) + tris(this.shins[0]));
 
     this.flight = 0;                          // 0 hover .. 1 flying
     this.foot = 0;                            // 0 in the air .. 1 on foot (walking pose)
@@ -92,6 +94,19 @@ export class Hero {
     const c = this.colliders, o = k * 7, p = upper.position;
     c[o] = p.x; c[o + 1] = p.y; c[o + 2] = p.z; c[o + 3] = j.x; c[o + 4] = j.y; c[o + 5] = j.z; c[o + 6] = r0;
     c[o + 7] = j.x; c[o + 8] = j.y; c[o + 9] = j.z; c[o + 10] = e.x; c[o + 11] = e.y; c[o + 12] = e.z; c[o + 13] = r1;
+  }
+
+  // The wide sleeve of arm i lies over the arm from the upper arm to the wrist: the line it
+  // is fixed along, in the body's frame, on the outer side of the limb as posed this frame.
+  _sleevePins(i, name) {
+    const up = this.arms[i], lo = this.forearms[i], pts = this._pins, v = this._pv, n = 6, sx = i ? -0.05 : 0.05;
+    for (let k = 0; k < n; k++) {
+      const along = 0.10 + (k / (n - 1)) * 0.52;
+      if (along <= ELBOW) v.set(sx, -along, 0).applyQuaternion(up.quaternion).add(up.position);
+      else v.set(sx, -(along - ELBOW), 0).applyQuaternion(lo.quaternion).add(lo.position);
+      pts[k * 3] = v.x; pts[k * 3 + 1] = v.y; pts[k * 3 + 2] = v.z;
+    }
+    this.robe.setPins(name, pts);
   }
 
   setVisible(v) { if (v && !this.group.visible) this.started = false; this.group.visible = v; }
@@ -270,10 +285,11 @@ export class Hero {
       const k = this.foot;
       for (let i = 0; i < 12; i++) P[i] += (F[i] - P[i]) * k;
     }
-    this._limb(this.arms[0], this.forearms[0], P[0], P[1], P[2], ELBOW, HAND, 0.09, 0.085, 0);
-    this._limb(this.arms[1], this.forearms[1], P[3], P[4], P[5], ELBOW, HAND, 0.09, 0.085, 2);
-    this._limb(this.legs[0], this.shins[0], P[6], P[7], P[8], KNEE, ANKLE, 0.11, 0.10, 4);
-    this._limb(this.legs[1], this.shins[1], P[9], P[10], P[11], KNEE, ANKLE, 0.11, 0.10, 6);
+    this._limb(this.arms[0], this.forearms[0], P[0], P[1], P[2], ELBOW, HAND, 0.065, 0.06, 0);
+    this._limb(this.arms[1], this.forearms[1], P[3], P[4], P[5], ELBOW, HAND, 0.065, 0.06, 2);
+    this._limb(this.legs[0], this.shins[0], P[6], P[7], P[8], KNEE, ANKLE, 0.085, 0.078, 4);
+    this._limb(this.legs[1], this.shins[1], P[9], P[10], P[11], KNEE, ANKLE, 0.085, 0.078, 6);
+    this._sleevePins(0, 'sleeveL'); this._sleevePins(1, 'sleeveR');
 
     // Place the figure: on foot where the rig puts it (standing on the ground, lowered in a
     // landing crouch and by the bent knees of a run); flying, in front of and a little
@@ -313,8 +329,18 @@ export class Hero {
     const g = this._g.copy(up).multiplyScalar(-env.gravity);
     const flow = Math.min(speed, 42) * (0.3 + 0.7 * env.air);
     const wind = this._wind.copy(dir).multiplyScalar(-flow * (speed > 0.05 ? 1 : 0));
-    if (!this.started) { this.cloak.reset(this._m3); this.started = true; }
-    this.cloak.update(dt, this._m3, g, this.accel, wind, env.air, this.colliders);
+    // A breeze is always blowing through the robe and the hair (gently, from ahead and a
+    // little to one side, its strength drifting), even standing still and in vacuum: the
+    // owner wants the robe flowing. Like the cloak trailing in vacuum before it, a
+    // deliberate departure from physics.
+    // (its push is a share of this world's gravity, so the cloth leans and ripples instead
+    // of standing straight out: about a third of its weight, gusting to a half)
+    const bt = this.time, push = env.gravity * (0.30 + 0.14 * Math.sin(bt * 0.53) + 0.08 * Math.sin(bt * 1.37 + 1.0));
+    const bs = push / (0.9 + 5.5 * env.air);                  // (cloth follows the air at this rate: robe.js)
+    const bl = this._bz.set((0.75 + 0.2 * Math.sin(bt * 0.21)) * bs, 0.1 * bs, -0.65 * bs).applyMatrix3(this._m3);
+    wind.add(bl);
+    if (!this.started) { this.robe.reset(this._m3); this.started = true; }
+    this.robe.update(dt, this._m3, g, this.accel, wind, env.air, this.colliders);
   }
 
   // Runs the cloak for a while with steady conditions (deterministic screenshots).
