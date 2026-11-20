@@ -15,6 +15,12 @@ changes behaviour.
   "finish up the rest of the milestones". Milestones 6, 7, 8 and 9 were then built in one
   go and merged; all four are `checkpoint sent`. What each contains is under "Milestone
   6: what was built", "Milestones 7 and 8", and "Milestone 9: what was built" below.
+- **Checked before the merge** (headless, frozen builds): an independent review (25
+  findings, all fixed: "Milestones 6 to 9 review"); `worlds` (all 15), `ui`, `smoke`,
+  `target`, `flight`, `foot`, `govsim`, `transfer`, `check-ephemeris` all pass. The
+  opening view of every new world is in `docs/shots/<world>_ledge.png`; the full
+  reference set (every bookmark of every world, about 8 hours of headless rendering) and
+  the stability test have not been run for the new worlds.
 - **Not confirmed on the phone, any of it.** Everything since build 27e1973 has been
   judged in headless pictures and tests only. Asked of the owner: (1) a Smooth benchmark
   (the ground renderer was rebuilt for the stutter of the third results: "The owner's
