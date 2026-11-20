@@ -61,9 +61,9 @@ export class SunDisc {
               vec3 q = n * 420.0 + vec3(0.0, 0.0, uTime * 0.02);
               float g = vnoise(q) * 0.6 + vnoise(q * 2.3 + 5.0) * 0.4;
               float fineOn = smoothstep(500.0, 2500.0, px);                // the grain: only very near
-              float sp = vnoise(n * 11.0 + 3.0) * 0.6 + vnoise(n * 29.0 + 7.0) * 0.4;
+              float sp = vnoise(n * 24.0 + 3.0) * 0.6 + vnoise(n * 57.0 + 7.0) * 0.4;
               float belt = smoothstep(0.08, 0.2, abs(n.z)) * smoothstep(0.55, 0.38, abs(n.z));
-              float core = smoothstep(0.735, 0.75, sp) * belt, fringe = smoothstep(0.705, 0.72, sp) * belt;
+              float core = smoothstep(0.765, 0.785, sp) * belt, fringe = smoothstep(0.725, 0.75, sp) * belt;
               float bright = smoothstep(0.62, 0.70, vnoise(n * 23.0 + 11.0)) * (1.0 - mu) * (1.0 - mu) * belt;
               grain = mix(1.0, (1.0 + 0.10 * (g - 0.5) * fineOn) * (1.0 - 0.35 * fringe) * (1.0 - 0.85 * core) * (1.0 + 0.25 * bright), big);
               // the edge: darker than the plain law draws it once the picture is exposed for
