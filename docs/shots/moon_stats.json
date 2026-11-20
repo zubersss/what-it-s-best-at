@@ -1,121 +1,19 @@
 {
-  "ledge": {
-    "calls": 132,
-    "triangles": 461989,
-    "chunks": 113,
-    "loaded": 339,
-    "visited": 306,
-    "wanted": 0,
-    "lodScale": 0.76,
-    "avgBuildMs": 51.5,
-    "exposure": 10.06,
-    "surface": [
-      0.649,
-      0.117
-    ],
-    "frame": 191,
-    "wait": ""
-  },
-  "sun": {
-    "calls": 130,
-    "triangles": 457189,
-    "chunks": 111,
-    "loaded": 480,
-    "visited": 430,
-    "wanted": 0,
-    "lodScale": 0.653,
-    "avgBuildMs": 51.4,
-    "exposure": 228.7,
-    "surface": [
-      0.481,
-      0.0377
-    ],
-    "frame": 326,
-    "wait": ""
-  },
-  "wall": {
-    "calls": 133,
-    "triangles": 468709,
-    "chunks": 114,
-    "loaded": 441,
-    "visited": 366,
-    "wanted": 0,
-    "lodScale": 0.694,
-    "avgBuildMs": 47.8,
-    "exposure": 64.91,
-    "surface": [
-      0.543,
-      0.124
-    ],
-    "frame": 266,
-    "wait": ""
-  },
-  "ship": {
-    "calls": 136,
-    "triangles": 475065,
-    "chunks": 116,
-    "loaded": 381,
-    "visited": 350,
-    "wanted": 0,
-    "lodScale": 0.833,
-    "avgBuildMs": 48.5,
-    "exposure": 30.65,
-    "surface": [
-      0.589,
-      0.151
-    ],
-    "frame": 191,
-    "wait": ""
-  },
   "dusk": {
-    "calls": 126,
-    "triangles": 418629,
-    "chunks": 109,
-    "loaded": 356,
-    "visited": 314,
+    "calls": 177,
+    "triangles": 607269,
+    "chunks": 160,
+    "loaded": 394,
+    "visited": 394,
     "wanted": 0,
-    "lodScale": 0.76,
-    "avgBuildMs": 40.6,
-    "exposure": 30030,
+    "lodScale": 1,
+    "avgBuildMs": 31.4,
+    "exposure": 62510,
     "surface": [
       0.188,
-      0.0307
+      0.064
     ],
-    "frame": 706,
-    "wait": "exposure "
-  },
-  "tycho": {
-    "calls": 135,
-    "triangles": 475793,
-    "chunks": 117,
-    "loaded": 475,
-    "visited": 382,
-    "wanted": 0,
-    "lodScale": 0.653,
-    "avgBuildMs": 62.7,
-    "exposure": 24.93,
-    "surface": [
-      0.556,
-      0.131
-    ],
-    "frame": 246,
-    "wait": ""
-  },
-  "taurus": {
-    "calls": 125,
-    "triangles": 444113,
-    "chunks": 107,
-    "loaded": 354,
-    "visited": 318,
-    "wanted": 0,
-    "lodScale": 0.715,
-    "avgBuildMs": 57.9,
-    "exposure": 40.5,
-    "surface": [
-      0.257,
-      0.316
-    ],
-    "frame": 190,
+    "frame": 152,
     "wait": ""
   }
 }

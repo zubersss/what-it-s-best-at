@@ -1,72 +1,4 @@
 {
-  "ledge": {
-    "calls": 133,
-    "triangles": 471295,
-    "chunks": 114,
-    "loaded": 342,
-    "visited": 334,
-    "wanted": 0,
-    "lodScale": 0.97,
-    "avgBuildMs": 82,
-    "exposure": 21.4,
-    "surface": [
-      0.655,
-      0.169
-    ],
-    "frame": 183,
-    "wait": "exposure "
-  },
-  "sun": {
-    "calls": 136,
-    "triangles": 454223,
-    "chunks": 113,
-    "loaded": 472,
-    "visited": 434,
-    "wanted": 18,
-    "lodScale": 1,
-    "avgBuildMs": 114.2,
-    "exposure": 2.912,
-    "surface": [
-      0.342,
-      0.0558
-    ],
-    "frame": 191,
-    "wait": "exposure terrain rocks "
-  },
-  "wall": {
-    "calls": 122,
-    "triangles": 405083,
-    "chunks": 100,
-    "loaded": 414,
-    "visited": 414,
-    "wanted": 0,
-    "lodScale": 1,
-    "avgBuildMs": 112,
-    "exposure": 43.29,
-    "surface": [
-      0.601,
-      0.165
-    ],
-    "frame": 208,
-    "wait": "exposure "
-  },
-  "ship": {
-    "calls": 137,
-    "triangles": 469643,
-    "chunks": 115,
-    "loaded": 357,
-    "visited": 330,
-    "wanted": 0,
-    "lodScale": 0.859,
-    "avgBuildMs": 91.8,
-    "exposure": 243.6,
-    "surface": [
-      0.911,
-      0.186
-    ],
-    "frame": 214,
-    "wait": "exposure "
-  },
   "dusk": {
     "calls": 122,
     "triangles": 390211,
@@ -75,64 +7,30 @@
     "visited": 338,
     "wanted": 0,
     "lodScale": 1,
-    "avgBuildMs": 38.6,
-    "exposure": 223200,
+    "avgBuildMs": 34.2,
+    "exposure": 217300,
     "surface": [
       0.403,
-      0.00322
+      0.00318
     ],
-    "frame": 194,
+    "frame": 121,
     "wait": ""
   },
-  "canyon": {
-    "calls": 138,
-    "triangles": 461403,
-    "chunks": 116,
-    "loaded": 338,
-    "visited": 326,
-    "wanted": 0,
-    "lodScale": 0.913,
-    "avgBuildMs": 51.5,
-    "exposure": 22.34,
+  "sun": {
+    "calls": 116,
+    "triangles": 383823,
+    "chunks": 93,
+    "loaded": 480,
+    "visited": 422,
+    "wanted": 4,
+    "lodScale": 0.784,
+    "avgBuildMs": 49.4,
+    "exposure": 2.898,
     "surface": [
-      0.651,
-      0.135
+      0.342,
+      0.0559
     ],
-    "frame": 164,
-    "wait": ""
-  },
-  "olympus": {
-    "calls": 135,
-    "triangles": 473375,
-    "chunks": 116,
-    "loaded": 341,
-    "visited": 314,
-    "wanted": 0,
-    "lodScale": 0.715,
-    "avgBuildMs": 44.3,
-    "exposure": 39.74,
-    "surface": [
-      0.63,
-      0.318
-    ],
-    "frame": 195,
-    "wait": ""
-  },
-  "gale": {
-    "calls": 129,
-    "triangles": 458095,
-    "chunks": 110,
-    "loaded": 378,
-    "visited": 346,
-    "wanted": 0,
-    "lodScale": 0.833,
-    "avgBuildMs": 43.6,
-    "exposure": 23.6,
-    "surface": [
-      0.625,
-      0.148
-    ],
-    "frame": 217,
+    "frame": 169,
     "wait": ""
   }
 }

@@ -1,19 +1,19 @@
 {
   "canyon": {
-    "calls": 28,
-    "triangles": 75087,
-    "chunks": 5,
-    "loaded": 198,
-    "visited": 198,
+    "calls": 18,
+    "triangles": 6775,
+    "chunks": 0,
+    "loaded": 46,
+    "visited": 46,
     "wanted": 0,
     "lodScale": 1,
-    "avgBuildMs": 52,
-    "exposure": 72.46,
+    "avgBuildMs": 37.1,
+    "exposure": 230000,
     "surface": [
-      0.012,
-      0.315
+      0,
+      0
     ],
-    "frame": 140,
+    "frame": 26,
     "wait": ""
   }
 }
