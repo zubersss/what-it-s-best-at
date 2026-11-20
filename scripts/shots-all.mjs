@@ -40,6 +40,13 @@ const SETS = [
   ['moon', 'ship', 'hero=1&heropose=jump&posedir=side', '_hero_jump'],
   ['moon', 'ship', 'hero=1&heropose=run&posedir=side&dust=run', '_hero_rundust'],     // dust from the last footfalls
   ['mars', 'gale', 'hero=1&heropose=walk&posedir=front&fov=30', '_hero_front'],          // walking toward the camera: the face and the front of the robe
+  // Earth and the Sun from space (the camera is placed beside the body: at=)
+  ['mars', 'ledge', 'at=earth:3.2:35:15', '_earth_day'],
+  ['mars', 'ledge', 'at=earth:2.2:95:20', '_earth_term'],            // the day-night line
+  ['mars', 'ledge', 'at=earth:2.6:150:10', '_earth_night'],          // the night side: city lights, the rim of air
+  ['mars', 'ledge', 'at=earth:1.25:60:5&fov=60', '_earth_low'],      // low over it
+  ['moon', 'dusk', 'aim=earth&fov=8', '_earth_moon'],                // Earth in the lunar sky, through a long lens
+  ['mars', 'ledge', 'at=sun:2.4:0:0', '_sun_close'],
   // flight poses (milestone 4): boosting and turning seen from the side over Gale, a
   // three-point landing on the Moon, and the target marker on Olympus Mons from orbit
   ['mars', 'gale', 'hero=1&heropose=fast&posedir=side&alt=30&pitch=-6', '_hero_fast'],

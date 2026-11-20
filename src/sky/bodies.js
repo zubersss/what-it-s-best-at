@@ -389,7 +389,9 @@ export class SkyBodies {
       {
         const s = def.surface || {}, peak = (s.recipe === 'globe' ? 0.8 : 1.6 * Math.max(...(s.albedo || [0.1]))) / Math.PI;
         const litShare = Math.min(1, Math.max(0, (1 + cosA) / 2) / 0.12);
-        b.u.uGain.value = Math.min(1, 0.75 / Math.max(1e-9, G.uExposure.value * E * peak * litShare));
+        // (a body only a few pixels across stays a bright point: nothing of its face to save)
+        const px = b.info.pixels, tx = Math.min(1, Math.max(0, (px - 6) / 34)), target = 4 + (0.75 - 4) * tx * tx * (3 - 2 * tx);
+        b.u.uGain.value = Math.min(1, target / Math.max(1e-9, G.uExposure.value * E * peak * litShare));
       }
       b.u.uUp.value.copy(this._up(rig));
       // Planetshine from the home world onto its own moons.
