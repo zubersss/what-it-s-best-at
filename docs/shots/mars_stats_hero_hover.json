@@ -1,19 +1,19 @@
 {
   "ship": {
     "calls": 157,
-    "triangles": 481023,
+    "triangles": 483103,
     "chunks": 115,
     "loaded": 357,
     "visited": 330,
     "wanted": 0,
     "lodScale": 0.859,
-    "avgBuildMs": 40.8,
-    "exposure": 224.9,
+    "avgBuildMs": 45.5,
+    "exposure": 222.8,
     "surface": [
       0.911,
-      0.329
+      0.327
     ],
-    "frame": 128,
+    "frame": 129,
     "wait": ""
   }
 }

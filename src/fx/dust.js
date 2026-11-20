@@ -172,7 +172,7 @@ void main() {
   // not hide each other's shadows as packed soil does, so even over dark lunar ground a
   // plume catches the light), more of it forward than back; plus sky light.
   float ph = dustPhase(dot(normalize(vRel), uSunDir));
-  vec3 E = directSun(planetPos) * (uSunVis * mix(0.5, 0.35, uVac) * ph * lump) + skyLight(up, up) + planetShine(up);
+  vec3 E = directSun(planetPos) * (uSunVis * mix(0.5, 0.2, uVac) * ph * lump) + skyLight(up, up) + planetShine(up);
   // (always within a few metres of the eye: no haze in between worth the cost)
   fragColor = vec4(uDustAlbedo * uGroundTint * tone * E / PI * uExposure, alpha);
 }`;
