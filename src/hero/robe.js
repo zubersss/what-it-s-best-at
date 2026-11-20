@@ -121,7 +121,7 @@ export class Robe {
       const ri = (ix, iy) => p.rbase + iy * p.RX + ix;
       for (let iy = 0; iy < p.RY - 1; iy++) for (let ix = 0; ix < p.RX - 1; ix++) {
         const a = ri(ix, iy), b = a + 1, c = a + p.RX, d = c + 1;
-        indices.push(a, b, c, d, b, c);       // front faces along the normals _draw writes; both end on c (the cell's material: flat)
+        indices.push(a, b, c, b, d, c);       // both wound along the normals _draw writes (u x v), both ending on c (the cell's material: flat)
       }
       for (let iy = 0; iy < p.RY; iy++) for (let ix = 0; ix < p.RX; ix++) {
         const u = ix / (p.RX - 1), v = iy / (p.RY - 1), i = ri(ix, iy);
