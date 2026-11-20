@@ -92,11 +92,11 @@ export default {
     },
   },
   places: [
-    { id: 'huygens', name: 'Huygens landing place', lat: -10.3, lon: 167.7 },
-    { id: 'belet', name: 'Belet sand sea', lat: -6.0, lon: 105.0 },
-    { id: 'xanadu', name: 'Xanadu', lat: -10.0, lon: 260.0 },
-    { id: 'kraken', name: 'Kraken Mare (methane sea)', lat: 68.0, lon: 50.0 },
-    { id: 'ligeia', name: 'Ligeia Mare', lat: 79.0, lon: 112.0 },
-    { id: 'selk', name: 'Selk crater (Dragonfly\'s goal)', lat: 7.0, lon: 161.0 },
+    { id: 'huygens', name: 'Huygens landing place', fact: 'The farthest landing ever made: the Huygens probe came down here in January 2005.', lat: -10.3, lon: 167.7 },
+    { id: 'belet', name: 'Belet sand sea', fact: 'A sea of dark sand dunes 100 m high, as large as the Sahara\'s.', lat: -6.0, lon: 105.0 },
+    { id: 'xanadu', name: 'Xanadu', fact: 'A bright highland the size of Australia.', lat: -10.0, lon: 260.0 },
+    { id: 'kraken', name: 'Kraken Mare (methane sea)', fact: 'A sea of liquid methane larger than the Caspian.', lat: 68.0, lon: 50.0 },
+    { id: 'ligeia', name: 'Ligeia Mare', fact: 'A methane sea so calm that radar saw it as a mirror.', lat: 79.0, lon: 112.0 },
+    { id: 'selk', name: 'Selk crater (Dragonfly\'s goal)', fact: 'The Dragonfly rotorcraft is due to explore this crater in the 2030s.', lat: 7.0, lon: 161.0 },
   ],
 };

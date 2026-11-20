@@ -109,7 +109,8 @@ for (let v = 0; v < pan; v++) {
       }
     }
     const fogT = Math.exp(-hit / (world.atmosphere ? 60000 : 1e12)), base = world.surface.dust, sky = world.atmosphere ? 0.25 : 0.03;
-    for (let k = 0; k < 3; k++) rgb[o + k] = Math.min(255, 255 * Math.pow(Math.min(1, (base[k] * 4.5 * (lit + sky)) * fogT + (1 - fogT) * 0.5 * base[k] * 4), 1 / 2.2));
+    const gain = 0.55 / Math.max(base[0], base[1], base[2]);       // (exposed for the ground's own brightness)
+    for (let k = 0; k < 3; k++) rgb[o + k] = Math.min(255, 255 * Math.pow(Math.min(1, (base[k] * gain * (lit + sky)) * fogT + (1 - fogT) * 0.5 * base[k] * gain), 1 / 2.2));
   }
 }
 const out = opt('out', 'peek.png');

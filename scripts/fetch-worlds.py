@@ -377,8 +377,8 @@ def sites():
     window(VEN, 0, 12, 70, 60, 'venus_dem_maxwell.i16')                   # Maxwell Montes, 11 km high
     window(VEN, 190, 202, 5, -3, 'venus_dem_maat.i16')                    # Maat Mons
     PLU = M + 'Pluto_NewHorizons_Global_DEM_300m_Jul2017_16bit.tif'       # 69 px/deg
-    window(PLU, 168, 184, 32, 8, 'pluto_dem_sputnik.i16', avg=2)          # the west shore of Sputnik Planitia: al-Idrisi, Hillary and Tenzing Montes
-    window(PLU, 170, 178, -8, -20, 'pluto_dem_wright.i16')                # Wright Mons and the south end of the ice plain
+    window(PLU, 158, 182, 4, -28, 'pluto_dem_shore.i16', avg=2)           # the south-west shore of Sputnik Planitia: Hillary and Tenzing Montes, Wright Mons
+    window(PLU, 169, 179, -11, -23, 'pluto_dem_tenzing.i16')              # Tenzing Montes and Wright Mons at full detail (300 m)
     CHA = M + 'Charon_NewHorizons_Global_DEM_300m_Jul2017_16bit.tif'      # 35 px/deg
     window(CHA, 0, 30, 30, 0, 'charon_dem_serenity.i16')                  # Serenity Chasma and Kubrick Mons (the mountain in a moat)
     CER = M + 'Ceres_Dawn_FC_HAMO_DTM_DLR_Global_60ppd_Oct2016.tif'       # 60 px/deg, metres above 470 km

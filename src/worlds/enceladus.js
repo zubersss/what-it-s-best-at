@@ -42,6 +42,7 @@ export default {
   surface: {
     roughness: 0.4,
     bounce: 0.9,
+    gloss: { strength: 0.7, roughness: 0.35 },      // the Sun's sheen on ice
     reliefMap: { url: 'data/enceladus_slopes_1024.jpg', strength: 1.5, latFade: [84, 89] },
     // Cassini mosaic, tinted the blue-white of its ice.
     albedoMap: { url: 'data/enceladus_color_4096.jpg', encoding: 'srgb', mean: [0.3564, 0.3934, 0.4441], strength: 0.8, chroma: 1.0, latFade: [86, 89], range: [0.6, 1.4] },
@@ -63,14 +64,14 @@ export default {
   sky: { stars: { url: 'data/stars_bsc5.f32' } },
 
   scene: {
-    dateUTC: '2008-08-11T21:00:00Z',   // Cassini's pass 50 km over the stripes
+    dateUTC: '2008-08-12T21:00:00Z',   // the day after Cassini's pass 50 km over the stripes: a low Sun, Saturn three quarters lit
     // The rim of Baghdad Sulcus, the most active of the tiger stripes, at the south pole.
-    start: { lat: -82.0, lon: 30.0, eye: 1.7, heading: 0, pitch: -4 },
+    start: { lat: -82.0, lon: 30.0, eye: 1.7, heading: 326, pitch: 2 },
     ship: { east: 40, north: 30, heading: 40 },
     exposure: { key: 0.20, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.5, highlight: 6, dim: { above: 60, power: 0.5, most: 5 } },
     bookmarks: {
-      ledge: { label: 'Baghdad Sulcus, a tiger stripe', heading: 0, pitch: -4, fov: 60 },
-      sun: { label: 'Saturn from Enceladus', lat: -8.0, lon: 22.0, heading: 290, pitch: 48, fov: 60 },
+      ledge: { label: 'Baghdad Sulcus, Saturn on the horizon', heading: 326, pitch: 2, fov: 64 },
+      sun: { label: 'Saturn from Enceladus', lat: -8.0, lon: 22.0, heading: 290, pitch: 56, fov: 64, timeOffsetHours: -3 },
       wall: { label: 'Along the fracture', heading: 135, pitch: -6, fov: 40 },
       ship: { label: 'The lander', east: 20, north: 14, heading: 60, pitch: 4, fov: 50 },
       dusk: { label: 'Saturn on the horizon', lat: -70.0, lon: 0.0, heading: 0, pitch: 12, fov: 60, timeOffsetHours: 8 },
@@ -78,10 +79,10 @@ export default {
     },
   },
   places: [
-    { id: 'baghdad', name: 'Baghdad Sulcus (tiger stripe)', lat: -82.0, lon: 30.0 },
-    { id: 'damascus', name: 'Damascus Sulcus', lat: -80.0, lon: 75.0 },
-    { id: 'subsaturn', name: 'The point under Saturn', lat: 0, lon: 0 },
-    { id: 'labtayt', name: 'Labtayt Sulci', lat: -28.0, lon: 75.0 },
-    { id: 'alibaba', name: 'Ali Baba crater', lat: 55.1, lon: 337.8 },
+    { id: 'baghdad', name: 'Baghdad Sulcus (tiger stripe)', fact: 'The warmest and most active of the fractures that spray the ocean into space.', lat: -82.0, lon: 30.0 },
+    { id: 'damascus', name: 'Damascus Sulcus', fact: 'Jets of ice from here feed Saturn\'s E ring.', lat: -80.0, lon: 75.0 },
+    { id: 'subsaturn', name: 'The point under Saturn', fact: 'Saturn hangs overhead here, sixty times as wide as our Moon looks.', lat: 0, lon: 0 },
+    { id: 'labtayt', name: 'Labtayt Sulci', fact: 'A canyon a kilometre deep.', lat: -28.0, lon: 75.0 },
+    { id: 'alibaba', name: 'Ali Baba crater', fact: 'A crater softened as the ice slowly flowed.', lat: 55.1, lon: 337.8 },
   ],
 };

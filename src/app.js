@@ -19,6 +19,12 @@ import { flightBase } from './controls/speedLaw.js';
 import { aimDirection, gapTo, standoff, transferMult, tripTime, groundDistance, OVER_PLACE } from './controls/autopilot.js';
 import { TargetMarker } from './ui/targetMarker.js';
 import { TargetPicker } from './ui/targetPicker.js';
+import { Menu } from './ui/menu.js';
+import { SystemMap } from './ui/map.js';
+import { Warp } from './fx/warp.js';
+import { Save } from './core/save.js';
+import { Journal } from './ui/journal.js';
+import { Audio } from './audio/audio.js';
 import { surroundings } from './controls/gravity.js';
 import { TouchControls } from './controls/touch.js';
 import { Atmosphere } from './atmosphere/atmosphere.js';
@@ -26,6 +32,7 @@ import { makeSkyDome } from './sky/skyDome.js';
 import { SunDisc } from './sky/sun.js';
 import { makeStars } from './sky/stars.js';
 import { SkyBodies } from './sky/bodies.js';
+import { CloudLayer } from './sky/clouds.js';
 import { NearShadow } from './shadows/nearShadow.js';
 import { Rocks } from './rocks/rocks.js';
 import { Lander } from './ship/lander.js';
@@ -63,6 +70,15 @@ const titleCase = (id) => id.charAt(0).toUpperCase() + id.slice(1);
 const FOOT_POSES = { stand: { speed: 0 }, walk: { speed: 1.6 }, run: { speed: 5.5 }, super: { speed: 45 }, jump: { speed: 4, jump: true },
   land: { speed: 0.6, landSpeed: 14 }, launch: { speed: 0, jump: true, upHeld: 0.3 } };     // (land creeps sideways so the figure turns side-on)
 
+// How fast the clock may run (seconds of the world's time per second), and what to call it.
+const RATES = [-864000, -86400, -21600, -3600, -600, -60, 1, 60, 600, 3600, 21600, 86400, 864000];
+function rateLabel(r) {
+  const a = Math.abs(r), t = a >= 86400 ? `${a / 86400} day${a > 86400 ? 's' : ''}` : a >= 3600 ? `${a / 3600} hour${a > 3600 ? 's' : ''}` : `${a / 60} minute${a > 60 ? 's' : ''}`;
+  return `${t} a second${r < 0 ? ', backwards' : ''}`;
+}
+// The clock stays inside the years the orbits were fitted for (1950 to 2100).
+const JD_MIN = 2433282.5, JD_MAX = 2488069.5;
+
 export class App {
   constructor({ canvas, context, world, params }) {
     this.canvas = canvas; this.world = world; this.params = params;
@@ -90,6 +106,9 @@ export class App {
     this.baseJD = dateToJD(Date.parse(world.scene.dateUTC));
     this.timeOffsetHours = 0;
     this.paused = this.shotMode;
+    this.timeRate = 1;                 // seconds of the world's clock per second (see setTimeRate)
+    this.save = new Save();            // places found, the last place on each world, the sound switch
+    this.audio = new Audio(); this.audio.on = this.save.data.sound !== false;
     this.frameCount = 0;
     this.lastNow = 0;
     this.stats = {};
@@ -142,7 +161,8 @@ export class App {
     this.hud.onTime = (h) => { this.timeOffsetHours = h; };
     if (!this.shotMode) {
       // The start screen goes up at once; its buttons unlock when the first terrain is drawn.
-      this.startScreen = new StartScreen(BUILD, this.governor.mode, { play: () => this.play(), benchmark: (kind) => this.startBenchmark(kind), mode: () => this.toggleMode() });
+      this.startScreen = new StartScreen(BUILD, this.governor.mode, { play: () => this.play(), benchmark: (kind) => this.startBenchmark(kind), mode: () => this.toggleMode() },
+        Object.values(WORLDS).map((w) => ({ id: w.id, name: w.name })), world.id);
       this.results = new ResultsScreen(() => { this.startScreen.show(); });
       this.banner = new BenchBanner(() => this.benchmark.stop());
       this.toast = new Toast();
@@ -152,7 +172,7 @@ export class App {
     this.timeRange = (world.dayHours || 24) / 2;
     this.hud.setTimeRange(this.timeRange);
     this.input = new Input(this.canvas);
-    this.touch = new TouchControls(this.canvas, this.input, { view: () => this.cycleBookmark(), target: () => this.openPicker(), go: () => this.toggleTransfer() });
+    this.touch = new TouchControls(this.canvas, this.input, { view: () => this.cycleBookmark(), target: () => this.openPicker(), go: () => this.toggleTransfer(), map: () => this.openMap(), menu: () => this.openMenu() });
     if (params.touch) this.touch.enable();
     this.touch.setVisible(!this.menuOpen);
     this.targetMarker = new TargetMarker();
@@ -178,6 +198,8 @@ export class App {
     this.farScene.add(this.sun.mesh, this.skyDome);
     this.bodies = new SkyBodies(world, SOLAR_SYSTEM, renderer);
     this.farScene.add(this.bodies.group);
+    this.warp = new Warp();
+    this.farScene.add(this.warp.lines);
     if (world.sky.stars) {
       const res = await fetch(import.meta.env.BASE_URL + world.sky.stars.url);
       if (!res.ok) throw new Error('Failed to load star catalogue');
@@ -190,13 +212,17 @@ export class App {
     this.nearShadow = new NearShadow(renderer);
     this.terrain = new Terrain(world, data.rasters, data.hs, renderer);
     this.rig.groundAt = (d, dist) => this.terrain.drawnHeight(d, dist);   // the character stands on the ground as drawn
+    // the home world's cloud layer (a world without clouds: nothing is drawn)
+    this.clouds = new CloudLayer(renderer);
+    this.clouds.setWorld(world);
+    this.terrain.shared.uCloud.value = this.clouds.shadow;
     if (!this.shotMode) this.terrainBudget(MODES[this.governor.mode].patches ?? 1, 'mode');     // (reference pictures show them all)
     // ?debug=nofar: none of the far-ground changes (relief, far roughness, finer patches from orbit), for before/after pictures
     // (or one at a time: nofarrough, noboost)
     if (params.debug.includes('nofar') || params.debug.includes('nofarrough')) this.terrain.shared.uFarRoughness.value = this.terrain.shared.uRoughness.value;
     if (params.debug.includes('nofar') || params.debug.includes('noboost')) CONFIG.SPLIT_SPACE_BOOST = 1;
     this.rocks = new Rocks(world, data.hs);
-    this.nearScene.add(this.terrain.group, this.rocks.mesh);
+    this.nearScene.add(this.terrain.group, this.rocks.mesh, this.clouds.mesh);
     this.nearShadow.addCaster(this.rocks.mesh, this.rocks.depthMaterial, null, () => this.rocks.nearCount);
     this.placeLander(world, data.hs);
     this.hero = new Hero();
@@ -278,6 +304,156 @@ export class App {
     this.jumpedAt = performance.now();
   }
 
+  // --- the clock ----------------------------------------------------------------------
+  // How fast the world's clock runs: 1 = as fast as a real one. `.` and `,` step through
+  // RATES (backwards too); `/` is real time again.
+  setTimeRate(rate) {
+    this.timeRate = rate; this.paused = false;
+    this.toast?.show(rate === 1 ? 'Time: as it passes' : `Time: ${rateLabel(rate)}`);
+  }
+  stepTimeRate(dir) {
+    const k = RATES.indexOf(this.timeRate), n = Math.min(RATES.length - 1, Math.max(0, (k < 0 ? RATES.indexOf(1) : k) + dir));
+    this.setTimeRate(RATES[n]);
+  }
+  // The clock set to a moment (milliseconds since 1970 UTC), kept inside the years the
+  // orbits were fitted for.
+  setDate(ms) {
+    this.baseJD = Math.min(JD_MAX, Math.max(JD_MIN, dateToJD(ms))); this.timeOffsetHours = 0;
+    this.toast?.show(new Date(jdToDate(this.baseJD)).toISOString().slice(0, 10));
+  }
+  get clock() { return new Date(jdToDate(this.baseJD + this.timeOffsetHours / 24)); }
+
+  // --- the menu, the map ----------------------------------------------------------------
+  get overlayOpen() { return !!(this.picker?.visible || this.menu?.visible || this.map?.visible || this.journal?.visible); }
+
+  // --- things to do: the journal, sound, photographs --------------------------------------
+  openJournal() {
+    if (!this.journal) {
+      this.journal = new Journal(Object.values(WORLDS).map((w) => ({ id: w.id, name: w.name, places: w.places || [] })), this.save,
+        (worldId, placeId) => { if (worldId === this.world.id) this.pickTarget('place:' + placeId); });
+    }
+    this.picker?.hide(); this.menu?.hide(); this.map?.hide();
+    if (this.journal.visible) this.journal.hide(); else this.journal.show(this.world.id);
+  }
+  toggleSound() {
+    const on = !this.audio.on;
+    this.audio.start(); this.audio.setOn(on);
+    this.save.data.sound = on; this.save.touch(true);
+    this.toast?.show(on ? 'Sound on' : 'Sound off');
+  }
+  // A place is found by going there: within its reach along the ground and not from orbit.
+  // (checked a few times a second, for the home world's places)
+  checkPlaces() {
+    const w = this.world, p = this.rig.pos, r = p.length();
+    if (this.rig.agl > 120e3 || !w.places) return;
+    const reach = Math.max(15e3, 0.012 * w.radius);
+    for (const q of w.places) {
+      const key = `${w.id}/${q.id}`;
+      if (this.save.has(key)) continue;
+      const d = latLonToDir(q.lat, q.lon), cos = (p.x * d[0] + p.y * d[1] + p.z * d[2]) / r;
+      if (Math.acos(Math.min(1, cos)) * w.radius > (q.reach ?? reach)) continue;
+      this.save.find(key, new Date().toISOString());
+      this.audio.chime();
+      this.toast?.show(`Found: ${q.name}${q.fact ? ' — ' + q.fact : ''}`, 6500);
+    }
+  }
+  // Photo mode: everything but the picture is put away and time stands still; the shutter
+  // draws one frame at the screen's full resolution with every feature on and saves it.
+  photoMode(on) {
+    if (on === !!this.photo || this.menuOpen || this.benchmark?.active) return;
+    if (on) {
+      this.photo = { paused: this.paused, hud: this.hud.level, fov: this.rig.baseFov };
+      this.paused = true; this.hud.setLevel(HUD.OFF); this.touch.setVisible(false); this.targetMarker?.hide();
+      if (!this.photoBar) {
+        const bar = this.photoBar = document.createElement('div'); bar.id = 'photobar';
+        bar.innerHTML = '<button data-a="wide">Wider</button><button data-a="tele">Closer</button><button data-a="earlier">Earlier</button><button data-a="later">Later</button><button data-a="shoot" class="primary">Take the picture</button><button data-a="back">Back</button>';
+        document.body.appendChild(bar);
+        bar.addEventListener('click', (e) => {
+          const a = e.target?.dataset?.a; if (!a) return;
+          if (a === 'back') this.photoMode(false);
+          else if (a === 'shoot') this.photoWanted = true;
+          else if (a === 'wide') this.rig.baseFov = this.rig.fov = Math.min(100, this.rig.fov * 1.15);
+          else if (a === 'tele') this.rig.baseFov = this.rig.fov = Math.max(6, this.rig.fov / 1.15);
+          else this.timeOffsetHours += (a === 'later' ? 1 : -1) * this.timeRange / 40;
+        });
+      }
+      this.photoBar.classList.remove('hidden');
+      this.toast?.show('Photo mode: drag to look, then take the picture', 3000);
+    } else {
+      this.paused = this.photo.paused; this.hud.setLevel(this.photo.hud); this.rig.baseFov = this.rig.fov = this.photo.fov;
+      this.touch.setVisible(true); this.photoBar?.classList.add('hidden');
+      this.photo = null;
+    }
+  }
+  // (called at the end of the frame that was drawn for the photograph: the canvas still holds it)
+  savePhoto() {
+    const name = `solar-system-${this.world.id}-${this.clock.toISOString().slice(0, 10)}.png`;
+    this.canvas.toBlob((blob) => {
+      if (!blob) { this.toast?.show('The picture could not be saved'); return; }
+      const file = typeof File !== 'undefined' ? new File([blob], name, { type: 'image/png' }) : null;
+      // a phone's share sheet where there is one (save to photos, send), a download otherwise
+      if (file && navigator.canShare?.({ files: [file] }) && this.touch.enabled) { navigator.share({ files: [file], title: 'Solar System Explorer' }).catch(() => {}); return; }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      this.toast?.show(`Saved ${this.canvas.width} x ${this.canvas.height}`, 2600);
+    }, 'image/png');
+  }
+
+  openMenu() {
+    if (!this.menu) this.menu = new Menu(() => this.menuSections());
+    this.picker?.hide(); this.map?.hide();
+    this.menu.toggle();
+  }
+  menuSections() {
+    const iso = this.clock.toISOString(), day = iso.slice(0, 10);
+    return [
+      { title: 'Where to', items: [
+        { label: 'Map', sub: 'the solar system now', act: () => this.openMap() },
+        { label: 'Targets', sub: 'places and worlds', act: () => this.openPicker() },
+        { label: 'Next view', sub: 'of this world', act: () => this.cycleBookmark() },
+      ] },
+      { title: 'Time', note: `${day}  ${iso.slice(11, 16)} UTC · ${this.paused ? 'stopped' : this.timeRate === 1 ? 'as it passes' : rateLabel(this.timeRate)}`,
+        items: [
+          { label: '◀◀', sub: 'slower / back', stay: true, act: () => this.stepTimeRate(-1) },
+          { label: this.paused ? '▶' : '❚❚', sub: this.paused ? 'run' : 'stop', stay: true, act: () => { this.paused = !this.paused; } },
+          { label: '▶▶', sub: 'faster', stay: true, act: () => this.stepTimeRate(1) },
+          { label: 'Real time', sub: 'one second a second', stay: true, on: this.timeRate === 1 && !this.paused, act: () => this.setTimeRate(1) },
+          { label: 'Today', sub: 'the real date', stay: true, act: () => this.setDate(Date.now()) },
+          { label: 'This place\'s day', sub: this.world.scene.dateUTC.slice(0, 10), stay: true, act: () => this.setDate(Date.parse(this.world.scene.dateUTC)) },
+        ],
+        date: { value: day, min: '1950-01-01', max: '2099-12-31', set: (ms) => this.setDate(ms) } },
+      { title: 'Things to do', items: [
+        { label: 'Journal', sub: `${this.save.count} places found`, act: () => this.openJournal() },
+        { label: 'Photograph', sub: 'full resolution', act: () => this.photoMode(true) },
+        { label: this.audio.on ? 'Sound: on' : 'Sound: off', sub: 'tap to change', stay: true, on: this.audio.on, act: () => this.toggleSound() },
+        { label: 'To the start', sub: `of ${this.world.name}`, act: () => this.applyBookmark(Object.keys(this.world.scene.bookmarks)[0]) },
+      ] },
+      { title: 'Camera and picture', items: [
+        { label: 'Free camera', sub: 'leave the character', act: () => this.input.virtualTap('KeyF') },
+        { label: 'Read-out', sub: 'one line / all / off', act: () => this.hud.toggle() },
+        { label: `Mode: ${MODES[this.governor.mode].label}`, sub: `${MODES[this.governor.mode].fps} fps`, stay: true, act: () => this.toggleMode() },
+        { label: 'Full screen', sub: 'and keep the screen on', act: () => this.touch.fullscreen() },
+      ] },
+    ];
+  }
+
+  openMap() {
+    if (!this.map) {
+      const landable = new Set(Object.values(WORLDS).map((w) => w.body));
+      this.map = new SystemMap({
+        state: () => {
+          const e = this.ephemeris, M = e.icrfToFixed, p = this.rig.pos, h = e.positionICRF(this.world.body, e.jd, [0, 0, 0]);
+          // the traveller from the Sun: the home world's place plus the camera's, turned out of the home axes
+          const you = [h[0] + M[0] * p.x + M[3] * p.y + M[6] * p.z, h[1] + M[1] * p.x + M[4] * p.y + M[7] * p.z, h[2] + M[2] * p.x + M[5] * p.y + M[8] * p.z];
+          return { jd: e.jd, cat: SOLAR_SYSTEM, eph: e, home: this.world.body, you, target: this.targetId && !this.targetId.startsWith('place:') ? this.targetId : null, landable, date: this.clock.toISOString().slice(0, 10) };
+        },
+        pick: (id) => this.pickTarget(id), go: () => { if (!this.transfer) this.toggleTransfer(); }, names: (id) => titleCase(id),
+      });
+    }
+    this.picker?.hide(); this.menu?.hide();
+    this.map.toggle();
+  }
+
   cycleBookmark() {
     const names = Object.keys(this.world.scene.bookmarks);
     this.applyBookmark(names[(names.indexOf(this.bookmark) + 1) % names.length]);
@@ -324,6 +500,16 @@ export class App {
   play() {
     this.startScreen.hide();
     this.menuOpen = false;
+    this.audio.start();
+    // Back where the traveller last stood on this world (unless the address names a place).
+    const last = this.save.data.last[this.world.id], p = this.params;
+    if (last && !this._resumed && p.lat == null && p.shot == null && Number.isFinite(last.lat) && Number.isFinite(last.lon)) {
+      this.rig.setLatLon(last.lat, last.lon, this.world.scene.start.eye, last.heading ?? 0, 0);
+      if (this.rig.mode === 'hero') this.rig.standUp();
+      this.jumpedAt = performance.now();
+      this.toast?.show('Back where you left off', 2400);
+    }
+    this._resumed = true;
     this.touch.setVisible(true);
     if (this.touch.enabled) immersive();
     keepAwake();
@@ -396,6 +582,14 @@ export class App {
     if (i.hit('Enter') || i.hit('NumpadEnter')) this.toggleTransfer();
     if (i.hit('KeyX')) this.setHover(!this.rig.hover);
     if (i.hit('KeyP')) this.paused = !this.paused;
+    if (i.hit('Period')) this.stepTimeRate(1);
+    if (i.hit('Comma')) this.stepTimeRate(-1);
+    if (i.hit('Slash')) this.setTimeRate(1);
+    if (i.hit('KeyN')) this.openMap();
+    if (i.hit('KeyJ')) this.openJournal();
+    if (i.hit('KeyK')) this.toggleSound();
+    if (i.hit('KeyO')) this.photoMode(!this.photo);
+    if (i.hit('Tab')) this.openMenu();
     const tr = this.timeRange;
     // (per second, not per frame: the same pace in Smooth and Sharp)
     if (i.down('BracketRight')) this.timeOffsetHours = Math.min(tr, this.timeOffsetHours + tr / 20 * dt);
@@ -466,9 +660,13 @@ export class App {
     if (!this.picker) this.picker = new TargetPicker((id) => this.pickTarget(id));
     const { places, sky } = this.targetList(), t = this._tgtP || (this._tgtP = {}), p = this.rig.pos, cam = [p.x, p.y, p.z];
     const info = (id) => { const r = this.resolveTarget(id, t); return r ? fmtDistance(Math.max(0, r.kind === 'place' ? groundDistance(cam, r, this.world.radius) : gapTo(cam, r))) : ''; };
+    // (the sky nearest first; worlds you can land on are marked)
+    const gap = (id) => { const r = this.resolveTarget(id, t); return r ? gapTo(cam, r) : Infinity; };
+    const landable = new Set(Object.values(WORLDS).map((w) => w.body));
+    const near = sky.map((x) => ({ ...x, d: gap(x.id) })).sort((a, b) => a.d - b.d);
     this.picker.show([
-      { title: `On ${titleCase(this.world.id)}`, items: places.map((x) => ({ ...x, info: info(x.id) })) },
-      { title: 'In the sky', items: sky.map((x) => ({ ...x, info: info(x.id) })) },
+      { title: `On ${this.world.name}`, items: places.map((x) => ({ ...x, info: info(x.id) })) },
+      { title: 'In the sky (nearest first; ● = you can land there)', items: near.map((x) => ({ id: x.id, name: (landable.has(x.id) ? '● ' : '') + x.name, info: info(x.id) })) },
     ], this.targetId);
   }
 
@@ -731,6 +929,7 @@ export class App {
       G.uPlanetRadius.value = w.radius;
       this.atmosphere.setWorld(w);
       this.terrain.setWorld(w, data.rasters, data.hs);
+      this.clouds.setWorld(w);
       this.rocks.setWorld(w, data.hs);
       this.dust.setWorld(w);
       this.placeLander(w, data.hs);
@@ -764,11 +963,14 @@ export class App {
       this.benchmark.update(dtMs, cause);
       if (this.frameCount % 15 === 0) this.banner.set(this.benchmark.status);
     }
-    const input = this.menuOpen || this.picker?.visible ? NO_INPUT : this.input;
+    const input = this.menuOpen || this.overlayOpen ? NO_INPUT : this.input;
 
     // 1. Time and sky geometry
     if (!this.menuOpen && !bench) this.handleKeys(dt);
-    if (!this.paused) this.timeOffsetHours += dt / 3600;
+    if (!this.paused) this.timeOffsetHours += dt * this.timeRate / 3600;
+    // (run far from the scene's date: the slider is centred again on where the clock is)
+    if (Math.abs(this.timeOffsetHours) > this.timeRange * 1.001 && this.timeRate !== 1) { this.baseJD += this.timeOffsetHours / 24; this.timeOffsetHours = 0; }
+    this.baseJD = Math.min(JD_MAX, Math.max(JD_MIN, this.baseJD));
     const jd = this.baseJD + this.timeOffsetHours / 24;
     const eph = this.ephemeris;
     // Beside a body that is not the home world (hovering at Phobos, over the Sun), the
@@ -824,7 +1026,9 @@ export class App {
 
     // 4. Atmosphere LUTs
     governor.beginFrame();
-    post.setScale(governor.scale);
+    // (a photograph is one frame at full size; the governor does not count it)
+    if (this.photoWanted) this.resizedAt = now;
+    post.setScale(this.photoWanted ? 1 : governor.scale);
     G.uViewport.value.set(post.viewW, post.viewH);
     G.uExposure.value = post.exposure;
     const aspect = post.viewW / post.viewH;
@@ -836,6 +1040,24 @@ export class App {
     // (the disc's own brightness is that of the unhidden Sun: an eclipse hides it, it does not dim it)
     this.sun.update(G.uSunDir.value, eph.sunDistance, rig, post.viewH, (this._sunE || (this._sunE = new THREE.Vector3())).set(sunC[0] * k, sunC[1] * k, sunC[2] * k));
     this.bodies.update(eph, rig, post.viewH);
+    this.warp.update(rig.velocity.length(), Math.min(rig.agl, rig.spaceDistance ?? Infinity), dt, aspect, th);
+    if (this.frameCount % 12 === 0) { if (this.menu?.visible) this.menu.render(); if (this.map?.visible) this.map.draw(); }
+    if (!this.shotMode && !this.menuOpen && !bench) {
+      if (this.frameCount % 20 === 0) this.checkPlaces();
+      // where the traveller is, for next time (on or near the ground only)
+      if (this.frameCount % 300 === 0 && rig.agl < 5000) {
+        const r = rig.pos.length();
+        this.save.data.last[world.id] = { lat: +(Math.asin(rig.pos.z / r) * 180 / Math.PI).toFixed(5), lon: +(((Math.atan2(rig.pos.y, rig.pos.x) * 180 / Math.PI) + 360) % 360).toFixed(5), heading: Math.round(rig.heading) };
+        this.save.touch();
+      }
+      this.save.tick(dt);
+      // sound: the air's density where the traveller is, how it moves, what just happened
+      const a = world.atmosphere, alt = rig.pos.length() - world.radius;
+      const dens = a ? (a.surfaceDensity ?? 0) * Math.exp(-Math.max(0, alt) / (a.rayleigh?.scaleHeight ?? 10000)) : 0;
+      const foot = rig.mode === 'hero' && rig.onFoot, landed = this._wasAir && foot && !rig.airborne ? Math.max(1, rig.landSpeed) : 0;
+      this._wasAir = !foot || rig.airborne;
+      this.audio.update(dt, { airDensity: dens, speed: rig.velocity.length(), onFoot: foot || rig.mode === 'walk', airborne: rig.airborne, throttle: rig.throttle || 0, boost: rig.boost, flying: rig.mode === 'hero' && !rig.onFoot, warp: this.warp.amount, landed });
+    }
     this.stars?.setFrame(eph.icrfToFixed, rig, post.viewH);
     // ?aim=<body>: possible only now, once the bodies have a position for this moment.
     if (this.pendingAim && this.frameCount >= 2) { this.aimAt(this.pendingAim); this.pendingAim = null; }
@@ -876,7 +1098,10 @@ export class App {
     renderer.render(this.farScene, rig.camera);
     renderer.clearDepth();
     const near = Math.max(0.25, Math.min(2e6, rig.agl * 0.15));
-    rig.finalize(aspect, near, this.terrain.farDistance * 1.05);
+    // (clouds: their shadow reads the same map; the view must reach the layer's horizon)
+    const cloudFar = this.clouds.update(rig.pos, world.radius);
+    this.terrain.shared.tClouds.value = this.clouds.mesh.visible ? this.clouds.texture : this.terrain.textures.white;
+    rig.finalize(aspect, near, Math.max(this.terrain.farDistance, cloudFar) * 1.05);
     renderer.render(this.nearScene, rig.camera);
     if (this.hero.group.visible) {
       // Near the ground the hero shares the terrain's depth buffer (rocks can hide it);
@@ -894,6 +1119,7 @@ export class App {
 
     // 7. Post
     post.render(dt);
+    if (this.photoWanted) { this.photoWanted = false; this.savePhoto(); }
     governor.endFrame();
     const settling = cause !== 'unknown' && cause !== 'quality step' && !cause.startsWith('new terrain');
     // An upload's cost can land a frame or two later (the driver finishes textures and
@@ -924,9 +1150,9 @@ export class App {
     }
 
     if (this.shotMode) {
-      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
+      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && !this.clouds.loading && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
       window.__shotReady = ready;
-      window.__stats = { calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow' : ''}` };
+      window.__stats = { calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.clouds.loading ? 'clouds' : ''}` };
     }
   }
 

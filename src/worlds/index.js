@@ -1,6 +1,7 @@
 // World registry. Adding a world = adding one data file and one line here.
 // (Only these small files are loaded at start-up; a world's maps and elevation come when
 // the traveller approaches it: App.loadWorldData.)
+import earth from './earth.js';
 import mars from './mars.js';
 import moon from './moon.js';
 import phobos from './phobos.js';
@@ -16,7 +17,7 @@ import pluto from './pluto.js';
 import charon from './charon.js';
 import ceres from './ceres.js';
 
-export const WORLDS = { mars, moon, phobos, deimos, mercury, io, europa, enceladus, titan, venus, triton, pluto, charon, ceres };
+export const WORLDS = { mars, moon, earth, phobos, deimos, mercury, io, europa, enceladus, titan, venus, triton, pluto, charon, ceres };
 
 export function getWorld(id) {
   const w = WORLDS[id];

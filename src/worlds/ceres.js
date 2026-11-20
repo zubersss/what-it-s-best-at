@@ -61,11 +61,11 @@ export default {
     dateUTC: '2016-02-01T10:00:00Z',   // Dawn in its lowest orbit
     // Inside Occator crater, at the edge of Cerealia Facula: a dome of bright salt left by
     // brine that welled up from below, on a crater floor 4 km under the rim.
-    start: { lat: 19.55, lon: 239.75, eye: 1.7, heading: 250, pitch: -2 },
+    start: { lat: 20.02, lon: 240.20, eye: 1.7, heading: 262, pitch: -1 },
     ship: { east: 40, north: 30, heading: 40 },
     exposure: { key: 0.07, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.6, highlight: 6, dim: { above: 60, power: 0.5, most: 5 } },
     bookmarks: {
-      ledge: { label: 'Occator, the bright salt of Cerealia Facula', heading: 250, pitch: -2, fov: 60 },
+      ledge: { label: 'Occator, the bright salt of Cerealia Facula', heading: 262, pitch: -1, fov: 60 },
       sun: { label: 'The Sun from Ceres', heading: 90, pitch: 20, fov: 30 },
       wall: { label: 'Occator, the crater wall', heading: 30, pitch: 4, fov: 34 },
       ship: { label: 'The lander', east: 20, north: 14, heading: 60, pitch: 4, fov: 50 },
@@ -74,11 +74,11 @@ export default {
     },
   },
   places: [
-    { id: 'occator', name: 'Occator crater (the bright spots)', lat: 19.8, lon: 239.3 },
-    { id: 'ahuna', name: 'Ahuna Mons', lat: -10.5, lon: 316.2 },
-    { id: 'kerwan', name: 'Kerwan basin', lat: -10.8, lon: 124.0 },
-    { id: 'haulani', name: 'Haulani crater', lat: 5.8, lon: 10.8 },
-    { id: 'ernutet', name: 'Ernutet crater', lat: 52.9, lon: 45.5 },
-    { id: 'northpole', name: 'North pole', lat: 88.0, lon: 0 },
+    { id: 'occator', name: 'Occator crater (the bright spots)', fact: 'The bright spots are salt left by brine from below: among the youngest ground on Ceres.', lat: 19.8, lon: 239.3 },
+    { id: 'ahuna', name: 'Ahuna Mons', fact: 'A lone mountain 4 km high, built by salty mud that welled up: an ice volcano.', lat: -10.5, lon: 316.2 },
+    { id: 'kerwan', name: 'Kerwan basin', fact: 'The largest crater on Ceres, 280 km wide and softened by time.', lat: -10.8, lon: 124.0 },
+    { id: 'haulani', name: 'Haulani crater', fact: 'A young crater with bluish rays.', lat: 5.8, lon: 10.8 },
+    { id: 'ernutet', name: 'Ernutet crater', fact: 'Organic material was found around this crater.', lat: 52.9, lon: 45.5 },
+    { id: 'northpole', name: 'North pole', fact: 'Craters here stay dark all year and hold ice.', lat: 88.0, lon: 0 },
   ],
 };

@@ -41,7 +41,9 @@ export default {
         [26.1, 261.6, 5700, 50000],      // Skythia Mons
         [11.5, 48.0, 4200, 30000],       // a ridge beside Loki
       ] },
-      { op: 'ridged', seed: 6, maxWavelength: 16000, minWavelength: 40, roughness: 0.9, amp: 2600, slopeMask: [0.10, 0.24], warp: 0.3 },
+      { op: 'ridged', seed: 6, maxWavelength: 16000, minWavelength: 40, roughness: 0.9, amp: 2600, slopeMask: [0.10, 0.24], warp: 0.3, where: { alt: [500, 40000], altFade: 400 } },
+      // (the patera walls: fluted a little, not carved into spurs)
+      { op: 'ridged', seed: 7, maxWavelength: 1800, minWavelength: 30, roughness: 0.9, amp: 160, slopeMask: [0.08, 0.2], warp: 0.4, where: { alt: [-5000, 500], altFade: 400 } },
       // The plains are stacked lava flows and sulphur deposits: low scarps a few hundred
       // metres high wander across them, and the patera walls step down in benches.
       { op: 'terrace', seed: 8, thickness: 260, cliff: 0.2, rise: 0.72, strength: 0.75, slopeMask: [0.04, 0.10], jitter: 0.4, warpAmp: 60, warpWavelength: 9000 },
@@ -76,28 +78,29 @@ export default {
 
   scene: {
     dateUTC: '1999-10-11T14:30:00Z',   // the day of Galileo's close pass (orbit I24); morning at Loki, Jupiter three quarters lit
-    // The plains west of Loki Patera, the most powerful volcano in the solar system: its
-    // black lava lake, 200 km across, lies ahead; Jupiter stands in the western sky.
-    start: { lat: 12.0, lon: 46.2, eye: 1.7, heading: 80, pitch: -4 },
-    ship: { east: 40, north: -30, heading: 300 },
+    // The foot of the ridge on the western shore of Loki Patera, the most powerful volcano
+    // in the solar system: its black lava lake, 200 km across, lies a kilometre below and
+    // runs to the horizon. Jupiter stands in the sky behind.
+    start: { lat: 11.2, lon: 48.62, eye: 1.7, heading: 95, pitch: -8 },
+    ship: { east: -40, north: 30, heading: 300 },
     exposure: { key: 0.10, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.5, highlight: 6, dim: { above: 60, power: 0.5, most: 5 } },
     bookmarks: {
-      ledge: { label: 'Loki Patera, the western shore', heading: 80, pitch: -4, fov: 60 },
-      sun: { label: 'Jupiter from Io', heading: 270, pitch: 30, fov: 50 },
-      wall: { label: 'The ridge beside Loki', heading: 30, pitch: 2, fov: 34 },
-      ship: { label: 'The lander', east: 20, north: -12, heading: 300, pitch: 6, fov: 50 },
+      ledge: { label: 'Loki Patera, the western shore', heading: 95, pitch: -8, fov: 60 },
+      sun: { label: 'Jupiter from Io', heading: 262, pitch: 34, fov: 52 },
+      wall: { label: 'The ridge above Loki', heading: 300, pitch: 12, fov: 40 },
+      ship: { label: 'The lander under Jupiter', east: -10, north: 22, heading: 268, pitch: 20, fov: 62 },
       dusk: { label: 'Jupiter over the sulphur plains', heading: 262, pitch: 22, fov: 70, timeOffsetHours: 9 },
       boosaule: { label: 'Boosaule Montes, 17 km high', lat: -7.2, lon: 88.2, heading: 150, pitch: 6, fov: 50, timeOffsetHours: 3 },
       pele: { label: 'Pele, inside the red ring', lat: -18.7, lon: 104.7, heading: 0, pitch: -6, fov: 60, timeOffsetHours: 3 },
     },
   },
   places: [
-    { id: 'loki', name: 'Loki Patera', lat: 13.0, lon: 51.2 },
-    { id: 'pele', name: 'Pele', lat: -18.7, lon: 104.7 },
-    { id: 'boosaule', name: 'Boosaule Montes', lat: -9.7, lon: 89.9 },
-    { id: 'prometheus', name: 'Prometheus', lat: -1.5, lon: 206.3 },
-    { id: 'tvashtar', name: 'Tvashtar Paterae', lat: 62.8, lon: 236.5 },
-    { id: 'euboea', name: 'Euboea Montes', lat: -48.9, lon: 21.2 },
-    { id: 'subjupiter', name: 'The point under Jupiter', lat: 0, lon: 0 },
+    { id: 'loki', name: 'Loki Patera', fact: 'The most powerful volcano in the solar system: a lake of lava 200 km across.', lat: 13.0, lon: 51.2 },
+    { id: 'pele', name: 'Pele', fact: 'Its plume rises 300 km and paints a red ring of sulphur larger than Alaska.', lat: -18.7, lon: 104.7 },
+    { id: 'boosaule', name: 'Boosaule Montes', fact: 'At 17.5 km, the highest mountain on Io and taller than any on Earth.', lat: -9.7, lon: 89.9 },
+    { id: 'prometheus', name: 'Prometheus', fact: 'A plume that has been erupting since Voyager first saw it in 1979.', lat: -1.5, lon: 206.3 },
+    { id: 'tvashtar', name: 'Tvashtar Paterae', fact: 'Galileo saw a curtain of lava fountains 1.5 km high here.', lat: 62.8, lon: 236.5 },
+    { id: 'euboea', name: 'Euboea Montes', fact: 'A tilted block of crust with one of the largest landslides known on its flank.', lat: -48.9, lon: 21.2 },
+    { id: 'subjupiter', name: 'The point under Jupiter', fact: 'Jupiter stands overhead here, forty times as wide as our Moon looks.', lat: 0, lon: 0 },
   ],
 };

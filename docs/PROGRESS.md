@@ -235,6 +235,107 @@ and Triton; Pluto and Charon; Ceres. Each world: data file, start site at a real
 and a real date, five views, two or three landmarks, a place list for the target picker,
 screenshots judged against spacecraft pictures.
 
+## Milestone 6: what was built
+
+Twelve new worlds to land on, as data files: **Phobos, Deimos, Mercury, Venus, Io,
+Europa, Enceladus, Titan, Triton, Pluto, Charon, Ceres**. With Mars and the Moon that is
+fourteen (Earth's surface is milestone 9). Every other planet and large moon is in the
+sky at its true place: Jupiter (the Cassini map, its belts drifting), Saturn with rings,
+Uranus, Neptune, Ganymede, Callisto, Mimas, Tethys, Dione, Rhea, Iapetus.
+
+- **Where the shape of the ground comes from.** Real elevation: Phobos (HRSC), Mercury
+  (MESSENGER), Venus (Magellan), Enceladus (the Cassini shape model), Pluto and Charon
+  (New Horizons, the hemisphere it saw), Ceres (Dawn). From the picture itself: Io's lava
+  floors are cut where the colour mosaic shows dark lava, and its named mountains stand
+  at their mapped places and heights; Titan's sand seas lie low where the near-infrared
+  mosaic is dark (a stand-in: no elevation of Titan is on the map server). From recipes
+  for what the place is known to look like: Deimos (its measured ellipsoid), Europa
+  (double ridges, chaos at the named chaos regions), Triton (cantaloupe terrain, sulci).
+- **Every world wears its real image map** as the colour of its ground and as its globe
+  seen from afar. Brightness-only mosaics were coloured by brightness (Europa, Pluto,
+  Titan, Callisto, Ceres, Enceladus); ground no spacecraft saw (Pluto's and Charon's
+  south, Triton's north) is filled with the mean of what was seen, with no feature
+  invented. A 180-degree mix-up in half the sources (the projection's centre longitude)
+  was caught by checking landmarks: Ceres' bright spot, Rachmaninoff's floor, Sputnik
+  Planitia, the leading and trailing sides of the icy moons.
+- **Orbits and spin** of 21 bodies fitted to JPL Horizons and checked against it
+  (`scripts/check-ephemeris.mjs`): planets within 0.02 to 0.15 degrees over 1950-2100,
+  moons within 0.2 (Mimas 1.1 with its resonance swing). The Moon (3.5 degrees at worst)
+  and Phobos after 2030 are the weak ones: mean ellipses cannot follow them (known
+  problem below).
+- **Thick air worked with the existing model**: Titan's orange smog and Venus' yellow
+  overcast are the same atmosphere code with their own numbers; the Sun is lost in both.
+- **Ice has a sheen** (`surface.gloss`); **rings** with shadows both ways; a **start
+  screen list** to open on any world; the target list sorted nearest first.
+- Tools made on the way: `scripts/peek.mjs` (a CPU sketch of the view from a place in
+  seconds, for choosing sites and times of day without a five-minute headless picture),
+  `scripts/worlds-test.mjs` (`npm run worlds`).
+
+Decisions:
+
+- No stop after every two worlds (the owner asked for the rest of the milestones in one
+  go).
+- Saturn, Uranus and Neptune are drawn from colour lists, not pictures: the whole-planet
+  pictures on the map server are not free to pass on (docs/ASSETS.md, "Not used").
+- On foot gravity never counts for less than 1 m/s2: at Phobos' real gravity a jump
+  lasts twenty minutes.
+- The camera's "up" stays the direction from the body's centre, so on Phobos and Deimos
+  the horizon slants like a hillside. Making "up" follow the local ground was left out:
+  it touches the whole flight model.
+
+## Milestones 7 and 8: what was built
+
+**Getting around (7).** The clock can run faster, slower and backwards (thirteen speeds
+from ten days a second backwards to ten days a second forwards; `.` `,` `/`), stop, jump
+to today or to any date from 1950 to 2099 (the years the orbits are fitted for). A map of
+the solar system as it is at the game's date (`src/ui/map.js`, a 2-D canvas): orbits,
+every body, the traveller; drag, pinch, tap a body, then Set target or GO; "Look closer"
+shows a planet's moons. GO trips reach anywhere in under half a minute (Pluto from Mars:
+27 s); at those speeds streaks of light rush past (`src/fx/warp.js`). A menu (MENU, Tab)
+holds everything that is not flown with the stick.
+
+**Things to do (8).** A journal of 88 real places on the fourteen worlds: a place is
+found by going there (a chime, its name and one line about it), and the journal counts
+them. The browser remembers the places found, where the traveller last stood on each
+world (Play returns there) and the sound switch (`src/core/save.js`, localStorage only).
+Photo mode: everything but the picture is put away, time stands still, wider / closer /
+earlier / later, and the shutter draws one frame at the screen's full resolution and
+saves it (a phone's share sheet, or a download). Sound, all made in code
+(`src/audio/audio.js`): the suit's hum, wind where there is air (by the air's density:
+loud on Titan and Venus, a whisper on Mars, none on the Moon), the rush of flight,
+footsteps and landings, a shimmer at warp speed, the chime.
+
+Behaviour changes the player will notice: the row of touch buttons is HERO, TARGET,
+HOVER, ZOOM, MAP, MENU; CAM, VIEW, HUD, MODE and FULL moved into MENU. Play returns to
+where the traveller last stood on that world ("To the start" in the menu goes back to
+the opening place).
+
+## Milestone 9 plan: Earth's surface
+
+The riskiest part, because everyone knows what Earth looks like: bare ground where a
+forest or a city should be is wrong in a way bare ground on Mars is not. The plan avoids
+that instead of pretending to solve it.
+
+1. **Open on places that are bare in reality**, where real elevation and real colour
+   are the whole truth: the Grand Canyon's rim, Everest and the Khumbu, the summit of
+   Mauna Kea, the dunes of the Namib, the Matterhorn above the tree line. Elevation for
+   these at 90 to 190 m per pixel and for the globe is already made
+   (`scripts/fetch-earth-terrain.py`, from the open Terrain Tiles set: SRTM and others).
+2. **Colour from Blue Marble** (the same map the globe uses): deserts, ice, the green of
+   forests seen from the air. Snow by height and latitude on top.
+3. **The sea**: the ground below sea level is drawn as water: flat, dark, with the
+   Sun's glint and the sky's colour at a grazing view, a little paler in the shallows.
+   A generic `sea` feature (Titan's methane seas can use it).
+4. **Air**: Earth's own numbers in the existing atmosphere model (blue sky, red
+   sunsets, the ozone's blue hour).
+5. **Clouds**: the real day's cloud map as a layer 4 km up, seen from below and from
+   above, with its shadow on the ground; broken up with finer procedural detail because
+   the map's cells are 10 km wide. One governor step.
+6. **From orbit down**: the hand-over from the globe to the terrain must not show (the
+   same colour map on both).
+7. What is not attempted: trees, grass, buildings, rivers, waves, weather that moves.
+   Flying low over a forest shows green ground. This is said plainly in the checkpoint.
+
 ## Milestone 5 plan: Earth and the Sun from space
 
 1. **Earth as a real globe** (not landable; you stop 2 % of its radius up). NASA maps

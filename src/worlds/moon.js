@@ -106,11 +106,11 @@ export default {
   },
   // Real places to fly to (the target selector): name, latitude, longitude (degrees east).
   places: [
-    { id: 'hadley', name: 'Hadley Rille (Apollo 15)', lat: 26.13, lon: 3.63 },
-    { id: 'taurus', name: 'Taurus-Littrow (Apollo 17)', lat: 20.19, lon: 30.77 },
-    { id: 'tranquility', name: 'Tranquility Base (Apollo 11)', lat: 0.674, lon: 23.473 },
-    { id: 'tycho', name: 'Tycho', lat: -43.31, lon: 348.64 },
-    { id: 'copernicus', name: 'Copernicus', lat: 9.62, lon: 339.92 },
-    { id: 'shackleton', name: 'Shackleton crater (south pole)', lat: -89.67, lon: 129.78 },
+    { id: 'hadley', name: 'Hadley Rille (Apollo 15)', fact: 'Apollo 15 drove along this winding lava channel in 1971.', lat: 26.13, lon: 3.63 },
+    { id: 'taurus', name: 'Taurus-Littrow (Apollo 17)', fact: 'The last people on the Moon walked here in December 1972.', lat: 20.19, lon: 30.77 },
+    { id: 'tranquility', name: 'Tranquility Base (Apollo 11)', fact: 'The first landing: "The Eagle has landed", July 1969.', lat: 0.674, lon: 23.473 },
+    { id: 'tycho', name: 'Tycho', fact: 'A young crater 85 km wide whose rays cross the whole face of the Moon.', lat: -43.31, lon: 348.64 },
+    { id: 'copernicus', name: 'Copernicus', fact: 'A terraced crater 93 km across, the "monarch of the Moon".', lat: 9.62, lon: 339.92 },
+    { id: 'shackleton', name: 'Shackleton crater (south pole)', fact: 'Its floor has not seen the Sun for two billion years and may hold ice.', lat: -89.67, lon: 129.78 },
   ],
 };

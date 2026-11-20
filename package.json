@@ -18,7 +18,8 @@
     "govsim": "node scripts/governor-sim.mjs",
     "foot": "node scripts/foot-test.mjs",
     "transfer": "node scripts/transfer.mjs",
-    "target": "node scripts/target-test.mjs"
+    "target": "node scripts/target-test.mjs",
+    "worlds": "node scripts/worlds-test.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"

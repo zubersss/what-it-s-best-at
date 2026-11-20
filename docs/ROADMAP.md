@@ -17,9 +17,9 @@ owner's reply or phone results), `done`.
 | 4 | Character and flight feel | done |
 | — | **Benchmark on the phone**: the gate before anything new was built. The owner ran it on 2026-11-20 (Smooth); the charter's limits were lifted (`CLAUDE.md`, "The one goal") | done |
 | 5 | Earth and the Sun from space | done |
-| 6 | New landable worlds | in progress |
-| 7 | Getting around | not started |
-| 8 | Things to do | not started |
+| 6 | New landable worlds | checkpoint sent |
+| 7 | Getting around | checkpoint sent |
+| 8 | Things to do | checkpoint sent |
 | 9 | Earth's surface — write its plan in `docs/PROGRESS.md` before starting | not started |
 
 ## 1. Phone link and measurement

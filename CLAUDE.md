@@ -16,8 +16,10 @@ last delivered, what the owner was asked for and exactly what to do next.
 A browser game where you fly a robed, long-haired character (the owner's own design:
 `docs/PROGRESS.md`, "The owner's character") through our real solar system:
 walk on worlds, lift off, reach orbit, cross to other bodies and land. Inspired by No
-Man's Sky, but every place is real. The current build (Mars, the Moon, flight between
-them, the character) is the foundation. Keep everything that works.
+Man's Sky, but every place is real: fifteen worlds to land on (Mars, the Moon, Phobos,
+Deimos, Mercury, Venus, Ceres, Io, Europa, Enceladus, Titan, Triton, Pluto, Charon),
+every other planet and large moon in the sky at its true place for the date. Keep
+everything that works.
 
 ## Ownership
 
@@ -167,6 +169,11 @@ npm run smoke          # headless check of the start screen, modes, HUD and a fu
 npm run govsim         # the governor against simulated GPUs (no browser)
 npm run transfer       # GO trips flown without a browser: arrival, time against the marker's estimate
 npm run target         # the target list, marker and a GO trip in the real game (headless)
+npm run worlds         # every world opens at its start with ground drawn and no errors (headless, about an hour; -- --only io,titan)
+node scripts/check-ephemeris.mjs   # every orbit and spin against JPL Horizons (no network; fails beyond a tolerance)
+node scripts/peek.mjs --world io [--shot ledge | --lat .. --lon ..] [--pan 4]   # a CPU sketch of the view from a place, in seconds: for choosing sites and times
+python3 scripts/fetch-worlds.py [job ...]   # the maps of the worlds of milestone 6 (5 GB of originals into .cache/maps), see docs/ASSETS.md
+python3 scripts/fit-orbits.py      # orbits fitted to JPL Horizons (needs ssd.jpl.nasa.gov; replies cached)
 npm run assets         # re-download and convert the small NASA/Yale files into public/data/
 python3 scripts/fetch-maps.py   # the rest of public/data/ (needs: pip install rasterio numpy pillow), see docs/ASSETS.md
 npm run probe          # top-down shaded relief of the height function (no browser)
@@ -189,7 +196,8 @@ Headless Chromium renders with software WebGL: a shot takes 1–3 minutes. Run l
 batches in the background, never pipe them through `tail` (it hides all output until the
 end), and take final sets from `dist/` so source edits cannot disturb them.
 
-URL parameters: `world=mars|moon`, `shot=ledge|sun|wall|ship|dusk`, on Mars also `canyon`
+URL parameters: `world=<id>` (any world of `src/worlds/index.js`; without it, the one chosen
+on the start screen last time), `shot=ledge|sun|wall|ship|dusk`, on Mars also `canyon`
 (a sixth view of the opening site, used for the from-orbit and character reference
 pictures), and the world's landmarks (`olympus`, `gale` on Mars; `tycho`, `taurus` on the
 Moon) (fixed camera bookmark, deterministic screenshot mode, skips the start screen),
@@ -211,7 +219,9 @@ frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last foo
 Keys: `WASD` move, mouse look (click to capture), `Shift` super speed on foot / boost in
 flight, left `Ctrl` (hold) slow, for precise moves (flight ×0.12, on foot ×0.3, free-fly
 camera ×0.15), `Space` (or `E`) jump on foot (tap), take off (hold, or tap again in the air), up in
-flight, `Q` down, `G` character on/off, `T` next target (this world's places, the bodies in the
+flight, `Q` down, `G` character on/off, `Tab` the menu, `N` the map, `J` the journal,
+`O` photo mode, `K` sound on/off, `.` `,` the clock faster / slower (and backwards), `/`
+real time, `T` next target (this world's places, the bodies in the
 sky, the Sun, none) and turn to it, `Enter` GO: fly to the target hands-off (the stick
 or a movement key takes control back; looking around does not),
 `X` hover on/off (off: gravity pulls when the stick is released, and touching the
@@ -227,9 +237,11 @@ Mars; then its landmarks),
 Touch: left part of the screen = move stick (push to the rim for super speed on foot /
 boost in flight), `▲` jump (tap) / take off (hold, or tap again in the air) / up, drag
 anywhere else = look, buttons `HERO`, `TARGET` (the list of targets with distances), `GO`
-(above `▲`, shown with a target: the hands-off trip), `HOVER`, `CAM` (the `F` key: free-fly debug camera where you are), `ZOOM` (hold), `VIEW` (next
-bookmark), `HUD`, `MODE` (Smooth ↔ Sharp), `FULL` (fullscreen + landscape lock + wake
-lock), `▲` up, `▼` down. The time slider is part of the full HUD.
+(above `▲`, shown with a target: the hands-off trip), `HOVER`, `ZOOM` (hold), `MAP` (the
+solar system now: tap a body, then Set target or GO), `MENU` (the map and targets; the
+clock: faster, slower, stop, today, a date; the journal, photo mode, sound; free camera,
+read-out, Smooth ↔ Sharp, full screen), `▲` up, `▼` down. The time slider is part of the
+full read-out.
 
 Interactive sessions open on the start screen (Play, Benchmark, Soak test, mode). A
 finished benchmark leaves its text in `window.__benchResult`.

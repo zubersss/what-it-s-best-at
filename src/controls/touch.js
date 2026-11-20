@@ -19,12 +19,9 @@ export class TouchControls {
         <button data-key="KeyG">HERO</button>
         <button data-act="target">TARGET</button>
         <button data-key="KeyX">HOVER</button>
-        <button data-key="KeyF">CAM</button>
         <button data-key="KeyZ" data-hold="1">ZOOM</button>
-        <button data-act="view">VIEW</button>
-        <button data-key="KeyH">HUD</button>
-        <button data-key="KeyM">MODE</button>
-        <button data-act="full">FULL</button>
+        <button data-act="map">MAP</button>
+        <button data-act="menu">MENU</button>
       </div>
       <div id="tupdown">
         <button data-act="go" class="go hidden">GO</button>
@@ -43,7 +40,8 @@ export class TouchControls {
         if (act === 'view') actions.view();
         if (act === 'target') actions.target?.();
         if (act === 'go') actions.go?.();
-        if (act === 'full') this.fullscreen();
+        if (act === 'map') actions.map?.();
+        if (act === 'menu') actions.menu?.();
         b.classList.add('on');
       });
       const up = (e) => { e.preventDefault(); if (key && hold) input.virtualUp(key); else if (key) input.virtualUp(key); b.classList.remove('on'); };

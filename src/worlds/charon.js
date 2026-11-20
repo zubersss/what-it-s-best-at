@@ -69,10 +69,10 @@ export default {
     },
   },
   places: [
-    { id: 'serenity', name: 'Serenity Chasma', lat: 19.0, lon: 10.0 },
-    { id: 'kubrick', name: 'Kubrick Mons', lat: 17.0, lon: 30.0 },
-    { id: 'mordor', name: 'Mordor Macula (the red pole)', lat: 80.0, lon: 0.0 },
-    { id: 'vulcan', name: 'Vulcan Planitia', lat: -10.0, lon: 355.0 },
-    { id: 'subpluto', name: 'The point under Pluto', lat: 0, lon: 0 },
+    { id: 'serenity', name: 'Serenity Chasma', fact: 'Part of a belt of canyons that runs 1 600 km across the moon.', lat: 19.0, lon: 10.0 },
+    { id: 'kubrick', name: 'Kubrick Mons', fact: 'A mountain standing in its own moat, which nobody has explained.', lat: 17.0, lon: 30.0 },
+    { id: 'mordor', name: 'Mordor Macula (the red pole)', fact: 'A dark red polar cap made of gas that escaped from Pluto and froze here.', lat: 80.0, lon: 0.0 },
+    { id: 'vulcan', name: 'Vulcan Planitia', fact: 'Smooth plains where icy lava once flooded the south.', lat: -10.0, lon: 355.0 },
+    { id: 'subpluto', name: 'The point under Pluto', fact: 'Pluto never moves from this spot in the sky.', lat: 0, lon: 0 },
   ],
 };

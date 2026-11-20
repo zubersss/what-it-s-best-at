@@ -66,10 +66,10 @@ export default {
     },
   },
   places: [
-    { id: 'submars', name: 'The point under Mars', lat: 0, lon: 0 },
-    { id: 'voltaire', name: 'Voltaire crater', lat: 22.0, lon: 3.5 },
-    { id: 'swift', name: 'Swift crater', lat: 12.5, lon: 1.8 },
-    { id: 'southpole', name: 'The south pole', lat: -85, lon: 0 },
-    { id: 'antimars', name: 'The far side', lat: 0, lon: 180 },
+    { id: 'submars', name: 'The point under Mars', fact: 'Mars hangs overhead here, seventeen degrees wide.', lat: 0, lon: 0 },
+    { id: 'voltaire', name: 'Voltaire crater', fact: 'One of only two named craters on Deimos, 3 km across.', lat: 22.0, lon: 3.5 },
+    { id: 'swift', name: 'Swift crater', fact: 'Jonathan Swift wrote of two moons of Mars 150 years before they were found.', lat: 12.5, lon: 1.8 },
+    { id: 'southpole', name: 'The south pole', fact: 'A great hollow 10 km wide takes up the whole south of the moon.', lat: -85, lon: 0 },
+    { id: 'antimars', name: 'The far side', fact: 'The far side: only stars and the Sun.', lat: 0, lon: 180 },
   ],
 };

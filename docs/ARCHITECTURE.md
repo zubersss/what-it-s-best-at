@@ -108,6 +108,45 @@ GO read them (`App.targetList`, `App.resolveTarget`), and `?target=place:<id>` n
 A world file without `places` loads with no error and simply has no places in its list,
 so a new world needs them to be reachable by GO.
 
+**Fifteen worlds, loaded when wanted.** The registry imports every world file (small:
+numbers only). A world's rasters and height function are fetched by `App.loadWorldData`
+when it is the start world, when the traveller comes within twenty of its radii (or the
+home ground is six times farther than it), or when a GO trip is aimed at it (`App.space`).
+One download however many ask; the last three worlds stay in memory; a failed download
+backs off and is tried again. Its albedo and slope maps load with the terrain
+(`Terrain.loadAlbedoMap`), decoded off the main thread. The start screen's "Start on"
+list reloads the page on another world (`?world=`, remembered in `localStorage`).
+
+**Height layers** (`src/terrain/height/layers.js`), beyond `dem`, `fbm`, `ridged`,
+`terrace` and `craters` (now with `floor`: a flat-floored basin or caldera):
+
+- `ellipsoid` — the figure of a body far from a sphere with no elevation map (Deimos).
+- `lineaments` — families of parallel bands round the sphere (each family the circles
+  of equal distance from a great circle): grooves (Phobos), ridges and double ridges
+  (Europa, Triton), tiger stripes (Enceladus, with `bands` to keep four), dunes (Titan,
+  `profile: 'dune'`, the family's pole at the world's pole so they run east-west).
+- `cells` — Worley cells: furrows along the walls (Pluto's ice polygons), hollows with
+  standing walls (Triton's cantaloupe terrain), plates lifted and dropped (Europa's
+  chaos), slabs (Venus underfoot).
+- `massifs` — named mountains at their mapped places and heights (Io).
+- **`where`** on any layer limits it: `cover` (noise patches of a share of the ground),
+  `lat` and `hemisphere`, `alt` (the height so far), `at` (named places with radii),
+  `invert`. The mask is continuous (`masked()` in `heightSource.js`).
+
+Where a world has no elevation, part of its shape still comes from data: Io's lava
+floors are cut where the colour mosaic is dark (`io_dem`), Titan's sand seas lie low
+where the near-infrared mosaic is dark (`titan_dem`), both made by
+`scripts/fetch-worlds.py`.
+
+**Small bodies.** On foot gravity never counts for less than `MIN_FOOT_GRAVITY`
+(1 m/s²). A moon without rotation elements is locked to its planet
+(`Ephemeris._lockedMatrix`: longitude 0 faces the parent, the pole is the orbit normal).
+The camera's "up" is the direction from the body's centre, so on Phobos (27 x 22 x 18
+km) the ground often tilts against it: the horizon slants, as on a hillside.
+
+**Ice** (`surface.gloss: { strength, roughness }`): the Sun's sheen on the ground, one
+GGX lobe added in the terrain shader, faded out with distance.
+
 **Elevation rasters** (`terrain.dems`): a global one that wraps in longitude, then any
 number of patches. Later entries win inside their bounds and blend over `feather` degrees
 (a patch's feathered edge must lie inside the full-weight part of whatever is under it:
@@ -303,6 +342,28 @@ source with the correct integrated flux otherwise (Earth is a point from Mars an
 from the Moon). Stars and unresolved bodies are flux-carrying Gaussian point sprites, so
 exposure alone decides whether they are visible.
 
+- **Every body of the catalogue is in every sky** (27 of them: the planets, Pluto, Ceres,
+  nineteen moons). How each looks is the `LOOKS` table at the end of `solarSystem.js`.
+  A globe's maps are fetched when it first shows a disc (it stays a point until its small
+  copies are in) and its full maps when it is 260 pixels across; pictures are decoded off
+  the main thread and handed to the GPU as they arrive, between frames.
+- **A globe from one map**: `maps.colour` alone is enough; clouds, lights, water and
+  relief are optional (stand-in 1 x 1 textures). `linear`: a one-channel map of linear
+  values (the Moon's). `tint` and `gain` turn the map into albedo; `airless`: no limb
+  darkening; `relief`: the world's slope map bends the shading normal, so craters and
+  canyons show at the day-night line (Mars from Phobos). `bands`: no file, the map is
+  made from a list of colours by latitude (Saturn, Uranus, Neptune, the clouds of Venus,
+  Titan's smog). `radii`: a flattened globe.
+- **Drifting bands** (`drift: [[northern edge, degrees a day], ...]`): the colour map is
+  read at a longitude shifted by the band's drift since J2000; across an edge the two
+  neighbours cross-fade, so nothing shears however long the clock runs (Jupiter's belts
+  at about their real speeds against System III).
+- **Rings** (`rings.profile`: stops of radius, optical depth, colour; `ringlets`): one
+  row of texture, a flat annulus in the equatorial plane drawn after the globes (blended,
+  depth-tested). Lit from the Sun's side by reflection, from the other by the light that
+  filters through; the planet's shadow falls across them (a ray against the flattened
+  globe) and theirs on the planet (the sunbeam's crossing of the ring plane, in the globe
+  shader). A traveller is kept out of them as out of a body (`reach`).
 - **Recipes** (`surface.recipe` in `solarSystem.js`): `rock` (an albedo with mottling, on
   a lumpy mesh for the irregular moons), `oceanWorld` (a generated pattern), and `globe`:
   a real globe from maps. A `globe` names four equirectangular maps (longitude −180…180

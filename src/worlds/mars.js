@@ -149,15 +149,15 @@ export default {
   },
   // Real places to fly to (the target selector): name, latitude, longitude (degrees east).
   places: [
-    { id: 'coprates', name: 'Coprates Chasma', lat: -13.17, lon: 296.57 },               // the opening place, in Valles Marineris
-    { id: 'olympus', name: 'Olympus Mons', lat: 18.65, lon: 226.2 },                     // summit caldera
-    { id: 'ascraeus', name: 'Ascraeus Mons', lat: 11.92, lon: 255.92 },
-    { id: 'pavonis', name: 'Pavonis Mons', lat: 1.48, lon: 247.04 },
-    { id: 'arsia', name: 'Arsia Mons', lat: -8.26, lon: 239.17 },
-    { id: 'gale', name: 'Gale crater (Curiosity)', lat: -4.59, lon: 137.44 },
-    { id: 'jezero', name: 'Jezero crater (Perseverance)', lat: 18.44, lon: 77.45 },
-    { id: 'elysium', name: 'Elysium Mons', lat: 24.8, lon: 146.9 },
-    { id: 'hellas', name: 'Hellas basin', lat: -42.4, lon: 70.5 },
-    { id: 'northcap', name: 'North polar cap', lat: 87.0, lon: 0 },
+    { id: 'coprates', name: 'Coprates Chasma', fact: 'A canyon 8 km deep, part of Valles Marineris, a rift as long as the United States is wide.', lat: -13.17, lon: 296.57 },               // the opening place, in Valles Marineris
+    { id: 'olympus', name: 'Olympus Mons', fact: 'The tallest volcano known: 22 km high and as wide as France.', lat: 18.65, lon: 226.2 },                     // summit caldera
+    { id: 'ascraeus', name: 'Ascraeus Mons', fact: 'The northernmost and tallest of the three Tharsis volcanoes, 18 km high.', lat: 11.92, lon: 255.92 },
+    { id: 'pavonis', name: 'Pavonis Mons', fact: 'The middle Tharsis volcano, sitting right on the equator.', lat: 1.48, lon: 247.04 },
+    { id: 'arsia', name: 'Arsia Mons', fact: 'Its caldera, 110 km across, is the largest on Mars.', lat: -8.26, lon: 239.17 },
+    { id: 'gale', name: 'Gale crater (Curiosity)', fact: 'Curiosity landed here in 2012 and has been climbing Mount Sharp ever since.', lat: -4.59, lon: 137.44 },
+    { id: 'jezero', name: 'Jezero crater (Perseverance)', fact: 'An old lake and river delta: Perseverance is collecting rock here to send home.', lat: 18.44, lon: 77.45 },
+    { id: 'elysium', name: 'Elysium Mons', fact: 'A lone volcano rising 12 km from the northern plains.', lat: 24.8, lon: 146.9 },
+    { id: 'hellas', name: 'Hellas basin', fact: 'An impact basin 7 km deep, the lowest ground on Mars.', lat: -42.4, lon: 70.5 },
+    { id: 'northcap', name: 'North polar cap', fact: 'A cap of water ice 3 km thick, with spiral troughs cut by the wind.', lat: 87.0, lon: 0 },
   ],
 };

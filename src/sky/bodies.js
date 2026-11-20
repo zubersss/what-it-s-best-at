@@ -165,6 +165,7 @@ uniform vec3 uLights;          // radiance of a fully lit city pixel
 uniform vec3 uAirTau;          // vertical optical depth of the air, per colour
 uniform vec4 uGlobe;           // x 1 = the colour map is one grey channel, y glint roughness, z glint strength, w 1 = airless dusty ground (no limb darkening)
 uniform vec3 uTint;            // what turns the colour map's values into albedo (gain x tint)
+uniform float uMapShift;       // 0: the maps start at longitude -180 (Earth's); 0.5: at longitude 0 (every other world's)
 uniform vec3 uLightObj;        // toward the Sun in the globe's own axes (the maps' axes)
 uniform sampler2D tRelief;     // the ground's slope: east in the top half, north in the bottom (as the terrain's slope map)
 uniform float uReliefK;        // how strongly it bends the shading normal (0: no map)
@@ -189,7 +190,7 @@ void main() {
   vec3 N = normalize(vN), V = -normalize(vDir), L = uLightDir;      // (p is in the globe's own axes, N in the scene's)
   // Map coordinates, with their footprint taken from the direction itself: the longitude
   // jumps by a whole turn at the back of the globe and its own derivatives would draw a seam.
-  vec2 uv = vec2(atan(p.y, p.x) / TWO_PI + 0.5, 0.5 - asin(clamp(p.z, -1.0, 1.0)) / PI);
+  vec2 uv = vec2(atan(p.y, p.x) / TWO_PI + 0.5 + uMapShift, 0.5 - asin(clamp(p.z, -1.0, 1.0)) / PI);
   vec3 px = dFdx(p), py = dFdy(p);
   float r2 = max(p.x * p.x + p.y * p.y, 1e-6), cz = sqrt(max(1.0 - p.z * p.z, 1e-6));
   vec2 gx = vec2((p.x * px.y - p.y * px.x) / (r2 * TWO_PI), -px.z / (cz * PI));
@@ -222,7 +223,7 @@ void main() {
   // cloud that shades this spot (a shadow on the sea beside every cloud), and tells which
   // side of a cloud this is (its sunward edge bright, its far side in its own shade).
   vec3 ps = normalize(p + uLightObj * 0.0035);
-  vec2 uvs = vec2(atan(ps.y, ps.x) / TWO_PI + 0.5, 0.5 - asin(clamp(ps.z, -1.0, 1.0)) / PI);
+  vec2 uvs = vec2(atan(ps.y, ps.x) / TWO_PI + 0.5 + uMapShift, 0.5 - asin(clamp(ps.z, -1.0, 1.0)) / PI);
   float c1 = textureGrad(tClouds, uvs, gx, gy).r;
   float cloud = smoothstep(0.04, 0.9, c0);
   float shadow = 1.0 - 0.55 * smoothstep(0.15, 0.8, c1) * (1.0 - cloud);
@@ -448,6 +449,7 @@ export class SkyBodies {
         const grey = !!s.maps?.colour?.linear, tint = s.tint || [1, 1, 1], gain = s.gain ?? 1;      // (linear: a one-channel map of linear values)
         u.uGlobe = { value: new THREE.Vector4(grey ? 1 : 0, s.glint?.roughness ?? 0.2, s.glint?.strength ?? (s.maps?.water ? 1 : 0), s.airless ? 1 : 0) };
         u.uTint = { value: new THREE.Vector3(tint[0] * gain, tint[1] * gain, tint[2] * gain) };
+        u.uMapShift = { value: s.lon0 === 0 ? 0.5 : 0 };
         u.uLightObj = { value: new THREE.Vector3(1, 0, 0) };
         u.uReliefK = { value: 0 };
         u.uBandN = { value: s.drift ? Math.min(14, s.drift.length) : 0 };
@@ -465,6 +467,28 @@ export class SkyBodies {
           ring = new THREE.Mesh(new THREE.RingGeometry(rg.r0, rg.r1, 180, 1), rm);
           ring.frustumCulled = false; ring.renderOrder = 7; ring.matrixAutoUpdate = false; ring.visible = false;
           this.group.add(ring);
+          // Seen edge-on (always, from a moon in the ring plane) the annulus is thinner than
+          // a pixel and breaks into dashes: then the rings are drawn as lines instead, one
+          // circle per stop of the profile, each as bright as that part of the rings is deep.
+          const pts = [], wts = [], SEG = 256, P = def.rings.profile;
+          for (let q = 0; q < P.length - 1; q++) {
+            const rr = (P[q][0] + P[q + 1][0]) / 2, wt = Math.min(1, (P[q][1] + P[q + 1][1]) / 2) * (P[q + 1][0] - P[q][0]) / (rg.r1 - rg.r0) * 6;
+            if (wt < 0.01) continue;
+            for (let k = 0; k < SEG; k++) {
+              const a0 = k / SEG * Math.PI * 2, a1 = (k + 1) / SEG * Math.PI * 2;
+              pts.push(Math.cos(a0) * rr, Math.sin(a0) * rr, 0, Math.cos(a1) * rr, Math.sin(a1) * rr, 0); wts.push(wt, wt);
+            }
+          }
+          const lg = new THREE.BufferGeometry();
+          lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts), 3)); lg.setAttribute('aW', new THREE.BufferAttribute(new Float32Array(wts), 1));
+          ringU.uEdge = { value: 0 };
+          const lm = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, uniforms: { uExposure: G.uExposure, uGain: u.uGain, uLightE: u.uLightE, uEdge: ringU.uEdge },
+            vertexShader: 'in float aW; out float vW; void main() { vW = aW; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }',
+            fragmentShader: 'uniform float uExposure, uGain, uEdge; uniform vec3 uLightE; in float vW; layout(location = 0) out vec4 fragColor; void main() { fragColor = vec4(vec3(0.80, 0.74, 0.62) * uLightE * (0.05 * vW * uEdge * uExposure * uGain), 0.0); }',
+            depthTest: true, depthWrite: false, transparent: true, blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor });
+          ring.userData.edge = new THREE.LineSegments(lg, lm);
+          ring.userData.edge.frustumCulled = false; ring.userData.edge.renderOrder = 8; ring.userData.edge.matrixAutoUpdate = false; ring.userData.edge.visible = false;
+          this.group.add(ring.userData.edge);
         }
         if (s.air) {
           su = { ...G, uCamRkm: u.uCamRkm, uUp: u.uUp, uGain: u.uGain, uLightDir: u.uLightDir, uLightE: u.uLightE, uAirTau: u.uAirTau,
@@ -525,7 +549,7 @@ export class SkyBodies {
       b.pos.set(e.pos[0], e.pos[1], e.pos[2]);
       b.rel.subVectors(b.pos, cam);
       b.dist = b.rel.length();
-      if (b.ring) b.ring.visible = false;
+      if (b.ring) { b.ring.visible = false; b.ring.userData.edge.visible = false; }
       if (b.id === this.world.body) { b.mesh.visible = false; if (b.shell) b.shell.visible = false; } else order.push(b);
     }
     order.sort((a, b) => a.dist - b.dist);
@@ -627,6 +651,11 @@ export class SkyBodies {
         if (b.ring) {
           b.ring.visible = true; b.ring.matrix.copy(m.matrix); b.ring.matrixWorldNeedsUpdate = true;
           b.ringU.uViewObj.value.set(e[0] * dir.x + e[1] * dir.y + e[2] * dir.z, e[4] * dir.x + e[5] * dir.y + e[6] * dir.z, e[8] * dir.x + e[9] * dir.y + e[10] * dir.z);
+          // (edge-on: the lines take over from the annulus)
+          const mz = Math.abs(b.ringU.uViewObj.value.z), ex = Math.min(1, Math.max(0, (0.035 - mz) / 0.03)), edge = b.ring.userData.edge;
+          b.ringU.uEdge.value = ex * ex * (3 - 2 * ex);
+          edge.visible = ex > 0; edge.matrix.copy(m.matrix); edge.matrixWorldNeedsUpdate = true;
+          b.ring.visible = ex < 1;
         }
       }
       // Planetshine from the home world onto its own moons.

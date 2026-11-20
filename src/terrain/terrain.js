@@ -97,6 +97,7 @@ export class Terrain {
       this.textures.albedo = tex; u.tAlbedo.value = tex;
       u.uAlbedoMap.value.set(1 / def.mean[0], 1 / def.mean[1], 1 / def.mean[2], def.strength ?? 1);
       u.uAlbedoChroma.value = def.chroma ?? 1;
+      u.uAlbedoShift.value = def.lon0 === -180 ? 0.5 : 0;
       const rad = Math.PI / 180;      // latFade: [from, to] degrees of latitude over which the map hands back to the palette
       if (def.latFade) u.uAlbedoFade.value.set(Math.sin(def.latFade[0] * rad), Math.sin(def.latFade[1] * rad)); else u.uAlbedoFade.value.set(2, 3);
       tex.needsUpdate = true; this.renderer.initTexture(tex);       // to the GPU now, between frames
@@ -110,7 +111,7 @@ export class Terrain {
   tintAt(pos, out) {
     const t = this.tint;
     if (!t) return out.set(1, 1, 1);
-    const r = pos.length(), u = (Math.atan2(pos.y, pos.x) / (2 * Math.PI) + 1) % 1, v = Math.acos(Math.max(-1, Math.min(1, pos.z / r))) / Math.PI;
+    const r = pos.length(), u = (Math.atan2(pos.y, pos.x) / (2 * Math.PI) + 1 + this.shared.uAlbedoShift.value) % 1, v = Math.acos(Math.max(-1, Math.min(1, pos.z / r))) / Math.PI;
     const x = u * t.w - 0.5, y = Math.max(0, Math.min(t.h - 1, v * t.h - 0.5)), x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
     const xa = (x0 + t.w) % t.w, xb = (x0 + 1) % t.w, ya = y0, yb = Math.min(t.h - 1, y0 + 1), d = t.data;
     for (let c = 0; c < 3; c++) {

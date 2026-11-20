@@ -25,7 +25,7 @@ await page.waitForTimeout(3000);
 await page.dispatchEvent('#tbuttons button[data-act="target"]', 'pointerdown');
 await page.waitForSelector('#picker:not(.hidden)', { timeout: 30000 });
 const entries = await page.$$eval('#picker button b', (b) => b.map((x) => x.textContent));
-check('the list has this world\'s places and the sky', entries.includes('Olympus Mons') && entries.includes('Phobos') && entries.includes('Sun'), entries.length + ' entries');
+check('the list has this world\'s places and the sky', entries.includes('Olympus Mons') && entries.some((e) => e.endsWith('Phobos')) && entries.some((e) => e.endsWith('Pluto')) && entries.includes('Sun'), entries.length + ' entries');
 await snap(path.join(out, '1_list.png'));
 await page.click('#picker button:has-text("Olympus Mons")');
 // frames are slow here: wait for the marker to carry its label

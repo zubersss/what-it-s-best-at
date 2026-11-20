@@ -406,4 +406,16 @@ export const OPS = {
       }
     };
   },
+
+  // A sea: no ground lies below `level` (m). Put it last, so the water stays flat.
+  sea(def) {
+    const level = def.level ?? 0;
+    return (c) => {
+      if (c.h >= level + 2) return;
+      // (the slope fades to nothing across the shore instead of stopping at it)
+      const t = Math.max(0, (c.h - level) / 2);
+      c.slope *= t;
+      if (c.h < level) c.h = level;
+    };
+  },
 };

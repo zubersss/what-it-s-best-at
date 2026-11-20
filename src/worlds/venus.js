@@ -96,11 +96,11 @@ export default {
     },
   },
   places: [
-    { id: 'venera13', name: 'Venera 13 landing place', lat: -7.5, lon: 303.0 },
-    { id: 'maxwell', name: 'Maxwell Montes', lat: 65.2, lon: 3.3 },
-    { id: 'maat', name: 'Maat Mons', lat: 0.5, lon: 194.6 },
-    { id: 'aphrodite', name: 'Aphrodite Terra (Ovda Regio)', lat: -2.8, lon: 85.6 },
-    { id: 'alpha', name: 'Alpha Regio', lat: -25.5, lon: 1.3 },
-    { id: 'artemis', name: 'Artemis Corona', lat: -35.0, lon: 135.0 },
+    { id: 'venera13', name: 'Venera 13 landing place', fact: 'Venera 13 took the first colour pictures of the surface here in 1982 and lasted 127 minutes.', lat: -7.5, lon: 303.0 },
+    { id: 'maxwell', name: 'Maxwell Montes', fact: 'The highest mountains on Venus, 11 km up, where the rock is coated with metal frost.', lat: 65.2, lon: 3.3 },
+    { id: 'maat', name: 'Maat Mons', fact: 'A volcano 8 km high that may still be active.', lat: 0.5, lon: 194.6 },
+    { id: 'aphrodite', name: 'Aphrodite Terra (Ovda Regio)', fact: 'A highland the size of Africa lying along the equator.', lat: -2.8, lon: 85.6 },
+    { id: 'alpha', name: 'Alpha Regio', fact: 'The first feature ever seen on Venus, by radar from Earth in 1963.', lat: -25.5, lon: 1.3 },
+    { id: 'artemis', name: 'Artemis Corona', fact: 'A circular trench 2 600 km across, the largest such ring on any world.', lat: -35.0, lon: 135.0 },
   ],
 };

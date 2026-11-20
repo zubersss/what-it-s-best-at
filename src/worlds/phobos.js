@@ -79,11 +79,11 @@ export default {
     },
   },
   places: [
-    { id: 'stickney', name: 'Stickney crater', lat: 1.0, lon: 311.0 },
-    { id: 'limtoc', name: 'Limtoc (inside Stickney)', lat: -11.0, lon: 306.0 },
-    { id: 'submars', name: 'The point under Mars', lat: 0, lon: 0 },
-    { id: 'hall', name: 'Hall crater', lat: -80.0, lon: 150.0 },
-    { id: 'kepler', name: 'Kepler Dorsum', lat: -45.0, lon: 6.0 },
-    { id: 'antimars', name: 'The far side', lat: 0, lon: 180 },
+    { id: 'stickney', name: 'Stickney crater', fact: 'A crater 9 km wide on a moon 27 km long: the blow nearly broke Phobos apart.', lat: 1.0, lon: 311.0 },
+    { id: 'limtoc', name: 'Limtoc (inside Stickney)', fact: 'A crater inside a crater, on Stickney\'s floor.', lat: -11.0, lon: 306.0 },
+    { id: 'submars', name: 'The point under Mars', fact: 'From here Mars fills a quarter of the sky and never moves.', lat: 0, lon: 0 },
+    { id: 'hall', name: 'Hall crater', fact: 'Named for Asaph Hall, who found both moons in 1877.', lat: -80.0, lon: 150.0 },
+    { id: 'kepler', name: 'Kepler Dorsum', fact: 'A ridge near the south pole, named for the man who guessed Mars had two moons.', lat: -45.0, lon: 6.0 },
+    { id: 'antimars', name: 'The far side', fact: 'The side of Phobos that never sees Mars.', lat: 0, lon: 180 },
   ],
 };

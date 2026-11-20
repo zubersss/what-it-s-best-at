@@ -37,6 +37,7 @@ export default {
   surface: {
     roughness: 0.4,
     bounce: 0.8,
+    gloss: { strength: 0.6, roughness: 0.32 },      // the Sun's sheen on ice
     albedoMap: { url: 'data/triton_color_4096.jpg', encoding: 'srgb', mean: [0.4009, 0.2817, 0.1754], strength: 0.9, chroma: 0.8, latFade: [80, 88], range: [0.5, 1.6] },
     meanAlbedo: [0.72, 0.64, 0.60],
     dust: [0.76, 0.68, 0.64],          // nitrogen and methane frost, faintly pink
@@ -80,10 +81,10 @@ export default {
     },
   },
   places: [
-    { id: 'cantaloupe', name: 'Bubembe Regio (cantaloupe terrain)', lat: 18.0, lon: 335.0 },
-    { id: 'ruach', name: 'Ruach Planitia', lat: 28.0, lon: 24.0 },
-    { id: 'uhlanga', name: 'Uhlanga Regio (the frost cap)', lat: -37.0, lon: 0.0 },
-    { id: 'mahilani', name: 'Mahilani Plume', lat: -50.0, lon: 2.0 },
-    { id: 'subneptune', name: 'The point under Neptune', lat: 0, lon: 0 },
+    { id: 'cantaloupe', name: 'Bubembe Regio (cantaloupe terrain)', fact: 'Dimpled ground found nowhere else, like the skin of a melon.', lat: 18.0, lon: 335.0 },
+    { id: 'ruach', name: 'Ruach Planitia', fact: 'A flat plain that looks like a frozen lake of ammonia and water.', lat: 28.0, lon: 24.0 },
+    { id: 'uhlanga', name: 'Uhlanga Regio (the frost cap)', fact: 'A pink cap of nitrogen frost, streaked by geysers.', lat: -37.0, lon: 0.0 },
+    { id: 'mahilani', name: 'Mahilani Plume', fact: 'Voyager 2 saw a geyser here rise 8 km and drift 150 km downwind.', lat: -50.0, lon: 2.0 },
+    { id: 'subneptune', name: 'The point under Neptune', fact: 'Neptune hangs overhead here, sixteen times as wide as our Moon looks.', lat: 0, lon: 0 },
   ],
 };

@@ -545,7 +545,7 @@ const LOOKS = {
   ceres: { surface: { recipe: 'globe', airless: true, maps: map('ceres', 4096, { relief: { full: 'data/ceres_slopes_4096.jpg' } }), tint: [1.0, 0.97, 0.92], gain: 0.47, peak: 0.25, relief: 1.2 } },
   // Jupiter: the Cassini map, each belt and zone sliding at about its real speed against
   // the planet's own turning (the equator gains 7 degrees a day).
-  jupiter: { radii: [71492e3, 71492e3, 66854e3], surface: { recipe: 'globe', maps: map('jupiter', 4096), gain: 1.12, peak: 0.85,
+  jupiter: { radii: [71492e3, 71492e3, 66854e3], surface: { recipe: 'globe', maps: map('jupiter', 4096), gain: 1.12, peak: 0.68,
     drift: [[90, 0], [47, -0.3], [40, 1.0], [31, 4.0], [24, -1.2], [17, 2.9], [7, 6.4], [-7, 2.1], [-17, -0.8], [-27, 1.7], [-37, 0.5], [-47, 0]] } },
   io: { surface: { recipe: 'globe', airless: true, maps: map('io', 4096), gain: 1.55, peak: 0.9 } },
   europa: { surface: { recipe: 'globe', airless: true, maps: map('europa', 4096), gain: 1.25, peak: 0.95 } },
@@ -583,6 +583,7 @@ const LOOKS = {
     air: { tau: [0.0006, 0.0012, 0.0026], scaleHeight: 50000 } } },                    // the blue haze at its edge
   charon: { surface: { recipe: 'globe', airless: true, maps: map('charon', 4096, { relief: { full: 'data/charon_slopes_4096.jpg' } }), gain: 1.45, peak: 0.55, relief: 1.2 } },
 };
-for (const [id, look] of Object.entries(LOOKS)) Object.assign(SOLAR_SYSTEM[id], look);
+// (their maps start at longitude 0 on the left edge, like the terrain's; Earth's start at -180)
+for (const [id, look] of Object.entries(LOOKS)) { if (look.surface.maps?.colour && !look.surface.maps.colour.bands) look.surface.lon0 = 0; Object.assign(SOLAR_SYSTEM[id], look); }
 
 export const AU_M = AU;

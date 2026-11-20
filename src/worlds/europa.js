@@ -25,6 +25,8 @@ export default {
       // in again, a few hundred metres of jumbled relief.
       { op: 'cells', seed: 31, scale: 7000, plate: 170, edge: 260, where: { cover: 0.12, seed: 5, wavelength: 500000, soft: 0.05, at: CHAOS } },
       { op: 'cells', seed: 33, scale: 1300, plate: 55, edge: 60, where: { cover: 0.12, seed: 5, wavelength: 500000, soft: 0.05, at: CHAOS } },
+      // (between the rafts the frozen slush is hummocky and broken)
+      { op: 'ridged', seed: 35, maxWavelength: 900, minWavelength: 20, roughness: 0.9, amp: 70, warp: 0.4, where: { cover: 0.12, seed: 5, wavelength: 500000, soft: 0.05, at: CHAOS } },
       // The ridges. Great double ridges, two crests with a trough between, run for hundreds
       // of kilometres; older and smaller ones cover everything between them.
       { op: 'lineaments', seed: 11, families: 9, spacing: 46000, width: 1300, height: 260, profile: 'double', presence: 0.55, segment: 700000, wobble: [9000, 260000], varied: 0.6 },
@@ -41,9 +43,10 @@ export default {
   surface: {
     roughness: 0.35,                   // clean, hard ice
     bounce: 0.7,
+    gloss: { strength: 1.0, roughness: 0.28 },      // the Sun's sheen on ice
     // Galileo and Voyager mosaic, coloured from blue-white ice to the red-brown of the
     // cracks and the chaos (scripts/fetch-worlds.py).
-    albedoMap: { url: 'data/europa_color_4096.jpg', encoding: 'srgb', mean: [0.5377, 0.4295, 0.3336], strength: 1.0, chroma: 1.0, latFade: [78, 86], range: [0.3, 1.7] },
+    albedoMap: { url: 'data/europa_color_4096.jpg', encoding: 'srgb', mean: [0.5377, 0.4295, 0.3336], strength: 0.8, chroma: 0.55, latFade: [78, 86], range: [0.3, 1.7] },
     meanAlbedo: [0.66, 0.62, 0.56],
     dust: [0.70, 0.67, 0.62],          // frost
     sand: [0.56, 0.46, 0.36],          // salt-stained ice in the low ground
@@ -63,13 +66,14 @@ export default {
 
   scene: {
     dateUTC: '1998-12-17T12:00:00Z',   // the week Galileo flew over Conamara; morning there, a nearly full Jupiter half set in the west
-    // Conamara Chaos, where the ice broke up: rafts of old ridged plain stand among the
-    // frozen rubble. Jupiter hangs in the sky to the west.
-    start: { lat: 9.7, lon: 87.3, eye: 1.7, heading: 250, pitch: -3 },
+    // The crest of a great double ridge at the edge of Conamara Chaos, where the ice broke
+    // up. A nearly full Jupiter sits on the western horizon, as it always does from here.
+    start: { lat: 8.94, lon: 84.66, eye: 1.7, heading: 262, pitch: -3 },
     ship: { east: 50, north: 30, heading: 30 },
     exposure: { key: 0.13, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.5, highlight: 6, dim: { above: 60, power: 0.5, most: 5 } },
     bookmarks: {
-      ledge: { label: 'Conamara Chaos', heading: 250, pitch: -3, fov: 60 },
+      ledge: { label: 'A ridge by Conamara Chaos, Jupiter on the horizon', heading: 266, pitch: 0, fov: 62 },
+      chaos: { label: 'Conamara Chaos', lat: 9.7, lon: 87.3, heading: 250, pitch: -3, fov: 60 },
       sun: { label: 'Jupiter from Europa', lat: 5.0, lon: 40.0, heading: 270, pitch: 42, fov: 44 },
       wall: { label: 'A double ridge', lat: 14.0, lon: 86.0, heading: 20, pitch: -2, fov: 40 },
       ship: { label: 'The lander', east: 30, north: 18, heading: 60, pitch: 4, fov: 50 },
@@ -78,11 +82,11 @@ export default {
     },
   },
   places: [
-    { id: 'conamara', name: 'Conamara Chaos', lat: 9.7, lon: 87.3 },
-    { id: 'pwyll', name: 'Pwyll crater', lat: -25.2, lon: 88.6 },
-    { id: 'thera', name: 'Thera Macula', lat: -46.7, lon: 178.8 },
-    { id: 'tyre', name: 'Tyre (ringed scar)', lat: 34.0, lon: 213.5 },
-    { id: 'subjupiter', name: 'The point under Jupiter', lat: 0, lon: 0 },
-    { id: 'agenor', name: 'Agenor Linea', lat: -43.6, lon: 151.6 },
+    { id: 'conamara', name: 'Conamara Chaos', fact: 'The ice broke into rafts here and froze again: a sign of the ocean below.', lat: 9.7, lon: 87.3 },
+    { id: 'pwyll', name: 'Pwyll crater', fact: 'A young crater whose bright rays reach a thousand kilometres.', lat: -25.2, lon: 88.6 },
+    { id: 'thera', name: 'Thera Macula', fact: 'A patch of collapsed ice that may lie over a pocket of water.', lat: -46.7, lon: 178.8 },
+    { id: 'tyre', name: 'Tyre (ringed scar)', fact: 'Rings of cracks 140 km across left by an impact that punched through the ice.', lat: 34.0, lon: 213.5 },
+    { id: 'subjupiter', name: 'The point under Jupiter', fact: 'Jupiter never rises or sets here: it hangs overhead, twelve degrees wide.', lat: 0, lon: 0 },
+    { id: 'agenor', name: 'Agenor Linea', fact: 'A bright band 1 400 km long where the ice shell pulled apart.', lat: -43.6, lon: 151.6 },
   ],
 };
