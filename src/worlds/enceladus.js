@@ -75,7 +75,7 @@ export default {
       wall: { label: 'Along the fracture', heading: 135, pitch: -6, fov: 40 },
       ship: { label: 'The lander', east: 20, north: 14, heading: 60, pitch: 4, fov: 50 },
       dusk: { label: 'Saturn on the horizon', lat: -70.0, lon: 0.0, heading: 0, pitch: 12, fov: 60, timeOffsetHours: 8 },
-      north: { label: 'The cratered north', lat: 55.0, lon: 200.0, heading: 100, pitch: -6, fov: 60, timeOffsetHours: 20.87 },
+      north: { label: 'The cratered north', lat: 55.0, lon: 207.0, heading: 100, pitch: -6, fov: 60, timeOffsetHours: 20.87 },
     },
   },
   places: [

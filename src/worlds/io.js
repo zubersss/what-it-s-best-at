@@ -90,7 +90,7 @@ export default {
       wall: { label: 'The ridge above Loki', heading: 300, pitch: 12, fov: 40 },
       ship: { label: 'The lander under Jupiter', east: -10, north: 22, heading: 268, pitch: 20, fov: 62 },
       dusk: { label: 'Jupiter over the sulphur plains', heading: 262, pitch: 22, fov: 70, timeOffsetHours: 9 },
-      boosaule: { label: 'Boosaule Montes, 17 km high', lat: -7.2, lon: 88.2, heading: 150, pitch: 6, fov: 50, timeOffsetHours: -5.128 },
+      boosaule: { label: 'Boosaule Montes, 17 km high', lat: -7.2, lon: 88.2, heading: 150, pitch: 6, fov: 50, timeOffsetHours: 9 },
       pele: { label: 'Pele, inside the red ring', lat: -18.7, lon: 104.7, heading: 0, pitch: -6, fov: 60, timeOffsetHours: 8.032 },
     },
   },
