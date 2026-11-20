@@ -343,6 +343,15 @@ export class Hero {
     const air = Math.min(env.air, 0.2);
     const flow = Math.min(speed, 42) * (0.3 + 0.7 * air);
     const wind = this._wind.copy(dir).multiplyScalar(-flow * (speed > 0.05 ? 1 : 0));
+    // Across the body (upright while moving: coming in to land, drifting in a hover) the
+    // stream may lean the cloth back but not lift it: its push there stops at 1.1 times the
+    // cloth's weight. Along the body (streamlined flight) it is free. A full stream on an
+    // upright figure flipped the robe up round the waist and the hair over the head.
+    {
+      const al = wind.dot(head), cx = wind.x - head.x * al, cy = wind.y - head.y * al, cz = wind.z - head.z * al;
+      const cl = Math.hypot(cx, cy, cz), lim = (1.1 + 1.9 * this.foot) * env.gravity / (0.9 + 5.5 * air);     // (running, it streams out behind: three times its weight)
+      if (cl > lim) { const k = lim / cl - 1; wind.x += cx * k; wind.y += cy * k; wind.z += cz * k; }
+    }
     // A breeze is always blowing through the robe and the hair (gently, from ahead and a
     // little to one side, its strength drifting), even standing still and in vacuum: the
     // owner wants the robe flowing. Like the cloak trailing in vacuum before it, a
