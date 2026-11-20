@@ -291,7 +291,39 @@ the benchmark results (`renderer.debug.onShaderError`).
 One code path: a body is a lit mesh when it is more than ~2.5 pixels across and a point
 source with the correct integrated flux otherwise (Earth is a point from Mars and a disc
 from the Moon). Stars and unresolved bodies are flux-carrying Gaussian point sprites, so
-exposure alone decides whether they are visible (rule 2).
+exposure alone decides whether they are visible.
+
+- **Recipes** (`surface.recipe` in `solarSystem.js`): `rock` (an albedo with mottling, on
+  a lumpy mesh for the irregular moons), `oceanWorld` (a generated pattern), and `globe`:
+  a real globe from maps. A `globe` names four equirectangular maps (longitude −180…180
+  left to right, north at the top): `colour` (sRGB), `clouds`, `lights` and `water` (grey,
+  one byte a pixel), each as a small `far` copy loaded at start and a `full` one loaded
+  when the body is more than 260 pixels across (`FULL_MAPS_PX`). Its shader
+  (`GLOBE_FRAG`): the colour map as albedo, a floor colour for water, the Sun's glint on
+  water (one wide GGX lobe), clouds over both, a thin layer of air (single scattering in
+  a flat layer with the body's `air.tau` per colour: haze toward the edge, a reddened
+  day-night line), and city lights on the night side. The map lookup takes its footprint
+  from the direction vector (`textureGrad`), so there is no seam. Five textures.
+- **The rim of air** beyond a globe's solid edge is a second mesh, a shell eight scale
+  heights up, drawn from the inside (back faces, depth-tested, added to what is there):
+  each pixel finds how high over the globe its ray passes and how much air it crosses.
+- **Bright bodies in a dark scene** (`uGain`): a body far brighter than the scene is
+  exposed for (Earth in the lunar night) is dimmed as a whole until its sunlit face sits
+  just under white, so it keeps its colours; bodies a few pixels across are left bright.
+  City lights are not dimmed with it. In daylight nothing changes.
+- **Seen from outside the home world's air** a body is not looked up in the home air's
+  transmittance table (the table answers "the ground is in the way" for most directions
+  from far outside: Earth drew black from 3 radii away).
+- **Eclipses** (`SkyBodies.sunCover`): the share of the Sun's disc that sky bodies cover
+  from the camera scales the sunlight (`G.uSunIrradiance`) for the frame.
+- **The Sun** (`sun.js`) is drawn where it is from the camera and at the size it has from
+  there, with the radiance of its surface (which does not depend on distance). Large in
+  view, it shows grain and spots and is dimmed as through a filter; from a planet it is
+  the blinding point it always was.
+- **Light from the home world below** (`uHomeShine`, `homeShine()` in the lighting chunk):
+  on the character high above the home world, its day side as a lamp (albedo × sunlight ×
+  how much of the sky below it fills), faded in between 20 and 150 km up; near the ground
+  the sky light already carries the ground's bounce.
 
 ## The flying character and world-to-world flight
 
@@ -427,6 +459,15 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   monitors above 4K.
 - **Resolution levels**: level k renders `native × 0.88^k` pixels; the lowest level is
   the one closest to 1 M pixels (or native, if the canvas is smaller than that).
+- **Slow work is told from slow pixels.** The app passes the page's own time for the frame
+  (`scriptMs`: from the start of `frame()` to the governor's update). When frames are late
+  and that time fills more than 0.6 of the interval, resolution is left alone and the
+  *load lever* is used: terrain patch factor ×0.8, then ×0.64 (`LOAD`, id `load` in
+  `App.terrainBudget`), back one step after 15 clean seconds. When only frames with
+  arriving terrain are late (the "soft" ones), terrain is let in more slowly first
+  (`App.terrainPace`: one patch a frame, then one every other frame; full pace again after
+  5 clean seconds). `MODES[mode].patches` is the share of the patch cap a mode draws
+  (Smooth 0.8, Sharp 1).
 - **Feature steps** (`FEATURE_STEPS` in `governor.js` is the source of truth; fixed
   order, used only once resolution is at its floor). Thirteen steps, by id:
   1. `detail`: close-up ground detail off;

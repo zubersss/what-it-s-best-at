@@ -183,6 +183,7 @@ export class App {
     this.nearShadow = new NearShadow(renderer);
     this.terrain = new Terrain(world, data.rasters, data.hs, renderer);
     this.rig.groundAt = (d, dist) => this.terrain.drawnHeight(d, dist);   // the character stands on the ground as drawn
+    if (!this.shotMode) this.terrainBudget(MODES[this.governor.mode].patches ?? 1, 'mode');     // (reference pictures show them all)
     // ?debug=nofar: none of the far-ground changes (relief, far roughness, finer patches from orbit), for before/after pictures
     // (or one at a time: nofarrough, noboost)
     if (params.debug.includes('nofar') || params.debug.includes('nofarrough')) this.terrain.shared.uFarRoughness.value = this.terrain.shared.uRoughness.value;
@@ -325,6 +326,7 @@ export class App {
   toggleMode() {
     const next = this.governor.mode === 'smooth' ? 'sharp' : 'smooth';
     this.governor.setMode(next);
+    this.terrainBudget(MODES[next].patches ?? 1, 'mode');
     try { localStorage.setItem('sse.mode', next); } catch { /* storage blocked: the choice lasts for this visit */ }
     this.startScreen?.setMode(next);
     this.toast?.show(`${MODES[next].label} — ${MODES[next].fps} fps`);
@@ -350,18 +352,24 @@ export class App {
     window.__benchResult = text;
   }
 
+  // The governor: how fast finished terrain is let in (0 full pace, 1, 2 slower).
+  terrainPace(level) { this.terrain.pace = level; }
+
   // The governor's terrain steps: the smallest factor asked for wins.
   terrainBudget(factor, id) {
     this.terrainFactors[id] = factor;
+    if (!this.terrain) return;               // (the mode button works before the world has loaded)
+    // the mode's share multiplies; among the governor's own levers the smallest wins
     let m = 1;
-    for (const k in this.terrainFactors) m = Math.min(m, this.terrainFactors[k]);
-    this.terrain.maxChunks = Math.round(CONFIG.MAX_RENDER_CHUNKS * m);
+    for (const k in this.terrainFactors) if (k !== 'mode') m = Math.min(m, this.terrainFactors[k]);
+    this.terrain.maxChunks = Math.round(CONFIG.MAX_RENDER_CHUNKS * (this.terrainFactors.mode ?? 1) * m);
   }
 
   // Why the frame that just ended may have been slow (for the benchmark's hitch list).
   frameCause(now, uploads) {
     if (this.switching || now < this.switchedAt + 2500) return 'arriving at another world';
     if (now < this.jumpedAt + 2500) return 'jump to a bookmark';
+    if (now < (this.bodies?.mapsAt ?? -1e9) + 1500) return 'sky maps arriving';
     if (now < this.resumedAt + 1500) return 'page came back from the background';
     if (now < this.resizedAt + 1500) return 'screen size changed';
     if (this.governor.sinceStep < 0.4) return 'quality step';
@@ -729,6 +737,7 @@ export class App {
   }
 
   frame(now) {
+    const frameStart = performance.now();
     const dtMs = this.lastNow ? now - this.lastNow : 16.7;
     this.lastNow = now;
     const dt = Math.min(dtMs, 100) / 1000;
@@ -770,6 +779,25 @@ export class App {
     G.uSunDir.value.set(eph.sunDir[0], eph.sunDir[1], eph.sunDir[2]);
     const sunC = SOLAR_SYSTEM.sun.color, k = (AU_M / eph.sunDistance) ** 2;
     G.uSunIrradiance.value.set(sunC[0] * k, sunC[1] * k, sunC[2] * k);
+    // An eclipse: a body in front of the Sun takes the share of sunlight it covers.
+    // (seen from the camera, so it holds for the ground round it: a body's shadow is a small
+    // patch of the world. High above the ground it is the camera alone that is in the shadow,
+    // not the world below: there the sunlight is left as it is.)
+    {
+      const x = Math.min(1, Math.max(0, (rig.agl - 20e3) / 80e3));
+      this.sunCover = this.bodies.sunCover(eph, rig.pos) * (1 - x * x * (3 - 2 * x));
+      if (this.sunCover > 0) G.uSunIrradiance.value.multiplyScalar(1 - this.sunCover);
+    }
+    // Light from the home world below on things high above it (the figure in orbit was
+    // near black on its shaded side over a sunlit planet): its day side as a lamp, by how
+    // much of the sky below it fills and how much of that is in daylight.
+    {
+      const r = rig.pos.length(), R = world.radius, alt = r - R, x = Math.min(1, Math.max(0, (alt - 20e3) / 130e3));
+      const mu0 = (rig.pos.x * eph.sunDir[0] + rig.pos.y * eph.sunDir[1] + rig.pos.z * eph.sunDir[2]) / r;
+      const hd = SOLAR_SYSTEM[world.body] || {}, c = hd.color || [1, 1, 1];
+      const e = x * x * (3 - 2 * x) * (hd.geometricAlbedo ?? 0.2) * 1.2 * Math.min(1, Math.max(0, (mu0 + 0.15) / 1.15)) * (R / r) ** 2;
+      G.uHomeShine.value.copy(G.uSunIrradiance.value).multiplyScalar(e); G.uHomeShine.value.x *= c[0]; G.uHomeShine.value.y *= c[1]; G.uHomeShine.value.z *= c[2];
+    }
     G.uPlanetRadius.value = world.radius;
     G.uCamPlanetPos.value.copy(rig.pos);
     this.terrain.tintAt(rig.pos, G.uGroundTint.value);
@@ -796,18 +824,37 @@ export class App {
     G.uTanHalfFov.value.set(th * aspect, th);
     this.atmosphere.update(rig.pos, G.uSunDir.value, this.terrain.farDistance, post.exposure);
     this.skyDome.visible = !this.atmosphere.empty;
-    this.sun.update(G.uSunDir.value, eph.sunDistance, rig, post.viewH);
+    // (the disc's own brightness is that of the unhidden Sun: an eclipse hides it, it does not dim it)
+    this.sun.update(G.uSunDir.value, eph.sunDistance, rig, post.viewH, (this._sunE || (this._sunE = new THREE.Vector3())).set(sunC[0] * k, sunC[1] * k, sunC[2] * k));
     this.bodies.update(eph, rig, post.viewH);
     this.stars?.setFrame(eph.icrfToFixed, rig, post.viewH);
     // ?aim=<body>: possible only now, once the bodies have a position for this moment.
     if (this.pendingAim && this.frameCount >= 2) { this.aimAt(this.pendingAim); this.pendingAim = null; }
+    // ?at=<body>:<radii>[:<round>[:<up>]]: the camera beside that body, looking at it (pictures
+    // of a body that is not the home world); `round` turns away from the Sun's side.
+    if (this.params.at && this.frameCount === 2) {
+      const [id, radii = '4', round = '0', upDeg = '0'] = this.params.at.split(':');
+      const c = this.bodyPosition(id, new THREE.Vector3()), R = id === 'sun' ? SOLAR_SYSTEM.sun.radius : this.bodies.byId.get(id)?.def.radius;
+      if (c && R) {
+        const sunAt = this.bodyPosition('sun', new THREE.Vector3());
+        const toSun = id === 'sun' ? c.clone().negate().normalize() : sunAt.sub(c).normalize();     // (for the Sun itself: its side facing home)
+        const pole = new THREE.Vector3(0, 0, 1), side = new THREE.Vector3().crossVectors(pole, toSun).normalize(), upv = new THREE.Vector3().crossVectors(toSun, side);
+        const a = +round * Math.PI / 180, e = +upDeg * Math.PI / 180;
+        const d = toSun.clone().multiplyScalar(Math.cos(a) * Math.cos(e)).addScaledVector(side, Math.sin(a) * Math.cos(e)).addScaledVector(upv, Math.sin(e));
+        if (rig.mode === 'walk') rig.setMode('fly');
+        rig.pos.copy(c).addScaledVector(d, +radii * R);
+        rig.lookAlong(d.negate());
+        if (this.carry) this.carry.w = 0;
+      }
+    }
     // ?target=<id>: the marker on that target (place:<id> for a place), the view left alone.
     if (this.params.target && this.frameCount === 2) this.targetId = this.params.target;
 
     // The Sun's place on screen, so the exposure meter can leave its glare out.
     {
-      const d = G.uSunDir.value, f = d.dot(rig.forward);
-      if (f > 0.05) post.setSun(0.5 + 0.5 * d.dot(rig.right) / (f * th * aspect), 0.5 + 0.5 * d.dot(rig.up) / (f * th), sunHalf / (2 * th), true);
+      // (where the disc is drawn: from the camera, not from the home world's centre)
+      const d = this.sun.uniforms.uDiscDir.value, half = this.sun.uniforms.uAngRadius.value, f = d.dot(rig.forward);
+      if (f > 0.05) post.setSun(0.5 + 0.5 * d.dot(rig.right) / (f * th * aspect), 0.5 + 0.5 * d.dot(rig.up) / (f * th), Math.tan(Math.min(half, 1.4)) / (2 * th), true);
       else post.setSun(0, 0, 0, false);
     }
 
@@ -843,7 +890,11 @@ export class App {
     // An upload's cost can land a frame or two later (the driver finishes textures and
     // mip maps on its own time), so the three frames after one count as soft too.
     this.softFrames = uploads ? 3 : Math.max(0, (this.softFrames || 0) - 1);
-    governor.update(dtMs, settling ? FRAME.IGNORE : this.softFrames > 0 ? FRAME.SOFT : FRAME.NORMAL);
+    // (the page's own work for this frame: everything from the start of frame() to here)
+    // (dtMs is the previous frame's time: it goes with that frame's work)
+    const prevScript = this.scriptMs || 0;
+    this.scriptMs = performance.now() - frameStart;
+    governor.update(dtMs, settling ? FRAME.IGNORE : this.softFrames > 0 ? FRAME.SOFT : FRAME.NORMAL, prevScript);
     this.lastUploads = this.terrain.uploads; this.terrain.uploads = 0;
 
     // 8. HUD
@@ -864,7 +915,7 @@ export class App {
     }
 
     if (this.shotMode) {
-      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
+      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
       window.__shotReady = ready;
       window.__stats = { calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow' : ''}` };
     }

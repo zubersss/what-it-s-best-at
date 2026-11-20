@@ -18,6 +18,7 @@ export const G = {
   // Planetshine: light reflected onto the ground by the brightest sky body (earthshine on the Moon).
   uShineDir: { value: new THREE.Vector3(0, 0, 1) },
   uShineE: { value: new THREE.Vector3(0, 0, 0) },
+  uHomeShine: { value: new THREE.Vector3(0, 0, 0) },      // light from the home world below, on something high above it facing straight down
   // Quality switches set by the governor: x = close-up ground detail, y = soft shadow edges,
   // z = full sample count for the glow on a planet's edge seen from space, w = relief
   // shading of far ground from the world's slope map.

@@ -1,0 +1,19 @@
+{
+  "dusk": {
+    "calls": 22,
+    "triangles": 66969,
+    "chunks": 4,
+    "loaded": 234,
+    "visited": 234,
+    "wanted": 0,
+    "lodScale": 1,
+    "avgBuildMs": 33.7,
+    "exposure": 600000,
+    "surface": [
+      0.021,
+      0.843
+    ],
+    "frame": 88,
+    "wait": ""
+  }
+}

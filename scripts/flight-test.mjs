@@ -34,9 +34,11 @@ await snap('00_start');
 const start = await state();
 check('starts on Mars', start.world === 'mars', fmt(start));
 await page.keyboard.down('KeyE');
-check('holding up climbs past 20 km', await until((s) => s.agl > 2e4, 200, 1500), fmt(await state()));
+// (the climb takes about 45 s of game time, 450 frames here at a tenth of a second each:
+// 200 s of waiting was on the edge on this machine, and failed once at 14.8 km and rising)
+check('holding up climbs past 20 km', await until((s) => s.agl > 2e4, 500, 1500), fmt(await state()));
 await snap('01_20km');
-check('and on to orbit, 1200 km up', await until((s) => s.agl > 1.2e6, 200, 1500), fmt(await state()));
+check('and on to orbit, 1200 km up', await until((s) => s.agl > 1.2e6, 400, 1500), fmt(await state()));
 await page.keyboard.up('KeyE');
 await page.waitForTimeout(6000);
 await snap('02_orbit');

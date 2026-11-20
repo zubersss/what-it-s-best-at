@@ -28,6 +28,8 @@ export class Benchmark {
     this.phase = -1; this.lap = -1; this.busy = false; this.flight = 'climb';
     const cap = Math.ceil(this.duration * 125);
     this.dt = new Float32Array(cap); this.px = new Float32Array(cap); this.at = new Float32Array(cap); this.part = new Uint8Array(cap);
+    this.sc = new Float32Array(cap); this.ph = new Uint8Array(cap);        // the page's own work per frame (ms); which stop of the route (0-4, 5 = flight, 6-10)
+    this.rebakesFrom = app.terrain.rebakes || 0;
     this.n = 0;
     this.hitches = [];
     this.maxCalls = 0; this.maxTris = 0;
@@ -77,6 +79,7 @@ export class Benchmark {
     if (this.n < this.dt.length && t > 0.5) {
       this.dt[this.n] = dtMs; this.px[this.n] = app.post.viewW * app.post.viewH; this.at[this.n] = t;
       this.part[this.n] = this.phase < 0 ? 0 : this.phase < 5 ? 0 : this.phase === 5 ? 1 : 2;
+      this.sc[this.n] = app.scriptMs || 0; this.ph[this.n] = Math.max(0, this.phase);
       this.n++;
       if (dtMs > 100) this.hitches.push({ t: +t.toFixed(1), ms: Math.round(dtMs), cause });
       this.maxCalls = Math.max(this.maxCalls, app.stats.calls || 0); this.maxTris = Math.max(this.maxTris, app.stats.triangles || 0);
@@ -168,6 +171,19 @@ export class Benchmark {
     L.push(`average fps ${fps(dts).toFixed(1)} · 1% low ${fps(worst1).toFixed(1)} · worst frame ${Math.round(sorted[0] || 0)} ms · late frames (over 1.5x the target) ${late} = ${(100 * late / Math.max(1, n)).toFixed(2)} %`);
     L.push(`render resolution: average ${mp(avgPx)} (${dims(avgPx)}) · minimum ${mp(minPx)} (${dims(minPx)}) · native ${mp(g.nativePixels)} (${post.width}x${post.height})`);
     L.push(`by part: ${WORLDS[FIRST].name} ${part(0).toFixed(1)} fps · flight ${part(1).toFixed(1)} · ${WORLDS[SECOND].name} ${part(2).toFixed(1)}`);
+    // The page's own work per frame (everything but the GPU drawing it): tells slow pixels
+    // from slow work. And each stop of the route on its own.
+    const sc = Array.from(this.sc.subarray(0, n)), scSorted = sc.slice().sort((a, b) => b - a);
+    const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
+    L.push(`the page's own work per frame: average ${avg(sc).toFixed(1)} ms · worst 1 % ${avg(scSorted.slice(0, Math.max(1, Math.ceil(n / 100)))).toFixed(1)} ms (a frame has ${target.toFixed(1)} ms)`);
+    L.push('by stop (fps · late frames · own work · resolution):');
+    for (let k = 0; k <= 10; k++) {
+      const idx = []; for (let i = 0; i < n; i++) if (this.ph[i] === k) idx.push(i);
+      if (!idx.length) continue;
+      const name = k < 5 ? `${WORLDS[FIRST].name} ${this.names[FIRST][k]}` : k === 5 ? 'flight' : `${WORLDS[SECOND].name} ${this.names[SECOND][k - 6]}`;
+      const d = idx.map((i) => dts[i]);
+      L.push(`  ${name}: ${fps(d).toFixed(1)} · ${(100 * d.filter((x) => x > target * 1.5).length / d.length).toFixed(1)} % · ${avg(idx.map((i) => sc[i])).toFixed(1)} ms · ${mp(avg(idx.map((i) => px[i])))}`);
+    }
     if (this.kind === 'soak') {
       L.push('minute by minute (fps, resolution):');
       const minutes = Math.ceil(this.duration / 60);
@@ -191,7 +207,7 @@ export class Benchmark {
     for (const h of worst) L.push(`  ${h.t}s ${h.ms} ms — ${h.cause}`);
     if (this.hitches.length > worst.length) L.push(`  (the ${worst.length} longest are listed)`);
     L.push(`most at once: ${this.maxCalls} draw calls, ${Math.round(this.maxTris / 1000)}k triangles, about ${Math.round(this.maxGpuBytes / 1048576)} MB of GPU memory`);
-    L.push(`terrain patches built: ${builds}`);
+    L.push(`terrain patches built: ${builds} · shadows re-baked: ${(app.terrain.rebakes || 0) - this.rebakesFrom} · patch cap at the end: ${app.terrain.maxChunks}`);
     L.push(`screen ${window.innerWidth}x${window.innerHeight} CSS px · pixel ratio ${(+(window.devicePixelRatio || 1).toFixed(3))} · refresh ${g.vsync ? Math.round(1000 / g.vsync) : '?'} Hz`);
     if (app.shaderErrors?.length) L.push(`SHADERS THAT FAILED ON THIS DEVICE: ${app.shaderErrors.length} — ${app.shaderErrors.join(' / ')}`);
     L.push(`GPU: ${app.gpuName}${g.gpuMs != null ? ` · GPU time ${g.gpuMs.toFixed(1)} ms` : ''}`);

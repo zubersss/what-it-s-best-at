@@ -33,7 +33,9 @@ function makeMaterial(extraUniforms) {
       out vec3 vRadiance;
       void main() {
         vec3 d = normalize(uToFixed * position);
-        vec3 T = texture(tTransmittance, transmittanceUv(uCamRkm, dot(d, uUp))).rgb;
+        // (through the home world's air only from inside it: from far outside, the table
+        // answers "the ground is in the way" and a third of the sky lost its stars)
+        vec3 T = uCamRkm < uRTop ? mix(texture(tTransmittance, transmittanceUv(uCamRkm, dot(d, uUp))).rgb, vec3(1.0), smoothstep(0.9, 1.0, (uCamRkm - uRBottom) / (uRTop - uRBottom))) : vec3(1.0);
         // spread the flux over a Gaussian spot of uSigma pixels: sum over pixels = flux
         vRadiance = aFlux.rgb * T * uExposure / (uPixelSolidAngle * 6.2832 * uSigma * uSigma);
         gl_Position = projectionMatrix * viewMatrix * vec4(d * 90.0, 1.0);

@@ -348,7 +348,7 @@ void main() {
   vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel), L = uSunDir;
   float NL = dot(N, L), NV = max(dot(N, V), 1e-3), lit = max(NL, 0.0);
   vec3 Esun = directSun(planetPos) * uSunVis * nearShadow(vRel, N);
-  vec3 sky = skyLight(N, up) + planetShine(N);
+  vec3 sky = skyLight(N, up) + planetShine(N) + homeShine(N, up);
   vec3 col = vCol * (Esun * lit + sky) / PI;
   vec3 H = normalize(L + V);
   float NH = max(dot(N, H), 0.0), fr = pow(1.0 - NV, 5.0);

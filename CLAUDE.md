@@ -27,96 +27,74 @@ call. Consolidate and restructure when that makes it healthier. Two limits:
 - do not change what the player sees or how flight feels as a side effect of a clean-up;
 - list every behaviour change in the checkpoint message.
 
-## The benchmark gate, and what comes after it (owner, 2026-11-20)
+## The one goal (owner, 2026-11-20)
 
-The owner's standing instruction, in two steps. It overrides everything below it.
+**The best possible product that a Samsung Galaxy S23 Ultra can run without lag.**
 
-1. **Now: the benchmark.** Milestone 4 is finished. Before anything else is built, the
-   owner runs the Benchmark on the phone (Smooth and Sharp, Copy results) and pastes the
-   results. Until they arrive, the charter below applies as written: no expensive
-   effects, no new milestone. Tests, fixes and upkeep are fine.
-2. **After the benchmark: the charter's limits are gone.** Tune the governor from the
-   results first. From then on there is one goal in place of the fixed decisions, the
-   approvals and the expensive-effects rule: **the best possible product that a Samsung
-   Galaxy S23 Ultra can run without lag.** The art rules, the tech choices, what is
-   built and in what order are all Claude's call, judged by that goal alone. Expensive
-   effects (anti-aliasing, soft shading in creases, clouds, reflections and the rest)
-   may be added; each still gets a governor step, because the governor is what keeps the
-   phone free of lag. **In the first message after the benchmark, tell the owner plainly
-   that the charter's limits and the limits on future creation are gone, and that the
-   aim is now simply the best product the S23 Ultra runs well.** Then rewrite this file
-   to match (the sections below become history and working notes, not rules).
+The owner set a gate (a phone benchmark after milestone 4) and, once its results were
+in, lifted the charter's limits: the fixed decisions, the approvals and the rule against
+expensive effects no longer bind. What is built, how it looks, with what technology and
+in what order is Claude's call, judged by that goal alone. The roadmap stays the plan
+unless something serves the goal better.
 
-Two things are not charter limits and stay whatever happens: nothing is spent and no
-account or key is created without asking the owner; and only assets we have the right
-to use go in (that is the law, not a rule of this charter). The working habits below
-(the notes in `docs/`, the tests, looking at pictures, the phone link) stay too, because
-they are how the product stays good.
+Three things stay, and none of them is a limit on the product:
 
-## Fixed decisions (ask the owner before changing any of these)
+- **Nothing is spent and no account or key is created without asking the owner.**
+- **Only assets we have the right to use go in** (that is the law, not a rule of this
+  charter). Sources and licences are recorded in `docs/ASSETS.md`.
+- **"Without lag" is measured on the phone, never guessed.** Headless frame rates say
+  nothing about it. Anything that adds cost gets a governor step, the benchmark is how
+  the truth arrives, and after any change that adds real cost the owner is asked for a
+  new benchmark.
 
-*(In force until the benchmark results arrive: see the gate above.)*
+Helpers (the owner, same day): **multi-agent workflows only for the most challenging
+parts** (a milestone's independent review, a hard design question, a large parallel
+job). Ordinary work is done directly.
 
-- **Art direction: "mission-camera realism"**, five rules:
-  1. **One light.** The Sun is the only real light source. Fill comes only from physical
-     bounce (sky light, sunlit ground, planetshine). No ambient fudge lights.
-  2. **Exposure is the art director.** HDR rendering, auto-exposure, filmic tone map.
-     Stars are invisible when sunlit ground fills the frame and appear as the scene darkens.
-  3. **Real from afar, simplified up close.** Recognisable large landforms, clean
-     sculptural shapes at ground level, no photo-scanned micro-detail.
-  4. **The true sky.** Sun, moons and planets at correct positions, sizes and phases.
-  5. **Found colour, not invented colour.** Natural, slightly muted. No sci-fi grading,
-     no nebulae.
+## Choices in force (Claude's to change when the goal is better served)
+
+These were the charter's fixed decisions. They are still how the game is built, because
+they have served it well; they are no longer rules.
+
+- **Look: "mission-camera realism"**: the Sun as the one real light with physical bounce
+  (sky light, sunlit ground, planetshine); HDR rendering, auto-exposure and a filmic tone
+  map; real large landforms with clean shapes up close; the true sky (Sun, moons and
+  planets at their real positions, sizes and phases); natural colour. The owner's
+  character is the one deliberately fantastical thing in it, and the cloth flows in
+  vacuum because the owner wants it to.
 - **Tech**: three.js `WebGLRenderer` on WebGL 2, GLSL, Vite, plain JavaScript, static
   build, 64-bit world positions with camera-relative rendering, no logarithmic depth
-  buffer. The game must run in a phone browser and the whole codebase is built on these.
+  buffer. The whole codebase is built on these; changing one is a large job, to be done
+  only for a clear gain on the phone.
 - **Worlds are data-driven**: one definition file per world, only generic engine
-  additions, public-domain or CC0 assets, sources recorded in `docs/ASSETS.md`.
-- **Test device**: Samsung Galaxy S23 Ultra, Chrome, landscape. Policy: the best image
-  quality that holds a steady frame rate there, including after 10 minutes when it
-  throttles from heat. Frame rates from headless rendering say nothing about the phone:
-  never report them as performance.
-- **Resolution**: the ceiling is the canvas's native pixel size (CSS size ×
-  devicePixelRatio; 3088 × 1440 on the phone at its WQHD+ setting). A governor finds the
-  highest resolution that holds the frame target, anywhere from about 1 million pixels up
-  to native. It lowers resolution first, then steps features down in a fixed order, and
-  steps back up when there is sustained headroom, with hysteresis so it does not visibly
-  hunt. Two modes on a button: **Smooth** (60 fps target, the default) and **Sharp**
-  (30 fps target, favouring native resolution). Photo mode renders a single frame at full
-  native resolution.
-- **No fixed budgets** (the owner dropped the 200 draw calls / 500,000 triangles / 300 MB
-  limits on 2026-11-20: "make the best game possible"). The only limit is the test-device
-  policy above: a steady frame rate on the phone, kept by the governor. Pools stay
-  fixed-size so memory cannot creep, and anything that adds cost still gets a governor
-  step. Judge by the phone's benchmark, not by a number in a table.
+  additions.
+- **Test device**: Samsung Galaxy S23 Ultra, Chrome, landscape; the picture must stay
+  steady there, including after 10 minutes when it throttles from heat.
+- **Resolution and the governor**: the ceiling is the canvas's native pixel size
+  (3088 × 1440 on the phone). The governor keeps the frame rate: it lowers resolution
+  when pixels are what is slow, lets terrain in more slowly or draws fewer patches when
+  the page's own work is what is slow, then steps features down in a fixed order, and
+  steps back up when there is sustained headroom. Two modes on a button: **Smooth**
+  (60 fps, the default) and **Sharp** (30 fps, favouring detail and native resolution).
+- **No fixed budgets**: pools stay fixed-size so memory cannot creep; the phone's
+  benchmark is the judge.
+- **Expensive effects** (anti-aliasing, soft shading in creases, clouds, reflections and
+  the rest) are welcome when the phone has room for them. Each gets a governor step and
+  is checked by a benchmark.
 
-## Decisions Claude makes alone, and the ones that need approval
+## What needs the owner
 
-Without asking: implementation choices, tuning, refactoring, task order inside a
-milestone, bug fixes, small quality-of-life features, installing packages, downloading
-public-domain data, committing, pushing, opening and merging Claude's own pull requests,
-and performance trade-offs inside the policy. Record notable decisions in
-`docs/PROGRESS.md`. When torn, choose what best serves, in this order: the art rules,
-steady frame rate on the phone, the data-driven architecture.
-
-Ask for approval before:
-
-- changing a fixed decision;
-- removing a feature the player can see or use;
-- anything that costs money or needs a new account or key;
-- using an asset whose licence is not public domain or CC0;
-- starting milestone 9.
-
-**Expensive effects** (volumetric clouds, screen-space reflections, ambient occlusion,
-global illumination, motion blur, temporal anti-aliasing): add one only when the phone
-benchmark shows headroom and the governor can switch it off.
+Only the first two of the three things above (money or accounts; a question of rights),
+and removing something the player already uses and likes. Everything else is decided
+and done: record notable decisions in `docs/PROGRESS.md`. Milestone 9 (Earth's surface)
+is the riskiest part: write its plan in `docs/PROGRESS.md` before starting it.
 
 ## Finishing work
 
 Work through each milestone to its checkpoint. Do not end a turn by listing remaining
 work or offering to continue. Errors, timeouts, failing tools and empty results are not
 blockers: diagnose them and work through them. The only planned stops are the
-checkpoints and the approvals above. If something truly cannot move without the owner,
+checkpoints and the few things that need the owner. If something truly cannot move without the owner,
 say plainly what is needed and carry on with everything that does not depend on it.
 
 ## How to work on every milestone
@@ -125,12 +103,13 @@ say plainly what is needed and carry on with everything that does not depend on 
    for the milestone (in `docs/PROGRESS.md`).
 2. Judge visuals by looking, not by reading code. Save screenshots at every bookmark on
    every world, in orbit, and of the character (`npm run shots:all`), and compare them
-   against real spacecraft and rover photography and the five art rules.
-3. Helpers. A subagent costs a full extra session's worth of tokens, so use one only
-   where it adds something Claude cannot: (a) once per milestone, before the checkpoint,
-   an independent critic that sees only the screenshots and the art rules, never the
-   code, and returns the five biggest gaps, ranked; (b) pieces of work that are
-   independent and touch separate files. Tuning loops, small fixes and shared shader code
+   against real spacecraft and rover photography and the look described above.
+3. Helpers, only for the most challenging parts (the owner's word): (a) once per
+   milestone, before the checkpoint, an independent review: a critic that sees only the
+   screenshots and what the game is aiming at, never the code, and returns the five
+   biggest gaps, ranked, and reviewers of the milestone's code whose findings a second
+   reviewer tries to disprove; (b) large pieces of work that are independent and touch
+   separate files. Tuning loops, small fixes and shared shader code
    stay with Claude. Brief each helper with the goal, the exact files or screenshots, the
    rules that apply and the output wanted.
 4. Stability test (`npm run stability`, and `-- --streaming` for pops while terrain is
@@ -146,10 +125,9 @@ say plainly what is needed and carry on with everything that does not depend on 
 - "continue": a milestone at `checkpoint sent` is accepted (mark it `done` in
   `docs/ROADMAP.md`); start the next unfinished milestone and work through it to its
   checkpoint.
-- Pasted benchmark results: tune the governor and resolution range from them first. If
-  they are the first results after milestone 4, the gate above opens: tell the owner the
-  limits are gone, rewrite this charter to match, then go for the best product the phone
-  runs without lag (the roadmap stays the plan unless something better serves that).
+- Pasted benchmark results: tune the governor and resolution range from them first (the
+  results name each stop of the route and the page's own work per frame: slow work is
+  not cured by fewer pixels), then continue as above.
 - A complaint about how something looks or feels: reproduce it in a screenshot, fix it,
   show before and after, then return to the roadmap.
 
@@ -219,7 +197,8 @@ screen has this device pixel ratio: sets the canvas's pixel size), `mode=smooth|
 fist-up take-off), `posedir=side` (seen from the side; `front`: a moving on-foot pose coming toward the
 camera, to see the face; a standing one is turned to face it), `target=<body>|sun|place:<id>`
 (the target marker, view unchanged), `lat= lon= alt= heading= pitch= fov=`, `east= north=` (metres from the bookmark's place),
-`aim=<sky body>` (turn the view to it), `dust=1` (with `hero=1`: a touch-down dust burst
+`aim=<sky body>` (turn the view to it), `at=<body>:<radii>[:<round>[:<up>]]` (put the camera beside a sky
+body or `sun`, that many of its radii from its centre, looking at it; `round` degrees away from the Sun's side, `up` degrees above), `dust=1` (with `hero=1`: a touch-down dust burst
 frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last footfalls), `debug=noair|airall` (haze shadows off / everywhere),
 `debug=contactx4` (the rocks' contact-darkening spheres four times larger, to see the effect),
 `debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
@@ -262,7 +241,7 @@ finished benchmark leaves its text in `window.__benchResult`.
   uniform objects; never replace an object in `G` after start-up (materials hold the old
   reference). Worker replies carry the terrain `epoch` and are dropped after a switch.
 - Every lit surface goes through the shared lighting chunk (`src/render/lightingGlsl.js`)
-  so art rule 1 holds everywhere.
+  so the one-light look holds everywhere.
 - Every feature that costs frame time registers a step in the governor
   (`src/perf/governor.js`), cheapest visual loss first.
 
@@ -366,5 +345,28 @@ finished benchmark leaves its text in `window.__benchResult`.
   screenshot then waits out its time limit: ask once per screenshot (`requestHeroVis`).
 - A test that cannot fail is worse than none (`npm run flight` printed "errors: none" for
   two milestones whatever happened). Every script must exit non-zero on a failed check.
+- Lowering resolution cures only slow pixels. On the phone a ten-second stretch of slow
+  work per frame once took the picture from 4.45 to 1.60 megapixels without curing a
+  frame. The governor now reads the page's own time per frame; the benchmark prints it,
+  and each stop of the route on its own line. Read those before deciding what is slow.
+- The home world's transmittance table answers only from inside its air. From far outside
+  it says "the ground is in the way" for most directions: anything in the sky looked up
+  through it from there draws black (Earth did). Guard with `uCamRkm < uRTop`.
+- Several maps packed into the colours of one JPEG leak into each other (the clouds'
+  detail became a blocky glow in the city lights at a long exposure). One grey picture
+  per map, uploaded as one byte a pixel.
+- A normal used for lighting must be in the scene's axes: a globe's own direction
+  (`normalize(vObj)`, right for its map) lit the night side when used as the normal.
+- The exposure meter aims at a middle grey over the whole picture: a bright globe that
+  fills the view comes out dull, its clouds grey. Things that must read as white (a
+  cloud-covered planet, the Sun through its filter) are held at their own level (`uGain`).
+- A rule that says "this is not the cause, do nothing" needs a way out: the governor's
+  slow-work test once blocked every resolution step for good. Every lever falls through
+  to the next when it is used up, and the simulation has a case that fails if it does not.
+- An eclipse is a small shadow on a world, seen from one place: applied to the whole
+  frame's sunlight from the camera, hovering behind Phobos turned sunlit Mars black.
+- The cloud machine reaches only the hosts its environment allows (`what-it-s-best-at`:
+  NASA GIBS, USGS planetary maps, the PDS geosciences node). NASA's older image server
+  (eoimages) drops the connection from here even when allowed: use GIBS.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

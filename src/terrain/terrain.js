@@ -183,8 +183,10 @@ export class Terrain {
     // Finished chunks go to the GPU a few per frame, not all at once: about one per 60th
     // of a second of frame time (so one at 60 fps, two at 30, and no limit that matters
     // when frames take a second each in a software renderer).
-    if (this.ready.length) {
-      const budget = Math.max(1, Math.min(8, Math.round((this.now - before) / 16.7))) + (this.ready.length > 6 ? 1 : 0);
+    // `pace` (the governor, when frames are late only while terrain arrives): 1 = one a
+    // frame whatever the queue, 2 = one every other frame.
+    if (this.ready.length && !(this.pace === 2 && this.frame % 2)) {
+      const budget = this.pace ? 1 : Math.max(1, Math.min(8, Math.round((this.now - before) / 16.7))) + (this.ready.length > 6 ? 1 : 0);
       for (let k = 0; k < budget && this.ready.length; k++) { const r = this.ready.shift(); this._upload(r.node, r.res); }
     }
     this._sun = [sunDir.x, sunDir.y, sunDir.z]; this._sunHalf = sunHalf;
@@ -326,7 +328,7 @@ export class Terrain {
       node.shadowBusy = true;
       const want = sun, epoch = this.epoch;
       this.workers.run({ type: 'shadow', face: node.face, level: node.level, ix: node.ix, iy: node.iy, sun: want, sunHalf: this._sunHalf })
-        .then((res) => { node.shadowBusy = false; if (epoch === this.epoch && node.slot >= 0 && !node.dead) { this.pool.uploadShadow(node.slot, res.shadow); node.shadowSun = want; } })
+        .then((res) => { node.shadowBusy = false; if (epoch === this.epoch && node.slot >= 0 && !node.dead) { this.pool.uploadShadow(node.slot, res.shadow); node.shadowSun = want; this.uploads++; this.rebakes = (this.rebakes || 0) + 1; } })
         .catch((e) => { node.shadowBusy = false; console.error(e); });
     }
   }

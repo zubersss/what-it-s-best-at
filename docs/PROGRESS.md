@@ -6,52 +6,24 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-*Handoff written after the foundation review and the owner's character, for a new
-session or account that starts with the owner typing "continue".*
+*Handoff written at the start of milestone 5.*
 
-- **Last delivered**: milestone 4 (`done` in `docs/ROADMAP.md`), reviewed three times at
-  the owner's request. The last round ("look over everything … make sure it is a good
-  foundation") ran a 57-reviewer foundation review of all the work since milestone 3 and
-  its fixes, rebuilt the character from the owner's reference pictures (a robed,
-  long-haired figure: "The owner's character" below), and dropped the fixed budgets at
-  the owner's word ("No fixed budgets" in CLAUDE.md). Everything is merged to `main`.
-- **The owner's standing instruction (2026-11-20)**: a benchmark comes first; after it
-  the charter's limits are gone and the one goal is the best possible product a Samsung
-  Galaxy S23 Ultra runs without lag (`CLAUDE.md`, "The benchmark gate, and what comes
-  after it"). Nothing new is built until the results arrive. When they do: tune the
-  governor, tell the owner in that same message that the charter's limits and the limits
-  on future creation are gone, rewrite the charter to match, then build (anti-aliasing
-  is the first expensive effect to try; milestone 5 is next on the roadmap).
-- **Asked of the owner**: (1) the Benchmark results (Copy results) in Smooth and Sharp:
-  nothing since milestone 1 has been measured on the phone, and the build now draws 180
-  ground patches instead of 120 and simulates more cloth; (2) whether a 3D model file of
-  the character exists (the reference sheet says "Character Model 1.0, 125k polygons"):
-  a real model, if it is the owner's to use, would replace the code-built figure.
-- **What to do next**:
-  - If the owner pastes benchmark results: tune the governor and resolution range from
-    them first (CLAUDE.md "What the owner's replies mean"). Look first at what is new and
-    unmeasured: 180 patches (if Smooth cannot hold native, try 150 or put a terrain step
-    earlier in the governor's order), the robe and hair simulation (about 0.8 ms a frame
-    in Node on the cloud machine; the `cloak` step halves it), the Mars dust cloud's
-    noise, the contact spheres, the per-pixel haze near a planet's edge.
-  - If the owner sends a model file: check its licence is the owner's to give, record it
-    in `docs/ASSETS.md`, load it with three's GLTFLoader, keep `robe.js` for the cloth
-    or use the model's own skinning; the pose code in `hero.js` drives eight limb pieces.
-  - If the owner says "continue" without benchmark results: ask for the benchmark first
-    (the gate), and do upkeep meanwhile. After the results: **milestone 5, Earth and the Sun from space**.
-    Write its plan in this file first. Its scope (from the roadmap): Earth as a full
-    globe with public-domain NASA colour, a cloud layer, night-side city lights, sun-glint
-    on oceans and a thin blue edge (not landable). What the reviews left for it, in the
-    known-problems table: sky bodies are one generated pattern on a fixed sphere in the
-    home world's air (Earth needs its own maps and air); no eclipse of the Sun by another
-    body; Earth a white blob from the Moon; no light from the planet below on things in
-    orbit; Mars daylight haze too thick and the sky a flat khaki; chalk-white canyon
-    outlines and a bluish crescent on Mars from orbit; Deimos burnt out; black shadow
-    slivers in the low lunar orbit view. Flight beside a body that is not the home world
-    now works (the traveller is carried with it: `App.carryWith`). Earth's maps must be
-    public domain (NASA Blue Marble, Black Marble): record them in `docs/ASSETS.md`.
-  - If the owner complains about something: reproduce it in a screenshot, fix it, show
-    before and after, then return to the roadmap.
+- **The gate opened (2026-11-20)**: the owner pasted the first benchmark after milestone
+  4 ("The owner's second phone results" below) and the charter's limits were lifted: one
+  goal, the best possible product a Samsung Galaxy S23 Ultra runs without lag
+  (`CLAUDE.md`, "The one goal"). The owner was told so in the first message after the
+  results. Helpers: workflows only for the most challenging parts.
+- **Last delivered**: milestone 5, Earth and the Sun from space ("Milestone 5: what was
+  built" below), `checkpoint sent`, merged to `main`.
+- **Asked of the owner** (still open): a new benchmark after milestone 5 (the governor
+  was changed from the last one and the results now name each stop and the page's own
+  work per frame); whether a 3D model file of the character exists.
+- **What to do next**: with a benchmark, tune from it first (each stop and the page's own
+  work per frame are on their own lines now). On "continue": milestone 6 (new landable
+  worlds; Phobos and Deimos first). Before more terrain detail: the terrain draws one draw call per patch
+  (about 200 calls a frame at 180 patches), which is the likely cost the phone cannot
+  hold at 60 fps; drawing all patches in one or a few calls (texture arrays, instancing)
+  is the next performance project.
 - **How to work here** (all in CLAUDE.md): develop on the session's own branch, open a
   pull request into `main` and merge it yourself; the phone link updates a minute later
   and shows the build's commit. Run `./scripts/build-check.sh` before every merge, one
@@ -137,6 +109,114 @@ What was changed because of them:
   room for an expensive effect behind a governor step. Anti-aliasing is the first
   candidate (thin bright features shimmer). To be confirmed on the milestone 2 build,
   which costs more per frame.
+
+## The owner's second phone results (after milestone 4, Galaxy S23 Ultra)
+
+One run, Smooth, build 6694574 (180 terrain patches, the robed character): **56.6 fps, 1 %
+low 21.6, 5.3 % late frames**, resolution 3.61 MP on average with dips to 1.60 MP, 29
+resolution steps and no feature step, 197 draw calls, 631 thousand triangles, 237 MB;
+1301 Martian patches built at 45 ms and 1832 lunar at 58 ms. The milestone 1 build held
+59.8 fps and a 1 % low of 45 at native.
+
+What the log showed: at the Mars `dusk` stop the governor took eight resolution steps in
+ten seconds, down to 1.60 MP, and the frames stayed late the whole stop: pixels were not
+what was slow. The same on the Moon's stops with a time jump. The likely cause is the
+work per frame: half again as many draw calls and patches arriving after every jump,
+all shadows re-baked after a jump of the clock.
+
+What was changed:
+
+- **The governor tells slow work from slow pixels.** The app measures the page's own
+  work per frame; when it fills more than 0.6 of the frame, late frames no longer lower
+  resolution: terrain patches go instead (x0.8, x0.64, back after 15 clean seconds).
+  When only frames with arriving terrain are late, terrain is let in more slowly (one
+  patch a frame, then one every other frame) before anything else.
+- **Smooth draws 0.8 of the patch cap** (144); Sharp, with twice the time, all 180.
+- Shadow re-bakes count as arriving terrain (they were invisible to the governor).
+- **The benchmark now reports** the page's own work per frame, every stop of the route
+  on its own line, the shadows re-baked and the patch cap at the end: the next results
+  will say where the time goes.
+- Checked in the governor simulation (two new phone-like cases: ten seconds of slow work
+  that fewer patches cure, and that nothing cures: resolution stays native in both).
+
+Not known until the next benchmark: whether Smooth is steady again.
+
+## Milestone 5 plan: Earth and the Sun from space
+
+1. **Earth as a real globe** (not landable; you stop 2 % of its radius up). NASA maps
+   through the GIBS service: Blue Marble Next Generation for the day side, Black Marble
+   2016 for city lights, a VIIRS true-colour mosaic of one real day (2016-09-22) for the
+   clouds, the MODIS water mask for the oceans' glint. A small copy is always loaded (the
+   Earth of the Moon's sky); the full maps load when Earth grows large in view.
+   A generic body recipe (`globe`), numbers in `solarSystem.js`.
+2. **Its air**: blue haze over the day side that thickens toward the edge, a red
+   day-night line, and a thin bright blue line beyond the solid edge (a shell).
+3. **Sun-glint** on the oceans, clouds over everything, **city lights** on the night side
+   when the exposure allows.
+4. **Bright bodies in a dark scene keep their colour** (Earth was a white blob from the
+   lunar night, Deimos burnt out at dusk).
+5. **Eclipses**: a body in front of the Sun dims the sunlight by the share of the disc
+   it covers.
+6. **Light from the world below** on things in orbit (the figure was near black over
+   sunlit Mars).
+7. **The Sun up close**: a surface with grain and darker edge, a faint outer glow.
+8. Earth among the targets; GO to Earth; reference pictures; tests; the milestone's
+   independent review (the one workflow); checkpoint with a request for a benchmark.
+
+Status: all eight built; checkpoint sent ("Milestone 5: what was built" below).
+
+## Milestone 5: what was built, tested and found
+
+**Built.** Earth is a real globe (`surface.recipe: 'globe'` in `solarSystem.js`, shader in
+`sky/bodies.js`): NASA's Blue Marble for the day side, the clouds of 22 September 2016
+(shaded on their far side, with a shadow on the sea beside each), the Sun's glint on the
+water, air that hazes the edge and reddens the day-night line, a thin bright rim of air
+beyond the solid edge, city lights on the night side. Small copies of the four maps
+(about 100 kB together) are always loaded; the full ones (2.9 MB) load when Earth is more
+than 260 pixels across. From the Moon it is a small blue-and-white Earth with its real
+phase; up close it fills the sky. It cannot be landed on (you stop 2 % of its radius up
+and stay beside it). The Sun is drawn where it is from the camera and grows as it is
+approached; large in view it is seen as through a dark filter, with a darker, warmer
+edge and a few spots. A body that hides part of the Sun dims the sunlight on the ground
+round the camera. The figure in orbit is lit from below by the world's day side. A body
+far brighter than the scene is exposed for keeps its colours (Earth in the lunar night),
+and a globe that fills the view is held just under white whatever the exposure meter
+does.
+
+**Tests** (final build): `smoke` (23 shaders, the terrain still the fullest at 15 of 16
+textures; the globe uses 5), `foot`, `target`, `flight` pass; the governor simulation
+passes with four new cases, two of which fail the run if they regress.
+
+**Independent critic** (pictures only). Its five gaps and what was done:
+1. *Earth dull and grey up close* (the exposure meter aims at a middle grey): a globe
+   large in view is now brought up to just under white; richer sea colour, more haze.
+2. *The Sun a plaster ball*: redone as an even glowing disc with a strong warm edge, a
+   grain too fine to see until very near, small dark spots in two belts.
+3. *Clouds a flat sticker*: shading on each cloud's far side and its shadow on the sea,
+   a softer ramp from thin to thick. Still soft low down (the map is 10 km a pixel).
+4. *City lights*: they blazed on the dark edge of an Earth exposed for its day side:
+   now dimmed with the day side, so only the night side seen on its own shows them;
+   finer map (4096), warmer, a wide range from sprawl to cores.
+5. *Glint and day-night line*: a tighter, brighter glint, only on water and under cloud
+   shadows; clouds turn warm toward the line.
+Not done: Phobos a pale featureless lump and Deimos a speck (they become worlds in
+milestone 6), a hard sunlit rim on the figure in orbit, faint banding in the dusk sky.
+
+**Code review** (three lines of review, each finding checked by a second reviewer): 27
+findings, 26 upheld. Fixed: the new governor logic could stop lowering resolution for
+good when the page's own work passed 0.6 of the frame while the GPU was what was late
+(now judged on the late frames, at 0.9 of the interval, and it falls through to
+resolution); the patch lever hunted every 15 s (it backs off now) and did nothing in
+Smooth (the mode's share now multiplies); Sharp did not get its patches back; an eclipse
+seen from the camera darkened the whole world (hovering behind Phobos turned Mars
+black: now only near the ground); the Sun's disc vanished when it filled the view from
+the side; the exposure meter masked the Sun where it is from the home world; NaN risks
+in the glint and in the light from below; a seam in the cloud map at the date line; a
+map that fails to load stalled every screenshot; stars vanished over a third of the sky
+far from home; the mode button before the world had loaded. Recorded, not fixed: the
+full maps are decoded on the main thread when they arrive (a hitch of a frame or
+two, once, hidden from the governor); close to the Sun the exposure has nothing to meter
+and runs to its limit (the filter hides it).
 
 ## The owner's flight notes (after milestone 2)
 
@@ -685,15 +765,13 @@ The character
 | Mars from orbit is soft: about 40 % of the contrast of the Viking mosaic survives the haze; Valles Marineris shows by its bright rims | 5 |
 | Twilight glow has a hard upper edge at the highest exposures | 5 |
 | Mars: flat grey sky away from the Sun, olive cast in the sunset views | 5 |
-| Deimos burns out to a white blob at dusk exposure | 5 |
-| Earth is a blown-out white disc from the Moon and has no blue | 5 |
 | The cost of the Mars dust cloud's noise on the phone's fill rate is not measured (the governor's dust step drops most of it) | owner's next benchmark |
 | Through a very long lens (under 10°) looking down-Sun at a grazing angle, the sand ripples stretch into vertical stripes (seen at the lander bench near sunset; not at normal lenses) | watch |
 | Rocks look pale, bluish grey against the Martian ground (real ones are dark and dust-coated) | 6 |
 | Landforms soft from close up: Mount Sharp, the Coprates wall, the Olympus caldera wall, Hadley Rille, Tycho's peak read as rounded heaps (milestone 4 critic) | 6 / 7 |
 | Mars daylight haze too thick: far walls dissolve, flat khaki sky (milestone 4 critic) | 5 |
 | Chalk-white outlines on canyon walls and crater rims in Mars from orbit; a bluish Mars crescent | 5 |
-| No light from the planet below on things in orbit (the figure and its robe are near black on their shaded side over sunlit Mars), and in orbit the cloth floats loosely with almost no weight to hang by | 5 |
+| In orbit the cloth floats loosely with almost no weight to hang by | next character pass |
 | Black shadow slivers with no visible relief in the low lunar orbit view | 5 |
 | Far from every body only the target marker shows the way; there is no map yet | 7 |
 | Places on other worlds cannot be chosen until that world is home (no map yet) | 7 |
@@ -703,8 +781,13 @@ The character
 | In fast flight the robe's skirt streams back as a smooth tube; little billow. The face is a few simple shapes | next character pass |
 | The robe and hair simulation (about 500 points, 75 steps a second) and the 180 patches are not measured on the phone | owner's next benchmark |
 | The reference pictures of the worlds without the character (bookmarks, orbit views) were rendered with 120 patches; with 180 the ground is finer than they show. Re-render with `npm run shots:all` (3–4 hours) | tooling |
-| Sky bodies seen from another world are one generated pattern on a fixed 3,380-triangle sphere, drawn in the home world's air: Earth up close cannot be more than that (foundation review) | 5 |
-| No eclipse: when another body covers the Sun the ground stays fully sunlit (foundation review) | 5 |
+| Earth's maps are 10 km a pixel (clouds, colour) and 20 km (lights, water): low over it the clouds are soft; it cannot be landed on (milestone 9). The other bodies seen from afar are still generated patterns on a 3,380-triangle sphere | 6 (each new world brings its maps) / 9 |
+| An eclipse dims the sunlight by the share of the Sun's disc covered, at the camera, for the whole frame: no shadow edge moving over the ground, no red ring of air round an eclipsing Earth | 7 |
+| Milestone 5's costs are not measured on the phone: the globe's shader and the rim of air (only where Earth is on screen), four maps of about 80 MB when Earth is near | owner's next benchmark |
+| Low over Earth the clouds are soft and have no fine structure; city lights are 10 km a pixel; no cloud shadows on land at the day-night line (milestone 5 critic) | 9 |
+| Phobos is a pale featureless lump and Deimos a speck through a long lens (milestone 5 critic) | 6 |
+| Earth's full maps are decoded on the main thread when they arrive: a hitch of a frame or two, once | watch |
+| The Sun's disc is placed from the camera, but the sunlight on everything (direction and strength) is still that at the home world: flying far from home toward the Sun, things are lit as if at home | 7 |
 | Far from every body the traveller still rides the home world's spinning axes, so a time change swings distant bodies round it (near a body it is now carried along with that body) (foundation review) | 7 |
 | Every world's elevation data is downloaded at start-up and kept: fine for two worlds, not for ten (foundation review) | 6 |
 | `scripts/transfer.mjs` flies a hand copy of the trip code in `App`; a change to one can miss the other. The trip's steering belongs in `autopilot.js`, used by both. `transfer` and `flyby` print their numbers but never fail: they need pass marks (foundation and final reviews) | 5 (before touching trips again) |
@@ -1205,3 +1288,8 @@ Weakest: `mars_ledge_orbit_globe`.
   findings of a 57-reviewer foundation review, fixed or recorded for their milestone;
   fixed budgets dropped by the owner, 180 terrain patches; `App.carryWith` / `turnAxes`;
   tests that can fail; shot parameter `posedir=front`. Tools: `stability --streaming`.
+- **The gate and milestone 5**: the owner's second phone results; the charter rewritten
+  round one goal; governor levers for slow work; Earth as a globe from NASA's GIBS maps
+  (`scripts/fetch-earth.py`), its air, glint, clouds and lights; the Sun up close;
+  eclipses; light from the world below; `at=` for pictures beside a body; a cloud
+  environment `what-it-s-best-at` that allows the NASA and USGS map hosts.

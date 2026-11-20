@@ -47,6 +47,10 @@ surface, so the same stick hovers over a rock, climbs to orbit and crosses to an
 world in well under a minute: choose the Moon with `TARGET` and push forward, or press
 `GO` and watch (about 15 s from the ground).
 
+Earth is in the sky as a real globe (NASA's maps: day colours, a real day's clouds, city
+lights, the Sun's glint on the sea): choose it with `TARGET` and `GO` to fly beside it. You
+cannot land on it yet. The Sun can be approached too.
+
 Everything else — the project charter, roadmap, architecture, status, asset licences — is
 in [`CLAUDE.md`](CLAUDE.md) and [`docs/`](docs/). Reference screenshots:
 [`docs/shots/`](docs/shots/).
