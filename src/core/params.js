@@ -22,7 +22,7 @@ export const PARAMS = {
   target: q.get('target'),              // the target marker on a body, 'sun' or 'place:<id>' (screenshots)
   heropose: q.get('heropose'),          // screenshots: in the air fly (default), fast, bank, climb, hover; on foot stand|walk|run|super|jump
   posedir: q.get('posedir'),            // screenshots on foot: 'side' = moving to the right of the view
-  dust: q.get('dust') === '1',          // screenshots: a touch-down dust burst frozen in mid-flight
+  dust: q.get('dust') === 'run' ? 'run' : q.get('dust') === '1',   // screenshots: 1 = a touch-down dust burst frozen in mid-flight; run = the last footfalls' puffs
   lat: num('lat', null), lon: num('lon', null), alt: num('alt', null),
   heading: num('heading', null), pitch: num('pitch', null), fov: num('fov', null),
   east: num('east', null), north: num('north', null),   // metres from the bookmark's place, standing on the ground

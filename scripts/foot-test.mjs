@@ -17,7 +17,8 @@ const until = async (cond, seconds) => { const t0 = Date.now(); for (;;) { const
 
 await goto(`${base}?world=${world}`);
 await page.waitForFunction(() => window.__app && window.__app.loaded, null, { timeout: 300000 });
-await page.click('#start button.primary');
+await page.waitForSelector('#start button.primary:not([disabled])', { timeout: 300000 });   // (Play unlocks once the ground under the start is drawn)
+await page.click('#start button.primary', { noWaitAfter: true });
 let s = await state();
 check('starts on its feet behind the character', s.mode === 'hero' && s.onFoot && !s.airborne, `camera ${s.agl.toFixed(2)} m up`);
 await page.keyboard.down('KeyW');

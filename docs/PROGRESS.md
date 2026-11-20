@@ -592,9 +592,9 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 | Far from every body only the target marker shows the way; there is no map yet | 7 |
 | Places on other worlds cannot be chosen until that world is home (no map yet) | 7 |
 | Triangles sit at ~480–495k of the 500k budget in the reference views; the interactive start view touched 500k while its terrain was still loading. The next world must not add triangles without taking some away | watch (5) |
-| The cloak reads as a stiff sheet: no folds or sag, even shading, a flat salmon red when backlit on Mars (milestone 4 review critic) | next character pass |
-| The suit reads slim: thin limbs, a small pack, a plain ball of a helmet; real suits are bulky (milestone 4 review critic) | next character pass |
-| No dust from footsteps or a run, no footprints; hovering looks much like standing (milestone 4 review critic) | next character pass |
+| The cloak in shade on Mars reads a pale salmon rather than deep red (sky light through the tone curve); folds were added after the milestone 4 review | next character pass |
+| The helmet is still a plain ball from behind (the suit's limbs, pack and visor were made bulkier after the milestone 4 review) | next character pass |
+| No footprints (footfalls throw dust since the milestone 4 review) | next character pass |
 
 Fixed in the milestone 4 review: GO arriving at tens of thousands of km/s (the figure hit
 the ground a fraction of a second after "Arrived", even with HOVER on); the trip's heading
@@ -800,6 +800,31 @@ landing, both hovers, both touch-down dusts, the Mars flight, the target marker,
 
 The critic's remaining gaps are about the character's look (a sheet-like cloak, a slim
 suit, no footstep dust): in the known-problems table for a later character pass.
+
+## Look pass after the milestone 4 review (owner: "keep refining the looks")
+
+Aimed at the critic's character gaps, the things on screen all the time:
+
+- **Cloak**: drawn as a smooth surface through the simulated points (25 x 27 drawn points
+  over the 9 x 14 simulated ones, Catmull-Rom across and down) with about four and a half
+  folds fanning from the shoulders, 6 mm deep at the top and 34 mm at the hem, pressed in
+  along the cloth's own normal; the inside of a fold is a touch darker. The simulation
+  and its cost are unchanged; about 1,000 more triangles. Up close it now reads as cloth
+  with pleats; seen exactly side-on in a run it is still a thin line (a flat cloth seen
+  edge-on).
+- **Suit**: arms drawn 28 % and legs 22 % wider (their length and joints unchanged), the
+  soft torso 10–12 % wider, the backpack 9 cm deep instead of 5, the gold visor larger;
+  the cloak hangs 4 cm farther out to clear the pack, and its collision with the limbs is
+  widened to match.
+- **Dust at every footfall**: each step on the ground kicks a small puff from the foot that
+  lands, bigger the faster the run (the steady trail on foot is a quarter of what it was,
+  the footfalls carry the rest). Shot parameter `dust=run` freezes the last few.
+  Lunar grains in vacuum take less of the sunlight (0.35 → 0.2): the puffs were brighter
+  than the regolith they came from.
+- **Mars air**: the dust pooled low in Coprates halved (density 0.6 → 0.3). The pictures
+  barely changed: the haze over the far wall is mostly the general dust at the canyon's
+  depth, seen with the Sun low just before sunset. Making Mars's air clearer means
+  lowering the main dust load, which changes the sky and the sunset too: milestone 5.
 
 ## Independent critic, milestone 4 (screenshots and art rules only)
 

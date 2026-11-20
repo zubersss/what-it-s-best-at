@@ -219,7 +219,12 @@ export class Hero {
       // Gait: one stride (two steps) per cycle; longer strides the faster it goes, and at
       // super speed the cadence stops rising (the legs are a blur anyway).
       const stride = Math.min(2.8, 0.9 + 0.32 * hspeed);
+      const g0 = this.gait;
       this.gait += Math.min(Math.PI * hspeed / stride, 2 * Math.PI * 4.2) * dt;
+      // a footfall every half cycle, alternating feet (the app kicks up dust at each)
+      if (onFoot && !motion.airborne && hspeed > 1.2 && Math.floor(this.gait / Math.PI - 0.5) !== Math.floor(g0 / Math.PI - 0.5)) {
+        this.steps = (this.steps || 0) + 1; this.stepSide = this.stepSide ? 0 : 1; this.stepSpeed = hspeed;
+      }
       const amp = Math.min(1, hspeed / 1.6), legA = 0.34 + 0.40 * run, armB = 0.30 + 0.55 * run;
       const kneeK = 0.30 + 0.95 * run, elbow = 0.30 + 1.05 * run;
       // In the air: legs tucked while rising, reaching down for the ground while falling.
@@ -265,10 +270,10 @@ export class Hero {
       const k = this.foot;
       for (let i = 0; i < 12; i++) P[i] += (F[i] - P[i]) * k;
     }
-    this._limb(this.arms[0], this.forearms[0], P[0], P[1], P[2], ELBOW, HAND, 0.075, 0.07, 0);
-    this._limb(this.arms[1], this.forearms[1], P[3], P[4], P[5], ELBOW, HAND, 0.075, 0.07, 2);
-    this._limb(this.legs[0], this.shins[0], P[6], P[7], P[8], KNEE, ANKLE, 0.095, 0.085, 4);
-    this._limb(this.legs[1], this.shins[1], P[9], P[10], P[11], KNEE, ANKLE, 0.095, 0.085, 6);
+    this._limb(this.arms[0], this.forearms[0], P[0], P[1], P[2], ELBOW, HAND, 0.09, 0.085, 0);
+    this._limb(this.arms[1], this.forearms[1], P[3], P[4], P[5], ELBOW, HAND, 0.09, 0.085, 2);
+    this._limb(this.legs[0], this.shins[0], P[6], P[7], P[8], KNEE, ANKLE, 0.11, 0.10, 4);
+    this._limb(this.legs[1], this.shins[1], P[9], P[10], P[11], KNEE, ANKLE, 0.11, 0.10, 6);
 
     // Place the figure: on foot where the rig puts it (standing on the ground, lowered in a
     // landing crouch and by the bent knees of a run); flying, in front of and a little

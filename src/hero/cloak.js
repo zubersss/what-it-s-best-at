@@ -7,6 +7,13 @@ import * as THREE from 'three';
 const NX = 9, NY = 14;
 const LENGTH = 1.08, TOP_WIDTH = 0.44, BOTTOM_WIDTH = 0.80;
 const STEP = 1 / 90;
+// The drawn cloth is finer than the simulated one: a smooth surface through the simulated
+// points (Catmull-Rom across and down), with folds that fan from the shoulders and deepen
+// toward the hem pressed into it along its own normal. Drawn straight from the 9 x 14
+// grid it read as a board: three folds on nine points do not show.
+const SX = 3, SY = 2;                                   // drawn points per simulated span
+const RX = (NX - 1) * SX + 1, RY = (NY - 1) * SY + 1;
+const FOLDS = 4.5;                                      // folds across the cloak
 
 export class Cloak {
   constructor() {
@@ -21,7 +28,7 @@ export class Cloak {
       const w = TOP_WIDTH + (BOTTOM_WIDTH - TOP_WIDTH) * v;
       // hangs down the back (−z is the wearer's back), slightly away from the body
       // gathered at the shoulders: three soft vertical folds that deepen toward the hem
-      out[0] = u * w * (1 - 0.10 * v); out[1] = 0.60 - v * LENGTH; out[2] = -0.15 - 0.05 * v - 0.06 * (1 - 4 * u * u) * Math.min(1, v * 3) + 0.045 * v * Math.cos(u * Math.PI * 6);
+      out[0] = u * w * (1 - 0.10 * v); out[1] = 0.60 - v * LENGTH; out[2] = -0.19 - 0.05 * v - 0.06 * (1 - 4 * u * u) * Math.min(1, v * 3) + 0.045 * v * Math.cos(u * Math.PI * 6);
       return out;
     };
     const t = [0, 0, 0], idx = (ix, iy) => iy * NX + ix;
@@ -40,24 +47,33 @@ export class Cloak {
       if (iy + 2 < NY) link(idx(ix, iy), idx(ix, iy + 2), 0.25);
     }
 
-    // Render mesh (positions are written every frame).
+    // Render mesh (positions are written every frame), RX x RY points.
     const geo = new THREE.BufferGeometry();
-    const indices = [];
-    for (let iy = 0; iy < NY - 1; iy++) for (let ix = 0; ix < NX - 1; ix++) {
-      const a = idx(ix, iy), b = a + 1, c = a + NX, d = c + 1;
+    const indices = [], rn = RX * RY, ridx = (ix, iy) => iy * RX + ix;
+    for (let iy = 0; iy < RY - 1; iy++) for (let ix = 0; ix < RX - 1; ix++) {
+      const a = ridx(ix, iy), b = a + 1, c = a + RX, d = c + 1;
       indices.push(a, c, b, b, c, d);
     }
     geo.setIndex(indices);
-    this.positionAttr = new THREE.BufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage);
+    this.positionAttr = new THREE.BufferAttribute(new Float32Array(rn * 3), 3).setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('position', this.positionAttr);
-    geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage));
-    geo.setAttribute('aMat', new THREE.BufferAttribute(new Float32Array(n).fill(2), 1));
-    const col = new Float32Array(n * 3);
-    for (let iy = 0; iy < NY; iy++) for (let ix = 0; ix < NX; ix++) {
-      const k = 0.9 + 0.1 * Math.cos(ix * 1.3) * Math.cos(iy * 0.7);      // faint weave variation
-      col.set([0.20 * k, 0.026 * k, 0.024 * k], idx(ix, iy) * 3);        // deep, muted crimson
+    geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(rn * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute('aMat', new THREE.BufferAttribute(new Float32Array(rn).fill(2), 1));
+    // the folds: depth (m) at each drawn point, and the colour a touch darker deep in a
+    // fold (its inside sees less of the sky and the Sun)
+    this.fold = new Float32Array(rn);
+    const col = new Float32Array(rn * 3);
+    for (let iy = 0; iy < RY; iy++) for (let ix = 0; ix < RX; ix++) {
+      const u = ix / (RX - 1), v = iy / (RY - 1);
+      const ph = 2 * Math.PI * (FOLDS * u + 0.15 * Math.sin(u * 7.0 + v * 2.0));
+      const f = Math.cos(ph);
+      this.fold[ridx(ix, iy)] = (0.006 + 0.028 * Math.pow(v, 0.8)) * f * (0.75 + 0.25 * Math.sin(u * 11.0 + 1.3));
+      const k = (0.94 + 0.06 * Math.cos(ix * 0.9) * Math.cos(iy * 0.5)) * (1 - 0.14 * Math.min(1, v * 2.5) * Math.max(0, -f));
+      col.set([0.20 * k, 0.026 * k, 0.024 * k], ridx(ix, iy) * 3);        // deep, muted crimson
     }
     geo.setAttribute('aCol', new THREE.BufferAttribute(col, 3));
+    this._row = new Float32Array(NY * RX * 3);          // scratch: rows smoothed across
+    this._surf = new Float32Array(rn * 3);              // scratch: the smooth surface
     this.geometry = geo;
     this.triangles = indices.length / 3;
     this._m = new THREE.Matrix3();
@@ -72,6 +88,7 @@ export class Cloak {
       this.pos[i * 3] = e[0] * x + e[3] * y + e[6] * z; this.pos[i * 3 + 1] = e[1] * x + e[4] * y + e[7] * z; this.pos[i * 3 + 2] = e[2] * x + e[5] * y + e[8] * z;
     }
     this.prev.set(this.pos);
+    if (this.positionAttr) this._draw();
   }
 
   // dt seconds. rot: wearer-local -> world axes. gravity: world-axes vector (m/s^2).
@@ -86,7 +103,44 @@ export class Cloak {
     const step = this.halfRate ? STEP * 2 : STEP;
     this.accum = Math.min(this.accum + dt, step * 4);
     while (this.accum >= step) { this._step(rot, gravity, accel, wind, air, step); this.accum -= step; }
-    this.positionAttr.array.set(this.pos); this.positionAttr.needsUpdate = true;
+    this._draw();
+  }
+
+  // The drawn surface from the simulated points (see RX, RY above).
+  _draw() {
+    const P = this.pos, row = this._row, S = this._surf, out = this.positionAttr.array, fold = this.fold;
+    const cr = (p0, p1, p2, p3, t) => {
+      const t2 = t * t, t3 = t2 * t;
+      return 0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (3 * p1 - p0 - 3 * p2 + p3) * t3);
+    };
+    // across each simulated row
+    for (let iy = 0; iy < NY; iy++) for (let rx = 0; rx < RX; rx++) {
+      const sx = Math.min(NX - 2, Math.floor(rx / SX)), t = rx / SX - sx;
+      const i0 = Math.max(0, sx - 1), i1 = sx, i2 = sx + 1, i3 = Math.min(NX - 1, sx + 2);
+      for (let k = 0; k < 3; k++) {
+        row[(iy * RX + rx) * 3 + k] = cr(P[(iy * NX + i0) * 3 + k], P[(iy * NX + i1) * 3 + k], P[(iy * NX + i2) * 3 + k], P[(iy * NX + i3) * 3 + k], t);
+      }
+    }
+    // then down each drawn column
+    for (let ry = 0; ry < RY; ry++) for (let rx = 0; rx < RX; rx++) {
+      const sy = Math.min(NY - 2, Math.floor(ry / SY)), t = ry / SY - sy;
+      const j0 = Math.max(0, sy - 1), j1 = sy, j2 = sy + 1, j3 = Math.min(NY - 1, sy + 2);
+      for (let k = 0; k < 3; k++) {
+        S[(ry * RX + rx) * 3 + k] = cr(row[(j0 * RX + rx) * 3 + k], row[(j1 * RX + rx) * 3 + k], row[(j2 * RX + rx) * 3 + k], row[(j3 * RX + rx) * 3 + k], t);
+      }
+    }
+    // folds pressed in along the surface's normal
+    for (let ry = 0; ry < RY; ry++) for (let rx = 0; rx < RX; rx++) {
+      const i = ry * RX + rx, o = i * 3;
+      const xa = (ry * RX + Math.max(0, rx - 1)) * 3, xb = (ry * RX + Math.min(RX - 1, rx + 1)) * 3;
+      const ya = (Math.max(0, ry - 1) * RX + rx) * 3, yb = (Math.min(RY - 1, ry + 1) * RX + rx) * 3;
+      const ux = S[xb] - S[xa], uy = S[xb + 1] - S[xa + 1], uz = S[xb + 2] - S[xa + 2];
+      const vx = S[yb] - S[ya], vy = S[yb + 1] - S[ya + 1], vz = S[yb + 2] - S[ya + 2];
+      let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const l = Math.hypot(nx, ny, nz) || 1, d = fold[i] / l;
+      out[o] = S[o] + nx * d; out[o + 1] = S[o + 1] + ny * d; out[o + 2] = S[o + 2] + nz * d;
+    }
+    this.positionAttr.needsUpdate = true;
     this.geometry.computeVertexNormals();
   }
 
@@ -150,7 +204,7 @@ export class Cloak {
         const lx = e[0] * px + e[1] * py + e[2] * pz, ly = e[3] * px + e[4] * py + e[5] * pz, lz = e[6] * px + e[7] * py + e[8] * pz;
         const cy = ly < -0.95 ? -0.95 : ly > 0.62 ? 0.62 : ly;
         const dx = lx, dy = ly - cy, dz = lz, d2 = dx * dx + dy * dy + dz * dz;
-        const R = ly > 0.0 ? 0.215 : 0.19;
+        const R = ly > 0.0 ? 0.255 : 0.215;          // (round the pack above the hips, the suit below)
         let ox = 0, oy = 0, oz = 0;
         if (d2 < R * R && d2 > 1e-9) { const s = R / Math.sqrt(d2) - 1; ox = dx * s; oy = dy * s; oz = dz * s; }
         // arms and legs: closest point on each capsule's axis, pushed out to its radius

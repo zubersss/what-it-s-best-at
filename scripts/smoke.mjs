@@ -28,7 +28,8 @@ const before = await page.evaluate(() => window.__app.governor.mode);
 await page.click('#start button.mode');
 check('mode button switches Smooth <-> Sharp', (await page.evaluate(() => window.__app.governor.mode)) !== before);
 await page.click('#start button.mode');
-await page.click('#start button.primary');
+await page.waitForSelector('#start button.primary:not([disabled])', { timeout: 300000 });   // (Play unlocks once the ground under the start is drawn)
+await page.click('#start button.primary', { noWaitAfter: true });
 check('Play hides the start screen', !(await page.isVisible('#start')));
 await page.waitForTimeout(6000);
 check('compact HUD shows frame rate, resolution, mode and build', /fps · [\d.]+ MP · (Smooth|Sharp) · build \w+/.test(await page.textContent('#hud')));

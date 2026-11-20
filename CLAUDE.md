@@ -182,7 +182,7 @@ benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|fast|ban
 fist-up take-off), `posedir=side` (seen from the side), `target=<body>|sun|place:<id>`
 (the target marker, view unchanged), `lat= lon= alt= heading= pitch= fov=`, `east= north=` (metres from the bookmark's place),
 `aim=<sky body>` (turn the view to it), `dust=1` (with `hero=1`: a touch-down dust burst
-frozen in mid-flight), `debug=noair|airall` (haze shadows off / everywhere),
+frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last footfalls), `debug=noair|airall` (haze shadows off / everywhere),
 `debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
 `nofarrough`, `noboost`) for before/after pictures.
 

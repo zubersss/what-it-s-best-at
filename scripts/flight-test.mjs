@@ -30,7 +30,8 @@ const until = async (cond, maxSeconds, every, tick) => {
   return false;
 };
 
-await page.click('#start button.primary');            // Play
+await page.waitForSelector('#start button.primary:not([disabled])', { timeout: 300000 });   // (Play unlocks once the ground under the start is drawn)
+await page.click('#start button.primary', { noWaitAfter: true });            // Play
 await page.waitForTimeout(8000);
 await snap('00_start');
 await page.keyboard.down('KeyE');
