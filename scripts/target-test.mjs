@@ -13,7 +13,8 @@ const check = (name, ok, extra = '') => { console.log(`${ok ? 'ok  ' : 'FAIL'} $
 
 await goto(`${base}?world=mars&touch=1&scale=0.4`);          // (a low render scale: frames are slow here)
 await page.waitForFunction(() => window.__app?.groundReady, null, { timeout: 400000 });
-await page.click('#start button.primary');
+await page.waitForSelector('#start button.primary:not([disabled])', { timeout: 300000 });   // (Play unlocks once the ground under the start is drawn)
+await page.click('#start button.primary', { noWaitAfter: true });
 await page.waitForTimeout(3000);
 
 // TARGET opens the list
