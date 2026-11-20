@@ -197,7 +197,8 @@ screen has this device pixel ratio: sets the canvas's pixel size), `mode=smooth|
 fist-up take-off), `posedir=side` (seen from the side; `front`: a moving on-foot pose coming toward the
 camera, to see the face; a standing one is turned to face it), `target=<body>|sun|place:<id>`
 (the target marker, view unchanged), `lat= lon= alt= heading= pitch= fov=`, `east= north=` (metres from the bookmark's place),
-`aim=<sky body>` (turn the view to it), `dust=1` (with `hero=1`: a touch-down dust burst
+`aim=<sky body>` (turn the view to it), `at=<body>:<radii>[:<round>[:<up>]]` (put the camera beside a sky
+body or `sun`, that many of its radii from its centre, looking at it; `round` degrees away from the Sun's side, `up` degrees above), `dust=1` (with `hero=1`: a touch-down dust burst
 frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last footfalls), `debug=noair|airall` (haze shadows off / everywhere),
 `debug=contactx4` (the rocks' contact-darkening spheres four times larger, to see the effect),
 `debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
@@ -344,5 +345,17 @@ finished benchmark leaves its text in `window.__benchResult`.
   screenshot then waits out its time limit: ask once per screenshot (`requestHeroVis`).
 - A test that cannot fail is worse than none (`npm run flight` printed "errors: none" for
   two milestones whatever happened). Every script must exit non-zero on a failed check.
+- Lowering resolution cures only slow pixels. On the phone a ten-second stretch of slow
+  work per frame once took the picture from 4.45 to 1.60 megapixels without curing a
+  frame. The governor now reads the page's own time per frame; the benchmark prints it,
+  and each stop of the route on its own line. Read those before deciding what is slow.
+- The home world's transmittance table answers only from inside its air. From far outside
+  it says "the ground is in the way" for most directions: anything in the sky looked up
+  through it from there draws black (Earth did). Guard with `uCamRkm < uRTop`.
+- Several maps packed into the colours of one JPEG leak into each other (the clouds'
+  detail became a blocky glow in the city lights at a long exposure). One grey picture
+  per map, uploaded as one byte a pixel.
+- A normal used for lighting must be in the scene's axes: a globe's own direction
+  (`normalize(vObj)`, right for its map) lit the night side when used as the normal.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.
