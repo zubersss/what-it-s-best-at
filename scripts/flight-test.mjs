@@ -1,25 +1,22 @@
 // Scripted flight test (headless): start on Mars behind the flying character, climb out,
 // aim at the Moon, fly there and check that the engine hands over to the Moon world.
-//   node scripts/flight-test.mjs [output dir for screenshots, default .cache/flight]
+//   node scripts/flight-test.mjs [--out <dir for screenshots, default .cache/flight>] [--dist] [--distdir <copy of a build>]
 // Headless frames are slow, so the script acts on distances, not on timers.
-import { createRequire } from 'node:module';
+// It FAILS (exit code 1, and a FAIL line naming each step) when a leg of the flight does
+// not get where it should in its time, the Moon does not become the world underfoot, the
+// flight does not end low over the Moon with ground drawn, or the page logs an error.
 import path from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { createServer } from 'vite';
+import { open, opt, flag, args, root } from './lib/browser.mjs';
 
-const require = createRequire(import.meta.url);
-const { chromium } = require('playwright');
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), out = process.argv[2] || path.join(root, '.cache', 'flight');
+// (the output folder used to be the first bare argument: still accepted)
+const out = path.resolve(root, opt('out', args[0] && !args[0].startsWith('--') ? args[0] : path.join('.cache', 'flight')));
 mkdirSync(out, { recursive: true });
-const server = await createServer({ root, logLevel: 'error', server: { port: 0, host: '127.0.0.1' } });
-await server.listen();
-const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-const page = await browser.newPage({ viewport: { width: 720, height: 340 }, deviceScaleFactor: 1 });
-const errors = [];
-page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text().slice(0, 300)); });
-page.on('pageerror', (e) => errors.push('PAGEERROR ' + String(e).slice(0, 400)));
-await page.goto(server.resolvedUrls.local[0] + '?hud=0&scale=0.6', { waitUntil: 'load' });
+const { base, page, errors, goto, close } = await open({ dist: flag('dist'), width: 720, height: 340, dsf: 1 });
+const fails = [];
+const check = (name, ok, extra = '') => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${extra ? '  (' + extra + ')' : ''}`); if (!ok) fails.push(name); return ok; };
+try {
+await goto(base + '?world=mars&hud=0&scale=0.6');
 await page.waitForFunction(() => window.__app && window.__app.loaded, null, { timeout: 120000 });
 const state = () => page.evaluate(() => { const a = window.__app; return { world: a.world.id, agl: a.rig.agl, speed: a.rig.velocity.length(), nearest: a.nearestName, clear: a.nearestClear, drawn: a.terrain.drawList.length, frame: a.frameCount }; });
 const fmt = (s) => `${s.world} agl ${s.agl.toExponential(2)} m, speed ${s.speed.toExponential(2)} m/s, nearest ${s.nearest} ${s.clear.toExponential(2)} m, chunks ${s.drawn}, frame ${s.frame}`;
@@ -34,10 +31,12 @@ await page.waitForSelector('#start button.primary:not([disabled])', { timeout: 3
 await page.click('#start button.primary', { noWaitAfter: true });            // Play
 await page.waitForTimeout(8000);
 await snap('00_start');
+const start = await state();
+check('starts on Mars', start.world === 'mars', fmt(start));
 await page.keyboard.down('KeyE');
-let ok = await until((s) => s.agl > 2e4, 200, 1500);
+check('holding up climbs past 20 km', await until((s) => s.agl > 2e4, 200, 1500), fmt(await state()));
 await snap('01_20km');
-ok = await until((s) => s.agl > 1.2e6, 200, 1500);
+check('and on to orbit, 1200 km up', await until((s) => s.agl > 1.2e6, 200, 1500), fmt(await state()));
 await page.keyboard.up('KeyE');
 await page.waitForTimeout(6000);
 await snap('02_orbit');
@@ -46,16 +45,26 @@ await page.waitForTimeout(2500);
 await snap('03_aim_moon');
 await page.keyboard.down('KeyW'); await page.keyboard.down('ShiftLeft');
 let shots = 0;
-ok = await until((s) => s.world === 'moon' && s.agl < 4e6, 600, 1200, async (s, n) => {
+const reached = await until((s) => s.world === 'moon' && s.agl < 4e6, 600, 1200, async (s, n) => {
   await page.evaluate(() => window.__app.aimAt('moon'));            // keep the nose on it
   if (n % 25 === 12 && shots < 6) await snap(`04_cruise_${shots++}`);
 });
-console.log('reached the Moon world:', ok);
+check('reached the Moon: it is the world underfoot, under 4000 km up', reached, fmt(await state()));
 await page.keyboard.up('ShiftLeft');
-await until((s) => s.world === 'moon' && s.agl < 6e4, 300, 1200, async () => { await page.evaluate(() => { window.__app.rig.pitch = -85; }); });     // nose down: descend
+const low = await until((s) => s.world === 'moon' && s.agl < 6e4, 300, 1200, async () => { await page.evaluate(() => { window.__app.rig.pitch = -85; }); });     // nose down: descend
+check('nose down: descends to under 60 km', low, fmt(await state()));
 await page.keyboard.up('KeyW');
 await snap('05_low_orbit');
 await page.waitForTimeout(25000);
 await snap('06_settled');
-console.log('errors:', errors.length ? errors.slice(0, 6).join('\n  ') : 'none');
-await browser.close(); await server.close();
+// With the keys released the flight must end low over the Moon (or standing on it), not
+// thrown back out or through the ground, and with ground on screen.
+const end = await state();
+check('ends low over the Moon with ground drawn', end.world === 'moon' && Number.isFinite(end.agl) && end.agl > -1 && end.agl < 1e5 && end.drawn > 0, fmt(end));
+} catch (e) {
+  check('the script runs to its end', false, String(e).split('\n')[0]);       // (a wait that timed out, a page that would not load)
+}
+check('no errors in the page', errors.length === 0, errors.slice(0, 6).join(' | '));
+await close().catch(() => {});
+console.log(fails.length ? `flight test FAILED: ${fails.join('; ')}` : 'flight test passed');
+process.exit(fails.length ? 1 : 0);

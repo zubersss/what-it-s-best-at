@@ -551,17 +551,97 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 
 ## Known limits of what is built
 
-- Air is not shadowed by terrain; haze inside the shadowed canyon is lit as if sunlit.
-- No sky-visibility bake: sky light is not reduced inside the canyon.
-- Shadow maps are 60² per chunk; shadows cast from far away have soft edges.
-- Gullies below MOLA resolution are not aligned downslope.
+Every limit in the code today that holds back the picture or its detail, checked against
+the code on 2026-11-20. Faults that will be fixed are in the table below; these are the
+ceilings the engine was built with. Since the owner dropped the fixed budgets (CLAUDE.md,
+"No fixed budgets"), none of the numbers here is a rule any more: each one can be raised
+when the phone's benchmark shows it holds a steady frame rate.
+
+The picture
+
+- No anti-aliasing of any kind: thin bright edges (ridge lines, crater rims) shimmer.
+- Render resolution is whatever holds the frame rate: from native down to about 1 million
+  pixels, then features switch off in the governor's order. Above 8.3 million pixels (a
+  monitor larger than 4K) the canvas is capped.
+- Smooth mode asks for 60 frames a second, so each frame has half the time Sharp gives it.
+- None of the expensive effects in CLAUDE.md is built: volumetric clouds, screen-space
+  reflections, ambient occlusion, global illumination, motion blur, temporal
+  anti-aliasing. Each waits for phone results that show headroom.
+- Bloom is one cheap pass (5 levels, about 4.5 % of the light).
+- Photo mode (one frame at full native resolution) is not built yet (milestone 8).
+- A phone allows 16 textures in one shader and the ground's shader uses 15: one more map
+  on the ground means merging or dropping another.
+
+The ground
+
+- At most 180 terrain patches are drawn at once (120 until 2026-11-20), from a pool of
+  480; the governor can lower that to 144 and 115. Detail in the distance is what this cap
+  leaves after the patches near the camera.
+- Every patch is a 40 × 40 grid of quads with a 120 × 120 normal map, whatever its size.
+  The finest patches are about 40 m across on Mars (1 m quads, 34 cm normal texels) and
+  10 m on the Moon (26 cm quads, 9 cm texels). Nothing smaller has real shape.
+- Below that, grain comes from one generated 256-pixel pattern repeated at three sizes
+  (64 m, 7 m and 0.8 m tiles): no photographed or scanned surfaces (art rule 3).
+- Real elevation is coarse outside a few sites. Mars: 15 km per pixel everywhere, 463 m at
+  Coprates, the Olympus summit and Gale, 1.9 km over the Olympus shield. The Moon: 7.6 km
+  per pixel everywhere, 59 m at Hadley, 118 m at Taurus-Littrow, 474 m over the Apennines
+  and Tycho. Everything finer is invented relief from the recipe.
+- Real colour is one 4096 × 2048 map per world: 5.2 km per pixel on Mars, 2.7 km on the
+  Moon. Finer colour is the palette and the generated ground cover.
+- Relief shading from far away comes from one slope map per world, 4096 pixels round
+  the globe (5.2 km per pixel on Mars, 2.7 km on the Moon), with its slopes doubled so
+  landforms read on a phone.
+- Gullies below the elevation maps' resolution are noise, not aligned downslope.
+- Rocks: one lump shape cut by fracture planes, at most 512 (480 on Mars, 420 on the
+  Moon), only within 120 m of the camera. No pebbles, boulder fields or footprints.
+- Three workers build terrain: ground that comes into view fast is drawn coarse until
+  they catch up.
+
+Shadows and light
+
+- Terrain shadows are baked per patch at 60 × 60 (half the normal map), re-baked when the
+  Sun has moved 1°. Shadows cast from far away have soft edges, and the day-night line
+  seen from far away is as sharp as those texels (stair-stepped on the Moon at high zoom).
+- Shadows of rocks, the lander and the character are drawn within 150 m of the camera
+  (15 cm texels; 4 cm within 20 m; 7 mm round the character). Farther away the lander
+  casts none. Kicked-up dust casts none.
+- No sky-visibility bake: sky light is not reduced inside a canyon or a crater, only in
+  one-texel hollows (the normal map's cavity term) and at the foot of the character, the
+  lander and the eight nearest rocks.
 - Planetshine is unshadowed and comes only from the single brightest sky body.
+- The lander's lamps light nothing. Nothing in orbit is lit by the planet below it.
+
+The air
+
+- The air is a set of small tables: sky 160 × 100, 32 × 32 × 32 cells of haze in front of
+  the camera, a 64 × 64 map of where terrain shadows the air. So shadows in the haze are
+  soft.
+- From space the glow on a planet's edge is marched per pixel with 16 samples (12 over
+  ground), halved by the governor.
+- No clouds, no dust storms, no weather: a world's air changes with height only, it is
+  the same over every place.
+
+The sky
+
+- Only Mars and the Moon have terrain; any other body stops you just above its drawn
+  surface (2 % of its size).
+- The catalogue holds the Sun, Earth, the Moon, Mars, Phobos and Deimos. No other planets
+  yet (milestone 6).
+- A body seen in the sky is a ball with a generated pattern, not its real map: Mars and
+  the Moon too, seen from the other world. Earth's is a procedural ocean/land/cloud
+  pattern, not real geography (milestone 5).
+- Stars are the 9,096 of the Yale Bright Star Catalogue as points; no Milky Way.
 - The Moon's rotation uses mean elements (no libration); Earth can be a few degrees off.
-- No anti-aliasing.
-- Earth's disc is a procedural ocean/land/cloud pattern, not real geography.
-- Only Mars and the Moon have terrain; other bodies stop you 2 % above their radius.
-- The sky's in-scatter fades out above the atmosphere: no glow on the planet's edge.
-- The character has rigid limbs; the cloak collides with a single capsule.
+
+The character
+
+- No textures: detail is geometry coloured per vertex; face and hands are simple shapes
+  and do not move (no fingers, no expression).
+- The robe, sleeves and hair are about 500 simulated points at 75 steps a second (half
+  that on the governor's last-but-one step), drawn finer than they are simulated. The
+  cloth is kept off the body, head and limbs, not off the ground, rocks or lander, and the
+  hair is not kept off the arms.
+- Kicked-up dust is a pool of 1,024 sprites, each at most 256 pixels across.
 
 ## Known problems (and where the roadmap deals with them)
 
@@ -591,7 +671,7 @@ governor is tuned when they arrive. Order: small and safe first, recipe tuning l
 | Black shadow slivers with no visible relief in the low lunar orbit view | 5 |
 | Far from every body only the target marker shows the way; there is no map yet | 7 |
 | Places on other worlds cannot be chosen until that world is home (no map yet) | 7 |
-| Triangles sit at ~480–495k of the 500k budget in the reference views; the interactive start view touched 500k while its terrain was still loading. The next world must not add triangles without taking some away | watch (5) |
+| The terrain patch cap went from 120 to 180 when the owner dropped the fixed budgets (2026-11-20), so more triangles and draw calls are drawn than in any build the phone has measured (the reference views sat at 480–495 thousand triangles before) | owner's next benchmark |
 | The cloak in shade on Mars reads a pale salmon rather than deep red (sky light through the tone curve); folds were added after the milestone 4 review | next character pass |
 | The helmet is still a plain ball from behind (the suit's limbs, pack and visor were made bulkier after the milestone 4 review) | next character pass |
 | No footprints (footfalls throw dust since the milestone 4 review) | next character pass |

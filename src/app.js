@@ -921,6 +921,9 @@ export class App {
     const { hero, rig } = this;
     this.heroVisClock = (this.heroVisClock ?? 1) + (dt > 0 ? dt : 0.02);
     if (!hero.group.visible || rig.agl >= 20000 || this.heroVisPending || this.heroVisClock < 0.12) return;
+    // (a screenshot holds still: one answer is enough, and a worker kept busy every other
+    // frame would never let the terrain count as settled)
+    if (this.shotMode && this.heroVisKnown) return;
     const p = hero.group.position, pts = new Float64Array([rig.pos.x + p.x, rig.pos.y + p.y, rig.pos.z + p.z]);
     const eph = this.ephemeris, epoch = this.terrain.epoch;
     const job = this.terrain.workers.run({ type: 'points', points: pts, sun: [eph.sunDir[0], eph.sunDir[1], eph.sunDir[2]], sunHalf, minWL: 2 });

@@ -7,7 +7,7 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { open, opt, flag, root } from './lib/browser.mjs';
-import { shaderUse, overPhone, PHONE } from './lib/glLimits.mjs';
+import { shaderUse, overPhone, countVaryings, PHONE } from './lib/glLimits.mjs';
 
 const out = path.resolve(root, opt('out', 'docs/shots/ui'));
 await mkdir(out, { recursive: true });
@@ -75,6 +75,7 @@ if (!flag('no-bench')) {
   const most = use.reduce((a, p) => (p.fragTextures > a.fragTextures ? p : a), use[0]);
   console.log(`shaders: ${use.length}; most textures in one: ${most.fragTextures} of ${PHONE.fragTextures} (${most.textureNames.join(' ')})`);
   for (const l of over) console.log('  ' + l);
+  check('the varying count reads every declaration (several on a line, matrices, arrays)', countVaryings('out vec3 a; out vec3 b;\nout mat3 m; out vec2 c[2];') === 7);
   check(`every shader fits a phone's limits (${PHONE.fragTextures} textures, ${PHONE.fragVectors} uniform vectors, ${PHONE.varyings} varyings)`, over.length === 0);
   check('no shader failed to compile or link', use.every((p) => p.linked) && !(await page.evaluate(() => window.__app.shaderErrors.length)));
 }

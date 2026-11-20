@@ -8,7 +8,7 @@ function run(label, { vsyncMs, mode, native, cost, seconds, events = () => {}, u
   const app = { renderer: { getContext: () => stubGl }, quality: { x: 1, y: 1, z: 1, w: 1 }, dust: { amount: 1 }, rocks: { setFraction() {} }, terrainBudget() {}, post: { bloomEnabled: true }, hero: { cloak: {} }, atmosphere: { airEnabled: true }, nearShadow: { fine: true } };
   const g = new Governor(app, mode); g.setNative(native);
   let prevSoft = false, bucket = -1, now = 0, last = 0, busyUntil = 0, frames = 0, lateFrames = 0, lastRender = -1, n = 0;
-  const trace = [];
+  const trace = [], byMode = {};           // per mode: [frames, late frames]
   while (now < seconds * 1000) {
     now += vsyncMs;                          // one display refresh
     events(now / 1000, g);
@@ -20,10 +20,13 @@ function run(label, { vsyncMs, mode, native, cost, seconds, events = () => {}, u
     if (soft) c += 9;                        // a terrain upload hitch
     busyUntil = now + c;
     g.update(dt, prevSoft ? FRAME.SOFT : FRAME.NORMAL); prevSoft = soft;   // the upload's cost shows in the gap to the next frame
-    frames++; if (dt > 1000 / (mode === 'smooth' ? 60 : 30) * 1.2) lateFrames++;
+    // A frame is late against the target in force when it was drawn (the mode can change
+    // during a run: a 33 ms Sharp frame is on time).
+    const late = dt > 1000 / g.targetFps * 1.2, m = byMode[g.mode] || (byMode[g.mode] = [0, 0]);
+    frames++; m[0]++; if (late) { lateFrames++; m[1]++; }
     if (Math.floor(now / 5000) !== bucket) (bucket = Math.floor(now / 5000), trace.push(`${(now / 1000).toFixed(0)}s:${(g.pixels / 1e6).toFixed(2)}${g.featureLevel ? 'f' + g.featureLevel : ''}`));
   }
-  console.log(`\n${label}\n  refresh est ${(1000 / g.vsync).toFixed(0)} Hz, target ${g.targetFps.toFixed(0)} fps, got ${(frames / seconds).toFixed(1)} fps, late ${(100 * lateFrames / frames).toFixed(1)} %, steps ${g.log.length}, holdUp ${g.holdUp}`);
+  console.log(`\n${label}\n  refresh est ${(1000 / g.vsync).toFixed(0)} Hz, target ${g.targetFps.toFixed(0)} fps, got ${(frames / seconds).toFixed(1)} fps, late ${(100 * lateFrames / frames).toFixed(1)} %${Object.keys(byMode).length > 1 ? ' (' + Object.entries(byMode).map(([k, [f, l]]) => `${k} ${(100 * l / f).toFixed(1)} %`).join(', ') + ')' : ''}, steps ${g.log.length}, holdUp ${g.holdUp}`);
   console.log('  ' + trace.join(' '));
   return g;
 }

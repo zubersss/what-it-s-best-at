@@ -188,7 +188,7 @@ export class Robe {
     // Flutter: waves pushing along each piece's own normal that run down its length,
     // quicker and stronger with the flow (drag alone lines cloth up with the air into a
     // flat sheet, which seen from the side is a stick or a plank).
-    const fl = (1.4 + 3.0 * air) * Math.min(2, wlen / 8), fw = Math.min(26, 4 + 0.9 * wlen);
+    const fl = (2.1 + 4.5 * air) * Math.min(2, wlen / 8), fw = Math.min(26, 4 + 0.9 * wlen);
     for (let i = 0; i < n; i++) {
       if (pinned[i]) continue;
       const p = this.patches[owner[i]], li = i - p.base, ix = li % p.nx, iy = (li / p.nx) | 0, fv = iy / (p.ny - 1);

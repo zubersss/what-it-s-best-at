@@ -1,5 +1,6 @@
-// Shared by the headless scripts: serves the game (dev server, or dist/ with `dist`) and
-// opens it in headless Chromium with software WebGL. Frame rates here mean nothing.
+// Shared by the headless scripts: serves the game (dev server, or dist/ with `dist`, or a
+// frozen copy of a build with --distdir <path>) and opens it in headless Chromium with
+// software WebGL. Frame rates here mean nothing.
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +17,10 @@ export const flag = (name) => args.includes('--' + name);
 export async function open({ dist = false, width = 880, height = 412, dsf = 1.25, touch = false } = {}) {
   // --distdir <path>: serve that copy of a build instead of dist/ (a frozen build, so a
   // rebuild while a long batch of pictures runs cannot change them halfway).
+  // It implies `dist`: without that the live dev server would serve src/ and the frozen copy
+  // would be ignored without a word.
   const distDir = opt('distdir', null);
+  if (distDir) { dist = true; console.log(`serving the frozen build in ${path.resolve(distDir)}`); }
   const server = dist
     ? await preview({ root, logLevel: 'error', preview: { port: 4179, strictPort: false, host: '127.0.0.1' }, ...(distDir ? { build: { outDir: path.resolve(distDir) } } : {}) })
     : await createServer({ root, logLevel: 'error', server: { port: 0, host: '127.0.0.1' } });
@@ -25,11 +29,17 @@ export async function open({ dist = false, width = 880, height = 412, dsf = 1.25
     args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--enable-webgl', '--disable-gpu-vsync'],
   });
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: dsf, hasTouch: touch, isMobile: touch });
-  const problems = [];
+  // problems: every console error and warning and every uncaught page error.
+  // errors: the same without the warnings (what a run of pictures must not have).
+  const problems = [], errors = [];
   // The software GL driver's performance notes ("GPU stall due to ReadPixels") are not faults.
   const benign = (t) => /GL Driver Message \(OpenGL, Performance/.test(t);
-  page.on('console', (m) => { if ((m.type() === 'error' || m.type() === 'warning') && !benign(m.text())) { problems.push(m.text().slice(0, 400)); console.log(`[browser ${m.type()}]`, m.text().slice(0, 600)); } });
-  page.on('pageerror', (e) => { problems.push(String(e).slice(0, 400)); console.log('[pageerror]', String(e).slice(0, 600)); });
+  page.on('console', (m) => {
+    if ((m.type() !== 'error' && m.type() !== 'warning') || benign(m.text())) return;
+    problems.push(m.text().slice(0, 400)); if (m.type() === 'error') errors.push(m.text().slice(0, 400));
+    console.log(`[browser ${m.type()}]`, m.text().slice(0, 600));
+  });
+  page.on('pageerror', (e) => { problems.push(String(e).slice(0, 400)); errors.push('uncaught: ' + String(e).slice(0, 400)); console.log('[pageerror]', String(e).slice(0, 600)); });
   // Software WebGL frames can take a long time; never let one slow screenshot kill a run.
   const snap = async (file) => {
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -46,5 +56,5 @@ export async function open({ dist = false, width = 880, height = 412, dsf = 1.25
     }
   };
   const close = async () => { await browser.close(); await (dist ? server.httpServer.close() : server.close()); };
-  return { base: server.resolvedUrls.local[0], browser, page, problems, snap, goto, close };
+  return { base: server.resolvedUrls.local[0], browser, page, problems, errors, snap, goto, close };
 }
