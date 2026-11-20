@@ -108,6 +108,45 @@ GO read them (`App.targetList`, `App.resolveTarget`), and `?target=place:<id>` n
 A world file without `places` loads with no error and simply has no places in its list,
 so a new world needs them to be reachable by GO.
 
+**Fifteen worlds, loaded when wanted.** The registry imports every world file (small:
+numbers only). A world's rasters and height function are fetched by `App.loadWorldData`
+when it is the start world, when the traveller comes within twenty of its radii (or the
+home ground is six times farther than it), or when a GO trip is aimed at it (`App.space`).
+One download however many ask; the last three worlds stay in memory; a failed download
+backs off and is tried again. Its albedo and slope maps load with the terrain
+(`Terrain.loadAlbedoMap`), decoded off the main thread. The start screen's "Start on"
+list reloads the page on another world (`?world=`, remembered in `localStorage`).
+
+**Height layers** (`src/terrain/height/layers.js`), beyond `dem`, `fbm`, `ridged`,
+`terrace` and `craters` (now with `floor`: a flat-floored basin or caldera):
+
+- `ellipsoid` — the figure of a body far from a sphere with no elevation map (Deimos).
+- `lineaments` — families of parallel bands round the sphere (each family the circles
+  of equal distance from a great circle): grooves (Phobos), ridges and double ridges
+  (Europa, Triton), tiger stripes (Enceladus, with `bands` to keep four), dunes (Titan,
+  `profile: 'dune'`, the family's pole at the world's pole so they run east-west).
+- `cells` — Worley cells: furrows along the walls (Pluto's ice polygons), hollows with
+  standing walls (Triton's cantaloupe terrain), plates lifted and dropped (Europa's
+  chaos), slabs (Venus underfoot).
+- `massifs` — named mountains at their mapped places and heights (Io).
+- **`where`** on any layer limits it: `cover` (noise patches of a share of the ground),
+  `lat` and `hemisphere`, `alt` (the height so far), `at` (named places with radii),
+  `invert`. The mask is continuous (`masked()` in `heightSource.js`).
+
+Where a world has no elevation, part of its shape still comes from data: Io's lava
+floors are cut where the colour mosaic is dark (`io_dem`), Titan's sand seas lie low
+where the near-infrared mosaic is dark (`titan_dem`), both made by
+`scripts/fetch-worlds.py`.
+
+**Small bodies.** On foot gravity never counts for less than `MIN_FOOT_GRAVITY`
+(1 m/s²). A moon without rotation elements is locked to its planet
+(`Ephemeris._lockedMatrix`: longitude 0 faces the parent, the pole is the orbit normal).
+The camera's "up" is the direction from the body's centre, so on Phobos (27 x 22 x 18
+km) the ground often tilts against it: the horizon slants, as on a hillside.
+
+**Ice** (`surface.gloss: { strength, roughness }`): the Sun's sheen on the ground, one
+GGX lobe added in the terrain shader, faded out with distance.
+
 **Elevation rasters** (`terrain.dems`): a global one that wraps in longitude, then any
 number of patches. Later entries win inside their bounds and blend over `feather` degrees
 (a patch's feathered edge must lie inside the full-weight part of whatever is under it:
@@ -228,7 +267,8 @@ chunk), which makes dense crater fields 3–5× cheaper.
   stops once it is above everything it could still meet: `hs.ceilingAt(dir)`, the tallest
   raster height within `shadowRange` of where the ray starts (a 2° grid built from the
   rasters when the height source is created) plus `shadowHeadroom` for what the recipe
-  can add. That makes shadows right at any place on the planet, a 21 km volcano included,
+  can add, plus what any op reports through `fn.top(x, y, z, reach)` (`massifs`: mountains
+  no map shows, far above any headroom). That makes shadows right at any place on the planet, a 21 km volcano included,
   without a per-scene number.
 - Depth: no logarithmic depth. Dynamic near plane (0.25 m on foot), far plane from the
   farthest drawn chunk, front-to-back draw order.
@@ -303,6 +343,38 @@ source with the correct integrated flux otherwise (Earth is a point from Mars an
 from the Moon). Stars and unresolved bodies are flux-carrying Gaussian point sprites, so
 exposure alone decides whether they are visible.
 
+- **Every body of the catalogue is in every sky** (27 of them: the planets, Pluto, Ceres,
+  nineteen moons). How each looks is the `LOOKS` table at the end of `solarSystem.js`.
+  A globe's maps are fetched when it first shows a disc (it stays a point until its small
+  copies are in) and its full maps when it is 260 pixels across; pictures are decoded off
+  the main thread and handed to the GPU as they arrive, between frames.
+  The full maps are freed when the body is small again (the small copy is kept). The home
+  world's own globe is fetched while it is home, so it is there at a hand-over.
+- **Where a resolved body is drawn**: at a made-up distance in the far pass (its true
+  direction and angular size). The slots run near to far and none can cross: each starts
+  behind the whole of the one before, `D_k = D_(k-1) (1 + rho_(k-1)) / (1 - rho_k) * 1.02`
+  with `rho` a body's reach (rings included) over its distance, then all are scaled to
+  end by 45 (the Sun's quad is at 50, the stars at 90; far pass near plane 0.002).
+- **The home air in front of them**: globe, air rim, rings and the rings' edge line all
+  look up the home world's transmittance along the camera's own vertical (`uUp`, set
+  every frame), and only from inside the air.
+- **A globe from one map**: `maps.colour` alone is enough; clouds, lights, water and
+  relief are optional (stand-in 1 x 1 textures). `linear`: a one-channel map of linear
+  values (the Moon's). `tint` and `gain` turn the map into albedo; `airless`: no limb
+  darkening; `relief`: the world's slope map bends the shading normal, so craters and
+  canyons show at the day-night line (Mars from Phobos). `bands`: no file, the map is
+  made from a list of colours by latitude (Saturn, Uranus, Neptune, the clouds of Venus,
+  Titan's smog). `radii`: a flattened globe.
+- **Drifting bands** (`drift: [[northern edge, degrees a day], ...]`): the colour map is
+  read at a longitude shifted by the band's drift since J2000; across an edge the two
+  neighbours cross-fade, so nothing shears however long the clock runs (Jupiter's belts
+  at about their real speeds against System III).
+- **Rings** (`rings.profile`: stops of radius, optical depth, colour; `ringlets`): one
+  row of texture, a flat annulus in the equatorial plane drawn after the globes (blended,
+  depth-tested). Lit from the Sun's side by reflection, from the other by the light that
+  filters through; the planet's shadow falls across them (a ray against the flattened
+  globe) and theirs on the planet (the sunbeam's crossing of the ring plane, in the globe
+  shader). A traveller is kept out of them as out of a body (`reach`).
 - **Recipes** (`surface.recipe` in `solarSystem.js`): `rock` (an albedo with mottling, on
   a lumpy mesh for the irregular moons), `oceanWorld` (a generated pattern), and `globe`:
   a real globe from maps. A `globe` names four equirectangular maps (longitude −180…180
@@ -440,6 +512,47 @@ exposure alone decides whether they are visible.
   with altitude.
 - **Roll**: `CameraRig.roll` is zero except after a hand-over, when it holds the previous
   world's "up" until the new world is within 40 radii (then it decays at 1.2 /s).
+
+## The sea, clouds (Earth)
+
+- **A sea** (`surface.sea: { level, color, roughness, ripples }` and a last height layer
+  `{ op: 'sea' }`): no ground lies below the level, so the mesh is flat there, and the
+  terrain shader draws flat ground at that level as water: deep colour, two scrolling
+  ripple normals from the detail texture, the Sun's glint (kept from orbit) and the sky
+  mirrored at a grazing view. Rocks are not placed on it. The player can stand on it
+  (known problem).
+- **A cloud layer** (`world.clouds`, `src/sky/clouds.js`): the globe's own cloud map on a
+  shell some kilometres up, one draw call in the near pass (depth-tested against the
+  ground, so peaks stand through it and it lies over the terrain from orbit), carved by
+  four sizes of generated puff, lit by the Sun through the air and by the sky. Its shadow
+  on the ground is one extra texture read in the terrain shader (`tClouds`, `uCloud`):
+  the cloud where the sunbeam to that ground crossed the layer. The near pass's far
+  plane reaches the layer's horizon. Governor step `clouds`.
+- The albedo map can start at longitude -180 (`albedoMap.lon0: -180`, Earth's globe
+  maps) and steep rock can take less of its tint (`steep`): snow does not lie on cliffs.
+
+## Getting around and things to do (milestones 7 and 8)
+
+- **The clock** (`App.timeRate`, `setTimeRate`, `setDate`): world seconds per second
+  from the list `RATES`; the date stays inside 1950-2100 (the span the orbits are fitted
+  for). The time slider is re-centred when the clock has run past its range.
+- **`src/ui/menu.js`**: one panel built from `App.menuSections()` (rebuilt a few times a
+  second while open so the clock's read-out runs). **`src/ui/map.js`**: a 2-D canvas map
+  from the same ephemeris the sky uses (`positionICRF`), projected on the ecliptic;
+  orbits are one period sampled at the current date; hit-testing on the drawn points.
+- **`src/fx/warp.js`**: 420 line segments in clip space, shown above 2 000 km/s when far
+  from everything. A picture of speed, not a thing in the world.
+- **`src/core/save.js`**: one JSON value in `localStorage` (`sse.save.v1`): places found
+  (`<world>/<place>` -> date), the last place stood on each world, the sound switch.
+  Written at most every four seconds. `App.checkPlaces` finds a place when the traveller
+  is within its reach (15 km, or 1.2 % of the world's radius) and below 120 km.
+- **`src/ui/journal.js`**: every world's `places` with their `fact` lines.
+- **Photo mode** (`App.photoMode`, `savePhoto`): time stopped, controls hidden; the
+  shutter renders the next frame at scale 1 and reads the canvas in the same task
+  (`toBlob`), then shares or downloads the PNG. The governor ignores that frame.
+- **`src/audio/audio.js`**: Web Audio, started by the Play tap. Looped pink noise through
+  filters for wind (gain by the air's density at the traveller), flight and warp; three
+  sine tones for the suit; noise bursts for steps and landings; a three-note chime.
 
 ## Post
 

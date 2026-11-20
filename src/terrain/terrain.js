@@ -14,7 +14,7 @@ const FADE_MS = 600;       // how long a new chunk takes to settle from its pare
 
 export class Terrain {
   constructor(world, rasters, hs, renderer) {
-    this.world = world; this.hs = hs;
+    this.world = world; this.hs = hs; this.renderer = renderer;
     this.radius = world.radius;
     this.maxLevel = world.terrain.maxLevel;
     this.relief = world.terrain.maxAltitude - world.terrain.minAltitude;
@@ -87,7 +87,7 @@ export class Terrain {
     this.albedoBusy = !!def;
     if (!def) return;
     const epoch = this.epoch;
-    new THREE.TextureLoader().load(import.meta.env.BASE_URL + def.url, (tex) => {
+    loadMap(def.url, (tex) => {
       if (epoch !== this.epoch) { tex.dispose(); return; }
       tex.colorSpace = def.encoding === 'srgb' ? THREE.SRGBColorSpace : THREE.NoColorSpace;
       tex.flipY = false;                    // row 0 (north) at v = 0, as the shader expects
@@ -97,11 +97,14 @@ export class Terrain {
       this.textures.albedo = tex; u.tAlbedo.value = tex;
       u.uAlbedoMap.value.set(1 / def.mean[0], 1 / def.mean[1], 1 / def.mean[2], def.strength ?? 1);
       u.uAlbedoChroma.value = def.chroma ?? 1;
+      u.uAlbedoShift.value = def.lon0 === -180 ? 0.5 : 0;
+      u.uAlbedoSteep.value = def.steep ?? 1;
       const rad = Math.PI / 180;      // latFade: [from, to] degrees of latitude over which the map hands back to the palette
       if (def.latFade) u.uAlbedoFade.value.set(Math.sin(def.latFade[0] * rad), Math.sin(def.latFade[1] * rad)); else u.uAlbedoFade.value.set(2, 3);
+      tex.needsUpdate = true; this.renderer.initTexture(tex);       // to the GPU now, between frames
       this.tint = makeTintGrid(tex.image, def);
       this.albedoBusy = false;
-    }, undefined, () => { this.albedoBusy = false; });
+    }, () => { this.albedoBusy = false; });
   }
 
   // The albedo map's tint at a place (planet-centred position), as the terrain shader
@@ -109,7 +112,7 @@ export class Terrain {
   tintAt(pos, out) {
     const t = this.tint;
     if (!t) return out.set(1, 1, 1);
-    const r = pos.length(), u = (Math.atan2(pos.y, pos.x) / (2 * Math.PI) + 1) % 1, v = Math.acos(Math.max(-1, Math.min(1, pos.z / r))) / Math.PI;
+    const r = pos.length(), u = (Math.atan2(pos.y, pos.x) / (2 * Math.PI) + 1 + this.shared.uAlbedoShift.value) % 1, v = Math.acos(Math.max(-1, Math.min(1, pos.z / r))) / Math.PI;
     const x = u * t.w - 0.5, y = Math.max(0, Math.min(t.h - 1, v * t.h - 0.5)), x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
     const xa = (x0 + t.w) % t.w, xb = (x0 + 1) % t.w, ya = y0, yb = Math.min(t.h - 1, y0 + 1), d = t.data;
     for (let c = 0; c < 3; c++) {
@@ -130,7 +133,7 @@ export class Terrain {
     if (!def) return;
     setDemList(u, world);
     const epoch = this.epoch;
-    new THREE.TextureLoader().load(import.meta.env.BASE_URL + def.url, (tex) => {
+    loadMap(def.url, (tex) => {
       if (epoch !== this.epoch) { tex.dispose(); return; }
       tex.format = THREE.RedFormat; tex.colorSpace = THREE.NoColorSpace;
       tex.flipY = false;
@@ -141,8 +144,9 @@ export class Terrain {
       u.uRelief.value.set(def.strength ?? 1, Math.PI * world.radius / (W / 2), W, 0);
       const f = def.latFade || [80, 88];
       u.uReliefFade.value.set(Math.sin(f[0] * rad), Math.sin(f[1] * rad));
+      tex.needsUpdate = true; this.renderer.initTexture(tex);
       this.reliefBusy = false;
-    }, undefined, () => { this.reliefBusy = false; });
+    }, () => { this.reliefBusy = false; });
   }
 
   // Height above datum of the ground as it is drawn at unit direction d: the finest live
@@ -391,6 +395,14 @@ export class Terrain {
     }
     return busy;
   }
+}
+
+// A world map as a texture, decoded off the main thread (a 4096-wide JPEG decoded at its
+// first draw call was most of the hitch on arriving at a world).
+function loadMap(url, onLoad, onError) {
+  const loader = new THREE.ImageBitmapLoader();
+  loader.setOptions({ imageOrientation: 'none', premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+  loader.load(import.meta.env.BASE_URL + url, (bitmap) => onLoad(new THREE.Texture(bitmap)), undefined, onError);
 }
 
 // A small copy of the albedo map on the CPU, already turned into the tint the shader

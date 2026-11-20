@@ -19,12 +19,9 @@ export class TouchControls {
         <button data-key="KeyG">HERO</button>
         <button data-act="target">TARGET</button>
         <button data-key="KeyX">HOVER</button>
-        <button data-key="KeyF">CAM</button>
         <button data-key="KeyZ" data-hold="1">ZOOM</button>
-        <button data-act="view">VIEW</button>
-        <button data-key="KeyH">HUD</button>
-        <button data-key="KeyM">MODE</button>
-        <button data-act="full">FULL</button>
+        <button data-act="map">MAP</button>
+        <button data-act="menu">MENU</button>
       </div>
       <div id="tupdown">
         <button data-act="go" class="go hidden">GO</button>
@@ -43,7 +40,8 @@ export class TouchControls {
         if (act === 'view') actions.view();
         if (act === 'target') actions.target?.();
         if (act === 'go') actions.go?.();
-        if (act === 'full') this.fullscreen();
+        if (act === 'map') actions.map?.();
+        if (act === 'menu') actions.menu?.();
         b.classList.add('on');
       });
       const up = (e) => { e.preventDefault(); if (key && hold) input.virtualUp(key); else if (key) input.virtualUp(key); b.classList.remove('on'); };
@@ -56,7 +54,8 @@ export class TouchControls {
       this.enable();
       e.preventDefault();
       const w = canvas.clientWidth;
-      if (e.clientX < w * 0.38 && this.stickId === null) {
+      // (with the controls put away, in photo mode, every touch is a look: no hidden stick)
+      if (e.clientX < w * 0.38 && this.stickId === null && !this.suppressed) {
         this.stickId = e.pointerId; this.sx = e.clientX; this.sy = e.clientY;
         this.stick.style.left = (e.clientX - 60) + 'px'; this.stick.style.top = (e.clientY - 60) + 'px';
         this.stick.classList.add('on'); this.knob.style.transform = 'translate(0px, 0px)';

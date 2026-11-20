@@ -37,8 +37,9 @@ export function surroundings(pos, bodies, out) {
   out.nx = 0; out.ny = 0; out.nz = 1; out.nr = Infinity;
   for (let i = 0; i < bodies.length; i++) {
     const b = bodies[i], dx = b.x - pos.x, dy = b.y - pos.y, dz = b.z - pos.z;
-    const r = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1, rr = Math.max(r, b.radius);
-    const g = (b.gravity || 0) * (b.radius / rr) * (b.radius / rr);
+    const r = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+    // (gr: the radius the surface gravity belongs to, where `radius` is a wider keep-out: a ringed planet)
+    const gr = b.gr ?? b.radius, g = (b.gravity || 0) * (gr / Math.max(r, gr)) * (gr / Math.max(r, gr));
     _g[i] = g; sum2 += g * g;
     if (r - b.radius < best) { best = r - b.radius; out.nx = dx / r; out.ny = dy / r; out.nz = dz / r; out.nr = r; }
   }

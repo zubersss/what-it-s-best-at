@@ -1,8 +1,14 @@
 # Assets
 
-Only public-domain or CC0 assets are allowed. Everything else in the scene (ship, rocks,
-Phobos shape, noise, blue-noise dither pattern, strata colours) is generated from code in
-this repository.
+Only assets we have the right to use go in, and every one is recorded here with its source
+and licence. So far all of them are public-domain mission data (some ask to be cited: the
+"Use constraints" of their USGS record). Everything else in the scene (ship, rocks, noise,
+blue-noise dither pattern, strata colours, the banded faces of Saturn, Uranus and Neptune,
+the clouds of Venus and the haze of Titan) is generated from code in this repository.
+
+**Not used, on purpose**: the Neptune and Uranus pictures on the USGS map server are an
+artist's paintings (J. Hastings-Trew) whose terms forbid passing the files on, and its
+Saturn picture is credited to a private author (B. Jonsson) with no stated licence.
 
 Two scripts produce the files below; originals are not stored in the repo.
 
@@ -36,6 +42,68 @@ top. Elevation files are int16 little-endian; the world file gives metres per un
 | `earth_clouds_4096.jpg`, `earth_clouds_512.jpg` | The clouds of one real day (2016-09-22), greyscale: what is bright and white in that day's picture and not in the clear one | NASA Global Imagery Browse Services (GIBS), `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi`, one WMS request of 4096×2048 for the whole globe (`scripts/fetch-earth.py`), layer `VIIRS_SNPP_CorrectedReflectance_TrueColor`, `TIME=2016-09-22` (Suomi NPP VIIRS), compared with the Blue Marble | Free to use without restriction (NASA's open data policy for its Earth science data, a United States Government work; credit requested: "We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS)") |
 | `earth_lights_4096.jpg`, `earth_lights_512.jpg` | City lights at night, greyscale | NASA Global Imagery Browse Services (GIBS), `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi`, one WMS request of 4096×2048 for the whole globe (`scripts/fetch-earth.py`), layer `VIIRS_Black_Marble` (Black Marble 2016, NASA Earth Observatory / NOAA NGDC), the warm bright part of it | Free to use without restriction (NASA's open data policy for its Earth science data, a United States Government work; credit requested: "We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS)") |
 | `earth_water_2048.jpg`, `earth_water_512.jpg` | Seas and lakes (white) against land, greyscale, for the Sun's glint | NASA Global Imagery Browse Services (GIBS), `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi`, one WMS request of 4096×2048 for the whole globe (`scripts/fetch-earth.py`), layer `MODIS_Water_Mask` (MOD44W, Terra MODIS) | Free to use without restriction (NASA's open data policy for its Earth science data, a United States Government work; credit requested: "We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS)") |
+
+### The worlds of milestone 6
+
+All from the USGS Astrogeology planetary map server (`https://planetarymaps.usgs.gov/`,
+which serves the public bucket `asc-pds-services`), downloaded whole and reduced by
+`python3 scripts/fetch-worlds.py` (the originals, about 5 GB, stay in `.cache/maps`).
+"USGS record" below is the product's FGDC metadata on that server: access constraints
+"public domain" or none, use constraints "please cite authors" or none.
+
+| File in `public/data/` | What | Source (under `mosaic/` unless a path is given) | Licence |
+| --- | --- | --- | --- |
+| `phobos_dem_4ppd.i16`, `phobos_slopes_1024.jpg` | Phobos' shape: metres above the 11.1 km sphere, 1440×720 (interpolated from 100 m per pixel), and its slopes | `Phobos_ME_HRSC_DEM_Global_2ppd.tif` (Mars Express HRSC; K. Willner et al., DLR) | USGS record: public domain, please cite authors (ESA / DLR / FU Berlin; Willner et al. 2014) |
+| `phobos_color_2048.jpg`, `_512` | Phobos' brightness, greyscale | `Phobos_Viking_Mosaic_40ppd_DLRcontrol.tif` (Viking Orbiter pictures) | USGS record: public domain, please cite authors (NASA / Viking; DLR control) |
+| `deimos_color_2048.jpg`, `_512` | Deimos, a shaded map drawn from the Viking pictures | `wms_basemaps/Deimos/deimoscyl4.jpg` (P. Stooke's small-body maps, archived in NASA's PDS) | Public (NASA PDS archive; credit Philip Stooke / NASA) |
+| `mercury_dem_4ppd.i16`, `mercury_slopes_4096.jpg` | Mercury's elevation above 2439.4 km and its slopes (from 16 px/deg) | `Mercury_Messenger_USGS_DEM_Global_665m_v2.tif` (MESSENGER MDIS stereo; Becker et al. 2016) | USGS record: please cite authors (NASA / JHUAPL / CIW / USGS) |
+| `mercury_color_4096.jpg`, `_512` | Mercury's brightness and a quarter of its three-filter colour, sRGB | `Mercury_MESSENGER_MDIS_Basemap_MD3Color_Mosaic_Global_665m.tif` | Public domain (NASA / JHUAPL / CIW) |
+| `venus_dem_4ppd.i16`, `venus_slopes_4096.jpg` | Venus' elevation above 6051 km and its slopes | `Venus_Magellan_Topography_Global_4641m_v02.tif` (Magellan radar altimeter) | USGS record: public domain, please cite authors (NASA / JPL) |
+| `venus_color_4096.jpg`, `_512` | Venus' ground as the radar saw it, in the orange of the Venera pictures | `Venus_Magellan_C3-MDIR_Colorized_Global_Mosaic_4641m.tif` | USGS record: public domain (NASA / JPL / USGS) |
+| `io_color_4096.jpg`, `_512` | Io in colour | `Io_GalileoSSI-Voyager_Global_Mosaic_ClrMerge_1km.tif` | USGS record: public domain (NASA / JPL / USGS) |
+| `europa_color_4096.jpg`, `_512` | Europa: the brightness mosaic, coloured here from blue-white ice to the red-brown of its lines | `Europa_Voyager_GalileoSSI_global_mosaic_500m.tif` | USGS record: no constraints (NASA / JPL / USGS) |
+| `ganymede_color_2048.jpg`, `_512` | Ganymede in colour | `Ganymede_Voyager_GalileoSSI_Global_ClrMosaic_1435m.tif` | Public domain (NASA / JPL / USGS) |
+| `callisto_color_2048.jpg`, `_512` | Callisto: brightness mosaic, tinted here | `Callisto_Voyager_GalileoSSI_global_mosaic_1km.tif` | Public domain (NASA / JPL / USGS) |
+| `jupiter_color_4096.jpg`, `_512` | Jupiter's clouds, the whole planet (Cassini, December 2000; PIA07782) | `wms_basemaps/Jupiter/Jupiter/jupiter_rgb_cyl.jpg` | Public domain (NASA / JPL / Space Science Institute) |
+| `enceladus_dem_4ppd.i16`, `enceladus_slopes_1024.jpg` | Enceladus' shape: metres above a 251.5 km sphere | `Enceladus/enceladus_cassini_iss_shapemodel_bland_2019/enceladus_2019pm_radius.tif` (Bland et al. 2019, USGS) | Public domain (USGS) |
+| `enceladus_color_4096.jpg`, `_512` | Enceladus: brightness mosaic, tinted the blue-white of its ice | `Enceladus_Cassini_mosaic_global_110m.tif` | USGS record: public domain, please cite authors (NASA / JPL / SSI) |
+| `mimas_`, `tethys_`, `dione_`, `rhea_`, `iapetus_color_2048.jpg`, `_512` | Saturn's other round moons, brightness mosaics | `wms_basemaps/Saturn/Mimas/Cassini/Mimas_PDS_8ppd_dd360.tif`, `Tethys_Cassini_mosaic_global_293m.tif`, `Dione_Cassini_Voyager_mosaic_global_154m.tif`, `Rhea_Cassini_Voyager_mosaic_global_417m.tif`, `Iapetus_Cassini_Voyager_mosaic_global_783m.tif` | USGS records: public domain, please cite authors (NASA / JPL / SSI) |
+| `titan_color_4096.jpg`, `_512` | Titan's ground through the haze at 938 nm, tinted the browns of Huygens' pictures | `wms_basemaps/Saturn/Titan/Cassini/Titan_ISS_P19658_Mosaic_Global_4km_clon0.tif` (PIA19658) | Public domain (NASA / JPL-Caltech / SSI) |
+| `triton_color_4096.jpg`, `_512` | Triton in colour (the filters rebalanced toward natural pink; the never-seen north filled with the mean of what was seen) | `Triton_Voyager2_ClrMosaic_GlobalFill_600m.tif` | USGS record: public domain, please cite authors (NASA / JPL / USGS) |
+| `pluto_dem_4ppd.i16`, `pluto_slopes_4096.jpg` | Pluto's elevation above 1188.3 km where New Horizons saw it (46 % of the globe; datum elsewhere) and its slopes | `Pluto_NewHorizons_Global_DEM_300m_Jul2017_16bit.tif` (Schenk et al. 2018) | USGS record: please cite authors (NASA / JHUAPL / SwRI) |
+| `pluto_color_4096.jpg`, `_512` | Pluto: brightness mosaic, coloured here from dark red-brown to cream; the unseen south filled | `Pluto_NewHorizons_Global_Mosaic_300m_Jul2017_8bit.tif` | USGS record: please cite authors (NASA / JHUAPL / SwRI) |
+| `charon_dem_4ppd.i16`, `charon_slopes_4096.jpg`, `charon_color_4096.jpg`, `_512` | Charon: elevation above 606 km where seen, slopes, brightness | `Charon_NewHorizons_Global_DEM_300m_Jul2017_16bit.tif`, `Charon_NewHorizons_Global_Mosaic_300m_Jul2017_8bit.tif` | USGS record: please cite authors (NASA / JHUAPL / SwRI) |
+| `ceres_dem_4ppd.i16`, `ceres_slopes_4096.jpg` | Ceres' shape: metres above a 470 km sphere (the flattened body: +12 km at the equator, −21 km at the poles) | `Ceres_Dawn_FC_HAMO_DTM_DLR_Global_60ppd_Oct2016.tif` (Preusker et al. 2016) | USGS record: please cite authors (NASA / JPL-Caltech / UCLA / MPS / DLR / IDA) |
+| `ceres_color_4096.jpg`, `_512` | Ceres: brightness mosaic | `Ceres_Dawn_FC_DLR_global_20ppd_Oct2015.tif` | USGS record: please cite authors (as above) |
+
+### Earth's surface (milestone 9)
+
+| File in `public/data/` | What | Source | Licence |
+| --- | --- | --- | --- |
+| `earth_dem_4ppd.i16` | Earth's elevation, 1440×720, metres (sea floor below 0) | "Terrain Tiles" on the AWS Open Data registry (Mapzen's terrarium tiles, `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png`), zoom 4, resampled from Web-Mercator by `scripts/fetch-earth-terrain.py` | Open data with attribution (below) |
+| `earth_slopes_4096.jpg` | The land's slope everywhere (the sea flat), as the other slope maps | Same, zoom 5 | As above |
+| `earth_dem_grandcanyon.i16`, `_everest`, `_hawaii`, `_namib`, `_alps` | Sharper elevation at five places, 93 m per pixel (Hawaii 186 m) | Same, zoom 11 (Hawaii 10). These windows come from SRTM (NASA / USGS, public domain), USGS 3DEP (public domain) and, for the Alps, EU-DEM | As above |
+
+Attribution required by the Terrain Tiles set (its sources, as listed on
+`https://registry.opendata.aws/terrain-tiles/`): ArcticDEM terrain data DEM(s) were created
+from DigitalGlobe, Inc., imagery and funded under National Science Foundation awards
+1043681, 1559691, and 1542736; Australia terrain data © Commonwealth of Australia
+(Geoscience Australia) 2017; Austria terrain data © offene Daten Österreichs – Digitales
+Geländemodell (DGM) Österreich; Canada terrain data contains information licensed under the
+Open Government Licence – Canada; Europe terrain data produced using Copernicus data and
+information funded by the European Union – EU-DEM layers; Global ETOPO1 terrain data U.S.
+National Oceanic and Atmospheric Administration; Mexico terrain data source: INEGI,
+Continental relief, 2016; New Zealand terrain data Copyright 2011 Crown copyright (c) Land
+Information New Zealand and the New Zealand Government (All rights reserved); Norway
+terrain data © Kartverket; United Kingdom terrain data © Environment Agency copyright
+and/or database right 2015. All rights reserved; United States 3DEP (formerly NED) and
+global GMTED2010 and SRTM terrain data courtesy of the U.S. Geological Survey.
+
+The colour of Earth's ground and its clouds are the globe's own maps (Blue Marble, the
+VIIRS day: rows above).
+
+Orbits and spin of every body are fitted to and checked against NASA JPL Horizons
+(`scripts/fit-orbits.py`, `scripts/check-ephemeris.mjs`): facts, not an asset.
 
 Generated in-repo (CC0 by construction, no third-party input):
 

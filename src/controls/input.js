@@ -12,7 +12,7 @@ export class Input {
       if (e.target instanceof HTMLInputElement) return;
       if (!this.keys.has(e.code)) this.pressed.add(e.code);
       this.keys.add(e.code);
-      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Slash'].includes(e.code)) e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
@@ -32,6 +32,8 @@ export class Input {
   // Used by the touch buttons: they behave exactly like keys.
   virtualDown(code) { if (!this.keys.has(code)) this.pressed.add(code); this.keys.add(code); }
   virtualUp(code) { this.keys.delete(code); }
+  // (a key pressed and let go at once: seen by the next frame)
+  virtualTap(code) { this.pressed.add(code); }
 
   down(code) { return this.keys.has(code); }
   hit(code) { return this.pressed.has(code); }

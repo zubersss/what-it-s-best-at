@@ -87,11 +87,19 @@ uniform float uCoverContrast;  // how pure the cover's patches are (1: all sand 
 uniform float uBedrockSlope;   // bedrock share on gentle slopes just short of scree (dust and sand slide off)
 uniform vec4 uRipple;          // xy = ripple wave vector (whole cycles per detail tile), z = strength, w = share on dust
 uniform float uRoughness;
+uniform sampler2D tClouds;      // the home world's cloud map (its shadow on the ground)
+uniform vec4 uCloud;           // x how dark the shadow is (0: no clouds), y the cloud layer's radius (m), z the map's longitude shift (turns)
+uniform vec4 uSea;             // a sea: x = 1 if the world has one, y its level (m), z how tight the Sun's glint is, w how strong the ripples
+uniform vec3 uSeaColor;        // deep water's own colour
+uniform float uTime;
+uniform vec2 uGloss;           // ice and wet ground: x = how strong the Sun's sheen is (0: none), y = how tight (roughness)
 uniform float uFarRoughness;  // the same for ground whose chunk texels are kilometres (seen from orbit)
 uniform float uDetailStrength;
 uniform sampler2D tAlbedo;     // global map of the world's real brightness or colour (longitude 0..360 E from the left edge, north in the first row)
 uniform vec4 uAlbedoMap;       // rgb = 1 / the map's mean, w = how strongly it tints the palette (0 = no map)
 uniform float uAlbedoChroma;   // how much of the map's colour (not just its brightness) is used, 0..1
+uniform float uAlbedoSteep;    // how much of the map's tint steep rock takes (1: all, as gentle ground)
+uniform float uAlbedoShift;    // 0.5 for a map whose left edge is longitude -180 (Earth's), else 0
 uniform vec2 uAlbedoFade;      // sines of the latitudes between which the map fades out toward the poles
 uniform vec2 uAlbedoRange;     // soft limits of the map's brightness relative to its mean (y = 0: none), held near the ground only
 uniform sampler2D tRelief;     // the ground's slope everywhere: east slope in the top half, north in the bottom (fetch-maps.py)
@@ -231,7 +239,7 @@ void main() {
   vec3 mapTint = vec3(1.0);
   float mapW = 0.0;
   if (uAlbedoMap.w > 0.0) {
-    vec3 raw = textureGrad(tAlbedo, uvA, gx, gy).rgb * uAlbedoMap.rgb;
+    vec3 raw = textureGrad(tAlbedo, vec2(uvA.x + uAlbedoShift, uvA.y), gx, gy).rgb * uAlbedoMap.rgb;
     vec3 t = mix(albedoRange(raw, uAlbedoRange), raw, farW);
     mapW = uAlbedoMap.w * (1.0 - smoothstep(uAlbedoFade.x, uAlbedoFade.y, abs(up.z)));
     mapTint = mix(vec3(1.0), mix(vec3(dot(t, vec3(0.3333))), t, uAlbedoChroma), mapW);
@@ -277,8 +285,8 @@ void main() {
   // The map gives the mean brightness of the ground; the cover only shares it out.
   vec3 meanFlat = uDust * (1.0 - cSand - cBed) + uSand * cSand + bedrock * cBed;
   flatC *= mix(1.0, luma(uDust) / luma(meanFlat), mapW);
-  vec3 albedo = rock * rockW + scree * screeW + flatC * flatW;
-  albedo *= (0.93 + 0.14 * d1.a) * mapTint;
+  vec3 albedo = rock * rockW * mix(vec3(1.0), mapTint, uAlbedoSteep) + (scree * screeW + flatC * flatW) * mapTint;
+  albedo *= 0.93 + 0.14 * d1.a;
 
   // --- detail normal: grain everywhere (above), wind ripples on sand (both vanish with distance via mips / footprint)
   grain *= uDetailStrength * (0.55 + 0.9 * rockW + 0.5 * screeW);
@@ -314,7 +322,26 @@ void main() {
     }
   }
 
+  // --- the sea: flat ground at sea level is water (dark, rippled, shining)
+  float water = uSea.x > 0.5 ? 1.0 - smoothstep(uSea.y + 0.15, uSea.y + 0.9, vHeight) : 0.0;
+  if (water > 0.0) {
+    vec2 drift = uTime * vec2(0.011, 0.006);
+    vec3 r1 = texture(tDetail, vDetailUv * 3.0 + drift).rgb - 0.5, r2 = texture(tDetail, vDetailUv * 13.0 - drift * 2.3).rgb - 0.5;
+    // (ripples smaller than a pixel only roughen the glint)
+    float near = 1.0 - smoothstep(0.02, 0.4, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
+    vec3 Nw = normalize(up + (uTanU * (r1.r + 0.6 * r2.r) + uTanV * (r1.g + 0.6 * r2.g)) * (uSea.w * near));
+    N = normalize(mix(N, Nw, water));
+    albedo = mix(albedo, uSeaColor, water);
+    ao = mix(ao, 1.0, water);
+  }
+
   // --- light
+  if (uCloud.x > 0.0 && length(planetPos) < uCloud.y) {
+    // the cloud that stands between this ground and the Sun
+    vec3 uc = normalize(planetPos + uSunDir * ((uCloud.y - length(planetPos)) / max(dot(up, uSunDir), 0.08)));
+    float cd = textureLod(tClouds, vec2(atan(uc.y, uc.x) * 0.15915494 + uCloud.z, acos(clamp(uc.z, -1.0, 1.0)) * 0.31830989), 0.0).r;
+    shadow *= 1.0 - uCloud.x * smoothstep(0.2, 0.7, cd);
+  }
   shadow *= nearShadow(vRel, N);
   // Oren-Nayar roughness describes the grains and clods underfoot; at the scale of a whole
   // disc it kept the limb nearly as bright as the centre (71 % at 72 degrees off the
@@ -324,6 +351,22 @@ void main() {
   vec3 direct = directSun(planetPos) * shadow * diffuse;
   vec3 ambient = (skyLight(N, up) * ao + planetShine(N)) * contactSky(vRel, N) / PI;
   vec3 col = albedo * (direct + ambient);
+  if (water > 0.0) {
+    // the Sun's glint (seen from orbit too) and the sky in the water at a grazing view
+    vec3 Hh = normalize(uSunDir + V);
+    float rough = uSea.z + 0.25 * smoothstep(0.02, 0.6, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
+    float nh = max(dot(N, Hh), 0.0), a2 = rough * rough, dd = nh * nh * (a2 - 1.0) + 1.0;
+    float F = 0.02 + 0.98 * pow(1.0 - max(dot(V, Hh), 0.0), 5.0), Fv = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
+    vec3 Rv = reflect(-V, N); Rv = normalize(Rv + up * max(0.0, 0.05 - dot(Rv, up)));
+    col += water * (directSun(planetPos) * shadow * (a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0) * 0.25 / max(dot(N, V), 0.2)) + Fv * skyLight(Rv, up) / PI);
+  } else if (uGloss.x > 0.0) {
+    // the Sun's sheen on ice: a broad glint toward the Sun, strongest at a grazing view;
+    // it fades with distance into the far ground's plain brightness
+    vec3 Hh = normalize(uSunDir + V);
+    float nh = max(dot(N, Hh), 0.0), a2 = uGloss.y * uGloss.y, dd = nh * nh * (a2 - 1.0) + 1.0;
+    float F = 0.03 + 0.97 * pow(1.0 - max(dot(V, Hh), 0.0), 5.0);
+    col += directSun(planetPos) * shadow * (uGloss.x * (1.0 - farW) * a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0));
+  }
   col = aerialPerspective(col, vRel, albedo);      // the haze above depends on how bright the ground is
   fragColor = vec4(col * uExposure, 1.0);
 }`;
@@ -340,8 +383,8 @@ export function makeTerrainShared(world, textures) {
     uCover: { value: new THREE.Vector4() },
     // w: the cover pattern (d0.a + 0.3 d1.a) is about normal; logistic scale = its spread / 1.702
     uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
-    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 },
-    tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
+    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) },
+    tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoShift: { value: 0 }, uAlbedoSteep: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
     uAlbedoRange: { value: new THREE.Vector2() }, uRockHue: { value: new THREE.Vector2() }, uCoverContrast: { value: 1 }, uBedrockSlope: { value: 0 },
     uDemBox: { value: Array.from({ length: DEM_N }, () => new THREE.Vector4()) }, uDemInfo: { value: Array.from({ length: DEM_N }, () => new THREE.Vector4()) },
     tRelief: { value: textures.white }, uRelief: { value: new THREE.Vector4(0, 1, 1, 0) }, uReliefFade: { value: new THREE.Vector2(2, 3) },
@@ -385,6 +428,9 @@ export function setTerrainSurface(shared, world) {
   const rw = s.ripples?.wavelength || 1, dir = s.ripples?.direction ?? 34.8, cyc = DETAIL_TILE / rw;
   shared.uRipple.value.set(Math.round(cyc * Math.cos(dir * Math.PI / 180)), Math.round(cyc * Math.sin(dir * Math.PI / 180)), s.ripples?.strength || 0, s.ripples?.onDust ?? 1);
   shared.uRoughness.value = s.roughness ?? 0.5;
+  shared.uGloss.value.set(s.gloss?.strength ?? 0, s.gloss?.roughness ?? 0.3);
+  shared.uSea.value.set(s.sea ? 1 : 0, s.sea?.level ?? 0, s.sea?.roughness ?? 0.1, s.sea?.ripples ?? 0.05);
+  shared.uSeaColor.value.set(...(s.sea?.color || [0.01, 0.03, 0.07]));
   shared.uFarRoughness.value = s.farRoughness ?? shared.uRoughness.value;
   shared.uDetailStrength.value = s.detailStrength ?? 0.5;
   shared.uPhotometry.value = s.photometry === 'lunar' ? 1 : 0;

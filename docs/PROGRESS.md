@@ -6,30 +6,42 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-*Handoff written after the owner's third phone results, at the start of milestone 6.*
+*Handoff written when milestones 6 to 9 were delivered together.*
 
 - **The goal** (owner, 2026-11-20): the best possible product a Samsung Galaxy S23 Ultra
   runs without lag (`CLAUDE.md`, "The one goal"). Helpers: workflows only for the most
   challenging parts.
 - **The owner's last word**: pasted Sharp and Smooth benchmarks of build 27e1973 and said
-  "finish up the rest of the milestones". Milestone 5 is accepted. Work goes through
-  milestones 6, 7, 8 and 9 without waiting; every stage is merged so the phone link
-  moves, with a short message to the owner at each.
-- **Smooth was not steady** in those results (49 fps, 13 % late). What was found and
-  changed is under "The owner's third phone results" below: the ground is now drawn in
-  one draw call and new ground reaches the GPU between frames. **Not yet confirmed on
-  the phone**: the owner has been asked for a new Smooth benchmark; its new lines
-  ("frames that took in new terrain", "frame lengths in screen refreshes") say whether
-  arriving ground is still what is late.
-- **Asked of the owner** (still open): that benchmark; whether a 3D model file of the
-  character exists.
-- **What to do next**: see the roadmap's status column and the newest plan section in
-  this file (each milestone writes its plan here before it starts).
+  "finish up the rest of the milestones". Milestones 6, 7, 8 and 9 were then built in one
+  go and merged; all four are `checkpoint sent`. What each contains is under "Milestone
+  6: what was built", "Milestones 7 and 8", and "Milestone 9: what was built" below.
+- **Checked before the merge** (headless, frozen builds): an independent review (25
+  findings, all fixed: "Milestones 6 to 9 review"); `worlds` (all 15), `ui`, `smoke`,
+  `target`, `flight`, `foot`, `govsim`, `transfer`, `check-ephemeris` all pass. The
+  opening view of every new world is in `docs/shots/<world>_ledge.png`; the full
+  reference set (every bookmark of every world, about 8 hours of headless rendering) and
+  the stability test have not been run for the new worlds.
+- **Not confirmed on the phone, any of it.** Everything since build 27e1973 has been
+  judged in headless pictures and tests only. Asked of the owner: (1) a Smooth benchmark
+  (the ground renderer was rebuilt for the stutter of the third results: "The owner's
+  third phone results"); (2) to open a few of the new worlds from the start screen's
+  "Start on" list and say what looks wrong; (3) whether a 3D model file of the character
+  exists (still open).
+- **What to do next**: with a benchmark, tune from it first (its new lines say whether
+  frames that take in new terrain are still the late ones). With complaints about a
+  world: reproduce in a screenshot, fix, show before and after. Then the known problems
+  table and the weakest worlds (the list at the end of "Milestone 6: what was built").
+  Smooth still draws 0.8 of the patch cap: with one draw call for the ground this can
+  probably go back to 1 once a benchmark shows room.
 - **How to work here** (all in CLAUDE.md): develop on the session's own branch, open a
-  pull request into `main` and merge it yourself; the phone link updates a minute later
-  and shows the build's commit. Run `./scripts/build-check.sh` before every merge, one
-  headless browser at a time, and the checks listed under "Run and test"
-  (`smoke` includes the phone shader-limit check).
+  pull request into `main` and merge it yourself (through `gh api`); the phone link
+  updates a minute later and shows the build's commit. Run `./scripts/build-check.sh`
+  before every merge, one headless browser at a time, and the checks listed under "Run
+  and test" (`smoke` includes the phone shader-limit check; `worlds` opens every world;
+  `ui` works the menu, map, journal, photo mode and saves).
+- **Choosing a view without the browser**: `node scripts/peek.mjs` sketches what a
+  camera sees from a place in seconds, and `scratch/suncheck.mjs` prints the Sun's
+  height at every bookmark. Use them before spending five minutes on a headless picture.
 
 ## What exists today
 
@@ -234,6 +246,169 @@ Mercury; Jupiter with Io and Europa; Saturn, rings, Enceladus and Titan; Venus; 
 and Triton; Pluto and Charon; Ceres. Each world: data file, start site at a real place
 and a real date, five views, two or three landmarks, a place list for the target picker,
 screenshots judged against spacecraft pictures.
+
+## Milestone 6: what was built
+
+Twelve new worlds to land on, as data files: **Phobos, Deimos, Mercury, Venus, Io,
+Europa, Enceladus, Titan, Triton, Pluto, Charon, Ceres**. With Mars and the Moon that is
+fourteen (Earth's surface is milestone 9). Every other planet and large moon is in the
+sky at its true place: Jupiter (the Cassini map, its belts drifting), Saturn with rings,
+Uranus, Neptune, Ganymede, Callisto, Mimas, Tethys, Dione, Rhea, Iapetus.
+
+- **Where the shape of the ground comes from.** Real elevation: Phobos (HRSC), Mercury
+  (MESSENGER), Venus (Magellan), Enceladus (the Cassini shape model), Pluto and Charon
+  (New Horizons, the hemisphere it saw), Ceres (Dawn). From the picture itself: Io's lava
+  floors are cut where the colour mosaic shows dark lava, and its named mountains stand
+  at their mapped places and heights; Titan's sand seas lie low where the near-infrared
+  mosaic is dark (a stand-in: no elevation of Titan is on the map server). From recipes
+  for what the place is known to look like: Deimos (its measured ellipsoid), Europa
+  (double ridges, chaos at the named chaos regions), Triton (cantaloupe terrain, sulci).
+- **Every world wears its real image map** as the colour of its ground and as its globe
+  seen from afar. Brightness-only mosaics were coloured by brightness (Europa, Pluto,
+  Titan, Callisto, Ceres, Enceladus); ground no spacecraft saw (Pluto's and Charon's
+  south, Triton's north) is filled with the mean of what was seen, with no feature
+  invented. A 180-degree mix-up in half the sources (the projection's centre longitude)
+  was caught by checking landmarks: Ceres' bright spot, Rachmaninoff's floor, Sputnik
+  Planitia, the leading and trailing sides of the icy moons.
+- **Orbits and spin** of 21 bodies fitted to JPL Horizons and checked against it
+  (`scripts/check-ephemeris.mjs`): planets within 0.02 to 0.15 degrees over 1950-2100,
+  moons within 0.2 (Mimas 1.1 with its resonance swing). The Moon (3.5 degrees at worst)
+  and Phobos after 2030 are the weak ones: mean ellipses cannot follow them (known
+  problem below).
+- **Thick air worked with the existing model**: Titan's orange smog and Venus' yellow
+  overcast are the same atmosphere code with their own numbers; the Sun is lost in both.
+- **Ice has a sheen** (`surface.gloss`); **rings** with shadows both ways; a **start
+  screen list** to open on any world; the target list sorted nearest first.
+- Tools made on the way: `scripts/peek.mjs` (a CPU sketch of the view from a place in
+  seconds, for choosing sites and times of day without a five-minute headless picture),
+  `scripts/worlds-test.mjs` (`npm run worlds`).
+
+Decisions:
+
+- No stop after every two worlds (the owner asked for the rest of the milestones in one
+  go).
+- Saturn, Uranus and Neptune are drawn from colour lists, not pictures: the whole-planet
+  pictures on the map server are not free to pass on (docs/ASSETS.md, "Not used").
+- On foot gravity never counts for less than 1 m/s2: at Phobos' real gravity a jump
+  lasts twenty minutes.
+- The camera's "up" stays the direction from the body's centre, so on Phobos and Deimos
+  the horizon slants like a hillside. Making "up" follow the local ground was left out:
+  it touches the whole flight model.
+
+## Milestones 7 and 8: what was built
+
+**Getting around (7).** The clock can run faster, slower and backwards (thirteen speeds
+from ten days a second backwards to ten days a second forwards; `.` `,` `/`), stop, jump
+to today or to any date from 1950 to 2099 (the years the orbits are fitted for). A map of
+the solar system as it is at the game's date (`src/ui/map.js`, a 2-D canvas): orbits,
+every body, the traveller; drag, pinch, tap a body, then Set target or GO; "Look closer"
+shows a planet's moons. GO trips reach anywhere in under half a minute (Pluto from Mars:
+27 s); at those speeds streaks of light rush past (`src/fx/warp.js`). A menu (MENU, Tab)
+holds everything that is not flown with the stick.
+
+**Things to do (8).** A journal of 88 real places on the fourteen worlds: a place is
+found by going there (a chime, its name and one line about it), and the journal counts
+them. The browser remembers the places found, where the traveller last stood on each
+world (Play returns there) and the sound switch (`src/core/save.js`, localStorage only).
+Photo mode: everything but the picture is put away, time stands still, wider / closer /
+earlier / later, and the shutter draws one frame at the screen's full resolution and
+saves it (a phone's share sheet, or a download). Sound, all made in code
+(`src/audio/audio.js`): the suit's hum, wind where there is air (by the air's density:
+loud on Titan and Venus, a whisper on Mars, none on the Moon), the rush of flight,
+footsteps and landings, a shimmer at warp speed, the chime.
+
+Behaviour changes the player will notice: the row of touch buttons is HERO, TARGET,
+HOVER, ZOOM, MAP, MENU; CAM, VIEW, HUD, MODE and FULL moved into MENU. Play returns to
+where the traveller last stood on that world ("To the start" in the menu goes back to
+the opening place).
+
+## Milestone 9 plan: Earth's surface
+
+The riskiest part, because everyone knows what Earth looks like: bare ground where a
+forest or a city should be is wrong in a way bare ground on Mars is not. The plan avoids
+that instead of pretending to solve it.
+
+1. **Open on places that are bare in reality**, where real elevation and real colour
+   are the whole truth: the Grand Canyon's rim, Everest and the Khumbu, the summit of
+   Mauna Kea, the dunes of the Namib, the Matterhorn above the tree line. Elevation for
+   these at 90 to 190 m per pixel and for the globe is already made
+   (`scripts/fetch-earth-terrain.py`, from the open Terrain Tiles set: SRTM and others).
+2. **Colour from Blue Marble** (the same map the globe uses): deserts, ice, the green of
+   forests seen from the air. Snow by height and latitude on top.
+3. **The sea**: the ground below sea level is drawn as water: flat, dark, with the
+   Sun's glint and the sky's colour at a grazing view, a little paler in the shallows.
+   A generic `sea` feature (Titan's methane seas can use it).
+4. **Air**: Earth's own numbers in the existing atmosphere model (blue sky, red
+   sunsets, the ozone's blue hour).
+5. **Clouds**: the real day's cloud map as a layer 4 km up, seen from below and from
+   above, with its shadow on the ground; broken up with finer procedural detail because
+   the map's cells are 10 km wide. One governor step.
+6. **From orbit down**: the hand-over from the globe to the terrain must not show (the
+   same colour map on both).
+7. What is not attempted: trees, grass, buildings, rivers, waves, weather that moves.
+   Flying low over a forest shows green ground. This is said plainly in the checkpoint.
+
+## Milestone 9: what was built
+
+Earth is a world to land on, built on the plan above.
+
+- Elevation from the open Terrain Tiles set (SRTM and others): the globe, and the Grand
+  Canyon, Everest, Hawaii's Big Island, the Namib sand sea and the Matterhorn at 90 to
+  190 m per pixel. Checked against known heights: Mather Point 2 051 m (real 2 170),
+  Kala Patthar 5 595 m (real 5 644), Everest 8 737 m in the data (real 8 849).
+- Colour from Blue Marble (the globe's own day map) relative to the land's mean; steep
+  rock takes a third of it, so cliffs under snow are rock.
+- The sea (flat, dark, the Sun's glint, the sky mirrored), Earth's air (Rayleigh, a
+  light haze, ozone), a cloud layer from the real day's cloud map with its shadow on the
+  ground, a governor step for the clouds.
+- It opens at Mather Point on the Grand Canyon's South Rim on the June solstice, an hour
+  and a half after sunrise; other views: Everest from Kala Patthar, the summit of Mauna
+  Kea above the clouds, the dunes of Sossusvlei, the Matterhorn from the Gornergrat.
+- Not attempted, as planned: trees, grass, buildings, rivers, lakes above sea level,
+  waves, weather that moves. Low ground that lies below sea level (Death Valley, the
+  Dead Sea) is drawn as sea. The player can stand on the water.
+
+## Milestones 6 to 9 review (before the checkpoint)
+
+One workflow: four reviewers (sky, terrain drawing, height code, the app and its new
+screens) read everything changed since build 27e1973; a second reviewer tried to
+disprove each finding, by running the code where it could. 25 findings, all upheld, all
+fixed:
+
+- **Sky**: the world just left collapsed to a point of light at a hand-over (its globe's
+  maps were never fetched while it was home: now the small copies always, the full ones
+  once the traveller climbs); the home air dimmed and reddened the Moon and planets by
+  their declination instead of their height in the sky (`uUp` was never set); a moon
+  crossing in front of its planet was drawn behind it (far-pass slots `20 + 3k`: now
+  each body's slot lies behind the whole of the one before it, rings included, and all
+  are scaled to end by 45; the far pass's near plane is 0.002); rings and their edge-on
+  line ignored the home air and (the line) the planet's shadow; ring textures had no mip
+  maps; full maps were never let go (now freed when a body is small again, the small
+  copy kept); Saturn pulled 5.8 times too hard (its ring radius stood in for its own).
+- **Height code**: every value written to `c.slope` by `massifs`, `lineaments` and the
+  craters' flat floors is continuous now; `cells` keeps each centre in the middle 0.4 of
+  its cell, so the 27 cells searched always hold the two nearest (walls up to 149 m ran
+  along lattice planes on Triton and Europa); a `where.at` place wider than 26 degrees
+  ended in a wall; a `lat` limit of 0 or 90 is open and fades are in degrees (the tiger
+  stripes were at two thirds strength at the start site, the dunes at half on the
+  equator); Enceladus' large craters were on the equator, not in the north; Io's shadow
+  rays stopped at 1 200 m under 17 km mountains (the mountain blocks now report their
+  height to `ceilingAt`). `scratch` check: no jump above the local slope along lines
+  through each of the reported places.
+- **Terrain drawing**: rocks stood on the sea on a page that started on Earth.
+- **App**: the benchmark's flight handed over to Phobos on the way to the Moon (it now
+  hands over to its destination only, and fetches it at the start); most places on
+  Phobos and Deimos were "found" from the start site (reach now at most a fifth of the
+  radius); sound kept running on a hidden page or switched off (the audio engine is now
+  suspended); photo mode: a hidden stick took touches and the target marker came back;
+  one failed download counted as hundreds; the menu was rebuilt 5 times a second and
+  lost clicks (only its clock line is updated now); the mouse stayed captured under the
+  menu, map and journal; a date typed on a keyboard was cut off after its first part.
+
+Behaviour changes for the player: the ground changed a little on Io's mountains,
+Europa's chaos, Triton's cantaloupe ground, Pluto's ice plain, Venus' tessera, Titan's
+dune belt and round Enceladus' south pole (stronger stripes); Saturn's pull is weaker;
+places on the two small moons must be gone to.
 
 ## Milestone 5 plan: Earth and the Sun from space
 
@@ -847,6 +1022,14 @@ The character
 
 | Problem | Milestone |
 | --- | --- |
+| Nothing since build 27e1973 has run on the phone: the one-draw-call ground, twelve new worlds, thick air (Titan, Venus), the cloud layer, the sea, rings, the menu, map, sound | owner's next benchmark and first look |
+| The new worlds were given one pass each: views chosen with the CPU sketch and one or two headless pictures, no reference set, no stability run, no critic. Weakest: Europa (reads as a brown dune, not ice), Triton (flat), Io (bland plains), Titan's dunes (hard to see in the flat light), Phobos and Deimos (the horizon slants: "up" is from the body's centre) | after the owner's first look |
+| Where a world has no elevation data the small-scale ground is invented (recipes), and so is everything below the data's pixel size everywhere | by design; say so |
+| Pluto's and Charon's far hemispheres have no elevation and a filled-in colour: featureless there | data does not exist |
+| Earth: no trees, grass, buildings, rivers or lakes; ground below sea level is sea; the player can stand on water; clouds are a single thin layer of 10 km cells with generated detail | by design for now |
+| The Moon's orbit is a mean ellipse: up to 3.5 degrees from its true place; Phobos runs ahead after 2030 (12 degrees by 2100): each needs a periodic or squared term in `orbitPosition` (the numbers are in `scripts/fit-orbits.py --refit-existing`) | open |
+| Sound, photo sharing and the date picker could only be tested as far as a headless browser goes (no speaker, no share sheet) | owner's first look |
+| The journal has no hints or map pins; a place is found only by going near it | open |
 | Milestone 2 and 3 builds have not been measured on the phone: the per-pixel haze near a planet's edge, the albedo lookup and the dust are new costs | owner's next benchmark |
 | One-pixel-high bright features alias (ridge highlights, crater rims): no anti-aliasing. The milestone 1 results showed room for it; it waits for numbers from the current build | after the next benchmark |
 | Night scenes need about 570 frames for exposure to settle in screenshot mode | tooling |
@@ -1387,3 +1570,12 @@ Weakest: `mars_ledge_orbit_globe`.
   (`scripts/fetch-earth.py`), its air, glint, clouds and lights; the Sun up close;
   eclipses; light from the world below; `at=` for pictures beside a body; a cloud
   environment `what-it-s-best-at` that allows the NASA and USGS map hosts.
+- **Milestones 6 to 9** (the owner: "finish up the rest of the milestones", with the
+  third benchmark): the ground drawn by one instanced mesh from texture arrays, uploads
+  between frames; twelve new worlds as data (Phobos, Deimos, Mercury, Venus, Ceres, Io,
+  Europa, Enceladus, Titan, Triton, Pluto, Charon) and Earth's surface with a sea and
+  clouds; orbits fitted to JPL Horizons, Jupiter's drifting bands, Saturn's rings; the
+  menu, the solar system map, the clock and dates, the warp effect; the journal, photo
+  mode, saves, sound. Reviewed by one workflow (25 findings, all fixed: "Milestones 6 to
+  9 review"). Tools: `worlds`, `ui`, `peek.mjs`, `check-ephemeris.mjs`, `fit-orbits.py`,
+  `fetch-worlds.py`, `fetch-earth-terrain.py`.

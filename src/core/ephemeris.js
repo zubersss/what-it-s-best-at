@@ -31,7 +31,10 @@ function orbitPosition(orbit, jd, out) {
   const a = orbit.a[0] + orbit.a[1] * T;
   const e = orbit.e[0] + orbit.e[1] * T;
   const inc = (orbit.i[0] + orbit.i[1] * T) * DEG;
-  const L = (orbit.L[0] + orbit.L[1] * T) * DEG;
+  // (swing: [degrees, period in centuries, phase in degrees]: a moon locked in a resonance
+  // runs ahead of and behind its mean place by this much, like a slow pendulum)
+  const swing = orbit.swing;
+  const L = (orbit.L[0] + orbit.L[1] * T + (swing ? swing[0] * Math.sin((360 * T / swing[1] + swing[2]) * DEG) : 0)) * DEG;
   const lp = (orbit.lonPeri[0] + orbit.lonPeri[1] * T) * DEG;
   const node = (orbit.node[0] + orbit.node[1] * T) * DEG;
   const w = lp - node;
@@ -96,6 +99,7 @@ export class Ephemeris {
   // Row-major 3x3: v_fixed = M * v_icrf.
   rotationMatrix(id, jd, out = new Float64Array(9)) {
     const rot = this.cat[id].rotation;
+    if (!rot) return this._lockedMatrix(id, jd, out);
     const d = jd - J2000, T = d / 36525;
     const a0 = (rot.ra[0] + rot.ra[1] * T) * DEG;
     const d0 = (rot.dec[0] + rot.dec[1] * T) * DEG;
@@ -111,6 +115,22 @@ export class Ephemeris {
       out[3 + k] = -sw * Q[k] + cw * R[k];
       out[6 + k] = P[k];
     }
+    return out;
+  }
+
+  // A moon that keeps one face to its planet and has no rotation elements of its own:
+  // longitude 0 looks at the parent, the pole is the normal of its orbit.
+  _lockedMatrix(id, jd, out) {
+    const body = this.cat[id];
+    if (!body.parent || !body.orbit) { out.fill(0); out[0] = out[4] = out[8] = 1; return out; }
+    const a = this._la || (this._la = [0, 0, 0]), b = this._lb || (this._lb = [0, 0, 0]), pa = this._lp || (this._lp = [0, 0, 0]);
+    const rel = (t, o) => { this.positionICRF(id, t, o); this.positionICRF(body.parent, t, pa); o[0] -= pa[0]; o[1] -= pa[1]; o[2] -= pa[2]; return o; };
+    rel(jd, a); rel(jd + 1e-3, b);                              // a minute and a half later: the direction of travel
+    const al = Math.hypot(a[0], a[1], a[2]), X = [-a[0] / al, -a[1] / al, -a[2] / al];
+    let Z = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    const zl = Math.hypot(Z[0], Z[1], Z[2]); Z = [Z[0] / zl, Z[1] / zl, Z[2] / zl];
+    const Y = [Z[1] * X[2] - Z[2] * X[1], Z[2] * X[0] - Z[0] * X[2], Z[0] * X[1] - Z[1] * X[0]];
+    for (let k = 0; k < 3; k++) { out[k] = X[k]; out[3 + k] = Y[k]; out[6 + k] = Z[k]; }
     return out;
   }
 

@@ -17,10 +17,10 @@ owner's reply or phone results), `done`.
 | 4 | Character and flight feel | done |
 | — | **Benchmark on the phone**: the gate before anything new was built. The owner ran it on 2026-11-20 (Smooth); the charter's limits were lifted (`CLAUDE.md`, "The one goal") | done |
 | 5 | Earth and the Sun from space | done |
-| 6 | New landable worlds | in progress |
-| 7 | Getting around | not started |
-| 8 | Things to do | not started |
-| 9 | Earth's surface — write its plan in `docs/PROGRESS.md` before starting | not started |
+| 6 | New landable worlds | checkpoint sent |
+| 7 | Getting around | checkpoint sent |
+| 8 | Things to do | checkpoint sent |
+| 9 | Earth's surface | checkpoint sent |
 
 ## 1. Phone link and measurement
 
@@ -120,16 +120,34 @@ merged and reported.)
 - Pluto and Charon
 - Ceres
 
+Built (see `docs/PROGRESS.md`, "Milestone 6: what was built"). Twelve new worlds, each one
+data file on real maps where they exist; Jupiter with drifting bands, Saturn with rings,
+Neptune and Uranus in every sky at their places (orbits fitted to JPL Horizons). The
+weakest ones are listed at the end of that section.
+
 ## 7. Getting around
 
 Bodies at their real positions for a chosen date, a solar system map, fast travel
 between planets with a clear visual effect, time controls.
+
+Built (`docs/PROGRESS.md`, "Milestones 7 and 8: what was built"): the clock (faster,
+slower, backwards, stop, today, any date from 1950 to 2099), the map (tap a body, then
+Set target or GO), the streaking-stars effect on a GO trip, one MENU for everything that
+is not flown with the stick.
 
 ## 8. Things to do
 
 Photo mode (a single frame at full native resolution), real landmarks to discover with a
 journal, progress saved in the browser, procedural audio for suit, wind and ambience.
 
+Built (same section): photo mode, 98 real places to find with a line about each, a
+journal, the place you last stood and what you found kept in the browser, sound made in
+the page (suit, wind where there is air, flight, footsteps, a chime).
+
 ## 9. Earth's surface
 
 The riskiest part. Write its plan in `docs/PROGRESS.md` before starting.
+
+Built to its plan (`docs/PROGRESS.md`, "Milestone 9: what was built"): real elevation,
+Blue Marble colour, a sea, air, clouds with shadows; five sites at 90 to 190 m per pixel.
+No trees, grass, buildings or rivers: bare ground only.

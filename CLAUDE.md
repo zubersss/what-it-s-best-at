@@ -16,8 +16,10 @@ last delivered, what the owner was asked for and exactly what to do next.
 A browser game where you fly a robed, long-haired character (the owner's own design:
 `docs/PROGRESS.md`, "The owner's character") through our real solar system:
 walk on worlds, lift off, reach orbit, cross to other bodies and land. Inspired by No
-Man's Sky, but every place is real. The current build (Mars, the Moon, flight between
-them, the character) is the foundation. Keep everything that works.
+Man's Sky, but every place is real: fifteen worlds to land on (Mars, the Moon, Phobos,
+Deimos, Mercury, Venus, Ceres, Io, Europa, Enceladus, Titan, Triton, Pluto, Charon),
+every other planet and large moon in the sky at its true place for the date. Keep
+everything that works.
 
 ## Ownership
 
@@ -145,6 +147,10 @@ known problems.
 `.github/workflows/pages.yml` on every push to `main`. Claude develops on its session
 branch, opens a pull request into `main` and merges it; the link updates a minute or two
 later. The start screen and the HUD show the commit the page was built from.
+Pull requests go through `gh api` (the GitHub MCP tools are retired, and `gh pr` does not
+work here): `gh api -X POST repos/zubersss/what-it-s-best-at/pulls -f title=... -f head=<branch>
+-f base=main -F body=@<file>`, then `gh api -X PUT repos/zubersss/what-it-s-best-at/pulls/<n>/merge
+-f merge_method=merge`.
 
 ## Run and test
 
@@ -163,6 +169,11 @@ npm run smoke          # headless check of the start screen, modes, HUD and a fu
 npm run govsim         # the governor against simulated GPUs (no browser)
 npm run transfer       # GO trips flown without a browser: arrival, time against the marker's estimate
 npm run target         # the target list, marker and a GO trip in the real game (headless)
+npm run worlds         # every world opens at its start with ground drawn and no errors (headless, about an hour; -- --only io,titan)
+node scripts/check-ephemeris.mjs   # every orbit and spin against JPL Horizons (no network; fails beyond a tolerance)
+node scripts/peek.mjs --world io [--shot ledge | --lat .. --lon ..] [--pan 4]   # a CPU sketch of the view from a place, in seconds: for choosing sites and times
+python3 scripts/fetch-worlds.py [job ...]   # the maps of the worlds of milestone 6 (5 GB of originals into .cache/maps), see docs/ASSETS.md
+python3 scripts/fit-orbits.py      # orbits fitted to JPL Horizons (needs ssd.jpl.nasa.gov; replies cached)
 npm run assets         # re-download and convert the small NASA/Yale files into public/data/
 python3 scripts/fetch-maps.py   # the rest of public/data/ (needs: pip install rasterio numpy pillow), see docs/ASSETS.md
 npm run probe          # top-down shaded relief of the height function (no browser)
@@ -185,7 +196,8 @@ Headless Chromium renders with software WebGL: a shot takes 1–3 minutes. Run l
 batches in the background, never pipe them through `tail` (it hides all output until the
 end), and take final sets from `dist/` so source edits cannot disturb them.
 
-URL parameters: `world=mars|moon`, `shot=ledge|sun|wall|ship|dusk`, on Mars also `canyon`
+URL parameters: `world=<id>` (any world of `src/worlds/index.js`; without it, the one chosen
+on the start screen last time), `shot=ledge|sun|wall|ship|dusk`, on Mars also `canyon`
 (a sixth view of the opening site, used for the from-orbit and character reference
 pictures), and the world's landmarks (`olympus`, `gale` on Mars; `tycho`, `taurus` on the
 Moon) (fixed camera bookmark, deterministic screenshot mode, skips the start screen),
@@ -207,7 +219,9 @@ frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last foo
 Keys: `WASD` move, mouse look (click to capture), `Shift` super speed on foot / boost in
 flight, left `Ctrl` (hold) slow, for precise moves (flight ×0.12, on foot ×0.3, free-fly
 camera ×0.15), `Space` (or `E`) jump on foot (tap), take off (hold, or tap again in the air), up in
-flight, `Q` down, `G` character on/off, `T` next target (this world's places, the bodies in the
+flight, `Q` down, `G` character on/off, `Tab` the menu, `N` the map, `J` the journal,
+`O` photo mode, `K` sound on/off, `.` `,` the clock faster / slower (and backwards), `/`
+real time, `T` next target (this world's places, the bodies in the
 sky, the Sun, none) and turn to it, `Enter` GO: fly to the target hands-off (the stick
 or a movement key takes control back; looking around does not),
 `X` hover on/off (off: gravity pulls when the stick is released, and touching the
@@ -223,9 +237,11 @@ Mars; then its landmarks),
 Touch: left part of the screen = move stick (push to the rim for super speed on foot /
 boost in flight), `▲` jump (tap) / take off (hold, or tap again in the air) / up, drag
 anywhere else = look, buttons `HERO`, `TARGET` (the list of targets with distances), `GO`
-(above `▲`, shown with a target: the hands-off trip), `HOVER`, `CAM` (the `F` key: free-fly debug camera where you are), `ZOOM` (hold), `VIEW` (next
-bookmark), `HUD`, `MODE` (Smooth ↔ Sharp), `FULL` (fullscreen + landscape lock + wake
-lock), `▲` up, `▼` down. The time slider is part of the full HUD.
+(above `▲`, shown with a target: the hands-off trip), `HOVER`, `ZOOM` (hold), `MAP` (the
+solar system now: tap a body, then Set target or GO), `MENU` (the map and targets; the
+clock: faster, slower, stop, today, a date; the journal, photo mode, sound; free camera,
+read-out, Smooth ↔ Sharp, full screen), `▲` up, `▼` down. The time slider is part of the
+full read-out.
 
 Interactive sessions open on the start screen (Play, Benchmark, Soak test, mode). A
 finished benchmark leaves its text in `window.__benchResult`.
@@ -315,7 +331,7 @@ finished benchmark leaves its text in `window.__benchResult`.
 - Phones allow 16 textures per shader; the test browser allows 32 and 4096 uniform
   vectors. A shader over a phone's limit draws nothing there and works in every headless
   test (the whole ground vanished on the phone at 17). `scripts/lib/glLimits.mjs` checks
-  every program in `npm run smoke` and in screenshot runs; the terrain shader is at 13
+  every program in `npm run smoke` and in screenshot runs; the terrain shader is at 14
   (plus 2 read by its vertex shader).
 - three uploads a changed texture at the draw call that first uses it, in the middle of
   the render pass, and with `generateMipmaps` has the GPU build the mips there. A phone's
@@ -380,5 +396,26 @@ finished benchmark leaves its text in `window.__benchResult`.
 - The cloud machine reaches only the hosts its environment allows (`what-it-s-best-at`:
   NASA GIBS, USGS planetary maps, the PDS geosciences node). NASA's older image server
   (eoimages) drops the connection from here even when allowed: use GIBS.
+- A noise lattice searched over a fixed block of cells (Worley cells, crater lattices) is
+  right only if nothing outside the block can be nearer than what is inside: with a
+  centre anywhere in its cell the answer changed across lattice planes, as walls 100 m
+  high. Bound the jitter so the block is provably enough.
+- A mask's fade centred on its limit is at half strength at the limit: a latitude limit
+  of 0 or 90 degrees left the layer half there at the very place it was made for. And an
+  early-out by distance in a mask must be wider than the mask (a place 34 degrees wide
+  was cut at 26, as a wall).
+- The shadow rays' ceiling is the elevation map's top plus `shadowHeadroom`: an op that
+  adds mountains far above that must report them (`fn.top`, as `massifs` does), or the
+  rays stop under the peaks and nothing casts a shadow.
+- Sky bodies drawn at made-up distances in the far pass need slots that cannot cross:
+  a big planet's near side reaches far in front of its centre (a moon in transit was
+  drawn behind its planet). Each slot starts behind the whole of the one before.
+- A body's "radius" has several meanings (the globe, the keep-out round its rings, what
+  its surface gravity belongs to): passing the widest to gravity made Saturn pull 5.8
+  times too hard.
+- DOM built again on a timer loses clicks (a button replaced between press and release
+  gets none): update text in place. And release the pointer lock when an overlay opens.
+- A scripted benchmark must not depend on the sky: a moon in the way became a world to
+  hand over to and changed the route. During a benchmark only its destination counts.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

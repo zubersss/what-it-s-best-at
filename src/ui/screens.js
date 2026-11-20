@@ -10,21 +10,30 @@ function el(tag, attrs = {}, text = '') {
 }
 
 export class StartScreen {
-  // handlers: { play(), benchmark(kind), mode() }
-  constructor(build, mode, handlers) {
+  // handlers: { play(), benchmark(kind), mode() }; worlds: [{ id, name }], world: the one loaded
+  constructor(build, mode, handlers, worlds = [], world = '') {
     this.handlers = handlers;
     const root = el('div', { id: 'start' });
     const card = el('div', { class: 'card' });
-    card.append(el('h1', {}, 'Solar System Explorer'), el('p', { class: 'sub' }, 'Mars · the Moon · the space between'));
+    card.append(el('h1', {}, 'Solar System Explorer'), el('p', { class: 'sub' }, 'Fifteen real worlds · the space between'));
     const row = el('div', { class: 'row' });
     const play = el('button', { class: 'primary' }, 'Play');
     const bench = el('button', {}, 'Benchmark · 3 min');
     const soak = el('button', {}, 'Soak test · 10 min');
     row.append(play, bench, soak);
     this.buttons = [play, bench, soak];
+    // Where the game opens: choosing another world loads it (the page starts again there).
+    const where = el('label', { class: 'where' }, 'Start on ');
+    const pick = el('select');
+    for (const w of worlds) { const o = el('option', { value: w.id }, w.name); if (w.id === world) o.selected = true; pick.append(o); }
+    where.append(pick);
+    pick.addEventListener('change', () => {
+      try { localStorage.setItem('sse.world', pick.value); } catch { /* storage blocked: the address carries it */ }
+      const u = new URL(location.href); u.searchParams.set('world', pick.value); location.href = u.toString();
+    });
     this.modeBtn = el('button', { class: 'mode' });
     this.status = el('p', { class: 'status' }, 'Loading terrain…');
-    card.append(row, this.modeBtn, el('p', { class: 'rotate' }, 'Turn the phone sideways for the best view'), this.status,
+    card.append(row, where, this.modeBtn, el('p', { class: 'rotate' }, 'Turn the phone sideways for the best view'), this.status,
       el('p', { class: 'build' }, `build ${build.commit}${build.time ? ' · ' + build.time : ''}`));
     root.append(card);
     document.body.appendChild(root);

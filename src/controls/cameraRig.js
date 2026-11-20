@@ -194,7 +194,7 @@ export class CameraRig {
       p.x += this.east[0] * e + this.north[0] * n; p.y += this.east[1] * e + this.north[1] * n; p.z += this.east[2] * e + this.north[2] * n;
       // Jump under the world's gravity.
       if (input.hit('Space') && this.jumpOffset <= 0) this.vUp = FOOT.jump;
-      this.vUp -= this.world.gravity * dt;
+      this.vUp -= Math.max(this.world.gravity, CONFIG.MIN_FOOT_GRAVITY) * dt;
       this.jumpOffset = Math.max(0, this.jumpOffset + this.vUp * dt);
       if (this.jumpOffset === 0 && this.vUp < 0) this.vUp = 0;
       this._snapToGround(CONFIG.EYE_HEIGHT + this.jumpOffset);
@@ -459,7 +459,9 @@ export class CameraRig {
     // The ground where the feet were, as drawn now: when finer detail has arrived there since
     // the last frame, the ground moved under a standing figure; that is not a ledge.
     if (!this.airborne) alt0 = this._ground(d0, camDist);
-    const g = this.world.gravity * (R / r0) * (R / r0);
+    // (never less than MIN_FOOT_GRAVITY: on a moon ten kilometres across a jump at the real
+    // gravity would last twenty minutes and end a kilometre up; the suit holds you down)
+    const g = Math.max(this.world.gravity, CONFIG.MIN_FOOT_GRAVITY) * (R / r0) * (R / r0);
     f.addScaledVector(v, dt);
     let alt = alt0;
     if (this.airborne) { alt += this.vUp * dt - 0.5 * g * dt * dt; this.vUp -= g * dt; this.airTime += dt; }
