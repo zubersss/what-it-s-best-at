@@ -358,15 +358,18 @@ export class App {
   // The governor's terrain steps: the smallest factor asked for wins.
   terrainBudget(factor, id) {
     this.terrainFactors[id] = factor;
+    if (!this.terrain) return;               // (the mode button works before the world has loaded)
+    // the mode's share multiplies; among the governor's own levers the smallest wins
     let m = 1;
-    for (const k in this.terrainFactors) m = Math.min(m, this.terrainFactors[k]);
-    this.terrain.maxChunks = Math.round(CONFIG.MAX_RENDER_CHUNKS * m);
+    for (const k in this.terrainFactors) if (k !== 'mode') m = Math.min(m, this.terrainFactors[k]);
+    this.terrain.maxChunks = Math.round(CONFIG.MAX_RENDER_CHUNKS * (this.terrainFactors.mode ?? 1) * m);
   }
 
   // Why the frame that just ended may have been slow (for the benchmark's hitch list).
   frameCause(now, uploads) {
     if (this.switching || now < this.switchedAt + 2500) return 'arriving at another world';
     if (now < this.jumpedAt + 2500) return 'jump to a bookmark';
+    if (now < (this.bodies?.mapsAt ?? -1e9) + 1500) return 'sky maps arriving';
     if (now < this.resumedAt + 1500) return 'page came back from the background';
     if (now < this.resizedAt + 1500) return 'screen size changed';
     if (this.governor.sinceStep < 0.4) return 'quality step';
@@ -777,8 +780,14 @@ export class App {
     const sunC = SOLAR_SYSTEM.sun.color, k = (AU_M / eph.sunDistance) ** 2;
     G.uSunIrradiance.value.set(sunC[0] * k, sunC[1] * k, sunC[2] * k);
     // An eclipse: a body in front of the Sun takes the share of sunlight it covers.
-    this.sunCover = this.bodies.sunCover(eph, rig.pos);
-    if (this.sunCover > 0) G.uSunIrradiance.value.multiplyScalar(1 - this.sunCover);
+    // (seen from the camera, so it holds for the ground round it: a body's shadow is a small
+    // patch of the world. High above the ground it is the camera alone that is in the shadow,
+    // not the world below: there the sunlight is left as it is.)
+    {
+      const x = Math.min(1, Math.max(0, (rig.agl - 20e3) / 80e3));
+      this.sunCover = this.bodies.sunCover(eph, rig.pos) * (1 - x * x * (3 - 2 * x));
+      if (this.sunCover > 0) G.uSunIrradiance.value.multiplyScalar(1 - this.sunCover);
+    }
     // Light from the home world below on things high above it (the figure in orbit was
     // near black on its shaded side over a sunlit planet): its day side as a lamp, by how
     // much of the sky below it fills and how much of that is in daylight.
@@ -843,8 +852,9 @@ export class App {
 
     // The Sun's place on screen, so the exposure meter can leave its glare out.
     {
-      const d = G.uSunDir.value, f = d.dot(rig.forward);
-      if (f > 0.05) post.setSun(0.5 + 0.5 * d.dot(rig.right) / (f * th * aspect), 0.5 + 0.5 * d.dot(rig.up) / (f * th), sunHalf / (2 * th), true);
+      // (where the disc is drawn: from the camera, not from the home world's centre)
+      const d = this.sun.uniforms.uDiscDir.value, half = this.sun.uniforms.uAngRadius.value, f = d.dot(rig.forward);
+      if (f > 0.05) post.setSun(0.5 + 0.5 * d.dot(rig.right) / (f * th * aspect), 0.5 + 0.5 * d.dot(rig.up) / (f * th), Math.tan(Math.min(half, 1.4)) / (2 * th), true);
       else post.setSun(0, 0, 0, false);
     }
 
@@ -881,8 +891,10 @@ export class App {
     // mip maps on its own time), so the three frames after one count as soft too.
     this.softFrames = uploads ? 3 : Math.max(0, (this.softFrames || 0) - 1);
     // (the page's own work for this frame: everything from the start of frame() to here)
+    // (dtMs is the previous frame's time: it goes with that frame's work)
+    const prevScript = this.scriptMs || 0;
     this.scriptMs = performance.now() - frameStart;
-    governor.update(dtMs, settling ? FRAME.IGNORE : this.softFrames > 0 ? FRAME.SOFT : FRAME.NORMAL, this.scriptMs);
+    governor.update(dtMs, settling ? FRAME.IGNORE : this.softFrames > 0 ? FRAME.SOFT : FRAME.NORMAL, prevScript);
     this.lastUploads = this.terrain.uploads; this.terrain.uploads = 0;
 
     // 8. HUD

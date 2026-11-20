@@ -102,7 +102,7 @@ float contactSky(vec3 rel, vec3 N) {
 vec3 planetShine(vec3 N) { return uShineE * max(dot(N, uShineDir), 0.0); }
 // Light from the world below on something in orbit over it (zero near the ground, where
 // the sky light already carries the ground's bounce): most on what faces down.
-vec3 homeShine(vec3 N, vec3 up) { float d = 0.5 - 0.5 * dot(N, up); return uHomeShine * d * sqrt(d); }
+vec3 homeShine(vec3 N, vec3 up) { float d = clamp(0.5 - 0.5 * dot(N, up), 0.0, 1.0); return uHomeShine * d * sqrt(d); }
 
 // Attenuates a surface colour and adds in-scattered light along the view ray.
 // Materials that can fill the view from space (the terrain) define SPACE_HAZE to get the

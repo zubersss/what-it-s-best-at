@@ -6,7 +6,7 @@
 Writes, as equirectangular maps (longitude -180..180 left to right, north at the top):
   earth_day_4096.jpg      the day side's colour: Blue Marble Next Generation (no clouds)
   earth_clouds_4096.jpg   clouds of a real day (2016-09-22), from a VIIRS true-colour mosaic (grey)
-  earth_lights_2048.jpg   city lights, from the Black Marble 2016 (grey)
+  earth_lights_4096.jpg   city lights, from the Black Marble 2016 (grey)
   earth_water_2048.jpg    water, from the MODIS water mask, for the oceans' glint (grey)
   earth_*_512.jpg         small copies of the four, always loaded (Earth far away)
 """
@@ -47,15 +47,25 @@ def main():
     # one (deserts and ice are bright too; over ice nothing is added: white on white).
     white = sky.min(axis=2) - 0.25 * (sky.max(axis=2) - sky.min(axis=2))
     clear = day.min(axis=2)
-    cloud = smooth(white - 0.75 * clear, 0.30, 0.80)
+    cloud = smooth(white - 0.75 * clear, 0.16, 0.92)       # (a wide ramp: thin cloud stays thin)
     # (the satellite's strips leave grey streaks of sun-glint on the sea: below the threshold
     # mostly, and softened here; nothing was recorded in the polar night: no cloud there)
     cloud = np.asarray(Image.fromarray((cloud * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.8)), dtype=np.float32) / 255
+    # The left and right edges are a day apart (the date line): the clouds do not meet there.
+    # Over 6 degrees either side each edge fades toward the mean of itself and its mirror
+    # across the seam, so the two sides agree where they touch.
+    n = cloud.shape[1] * 6 // 360
+    w = smooth(np.arange(n, dtype=np.float32), 0, n - 1)[None, :]            # 0 at the seam, 1 inside
+    left, right = cloud[:, :n].copy(), cloud[:, -n:][:, ::-1].copy()          # both run from the seam inward
+    mean = 0.5 * (left + right)
+    cloud[:, :n] = mean + (left - mean) * w
+    cloud[:, -n:] = (mean + (right - mean) * w)[:, ::-1]
 
     # City lights: warm and bright on the Black Marble's dim blue ground.
     r, g, b = night[..., 0], night[..., 1], night[..., 2]
-    lights = np.clip((r - 0.95 * b - 0.02) / 0.45, 0, 1) + np.clip(((r + g + b) / 3 - 0.45) / 0.5, 0, 1)
-    lights = np.clip(lights, 0, 1) ** 0.8
+    # (kept in proportion: faint sprawl stays faint, only the cores reach the top)
+    lights = np.clip((r - 0.95 * b - 0.02) / 0.85, 0, 1) + 0.5 * np.clip(((r + g + b) / 3 - 0.45) / 0.5, 0, 1)
+    lights = np.clip(lights, 0, 1) ** 0.7
 
     wat = (water[..., 2] > 0.5).astype(np.float32)
     wat = np.asarray(Image.fromarray((wat * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.7)), dtype=np.float32) / 255
@@ -68,7 +78,7 @@ def main():
     out = {
         'earth_day_4096.jpg': (day_im, dict(quality=88, subsampling=1)),
         'earth_clouds_4096.jpg': (grey(cloud), dict(quality=82)),
-        'earth_lights_2048.jpg': (grey(lights).resize((2048, 1024), Image.LANCZOS), dict(quality=90)),
+        'earth_lights_4096.jpg': (grey(lights), dict(quality=90)),
         'earth_water_2048.jpg': (grey(wat).resize((2048, 1024), Image.LANCZOS), dict(quality=85)),
         'earth_day_512.jpg': (day_im.resize((512, 256), Image.LANCZOS), dict(quality=88)),
         'earth_clouds_512.jpg': (grey(cloud).resize((512, 256), Image.LANCZOS), dict(quality=85)),

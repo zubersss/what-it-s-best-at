@@ -48,23 +48,31 @@ export class SunDisc {
             // Up close the surface shows its grain: cells of rising gas, bright with darker
             // lanes, slowly changing, and a few larger dark patches. From a planet the disc
             // is too small for any of it (faded in with its size on screen).
+            // Large in view it is seen as through a dark filter (no exposure could show it
+            // otherwise): an evenly glowing disc, strongly darker and warmer toward its edge,
+            // with a grain too fine to see until very near, a few small spots in two belts
+            // either side of its equator (a black core, a paler fringe) and brighter patches
+            // near the edge. From a planet it stays the blinding point it is.
             float big = smoothstep(30.0, 200.0, uAngRadius / uPixelAngle);
             float grain = 1.0;
+            vec3 tint = vec3(1.0);
             if (big > 0.0) {
-              vec3 q = n * 34.0 + vec3(0.0, 0.0, uTime * 0.02);
-              float g = vnoise(q) * 0.45 + vnoise(q * 2.9 + 5.0) * 0.32 + vnoise(q * 8.3 + 9.0) * 0.23;
-              g = smoothstep(0.25, 0.75, g);
-              // dark spots in two belts either side of the equator, each with a paler rim
-              float sp = vnoise(n * 6.0 + 3.0) * 0.65 + vnoise(n * 17.0) * 0.35;
-              float belt = smoothstep(0.05, 0.2, abs(n.z)) * smoothstep(0.6, 0.35, abs(n.z));
-              float spots = smoothstep(0.66, 0.74, sp) * belt, rim = smoothstep(0.60, 0.66, sp) * belt;
-              grain = mix(1.0, (0.72 + 0.42 * g) * (1.0 - 0.35 * rim) * (1.0 - 0.6 * spots), big);
+              float px = uAngRadius / uPixelAngle;                         // the disc's radius in pixels
+              vec3 q = n * 420.0 + vec3(0.0, 0.0, uTime * 0.02);
+              float g = vnoise(q) * 0.6 + vnoise(q * 2.3 + 5.0) * 0.4;
+              float fineOn = smoothstep(500.0, 2500.0, px);                // the grain: only very near
+              float sp = vnoise(n * 11.0 + 3.0) * 0.6 + vnoise(n * 29.0 + 7.0) * 0.4;
+              float belt = smoothstep(0.08, 0.2, abs(n.z)) * smoothstep(0.55, 0.38, abs(n.z));
+              float core = smoothstep(0.735, 0.75, sp) * belt, fringe = smoothstep(0.705, 0.72, sp) * belt;
+              float bright = smoothstep(0.62, 0.70, vnoise(n * 23.0 + 11.0)) * (1.0 - mu) * (1.0 - mu) * belt;
+              grain = mix(1.0, (1.0 + 0.10 * (g - 0.5) * fineOn) * (1.0 - 0.35 * fringe) * (1.0 - 0.85 * core) * (1.0 + 0.25 * bright), big);
+              // the edge: darker than the plain law draws it once the picture is exposed for
+              // the centre, and warmer
+              float e = mix(1.0, 0.42 + 0.58 * pow(mu, 0.7), big);
+              tint = vec3(e, e * mix(1.0, 0.86 + 0.14 * mu, big), e * mix(1.0, 0.62 + 0.38 * mu, big));
             }
-            col = uSurface * limb * grain * edge;
-            // Close enough to fill the view, it is looked at as through a dark filter: dimmed
-            // until its surface sits just under white (no exposure can show it otherwise;
-            // from a planet it stays the blinding point it is).
-            col *= pow(min(1.0, 0.62 / max(uExposure * uSurface.g, 1e-9)), big) * mix(vec3(1.0), vec3(1.0, 0.86, 0.62), big);
+            col = uSurface * limb * grain * tint * edge;
+            col *= pow(min(1.0, 0.95 / max(uExposure * uSurface.g, 1e-9)), big) * mix(vec3(1.0), vec3(1.0, 0.93, 0.80), big);
           }
           // A faint glow round the disc (the inner corona): a few millionths of the surface,
           // falling off steeply. Only an exposure long enough for it shows it (an eclipse).
@@ -96,9 +104,20 @@ export class SunDisc {
     this.uniforms.uUp.value.set(rig.localUp[0], rig.localUp[1], rig.localUp[2]);
     this.uniforms.uCamRkm.value = rig.pos.length() * 0.001;
     this.uniforms.uPixelAngle.value = 2 * Math.tan(rig.fov * Math.PI / 360) / viewH * 0.75;
-    const D = 50;                                   // far-pass units
-    this.mesh.position.copy(to).multiplyScalar(D);
+    const D = 50;                                   // far-pass units (behind every body: those sit at 20 + 3k)
     this.mesh.quaternion.copy(rig.camera.quaternion);
-    this.mesh.scale.setScalar(D * Math.tan(Math.min(ang * 3.0, 1.5)) + D * this.uniforms.uPixelAngle.value * 2);
+    if (ang * 3.0 > 0.5) {
+      // Close up, the disc can fill part of the view while its centre is beside or behind
+      // the camera, where a quad placed on the Sun is clipped away: cover the whole view
+      // instead (the shader works from the view ray alone).
+      this.mesh.position.copy(rig.forward).multiplyScalar(D);
+      this.mesh.scale.setScalar(D * Math.tan(rig.fov * Math.PI / 360) * 3.2);
+    } else {
+      // (the quad is parallel to the view plane: off axis it is seen foreshortened, so it
+      // is widened by as much, or the glow round the disc is cut)
+      const c = Math.max(0.3, to.dot(rig.forward));
+      this.mesh.position.copy(to).multiplyScalar(D);
+      this.mesh.scale.setScalar((D * Math.tan(ang * 3.0) + D * this.uniforms.uPixelAngle.value * 2) / c);
+    }
   }
 }

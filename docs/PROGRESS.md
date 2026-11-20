@@ -708,15 +708,13 @@ The character
 | Mars from orbit is soft: about 40 % of the contrast of the Viking mosaic survives the haze; Valles Marineris shows by its bright rims | 5 |
 | Twilight glow has a hard upper edge at the highest exposures | 5 |
 | Mars: flat grey sky away from the Sun, olive cast in the sunset views | 5 |
-| Deimos burns out to a white blob at dusk exposure | 5 |
-| Earth is a blown-out white disc from the Moon and has no blue | 5 |
 | The cost of the Mars dust cloud's noise on the phone's fill rate is not measured (the governor's dust step drops most of it) | owner's next benchmark |
 | Through a very long lens (under 10°) looking down-Sun at a grazing angle, the sand ripples stretch into vertical stripes (seen at the lander bench near sunset; not at normal lenses) | watch |
 | Rocks look pale, bluish grey against the Martian ground (real ones are dark and dust-coated) | 6 |
 | Landforms soft from close up: Mount Sharp, the Coprates wall, the Olympus caldera wall, Hadley Rille, Tycho's peak read as rounded heaps (milestone 4 critic) | 6 / 7 |
 | Mars daylight haze too thick: far walls dissolve, flat khaki sky (milestone 4 critic) | 5 |
 | Chalk-white outlines on canyon walls and crater rims in Mars from orbit; a bluish Mars crescent | 5 |
-| No light from the planet below on things in orbit (the figure and its robe are near black on their shaded side over sunlit Mars), and in orbit the cloth floats loosely with almost no weight to hang by | 5 |
+| In orbit the cloth floats loosely with almost no weight to hang by | next character pass |
 | Black shadow slivers with no visible relief in the low lunar orbit view | 5 |
 | Far from every body only the target marker shows the way; there is no map yet | 7 |
 | Places on other worlds cannot be chosen until that world is home (no map yet) | 7 |
@@ -726,8 +724,10 @@ The character
 | In fast flight the robe's skirt streams back as a smooth tube; little billow. The face is a few simple shapes | next character pass |
 | The robe and hair simulation (about 500 points, 75 steps a second) and the 180 patches are not measured on the phone | owner's next benchmark |
 | The reference pictures of the worlds without the character (bookmarks, orbit views) were rendered with 120 patches; with 180 the ground is finer than they show. Re-render with `npm run shots:all` (3–4 hours) | tooling |
-| Sky bodies seen from another world are one generated pattern on a fixed 3,380-triangle sphere, drawn in the home world's air: Earth up close cannot be more than that (foundation review) | 5 |
-| No eclipse: when another body covers the Sun the ground stays fully sunlit (foundation review) | 5 |
+| Earth's maps are 10 km a pixel (clouds, colour) and 20 km (lights, water): low over it the clouds are soft; it cannot be landed on (milestone 9). The other bodies seen from afar are still generated patterns on a 3,380-triangle sphere | 6 (each new world brings its maps) / 9 |
+| An eclipse dims the sunlight by the share of the Sun's disc covered, at the camera, for the whole frame: no shadow edge moving over the ground, no red ring of air round an eclipsing Earth | 7 |
+| Milestone 5's costs are not measured on the phone: the globe's shader and the rim of air (only where Earth is on screen), four maps of about 80 MB when Earth is near | owner's next benchmark |
+| The Sun's disc is placed from the camera, but the sunlight on everything (direction and strength) is still that at the home world: flying far from home toward the Sun, things are lit as if at home | 7 |
 | Far from every body the traveller still rides the home world's spinning axes, so a time change swings distant bodies round it (near a body it is now carried along with that body) (foundation review) | 7 |
 | Every world's elevation data is downloaded at start-up and kept: fine for two worlds, not for ten (foundation review) | 6 |
 | `scripts/transfer.mjs` flies a hand copy of the trip code in `App`; a change to one can miss the other. The trip's steering belongs in `autopilot.js`, used by both. `transfer` and `flyby` print their numbers but never fail: they need pass marks (foundation and final reviews) | 5 (before touching trips again) |

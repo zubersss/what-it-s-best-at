@@ -43,17 +43,17 @@ export const SOLAR_SYSTEM = {
       maps: {
         colour: { far: 'data/earth_day_512.jpg', full: 'data/earth_day_4096.jpg' },          // Blue Marble Next Generation
         clouds: { far: 'data/earth_clouds_512.jpg', full: 'data/earth_clouds_4096.jpg' },    // a real day's clouds
-        lights: { far: 'data/earth_lights_512.jpg', full: 'data/earth_lights_2048.jpg' },    // city lights
+        lights: { far: 'data/earth_lights_512.jpg', full: 'data/earth_lights_4096.jpg' },    // city lights
         water: { far: 'data/earth_water_512.jpg', full: 'data/earth_water_2048.jpg' },       // seas and lakes
       },
       gain: 1.0,                              // the colour map as albedo
-      ocean: [0.010, 0.026, 0.060],           // deep water's own colour (the map's seas are near black)
+      ocean: [0.014, 0.042, 0.105],           // deep water's own colour (the map's seas are near black)
       cloud: [0.80, 0.80, 0.80],
-      lights: [0.9e-3, 0.62e-3, 0.30e-3],     // radiance of a city at night (sunlit ground is about 0.05)
-      glint: { roughness: 0.16, strength: 1.0 },
+      lights: [1.0e-3, 0.60e-3, 0.22e-3],     // radiance of a city at night (sunlit ground is about 0.05)
+      glint: { roughness: 0.11, strength: 1.5 },
       // air: vertical optical depth of the clear air per colour (Rayleigh), and the scale
       // height the rim glows over (the real 8 km, with the haze above it)
-      air: { tau: [0.040, 0.094, 0.225], scaleHeight: 12000 },
+      air: { tau: [0.055, 0.130, 0.310], scaleHeight: 12000 },     // (half again the clear-air values: the haze)
     },
   },
 

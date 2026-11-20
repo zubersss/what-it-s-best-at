@@ -103,6 +103,7 @@ export class Governor {
     this._script = new Float32Array(WINDOW); this.scriptMs = 0;     // the page's own work per frame (ms), over the window
     this.streamLevel = 0;         // 0: terrain arrives at full pace; 1, 2: more slowly (see update)
     this.loadLevel = 0;           // index into LOAD: the terrain patch factor taken when pixels are not what is slow
+    this.loadHold = 15; this.sinceLoadUp = 1e9; this.loadUpFailed = false; this.leverClean = 0; this._hold = false;
     this._setInterval();
   }
 
@@ -125,12 +126,17 @@ export class Governor {
       // Sharp has twice the time per frame: go straight to native with everything on and
       // come down only if needed (coming down is quick, climbing is slow on purpose).
       // Smooth keeps the level it is at and comes down from there if it has to.
-      if (mode === 'sharp') { while (this.featureLevel > 0) FEATURE_STEPS[--this.featureLevel].apply(this.app, false); this.resLevel = 0; }
+      if (mode === 'sharp') {
+        while (this.featureLevel > 0) FEATURE_STEPS[--this.featureLevel].apply(this.app, false);
+        this.resLevel = 0;
+        if (this.loadLevel) { this.loadLevel = 0; this.app.terrainBudget?.(1, 'load'); }      // "everything on" includes the patches
+      }
+      if (this.streamLevel) { this.streamLevel = 0; this.app.terrainPace?.(0); }
       this._applyScale();
     }
     // A new target: forget what was learned and look again from where we are.
     this.holdUp = 3; this.cooldown = 1.0; this.cleanTime = 0; this._filled = 0; this.lastUpFailed = false; this._probeFrames = -1;
-    this.goodLevel = null; this.sinceDown = 0;
+    this.goodLevel = null; this.sinceDown = 0; this.loadHold = 15; this.loadUpFailed = false; this.leverClean = 0;
     this._note(`mode ${MODES[mode].label}, starting at ${(this.pixels / 1e6).toFixed(2)} MP`);
   }
 
@@ -217,7 +223,7 @@ export class Governor {
   update(dtMs, kind = FRAME.NORMAL, scriptMs = 0) {
     if (this.fixed != null) return;
     const dt = Math.min(dtMs, 250) / 1000;
-    this.time += dt; this.sinceStep += dt; this.sinceUp += dt; this.sinceDown += dt; this.cooldown -= dt;
+    this.time += dt; this.sinceStep += dt; this.sinceUp += dt; this.sinceDown += dt; this.cooldown -= dt; this.sinceLoadUp += dt;
     if (kind === FRAME.IGNORE) return;
     this._script[this._ri] = scriptMs;
     // A level that has run this long without a step down is one the device can hold: after
@@ -227,7 +233,8 @@ export class Governor {
     // frame is slow the refresh estimate is too long, and must not excuse them.
     const late = dtMs > this.interval * LATE, soft = kind === FRAME.SOFT;
     this._ring[this._ri] = (late ? 1 : 0) | (soft ? 2 : 0); this._ri = (this._ri + 1) % WINDOW; this._filled = Math.min(WINDOW, this._filled + 1);
-    if (late && !soft) this.cleanTime = 0; else if (!late) this.cleanTime += dt;
+    // (leverClean: the same clock for the two terrain levers, which a resolution step up does not reset)
+    if (late && !soft) this.cleanTime = this.leverClean = 0; else if (!late) { this.cleanTime += dt; this.leverClean += dt; }
     // Just stepped up? Watch the next frames closely: if most of the first eight are late
     // the step does not hold, and it is taken back at once (a fifth of a second of
     // stutter instead of a full second).
@@ -255,19 +262,29 @@ export class Governor {
       // little later); only if that is already at its slowest does quality give way.
       const streaming = hardFraction <= 0.2 && this.app.terrainPace;
       // The page's own work over the window: more than 0.6 of the interval is slow work.
-      let sm = 0; for (let i = 0; i < WINDOW; i++) sm += this._script[i];
+      // (judged on the late frames themselves, and only when it can make a frame late by
+      // itself: 0.9 of the interval. Above the whole interval pixels cannot cure anything.)
+      let sm = 0, sl = 0, nl = 0;
+      for (let i = 0; i < WINDOW; i++) { sm += this._script[i]; if (this._ring[i] & 1) { sl += this._script[i]; nl++; } }
       this.scriptMs = sm / WINDOW;
-      const work = this.scriptMs > this.interval * 0.6;
+      const lateScript = nl ? sl / nl : 0, work = lateScript > this.interval * 0.9;
+      this._hold = lateScript > this.interval;
       if (tookBack) { this.holdUp = Math.min(60, this.holdUp * 2); this.lastUpFailed = true; this._takeBack(); }
       else if (streaming && this.streamLevel < 2) { this.streamLevel++; this.app.terrainPace(this.streamLevel); this._note(`terrain let in more slowly (${this.streamLevel})`); this.sinceStep = 0; }
       else this._down(Math.max(hardFraction, allFraction) > 0.6 ? 2 : 1, work);
-      this.cooldown = 0.7; this._filled = 0; this.cleanTime = 0;
+      this.cooldown = 0.7; this._filled = 0; this.cleanTime = this.leverClean = 0;
       return;
     }
     // The patches given up for the work per frame come back after fifteen clean seconds.
-    if (this.loadLevel > 0 && this.cleanTime > 15) { this.loadLevel--; this.app.terrainBudget?.(LOAD[this.loadLevel], 'load'); this._note(`terrain patches back (x${LOAD[this.loadLevel]})`); this.cleanTime = 0; this.sinceStep = 0; }
+    if (this.loadLevel > 0 && this.leverClean > this.loadHold) {
+      if (!this.loadUpFailed) this.loadHold = Math.max(15, this.loadHold * 0.5);
+      this.loadUpFailed = false; this.sinceLoadUp = 0;
+      this.loadLevel--; this.app.terrainBudget?.(LOAD[this.loadLevel], 'load'); this._note(`terrain patches back (x${LOAD[this.loadLevel]})`);
+      // (lateness right after this is the patches', not the last resolution step's)
+      this.cleanTime = this.leverClean = 0; this.sinceStep = 0; this.sinceUp = 1e9; this._probeFrames = -1;
+    }
     // Terrain comes in at full pace again after five clean seconds.
-    if (this.streamLevel > 0 && this.cleanTime > 5) { this.streamLevel = 0; this.app.terrainPace?.(0); }
+    if (this.streamLevel > 0 && this.leverClean > 5) { this.streamLevel = 0; this.app.terrainPace?.(0); }
     // Sustained headroom: a clean run, and (when the GPU reports its time) real slack.
     const slack = this.gpuMs == null || this.gpuMs < this.interval * 0.72;
     if (this.cleanTime > this.holdUp && slack && (this.resLevel > 0 || this.featureLevel > 0)) {
@@ -287,8 +304,13 @@ export class Governor {
   // most; the other features cost pixels and would not help either.
   _down(steps, work = false) {
     if (work) {
-      if (this.loadLevel < LOAD.length - 1) { this.loadLevel++; this.app.terrainBudget?.(LOAD[this.loadLevel], 'load'); this._note(`fewer terrain patches (x${LOAD[this.loadLevel]}): the work per frame is what is slow`); this.sinceStep = 0; this.sinceDown = 0; }
-      return;
+      if (this.loadLevel < LOAD.length - 1) {
+        // (patches that came back and at once had to go again: wait longer before the next try)
+        if (this.sinceLoadUp < 10) { this.loadHold = Math.min(120, this.loadHold * 2); this.loadUpFailed = true; }
+        this.loadLevel++; this.app.terrainBudget?.(LOAD[this.loadLevel], 'load'); this._note(`fewer terrain patches (x${LOAD[this.loadLevel]}): the work per frame is what is slow`); this.sinceStep = 0; this.sinceDown = 0;
+        return;
+      }
+      if (this._hold) return;               // the work alone fills the frame: nothing here cures it
     }
     for (let s = 0; s < steps; s++) {
       if (this.resLevel < this.maxResLevel) { this.resLevel++; this._applyScale(); this._note(`resolution down to ${(this.pixels / 1e6).toFixed(2)} MP`); }

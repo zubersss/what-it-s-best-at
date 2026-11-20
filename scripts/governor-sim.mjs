@@ -52,4 +52,16 @@ run('Phone-like: holds native; a 2 s burst of slow frames every 90 s', { vsyncMs
 // should come back after two steps that do not help; fewer patches cure it here.
 run('Phone-like: 10 s of slow work per frame (fewer patches cure it)', { vsyncMs: 8.333, mode: 'smooth', native: NATIVE, seconds: 120, cost: (p) => 3 + 2.0 * p / 1e6, work: (t, g, app) => (t > 40 && t < 50 ? 22 * (app.budget?.load ?? 1) : 6) });
 run('Phone-like: 10 s of slow work per frame that nothing cures', { vsyncMs: 8.333, mode: 'smooth', native: NATIVE, seconds: 120, cost: (p) => 3 + 2.0 * p / 1e6, work: (t) => (t > 40 && t < 50 ? 30 : 6) });
+// Heat: the GPU needs a lower resolution while the page's own work has grown to two thirds
+// of the frame. Work that fits in the frame must not stop resolution from coming down (it
+// once did, for good: every frame late at 3.91 MP).
+{
+  const g = run('Phone-like: heat after 40 s with the page\'s own work at 11 ms (pixels are still the cure)', { vsyncMs: 8.333, mode: 'smooth', native: NATIVE, seconds: 120, cost: (p, t) => (3 + 2.5 * p / 1e6) * (t > 40 ? 1.6 : 1), work: (t) => (t > 40 ? 11 : 6) });
+  if (g.pixels > 3.2e6) { console.log('FAILED: resolution did not come down'); process.exitCode = 1; }
+}
+// Sharp after slow work in Smooth: everything on means the patches too.
+{
+  const g = run('Slow work in Smooth, then Sharp at 60 s', { vsyncMs: 8.333, mode: 'smooth', native: NATIVE, seconds: 70, cost: (p) => 3 + 2.0 * p / 1e6, work: (t) => (t > 40 && t < 58 ? 30 : 6), events: (t, gg) => { if (t > 60 && gg.mode !== 'sharp') gg.setMode('sharp'); } });
+  if (g.loadLevel !== 0) { console.log('FAILED: Sharp did not get its patches back'); process.exitCode = 1; }
+}
 run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native: 1920 * 1080, seconds: 40, cost: (p) => 2 + 1.5 * p / 1e6 });
