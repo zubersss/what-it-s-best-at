@@ -15,6 +15,13 @@ session or account that starts with the owner typing "continue".*
   its fixes, rebuilt the character from the owner's reference pictures (a robed,
   long-haired figure: "The owner's character" below), and dropped the fixed budgets at
   the owner's word ("No fixed budgets" in CLAUDE.md). Everything is merged to `main`.
+- **The owner's standing instruction (2026-11-20)**: a benchmark comes first; after it
+  the charter's limits are gone and the one goal is the best possible product a Samsung
+  Galaxy S23 Ultra runs without lag (`CLAUDE.md`, "The benchmark gate, and what comes
+  after it"). Nothing new is built until the results arrive. When they do: tune the
+  governor, tell the owner in that same message that the charter's limits and the limits
+  on future creation are gone, rewrite the charter to match, then build (anti-aliasing
+  is the first expensive effect to try; milestone 5 is next on the roadmap).
 - **Asked of the owner**: (1) the Benchmark results (Copy results) in Smooth and Sharp:
   nothing since milestone 1 has been measured on the phone, and the build now draws 180
   ground patches instead of 120 and simulates more cloth; (2) whether a 3D model file of
@@ -30,7 +37,8 @@ session or account that starts with the owner typing "continue".*
   - If the owner sends a model file: check its licence is the owner's to give, record it
     in `docs/ASSETS.md`, load it with three's GLTFLoader, keep `robe.js` for the cloth
     or use the model's own skinning; the pose code in `hero.js` drives eight limb pieces.
-  - If the owner says "continue": start **milestone 5, Earth and the Sun from space**.
+  - If the owner says "continue" without benchmark results: ask for the benchmark first
+    (the gate), and do upkeep meanwhile. After the results: **milestone 5, Earth and the Sun from space**.
     Write its plan in this file first. Its scope (from the roadmap): Earth as a full
     globe with public-domain NASA colour, a cloud layer, night-side city lights, sun-glint
     on oceans and a thin blue edge (not landable). What the reviews left for it, in the

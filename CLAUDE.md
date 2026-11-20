@@ -27,7 +27,35 @@ call. Consolidate and restructure when that makes it healthier. Two limits:
 - do not change what the player sees or how flight feels as a side effect of a clean-up;
 - list every behaviour change in the checkpoint message.
 
+## The benchmark gate, and what comes after it (owner, 2026-11-20)
+
+The owner's standing instruction, in two steps. It overrides everything below it.
+
+1. **Now: the benchmark.** Milestone 4 is finished. Before anything else is built, the
+   owner runs the Benchmark on the phone (Smooth and Sharp, Copy results) and pastes the
+   results. Until they arrive, the charter below applies as written: no expensive
+   effects, no new milestone. Tests, fixes and upkeep are fine.
+2. **After the benchmark: the charter's limits are gone.** Tune the governor from the
+   results first. From then on there is one goal in place of the fixed decisions, the
+   approvals and the expensive-effects rule: **the best possible product that a Samsung
+   Galaxy S23 Ultra can run without lag.** The art rules, the tech choices, what is
+   built and in what order are all Claude's call, judged by that goal alone. Expensive
+   effects (anti-aliasing, soft shading in creases, clouds, reflections and the rest)
+   may be added; each still gets a governor step, because the governor is what keeps the
+   phone free of lag. **In the first message after the benchmark, tell the owner plainly
+   that the charter's limits and the limits on future creation are gone, and that the
+   aim is now simply the best product the S23 Ultra runs well.** Then rewrite this file
+   to match (the sections below become history and working notes, not rules).
+
+Two things are not charter limits and stay whatever happens: nothing is spent and no
+account or key is created without asking the owner; and only assets we have the right
+to use go in (that is the law, not a rule of this charter). The working habits below
+(the notes in `docs/`, the tests, looking at pictures, the phone link) stay too, because
+they are how the product stays good.
+
 ## Fixed decisions (ask the owner before changing any of these)
+
+*(In force until the benchmark results arrive: see the gate above.)*
 
 - **Art direction: "mission-camera realism"**, five rules:
   1. **One light.** The Sun is the only real light source. Fill comes only from physical
@@ -118,8 +146,10 @@ say plainly what is needed and carry on with everything that does not depend on 
 - "continue": a milestone at `checkpoint sent` is accepted (mark it `done` in
   `docs/ROADMAP.md`); start the next unfinished milestone and work through it to its
   checkpoint.
-- Pasted benchmark results: tune the governor and resolution range from them first, then
-  continue as above.
+- Pasted benchmark results: tune the governor and resolution range from them first. If
+  they are the first results after milestone 4, the gate above opens: tell the owner the
+  limits are gone, rewrite this charter to match, then go for the best product the phone
+  runs without lag (the roadmap stays the plan unless something better serves that).
 - A complaint about how something looks or feels: reproduce it in a screenshot, fix it,
   show before and after, then return to the roadmap.
 
