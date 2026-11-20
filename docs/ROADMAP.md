@@ -16,7 +16,7 @@ owner's reply or phone results), `done`.
 | 3 | Make Mars and the Moon beautiful | done |
 | 4 | Character and flight feel | done |
 | — | **Benchmark on the phone**: the gate before anything new was built. The owner ran it on 2026-11-20 (Smooth); the charter's limits were lifted (`CLAUDE.md`, "The one goal") | done |
-| 5 | Earth and the Sun from space | in progress |
+| 5 | Earth and the Sun from space | checkpoint sent |
 | 6 | New landable worlds (checkpoint after every two) | not started |
 | 7 | Getting around | not started |
 | 8 | Things to do | not started |
@@ -98,6 +98,11 @@ over the horizon (`docs/PROGRESS.md`, "Milestone 4 review"). Done.
 
 Earth as a full globe with public-domain NASA colour, a cloud layer, night-side city
 lights, sun-glint on oceans and a thin blue edge. Not landable yet.
+
+Built (see `docs/PROGRESS.md`, "Milestone 5: what was built"). Earth is a real globe from
+NASA's maps with clouds of a real day, city lights, the Sun's glint on its seas and a
+thin blue edge; the Sun grows as you approach and shows its surface; eclipses dim the
+light; a bright body keeps its colour in a dark scene. Waiting for the owner's benchmark.
 
 ## 6. New landable worlds
 

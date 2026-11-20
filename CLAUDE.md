@@ -357,5 +357,16 @@ finished benchmark leaves its text in `window.__benchResult`.
   per map, uploaded as one byte a pixel.
 - A normal used for lighting must be in the scene's axes: a globe's own direction
   (`normalize(vObj)`, right for its map) lit the night side when used as the normal.
+- The exposure meter aims at a middle grey over the whole picture: a bright globe that
+  fills the view comes out dull, its clouds grey. Things that must read as white (a
+  cloud-covered planet, the Sun through its filter) are held at their own level (`uGain`).
+- A rule that says "this is not the cause, do nothing" needs a way out: the governor's
+  slow-work test once blocked every resolution step for good. Every lever falls through
+  to the next when it is used up, and the simulation has a case that fails if it does not.
+- An eclipse is a small shadow on a world, seen from one place: applied to the whole
+  frame's sunlight from the camera, hovering behind Phobos turned sunlit Mars black.
+- The cloud machine reaches only the hosts its environment allows (`what-it-s-best-at`:
+  NASA GIBS, USGS planetary maps, the PDS geosciences node). NASA's older image server
+  (eoimages) drops the connection from here even when allowed: use GIBS.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

@@ -13,12 +13,14 @@ changes behaviour.
   goal, the best possible product a Samsung Galaxy S23 Ultra runs without lag
   (`CLAUDE.md`, "The one goal"). The owner was told so in the first message after the
   results. Helpers: workflows only for the most challenging parts.
-- **In progress**: milestone 5, Earth and the Sun from space ("Milestone 5 plan" below).
+- **Last delivered**: milestone 5, Earth and the Sun from space ("Milestone 5: what was
+  built" below), `checkpoint sent`, merged to `main`.
 - **Asked of the owner** (still open): a new benchmark after milestone 5 (the governor
   was changed from the last one and the results now name each stop and the page's own
   work per frame); whether a 3D model file of the character exists.
-- **What to do next**: finish milestone 5 to its checkpoint; then milestone 6 (new
-  landable worlds). Before more terrain detail: the terrain draws one draw call per patch
+- **What to do next**: with a benchmark, tune from it first (each stop and the page's own
+  work per frame are on their own lines now). On "continue": milestone 6 (new landable
+  worlds; Phobos and Deimos first). Before more terrain detail: the terrain draws one draw call per patch
   (about 200 calls a frame at 180 patches), which is the likely cost the phone cannot
   hold at 60 fps; drawing all patches in one or a few calls (texture arrays, instancing)
   is the next performance project.
@@ -160,6 +162,61 @@ Not known until the next benchmark: whether Smooth is steady again.
 7. **The Sun up close**: a surface with grain and darker edge, a faint outer glow.
 8. Earth among the targets; GO to Earth; reference pictures; tests; the milestone's
    independent review (the one workflow); checkpoint with a request for a benchmark.
+
+Status: all eight built; checkpoint sent ("Milestone 5: what was built" below).
+
+## Milestone 5: what was built, tested and found
+
+**Built.** Earth is a real globe (`surface.recipe: 'globe'` in `solarSystem.js`, shader in
+`sky/bodies.js`): NASA's Blue Marble for the day side, the clouds of 22 September 2016
+(shaded on their far side, with a shadow on the sea beside each), the Sun's glint on the
+water, air that hazes the edge and reddens the day-night line, a thin bright rim of air
+beyond the solid edge, city lights on the night side. Small copies of the four maps
+(about 100 kB together) are always loaded; the full ones (2.9 MB) load when Earth is more
+than 260 pixels across. From the Moon it is a small blue-and-white Earth with its real
+phase; up close it fills the sky. It cannot be landed on (you stop 2 % of its radius up
+and stay beside it). The Sun is drawn where it is from the camera and grows as it is
+approached; large in view it is seen as through a dark filter, with a darker, warmer
+edge and a few spots. A body that hides part of the Sun dims the sunlight on the ground
+round the camera. The figure in orbit is lit from below by the world's day side. A body
+far brighter than the scene is exposed for keeps its colours (Earth in the lunar night),
+and a globe that fills the view is held just under white whatever the exposure meter
+does.
+
+**Tests** (final build): `smoke` (23 shaders, the terrain still the fullest at 15 of 16
+textures; the globe uses 5), `foot`, `target`, `flight` pass; the governor simulation
+passes with four new cases, two of which fail the run if they regress.
+
+**Independent critic** (pictures only). Its five gaps and what was done:
+1. *Earth dull and grey up close* (the exposure meter aims at a middle grey): a globe
+   large in view is now brought up to just under white; richer sea colour, more haze.
+2. *The Sun a plaster ball*: redone as an even glowing disc with a strong warm edge, a
+   grain too fine to see until very near, small dark spots in two belts.
+3. *Clouds a flat sticker*: shading on each cloud's far side and its shadow on the sea,
+   a softer ramp from thin to thick. Still soft low down (the map is 10 km a pixel).
+4. *City lights*: they blazed on the dark edge of an Earth exposed for its day side:
+   now dimmed with the day side, so only the night side seen on its own shows them;
+   finer map (4096), warmer, a wide range from sprawl to cores.
+5. *Glint and day-night line*: a tighter, brighter glint, only on water and under cloud
+   shadows; clouds turn warm toward the line.
+Not done: Phobos a pale featureless lump and Deimos a speck (they become worlds in
+milestone 6), a hard sunlit rim on the figure in orbit, faint banding in the dusk sky.
+
+**Code review** (three lines of review, each finding checked by a second reviewer): 27
+findings, 26 upheld. Fixed: the new governor logic could stop lowering resolution for
+good when the page's own work passed 0.6 of the frame while the GPU was what was late
+(now judged on the late frames, at 0.9 of the interval, and it falls through to
+resolution); the patch lever hunted every 15 s (it backs off now) and did nothing in
+Smooth (the mode's share now multiplies); Sharp did not get its patches back; an eclipse
+seen from the camera darkened the whole world (hovering behind Phobos turned Mars
+black: now only near the ground); the Sun's disc vanished when it filled the view from
+the side; the exposure meter masked the Sun where it is from the home world; NaN risks
+in the glint and in the light from below; a seam in the cloud map at the date line; a
+map that fails to load stalled every screenshot; stars vanished over a third of the sky
+far from home; the mode button before the world had loaded. Recorded, not fixed: the
+full maps are decoded on the main thread when they arrive (a hitch of a frame or
+two, once, hidden from the governor); close to the Sun the exposure has nothing to meter
+and runs to its limit (the filter hides it).
 
 ## The owner's flight notes (after milestone 2)
 
@@ -727,6 +784,9 @@ The character
 | Earth's maps are 10 km a pixel (clouds, colour) and 20 km (lights, water): low over it the clouds are soft; it cannot be landed on (milestone 9). The other bodies seen from afar are still generated patterns on a 3,380-triangle sphere | 6 (each new world brings its maps) / 9 |
 | An eclipse dims the sunlight by the share of the Sun's disc covered, at the camera, for the whole frame: no shadow edge moving over the ground, no red ring of air round an eclipsing Earth | 7 |
 | Milestone 5's costs are not measured on the phone: the globe's shader and the rim of air (only where Earth is on screen), four maps of about 80 MB when Earth is near | owner's next benchmark |
+| Low over Earth the clouds are soft and have no fine structure; city lights are 10 km a pixel; no cloud shadows on land at the day-night line (milestone 5 critic) | 9 |
+| Phobos is a pale featureless lump and Deimos a speck through a long lens (milestone 5 critic) | 6 |
+| Earth's full maps are decoded on the main thread when they arrive: a hitch of a frame or two, once | watch |
 | The Sun's disc is placed from the camera, but the sunlight on everything (direction and strength) is still that at the home world: flying far from home toward the Sun, things are lit as if at home | 7 |
 | Far from every body the traveller still rides the home world's spinning axes, so a time change swings distant bodies round it (near a body it is now carried along with that body) (foundation review) | 7 |
 | Every world's elevation data is downloaded at start-up and kept: fine for two worlds, not for ten (foundation review) | 6 |
@@ -1228,3 +1288,8 @@ Weakest: `mars_ledge_orbit_globe`.
   findings of a 57-reviewer foundation review, fixed or recorded for their milestone;
   fixed budgets dropped by the owner, 180 terrain patches; `App.carryWith` / `turnAxes`;
   tests that can fail; shot parameter `posedir=front`. Tools: `stability --streaming`.
+- **The gate and milestone 5**: the owner's second phone results; the charter rewritten
+  round one goal; governor levers for slow work; Earth as a globe from NASA's GIBS maps
+  (`scripts/fetch-earth.py`), its air, glint, clouds and lights; the Sun up close;
+  eclipses; light from the world below; `at=` for pictures beside a body; a cloud
+  environment `what-it-s-best-at` that allows the NASA and USGS map hosts.
