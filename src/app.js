@@ -156,6 +156,10 @@ export class App {
     let savedMode = null;
     try { savedMode = localStorage.getItem('sse.mode'); } catch { /* storage blocked: use the default */ }
     this.governor = new Governor(this, params.mode || savedMode || 'smooth', this.shotMode ? (params.scale ?? 1) : params.scale);
+    // (what each world held last time, per mode: a return starts from it)
+    if (typeof this.save.data.gov !== 'object' || !this.save.data.gov) this.save.data.gov = {};
+    this.governor.remember(this.save.data.gov, () => this.save.touch());
+    this.governor.place = world.id;
     this.hud = new Hud();
     this.hud.setLevel(params.hud != null ? (params.hud ? HUD.FULL : HUD.OFF) : this.shotMode ? HUD.OFF : HUD.COMPACT);
     this.hud.onTime = (h) => { this.timeOffsetHours = h; };
@@ -948,6 +952,7 @@ export class App {
       this.timeRange = (w.dayHours || 24) / 2;
       this.hud.setTimeRange(this.timeRange);
       this.bookmark = '';
+      this.governor.arrive(w.id);
     } finally { this.switching = false; this.switchedAt = performance.now(); }
   }
 

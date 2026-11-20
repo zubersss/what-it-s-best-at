@@ -6,42 +6,29 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-*Handoff written when milestones 6 to 9 were delivered together.*
+*Handoff written at the start of milestone 10 (a living Earth).*
 
 - **The goal** (owner, 2026-11-20): the best possible product a Samsung Galaxy S23 Ultra
   runs without lag (`CLAUDE.md`, "The one goal"). Helpers: workflows only for the most
   challenging parts.
-- **The owner's last word**: pasted Sharp and Smooth benchmarks of build 27e1973 and said
-  "finish up the rest of the milestones". Milestones 6, 7, 8 and 9 were then built in one
-  go and merged; all four are `checkpoint sent`. What each contains is under "Milestone
-  6: what was built", "Milestones 7 and 8", and "Milestone 9: what was built" below.
-- **Checked before the merge** (headless, frozen builds): an independent review (25
-  findings, all fixed: "Milestones 6 to 9 review"); `worlds` (all 15), `ui`, `smoke`,
-  `target`, `flight`, `foot`, `govsim`, `transfer`, `check-ephemeris` all pass. The
-  opening view of every new world is in `docs/shots/<world>_ledge.png`; the full
-  reference set (every bookmark of every world, about 8 hours of headless rendering) and
-  the stability test have not been run for the new worlds.
-- **Not confirmed on the phone, any of it.** Everything since build 27e1973 has been
-  judged in headless pictures and tests only. Asked of the owner: (1) a Smooth benchmark
-  (the ground renderer was rebuilt for the stutter of the third results: "The owner's
-  third phone results"); (2) to open a few of the new worlds from the start screen's
-  "Start on" list and say what looks wrong; (3) whether a 3D model file of the character
-  exists (still open).
-- **What to do next**: with a benchmark, tune from it first (its new lines say whether
-  frames that take in new terrain are still the late ones). With complaints about a
-  world: reproduce in a screenshot, fix, show before and after. Then the known problems
-  table and the weakest worlds (the list at the end of "Milestone 6: what was built").
-  Smooth still draws 0.8 of the patch cap: with one draw call for the ground this can
-  probably go back to 1 once a benchmark shows room.
+- **The owner's last word** (with Smooth and Sharp benchmarks of build fa0c4c9): hyper
+  focus on Earth and its physics: rivers and seas, clouds to fly through, forests of the
+  real trees, wind in them and falling leaves, rain, thunder and lightning, hurricanes
+  and the other weather, and beautiful. Milestones 6 to 9 are `done`.
+- **What is being built**: "Milestone 10 plan" below, in five stages, each merged and
+  reported in a line or two. The task list of the session mirrors the stages.
+- **Asked of the owner**: an **Earth benchmark** (new button on the start screen: Earth's
+  five views, the flight to the Moon, the Moon's five), in Smooth, after each stage that
+  adds cost. Nothing on Earth has been measured on the phone. Still open: whether a 3D
+  model file of the character exists.
 - **How to work here** (all in CLAUDE.md): develop on the session's own branch, open a
   pull request into `main` and merge it yourself (through `gh api`); the phone link
   updates a minute later and shows the build's commit. Run `./scripts/build-check.sh`
   before every merge, one headless browser at a time, and the checks listed under "Run
-  and test" (`smoke` includes the phone shader-limit check; `worlds` opens every world;
-  `ui` works the menu, map, journal, photo mode and saves).
+  and test".
 - **Choosing a view without the browser**: `node scripts/peek.mjs` sketches what a
-  camera sees from a place in seconds, and `scratch/suncheck.mjs` prints the Sun's
-  height at every bookmark. Use them before spending five minutes on a headless picture.
+  camera sees from a place in seconds. Use it before spending five minutes on a headless
+  picture.
 
 ## What exists today
 
@@ -207,6 +194,88 @@ What was changed:
 - Smooth still draws 0.8 of the patch cap. With one draw call a patch costs the page
   almost nothing, so this can probably go back to all 180: decide from the next results
   (one change at a time; the phone is the judge).
+
+## The owner's fourth phone results (build fa0c4c9, after milestones 6 to 9)
+
+Smooth: 54.4 fps (was 49.1), 1 % low 15.1, late frames 7.91 % (was 12.92 %). Sharp: 29.2
+fps, 3.60 % late.
+
+- **The stutter of the third results is cured**: frames that took in new ground were
+  late 10.5 % of the time, the rest 7.0 %: arriving terrain no longer decides whether a
+  frame is late (it was every such frame before the ground was drawn from texture
+  arrays). The page's own work is 4.8 ms a frame.
+- **What is left is pixels.** A frame lasts 2 screen refreshes or 4, almost never 3: the
+  phone shows 60 or 30, nothing between, so a picture slightly too sharp costs half the
+  frame rate. Mars holds 60 fps at 1.2 to 2.0 megapixels (the ship view least), the Moon
+  at 3.3 to 4.45.
+- **The governor lost 15 seconds at the Mars ledge** (48.8 % late there): 6 s before it
+  acted, then terrain let in more slowly twice and fewer patches twice (the wrong levers:
+  the work per frame was 5.6 ms), then eight single resolution steps. Sharp did the same
+  at the Mars ship view (39.6 % late).
+
+Changes: terrain levers only when frames without new ground are seen to be on time while
+those with it are late; with most frames late the resolution comes down in strides (up
+to four steps at once); each world's held resolution is remembered per mode in the
+browser and a return starts from it; a world never seen starts Smooth five steps down
+(53 % of the pixels) and climbs. `govsim` has the phone-on-Mars case (must settle within
+4 s on resolution alone). An **Earth benchmark** button runs the same route from Earth.
+
+Not done, and why: Mars at 60 fps is a soft picture (1.2 to 2 MP of 4.45). The cure is a
+cheaper Mars pixel (its haze, its shadows), which needs each feature's cost measured on
+the phone; the owner asked for Earth first.
+
+## Milestone 10 plan: a living Earth
+
+**The foundation changes.** Earth was five sites at 90 to 190 m on a globe at 28 km a
+pixel, with one colour map at 10 km. Rivers, coasts and forests need the real planet
+everywhere, and that is far too much to ship in the page. So Earth streams, from public
+services that need no key and cost nothing (both answer any web page, checked):
+
+- **Elevation**: the Terrain Tiles on AWS Open Data (`s3.amazonaws.com/elevation-tiles-prod`,
+  the set the five sites were cut from; land and sea floor).
+- **Colour, land cover, canopy height, water, rain, clouds, lightning**: NASA GIBS
+  (`gibs.earthdata.nasa.gov`): Blue Marble Next Generation by month, MODIS land cover
+  types (IGBP, 500 m), GEDI canopy height, the land-water map, IMERG rain, MODIS cloud
+  top height and thickness, the LIS lightning climatology.
+
+Design (generic: a world file lists `tiles`; nothing in the engine says "earth"):
+
+- **Rings.** Three square mosaics of elevation tiles round the traveller, at 30 m, 300 m
+  and 2.4 km a pixel (about 30, 300 and 2 400 km wide), made in a worker of their own and
+  handed to the height code as ordinary rasters with feathered edges. The bundled globe
+  stays underneath (and is all there is at the poles, without a connection, and in Node).
+  A ring moves when the traveller nears its edge; ground built from older data is rebuilt
+  in place, nearest first.
+- **Colour and cover** ride the same rings as textures the ground shader reads by
+  longitude and latitude.
+- **Tests**: the headless browser cannot reach the services; the test server mirrors them
+  from a cache on disk filled with curl (`?ext=` in the page's address).
+- **Cost**: fetching and decoding happen off the main thread; the governor's patch and
+  pace levers already cover arriving ground. Each new effect gets its own step.
+
+Stages, each merged with a line to the owner:
+
+1. **The whole Earth, and the sea**: the rings; the sea with real coasts, waves that
+   follow the wind, colour by depth, foam on the shore; the traveller floats and swims
+   instead of standing on water.
+2. **Lakes and rivers**: water runs where the land's shape sends it (drainage worked
+   out from the elevation in the tile worker, sized by the area upstream and the place's
+   real rainfall), lakes where the land holds it.
+3. **Forests**: where forest is and of what kind from MODIS land cover, how tall from
+   GEDI; the trees of each region from a table of what grows there (ponderosa and pinyon
+   on the Grand Canyon's rim, larch and stone pine under the Matterhorn, camel thorn in
+   the Namib); trees near the traveller, canopy beyond; wind in them, leaves that fall
+   and lie; the seasons by the date.
+4. **Clouds to fly through**: a volume drawn at reduced resolution and laid over the
+   picture by depth, shaped by a real day's cloud cover, top height and thickness.
+5. **Weather**: that day's real rain; snow where it is cold; lightning where storms are
+   deep, thunder late by the distance; wind from the pressure systems that pushes
+   flight, cloth and trees; a hurricane with an eye; rainbows; fog.
+
+Risks: the phone is already short of pixels on Mars at 60 fps and Earth adds more to
+every pixel: an Earth benchmark after each stage decides what stays on in Smooth. The
+services can be slow or away: everything must degrade to the bundled globe. Rivers from
+drainage are the hardest part to get right at the seams between rings.
 
 ## Milestone 6 plan: the new worlds
 

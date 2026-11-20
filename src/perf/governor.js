@@ -42,6 +42,7 @@ export const FEATURE_STEPS = [
 
 const RES_STEP = 0.88;          // each resolution step keeps 88 % of the pixels (about 6 % per side)
 const MIN_PIXELS = 1.0e6;
+const START_SMOOTH = 5;         // Smooth at a place never seen starts this many steps down (53 % of the pixels)
 const WINDOW = 24;              // frames looked at for "are we missing the target"
 const GOOD_AFTER = 20;           // seconds without a step down that make a resolution level "known good"
 const MAX_VSYNC = 1000 / 57;    // no screen we care about refreshes slower than this
@@ -112,11 +113,28 @@ export class Governor {
     this.nativePixels = pixels;
     const floor = Math.min(pixels, MIN_PIXELS);
     this.maxResLevel = Math.max(0, Math.round(Math.log(floor / pixels) / Math.log(RES_STEP)));
-    // Both modes start at native: the test phone holds it at 60 fps, and coming down
-    // takes well under a second per two steps if a device cannot.
-    if (!this._started) { this._started = true; this.resLevel = 0; }
+    // The first size: the place's remembered level if there is one (see arrive).
+    if (!this._started) { this._started = true; this.resLevel = 0; if (this.place) { this.maxResLevel = Math.max(0, Math.round(Math.log(floor / pixels) / Math.log(RES_STEP))); this.arrive(this.place); } }
     this.resLevel = Math.min(this.resLevel, this.maxResLevel);
     this._applyScale();
+  }
+
+  // The governor remembers the resolution each place held (a world, in each mode), so a
+  // return there starts from it instead of finding it again through seconds of stutter.
+  // known: { 'smooth:mars': level, ... } (the app saves it); place: a name.
+  remember(known, onLearn) { this.known = known || {}; this.onLearn = onLearn; }
+  arrive(place) {
+    this.place = place;
+    if (this.fixed != null || !this._started) return;
+    const k = this.known?.[`${this.mode}:${place}`];
+    // (a place never seen: Smooth starts at about half the pixels and climbs, which costs
+    // a few seconds of a softer picture; starting high costs seconds of half-rate frames)
+    const level = Number.isFinite(k) ? k : this.mode === 'smooth' ? START_SMOOTH : 0;
+    this.resLevel = Math.max(0, Math.min(this.maxResLevel, Math.round(level)));
+    this._applyScale();
+    this.holdUp = 3; this.cooldown = 1.0; this.cleanTime = 0; this._filled = 0; this.lastUpFailed = false; this._probeFrames = -1;
+    this.goodLevel = null; this.sinceDown = 0; this._learned = null;
+    this._note(`${place}: starting at ${(this.pixels / 1e6).toFixed(2)} MP`);
   }
 
   setMode(mode) {
@@ -138,6 +156,12 @@ export class Governor {
     // A new target: forget what was learned and look again from where we are.
     this.holdUp = 3; this.cooldown = 1.0; this.cleanTime = 0; this._filled = 0; this.lastUpFailed = false; this._probeFrames = -1;
     this.goodLevel = null; this.sinceDown = 0; this.loadHold = 15; this.loadUpFailed = false; this.leverClean = 0;
+    {
+      // (the new mode's own memory of this place, if it has one)
+      const k = this.fixed == null && this.place ? this.known?.[`${mode}:${this.place}`] : null;
+      if (Number.isFinite(k)) { this.resLevel = Math.max(0, Math.min(this.maxResLevel, Math.round(k))); this._applyScale(); }
+      this._learned = null;
+    }
     this._note(`mode ${MODES[mode].label}, starting at ${(this.pixels / 1e6).toFixed(2)} MP`);
   }
 
@@ -231,6 +255,10 @@ export class Governor {
     // A level that has run this long without a step down is one the device can hold: after
     // a passing dip (a burst of terrain loading) the way back is one jump, not a climb.
     if (this.featureLevel === 0 && this.sinceDown > GOOD_AFTER && (this.goodLevel == null || this.resLevel < this.goodLevel)) this.goodLevel = this.resLevel;
+    // ... and it is what this place is remembered by.
+    if (this.place && this.known && this.sinceDown > GOOD_AFTER && this._learned !== this.resLevel) {
+      this._learned = this.resLevel; this.known[`${this.mode}:${this.place}`] = this.resLevel; this.onLearn?.();
+    }
     // Late is judged against the interval itself, not the measured refresh: if every
     // frame is slow the refresh estimate is too long, and must not excuse them.
     const late = dtMs > this.interval * LATE, soft = kind === FRAME.SOFT;
@@ -254,6 +282,9 @@ export class Governor {
     let hard = 0, hardLate = 0, allLate = 0;
     for (let i = 0; i < WINDOW; i++) { const v = this._ring[i]; if (v & 1) allLate++; if (!(v & 2)) { hard++; if (v & 1) hardLate++; } }
     const hardFraction = hard >= WINDOW / 2 ? hardLate / hard : 0, allFraction = allLate / WINDOW;
+    // Frames that took in terrain and frames that did not, each judged on its own (when
+    // there are enough of both to tell).
+    const softN = WINDOW - hard, softLate = softN >= 5 ? (allLate - hardLate) / softN : 0, plainLate = hard >= 5 ? hardLate / hard : -1;
 
     // (A third of all frames late is too many whatever their kind. The bar for frames with
     // terrain arriving used to be 0.6: on the test phone half the frames at two stops then
@@ -265,7 +296,11 @@ export class Governor {
       // Late only while terrain is arriving (the late frames are the "soft" ones): the
       // picture is not what is slow. Terrain is let in more slowly instead (it sharpens a
       // little later); only if that is already at its slowest does quality give way.
-      const streaming = hardFraction <= 0.2 && this.app.terrainPace;
+      // (Only when the frames without new terrain are seen to be on time. With ground
+      // arriving in most frames there is nothing to compare, and then pixels are the
+      // likelier cause and the cheaper mistake: on the test phone nine seconds of half-rate
+      // frames at a new place went on terrain levers that cured nothing.)
+      const streaming = this.app.terrainPace && plainLate >= 0 && plainLate <= 0.1 && softLate > 0.3;
       // The page's own work over the window: more than 0.6 of the interval is slow work.
       // (judged on the late frames themselves, and only when it can make a frame late by
       // itself: 0.9 of the interval. Above the whole interval pixels cannot cure anything.)
@@ -278,7 +313,13 @@ export class Governor {
       else if (streaming && this.streamLevel < 2) { this.streamLevel++; this.app.terrainPace(this.streamLevel); this._note(`terrain let in more slowly (${this.streamLevel})`); this.sinceStep = 0; }
       // (still late with terrain at its slowest pace: the arriving ground is the work that
       // is slow, so patches go before pixels)
-      else this._down(Math.max(hardFraction, allFraction) > 0.6 ? 2 : 1, work || streaming);
+      else {
+        // (a screen shows a frame in whole refreshes: one that misses is twice as long
+        // however little it missed by, so the share of late frames says how far over the
+        // frame is only roughly. Most of them late: come down in strides.)
+        const f = Math.max(hardFraction, allFraction);
+        this._down(f > 0.8 ? 4 : f > 0.6 ? 3 : f > 0.4 ? 2 : 1, work || streaming);
+      }
       this.cooldown = 0.7; this._filled = 0; this.cleanTime = this.leverClean = 0;
       return;
     }

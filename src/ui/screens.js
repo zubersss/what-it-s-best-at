@@ -19,9 +19,10 @@ export class StartScreen {
     const row = el('div', { class: 'row' });
     const play = el('button', { class: 'primary' }, 'Play');
     const bench = el('button', {}, 'Benchmark · 3 min');
+    const earth = el('button', {}, 'Earth benchmark · 3 min');
     const soak = el('button', {}, 'Soak test · 10 min');
-    row.append(play, bench, soak);
-    this.buttons = [play, bench, soak];
+    row.append(play, bench, earth, soak);
+    this.buttons = [play, bench, earth, soak];
     // Where the game opens: choosing another world loads it (the page starts again there).
     const where = el('label', { class: 'where' }, 'Start on ');
     const pick = el('select');
@@ -42,6 +43,7 @@ export class StartScreen {
     this.setReady(false);
     play.addEventListener('click', () => handlers.play());
     bench.addEventListener('click', () => handlers.benchmark('run'));
+    earth.addEventListener('click', () => handlers.benchmark('earth'));
     soak.addEventListener('click', () => handlers.benchmark('soak'));
     this.modeBtn.addEventListener('click', () => handlers.mode());
   }

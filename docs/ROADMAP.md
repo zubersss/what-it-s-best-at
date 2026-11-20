@@ -17,10 +17,11 @@ owner's reply or phone results), `done`.
 | 4 | Character and flight feel | done |
 | — | **Benchmark on the phone**: the gate before anything new was built. The owner ran it on 2026-11-20 (Smooth); the charter's limits were lifted (`CLAUDE.md`, "The one goal") | done |
 | 5 | Earth and the Sun from space | done |
-| 6 | New landable worlds | checkpoint sent |
-| 7 | Getting around | checkpoint sent |
-| 8 | Things to do | checkpoint sent |
-| 9 | Earth's surface | checkpoint sent |
+| 6 | New landable worlds | done |
+| 7 | Getting around | done |
+| 8 | Things to do | done |
+| 9 | Earth's surface | done |
+| 10 | A living Earth (owner, with the fourth phone results): the whole planet in real detail, seas, lakes and rivers, real forests, clouds to fly through, weather | in progress |
 
 ## 1. Phone link and measurement
 
@@ -151,3 +152,18 @@ The riskiest part. Write its plan in `docs/PROGRESS.md` before starting.
 Built to its plan (`docs/PROGRESS.md`, "Milestone 9: what was built"): real elevation,
 Blue Marble colour, a sea, air, clouds with shadows; five sites at 90 to 190 m per pixel.
 No trees, grass, buildings or rivers: bare ground only.
+
+## 10. A living Earth
+
+The owner, with the fourth phone results: "hyper focus on earth for now and the physics
+of it": the rivers and seas, clouds that can be flown through, forests of the trees that
+really grow there, wind that moves the trees and takes their leaves, rain with thunder
+and lightning, hurricanes and the other weather of Earth, and above all beautiful.
+Accepts milestones 6 to 9. Delivered in stages, each merged and reported; the plan is in
+`docs/PROGRESS.md`, "Milestone 10 plan".
+
+1. The whole Earth in real detail (terrain and colour streamed as you fly), the sea.
+2. Lakes and rivers.
+3. Forests, wind in the trees, leaves, seasons.
+4. Clouds to fly through.
+5. Weather: rain, snow, lightning and thunder, storms, wind.

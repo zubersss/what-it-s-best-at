@@ -28,5 +28,5 @@ export class Save {
     this._dirty = false; this._since = 0;
     try { localStorage.setItem(KEY, JSON.stringify(this.data)); } catch { /* storage blocked: nothing is kept */ }
   }
-  clear() { this.data = { found: {}, last: {}, sound: this.data.sound }; this.flush(); }
+  clear() { this.data = { found: {}, last: {}, sound: this.data.sound, gov: this.data.gov }; this.flush(); }
 }
