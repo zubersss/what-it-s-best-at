@@ -249,6 +249,7 @@ export class App {
 
   applyBookmark(name) {
     this.stopTransfer();                  // a bookmark is a jump somewhere else: the trip is over
+    if (this.carry) this.carry.w = 0;     // (and so is being carried along with another body)
     this.dust?.clear();
     const sc = this.world.scene, s = sc.start, b = sc.bookmarks[name] || {};
     const p = this.params;
@@ -593,9 +594,13 @@ export class App {
     const R = (i, j) => M1[i * 3] * M0[j * 3] + M1[i * 3 + 1] * M0[j * 3 + 1] + M1[i * 3 + 2] * M0[j * 3 + 2];
     m.set(R(0, 0), R(0, 1), R(0, 2), 0, R(1, 0), R(1, 1), R(1, 2), 0, R(2, 0), R(2, 1), R(2, 2), 0, 0, 0, 0, 1);
     q.setFromRotationMatrix(m);
-    if (carry.w < 1) q.slerp(this._carryI || (this._carryI = new THREE.Quaternion()), 1 - carry.w);
     const rig = this.rig, t = this._carryT || (this._carryT = new THREE.Vector3());
-    t.copy(rig.pos).sub(b0).applyQuaternion(q).add(b0).addScaledVector(b1.sub(b0), carry.w);
+    // one large step of the clock (the time slider): go with the body or stay, never part
+    // of the way (the straight line between could run through the home world)
+    let w = carry.w;
+    if (b1.distanceTo(b0) > rig.pos.distanceTo(b0)) { if (w < 0.5) return; w = 1; }
+    if (w < 1) q.slerp(this._carryI || (this._carryI = new THREE.Quaternion()), 1 - w);
+    t.copy(rig.pos).sub(b0).applyQuaternion(q).add(b0).addScaledVector(b1.sub(b0), w);
     rig.pos.copy(t);
     this.turnAxes((v) => v.applyQuaternion(q));
   }
@@ -911,7 +916,14 @@ export class App {
     this.updateDust(dt, env);
     // Terrain shadow on the character: eased toward the workers' last answer (requestHeroVis),
     // so stepping into a canyon's shadow dims it over a moment instead of in one frame.
-    if (rig.agl >= 20000) this.heroVisTarget = 1;
+    // (high up no worker is asked: the Sun's disc against the world's own round shadow,
+    // or the figure stayed sunlit on the night side of an airless world)
+    if (rig.agl >= 20000) {
+      const r = rig.pos.length(), sd = G.uSunDir.value, mu = (rig.pos.x * sd.x + rig.pos.y * sd.y + rig.pos.z * sd.z) / r;
+      const q = this.world.radius / r, hor = -Math.sqrt(Math.max(0, 1 - q * q));
+      const t = Math.min(1, Math.max(0, (mu - (hor - sunHalf)) / (2 * sunHalf)));
+      this.heroVisTarget = t * t * (3 - 2 * t);
+    }
     const u = hero.uniforms.uSunVis, tgt = this.heroVisTarget ?? 1;
     u.value += (tgt - u.value) * (dt > 0 ? 1 - Math.exp(-dt / 0.08) : 1);
   }
@@ -922,7 +934,7 @@ export class App {
   requestHeroVis(dt, sunHalf) {
     const { hero, rig } = this;
     this.heroVisClock = (this.heroVisClock ?? 1) + (dt > 0 ? dt : 0.02);
-    if (!hero.group.visible || rig.agl >= 20000 || this.heroVisPending || this.heroVisClock < 0.12) return;
+    if (!hero.group.visible || !hero.started || rig.agl >= 20000 || this.heroVisPending || this.heroVisClock < 0.12) return;     // (started: the figure has been placed)
     // (a screenshot holds still: one answer is enough, and a worker kept busy every other
     // frame would never let the terrain count as settled)
     if (this.shotMode && this.heroVisKnown) return;

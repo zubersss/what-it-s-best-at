@@ -105,7 +105,8 @@ say plainly what is needed and carry on with everything that does not depend on 
    independent and touch separate files. Tuning loops, small fixes and shared shader code
    stay with Claude. Brief each helper with the goal, the exact files or screenshots, the
    rules that apply and the output wanted.
-4. Stability test (`npm run stability`): 3 consecutive frames along short scripted moves
+4. Stability test (`npm run stability`, and `-- --streaming` for pops while terrain is
+   still arriving): 3 frames one camera step apart along short scripted moves
    on the ground and in flight; fix anything that pops, crawls, shimmers or sparkles.
 5. Add every new feature to the governor's step-down order (`src/perf/governor.js`).
 6. Commit, push and merge so the phone link updates, update the docs and mark the
@@ -147,7 +148,7 @@ npm run build          # static site in dist/ (relative paths)
 npm run preview        # serve dist/
 npm run shots          # headless screenshots of every bookmark of one world -> docs/shots/
 npm run shots:all      # the full reference set: both worlds, orbit, character
-npm run stability      # 3 consecutive frames along scripted moves, with a flicker report
+npm run stability      # 3 settled frames one camera step apart along scripted moves, with a flicker report (-- --streaming: 3 truly consecutive frames right after a jump)
 npm run flight         # scripted Mars -> orbit -> Moon flight (headless)
 npm run foot           # the character on foot in the real game: walk, jump, super speed, take off, land (headless)
 npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run
@@ -186,7 +187,7 @@ screen has this device pixel ratio: sets the canvas's pixel size), `mode=smooth|
 (cruising, boosting, turning, straight up, hovering), `heropose=stand|walk|run|super|jump|land|launch`
 (with `hero=1`: on foot; `land` is the three-point kneel after a hard landing, `launch` the
 fist-up take-off), `posedir=side` (seen from the side; `front`: a moving on-foot pose coming toward the
-camera, to see the face; a standing one keeps its back to the camera), `target=<body>|sun|place:<id>`
+camera, to see the face; a standing one is turned to face it), `target=<body>|sun|place:<id>`
 (the target marker, view unchanged), `lat= lon= alt= heading= pitch= fov=`, `east= north=` (metres from the bookmark's place),
 `aim=<sky body>` (turn the view to it), `dust=1` (with `hero=1`: a touch-down dust burst
 frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last footfalls), `debug=noair|airall` (haze shadows off / everywhere),

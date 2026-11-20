@@ -160,14 +160,17 @@ function roundedBox(h, rad, grid, paint, warp = null) {
 // its pearls and tassels, the neck, the head and the hair on it.
 const CHEST_RX = 0.158, CHEST_RZ = 0.132;
 // a point on the front or back of the chest at (x, y), a few millimetres proud of it
-const onChest = (x, y, z0 = 1, lift = 0.006) => [x, y, z0 * (CHEST_RZ * Math.sqrt(Math.max(0.05, 1 - (x / CHEST_RX) ** 2)) + lift)];
+// (above the chest the body narrows into the shoulders and the neck: the section there)
+const NECK_R = 0.080;
+const chestSect = (y) => { const f = y > 0.46 ? Math.sqrt(Math.max(0, 0.148 ** 2 - (y - 0.46) ** 2)) / 0.148 : 1; return [Math.max(NECK_R, CHEST_RX * f), Math.max(NECK_R, CHEST_RZ * f)]; };
+const onChest = (x, y, z0 = 1, lift = 0.006) => { const [rx, rz] = chestSect(y); return [x, y, z0 * (rz * Math.sqrt(Math.max(0.05, 1 - (x / rx) ** 2)) + lift)]; };
 const chestOut = (p) => [p[0] / CHEST_RX, 0, p[2] / CHEST_RZ];
 
 function collar() {
   // Right over left: the wearer's left panel crosses to the right hip; the right one meets it.
   const A = [], B = [];
-  for (let i = 0; i <= 8; i++) { const t = i / 8; A.push(onChest(0.062 - 0.165 * t, 0.615 - 0.44 * t)); }
-  for (let i = 0; i <= 4; i++) { const t = i / 4; B.push(onChest(-0.062 + 0.054 * t, 0.615 - 0.17 * t, 1, 0.004)); }
+  for (let i = 0; i <= 16; i++) { const t = i / 16; A.push(onChest(0.062 - 0.165 * t, 0.615 - 0.44 * t)); }
+  for (let i = 0; i <= 8; i++) { const t = i / 8; B.push(onChest(-0.062 + 0.054 * t, 0.615 - 0.17 * t, 1, 0.004)); }
   return [
     ribbon(A, 0.034, SILVER, EMB, chestOut),
     ribbon(B, 0.030, SILVER, EMB, chestOut),
@@ -235,7 +238,8 @@ const HEAD = [0, 0.765, -0.004];
 function head() {
   const [hx, hy, hz] = HEAD;
   const cone = (r, h, col, mat) => { const g = new THREE.ConeGeometry(r, h, 6); g.rotateX(Math.PI / 2 + 0.25); g.translate(0, hy - 0.015, hz + 0.1); return part(g, col, mat); };
-  const brow = (s) => { const g = new THREE.SphereGeometry(0.0062, 6, 3); g.scale(4.2, 0.9, 1.1); g.rotateZ(s * 0.16); g.translate(s * 0.036, hy + 0.022, hz + 0.097); return part(g, BROW, SKINM); };
+  // (brows and eyes are turned round the head's centre, not slid sideways: their outer ends stood off it)
+  const brow = (s) => { const g = new THREE.SphereGeometry(0.0062, 6, 3); g.scale(3.6, 0.9, 1.1); g.rotateZ(s * 0.16); g.translate(0, 0.022, 0.100); g.rotateY(s * 0.36); g.translate(hx, hy, hz); return part(g, BROW, SKINM); };
   // hair on the head: the crown, and the back and sides down to the nape, leaving the face
   const cap1 = new THREE.SphereGeometry(0.113, 18, 6, 0, Math.PI * 2, 0, 0.95);
   const cap2 = new THREE.SphereGeometry(0.113, 18, 7, Math.PI / 2 + 0.95, Math.PI * 2 - 1.9, 0.95, 1.15);
@@ -248,7 +252,7 @@ function head() {
     ball(0.104, SKIN, hx, hy, hz, SKINM, 0.90, 1.08, 1.0, 14, 10),                                    // skull and brow
     ball(0.075, SKIN, hx, hy - 0.05, hz + 0.024, SKINM, 0.96, 1.0, 1.0, 12, 8),                       // cheeks, jaw and chin
     cone(0.013, 0.036, SKIN, SKINM),                                                                    // nose
-    ...[1, -1].map((s) => ball(0.0105, EYE, s * 0.034, hy + 0.003, hz + 0.1, SKINM, 1.5, 0.72, 0.6, 6, 4)),
+    ...[1, -1].map((s) => { const g = new THREE.SphereGeometry(0.0105, 6, 4); g.scale(1.5, 0.72, 0.6); g.translate(0, 0.003, 0.102); g.rotateY(s * 0.34); g.translate(hx, hy, hz); return part(g, EYE, SKINM); }),
     brow(1), brow(-1),
     ball(0.009, LIP, 0, hy - 0.06, hz + 0.094, SKINM, 2.2, 0.7, 0.8, 6, 4),                           // lips
     part(cap1, HAIR, HAIRM), part(cap2, HAIR, HAIRM), ...locks,
@@ -316,7 +320,7 @@ export function shinGeometry() {
 
 export const HERO_VERT = /* glsl */`
 in vec3 aCol; in float aMat; in vec3 aTan;
-out vec3 vRel; out vec3 vN; out vec3 vCol; out float vMat; out vec3 vT;
+out vec3 vRel; out vec3 vN; out vec3 vCol; flat out float vMat; out vec3 vT;
 void main() {
   vec4 w = modelMatrix * vec4(position, 1.0);
   vRel = w.xyz; vCol = aCol; vMat = aMat;
@@ -328,7 +332,7 @@ void main() {
 export const HERO_FRAG = /* glsl */`
 ${LIGHTING_PARS}
 uniform float uSunVis;
-in vec3 vRel; in vec3 vN; in vec3 vCol; in float vMat; in vec3 vT;
+in vec3 vRel; in vec3 vN; in vec3 vCol; flat in float vMat; in vec3 vT;
 layout(location = 0) out vec4 fragColor;
 // What a glossy surface mirrors in direction R: the sunlit ground below the horizon, the
 // sky above it, with a line between them as sharp as 'edge' (both from the sky light).
@@ -348,17 +352,18 @@ void main() {
   vec3 col = vCol * (Esun * lit + sky) / PI;
   vec3 H = normalize(L + V);
   float NH = max(dot(N, H), 0.0), fr = pow(1.0 - NV, 5.0);
-  if (m == 0) {
-    // silk: a broad satin sheen, a soft glow at grazing angles, and a little sunlight
-    // through the thin cloth from behind
+  if (m == 0 || m == 2) {
+    // silk: a broad satin sheen and a soft glow at grazing angles; through thin cloth
+    // (2: the flowing panels and sleeves, not the body under them) a little sunlight
+    // comes from behind
     col += vCol * Esun * lit * pow(NH, 14.0) * 0.16;
     col += vCol * sky * pow(1.0 - NV, 2.0) * 0.22 / PI;
-    col += vCol * Esun * max(-NL, 0.0) * 0.2 / PI;
+    if (m == 2) col += vCol * Esun * max(-NL, 0.0) * 0.2 / PI;
   } else if (m == 1) {
     // skin: light wraps a little past the terminator (it scatters under the surface),
     // warmer there; a faint sheen
     float w = max((NL + 0.3) / 1.3, 0.0);
-    col = vCol * (Esun * (w * vec3(1.0, 0.92, 0.88) + vec3(0.06, 0.02, 0.01) * (1.0 - abs(NL)) * step(-0.3, NL)) + sky) / PI;
+    col = vCol * (Esun * (w * vec3(1.0, 0.92, 0.88) + vec3(0.06, 0.02, 0.01) * (1.0 - abs(NL)) * smoothstep(-0.3, -0.1, NL)) + sky) / PI;
     col += Esun * lit * pow(NH, 40.0) * 0.025;
   } else if (m == 3) {
     // silver embroidery: thread of metal, rough, so its mirror is soft and its highlight wide

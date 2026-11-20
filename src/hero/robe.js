@@ -14,7 +14,7 @@ const STEP = 1 / 75;
 // Colours (linear) and materials shared with heroModel.js (see the material list there).
 const SILK = [0.74, 0.74, 0.76], TRIM = [0.62, 0.63, 0.66];
 const HAIR = [0.12, 0.008, 0.115], HAIR_DEEP = [0.05, 0.004, 0.05];
-const M_SILK = 0, M_EMB = 3, M_HAIR = 5;
+const M_SILK = 2, M_EMB = 3, M_HAIR = 5;      // (2: thin silk cloth, which lets a little sunlight through)
 
 // The patches. rest(u, v) is the hanging shape in the wearer's frame (u across, v down,
 // both 0..1; row v = 0 is pinned). body: the capsule along the spine the cloth stays out
@@ -26,7 +26,7 @@ function patches() {
   // The skirt of the outer robe: three panels with slits at the front and at both sides, so
   // each flows on its own (th: the angle round the body, 0 = the front, 90 = its left).
   const skirt = (name, th0, th1, nx) => ({
-    name, nx, ny: 13, sx: 2, sy: 2, pins: 'row',
+    name, nx, ny: 13, sx: 2, sy: 2, pins: 'row', out: -1,
     rest: (u, v) => {
       const th = (th0 + u * (th1 - th0)) * D, r = 0.165 + 0.21 * v;
       return [r * Math.sin(th), 0.085 - v * 0.985, r * Math.cos(th) * 0.88];
@@ -34,13 +34,13 @@ function patches() {
     normal: 'radial',
     body: [-0.30, 0.62, 0.15], spheres: [], limbs: [4, 5, 6, 7],
     folds: (u, v) => (0.004 + 0.024 * Math.pow(v, 0.8)) * Math.cos(9.0 * (th0 + u * (th1 - th0)) * D + 0.7 * Math.sin(u * 9 + v * 2)),
-    paint: (u, v) => (v > 0.93 || u < 0.05 || u > 0.95 || (v > 0.80 && v < 0.84) ? [TRIM, M_EMB] : [SILK, M_SILK]),
+    paint: (u, v) => (v > 0.93 || u < 0.06 || u > 0.94 || (v > 0.80 && v < 0.84) ? [TRIM, M_EMB] : [SILK, M_SILK]),
   });
   // A wide sleeve: a sheet laid over the arm from the upper arm to the wrist, its middle
   // line fixed along the arm (Hero sets those pins every frame), both halves hanging down
   // round it and sewn together along the bottom, widening to a deep opening at the wrist.
   const sleeve = (s) => ({
-    name: s > 0 ? 'sleeveL' : 'sleeveR', nx: 7, ny: 6, sx: 2, sy: 2, pins: 'col', pinCol: 3, seam: 0.03,
+    name: s > 0 ? 'sleeveL' : 'sleeveR', nx: 7, ny: 6, sx: 2, sy: 2, pins: 'col', pinCol: 3, seam: 0.03, out: 0,
     rest: (u, v) => [s * 0.26, 0.40 - v * 0.52, (u - 0.5) * 2 * (0.10 + 0.32 * v)],
     normal: [s, 0, 0],
     body: [-0.30, 0.62, 0.155], spheres: [], limbs: s > 0 ? [0, 1, 4, 5, 6, 7] : [2, 3, 4, 5, 6, 7],
@@ -50,7 +50,7 @@ function patches() {
   // Long straight hair from the crown to the hips: three overlapping locks down the back,
   // each narrowing to its tip, so they part and stream on their own.
   const hair = (name, th0, th1, lift, len) => ({
-    name, nx: 4, ny: 12, sx: 3, sy: 2, pins: 'row',
+    name, nx: 4, ny: 12, sx: 3, sy: 2, pins: 'row', out: -1,
     rest: (u, v) => {
       const mid = (th0 + th1) / 2, th = (mid + (u - 0.5) * (th1 - th0) * (1 - 0.55 * Math.pow(v, 1.4))) * D;
       const rho = 0.112 + lift + 0.045 * Math.min(1, v * 3);
@@ -121,15 +121,20 @@ export class Robe {
       const ri = (ix, iy) => p.rbase + iy * p.RX + ix;
       for (let iy = 0; iy < p.RY - 1; iy++) for (let ix = 0; ix < p.RX - 1; ix++) {
         const a = ri(ix, iy), b = a + 1, c = a + p.RX, d = c + 1;
-        indices.push(a, c, b, b, c, d);
+        indices.push(a, b, c, d, b, c);       // front faces along the normals _draw writes; both end on c (the cell's material: flat)
       }
       for (let iy = 0; iy < p.RY; iy++) for (let ix = 0; ix < p.RX; ix++) {
         const u = ix / (p.RX - 1), v = iy / (p.RY - 1), i = ri(ix, iy);
         this.fold[i] = p.folds(u, v);
-        const [c, m] = p.paint(u, v);
-        // the inside of a fold a touch darker (it sees less of the sky and the Sun)
-        const k = 1 - 0.12 * Math.min(1, v * 2.5) * Math.max(0, -Math.sign(this.fold[i])) * Math.min(1, Math.abs(this.fold[i]) * 60);
-        col.set([c[0] * k, c[1] * k, c[2] * k], i * 3); mat[i] = m;
+        const c = p.paint(u, v)[0];
+        // the inside of a fold a touch darker (it sees less of the sky and the Sun); which
+        // way is in depends on which side of the patch its normal faces (p.out)
+        const k = 1 - 0.12 * Math.min(1, v * 2.5) * Math.max(0, -p.out * Math.sign(this.fold[i])) * Math.min(1, Math.abs(this.fold[i]) * 60);
+        col.set([c[0] * k, c[1] * k, c[2] * k], i * 3);
+        // The material is per cell, not per point (between two points of different
+        // materials the index would be a blend that names a third): each cell's material,
+        // taken at its centre, is carried by the point both its triangles end on.
+        mat[i] = iy >= 1 && ix < p.RX - 1 ? p.paint((ix + 0.5) / (p.RX - 1), (iy - 0.5) / (p.RY - 1))[1] : p.paint(u, v)[1];
       }
     }
     geo.setIndex(indices);
@@ -156,9 +161,15 @@ export class Robe {
 
   // rot: THREE.Matrix3 wearer-local -> world axes (or null for identity).
   reset(rot) {
-    const e = rot ? rot.elements : [1, 0, 0, 0, 1, 0, 0, 0, 1], L = this.localRest;
+    const e = rot ? rot.elements : [1, 0, 0, 0, 1, 0, 0, 0, 1], L = this.localRest, P = this.pinLocal;
+    this.accum = 0;
     for (let i = 0; i < this.count; i++) {
-      const x = L[i * 3], y = L[i * 3 + 1], z = L[i * 3 + 2];
+      const p = this.patches[this.owner[i]];
+      let x = L[i * 3], y = L[i * 3 + 1], z = L[i * 3 + 2];
+      if (p.pins === 'col') {                       // a sleeve: each row starts at its pin on the arm as posed
+        const k = (p.base + (((i - p.base) / p.nx) | 0) * p.nx + p.pinCol) * 3;
+        x += P[k] - L[k]; y += P[k + 1] - L[k + 1]; z += P[k + 2] - L[k + 2];
+      }
       this.pos[i * 3] = e[0] * x + e[3] * y + e[6] * z; this.pos[i * 3 + 1] = e[1] * x + e[4] * y + e[7] * z; this.pos[i * 3 + 2] = e[2] * x + e[5] * y + e[8] * z;
     }
     this.prev.set(this.pos);
@@ -169,14 +180,30 @@ export class Robe {
   // accel: the wearer's acceleration (m/s^2, clamped by the caller). wind: air velocity
   // relative to the wearer (m/s, world axes). air: 0 (vacuum) .. 1 (dense air).
   // colliders: the limbs' capsules in the wearer's frame, 7 numbers each.
-  update(dt, rot, gravity, accel, wind, air, colliders = null) {
-    this.colliders = colliders;
-    // halfRate (governor step): every other simulation step is skipped; the cloth moves
-    // a little more stiffly but costs half.
-    const step = this.halfRate ? STEP * 2 : STEP;
+  // up, ground (optional): the ground as a plane, `ground` metres along the unit vector
+  // `up` from the anchor (world axes): the cloth is kept above it.
+  update(dt, rot, gravity, accel, wind, air, colliders = null, up = null, ground = null) {
+    this.colliders = colliders; this.up = up; this.ground = ground;
+    // halfRate (governor step): half the solver passes (the cloth hangs a little longer and
+    // looser). The step itself stays: at twice the step the cloth stood still on three
+    // frames in eight while the arms moved, and the sleeves came off them.
+    const step = STEP;
     this.accum = Math.min(this.accum + dt, step * 4);
-    while (this.accum >= step) { this._step(rot, gravity, accel, wind, air, step); this.accum -= step; }
+    let stepped = false;
+    while (this.accum >= step) { this._step(rot, gravity, accel, wind, air, step); this.accum -= step; stepped = true; }
+    if (!stepped) this._pin(rot);                 // (the pinned points follow the body on every frame)
     this._draw();
+  }
+
+  // The pinned points go where the body (and for the sleeves the arms) put them.
+  _pin(rot) {
+    const { pos, prev, pinned } = this, e = rot.elements, P = this.pinLocal;
+    for (let i = 0; i < this.count; i++) {
+      if (!pinned[i]) continue;
+      const o = i * 3, x = P[o], y = P[o + 1], z = P[o + 2];
+      pos[o] = e[0] * x + e[3] * y + e[6] * z; pos[o + 1] = e[1] * x + e[4] * y + e[7] * z; pos[o + 2] = e[2] * x + e[5] * y + e[8] * z;
+      prev[o] = pos[o]; prev[o + 1] = pos[o + 1]; prev[o + 2] = pos[o + 2];
+    }
   }
 
   _step(rot, gravity, accel, wind, air, h) {
@@ -212,16 +239,9 @@ export class Robe {
       prev[o] = pos[o]; prev[o + 1] = pos[o + 1]; prev[o + 2] = pos[o + 2];
       pos[o] = nx; pos[o + 1] = ny; pos[o + 2] = nz;
     }
-    // pins follow the body (and the arms, for the sleeves)
-    const P = this.pinLocal;
-    for (let i = 0; i < n; i++) {
-      if (!pinned[i]) continue;
-      const o = i * 3, x = P[o], y = P[o + 1], z = P[o + 2];
-      pos[o] = e[0] * x + e[3] * y + e[6] * z; pos[o + 1] = e[1] * x + e[4] * y + e[7] * z; pos[o + 2] = e[2] * x + e[5] * y + e[8] * z;
-      prev[o] = pos[o]; prev[o + 1] = pos[o + 1]; prev[o + 2] = pos[o + 2];
-    }
-    const rest = this.rest, col = this.colliders;
-    for (let it = 0; it < 4; it++) {
+    this._pin(rot);
+    const rest = this.rest, col = this.colliders, NIT = this.halfRate ? 2 : 4, up = this.up, ground = this.ground;
+    for (let it = 0; it < NIT; it++) {
       for (let c = 0; c < rest.length; c++) {
         const r = rest[c], a = r[0] * 3, b = r[1] * 3;
         const dx = pos[b] - pos[a], dy = pos[b + 1] - pos[a + 1], dz = pos[b + 2] - pos[a + 2];
@@ -236,7 +256,7 @@ export class Robe {
       }
       // keep the cloth out of the body, the head and the limbs (in the wearer's frame);
       // on the last two passes only (half the cost, no visible difference)
-      if (it < 2) continue;
+      if (it < NIT - (NIT > 2 ? 2 : 1)) continue;
       for (let i = 0; i < n; i++) {
         if (pinned[i]) continue;
         const p = this.patches[owner[i]], o = i * 3, px = pos[o], py = pos[o + 1], pz = pos[o + 2];
@@ -262,6 +282,11 @@ export class Robe {
         const ox = lx - x0, oy = ly - y0, oz = lz - z0;
         if (ox !== 0 || oy !== 0 || oz !== 0) {
           pos[o] += e[0] * ox + e[3] * oy + e[6] * oz; pos[o + 1] += e[1] * ox + e[4] * oy + e[7] * oz; pos[o + 2] += e[2] * ox + e[5] * oy + e[8] * oz;
+        }
+        // and above the ground (3 cm: the drawn folds reach that far past the points)
+        if (up && ground != null) {
+          const s = ground + 0.03 - (pos[o] * up.x + pos[o + 1] * up.y + pos[o + 2] * up.z);
+          if (s > 0) { pos[o] += up.x * s; pos[o + 1] += up.y * s; pos[o + 2] += up.z * s; }
         }
       }
     }

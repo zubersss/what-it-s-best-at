@@ -233,6 +233,12 @@ export class CameraRig {
           gx = ux * gp + (gx - ux * gp) * side; gy = uy * gp + (gy - uy * gp) * side; gz = uz * gp + (gz - uz * gp) * side;
         }
         const k = Math.min(SPACE_CAP, fallBase) * (1 - t) * (1 - t);
+        // ... and the pull may stop the stick's motion but never turn it round (a light push
+        // aimed upward flew backward): faded in over the same first 15 % of travel
+        if (t > 1e-6 && k > 0) {
+          const ux = w.x / t, uy = w.y / t, uz = w.z / t, gp = gx * ux + gy * uy + gz * uz, lim = -t * top / k;
+          if (gp < lim) { const s = Math.min(1, t / 0.15), c = (lim - gp) * s * s * (3 - 2 * s); gx += ux * c; gy += uy * c; gz += uz * c; }
+        }
         tx += gx * k; ty += gy * k; tz += gz * k;
       }
       // The nearest body may not sweep across the view faster than SWEEP while it is
@@ -463,7 +469,7 @@ export class CameraRig {
       if (alt <= ground) {
         this._landed(-this.vUp);
         alt = ground; this.vUp = 0; this.airborne = false;
-      } else if (this.vUp < 0 && alt - ground > FOOT.fallToFlight && this.agl > 1.5) {     // (only with the camera free of the ground, or flight hands straight back)
+      } else if (this.vUp < 0 && alt - ground > FOOT.fallToFlight && alt - this.groundAlt > FOOT.fallToFlight) {     // (only when the ground under the camera is far below too, or flight hands straight back)
         // Off a cliff and falling far: the rest of the fall is flight (stick released, gravity on).
         f.setLength(R + alt);
         this._takeOff(this.vUp);

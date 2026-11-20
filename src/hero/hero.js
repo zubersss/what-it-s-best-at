@@ -338,7 +338,10 @@ export class Hero {
     // The cloth: gravity, inertia, and the air streaming past. In vacuum there is no air, but
     // it is still made to trail the direction of flight a little (owner's request).
     const g = this._g.copy(up).multiplyScalar(-env.gravity);
-    const flow = Math.min(speed, 42) * (0.3 + 0.7 * env.air);
+    // (the cloth is tuned for thin air: under a dense sky its forces would tear it, so the
+    // air it feels stops at 0.2)
+    const air = Math.min(env.air, 0.2);
+    const flow = Math.min(speed, 42) * (0.3 + 0.7 * air);
     const wind = this._wind.copy(dir).multiplyScalar(-flow * (speed > 0.05 ? 1 : 0));
     // A breeze is always blowing through the robe and the hair (gently, from ahead and a
     // little to one side, its strength drifting), even standing still and in vacuum: the
@@ -347,11 +350,14 @@ export class Hero {
     // (its push is a share of this world's gravity, so the cloth leans and ripples instead
     // of standing straight out: about a third of its weight, gusting to a half)
     const bt = this.time, push = env.gravity * (0.30 + 0.14 * Math.sin(bt * 0.53) + 0.08 * Math.sin(bt * 1.37 + 1.0));
-    const bs = push / (0.9 + 5.5 * env.air);                  // (cloth follows the air at this rate: robe.js)
+    const bs = push / (0.9 + 5.5 * air);                  // (cloth follows the air at this rate: robe.js)
     const bl = this._bz.set((0.75 + 0.2 * Math.sin(bt * 0.21)) * bs, 0.1 * bs, -0.65 * bs).applyMatrix3(this._m3);
     wind.add(bl);
     if (!this.started) { this.robe.reset(this._m3); this.started = true; }
-    this.robe.update(dt, this._m3, g, this.accel, wind, env.air, this.colliders);
+    // the ground under the figure, as a plane for the cloth (kneeling put half a metre of the
+    // skirt under it)
+    const clear = env.groundClearance ? env.groundClearance(p) : null;
+    this.robe.update(dt, this._m3, g, this.accel, wind, air, this.colliders, up, clear != null && clear < 4 ? -clear : null);
   }
 
   // Runs the cloak for a while with steady conditions (deterministic screenshots).
