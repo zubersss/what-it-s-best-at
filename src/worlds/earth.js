@@ -2,6 +2,9 @@
 // elevation, real colour, the true sky. The game opens on places that are bare in
 // reality (canyon rock, high mountains, a volcano's summit, a dune sea): there are no
 // trees, grass or buildings in this engine, and a forest from the ground would be a lie.
+// The Colorado Plateau (latitude, longitude east, radius in metres).
+const PLATEAU = [[36.6, 249.0, 330000]];
+
 export default {
   id: 'earth',
   name: 'Earth',
@@ -33,8 +36,10 @@ export default {
       // Gullies and spurs on the mountain sides and canyon walls.
       { op: 'ridged', seed: 5, maxWavelength: 1400, minWavelength: 20, roughness: 0.9, amp: 260, slopeMask: [0.12, 0.4], warp: 0.3 },
       // Layered rock: beds stand as cliffs and benches wherever the ground is steep.
-      { op: 'terrace', seed: 7, thickness: 150, cliff: 0.24, rise: 0.7, strength: 0.7, slopeMask: [0.14, 0.34], jitter: 0.35, warpAmp: 25, warpWavelength: 2200 },
-      { op: 'terrace', seed: 9, thickness: 22, cliff: 0.18, rise: 0.76, strength: 0.6, slopeMask: [0.18, 0.4], jitter: 0.4, warpAmp: 4, warpWavelength: 260 },
+      // (on the Colorado Plateau, where the beds lie flat for hundreds of kilometres; elsewhere
+      // they would draw contour lines on every mountain)
+      { op: 'terrace', seed: 7, thickness: 150, cliff: 0.24, rise: 0.7, strength: 0.7, slopeMask: [0.14, 0.34], jitter: 0.35, warpAmp: 25, warpWavelength: 2200, where: { at: PLATEAU } },
+      { op: 'terrace', seed: 9, thickness: 22, cliff: 0.18, rise: 0.76, strength: 0.6, slopeMask: [0.18, 0.4], jitter: 0.4, warpAmp: 4, warpWavelength: 260, where: { at: PLATEAU } },
       // The sea: nothing lies below sea level (this layer stays last).
       { op: 'sea', level: 0 },
     ],
@@ -47,12 +52,12 @@ export default {
     // NASA's Blue Marble (the globe's own day map; its left edge is longitude -180): the
     // colour of the land from the air. `mean` is the land's mean, so deserts come out
     // bright, forests dark green and ice white.
-    albedoMap: { url: 'data/earth_day_4096.jpg', lon0: -180, encoding: 'srgb', mean: [0.2059, 0.1801, 0.1354], strength: 1.0, chroma: 1.0, range: [0.2, 4.5] },
+    albedoMap: { url: 'data/earth_day_4096.jpg', lon0: -180, encoding: 'srgb', mean: [0.2059, 0.1801, 0.1354], strength: 1.0, chroma: 1.0, range: [0.2, 4.5], steep: 0.35 },
     meanAlbedo: [0.19, 0.17, 0.13],
     dust: [0.215, 0.185, 0.14],        // dry soil
     sand: [0.30, 0.25, 0.17],
     scree: [0.20, 0.18, 0.15],
-    rock: [0.19, 0.17, 0.15],
+    rock: [0.17, 0.155, 0.14],         // bare rock: steep faces take only a third of the map's colour (snow does not lie on them)
     strata: { period: 310, contrast: 0.3, finePeriod: 36, fine: 0.14, flat: 0.1, colors: [[0.95, 0.78, 0.62], [0.72, 0.55, 0.45], [0.9, 0.82, 0.7], [0.6, 0.5, 0.45], [0.85, 0.6, 0.45]] },
     slopes: { dustMax: 0.36, screeMin: 0.55, screeMax: 0.8, rockMin: 1.0 },
     sandBelow: -20000, sandFade: 1500,
@@ -74,7 +79,7 @@ export default {
   },
 
   // Clouds of one real day (the globe's own cloud map) as a layer overhead (see sky/clouds.js).
-  clouds: { map: 'data/earth_clouds_4096.jpg', lon0: -180, altitude: 4500, cover: 0.85, shadow: 0.6 },
+  clouds: { map: 'data/earth_clouds_4096.jpg', lon0: -180, altitude: 4500, cover: 0.62, shadow: 0.6 },
 
   sky: { stars: { url: 'data/stars_bsc5.f32' } },
 
@@ -87,13 +92,13 @@ export default {
     exposure: { key: 0.18, min: 0.5, max: 2.0e5, speed: 1.6, shadowFloor: 0.2, highlight: 6 },
     bookmarks: {
       ledge: { label: 'The Grand Canyon from Mather Point', heading: 5, pitch: -8, fov: 60 },
-      sun: { label: 'The morning Sun over the rim', heading: 70, pitch: 8, fov: 40 },
+      sun: { label: 'The morning Sun over the rim', heading: 78, pitch: 18, fov: 40 },
       wall: { label: 'The North Rim, sixteen kilometres away', heading: 350, pitch: -3, fov: 26 },
       ship: { label: 'The lander on the rim', east: -20, north: -12, heading: 230, pitch: 3, fov: 50 },
       dusk: { label: 'The canyon at sunset', heading: 300, pitch: -4, fov: 60, timeOffsetHours: 12.4 },
       everest: { label: 'Everest from Kala Patthar', lat: 27.9959, lon: 86.8285, heading: 80, pitch: 10, fov: 44, timeOffsetHours: -13 },
       maunakea: { label: 'The summit of Mauna Kea', lat: 19.8206, lon: 204.5319, heading: 200, pitch: -4, fov: 60, timeOffsetHours: 4 },
-      namib: { label: 'The dunes of Sossusvlei', lat: -24.763, lon: 15.303, heading: 110, pitch: -4, fov: 60, timeOffsetHours: -9 },
+      namib: { label: 'The dunes of Sossusvlei', lat: -24.763, lon: 15.303, heading: 110, pitch: -4, fov: 60, timeOffsetHours: -7.627 },
       matterhorn: { label: 'The Matterhorn from the Gornergrat', lat: 45.983, lon: 7.785, heading: 255, pitch: 6, fov: 40, timeOffsetHours: -9 },
     },
   },

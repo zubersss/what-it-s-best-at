@@ -77,19 +77,19 @@ export default {
 
   scene: {
     dateUTC: '2015-07-14T11:50:00Z',   // New Horizons' closest approach
-    // On the nitrogen ice of Sputnik Planitia under the Tenzing Montes: the plain runs to
-    // the horizon behind, and mountains of water ice five kilometres high stand ahead.
-    start: { lat: -15.5, lon: 178.2, eye: 1.7, heading: 262, pitch: 2 },
+    // On the bright nitrogen ice at the foot of the Tenzing Montes: mountains of water ice
+    // stand to the south, up to five kilometres above the plain.
+    start: { lat: -15.3, lon: 175.4, eye: 1.7, heading: 185, pitch: 4 },
     ship: { east: 40, north: 30, heading: 40 },
     exposure: { key: 0.16, min: 0.5, max: 6.0e6, speed: 1.6, shadowFloor: 0.5, highlight: 6, dim: { above: 9000, power: 0.5, most: 5 } },
     bookmarks: {
-      ledge: { label: 'Sputnik Planitia, under the Tenzing Montes', heading: 262, pitch: 2, fov: 55 },
-      sun: { label: 'The Sun from Pluto', heading: 90, pitch: 20, fov: 30 },
-      wall: { label: 'Tenzing Montes', heading: 255, pitch: 4, fov: 30 },
+      ledge: { label: 'Under the Tenzing Montes', heading: 185, pitch: 4, fov: 58 },
+      sun: { label: 'The Sun from Pluto', heading: 331, pitch: 10, fov: 30 },
+      wall: { label: 'Tenzing Montes', heading: 200, pitch: 5, fov: 30 },
       ship: { label: 'The lander', east: 20, north: 14, heading: 60, pitch: 4, fov: 50 },
-      dusk: { label: 'The ice plain at a low Sun', heading: 80, pitch: -3, fov: 60, timeOffsetHours: 30 },
-      charon: { label: 'Charon from Pluto', lat: 5.0, lon: 10.0, heading: 0, pitch: 80, fov: 30 },
-      wright: { label: 'Wright Mons', lat: -22.6, lon: 174.6, heading: 315, pitch: 4, fov: 50, timeOffsetHours: 10 },
+      dusk: { label: 'Sputnik Planitia, the ice plain', lat: 20.0, lon: 180.0, heading: 80, pitch: -3, fov: 60, timeOffsetHours: 20 },
+      charon: { label: 'Charon from Pluto', lat: 5.0, lon: 10.0, heading: 240, pitch: 78, fov: 30, timeOffsetHours: 16.56 },
+      wright: { label: 'Wright Mons', lat: -22.6, lon: 174.6, heading: 315, pitch: 4, fov: 50, timeOffsetHours: -9.546 },
     },
   },
   places: [

@@ -66,11 +66,11 @@ export default {
     exposure: { key: 0.07, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.6, highlight: 6, dim: { above: 60, power: 0.5, most: 5 } },
     bookmarks: {
       ledge: { label: 'Occator, the bright salt of Cerealia Facula', heading: 262, pitch: -1, fov: 60 },
-      sun: { label: 'The Sun from Ceres', heading: 90, pitch: 20, fov: 30 },
+      sun: { label: 'The Sun from Ceres', heading: 260, pitch: 28, fov: 30 },
       wall: { label: 'Occator, the crater wall', heading: 30, pitch: 4, fov: 34 },
       ship: { label: 'The lander', east: 20, north: 14, heading: 60, pitch: 4, fov: 50 },
-      dusk: { label: 'Occator at a low Sun', heading: 200, pitch: 0, fov: 60, timeOffsetHours: 2.2 },
-      ahuna: { label: 'Ahuna Mons, the ice volcano', lat: -9.6, lon: 316.6, heading: 120, pitch: 6, fov: 50, timeOffsetHours: 1 },
+      dusk: { label: 'Occator at a low Sun', heading: 200, pitch: 0, fov: 60, timeOffsetHours: 0.7613 },
+      ahuna: { label: 'Ahuna Mons, the ice volcano', lat: -9.6, lon: 316.6, heading: 120, pitch: 6, fov: 50, timeOffsetHours: -1.638 },
     },
   },
   places: [

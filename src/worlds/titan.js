@@ -46,7 +46,7 @@ export default {
     strata: null,
     slopes: { dustMax: 0.30, screeMin: 0.45, screeMax: 0.65, rockMin: 0.85 },
     sandBelow: -60, sandFade: 120,     // sand fills the low ground
-    cover: { sandLow: 0.92, sandMin: 0.02, contrast: 0.8 },
+    cover: { sandLow: 0.92, sandMin: 0.02, contrast: 0.25 },
     ripples: { wavelength: 0.9, strength: 0.25, direction: 0, onDust: 0.2 },
     detailStrength: 0.5,
     // rounded cobbles of ice, as in the one picture from the ground
@@ -83,7 +83,7 @@ export default {
     exposure: { key: 0.16, min: 0.5, max: 6.0e6, speed: 1.6, shadowFloor: 0.2, highlight: 6 },
     bookmarks: {
       ledge: { label: 'The Huygens landing place', heading: 160, pitch: 0, fov: 60 },
-      sun: { label: 'The Sun through the smog', heading: 90, pitch: 30, fov: 60 },
+      sun: { label: 'The Sun through the smog', heading: 116, pitch: 46, fov: 60 },
       wall: { label: 'The hills to the north', heading: 350, pitch: 2, fov: 40 },
       ship: { label: 'The lander', east: 14, north: -8, heading: 120, pitch: 2, fov: 50 },
       dusk: { label: 'Dusk on Titan', heading: 270, pitch: 8, fov: 60, timeOffsetHours: 90 },

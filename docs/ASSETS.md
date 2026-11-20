@@ -76,6 +76,32 @@ which serves the public bucket `asc-pds-services`), downloaded whole and reduced
 | `ceres_dem_4ppd.i16`, `ceres_slopes_4096.jpg` | Ceres' shape: metres above a 470 km sphere (the flattened body: +12 km at the equator, −21 km at the poles) | `Ceres_Dawn_FC_HAMO_DTM_DLR_Global_60ppd_Oct2016.tif` (Preusker et al. 2016) | USGS record: please cite authors (NASA / JPL-Caltech / UCLA / MPS / DLR / IDA) |
 | `ceres_color_4096.jpg`, `_512` | Ceres: brightness mosaic | `Ceres_Dawn_FC_DLR_global_20ppd_Oct2015.tif` | USGS record: please cite authors (as above) |
 
+### Earth's surface (milestone 9)
+
+| File in `public/data/` | What | Source | Licence |
+| --- | --- | --- | --- |
+| `earth_dem_4ppd.i16` | Earth's elevation, 1440×720, metres (sea floor below 0) | "Terrain Tiles" on the AWS Open Data registry (Mapzen's terrarium tiles, `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png`), zoom 4, resampled from Web-Mercator by `scripts/fetch-earth-terrain.py` | Open data with attribution (below) |
+| `earth_slopes_4096.jpg` | The land's slope everywhere (the sea flat), as the other slope maps | Same, zoom 5 | As above |
+| `earth_dem_grandcanyon.i16`, `_everest`, `_hawaii`, `_namib`, `_alps` | Sharper elevation at five places, 93 m per pixel (Hawaii 186 m) | Same, zoom 11 (Hawaii 10). These windows come from SRTM (NASA / USGS, public domain), USGS 3DEP (public domain) and, for the Alps, EU-DEM | As above |
+
+Attribution required by the Terrain Tiles set (its sources, as listed on
+`https://registry.opendata.aws/terrain-tiles/`): ArcticDEM terrain data DEM(s) were created
+from DigitalGlobe, Inc., imagery and funded under National Science Foundation awards
+1043681, 1559691, and 1542736; Australia terrain data © Commonwealth of Australia
+(Geoscience Australia) 2017; Austria terrain data © offene Daten Österreichs – Digitales
+Geländemodell (DGM) Österreich; Canada terrain data contains information licensed under the
+Open Government Licence – Canada; Europe terrain data produced using Copernicus data and
+information funded by the European Union – EU-DEM layers; Global ETOPO1 terrain data U.S.
+National Oceanic and Atmospheric Administration; Mexico terrain data source: INEGI,
+Continental relief, 2016; New Zealand terrain data Copyright 2011 Crown copyright (c) Land
+Information New Zealand and the New Zealand Government (All rights reserved); Norway
+terrain data © Kartverket; United Kingdom terrain data © Environment Agency copyright
+and/or database right 2015. All rights reserved; United States 3DEP (formerly NED) and
+global GMTED2010 and SRTM terrain data courtesy of the U.S. Geological Survey.
+
+The colour of Earth's ground and its clouds are the globe's own maps (Blue Marble, the
+VIIRS day: rows above).
+
 Orbits and spin of every body are fitted to and checked against NASA JPL Horizons
 (`scripts/fit-orbits.py`, `scripts/check-ephemeris.mjs`): facts, not an asset.
 

@@ -1,6 +1,10 @@
 // Triton — numbers and recipe names only. Neptune's captured moon, the coldest ground ever
 // photographed (minus 235 C): pink nitrogen frost, dimpled "cantaloupe" terrain found
 // nowhere else, and geysers that leave dark streaks down the wind.
+// Where the cantaloupe terrain is (Bubembe Regio and its neighbours, the part Voyager saw):
+// latitude, longitude east, radius in metres.
+const CANTALOUPE = [[20, 340, 800000], [6, 22, 520000], [-8, 300, 500000]];
+
 export default {
   id: 'triton',
   name: 'Triton',
@@ -20,12 +24,12 @@ export default {
       { op: 'fbm', seed: 2, maxWavelength: 700000, minWavelength: 20000, roughness: 0.7, amp: 5 },
       // Cantaloupe terrain: closed dimples 30-40 km across between raised walls, packed
       // shoulder to shoulder over the western hemisphere.
-      { op: 'cells', seed: 4, scale: 34000, dome: -420, trough: [-160, 3500], where: { cover: 0.42, seed: 3, wavelength: 1600000, soft: 0.06 } },
-      { op: 'cells', seed: 6, scale: 6000, dome: -60, where: { cover: 0.42, seed: 3, wavelength: 1600000, soft: 0.06 } },
+      { op: 'cells', seed: 4, scale: 34000, dome: -420, trough: [-160, 3500], where: { at: CANTALOUPE } },
+      { op: 'cells', seed: 6, scale: 6000, dome: -90, trough: [-40, 700], where: { at: CANTALOUPE } },
       // The great ridges (sulci) that cut across it: paired crests hundreds of km long.
       { op: 'lineaments', seed: 8, families: 4, spacing: 260000, width: 7000, height: 420, profile: 'double', presence: 0.7, segment: 1200000, wobble: [30000, 700000], varied: 0.4 },
       // Frozen lakes: flat-floored, terraced basins of the smooth plains.
-      { op: 'craters', seed: 10, radius: [40000, 110000], density: 0.12, layers: 1, depth: 0.007, rim: 0.0015, floor: 0.82, where: { cover: 0.42, seed: 3, wavelength: 1600000, soft: 0.06, invert: true } },
+      { op: 'craters', seed: 10, radius: [40000, 110000], density: 0.12, layers: 1, depth: 0.007, rim: 0.0015, floor: 0.82, where: { at: CANTALOUPE, invert: true } },
       { op: 'fbm', seed: 12, maxWavelength: 16000, minWavelength: 200, roughness: 0.8, amp: 9 },
       // Very few impact craters: the surface is young.
       { op: 'craters', seed: 14, radius: [600, 9000], density: 0.07, layers: 1, depth: 0.12, rim: 0.03 },
@@ -68,12 +72,12 @@ export default {
     dateUTC: '1989-08-25T09:00:00Z',   // Voyager 2's fly-by
     // The edge of the cantaloupe terrain where it meets the southern frost cap. Neptune
     // stands in the sky, eight degrees wide.
-    start: { lat: 12.0, lon: 10.0, eye: 1.7, heading: 200, pitch: -4 },
+    start: { lat: 12.0, lon: 10.0, eye: 1.7, heading: 150, pitch: -3 },
     ship: { east: 40, north: 25, heading: 200 },
     exposure: { key: 0.16, min: 0.5, max: 6.0e6, speed: 1.6, shadowFloor: 0.5, highlight: 6, dim: { above: 6000, power: 0.5, most: 5 } },
     bookmarks: {
       ledge: { label: 'Cantaloupe terrain', heading: 200, pitch: -4, fov: 60 },
-      sun: { label: 'Neptune from Triton', lat: 5.0, lon: 20.0, heading: 270, pitch: 50, fov: 40 },
+      sun: { label: 'Neptune from Triton', lat: 5.0, lon: 20.0, heading: 253, pitch: 66, fov: 40 },
       wall: { label: 'A ridge of the sulci', heading: 120, pitch: 0, fov: 40 },
       ship: { label: 'The lander', east: 20, north: 12, heading: 60, pitch: 4, fov: 50 },
       dusk: { label: 'The southern frost cap', lat: -35.0, lon: 15.0, heading: 180, pitch: -4, fov: 60, timeOffsetHours: 20 },

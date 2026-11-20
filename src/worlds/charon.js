@@ -61,10 +61,10 @@ export default {
     exposure: { key: 0.10, min: 0.5, max: 6.0e6, speed: 1.6, shadowFloor: 0.6, highlight: 6, dim: { above: 9000, power: 0.5, most: 5 } },
     bookmarks: {
       ledge: { label: 'Serenity Chasma, the rim', heading: 180, pitch: -8, fov: 60 },
-      sun: { label: 'Pluto from Charon', heading: 180, pitch: 60, fov: 30 },
+      sun: { label: 'Pluto from Charon', heading: 204, pitch: 62, fov: 30 },
       wall: { label: 'Across the canyon', heading: 200, pitch: -3, fov: 34 },
       ship: { label: 'The lander', east: 20, north: 14, heading: 60, pitch: 4, fov: 50 },
-      dusk: { label: 'The canyon at a low Sun', heading: 140, pitch: -6, fov: 60, timeOffsetHours: 30 },
+      dusk: { label: 'The canyon at a low Sun', heading: 140, pitch: -6, fov: 60, timeOffsetHours: 18.88 },
       kubrick: { label: 'Kubrick Mons, the mountain in a moat', lat: 16.5, lon: 28.5, heading: 100, pitch: 0, fov: 50, timeOffsetHours: 8 },
     },
   },

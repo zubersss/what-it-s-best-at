@@ -98,6 +98,7 @@ uniform float uDetailStrength;
 uniform sampler2D tAlbedo;     // global map of the world's real brightness or colour (longitude 0..360 E from the left edge, north in the first row)
 uniform vec4 uAlbedoMap;       // rgb = 1 / the map's mean, w = how strongly it tints the palette (0 = no map)
 uniform float uAlbedoChroma;   // how much of the map's colour (not just its brightness) is used, 0..1
+uniform float uAlbedoSteep;    // how much of the map's tint steep rock takes (1: all, as gentle ground)
 uniform float uAlbedoShift;    // 0.5 for a map whose left edge is longitude -180 (Earth's), else 0
 uniform vec2 uAlbedoFade;      // sines of the latitudes between which the map fades out toward the poles
 uniform vec2 uAlbedoRange;     // soft limits of the map's brightness relative to its mean (y = 0: none), held near the ground only
@@ -284,8 +285,8 @@ void main() {
   // The map gives the mean brightness of the ground; the cover only shares it out.
   vec3 meanFlat = uDust * (1.0 - cSand - cBed) + uSand * cSand + bedrock * cBed;
   flatC *= mix(1.0, luma(uDust) / luma(meanFlat), mapW);
-  vec3 albedo = rock * rockW + scree * screeW + flatC * flatW;
-  albedo *= (0.93 + 0.14 * d1.a) * mapTint;
+  vec3 albedo = rock * rockW * mix(vec3(1.0), mapTint, uAlbedoSteep) + (scree * screeW + flatC * flatW) * mapTint;
+  albedo *= 0.93 + 0.14 * d1.a;
 
   // --- detail normal: grain everywhere (above), wind ripples on sand (both vanish with distance via mips / footprint)
   grain *= uDetailStrength * (0.55 + 0.9 * rockW + 0.5 * screeW);
@@ -383,7 +384,7 @@ export function makeTerrainShared(world, textures) {
     // w: the cover pattern (d0.a + 0.3 d1.a) is about normal; logistic scale = its spread / 1.702
     uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
     uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) },
-    tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoShift: { value: 0 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
+    tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoShift: { value: 0 }, uAlbedoSteep: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
     uAlbedoRange: { value: new THREE.Vector2() }, uRockHue: { value: new THREE.Vector2() }, uCoverContrast: { value: 1 }, uBedrockSlope: { value: 0 },
     uDemBox: { value: Array.from({ length: DEM_N }, () => new THREE.Vector4()) }, uDemInfo: { value: Array.from({ length: DEM_N }, () => new THREE.Vector4()) },
     tRelief: { value: textures.white }, uRelief: { value: new THREE.Vector4(0, 1, 1, 0) }, uReliefFade: { value: new THREE.Vector2(2, 3) },

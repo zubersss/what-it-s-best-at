@@ -59,7 +59,7 @@ export default {
     exposure: { key: 0.06, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.6, highlight: 6, dim: { above: 60, power: 0.5, most: 5 } },
     bookmarks: {
       ledge: { label: 'Deimos, the smooth plains', heading: 300, pitch: -8, fov: 60 },
-      sun: { label: 'Mars from Deimos', heading: 250, pitch: 62, fov: 50 },
+      sun: { label: 'Mars from Deimos', heading: 247, pitch: 66, fov: 50 },
       wall: { label: 'Voltaire crater', lat: 22, lon: 3.5, heading: 200, pitch: -6, fov: 40 },
       ship: { label: 'The lander', east: 10, north: -6, heading: 110, pitch: 8, fov: 50 },
       dusk: { label: 'The edge of night', lat: 0, lon: 80, heading: 270, pitch: 0, fov: 60, timeOffsetHours: 6 },

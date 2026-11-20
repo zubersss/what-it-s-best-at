@@ -98,6 +98,7 @@ export class Terrain {
       u.uAlbedoMap.value.set(1 / def.mean[0], 1 / def.mean[1], 1 / def.mean[2], def.strength ?? 1);
       u.uAlbedoChroma.value = def.chroma ?? 1;
       u.uAlbedoShift.value = def.lon0 === -180 ? 0.5 : 0;
+      u.uAlbedoSteep.value = def.steep ?? 1;
       const rad = Math.PI / 180;      // latFade: [from, to] degrees of latitude over which the map hands back to the palette
       if (def.latFade) u.uAlbedoFade.value.set(Math.sin(def.latFade[0] * rad), Math.sin(def.latFade[1] * rad)); else u.uAlbedoFade.value.set(2, 3);
       tex.needsUpdate = true; this.renderer.initTexture(tex);       // to the GPU now, between frames

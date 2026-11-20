@@ -87,11 +87,11 @@ export default {
     exposure: { key: 0.16, min: 0.5, max: 6.0e6, speed: 1.6, shadowFloor: 0.2, highlight: 6 },
     bookmarks: {
       ledge: { label: 'The Venera 13 landing place', heading: 60, pitch: -6, fov: 60 },
-      sun: { label: 'The sky of Venus', heading: 100, pitch: 30, fov: 70 },
+      sun: { label: 'The sky of Venus', heading: 278, pitch: 46, fov: 70 },
       wall: { label: 'The plains', heading: 200, pitch: -2, fov: 40 },
       ship: { label: 'The lander', east: 10, north: 8, heading: 60, pitch: 2, fov: 50 },
       dusk: { label: 'Evening on Venus', heading: 270, pitch: 6, fov: 60, timeOffsetHours: 500 },
-      maxwell: { label: 'Maxwell Montes', lat: 63.5, lon: 2.0, heading: 70, pitch: 4, fov: 50 },
+      maxwell: { label: 'Maxwell Montes', lat: 63.5, lon: 2.0, heading: 70, pitch: 4, fov: 50, timeOffsetHours: 401.4 },
       maat: { label: 'Maat Mons', lat: -0.5, lon: 193.0, heading: 60, pitch: 6, fov: 50 },
     },
   },

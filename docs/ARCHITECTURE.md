@@ -502,6 +502,47 @@ exposure alone decides whether they are visible.
 - **Roll**: `CameraRig.roll` is zero except after a hand-over, when it holds the previous
   world's "up" until the new world is within 40 radii (then it decays at 1.2 /s).
 
+## The sea, clouds (Earth)
+
+- **A sea** (`surface.sea: { level, color, roughness, ripples }` and a last height layer
+  `{ op: 'sea' }`): no ground lies below the level, so the mesh is flat there, and the
+  terrain shader draws flat ground at that level as water: deep colour, two scrolling
+  ripple normals from the detail texture, the Sun's glint (kept from orbit) and the sky
+  mirrored at a grazing view. Rocks are not placed on it. The player can stand on it
+  (known problem).
+- **A cloud layer** (`world.clouds`, `src/sky/clouds.js`): the globe's own cloud map on a
+  shell some kilometres up, one draw call in the near pass (depth-tested against the
+  ground, so peaks stand through it and it lies over the terrain from orbit), carved by
+  four sizes of generated puff, lit by the Sun through the air and by the sky. Its shadow
+  on the ground is one extra texture read in the terrain shader (`tClouds`, `uCloud`):
+  the cloud where the sunbeam to that ground crossed the layer. The near pass's far
+  plane reaches the layer's horizon. Governor step `clouds`.
+- The albedo map can start at longitude -180 (`albedoMap.lon0: -180`, Earth's globe
+  maps) and steep rock can take less of its tint (`steep`): snow does not lie on cliffs.
+
+## Getting around and things to do (milestones 7 and 8)
+
+- **The clock** (`App.timeRate`, `setTimeRate`, `setDate`): world seconds per second
+  from the list `RATES`; the date stays inside 1950-2100 (the span the orbits are fitted
+  for). The time slider is re-centred when the clock has run past its range.
+- **`src/ui/menu.js`**: one panel built from `App.menuSections()` (rebuilt a few times a
+  second while open so the clock's read-out runs). **`src/ui/map.js`**: a 2-D canvas map
+  from the same ephemeris the sky uses (`positionICRF`), projected on the ecliptic;
+  orbits are one period sampled at the current date; hit-testing on the drawn points.
+- **`src/fx/warp.js`**: 420 line segments in clip space, shown above 2 000 km/s when far
+  from everything. A picture of speed, not a thing in the world.
+- **`src/core/save.js`**: one JSON value in `localStorage` (`sse.save.v1`): places found
+  (`<world>/<place>` -> date), the last place stood on each world, the sound switch.
+  Written at most every four seconds. `App.checkPlaces` finds a place when the traveller
+  is within its reach (15 km, or 1.2 % of the world's radius) and below 120 km.
+- **`src/ui/journal.js`**: every world's `places` with their `fact` lines.
+- **Photo mode** (`App.photoMode`, `savePhoto`): time stopped, controls hidden; the
+  shutter renders the next frame at scale 1 and reads the canvas in the same task
+  (`toBlob`), then shares or downloads the PNG. The governor ignores that frame.
+- **`src/audio/audio.js`**: Web Audio, started by the Play tap. Looped pink noise through
+  filters for wind (gain by the air's density at the traveller), flight and warp; three
+  sine tones for the suit; noise bursts for steps and landings; a three-note chime.
+
 ## Post
 
 HDR RGBA16F → bloom downsample (13-tap, clamped; the first level is capped at about

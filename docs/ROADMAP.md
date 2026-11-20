@@ -20,7 +20,7 @@ owner's reply or phone results), `done`.
 | 6 | New landable worlds | checkpoint sent |
 | 7 | Getting around | checkpoint sent |
 | 8 | Things to do | checkpoint sent |
-| 9 | Earth's surface — write its plan in `docs/PROGRESS.md` before starting | not started |
+| 9 | Earth's surface | checkpoint sent |
 
 ## 1. Phone link and measurement
 

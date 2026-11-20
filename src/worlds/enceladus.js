@@ -71,11 +71,11 @@ export default {
     exposure: { key: 0.20, min: 0.5, max: 6.0e5, speed: 1.6, shadowFloor: 0.5, highlight: 6, dim: { above: 60, power: 0.5, most: 5 } },
     bookmarks: {
       ledge: { label: 'Baghdad Sulcus, Saturn on the horizon', heading: 326, pitch: 2, fov: 64 },
-      sun: { label: 'Saturn from Enceladus', lat: -8.0, lon: 22.0, heading: 290, pitch: 56, fov: 64, timeOffsetHours: -3 },
+      sun: { label: 'Saturn from Enceladus', lat: -8.0, lon: 22.0, heading: 286, pitch: 58, fov: 64, timeOffsetHours: 1.818 },
       wall: { label: 'Along the fracture', heading: 135, pitch: -6, fov: 40 },
       ship: { label: 'The lander', east: 20, north: 14, heading: 60, pitch: 4, fov: 50 },
       dusk: { label: 'Saturn on the horizon', lat: -70.0, lon: 0.0, heading: 0, pitch: 12, fov: 60, timeOffsetHours: 8 },
-      north: { label: 'The cratered north', lat: 55.0, lon: 200.0, heading: 100, pitch: -6, fov: 60, timeOffsetHours: 14 },
+      north: { label: 'The cratered north', lat: 55.0, lon: 200.0, heading: 100, pitch: -6, fov: 60, timeOffsetHours: 20.87 },
     },
   },
   places: [

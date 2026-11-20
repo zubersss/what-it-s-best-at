@@ -48,12 +48,13 @@ void main() {
   vec3 q = up * 900.0;
   float d = 0.0, a = 0.5, f = 1.0;
   for (int i = 0; i < 4; i++) { d += a * vnoise(q * f) * (1.0 - smoothstep(0.15, 0.6, px * 900.0 * f)); a *= 0.55; f *= 2.7; }
-  float dens = m * (0.65 + 0.9 * d) + (d - 0.45) * 0.25 * smoothstep(0.05, 0.3, m);
+  // (the detail carves the map's cloud into pieces: thin cloud breaks up, thick cloud stays)
+  float dens = m * (0.25 + 1.7 * d) + (d - 0.45) * 0.2 * smoothstep(0.1, 0.4, m);
   float lo = 1.0 - uCloud.x;
-  float cover = smoothstep(lo * 0.6, lo * 0.6 + 0.35, dens);
+  float cover = smoothstep(lo - 0.08, lo + 0.34, dens);
   // seen at a slant the layer is longer to look through
   float mu = max(abs(dot(V, up)), 0.12);
-  float alpha = 1.0 - exp(-cover * cover * 2.6 / mu);
+  float alpha = 1.0 - exp(-cover * (0.4 + cover) * 1.7 / mu);
   if (alpha < 0.004) discard;
   // light: the Sun through the air to this height, more of it at the cloud's sunward edge
   // and around the Sun's direction; from below a thick cloud is grey

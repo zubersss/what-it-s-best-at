@@ -74,8 +74,8 @@ export default {
       sun: { label: 'Mars from Phobos', heading: 93, pitch: 44, fov: 72 },
       wall: { label: 'Stickney, the far wall', heading: 262, pitch: -4, fov: 28 },
       ship: { label: 'The lander under Mars', east: 6, north: 24, heading: 96, pitch: 22, fov: 62 },
-      dusk: { label: 'The grooves at a low Sun', lat: 20, lon: 20, heading: 200, pitch: -8, fov: 55, timeOffsetHours: 1.6 },
-      kepler: { label: 'Kepler Dorsum', lat: -45, lon: 6, heading: 30, pitch: 4, fov: 50, timeOffsetHours: 2.5 },
+      dusk: { label: 'The grooves at a low Sun', lat: 20, lon: 20, heading: 200, pitch: -8, fov: 55, timeOffsetHours: 3.232 },
+      kepler: { label: 'Kepler Dorsum', lat: -45, lon: 6, heading: 30, pitch: 4, fov: 50, timeOffsetHours: 4.419 },
     },
   },
   places: [

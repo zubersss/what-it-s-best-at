@@ -74,7 +74,7 @@ export default {
     bookmarks: {
       ledge: { label: 'A ridge by Conamara Chaos, Jupiter on the horizon', heading: 266, pitch: 0, fov: 62 },
       chaos: { label: 'Conamara Chaos', lat: 9.7, lon: 87.3, heading: 250, pitch: -3, fov: 60 },
-      sun: { label: 'Jupiter from Europa', lat: 5.0, lon: 40.0, heading: 270, pitch: 42, fov: 44 },
+      sun: { label: 'Jupiter from Europa', lat: 5.0, lon: 40.0, heading: 264, pitch: 46, fov: 44, timeOffsetHours: 10.26 },
       wall: { label: 'A double ridge', lat: 14.0, lon: 86.0, heading: 20, pitch: -2, fov: 40 },
       ship: { label: 'The lander', east: 30, north: 18, heading: 60, pitch: 4, fov: 50 },
       dusk: { label: 'Ridged plains at a low Sun', lat: -12.0, lon: 150.0, heading: 100, pitch: -4, fov: 60, timeOffsetHours: 12 },
