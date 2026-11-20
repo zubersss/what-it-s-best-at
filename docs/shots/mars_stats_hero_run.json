@@ -1,19 +1,19 @@
 {
   "gale": {
-    "calls": 149,
-    "triangles": 471635,
-    "chunks": 110,
-    "loaded": 378,
-    "visited": 346,
+    "calls": 167,
+    "triangles": 540935,
+    "chunks": 128,
+    "loaded": 386,
+    "visited": 386,
     "wanted": 0,
-    "lodScale": 0.833,
-    "avgBuildMs": 34.4,
-    "exposure": 23.76,
+    "lodScale": 1,
+    "avgBuildMs": 38.4,
+    "exposure": 23.73,
     "surface": [
       0.625,
-      0.151
+      0.153
     ],
-    "frame": 135,
+    "frame": 138,
     "wait": ""
   }
 }
