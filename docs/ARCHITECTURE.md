@@ -339,7 +339,12 @@ exposure alone decides whether they are visible (rule 2).
   `atmosphere.surfaceDensity` and scale height. Two deliberate, owner-requested departures
   from physics: in vacuum 30 % of the "flow" is kept, so the cloth still trails in flight,
   and a gentle breeze always blows through robe and hair, even standing still on the Moon.
-  Governor step `cloak` halves the simulation rate (`robe.halfRate`).
+  Governor step `cloak` (`robe.halfRate`) halves the solver's passes (2 instead of 4, the
+  cloth hangs a little looser); the step itself stays at 75 a second and the pinned points
+  are placed every frame, so the sleeves never lag the arms. The cloth has a ground plane
+  (the ground under the figure) and feels at most 0.2 of air, the thin air it is tuned for.
+  Its triangles are wound to match the normals `_draw` writes, and a cell's material is
+  carried flat by the point both its triangles end on (`flat` varying `vMat`).
 - **Speed law** (`speedLaw.js`): top speed = 0.85 × distance to the nearest surface of
   any body per second (0.2 near the ground, rising between 3 and 60 km; ×3 with boost,
   floor 7 m/s, ceiling 3 AU/s), never more than 40 %
@@ -435,7 +440,7 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   9. `bloom`: bloom off;
   10. `terrain-2`: terrain patch cap ×0.64;
   11. `far-relief`: relief shading of far ground off;
-  12. `cloak`: robe and hair simulated at half rate (the id is from the cloak it replaced);
+  12. `cloak`: robe and hair simulated with half the solver passes (the id is from the cloak it replaced);
   13. `air-shadow`: terrain shadows in the haze off.
 
   Steps up run in reverse. Every new feature that costs frame time adds its step here.

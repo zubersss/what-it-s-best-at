@@ -699,7 +699,7 @@ The character
 | No eclipse: when another body covers the Sun the ground stays fully sunlit (foundation review) | 5 |
 | Far from every body the traveller still rides the home world's spinning axes, so a time change swings distant bodies round it (near a body it is now carried along with that body) (foundation review) | 7 |
 | Every world's elevation data is downloaded at start-up and kept: fine for two worlds, not for ten (foundation review) | 6 |
-| `scripts/transfer.mjs` flies a hand copy of the trip code in `App`; a change to one can miss the other. The trip's steering belongs in `autopilot.js`, used by both (foundation review) | 5 (before touching trips again) |
+| `scripts/transfer.mjs` flies a hand copy of the trip code in `App`; a change to one can miss the other. The trip's steering belongs in `autopilot.js`, used by both. `transfer` and `flyby` print their numbers but never fail: they need pass marks (foundation and final reviews) | 5 (before touching trips again) |
 | Stars load from the starting world's data file only; the `sky.bodies` field of the world files is unused (foundation review) | 6 |
 
 Fixed in the milestone 4 review: GO arriving at tens of thousands of km/s (the figure hit
@@ -968,8 +968,23 @@ documentation truth), every finding checked by a second reviewer told to disprov
 
 Left for later, each in the known-problems table: Earth and other bodies drawn as
 generated patterns, eclipses, the frame far from every body, loading all worlds' data at
-start-up, the trip test's hand copy. A second review of this round's own changes ran
-before the merge ("Final review" in the log).
+start-up, the trip test's hand copy.
+
+**Final review** of this round's own changes (four lines of review, each finding checked
+by a second reviewer): 23 findings, 22 upheld, all fixed before the merge. The ones that
+showed: the robe, sleeves and hair were lit inside-out (their normals pointed against the
+way their triangles were wound, so the sunlit side was the dark one); the silver trims
+were shaded as skin or as nothing (a material number blended between neighbouring
+points); with the governor's cloth step on, the sleeves came off the arms on three frames
+in eight (it now halves the solver's passes instead of the step); sleeves whipped for
+three frames after a bookmark; the skirt went under the ground when kneeling (the cloth
+now has a ground); a light push of the stick aimed upward flew backward (the first fix
+for the bending pull overshot); off a sheer wall the figure bounced between falling and
+flight (the first fix did not hold: it now falls on foot until the camera is past the
+edge too); a bookmark pressed while being carried with a moon landed far from the place;
+the figure stayed sunlit on the night side of an airless world above 20 km; the collar
+stood 4–8 cm off the neck and the brows off the head. Recorded, not fixed: `transfer`
+and `flyby` print their numbers but still cannot fail.
 
 ## Look pass after the milestone 4 review (owner: "keep refining the looks")
 
