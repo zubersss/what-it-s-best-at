@@ -153,6 +153,7 @@ export class Rocks {
     u.uDustCap.value = def.dustCap ?? 0.55;
     this.mesh.visible = (def.count | 0) > 0;
     this.cellKey = ''; this.count = 0; this.geometry.instanceCount = 0; this.needVis = false;
+    this.visByCell = new Map(); this.slotKey = [];       // sun visibility per rock (keyed by its cell)
   }
 
   // Re-scatter when the camera enters a new grid cell; keep sun visibility up to date.
@@ -175,15 +176,24 @@ export class Rocks {
     const s = this.visSun;
     if (!this.needVis && this.count && s[0] * sun[0] + s[1] * sun[1] + s[2] * sun[2] < 0.99995) this.needVis = true;   // > 0.57 degrees
     if (this.needVis && this.count && !this.pendingVis) {
-      const want = [sun[0], sun[1], sun[2]], count = this.count, stamp = this.cellKey;
+      const want = [sun[0], sun[1], sun[2]], count = this.count, stamp = this.cellKey, keys = this.slotKey.slice(0, count), world = this.world;
       const job = workers.run({ type: 'points', points: this.points.slice(0, count * 3), sun: want, sunHalf, minWL: 0.6 });
       if (job) {
         this.pendingVis = true; this.needVis = false;
         job.then((res) => {
           this.pendingVis = false;
-          if (stamp !== this.cellKey) { this.needVis = true; return; }
-          for (let i = 0; i < count; i++) this.aMisc.array[i * 2] = res.vis[i];
-          this.aMisc.needsUpdate = true; this.visSun = want;
+          if (world !== this.world) return;
+          // answers for another Sun direction are stale; the table is also kept small
+          const v = this.visSun;
+          if (v[0] * want[0] + v[1] * want[1] + v[2] * want[2] < 0.99995 || this.visByCell.size > 6000) this.visByCell.clear();
+          for (let i = 0; i < count; i++) this.visByCell.set(keys[i], res.vis[i]);
+          this.visSun = want;
+          // every rock now on screen takes what is known for it; scattered again meanwhile,
+          // the ones still unknown are asked about next
+          let missing = false;
+          for (let i = 0; i < this.count; i++) { const k = this.visByCell.get(this.slotKey[i]); if (k === undefined) missing = true; else this.aMisc.array[i * 2] = k; }
+          this.aMisc.needsUpdate = true;
+          if (missing || stamp !== this.cellKey) this.needVis = true;
         }).catch(() => { this.pendingVis = false; });
       }
     }
@@ -228,7 +238,11 @@ export class Rocks {
       this.aQuat.setXYZW(n, q.x, q.y, q.z, q.w);
       const sx = 0.8 + 0.5 * ((h0 >>> 8) & 0xff) / 255, sy = 0.7 + 0.5 * ((h1 >>> 8) & 0xff) / 255, sz = 0.5 + 0.4 * ((h2 >>> 8) & 0xff) / 255;
       this.aScale.setXYZ(n, size * sx, size * sy, size * sz);
-      this.aMisc.setXY(n, this.aMisc.array[n * 2] ?? 1, 0.8 + 0.4 * ((h2 >>> 4) & 0xff) / 255);
+      // sunlight on it: what is known for this rock (by its cell), not what the slot last held
+      // (after a re-scatter each rock wore another rock's light until the next answer)
+      const key = i * 8388608 + j;
+      this.slotKey[n] = key;
+      this.aMisc.setXY(n, this.visByCell.get(key) ?? 1, 0.8 + 0.4 * ((h2 >>> 4) & 0xff) / 255);
       const h3 = hash3(i, j, 61, 911);
       this.aShape.setXYZW(n, (h3 & 0xff) / 256, ((h3 >>> 8) & 0xff) / 256, ((h3 >>> 16) & 0xff) / 256, (h3 >>> 24) / 256);
       this.points[n * 3] = x + d[0] * size * 0.4; this.points[n * 3 + 1] = y + d[1] * size * 0.4; this.points[n * 3 + 2] = z + d[2] * size * 0.4;

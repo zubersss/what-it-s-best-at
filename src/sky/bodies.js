@@ -123,10 +123,14 @@ export class SkyBodies {
         uParams2: { value: new THREE.Vector4(s.hazeStrength || 0, 0, 0, 0) },
       };
       const mat = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: u, vertexShader: VERT, fragmentShader: FRAG, depthTest: true, depthWrite: true });
-      const mesh = new THREE.Mesh(lumpyGeometry(def, i * 13.7 + 1), mat);
+      const geo = lumpyGeometry(def, i * 13.7 + 1), mesh = new THREE.Mesh(geo, mat);
       mesh.frustumCulled = false; mesh.renderOrder = 5; mesh.matrixAutoUpdate = false;
       this.group.add(mesh);
-      return { id, def, mesh, u, info: {}, pos: new THREE.Vector3(), rel: new THREE.Vector3(), dist: Infinity };
+      // how far its surface reaches from its centre as drawn (an irregular moon's longest
+      // axis and bumps stand well outside its mean radius): what a traveller must stay out of
+      let reach = 0;
+      for (let k = 0, p = geo.attributes.position; k < p.count; k++) reach = Math.max(reach, Math.hypot(p.getX(k), p.getY(k), p.getZ(k)));
+      return { id, def, mesh, u, reach, info: {}, pos: new THREE.Vector3(), rel: new THREE.Vector3(), dist: Infinity };
     });
     this.byId = new Map(this.bodies.map((b) => [b.id, b]));
     this._v = new THREE.Vector3(); this._m = new THREE.Matrix4();

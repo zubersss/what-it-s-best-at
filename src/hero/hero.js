@@ -144,7 +144,9 @@ export class Hero {
     const vDown = -motion.velocity.dot(up), feetClear = (motion.agl ?? rig.agl ?? 99) - HERO_DROP - 0.9;
     const flareTarget = onFoot ? 0 : (1 - THREE.MathUtils.smoothstep(feetClear, 2, 3 + 1.2 * Math.max(0, vDown))) * THREE.MathUtils.smoothstep(vDown, 0.6, 2.0);
     this.flare += (flareTarget - this.flare) * (1 - Math.exp(-dt * 7));
-    const f = this.flight * (1 - this.flare), fs = f * f * (3 - 2 * f), b = this.boost * this.boost * (3 - 2 * this.boost);
+    // (nothing of the flight tilt on foot: after a flared landing the standing figure tipped
+    // forward 22 degrees while the flight amount faded)
+    const f = this.flight * (1 - this.flare) * (1 - this.foot), fs = f * f * (3 - 2 * f), b = this.boost * this.boost * (3 - 2 * this.boost);
     // The chase distance: upright (hovering, landing) the figure stands 1.8 m tall and at
     // 4.1 m its boots fell on the frame's edge; it is drawn farther ahead then. The rig reads
     // it (App.updateHero), so landing puts the feet where the figure is drawn.
@@ -155,7 +157,11 @@ export class Hero {
     // from facing forward to facing the ground.
     const dir = speed > 0.5 ? this._z.copy(motion.velocity).divideScalar(speed) : this._z.copy(rig.forward);
     // On foot the figure faces where it runs (or, standing, where it last faced), turning smoothly.
-    const want = this._f.copy(hspeed > 0.4 ? hv : rig.forward).addScaledVector(up, -(hspeed > 0.4 ? 0 : rig.forward.dot(up)));
+    // (standing, it keeps facing where it last faced: the view can be turned round it to
+    // see its face; it followed the view before, whatever the comment said)
+    const moving = hspeed > 0.4, keep = onFoot && !moving && this.started && this.facing.lengthSq() > 0.5;
+    const src = moving ? hv : keep ? this.facing : rig.forward;
+    const want = this._f.copy(src).addScaledVector(up, -src.dot(up));
     if (want.lengthSq() > 1e-8) want.normalize();
     if (!this.started || this.facing.lengthSq() < 0.5) this.facing.copy(want);
     // (turning straight round: a lerp between opposite directions never leaves their line,
@@ -251,10 +257,13 @@ export class Hero {
       // A hard landing (a fall of some 20 m on Mars) ends in a three-point landing: one knee
       // down, a hand on the ground, held for a moment before standing.
       // (all or nothing: the pose reaches the ground only at full weight)
-      const hard = THREE.MathUtils.smoothstep(motion.landSpeed || 0, 9, 10.5);
+      // The rig's own threshold and hold (it brakes the skid and locks the stick for
+      // exactly that long: held longer, the figure slid a metre on one knee), and the pose
+      // lets go as soon as the figure really moves.
+      const hard = (motion.landSpeed || 0) > (rig.hardSpeed ?? 9) ? 1 : 0, hold = rig.hardHold ?? 0.45;
       // (a jump or take-off straight out of it lets go of the kneel at once)
       this.kneel = motion.airborne || !onFoot ? this.kneel * Math.exp(-dt * 10)
-        : since >= 0 && since < 2.2 ? hard * (since < 0.6 ? 1 : Math.exp(-(since - 0.6) * 3.5)) : 0;
+        : since >= 0 && since < 2.2 ? hard * (since < hold ? 1 : Math.exp(-(since - hold) * 6)) * (1 - THREE.MathUtils.smoothstep(hspeed, 0.5, 2.0)) : 0;
       crouch *= 1 - hard;
       // Up still held after a jump: the launch into flight, fist up, legs together.
       this.launch += ((motion.airborne ? THREE.MathUtils.smoothstep(motion.upHeld || 0, 0.06, 0.3) : 0) - this.launch) * (1 - Math.exp(-dt * 12));
@@ -305,7 +314,8 @@ export class Hero {
       this.lag.multiplyScalar(kd); this.turnLead.multiplyScalar(kd);
       this._pitch0 = rig.pitch ?? 0;
       const o = this._x.copy(this.lag).addScaledVector(rig.right, this.turnLead.x).addScaledVector(rig.up, this.turnLead.y);
-      if (onFoot) o.addScaledVector(up, -o.dot(up));        // (on foot the soles stay on the ground)
+      // (on foot the soles never go under the ground; an offset upward fades with the rest)
+      if (onFoot) { const vu = o.dot(up); o.addScaledVector(up, -(vu > 0 ? vu * this.foot : vu)); }
       p.add(o);
     } else {
       // A chase camera: turning the view swings the camera round the figure, so the figure

@@ -70,7 +70,7 @@ export function aimDirection(cam, t, R, out) {
   // never through the world: if the segment dips under 1.02 R, at least the angle that grazes it
   // (unless the target is the world itself: a body that has become home on the way)
   const along = -(cam[0] * dx + cam[1] * dy + cam[2] * dz);
-  if (along > 0 && along < dl && hyp(...t.pos) > R) {
+  if (along > 0 && along < dl && (t.kind === 'place' || hyp(...t.pos) > R)) {     // (a place may lie below the datum: R is not its test)
     const m = hyp(cam[0] + dx * along, cam[1] + dy * along, cam[2] + dz * along);
     if (m < 1.02 * R) need = Math.max(need, (cl > 1.02 * R ? -Math.acos(1.02 * R / cl) : 0) + 3 * Math.PI / 180);
   }
@@ -103,7 +103,8 @@ export function transferMult(clear, nearR) {
 // How long a GO trip from `cam` takes (seconds): the same path flown quickly as a point at
 // the speed rule's limit, in steps of 3 % of the distance to the nearest surface (the world
 // underfoot, or the target body). LAG covers what the point leaves out: the speed easing up
-// to its limit and the turn at the start, about a second and a half (measured with
+// to its limit, the turn at the start and the speed easing down on the way in: two seconds
+// to a place, three and a half to a body (measured with
 // scripts/transfer.mjs: within a few seconds of the trips it flies, longer for short hops).
 // ground: the ground's height above the datum under the camera (metres); the speed rule
 // counts height above the ground, which near a place is the place's own ground height.
@@ -113,7 +114,7 @@ export function tripTime(cam, t, R, ground = 0, out = [0, 0, 0]) {
   for (let n = 0; n < 4000; n++) {
     p[0] = x; p[1] = y; p[2] = z;
     const gap = gapTo(p, t);
-    if (gap < stop) return time + 1.5;
+    if (gap < stop) return time + (t.kind === 'body' ? 3.4 : 2.0);        // LAG
     const s = Math.min(1, Math.max(0, 1 - gap / gap0));
     const height = Math.max(0, hyp(x, y, z) - R - (ground + (gEnd - ground) * s));
     const near = Math.max(1.5, t.kind === 'body' ? Math.min(height, gap) : height);
