@@ -5,6 +5,44 @@ import { toHalf } from './halfFloat.js';
 
 export function vertexCount(G) { return (G + 1) * (G + 1) + 4 * (G + 1); }
 
+// The vertices of a chunk are kept in one layer of a texture, G + 1 texels wide: vertex v
+// is texel (v mod width, v div width). The grid's rows come first, then the four skirts.
+export function vertexLayer(G) { return [G + 1, G + 5]; }
+
+// Sizes of the mip chain of a square texture T texels wide (halved and rounded down).
+export function mipSizes(T) { const s = [T]; while (T > 1) { T >>= 1; s.push(T); } return s; }
+
+// The next mip level of an n x n image with 4 channels, m = floor(n / 2) texels wide: every
+// texel is the mean of the part of the image it covers (for an odd n that is a little more
+// than two texels each way, so the weights come from the overlap).
+function halve(src, n, dst, m, tmp) {
+  const s = n / m;
+  for (let j = 0; j < m; j++) {                       // rows first: n columns x m rows into tmp
+    const y0 = j * s, y1 = y0 + s, a = Math.floor(y0), b = Math.min(n - 1, Math.ceil(y1) - 1);
+    for (let i = 0; i < n; i++) {
+      let r = 0, g = 0, bl = 0, al = 0;
+      for (let y = a; y <= b; y++) {
+        const w = Math.min(y + 1, y1) - Math.max(y, y0), o = (y * n + i) * 4;
+        r += src[o] * w; g += src[o + 1] * w; bl += src[o + 2] * w; al += src[o + 3] * w;
+      }
+      const t = (j * n + i) * 4;
+      tmp[t] = r / s; tmp[t + 1] = g / s; tmp[t + 2] = bl / s; tmp[t + 3] = al / s;
+    }
+  }
+  for (let i = 0; i < m; i++) {
+    const x0 = i * s, x1 = x0 + s, a = Math.floor(x0), b = Math.min(n - 1, Math.ceil(x1) - 1);
+    for (let j = 0; j < m; j++) {
+      let r = 0, g = 0, bl = 0, al = 0;
+      for (let x = a; x <= b; x++) {
+        const w = Math.min(x + 1, x1) - Math.max(x, x0), o = (j * n + x) * 4;
+        r += tmp[o] * w; g += tmp[o + 1] * w; bl += tmp[o + 2] * w; al += tmp[o + 3] * w;
+      }
+      const t = (j * m + i) * 4;
+      dst[t] = r / s; dst[t + 1] = g / s; dst[t + 2] = bl / s; dst[t + 3] = al / s;
+    }
+  }
+}
+
 // Shared index buffer: grid quads split along (i,j)-(i+1,j+1), then four skirt strips.
 export function buildIndices(G) {
   const V = G + 1, idx = [];
@@ -46,6 +84,11 @@ export class ChunkBuilder {
     this.hp = new Float64Array((this.G + 1) * (this.G + 1));
     this.hv = new Float64Array((this.G + 1) * (this.G + 1));
     this.dir = [0, 0, 0];
+    // the normal map and its mip chain, as floats (scratch), and where each level starts
+    this.mips = mipSizes(this.NR + 1);
+    this.nf = this.mips.map((n) => new Float32Array(n * n * 4));
+    this.nTexels = this.mips.reduce((a, n) => a + n * n, 0);
+    this.tmp = new Float32Array(this.mips[0] * this.mips[0] * 4);
   }
 
   // sun: [x,y,z] unit direction (planet-fixed) and sunHalf: its angular radius, for the baked shadow map.
@@ -107,14 +150,16 @@ export class ChunkBuilder {
     const cr = R + hv[cv];
     const cx = D[cs * 3] * cr, cy = D[cs * 3 + 1] * cr, cz = D[cs * 3 + 2] * cr;
 
+    // Vertices: xyz relative to the chunk's centre and the height above datum (verts), and
+    // the height change toward the parent LOD (morph). One texture layer each (vertexLayer).
     const nv = vertexCount(G);
-    const positions = new Float32Array(nv * 3), attrs = new Float32Array(nv * 2);
+    const verts = new Float32Array(nv * 4), morph = new Float32Array(nv);
     let radius2 = 0;
     for (let j = 0; j < V; j++) for (let i = 0; i < V; i++) {
       const s = (1 + j * step) * M + 1 + i * step, v = j * V + i, r = R + hv[v];
       const x = D[s * 3] * r - cx, y = D[s * 3 + 1] * r - cy, z = D[s * 3 + 2] * r - cz;
-      positions[v * 3] = x; positions[v * 3 + 1] = y; positions[v * 3 + 2] = z;
-      attrs[v * 2] = hv[v]; attrs[v * 2 + 1] = level > 0 ? hp[v] - hv[v] : 0;
+      verts[v * 4] = x; verts[v * 4 + 1] = y; verts[v * 4 + 2] = z;
+      verts[v * 4 + 3] = hv[v]; morph[v] = level > 0 ? hp[v] - hv[v] : 0;
       const d2 = x * x + y * y + z * z; if (d2 > radius2) radius2 = d2;
     }
     // Skirts hang below the four edges to hide LOD seams.
@@ -123,17 +168,18 @@ export class ChunkBuilder {
     for (let e = 0; e < 4; e++) for (let k = 0; k < V; k++, o++) {
       const i = e === 0 || e === 1 ? k : e === 2 ? 0 : G, j = e === 0 ? 0 : e === 1 ? G : k;
       const s = (1 + j * step) * M + 1 + i * step, v = j * V + i;
-      positions[o * 3] = positions[v * 3] - D[s * 3] * skirt;
-      positions[o * 3 + 1] = positions[v * 3 + 1] - D[s * 3 + 1] * skirt;
-      positions[o * 3 + 2] = positions[v * 3 + 2] - D[s * 3 + 2] * skirt;
-      attrs[o * 2] = attrs[v * 2]; attrs[o * 2 + 1] = attrs[v * 2 + 1];
+      verts[o * 4] = verts[v * 4] - D[s * 3] * skirt;
+      verts[o * 4 + 1] = verts[v * 4 + 1] - D[s * 3 + 1] * skirt;
+      verts[o * 4 + 2] = verts[v * 4 + 2] - D[s * 3 + 2] * skirt;
+      verts[o * 4 + 3] = verts[v * 4 + 3]; morph[o] = morph[v];
     }
 
     const texel = edge / NR;
 
-    // World-space normal map (RGBA16F): xyz normal, a = cavity occlusion.
-    const T = NR + 1;
-    const normals = new Uint16Array(T * T * 4);
+    // World-space normal map (RGBA16F): xyz normal, a = cavity occlusion. Its mip maps are
+    // made here too and follow it in the same array, level after level: asking the GPU to
+    // build them costs a render job per patch (and it cannot do one layer of a texture array).
+    const T = NR + 1, nf = this.nf[0];
     for (let j = 0; j < T; j++) for (let i = 0; i < T; i++) {
       const s = (j + 1) * M + i + 1;
       const l = (s - 1) * 3, r = (s + 1) * 3, d = (s - M) * 3, u = (s + M) * 3;
@@ -147,10 +193,17 @@ export class ChunkBuilder {
       const cav = ((H[s - 1] + H[s + 1] + H[s - M] + H[s + M]) * 0.25 - H[s]) / texel;
       const ao = 1 / (1 + Math.max(0, cav) * 5.0);
       const t = (j * T + i) * 4;
-      normals[t] = toHalf(nx); normals[t + 1] = toHalf(ny); normals[t + 2] = toHalf(nz); normals[t + 3] = toHalf(ao);
+      nf[t] = nx; nf[t + 1] = ny; nf[t + 2] = nz; nf[t + 3] = ao;
+    }
+    const normals = new Uint16Array(this.nTexels * 4);
+    for (let l = 0, at = 0; l < this.mips.length; l++) {
+      const n = this.mips[l], f = this.nf[l];
+      if (l > 0) halve(this.nf[l - 1], this.mips[l - 1], f, n, this.tmp);
+      for (let k = 0, e = n * n * 4; k < e; k++) normals[at + k] = toHalf(f[k]);
+      at += n * n * 4;
     }
 
     const shadow = this.shadowBaker.bakeChunk(face, level, ix, iy, sun, sunHalf, { H, D, M, NR, stride: NR / this.SR });
-    return { positions, attrs, normals, shadow, center: [cx, cy, cz], radius: Math.sqrt(radius2) + skirt * 0.5, minH, maxH };
+    return { verts, morph, normals, shadow, center: [cx, cy, cz], radius: Math.sqrt(radius2) + skirt * 0.5, minH, maxH };
   }
 }

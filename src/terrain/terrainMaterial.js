@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
+import { FACES } from './cubeSphere.js';
 
 // Holds an albedo map's brightness (relative to its mean) inside the range the real ground
 // spans, with soft knees: a mosaic also records the shading of steep slopes, haze and
@@ -23,40 +24,55 @@ vec3 albedoRange(vec3 t, vec2 r) {
   return x * (1.0 + (t / L - 1.0) * trust * trust);
 }`;
 
+// One instance per drawn chunk; its sixteen numbers (written in terrain.js):
+//   aI0 = xyz the chunk's centre relative to the camera, w the distance where it has fully become its parent
+//   aI1 = xyz the chunk's centre in planet axes, w the fade from the parent's look just after it first appeared (1 -> 0)
+//   aI2 = xy detail-texture offset in tiles, z the chunk's extent in tiles, w its layer in the texture arrays
+//   aI3 = x the parent's layer (-1: none loaded), y and z this chunk's corner inside the parent (0 or 0.5), w the cube face
 const VERT = /* glsl */`
 in vec2 aGrid;
-in vec2 aHM;                 // x = height above datum, y = morph delta toward the parent LOD
-uniform vec3 uChunkPlanetPos;
-uniform vec3 uMorph;         // x = distance where this chunk has fully become its parent, y = start fraction,
-                             // z = fade from the parent's look just after this chunk first appeared (1 -> 0)
-uniform vec4 uDetail;        // xy = offset in tiles, zw = chunk extent in tiles
-out vec2 vUv;
+in vec4 aI0, aI1, aI2, aI3;
+uniform highp sampler2DArray tVert;     // xyz = vertex relative to the chunk's centre, w = height above datum
+uniform highp sampler2DArray tMorph;    // height change toward the parent LOD
 out vec2 vGrid;
 out float vMorph;            // 0 = this chunk's own shape and shading, 1 = its parent's
 out vec2 vDetailUv;
 out float vHeight;
 out vec3 vRel;
+flat out vec3 vTanU;         // the cube face's two axes laid on the ground at the chunk's centre
+flat out vec3 vTanV;
+flat out vec4 vChunk;        // x = layer, y = parent's layer (-1: none), z = extent in detail tiles
+flat out vec2 vParentOff;
+const vec3 FACE_U[6] = vec3[6](${FACES.map((f) => `vec3(${f.u.map((x) => x.toFixed(1)).join(', ')})`).join(', ')});
+const vec3 FACE_V[6] = vec3[6](${FACES.map((f) => `vec3(${f.v.map((x) => x.toFixed(1)).join(', ')})`).join(', ')});
 void main() {
-  vec3 rel = (modelMatrix * vec4(position, 1.0)).xyz;      // camera-relative, planet axes
-  float k = max(clamp((length(rel) / uMorph.x - uMorph.y) / (0.96 - uMorph.y), 0.0, 1.0), uMorph.z);
+  ivec3 tc = ivec3(gl_VertexID % VERT_W, gl_VertexID / VERT_W, int(aI2.w + 0.5));
+  vec4 pv = texelFetch(tVert, tc, 0);
+  float dm = texelFetch(tMorph, tc, 0).r;
+  vec3 rel = aI0.xyz + pv.xyz;                              // camera-relative, planet axes
+  float k = max(clamp((length(rel) / aI0.w - float(MORPH_START)) / (0.96 - float(MORPH_START)), 0.0, 1.0), aI1.w);
   vMorph = k;
-  vec3 up = normalize(uChunkPlanetPos + position);
-  rel += up * (aHM.y * k);
-  vHeight = aHM.x + aHM.y * k;
+  vec3 up = normalize(aI1.xyz + pv.xyz);
+  rel += up * (dm * k);
+  vHeight = pv.w + dm * k;
   vGrid = aGrid;
-  vUv = (aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1);
-  vDetailUv = uDetail.xy + aGrid * uDetail.zw;
+  vDetailUv = aI2.xy + aGrid * aI2.z;
   vRel = rel;
+  vec3 n = normalize(aI1.xyz);
+  int face = int(aI3.w + 0.5);
+  vTanU = normalize(FACE_U[face] - n * dot(FACE_U[face], n));
+  vTanV = normalize(FACE_V[face] - n * dot(FACE_V[face], n));
+  vChunk = vec4(aI2.w, aI3.x, aI2.z, 0.0);
+  vParentOff = aI3.yz;
   gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
 }`;
 
 const FRAG = /* glsl */`
 ${LIGHTING_PARS}
-uniform sampler2D tNormal;     // xyz world normal, a = cavity occlusion
-uniform sampler2D tShadow;     // baked sun visibility
-uniform sampler2D tParentNormal;   // the same two maps of the parent chunk: shading morphs
-uniform sampler2D tParentShadow;   // toward them exactly as the vertices morph toward its shape
-uniform vec3 uParent;          // xy = this chunk's corner inside the parent (0 or 0.5), z = parent maps bound
+uniform highp sampler2DArray tNormal;   // one layer per chunk: xyz world normal, a = cavity occlusion
+uniform lowp sampler2DArray tShadow;    // one layer per chunk: baked sun visibility
+// (the parent chunk's layers of the same two arrays: shading morphs toward them exactly as
+// the vertices morph toward the parent's shape)
 uniform sampler2D tStrata;
 uniform sampler2D tDetail;
 uniform vec3 uDust, uSand, uScree, uRock, uBedrock;
@@ -73,7 +89,6 @@ uniform vec4 uRipple;          // xy = ripple wave vector (whole cycles per deta
 uniform float uRoughness;
 uniform float uFarRoughness;  // the same for ground whose chunk texels are kilometres (seen from orbit)
 uniform float uDetailStrength;
-uniform vec3 uTanU, uTanV;
 uniform sampler2D tAlbedo;     // global map of the world's real brightness or colour (longitude 0..360 E from the left edge, north in the first row)
 uniform vec4 uAlbedoMap;       // rgb = 1 / the map's mean, w = how strongly it tints the palette (0 = no map)
 uniform float uAlbedoChroma;   // how much of the map's colour (not just its brightness) is used, 0..1
@@ -89,7 +104,6 @@ uniform vec2 uReliefFade;      // sines of the latitudes between which it fades 
 #define DEM_N 8
 uniform vec4 uDemBox[DEM_N];
 uniform vec4 uDemInfo[DEM_N];
-uniform vec4 uDetail;          // (per chunk) xy = offset in tiles, zw = chunk extent in tiles of DETAIL_TILE metres
 
 // log2 of the metres per pixel of the elevation data at a longitude and latitude (degrees):
 // the last raster in the list that covers the place, blended across its feather with the
@@ -117,12 +131,15 @@ vec2 reliefSlope(vec2 uv, float lod) {
   float n = textureLod(tRelief, vec2(uv.x, 0.5 + uv.y * 0.5), lod).r * 2.0 - 1.0;
   return vec2(e * abs(e), n * abs(n));
 }
-in vec2 vUv;
 in vec2 vGrid;
 in vec2 vDetailUv;
 in float vHeight;
 in vec3 vRel;
 in float vMorph;
+flat in vec3 vTanU;
+flat in vec3 vTanV;
+flat in vec4 vChunk;           // x = layer, y = parent's layer (-1: none), z = extent in tiles of DETAIL_TILE metres
+flat in vec2 vParentOff;       // this chunk's corner inside the parent (0 or 0.5)
 layout(location = 0) out vec4 fragColor;
 
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
@@ -137,16 +154,17 @@ float coverLevel(float c) {
 ${ALBEDO_RANGE_GLSL}
 
 void main() {
-  vec4 nt = texture(tNormal, vUv);
-  float shadow = texture(tShadow, (vGrid * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1)).r;
-  float pk = vMorph * uParent.z;
+  vec3 uTanU = vTanU, uTanV = vTanV;
+  vec4 nt = texture(tNormal, vec3((vGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), vChunk.x));
+  float shadow = texture(tShadow, vec3((vGrid * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1), vChunk.x)).r;
+  float pk = vMorph * step(0.0, vChunk.y);
   if (pk > 0.004) {
     // Near the distance where this chunk hands over to its parent (and for a moment
     // after it first appears) normals, cavities and baked shadows blend into the
     // parent's, so detail arrives and leaves without a pop.
-    vec2 pg = uParent.xy + vGrid * 0.5;
-    nt = mix(nt, texture(tParentNormal, (pg * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1)), pk);
-    shadow = mix(shadow, texture(tParentShadow, (pg * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1)).r, pk);
+    vec2 pg = vParentOff + vGrid * 0.5;
+    nt = mix(nt, texture(tNormal, vec3((pg * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), vChunk.y)), pk);
+    shadow = mix(shadow, texture(tShadow, vec3((pg * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1), vChunk.y)).r, pk);
   }
   vec3 N = normalize(nt.xyz);
   float ao = nt.a;
@@ -206,7 +224,7 @@ void main() {
   vec2 gx = vec2((up.x * upX.y - up.y * upX.x) * kA, dFdx(uvA.y));
   vec2 gy = vec2((up.x * upY.y - up.y * upY.x) * kA, dFdy(uvA.y));
   // metres per texel of this chunk's normal map: how far away (in detail) this ground is
-  float chunkTexel = uDetail.z * float(DETAIL_TILE) / float(NORMAL_RES);
+  float chunkTexel = vChunk.z * float(DETAIL_TILE) / float(NORMAL_RES);
   float farW = smoothstep(200.0, 2000.0, chunkTexel);
 
   // --- the world's real large-scale brightness and colour: maria, rays, dark sands
@@ -377,17 +395,16 @@ export function setTerrainSurface(shared, world) {
 
 export const DETAIL_TILE = 64;   // metres covered by one repeat of the detail texture at the coarsest scale
 
-export function makeTerrainMaterial(shared, normalTex, shadowTex) {
+// The one material of the ground. pool: the ChunkPool, for its texture arrays.
+export function makeTerrainMaterial(shared, pool) {
   return new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
-    defines: { ...atmosphereDefines(), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, DETAIL_TILE },
+    defines: { ...atmosphereDefines(), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, DETAIL_TILE, VERT_W: pool.VW, MORPH_START: CONFIG.MORPH_START },
     vertexShader: VERT, fragmentShader: FRAG,
     uniforms: {
       ...shared,
-      tNormal: { value: normalTex }, tShadow: { value: shadowTex },
-      tParentNormal: { value: normalTex }, tParentShadow: { value: shadowTex }, uParent: { value: new THREE.Vector3() },
-      uChunkPlanetPos: { value: new THREE.Vector3() }, uMorph: { value: new THREE.Vector3(1e12, CONFIG.MORPH_START, 0) },
-      uDetail: { value: new THREE.Vector4() }, uTanU: { value: new THREE.Vector3() }, uTanV: { value: new THREE.Vector3() },
+      tNormal: { value: pool.normalTex }, tShadow: { value: pool.shadowTex },
+      tVert: { value: pool.vertTex }, tMorph: { value: pool.morphTex },
     },
   });
 }

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { Node } from './quadtree.js';
-import { ChunkPool } from './chunkPool.js';
+import { ChunkPool, INSTANCE_FLOATS } from './chunkPool.js';
 import { WorkerPool } from './workerPool.js';
 import { makeTerrainMaterial, makeTerrainShared, setTerrainSurface, setDemList, DETAIL_TILE } from './terrainMaterial.js';
 import { makeDetailTexture, makeStrataTexture } from './surfaceTextures.js';
@@ -22,8 +22,8 @@ export class Terrain {
     white.needsUpdate = true;
     this.textures = { detail: makeDetailTexture(256), strata: makeStrataTexture(world.surface.strata), white, albedo: null, relief: null };
     this.shared = makeTerrainShared(world, this.textures);
-    this.pool = new ChunkPool((n, s) => makeTerrainMaterial(this.shared, n, s), renderer.capabilities.getMaxAnisotropy());
-    this.group = this.pool.group;
+    this.pool = new ChunkPool(renderer, (pool) => makeTerrainMaterial(this.shared, pool));
+    this.group = this.pool.mesh;
     const count = Math.max(1, Math.min(CONFIG.WORKERS, (navigator.hardwareConcurrency || 2) - 1));
     this.epoch = 0;                    // bumped on every world switch; stale worker replies are dropped
     this.workers = new WorkerPool(count, this._initMessage(world, rasters));
@@ -31,6 +31,7 @@ export class Terrain {
     this.frame = 0;
     this.drawList = []; this.wanted = [];
     this.ready = [];                               // built chunks waiting for their turn to be uploaded
+    this.readyShadows = [];                        // re-baked shadows waiting for the next frame
     this.lodScale = 1;
     this.maxChunks = CONFIG.MAX_RENDER_CHUNKS;     // lowered by the governor's terrain steps
     this.uploads = 0;                              // chunks uploaded since the app last read it
@@ -68,9 +69,10 @@ export class Terrain {
     this.loadReliefMap(world);
     const pool = this.pool;
     pool.free.length = 0;
-    for (let i = 0; i < pool.slots.length; i++) { pool.slots[i].node = null; pool.slots[i].mesh.visible = false; pool.free.push(i); }
+    for (let i = 0; i < pool.slots.length; i++) { pool.slots[i].node = null; pool.free.push(i); }
+    pool.setCount(0);
     this.roots = FACES.map((_, f) => new Node(f, 0, 0, 0, null, hs, this.relief));
-    this.drawList.length = 0; this.wanted.length = 0; this.ready.length = 0;
+    this.drawList.length = 0; this.wanted.length = 0; this.ready.length = 0; this.readyShadows.length = 0;
     this.lodScale = 1; this.idleFrames = 0;
     this.workers.reinit(this._initMessage(world, rasters));
   }
@@ -160,12 +162,12 @@ export class Terrain {
       if (node.slot >= 0) live = node; else break;
     }
     if (!live) return null;
-    const s = this.pool.slots[live.slot], hm = s.geometry.attributes.aHM.array, G = CONFIG.GRID, V = G + 1;
+    const s = this.pool.slots[live.slot], hv = s.verts, hd = s.morph, G = CONFIG.GRID, V = G + 1;
     const x = Math.min(G - 1e-6, Math.max(0, (uv[0] - live.a0) / live.size * G)), y = Math.min(G - 1e-6, Math.max(0, (uv[1] - live.b0) / live.size * G));
     const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j;
-    const m = s.material.uniforms.uMorph.value;
-    const k = Math.max(Math.min(1, Math.max(0, (camDist / m.x - m.y) / (0.96 - m.y))), m.z);
-    const at = (ii, jj) => { const o = (jj * V + ii) * 2; return hm[o] + hm[o + 1] * k; };
+    const m0 = CONFIG.MORPH_START;
+    const k = Math.max(Math.min(1, Math.max(0, (camDist / s.morphX - m0) / (0.96 - m0))), s.fade);
+    const at = (ii, jj) => { const o = jj * V + ii; return hv[o * 4 + 3] + hd[o] * k; };
     const a = at(i, j), b = at(i + 1, j), c = at(i, j + 1), dd = at(i + 1, j + 1);
     // the two triangles of a cell split along its (i, j)-(i+1, j+1) diagonal (buildIndices)
     return fx >= fy ? a + (b - a) * fx + (dd - b) * fy : a + (c - a) * fy + (dd - c) * fx;
@@ -185,6 +187,12 @@ export class Terrain {
     // when frames take a second each in a software renderer).
     // `pace` (the governor, when frames are late only while terrain arrives): 1 = one a
     // frame whatever the queue, 2 = one every other frame.
+    // (All uploads happen here, at the start of a frame's work and before any of its
+    // drawing: never in the middle of a render pass. See chunkPool.js.)
+    if (this.readyShadows.length) {
+      for (const r of this.readyShadows) if (r.node.slot >= 0 && !r.node.dead) { this.pool.uploadShadow(r.node.slot, r.shadow); r.node.shadowSun = r.sun; this.rebakes = (this.rebakes || 0) + 1; }
+      this.readyShadows.length = 0;
+    }
     if (this.ready.length && !(this.pace === 2 && this.frame % 2)) {
       const budget = this.pace ? 1 : Math.max(1, Math.min(8, Math.round((this.now - before) / 16.7))) + (this.ready.length > 6 ? 1 : 0);
       for (let k = 0; k < budget && this.ready.length; k++) { const r = this.ready.shift(); this._upload(r.node, r.res); }
@@ -223,26 +231,27 @@ export class Terrain {
     else if (list.length < this.maxChunks * 0.84 && this.lodScale < 1 && this.wanted.length === 0) this.lodScale = Math.min(1, this.lodScale * 1.01);
     if (list.length > this.maxChunks) list.length = this.maxChunks;
 
-    const slots = this.pool.slots;
-    for (let i = 0; i < slots.length; i++) slots[i].mesh.visible = false;
+    // One instance per drawn chunk, nearest first (the vertex shader's notes in
+    // terrainMaterial.js say what the sixteen numbers are).
+    const slots = this.pool.slots, I = this.pool.instances;
     let far = 1000, fading = 0;
-    for (let i = 0; i < list.length; i++) {
-      const n = list[i], s = slots[n.slot];
-      s.mesh.visible = true;
-      s.mesh.position.subVectors(n.center, cam);
-      s.mesh.renderOrder = i;
-      const u = s.material.uniforms, par = n.parent, ps = par && par.slot >= 0 ? slots[par.slot] : null;
-      u.uMorph.value.x = par ? this.splitIn * par.edge : 1e15;
-      // Shading morphs toward the parent's maps (they stay loaded while its children are).
-      u.tParentNormal.value = ps ? ps.normalTex : s.normalTex; u.tParentShadow.value = ps ? ps.shadowTex : s.shadowTex;
-      u.uParent.value.set(n.ix & 1 ? 0.5 : 0, n.iy & 1 ? 0.5 : 0, ps ? 1 : 0);
+    for (let i = 0, o = 0; i < list.length; i++, o += INSTANCE_FLOATS) {
+      const n = list[i], s = slots[n.slot], par = n.parent, hasPar = !!par && par.slot >= 0;
+      const x = n.center.x - cam.x, y = n.center.y - cam.y, z = n.center.z - cam.z;
+      s.morphX = par ? this.splitIn * par.edge : 1e15;
       // A chunk that has just taken over from its parent starts out looking exactly like
-      // it and settles into its own detail over FADE_MS.
+      // it and settles into its own detail over FADE_MS. (Shading morphs toward the
+      // parent's maps: they stay loaded while its children are.)
       let fade = 0;
-      if (par && ps) { const t = (this.now - par.liveAt) / FADE_MS; if (t < 1) { fade = 1 - t * t * (3 - 2 * t); fading++; } }
-      u.uMorph.value.z = fade;
-      far = Math.max(far, s.mesh.position.length() + n.radius);
+      if (hasPar) { const t = (this.now - par.liveAt) / FADE_MS; if (t < 1) { fade = 1 - t * t * (3 - 2 * t); fading++; } }
+      s.fade = fade;
+      I[o] = x; I[o + 1] = y; I[o + 2] = z; I[o + 3] = s.morphX;
+      I[o + 4] = n.center.x; I[o + 5] = n.center.y; I[o + 6] = n.center.z; I[o + 7] = fade;
+      I[o + 8] = s.detail[0]; I[o + 9] = s.detail[1]; I[o + 10] = s.detail[2]; I[o + 11] = n.slot;
+      I[o + 12] = hasPar ? par.slot : -1; I[o + 13] = n.ix & 1 ? 0.5 : 0; I[o + 14] = n.iy & 1 ? 0.5 : 0; I[o + 15] = n.face;
+      far = Math.max(far, Math.sqrt(x * x + y * y + z * z) + n.radius);
     }
+    this.pool.setCount(list.length);
     this.fading = fading;
     this.farDistance = far;
 
@@ -250,7 +259,7 @@ export class Terrain {
     this._dispatch();
     this._rebakeShadows();
     // Idle = nothing left to build, or nothing more can be built (pool exhausted).
-    this.idleFrames = (this.workers.busy === 0 && this.ready.length === 0 && this.staleShadows === 0 && this.fading === 0 && (this.wanted.length === 0 || this.stalled)) ? this.idleFrames + 1 : 0;
+    this.idleFrames = (this.workers.busy === 0 && this.ready.length === 0 && this.staleShadows === 0 && this.readyShadows.length === 0 && this.fading === 0 && (this.wanted.length === 0 || this.stalled)) ? this.idleFrames + 1 : 0;
     if (this.frame % 240 === 0) for (const root of this.roots) this._prune(root);
   }
 
@@ -328,7 +337,7 @@ export class Terrain {
       node.shadowBusy = true;
       const want = sun, epoch = this.epoch;
       this.workers.run({ type: 'shadow', face: node.face, level: node.level, ix: node.ix, iy: node.iy, sun: want, sunHalf: this._sunHalf })
-        .then((res) => { node.shadowBusy = false; if (epoch === this.epoch && node.slot >= 0 && !node.dead) { this.pool.uploadShadow(node.slot, res.shadow); node.shadowSun = want; this.uploads++; this.rebakes = (this.rebakes || 0) + 1; } })
+        .then((res) => { node.shadowBusy = false; if (epoch === this.epoch && node.slot >= 0 && !node.dead) this.readyShadows.push({ node, shadow: res.shadow, sun: want }); })
         .catch((e) => { node.shadowBusy = false; console.error(e); });
     }
   }
@@ -345,7 +354,7 @@ export class Terrain {
     }
     if (best < 0) return -1;
     const s = pool.slots[best];
-    s.node.slot = -1; s.node = null; s.mesh.visible = false;
+    s.node.slot = -1; s.node = null;
     return best;
   }
 
@@ -362,16 +371,11 @@ export class Terrain {
     s.node = node; node.slot = si;
     node.center.set(res.center[0], res.center[1], res.center[2]);
     node.radius = res.radius; node.minH = res.minH; node.maxH = res.maxH;
-    const u = s.material.uniforms, f = FACES[node.face];
-    u.uChunkPlanetPos.value.copy(node.center);
     // Detail-texture coordinates: computed in doubles so they stay exact at planet scale.
     const K = (Math.PI * this.radius / 4) / DETAIL_TILE;
     const frac = (x) => ((x % 1) + 1) % 1;
-    u.uDetail.value.set(frac(node.a0 * K), frac(node.b0 * K), node.size * K, node.size * K);
-    const n = _rel.copy(node.center).normalize();
-    const tu = new THREE.Vector3(...f.u), tv = new THREE.Vector3(...f.v);
-    u.uTanU.value.copy(tu.addScaledVector(n, -tu.dot(n)).normalize());
-    u.uTanV.value.copy(tv.addScaledVector(n, -tv.dot(n)).normalize());
+    s.detail[0] = frac(node.a0 * K); s.detail[1] = frac(node.b0 * K); s.detail[2] = node.size * K;
+    s.morphX = 1e15; s.fade = 0;
     this.buildMs += res.ms; this.built++;
   }
 

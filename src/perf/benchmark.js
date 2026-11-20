@@ -28,7 +28,7 @@ export class Benchmark {
     this.phase = -1; this.lap = -1; this.busy = false; this.flight = 'climb';
     const cap = Math.ceil(this.duration * 125);
     this.dt = new Float32Array(cap); this.px = new Float32Array(cap); this.at = new Float32Array(cap); this.part = new Uint8Array(cap);
-    this.sc = new Float32Array(cap); this.ph = new Uint8Array(cap);        // the page's own work per frame (ms); which stop of the route (0-4, 5 = flight, 6-10)
+    this.sc = new Float32Array(cap); this.ph = new Uint8Array(cap); this.up = new Uint8Array(cap);        // the page's own work per frame (ms); which stop of the route (0-4, 5 = flight, 6-10)
     this.rebakesFrom = app.terrain.rebakes || 0;
     this.n = 0;
     this.hitches = [];
@@ -79,7 +79,7 @@ export class Benchmark {
     if (this.n < this.dt.length && t > 0.5) {
       this.dt[this.n] = dtMs; this.px[this.n] = app.post.viewW * app.post.viewH; this.at[this.n] = t;
       this.part[this.n] = this.phase < 0 ? 0 : this.phase < 5 ? 0 : this.phase === 5 ? 1 : 2;
-      this.sc[this.n] = app.scriptMs || 0; this.ph[this.n] = Math.max(0, this.phase);
+      this.sc[this.n] = app.scriptMs || 0; this.ph[this.n] = Math.max(0, this.phase); this.up[this.n] = Math.min(255, app.lastUploads || 0);
       this.n++;
       if (dtMs > 100) this.hitches.push({ t: +t.toFixed(1), ms: Math.round(dtMs), cause });
       this.maxCalls = Math.max(this.maxCalls, app.stats.calls || 0); this.maxTris = Math.max(this.maxTris, app.stats.triangles || 0);
@@ -183,6 +183,16 @@ export class Benchmark {
       const name = k < 5 ? `${WORLDS[FIRST].name} ${this.names[FIRST][k]}` : k === 5 ? 'flight' : `${WORLDS[SECOND].name} ${this.names[SECOND][k - 6]}`;
       const d = idx.map((i) => dts[i]);
       L.push(`  ${name}: ${fps(d).toFixed(1)} · ${(100 * d.filter((x) => x > target * 1.5).length / d.length).toFixed(1)} % · ${avg(idx.map((i) => sc[i])).toFixed(1)} ms · ${mp(avg(idx.map((i) => px[i])))}`);
+    }
+    // Frames that took in new terrain against the rest (is it the arriving ground that is
+    // late?), and how many screen refreshes the frames took.
+    {
+      let nu = 0, lu = 0, lo = 0;
+      for (let i = 0; i < n; i++) { const l = dts[i] > target * 1.5; if (this.up[i]) { nu++; if (l) lu++; } else if (l) lo++; }
+      L.push(`frames that took in new terrain: ${(100 * nu / Math.max(1, n)).toFixed(0)} % of all · late among them ${(100 * lu / Math.max(1, nu)).toFixed(1)} % · late among the rest ${(100 * lo / Math.max(1, n - nu)).toFixed(1)} %`);
+      const v = g.vsync || 16.7, want = Math.max(1, Math.round(target / v)), bins = [0, 0, 0, 0];
+      for (let i = 0; i < n; i++) bins[Math.min(3, Math.max(0, Math.round(dts[i] / v) - want))]++;
+      L.push(`frame lengths in screen refreshes (${v.toFixed(1)} ms each): ${bins.map((c, k) => `${want + k}${k === 3 ? '+' : ''}: ${(100 * c / Math.max(1, n)).toFixed(1)} %`).join(' · ')}`);
     }
     if (this.kind === 'soak') {
       L.push('minute by minute (fps, resolution):');

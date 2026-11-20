@@ -315,7 +315,19 @@ finished benchmark leaves its text in `window.__benchResult`.
 - Phones allow 16 textures per shader; the test browser allows 32 and 4096 uniform
   vectors. A shader over a phone's limit draws nothing there and works in every headless
   test (the whole ground vanished on the phone at 17). `scripts/lib/glLimits.mjs` checks
-  every program in `npm run smoke` and in screenshot runs; the terrain shader is at 15.
+  every program in `npm run smoke` and in screenshot runs; the terrain shader is at 13
+  (plus 2 read by its vertex shader).
+- three uploads a changed texture at the draw call that first uses it, in the middle of
+  the render pass, and with `generateMipmaps` has the GPU build the mips there. A phone's
+  tile-based GPU must write the half-drawn picture out and read it back for that: every
+  frame that took in a terrain patch came late (third phone benchmark). Upload between
+  frames (`renderer.initTexture`, or WebGL calls as in `chunkPool.js`) and make mip maps
+  off the GPU. Nothing headless shows this.
+- Find out whether a cost is per item or per frame before spreading it out: uploads paced
+  to one every other frame made every other frame late (49 % at two stops), where several
+  in one frame had cost one late frame.
+- An excuse for a late frame ("terrain was arriving") must run out: with ground arriving
+  all the time every frame was excused and the governor watched half of them come late.
 - The cloud machine has 4 cores and software WebGL: run **one headless browser at a
   time**. Parallel renders gave no extra throughput and made screenshots time out
   (180 s) and terrain detail drop. The full reference set takes 3–4 hours alone; the
