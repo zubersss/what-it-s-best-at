@@ -19,8 +19,9 @@ function run(label, { vsyncMs, mode, native, cost, work = () => 2, seconds, even
     const dt = lastRender < 0 ? vsyncMs : now - lastRender; lastRender = now;
     const w = work(now / 1000, g, app);
     let c = Math.max(cost(g.pixels, now / 1000, g, app), w);
-    const soft = uploadsEvery && (++n % uploadsEvery === 0);
-    if (soft) c += 9;                        // a terrain upload hitch
+    const softOnly = g._softSim && (++n % 3 !== 0);          // ground arriving, at no cost worth the name
+    const soft = softOnly || (uploadsEvery && (++n % uploadsEvery === 0));
+    if (soft && !softOnly) c += 9;           // a terrain upload hitch
     busyUntil = now + c;
     g.update(dt, prevSoft ? FRAME.SOFT : FRAME.NORMAL, lastWork); prevSoft = soft; lastWork = w + (soft ? 9 : 0);   // the upload's cost shows in the gap to the next frame
     // A frame is late against the target in force when it was drawn (the mode can change
@@ -63,5 +64,26 @@ run('Phone-like: 10 s of slow work per frame that nothing cures', { vsyncMs: 8.3
 {
   const g = run('Slow work in Smooth, then Sharp at 60 s', { vsyncMs: 8.333, mode: 'smooth', native: NATIVE, seconds: 70, cost: (p) => 3 + 2.0 * p / 1e6, work: (t) => (t > 40 && t < 58 ? 30 : 6), events: (t, gg) => { if (t > 60 && gg.mode !== 'sharp') gg.setMode('sharp'); } });
   if (g.loadLevel !== 0) { console.log('FAILED: Sharp did not get its patches back'); process.exitCode = 1; }
+}
+// The test phone on Mars (fourth results, build fa0c4c9): pixels are what is slow (60 fps
+// holds at about 1.9 MP), the page's own work is 5 ms, and ground arrives in most frames
+// for the first seconds at a new place. It took 9 s on terrain levers and 5 more coming
+// down. From native, a holding size must be reached within 4 s, on resolution alone.
+{
+  let at = null;
+  const g = run('Phone on Mars: pixels slow, ground arriving in 2 of 3 frames (must settle in 4 s)', { vsyncMs: 8.403, mode: 'smooth', native: NATIVE, seconds: 30, uploadsEvery: 0, cost: (p) => 3 + 6.6 * p / 1e6, work: () => 5.5,
+    events: (t, gg) => { if (t < 0.02 && gg.resLevel !== 0) { gg.resLevel = 0; gg._applyScale(); } if (at == null && gg.pixels < 2.0e6) at = t; gg._softSim = t < 8; } });
+  if (at == null || at > 4) { console.log(`FAILED: took ${at == null ? 'more than 30' : at.toFixed(1)} s to reach a size that holds`); process.exitCode = 1; }
+  if (g.loadLevel !== 0 || g.streamLevel !== 0) { console.log('FAILED: terrain levers pulled for slow pixels'); process.exitCode = 1; }
+}
+// A place seen before starts from what it held.
+{
+  const known = { 'smooth:mars': 7 };
+  const app = { renderer: { getContext: () => stubGl } }, g = new Governor(app, 'smooth');
+  g.remember(known, () => {}); g.place = 'mars'; g.setNative(NATIVE);
+  console.log(`\nA place seen before: starts at ${(g.pixels / 1e6).toFixed(2)} MP`);
+  if (g.resLevel !== 7) { console.log('FAILED: the remembered level was not taken'); process.exitCode = 1; }
+  g.arrive('moon');
+  if (g.resLevel !== 5) { console.log('FAILED: a new place in Smooth should start 5 steps down'); process.exitCode = 1; }
 }
 run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native: 1920 * 1080, seconds: 40, cost: (p) => 2 + 1.5 * p / 1e6 });

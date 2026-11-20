@@ -203,7 +203,7 @@ pictures), and the world's landmarks (`olympus`, `gale` on Mars; `tycho`, `tauru
 Moon) (fixed camera bookmark, deterministic screenshot mode, skips the start screen),
 `t=<hours offset>`, `hud=0|1`, `scale=<fixed render scale>`, `dpr=<ratio>` (pretend the
 screen has this device pixel ratio: sets the canvas's pixel size), `mode=smooth|sharp`,
-`bench=run|soak` (start a benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|fast|bank|climb|hover`
+`bench=run|soak|earth` (start a benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|fast|bank|climb|hover`
 (cruising, boosting, turning, straight up, hovering), `heropose=stand|walk|run|super|jump|land|launch`
 (with `hero=1`: on foot; `land` is the three-point kneel after a hard landing, `launch` the
 fist-up take-off), `posedir=side` (seen from the side; `front`: a moving on-foot pose coming toward the

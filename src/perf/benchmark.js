@@ -10,7 +10,8 @@ import { latLonToDir } from '../core/ephemeris.js';
 import { BUILD } from '../core/build.js';
 
 const LAP = 180, STOP = 12, FLIGHT = 60;
-const FIRST = 'mars', SECOND = 'moon';
+// The routes: the first world's five views, a flight, the second world's five views.
+const ROUTES = { run: ['mars', 'moon'], soak: ['mars', 'moon'], earth: ['earth', 'moon'] };
 
 export class Benchmark {
   constructor(app) {
@@ -21,11 +22,12 @@ export class Benchmark {
 
   start(kind) {
     const app = this.app;
-    this.kind = kind === 'soak' ? 'soak' : 'run';
+    this.kind = ROUTES[kind] ? kind : 'run';
+    [this.first, this.second] = ROUTES[this.kind];
     this.duration = this.kind === 'soak' ? 600 : LAP;
     this.active = true;
-    this.destination = SECOND;                 // (the flight hands over to this world only: App.space)
-    app.loadWorldData(WORLDS[SECOND]).catch(() => {});      // its download is not part of the flight
+    this.destination = this.second;                 // (the flight hands over to this world only: App.space)
+    app.loadWorldData(WORLDS[this.second]).catch(() => {});      // its download is not part of the flight
     this.t0 = performance.now();
     this.phase = -1; this.lap = -1; this.busy = false; this.flight = 'climb';
     const cap = Math.ceil(this.duration * 125);
@@ -38,10 +40,10 @@ export class Benchmark {
     this.stepsFrom = app.governor.log.length; this.hiddenFrom = app.hiddenCount;
     // terrain patches built and the time they took, per world (the counters only grow)
     this.lastBuilt = app.terrain.built; this.lastBuildMs = app.terrain.buildMs;
-    this.builds = { [FIRST]: [0, 0], [SECOND]: [0, 0] };
+    this.builds = { [this.first]: [0, 0], [this.second]: [0, 0] };
     this.maxGpuBytes = 0;
     // the first five bookmarks of each world: its main scene (the rest are landmarks, not benchmarked)
-    this.names = { [FIRST]: Object.keys(WORLDS[FIRST].scene.bookmarks).slice(0, 5), [SECOND]: Object.keys(WORLDS[SECOND].scene.bookmarks).slice(0, 5) };
+    this.names = { [this.first]: Object.keys(WORLDS[this.first].scene.bookmarks).slice(0, 5), [this.second]: Object.keys(WORLDS[this.second].scene.bookmarks).slice(0, 5) };
     app.setHero(true);
   }
 
@@ -51,8 +53,8 @@ export class Benchmark {
   get status() {
     const t = Math.min(this.duration, (performance.now() - this.t0) / 1000), mmss = (x) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}`;
     const p = this.phase;
-    const where = p < 0 ? '' : p < 5 ? `${WORLDS[FIRST].name} · ${this.names[FIRST][p]}` : p === 5 ? `flight to ${WORLDS[SECOND].name}` : `${WORLDS[SECOND].name} · ${this.names[SECOND][p - 6]}`;
-    return `${this.kind === 'soak' ? 'Soak test' : 'Benchmark'} ${mmss(t)} / ${mmss(this.duration)} · ${where}`;
+    const where = p < 0 ? '' : p < 5 ? `${WORLDS[this.first].name} · ${this.names[this.first][p]}` : p === 5 ? `flight to ${WORLDS[this.second].name}` : `${WORLDS[this.second].name} · ${this.names[this.second][p - 6]}`;
+    return `${this.kind === 'soak' ? 'Soak test' : this.kind === 'earth' ? 'Earth benchmark' : 'Benchmark'} ${mmss(t)} / ${mmss(this.duration)} · ${where}`;
   }
 
   key(code, down) {
@@ -99,9 +101,9 @@ export class Benchmark {
     if (phase !== this.phase || lap !== this.lap) {
       this.phase = phase; this.lap = lap;
       this.releaseAll();
-      if (phase < 5) this.goto(FIRST, this.names[FIRST][phase]);
-      else if (phase === 5) { this.flight = 'climb'; this.goto(FIRST, this.names[FIRST][0]); }
-      else this.goto(SECOND, this.names[SECOND][phase - 6]);
+      if (phase < 5) this.goto(this.first, this.names[this.first][phase]);
+      else if (phase === 5) { this.flight = 'climb'; this.goto(this.first, this.names[this.first][0]); }
+      else this.goto(this.second, this.names[this.second][phase - 6]);
       return;
     }
     if (this.busy) return;
@@ -113,13 +115,13 @@ export class Benchmark {
       return;
     }
     // --- the flight: climb to orbit, cross to the other world, come down toward its start site
-    const other = WORLDS[SECOND];
+    const other = WORLDS[this.second];
     this.key('KeyW', true);
     if (this.flight === 'climb') {
       rig.pitch += (72 - rig.pitch) * Math.min(1, dt * 2);
       if (rig.agl > 1.2e6 || u > 17) this.flight = 'cruise';
     } else if (this.flight === 'cruise') {
-      if (app.world.id === SECOND) { this.flight = 'descend'; return; }
+      if (app.world.id === this.second) { this.flight = 'descend'; return; }
       app.aimAt(other.body);
       this.key('ShiftLeft', true);
       if (u > 38 && !app.switching) {                      // safety net: never get lost in space
@@ -165,14 +167,14 @@ export class Benchmark {
     const steps = g.log.slice(this.stepsFrom);
     const down = steps.filter((s) => s.text.startsWith('resolution down')).length, up = steps.filter((s) => s.text.startsWith('resolution up')).length;
     const off = steps.filter((s) => s.text.startsWith('off:')).length, on = steps.filter((s) => s.text.startsWith('back on:')).length;
-    const builds = [FIRST, SECOND].map((id) => { const [k, ms] = this.builds[id]; return `${WORLDS[id].name} ${k}${k ? ` (${(ms / k).toFixed(0)} ms each)` : ''}`; }).join(', ');
+    const builds = [this.first, this.second].map((id) => { const [k, ms] = this.builds[id]; return `${WORLDS[id].name} ${k}${k ? ` (${(ms / k).toFixed(0)} ms each)` : ''}`; }).join(', ');
     const L = [];
-    L.push(`SOLAR SYSTEM EXPLORER — ${this.kind === 'soak' ? '10-minute soak' : '3-minute benchmark'}${stopped ? ' (stopped early)' : ''}`);
+    L.push(`SOLAR SYSTEM EXPLORER — ${this.kind === 'soak' ? '10-minute soak' : this.kind === 'earth' ? '3-minute Earth benchmark' : '3-minute benchmark'}${stopped ? ' (stopped early)' : ''}`);
     L.push(`build ${BUILD.commit} · mode ${MODES[g.mode].label} (target ${Math.round(g.targetFps)} fps) · ran ${total.toFixed(0)} s, ${n} frames`);
     const target = 1000 / g.targetFps, late = dts.filter((d) => d > target * 1.5).length;
     L.push(`average fps ${fps(dts).toFixed(1)} · 1% low ${fps(worst1).toFixed(1)} · worst frame ${Math.round(sorted[0] || 0)} ms · late frames (over 1.5x the target) ${late} = ${(100 * late / Math.max(1, n)).toFixed(2)} %`);
     L.push(`render resolution: average ${mp(avgPx)} (${dims(avgPx)}) · minimum ${mp(minPx)} (${dims(minPx)}) · native ${mp(g.nativePixels)} (${post.width}x${post.height})`);
-    L.push(`by part: ${WORLDS[FIRST].name} ${part(0).toFixed(1)} fps · flight ${part(1).toFixed(1)} · ${WORLDS[SECOND].name} ${part(2).toFixed(1)}`);
+    L.push(`by part: ${WORLDS[this.first].name} ${part(0).toFixed(1)} fps · flight ${part(1).toFixed(1)} · ${WORLDS[this.second].name} ${part(2).toFixed(1)}`);
     // The page's own work per frame (everything but the GPU drawing it): tells slow pixels
     // from slow work. And each stop of the route on its own.
     const sc = Array.from(this.sc.subarray(0, n)), scSorted = sc.slice().sort((a, b) => b - a);
@@ -182,7 +184,7 @@ export class Benchmark {
     for (let k = 0; k <= 10; k++) {
       const idx = []; for (let i = 0; i < n; i++) if (this.ph[i] === k) idx.push(i);
       if (!idx.length) continue;
-      const name = k < 5 ? `${WORLDS[FIRST].name} ${this.names[FIRST][k]}` : k === 5 ? 'flight' : `${WORLDS[SECOND].name} ${this.names[SECOND][k - 6]}`;
+      const name = k < 5 ? `${WORLDS[this.first].name} ${this.names[this.first][k]}` : k === 5 ? 'flight' : `${WORLDS[this.second].name} ${this.names[this.second][k - 6]}`;
       const d = idx.map((i) => dts[i]);
       L.push(`  ${name}: ${fps(d).toFixed(1)} · ${(100 * d.filter((x) => x > target * 1.5).length / d.length).toFixed(1)} % · ${avg(idx.map((i) => sc[i])).toFixed(1)} ms · ${mp(avg(idx.map((i) => px[i])))}`);
     }
