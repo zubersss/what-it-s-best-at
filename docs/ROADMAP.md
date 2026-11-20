@@ -15,6 +15,7 @@ owner's reply or phone results), `done`.
 | 2 | Fix the known problems | done |
 | 3 | Make Mars and the Moon beautiful | done |
 | 4 | Character and flight feel | done |
+| — | **Benchmark on the phone** (the owner runs it and pastes the results): the gate before anything new is built. After it the charter's limits are lifted (`CLAUDE.md`, "The benchmark gate") | waiting for the owner |
 | 5 | Earth and the Sun from space | not started |
 | 6 | New landable worlds (checkpoint after every two) | not started |
 | 7 | Getting around | not started |
