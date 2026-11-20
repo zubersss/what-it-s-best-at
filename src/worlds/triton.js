@@ -69,19 +69,20 @@ export default {
   sky: { stars: { url: 'data/stars_bsc5.f32' } },
 
   scene: {
-    dateUTC: '1989-08-25T09:00:00Z',   // Voyager 2's fly-by
-    // The edge of the cantaloupe terrain where it meets the southern frost cap. Neptune
-    // stands in the sky, eight degrees wide.
-    start: { lat: 12.0, lon: 10.0, eye: 1.7, heading: 150, pitch: -3 },
+    dateUTC: '1989-08-23T17:00:00Z',   // two days before Voyager 2's fly-by
+    // On the cantaloupe terrain, far enough round from the point under Neptune that the
+    // planet stands low in the east, eight degrees wide and mostly lit. (Triton's ground
+    // is nearly flat everywhere: the sky is the view.)
+    start: { lat: -8.0, lon: 290.0, eye: 1.7, heading: 88, pitch: 9 },
     ship: { east: 40, north: 25, heading: 200 },
     exposure: { key: 0.16, min: 0.5, max: 6.0e6, speed: 1.6, shadowFloor: 0.5, highlight: 6, dim: { above: 6000, power: 0.5, most: 5 } },
     bookmarks: {
-      ledge: { label: 'Cantaloupe terrain', heading: 200, pitch: -4, fov: 60 },
-      sun: { label: 'Neptune from Triton', lat: 5.0, lon: 20.0, heading: 253, pitch: 66, fov: 40 },
-      wall: { label: 'A ridge of the sulci', heading: 120, pitch: 0, fov: 40 },
+      ledge: { label: 'Neptune over the cantaloupe terrain', heading: 88, pitch: 10, fov: 44 },
+      sun: { label: 'Neptune from Triton', lat: 5.0, lon: 20.0, heading: 253, pitch: 66, fov: 40, timeOffsetHours: 40 },
+      wall: { label: 'Across the cantaloupe terrain', heading: 120, pitch: 0, fov: 40 },
       ship: { label: 'The lander', east: 20, north: 12, heading: 60, pitch: 4, fov: 50 },
-      dusk: { label: 'The southern frost cap', lat: -35.0, lon: 15.0, heading: 180, pitch: -4, fov: 60, timeOffsetHours: 20 },
-      lake: { label: 'Ruach Planitia, a frozen lake', lat: 28.0, lon: 24.0, heading: 40, pitch: -5, fov: 60, timeOffsetHours: 10 },
+      dusk: { label: 'The southern frost cap', lat: -35.0, lon: 15.0, heading: 180, pitch: -4, fov: 60, timeOffsetHours: 60 },
+      lake: { label: 'Ruach Planitia, a frozen lake', lat: 28.0, lon: 24.0, heading: 40, pitch: -5, fov: 60, timeOffsetHours: 50 },
     },
   },
   places: [
