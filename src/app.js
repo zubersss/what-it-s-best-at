@@ -108,14 +108,21 @@ export class App {
 
   // Rasters + main-thread height source of a world (cached; the other worlds are fetched
   // in the background so flying to them does not have to wait for a download).
-  async loadWorldData(world) {
-    let d = this.worldData.get(world.id);
-    if (!d) {
-      const rasters = await loadRasters(world, import.meta.env.BASE_URL);
-      d = { world, rasters, hs: createHeightSource(world, rasters) };
-      this.worldData.set(world.id, d);
+  // A world's elevation data and height function. Loaded when first wanted (the start
+  // world; another world once the traveller comes near it or aims a trip at it: see
+  // space()), one download however many ask at once. Only the last three worlds are kept:
+  // a world's rasters are megabytes, and there are many worlds.
+  loadWorldData(world) {
+    let p = this.worldData.get(world.id);
+    if (!p) {
+      p = loadRasters(world, import.meta.env.BASE_URL).then((rasters) => ({ world, rasters, hs: createHeightSource(world, rasters) }));
+      this.worldData.set(world.id, p);
+      p.catch(() => { if (this.worldData.get(world.id) === p) this.worldData.delete(world.id); });      // a failed download is tried again when next wanted
     }
-    return d;
+    // (most recently wanted last; the home world is never dropped)
+    this.worldData.delete(world.id); this.worldData.set(world.id, p);
+    for (const id of this.worldData.keys()) { if (this.worldData.size <= 3) break; if (id !== this.world?.id) this.worldData.delete(id); }
+    return p;
   }
 
   heightFn(world, hs) {
@@ -169,7 +176,7 @@ export class App {
     this.sun = new SunDisc(SOLAR_SYSTEM.sun);
     this.skyDome = makeSkyDome();
     this.farScene.add(this.sun.mesh, this.skyDome);
-    this.bodies = new SkyBodies(world, SOLAR_SYSTEM);
+    this.bodies = new SkyBodies(world, SOLAR_SYSTEM, renderer);
     this.farScene.add(this.bodies.group);
     if (world.sky.stars) {
       const res = await fetch(import.meta.env.BASE_URL + world.sky.stars.url);
@@ -223,7 +230,6 @@ export class App {
       }).observe(this.canvas, { box: 'device-pixel-content-box' });
     } catch { /* not supported: CSS size x devicePixelRatio is used */ }
     this.resize();
-    for (const w of Object.values(WORLDS)) if (w.id !== world.id) this.loadWorldData(w).catch(() => {});
   }
 
   placeLander(world, hs) {
@@ -683,13 +689,16 @@ export class App {
       const d = rig.pos.distanceTo(new THREE.Vector3(...eph.bodies.get(w.body).pos)) - w.radius;
       const f = fail.get(w.id);
       if (f && performance.now() < f.until) continue;          // its data would not load: wait before trying again
+      // Its data is fetched ahead: once it is nearer than twenty of its radii or the home
+      // world's ground is no nearer than six times as far, or a trip is aimed at it.
+      const failed = (e) => {
+        const n = (fail.get(w.id)?.n || 0) + 1;
+        fail.set(w.id, { n, until: performance.now() + Math.min(60000, 5000 * 2 ** (n - 1)) });
+        console.warn('world load failed', w.id, e);
+      };
+      if (d < Math.max(20 * w.radius, rig.agl / 6) || this.targetId === w.body) this.loadWorldData(w).catch(failed);
       if (d < rig.agl * 0.8) {
-        this.switchWorld(w).then(() => fail.delete(w.id), (e) => {
-          const n = (f?.n || 0) + 1;
-          fail.set(w.id, { n, until: performance.now() + Math.min(60000, 5000 * 2 ** (n - 1)) });
-          console.warn('world load failed', w.id, e);
-          this.toast?.show(`Could not load ${titleCase(w.id)} — trying again`);
-        });
+        this.switchWorld(w).then(() => fail.delete(w.id), (e) => { failed(e); this.toast?.show(`Could not load ${titleCase(w.id)} — trying again`); });
         break;
       }
     }

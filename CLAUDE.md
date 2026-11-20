@@ -145,6 +145,10 @@ known problems.
 `.github/workflows/pages.yml` on every push to `main`. Claude develops on its session
 branch, opens a pull request into `main` and merges it; the link updates a minute or two
 later. The start screen and the HUD show the commit the page was built from.
+Pull requests go through `gh api` (the GitHub MCP tools are retired, and `gh pr` does not
+work here): `gh api -X POST repos/zubersss/what-it-s-best-at/pulls -f title=... -f head=<branch>
+-f base=main -F body=@<file>`, then `gh api -X PUT repos/zubersss/what-it-s-best-at/pulls/<n>/merge
+-f merge_method=merge`.
 
 ## Run and test
 

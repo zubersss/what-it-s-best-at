@@ -14,7 +14,7 @@ const FADE_MS = 600;       // how long a new chunk takes to settle from its pare
 
 export class Terrain {
   constructor(world, rasters, hs, renderer) {
-    this.world = world; this.hs = hs;
+    this.world = world; this.hs = hs; this.renderer = renderer;
     this.radius = world.radius;
     this.maxLevel = world.terrain.maxLevel;
     this.relief = world.terrain.maxAltitude - world.terrain.minAltitude;
@@ -87,7 +87,7 @@ export class Terrain {
     this.albedoBusy = !!def;
     if (!def) return;
     const epoch = this.epoch;
-    new THREE.TextureLoader().load(import.meta.env.BASE_URL + def.url, (tex) => {
+    loadMap(def.url, (tex) => {
       if (epoch !== this.epoch) { tex.dispose(); return; }
       tex.colorSpace = def.encoding === 'srgb' ? THREE.SRGBColorSpace : THREE.NoColorSpace;
       tex.flipY = false;                    // row 0 (north) at v = 0, as the shader expects
@@ -99,9 +99,10 @@ export class Terrain {
       u.uAlbedoChroma.value = def.chroma ?? 1;
       const rad = Math.PI / 180;      // latFade: [from, to] degrees of latitude over which the map hands back to the palette
       if (def.latFade) u.uAlbedoFade.value.set(Math.sin(def.latFade[0] * rad), Math.sin(def.latFade[1] * rad)); else u.uAlbedoFade.value.set(2, 3);
+      tex.needsUpdate = true; this.renderer.initTexture(tex);       // to the GPU now, between frames
       this.tint = makeTintGrid(tex.image, def);
       this.albedoBusy = false;
-    }, undefined, () => { this.albedoBusy = false; });
+    }, () => { this.albedoBusy = false; });
   }
 
   // The albedo map's tint at a place (planet-centred position), as the terrain shader
@@ -130,7 +131,7 @@ export class Terrain {
     if (!def) return;
     setDemList(u, world);
     const epoch = this.epoch;
-    new THREE.TextureLoader().load(import.meta.env.BASE_URL + def.url, (tex) => {
+    loadMap(def.url, (tex) => {
       if (epoch !== this.epoch) { tex.dispose(); return; }
       tex.format = THREE.RedFormat; tex.colorSpace = THREE.NoColorSpace;
       tex.flipY = false;
@@ -141,8 +142,9 @@ export class Terrain {
       u.uRelief.value.set(def.strength ?? 1, Math.PI * world.radius / (W / 2), W, 0);
       const f = def.latFade || [80, 88];
       u.uReliefFade.value.set(Math.sin(f[0] * rad), Math.sin(f[1] * rad));
+      tex.needsUpdate = true; this.renderer.initTexture(tex);
       this.reliefBusy = false;
-    }, undefined, () => { this.reliefBusy = false; });
+    }, () => { this.reliefBusy = false; });
   }
 
   // Height above datum of the ground as it is drawn at unit direction d: the finest live
@@ -391,6 +393,14 @@ export class Terrain {
     }
     return busy;
   }
+}
+
+// A world map as a texture, decoded off the main thread (a 4096-wide JPEG decoded at its
+// first draw call was most of the hitch on arriving at a world).
+function loadMap(url, onLoad, onError) {
+  const loader = new THREE.ImageBitmapLoader();
+  loader.setOptions({ imageOrientation: 'none', premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+  loader.load(import.meta.env.BASE_URL + url, (bitmap) => onLoad(new THREE.Texture(bitmap)), undefined, onError);
 }
 
 // A small copy of the albedo map on the CPU, already turned into the tint the shader

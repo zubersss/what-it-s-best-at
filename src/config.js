@@ -14,6 +14,7 @@ export const CONFIG = {
   // above SPACE_BOOST_ALT (blended in from a tenth of it).
   SPLIT_SPACE_BOOST: 2.2,
   SPACE_BOOST_ALT: 300000,
+  MIN_FOOT_GRAVITY: 1.0,    // m/s^2: on foot, gravity never counts for less (tiny moons; see cameraRig.js)
   MORPH_START: 0.72,        // fraction of the merge distance where geomorphing starts
   WORKERS: 3,
   SHADOW_REBAKE_DEG: 1.0,

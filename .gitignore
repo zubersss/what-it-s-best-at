@@ -8,3 +8,4 @@ docs/shots/stability/*.png
 docs/shots/ui/bench_*.png
 .claude/worktrees/
 scratch/
+__pycache__

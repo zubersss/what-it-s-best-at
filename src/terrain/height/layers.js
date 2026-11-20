@@ -28,6 +28,9 @@ function lodWeight(wl, minWL) {
   return wl <= minWL ? 0 : wl / minWL - 1;
 }
 
+// (the same fade for a feature `w` metres wide)
+function lodW(w, minWL) { return w * 2 <= minWL ? 0 : Math.min(1, w * 2 / minWL - 1); }
+
 export const OPS = {
   // Elevation rasters: sets the large-scale shape and slope.
   dem(def, env) {
@@ -151,6 +154,9 @@ export const OPS = {
       for (let l = 0; l < (def.layers || 1); l++) classes.push({ R, cell: 2 * (INFL + OMAX) * R, seed: def.seed * 101 + n * 7 + l * 1013, last: true, list: null, count: 0, buf: null, memoX: NaN, memoY: NaN, memoZ: NaN, memoN: 0, memo: new Float64Array(40) });
     }
     const density = def.density, depthK = def.depth ?? 0.2, rimK = def.rim ?? 0.04;
+    // `floor` (0..0.9): the share of the radius that is a flat floor (0: a bowl). With a
+    // small rim that is a caldera or a lava-filled basin, not an impact bowl.
+    const floorK = def.floor || 0;
     const smi = def.slopeMaskInv, radius = def.planetRadius, below = def.belowDem || 0, skew = def.ageSkew ?? 1;
     let add = 0, slope = 0;
 
@@ -185,7 +191,8 @@ export const OPS = {
       if (t >= INFL) return;
       const depth = depthK * r * age, rim = rimK * r * age;
       let v, dv;
-      if (t < 1) { const t2 = t * t; v = rim - (depth + rim) * (1 - t2) * (1 - 0.35 * t2 * (1 - age)); dv = (depth + rim) * 2 * t / r; }
+      if (t < 1 && floorK > 0) { const w = 1 - smoothstep(floorK, 1, t); v = rim - (depth + rim) * w; dv = t > floorK ? (depth + rim) * 1.5 / ((1 - floorK) * r) : 0; }
+      else if (t < 1) { const t2 = t * t; v = rim - (depth + rim) * (1 - t2) * (1 - 0.35 * t2 * (1 - age)); dv = (depth + rim) * 2 * t / r; }
       else { const fade = 1 - smoothstep(1.25, INFL, t); const t4 = t * t * t * t; v = rim * fade / (t * t * t); dv = (depth + rim) * 2 / (t4 * r); }   // dv stays continuous across the rim
       add += v * lod; if (dv * lod > slope) slope = dv * lod;
     };
@@ -250,5 +257,153 @@ export const OPS = {
     };
     fn.release = () => { for (const cls of classes) cls.list = null; };
     return fn;
+  },
+
+  // The shape of a body that is far from a sphere and has no elevation map: the surface of
+  // an ellipsoid with semi-axes `radii` [a, b, c] (along x, y, z), as a height above datum.
+  ellipsoid(def) {
+    const [a, b, cc] = def.radii, R = def.planetRadius;
+    return (c) => {
+      const r = 1 / Math.sqrt((c.x / a) * (c.x / a) + (c.y / b) * (c.y / b) + (c.z / cc) * (c.z / cc));
+      c.h += r - R;
+    };
+  },
+
+  // Long straight landforms in families: grooves, ridges, double ridges, dunes. A family is
+  // a set of parallel bands round the sphere (circles of equal distance from the family's
+  // great circle, whose pole is random or given in `poles` as [lat, lon] degrees).
+  //   spacing (m) between band centres, width (m) of one, height (m; negative: a trough)
+  //   profile: 'ridge' (default), 'double' (two crests with a trough between), 'dune'
+  //            (a gentle windward side and a steep lee side)
+  //   presence: share of the bands that exist; segment (m): each runs for about this far
+  //            and fades out (0: all the way round); wobble [amplitude, wavelength] (m)
+  //   varied: 0..1, how much heights differ from one band to the next
+  //   bands [first, last]: only these bands of each family, counted from its great circle
+  //            (0 is the first one north of it): a handful of named fractures, not a field
+  lineaments(def) {
+    const fams = [];
+    const n = def.poles ? def.poles.length : (def.families || 1), R = def.planetRadius;
+    for (let k = 0; k < n; k++) {
+      let px, py, pz;
+      if (def.poles) { const la = def.poles[k][0] * Math.PI / 180, lo = def.poles[k][1] * Math.PI / 180; px = Math.cos(la) * Math.cos(lo); py = Math.cos(la) * Math.sin(lo); pz = Math.sin(la); }
+      else {
+        const u = hash3(k, 1, 0, def.seed) / 4294967296 * 2 - 1, a = hash3(k, 2, 0, def.seed) / 4294967296 * 2 * Math.PI, q = Math.sqrt(1 - u * u);
+        px = q * Math.cos(a); py = q * Math.sin(a); pz = u;
+      }
+      fams.push({ px, py, pz, seed: def.seed * 131 + k * 977 });
+    }
+    const S = def.spacing, W = def.width, H = def.height, presence = def.presence ?? 1, seg = def.segment || 0, varied = def.varied ?? 0.5;
+    const wob = def.wobble || null, jitter = Math.max(0, Math.min(0.5 - W / S, def.jitter ?? 0.3));
+    const kind = def.profile === 'double' ? 1 : def.profile === 'dune' ? 2 : 0;
+    const only = def.bands || null;
+    // (segmentLevel: -1..1, the noise level a band must exceed to exist at a place; low: few gaps)
+    const segLevel = def.segmentLevel ?? 0.1;
+    const shape = (t) => {                       // t = signed offset / width, |t| < 1
+      const a = Math.abs(t);
+      if (kind === 1) { const o = (a - 0.55) / 0.45, m = o * o < 1 ? (1 - o * o) * (1 - o * o) : 0, v = a < 0.4 ? (1 - (a / 0.4) * (a / 0.4)) : 0; return m - 0.45 * v * v; }
+      if (kind === 2) { const u = (t + 1) / 2; return u < 0.72 ? smoothstep(0, 0.72, u) : 1 - smoothstep(0.72, 1, u); }
+      return (1 - a * a) * (1 - a * a);
+    };
+    return (c) => {
+      if (W * 2 <= c.minWL) return;
+      const lod = Math.min(1, W * 2 / c.minWL - 1);
+      let add = 0, slope = 0;
+      for (let f = 0; f < fams.length; f++) {
+        const F = fams[f];
+        const d = c.x * F.px + c.y * F.py + c.z * F.pz;
+        let sdist = Math.asin(d > 1 ? 1 : d < -1 ? -1 : d) * R;
+        if (wob) sdist += wob[0] * noise3(c.px / wob[1] + F.seed * 0.37, c.py / wob[1] - F.seed * 0.11, c.pz / wob[1] + 5.3);
+        const k0 = Math.floor(sdist / S);
+        for (let k = k0 - 1; k <= k0 + 1; k++) {
+          if (only && (k < only[0] || k > only[1])) continue;
+          const h0 = hash3(k, 7, 3, F.seed);
+          if ((h0 & 0xffff) / 65536 >= presence) continue;
+          const centre = (k + 0.5 + jitter * (((h0 >>> 16) / 65536) * 2 - 1)) * S;
+          const t = (sdist - centre) / W;
+          if (t <= -1 || t >= 1) continue;
+          let m = 1 - varied * (hash3(k, 9, 1, F.seed) / 4294967296);
+          if (seg) m *= smoothstep(segLevel - 0.15, segLevel + 0.15, noise3(c.px / seg + k * 17.31 + F.seed, c.py / seg - k * 5.77, c.pz / seg + k * 3.19));
+          if (m <= 0) continue;
+          add += shape(t) * m;
+          if (m > slope) slope = m;
+        }
+      }
+      c.h += add * H * lod;
+      const sl = Math.abs(H) / W * 1.6 * slope * lod;
+      if (sl > c.slope) c.slope = sl;
+    };
+  },
+
+  // Ground broken into cells (3-D Worley cells of about `scale` metres):
+  //   trough [depth, width] (m): a furrow along every cell wall (convecting ice plains)
+  //   dome (m): each cell bulges by this much at its middle (negative: a hollow, with the
+  //             walls left standing as ridges)
+  //   plate (m): each cell is a block lifted or dropped by up to this much, `edge` metres of
+  //             slope at its sides (broken, rafted crust)
+  cells(def) {
+    const S = def.scale, seed = def.seed, trough = def.trough || null, dome = def.dome || 0, plate = def.plate || 0, edge = def.edge || S * 0.08;
+    const memo = new Float64Array(27 * 4);
+    let mx = NaN, my = NaN, mz = NaN;
+    return (c) => {
+      if (S <= c.minWL) return;
+      const lod = Math.min(1, S / c.minWL - 1);
+      const gx = c.px / S, gy = c.py / S, gz = c.pz / S;
+      const ix = Math.floor(gx), iy = Math.floor(gy), iz = Math.floor(gz);
+      if (ix !== mx || iy !== my || iz !== mz) {
+        mx = ix; my = iy; mz = iz;
+        let m = 0;
+        for (let dz = -1; dz <= 1; dz++) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const h1 = hash3(ix + dx, iy + dy, iz + dz, seed), h2 = hash3(ix + dx, iy + dy, iz + dz, seed + 1);
+          memo[m] = ix + dx + (h1 & 0xffff) / 65536; memo[m + 1] = iy + dy + (h1 >>> 16) / 65536; memo[m + 2] = iz + dz + (h2 & 0xffff) / 65536; memo[m + 3] = (h2 >>> 16) / 65536;
+          m += 4;
+        }
+      }
+      let f1 = 1e9, f2 = 1e9, id = 0;
+      for (let m = 0; m < 108; m += 4) {
+        const ex = memo[m] - gx, ey = memo[m + 1] - gy, ez = memo[m + 2] - gz, d2 = ex * ex + ey * ey + ez * ez;
+        if (d2 < f1) { f2 = f1; f1 = d2; id = memo[m + 3]; } else if (d2 < f2) f2 = d2;
+      }
+      const wall = (Math.sqrt(f2) - Math.sqrt(f1)) * 0.5 * S;        // about the distance to the cell's wall (m)
+      let add = 0, sl = 0;
+      if (trough) { const w = Math.min(1, lodW(trough[1], c.minWL)); if (w > 0) { add -= trough[0] * (1 - smoothstep(0, trough[1], wall)) * w; sl = Math.max(sl, Math.abs(trough[0]) / trough[1] * 1.5 * w); } }
+      if (dome) add += dome * smoothstep(0, S * 0.35, wall);
+      if (plate) { const w = Math.min(1, lodW(edge, c.minWL)); add += plate * (id * 2 - 1) * smoothstep(0, edge, wall) * (0.35 + 0.65 * w); sl = Math.max(sl, plate / edge * w); }
+      c.h += add * lod;
+      if (sl * lod > c.slope) c.slope = sl * lod;
+    };
+  },
+
+  // Named mountains that no elevation map shows: `list` of [latitude, longitude east
+  // (degrees), height (m), radius (m)]. Each is a tilted block with a broad top, steep on
+  // one side (a crustal block thrust up), for later layers to carve.
+  massifs(def) {
+    const R = def.planetRadius, items = def.list.map(([la, lo, h, r], k) => {
+      const a = la * Math.PI / 180, b = lo * Math.PI / 180, t = hash3(k, 3, 1, def.seed) / 4294967296 * 2 * Math.PI;
+      // (the tilt's direction: a random heading in the tangent plane at the block's centre)
+      const x = Math.cos(a) * Math.cos(b), y = Math.cos(a) * Math.sin(b), z = Math.sin(a);
+      const ex = -Math.sin(b), ey = Math.cos(b), nx = -Math.sin(a) * Math.cos(b), ny = -Math.sin(a) * Math.sin(b), nz = Math.cos(a);
+      return { x, y, z, h, r, tx: ex * Math.cos(t) + nx * Math.sin(t), ty: ey * Math.cos(t) + ny * Math.sin(t), tz: nz * Math.sin(t), seed: def.seed + k * 7.7 };
+    });
+    return (c) => {
+      for (let k = 0; k < items.length; k++) {
+        const m = items[k], dot = c.x * m.x + c.y * m.y + c.z * m.z;
+        if (dot < 0.5) continue;
+        const d = Math.acos(dot > 1 ? 1 : dot) * R;
+        if (d >= m.r * 1.25) continue;
+        // an irregular outline, then the block's profile and its tilt
+        const wob = 1 + 0.22 * noise3(c.px / (m.r * 0.45) + m.seed, c.py / (m.r * 0.45), c.pz / (m.r * 0.45));
+        const t = d / (m.r * wob);
+        if (t >= 1) continue;
+        // a tilted block: it climbs from its low side to a crest near the far edge and
+        // falls off steeply all round; uneven, so later layers have slopes to carve
+        const side = ((c.px - m.x * R) * m.tx + (c.py - m.y * R) * m.ty + (c.pz - m.z * R) * m.tz) / m.r;
+        const ramp = Math.min(1, Math.max(0, 0.5 + side * 0.8));
+        const edge = 1 - smoothstep(0.6, 1, t);
+        const rough = 0.8 + 0.2 * noise3(c.px / (m.r * 0.3) + 3.3, c.py / (m.r * 0.3) + m.seed, c.pz / (m.r * 0.3)) + 0.12 * noise3(c.px / (m.r * 0.11) + 1.3, c.py / (m.r * 0.11), c.pz / (m.r * 0.11) + m.seed);
+        c.h += m.h * edge * ramp * rough;
+        const sl = Math.max(0.22 * edge * ramp, m.h / (m.r * 0.4) * (t > 0.6 ? ramp : 0.3));
+        if (sl > c.slope) c.slope = sl;
+      }
+    };
   },
 };
