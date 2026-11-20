@@ -15,8 +15,11 @@
 // EVERY NEW FEATURE THAT COSTS FRAME TIME MUST ADD A STEP TO `FEATURE_STEPS`.
 
 export const MODES = {
-  smooth: { label: 'Smooth', fps: 60 },
-  sharp: { label: 'Sharp', fps: 30 },
+  // patches: the share of the terrain patch cap this mode draws. At 60 fps the test phone
+  // did not hold all 180 steadily (56.6 fps, a 1 % low of 21.6: the first benchmark after
+  // milestone 4); Sharp has twice the time per frame and keeps them all.
+  smooth: { label: 'Smooth', fps: 60, patches: 0.8 },
+  sharp: { label: 'Sharp', fps: 30, patches: 1 },
 };
 
 // Fixed step-down order. `apply(app, off)` switches the saving on (off = true) or back.
@@ -43,6 +46,7 @@ const GOOD_AFTER = 20;           // seconds without a step down that make a reso
 const MAX_VSYNC = 1000 / 57;    // no screen we care about refreshes slower than this
 
 const LATE = 1.2;               // a frame is late when it takes more than 1.2 x its interval
+const LOAD = [1, 0.8, 0.64];    // terrain patch factors of the load lever (see _down)
 
 // What kind of frame the app is reporting.
 export const FRAME = { NORMAL: 0, SOFT: 1, IGNORE: 2 };
@@ -96,6 +100,9 @@ export class Governor {
     this._probeFrames = -1; this._probeLate = 0;      // frames watched since the last step up
     this.goodLevel = null;        // highest resolution level known to hold (see update)
     this.sinceDown = 0; this._upFrom = null;
+    this._script = new Float32Array(WINDOW); this.scriptMs = 0;     // the page's own work per frame (ms), over the window
+    this.streamLevel = 0;         // 0: terrain arrives at full pace; 1, 2: more slowly (see update)
+    this.loadLevel = 0;           // index into LOAD: the terrain patch factor taken when pixels are not what is slow
     this._setInterval();
   }
 
@@ -205,11 +212,14 @@ export class Governor {
   //   FRAME.SOFT    new terrain was uploaded during it: if it is late, resolution is
   //                 probably not why, so it only counts when most frames are late;
   //   FRAME.IGNORE  slow for a reason resolution cannot fix (a jump, a world switch).
-  update(dtMs, kind = FRAME.NORMAL) {
+  // scriptMs (optional): how long the page's own work for the frame took (everything but
+  // the GPU drawing it): tells slow pixels from slow work.
+  update(dtMs, kind = FRAME.NORMAL, scriptMs = 0) {
     if (this.fixed != null) return;
     const dt = Math.min(dtMs, 250) / 1000;
     this.time += dt; this.sinceStep += dt; this.sinceUp += dt; this.sinceDown += dt; this.cooldown -= dt;
     if (kind === FRAME.IGNORE) return;
+    this._script[this._ri] = scriptMs;
     // A level that has run this long without a step down is one the device can hold: after
     // a passing dip (a burst of terrain loading) the way back is one jump, not a climb.
     if (this.featureLevel === 0 && this.sinceDown > GOOD_AFTER && (this.goodLevel == null || this.resLevel < this.goodLevel)) this.goodLevel = this.resLevel;
@@ -240,11 +250,24 @@ export class Governor {
       // Missing the target. If we only just stepped up, that step was a mistake: take it
       // back and wait longer before trying again.
       const tookBack = this.sinceUp < 4;
+      // Late only while terrain is arriving (the late frames are the "soft" ones): the
+      // picture is not what is slow. Terrain is let in more slowly instead (it sharpens a
+      // little later); only if that is already at its slowest does quality give way.
+      const streaming = hardFraction <= 0.2 && this.app.terrainPace;
+      // The page's own work over the window: more than 0.6 of the interval is slow work.
+      let sm = 0; for (let i = 0; i < WINDOW; i++) sm += this._script[i];
+      this.scriptMs = sm / WINDOW;
+      const work = this.scriptMs > this.interval * 0.6;
       if (tookBack) { this.holdUp = Math.min(60, this.holdUp * 2); this.lastUpFailed = true; this._takeBack(); }
-      else this._down(Math.max(hardFraction, allFraction) > 0.6 ? 2 : 1);
+      else if (streaming && this.streamLevel < 2) { this.streamLevel++; this.app.terrainPace(this.streamLevel); this._note(`terrain let in more slowly (${this.streamLevel})`); this.sinceStep = 0; }
+      else this._down(Math.max(hardFraction, allFraction) > 0.6 ? 2 : 1, work);
       this.cooldown = 0.7; this._filled = 0; this.cleanTime = 0;
       return;
     }
+    // The patches given up for the work per frame come back after fifteen clean seconds.
+    if (this.loadLevel > 0 && this.cleanTime > 15) { this.loadLevel--; this.app.terrainBudget?.(LOAD[this.loadLevel], 'load'); this._note(`terrain patches back (x${LOAD[this.loadLevel]})`); this.cleanTime = 0; this.sinceStep = 0; }
+    // Terrain comes in at full pace again after five clean seconds.
+    if (this.streamLevel > 0 && this.cleanTime > 5) { this.streamLevel = 0; this.app.terrainPace?.(0); }
     // Sustained headroom: a clean run, and (when the GPU reports its time) real slack.
     const slack = this.gpuMs == null || this.gpuMs < this.interval * 0.72;
     if (this.cleanTime > this.holdUp && slack && (this.resLevel > 0 || this.featureLevel > 0)) {
@@ -256,7 +279,17 @@ export class Governor {
     }
   }
 
-  _down(steps) {
+  // Lower resolution first, then features. But resolution only cures frames that are slow
+  // because of pixels. When the page's own work fills most of the frame (draw calls, terrain
+  // arriving, the simulation), fewer pixels change nothing: on the test phone a 10 s stretch
+  // of such frames once took the picture from 4.45 to 1.60 megapixels, eight steps, without
+  // curing one. Then terrain patches go instead (fewer draw calls, less arriving), twice at
+  // most; the other features cost pixels and would not help either.
+  _down(steps, work = false) {
+    if (work) {
+      if (this.loadLevel < LOAD.length - 1) { this.loadLevel++; this.app.terrainBudget?.(LOAD[this.loadLevel], 'load'); this._note(`fewer terrain patches (x${LOAD[this.loadLevel]}): the work per frame is what is slow`); this.sinceStep = 0; this.sinceDown = 0; }
+      return;
+    }
     for (let s = 0; s < steps; s++) {
       if (this.resLevel < this.maxResLevel) { this.resLevel++; this._applyScale(); this._note(`resolution down to ${(this.pixels / 1e6).toFixed(2)} MP`); }
       else if (this.featureLevel < FEATURE_STEPS.length) {

@@ -9,7 +9,7 @@
 // Local frame of the wearer: +Y toward the head, +Z the chest, +X its left. Metres.
 import * as THREE from 'three';
 
-const STEP = 1 / 75;
+const STEP = 1 / 75;          // (at 1/60 the cloth stretched: a link reached 1.9 times its length hovering in vacuum)
 
 // Colours (linear) and materials shared with heroModel.js (see the material list there).
 const SILK = [0.74, 0.74, 0.76], TRIM = [0.62, 0.63, 0.66];

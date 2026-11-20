@@ -4,10 +4,12 @@
 // Each line of the trace is time:megapixels (fN = N feature steps down), every 5 s.
 import { Governor, FRAME } from '../src/perf/governor.js';
 const stubGl = { getExtension: () => null };
-function run(label, { vsyncMs, mode, native, cost, seconds, events = () => {}, uploadsEvery = 0 }) {
-  const app = { renderer: { getContext: () => stubGl }, quality: { x: 1, y: 1, z: 1, w: 1 }, dust: { amount: 1 }, rocks: { setFraction() {} }, terrainBudget() {}, post: { bloomEnabled: true }, hero: { robe: {} }, atmosphere: { airEnabled: true }, nearShadow: { fine: true } };
+// cost: what the GPU needs for the frame (ms); work (optional): what the page's own work
+// needs (ms). They run side by side: the frame takes the longer of the two.
+function run(label, { vsyncMs, mode, native, cost, work = () => 2, seconds, events = () => {}, uploadsEvery = 0 }) {
+  const app = { renderer: { getContext: () => stubGl }, quality: { x: 1, y: 1, z: 1, w: 1 }, dust: { amount: 1 }, rocks: { setFraction() {} }, terrainBudget(f, id) { this.budget = this.budget || {}; this.budget[id] = f; }, terrainPace(l) { this.pace = l; }, post: { bloomEnabled: true }, hero: { robe: {} }, atmosphere: { airEnabled: true }, nearShadow: { fine: true } };
   const g = new Governor(app, mode); g.setNative(native);
-  let prevSoft = false, bucket = -1, now = 0, last = 0, busyUntil = 0, frames = 0, lateFrames = 0, lastRender = -1, n = 0;
+  let prevSoft = false, lastWork = 2, bucket = -1, now = 0, last = 0, busyUntil = 0, frames = 0, lateFrames = 0, lastRender = -1, n = 0;
   const trace = [], byMode = {};           // per mode: [frames, late frames]
   while (now < seconds * 1000) {
     now += vsyncMs;                          // one display refresh
@@ -15,16 +17,17 @@ function run(label, { vsyncMs, mode, native, cost, seconds, events = () => {}, u
     if (now < busyUntil) continue;           // still drawing the previous frame: no callback
     if (!g.shouldRender(now)) continue;
     const dt = lastRender < 0 ? vsyncMs : now - lastRender; lastRender = now;
-    let c = cost(g.pixels, now / 1000, g);
+    const w = work(now / 1000, g, app);
+    let c = Math.max(cost(g.pixels, now / 1000, g, app), w);
     const soft = uploadsEvery && (++n % uploadsEvery === 0);
     if (soft) c += 9;                        // a terrain upload hitch
     busyUntil = now + c;
-    g.update(dt, prevSoft ? FRAME.SOFT : FRAME.NORMAL); prevSoft = soft;   // the upload's cost shows in the gap to the next frame
+    g.update(dt, prevSoft ? FRAME.SOFT : FRAME.NORMAL, lastWork); prevSoft = soft; lastWork = w + (soft ? 9 : 0);   // the upload's cost shows in the gap to the next frame
     // A frame is late against the target in force when it was drawn (the mode can change
     // during a run: a 33 ms Sharp frame is on time).
     const late = dt > 1000 / g.targetFps * 1.2, m = byMode[g.mode] || (byMode[g.mode] = [0, 0]);
     frames++; m[0]++; if (late) { lateFrames++; m[1]++; }
-    if (Math.floor(now / 5000) !== bucket) (bucket = Math.floor(now / 5000), trace.push(`${(now / 1000).toFixed(0)}s:${(g.pixels / 1e6).toFixed(2)}${g.featureLevel ? 'f' + g.featureLevel : ''}`));
+    if (Math.floor(now / 5000) !== bucket) (bucket = Math.floor(now / 5000), trace.push(`${(now / 1000).toFixed(0)}s:${(g.pixels / 1e6).toFixed(2)}${g.featureLevel ? 'f' + g.featureLevel : ''}${g.loadLevel ? 'p' + g.loadLevel : ''}${g.streamLevel ? 's' + g.streamLevel : ''}`));
   }
   console.log(`\n${label}\n  refresh est ${(1000 / g.vsync).toFixed(0)} Hz, target ${g.targetFps.toFixed(0)} fps, got ${(frames / seconds).toFixed(1)} fps, late ${(100 * lateFrames / frames).toFixed(1)} %${Object.keys(byMode).length > 1 ? ' (' + Object.entries(byMode).map(([k, [f, l]]) => `${k} ${(100 * l / f).toFixed(1)} %`).join(', ') + ')' : ''}, steps ${g.log.length}, holdUp ${g.holdUp}`);
   console.log('  ' + trace.join(' '));
@@ -44,4 +47,9 @@ run('Smooth then Sharp at 30 s then Smooth at 60 s', { vsyncMs: 8.333, mode: 'sm
 // seconds of slow frames now and then that resolution cannot cure. It should dip and
 // then return to native in one step.
 run('Phone-like: holds native; a 2 s burst of slow frames every 90 s', { vsyncMs: 8.333, mode: 'smooth', native: NATIVE, seconds: 300, cost: (p, t) => 3 + 2.5 * p / 1e6 + (t % 90 > 60 && t % 90 < 62 ? 9 : 0) });
+// The test phone after milestone 4: a 10 s stretch where the work per frame, not the pixels,
+// makes frames slow (it once took the picture from 4.45 to 1.60 MP for nothing). Resolution
+// should come back after two steps that do not help; fewer patches cure it here.
+run('Phone-like: 10 s of slow work per frame (fewer patches cure it)', { vsyncMs: 8.333, mode: 'smooth', native: NATIVE, seconds: 120, cost: (p) => 3 + 2.0 * p / 1e6, work: (t, g, app) => (t > 40 && t < 50 ? 22 * (app.budget?.load ?? 1) : 6) });
+run('Phone-like: 10 s of slow work per frame that nothing cures', { vsyncMs: 8.333, mode: 'smooth', native: NATIVE, seconds: 120, cost: (p) => 3 + 2.0 * p / 1e6, work: (t) => (t > 40 && t < 50 ? 30 : 6) });
 run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native: 1920 * 1080, seconds: 40, cost: (p) => 2 + 1.5 * p / 1e6 });

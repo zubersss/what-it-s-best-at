@@ -183,6 +183,7 @@ export class App {
     this.nearShadow = new NearShadow(renderer);
     this.terrain = new Terrain(world, data.rasters, data.hs, renderer);
     this.rig.groundAt = (d, dist) => this.terrain.drawnHeight(d, dist);   // the character stands on the ground as drawn
+    if (!this.shotMode) this.terrainBudget(MODES[this.governor.mode].patches ?? 1, 'mode');     // (reference pictures show them all)
     // ?debug=nofar: none of the far-ground changes (relief, far roughness, finer patches from orbit), for before/after pictures
     // (or one at a time: nofarrough, noboost)
     if (params.debug.includes('nofar') || params.debug.includes('nofarrough')) this.terrain.shared.uFarRoughness.value = this.terrain.shared.uRoughness.value;
@@ -325,6 +326,7 @@ export class App {
   toggleMode() {
     const next = this.governor.mode === 'smooth' ? 'sharp' : 'smooth';
     this.governor.setMode(next);
+    this.terrainBudget(MODES[next].patches ?? 1, 'mode');
     try { localStorage.setItem('sse.mode', next); } catch { /* storage blocked: the choice lasts for this visit */ }
     this.startScreen?.setMode(next);
     this.toast?.show(`${MODES[next].label} — ${MODES[next].fps} fps`);
@@ -349,6 +351,9 @@ export class App {
     this.results.show(text);
     window.__benchResult = text;
   }
+
+  // The governor: how fast finished terrain is let in (0 full pace, 1, 2 slower).
+  terrainPace(level) { this.terrain.pace = level; }
 
   // The governor's terrain steps: the smallest factor asked for wins.
   terrainBudget(factor, id) {
@@ -729,6 +734,7 @@ export class App {
   }
 
   frame(now) {
+    const frameStart = performance.now();
     const dtMs = this.lastNow ? now - this.lastNow : 16.7;
     this.lastNow = now;
     const dt = Math.min(dtMs, 100) / 1000;
@@ -843,7 +849,9 @@ export class App {
     // An upload's cost can land a frame or two later (the driver finishes textures and
     // mip maps on its own time), so the three frames after one count as soft too.
     this.softFrames = uploads ? 3 : Math.max(0, (this.softFrames || 0) - 1);
-    governor.update(dtMs, settling ? FRAME.IGNORE : this.softFrames > 0 ? FRAME.SOFT : FRAME.NORMAL);
+    // (the page's own work for this frame: everything from the start of frame() to here)
+    this.scriptMs = performance.now() - frameStart;
+    governor.update(dtMs, settling ? FRAME.IGNORE : this.softFrames > 0 ? FRAME.SOFT : FRAME.NORMAL, this.scriptMs);
     this.lastUploads = this.terrain.uploads; this.terrain.uploads = 0;
 
     // 8. HUD
