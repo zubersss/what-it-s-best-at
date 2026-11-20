@@ -39,6 +39,7 @@ const SETS = [
   ['mars', 'gale', 'hero=1&heropose=super&posedir=side', '_hero_super'],
   ['moon', 'ship', 'hero=1&heropose=jump&posedir=side', '_hero_jump'],
   ['moon', 'ship', 'hero=1&heropose=run&posedir=side&dust=run', '_hero_rundust'],     // dust from the last footfalls
+  ['mars', 'gale', 'hero=1&heropose=walk&posedir=front&fov=30', '_hero_front'],          // walking toward the camera: the face and the front of the robe
   // flight poses (milestone 4): boosting and turning seen from the side over Gale, a
   // three-point landing on the Moon, and the target marker on Olympus Mons from orbit
   ['mars', 'gale', 'hero=1&heropose=fast&posedir=side&alt=30&pitch=-6', '_hero_fast'],

@@ -693,7 +693,7 @@ The character
 | Landforms soft from close up: Mount Sharp, the Coprates wall, the Olympus caldera wall, Hadley Rille, Tycho's peak read as rounded heaps (milestone 4 critic) | 6 / 7 |
 | Mars daylight haze too thick: far walls dissolve, flat khaki sky (milestone 4 critic) | 5 |
 | Chalk-white outlines on canyon walls and crater rims in Mars from orbit; a bluish Mars crescent | 5 |
-| No light from the planet below on things in orbit (the figure's legs go black over sunlit Mars; the visor reflects black) | 5 |
+| No light from the planet below on things in orbit (the figure and its robe are near black on their shaded side over sunlit Mars), and in orbit the cloth floats loosely with almost no weight to hang by | 5 |
 | Black shadow slivers with no visible relief in the low lunar orbit view | 5 |
 | Far from every body only the target marker shows the way; there is no map yet | 7 |
 | Places on other worlds cannot be chosen until that world is home (no map yet) | 7 |
@@ -937,6 +937,11 @@ polished silver and pearls, hair (highlights along the strands). No textures. Ab
 9,400 triangles (the suit had 6,300). A breeze always blows through the cloth. Limits,
 honestly: a code-built figure cannot match the paintings' face, ornament or painted
 detail; the owner was asked whether the 3D model named on the reference sheet exists.
+
+Reference pictures (`docs/shots/*_hero_*`, final build): hover on both worlds (the back
+view of the owner's second reference), walking toward the camera (`mars_gale_hero_front`,
+new), run, super speed, fast flight, bank, coming in to land, jump, three-point landing,
+orbit, touch-down and footfall dust.
 
 **The foundation review**: six lines of review over all work since milestone 3 (flight,
 character logic, rendering, phone screen and tests, foundation for milestones 5–8,
