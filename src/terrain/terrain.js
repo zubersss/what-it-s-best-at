@@ -8,6 +8,7 @@ import { WorkerPool } from './workerPool.js';
 import { makeTerrainMaterial, makeTerrainShared, setTerrainSurface, setDemList, DETAIL_TILE } from './terrainMaterial.js';
 import { makeDetailTexture, makeStrataTexture } from './surfaceTextures.js';
 import { FACES, dirToFace } from './cubeSphere.js';
+import { TileRings, mosaicBox } from './tiles/tileRings.js';
 
 const _rel = new THREE.Vector3(), _sphere = new THREE.Sphere(), _m = new THREE.Matrix4(), _p = new THREE.Matrix4();
 const FADE_MS = 600;       // how long a new chunk takes to settle from its parent's look into its own
@@ -32,6 +33,11 @@ export class Terrain {
     this.drawList = []; this.wanted = [];
     this.ready = [];                               // built chunks waiting for their turn to be uploaded
     this.readyShadows = [];                        // re-baked shadows waiting for the next frame
+    // Map tiles that arrive while the game runs (terrain/tiles): each arrival is a region
+    // whose ground must be built again from the better data.
+    this.ringSerial = 0; this.regions = []; this.ringBoxes = []; this.readyRefresh = []; this.staleData = 0;
+    this.ringTex = null;
+    this.tiles = new TileRings({ onElevation: (slot, raster) => this.setRing(slot, raster), onPicture: (name, pic) => this.setRingPicture(name, pic) });
     this.lodScale = 1;
     this.maxChunks = CONFIG.MAX_RENDER_CHUNKS;     // lowered by the governor's terrain steps
     this.uploads = 0;                              // chunks uploaded since the app last read it
@@ -44,6 +50,7 @@ export class Terrain {
     this._cam = new THREE.Vector3(); this._camDir = [0, 0, 1];
     this.loadAlbedoMap(world);
     this.loadReliefMap(world);
+    this.tiles.setWorld(world); this.worldAt = performance.now(); this.ringAt = [];
   }
 
   _initMessage(world, rasters) {
@@ -73,6 +80,9 @@ export class Terrain {
     pool.setCount(0);
     this.roots = FACES.map((_, f) => new Node(f, 0, 0, 0, null, hs, this.relief));
     this.drawList.length = 0; this.wanted.length = 0; this.ready.length = 0; this.readyShadows.length = 0;
+    this.regions.length = 0; this.ringBoxes.length = 0; this.readyRefresh.length = 0; this.staleData = 0;
+    this.setRingPicture('colour', null);
+    this.tiles.setWorld(world); this.worldAt = performance.now(); this.ringAt = [];
     this.lodScale = 1; this.idleFrames = 0;
     this.workers.reinit(this._initMessage(world, rasters));
   }
@@ -179,7 +189,7 @@ export class Terrain {
 
   get loadedCount() { return CONFIG.CHUNK_POOL - this.pool.free.length; }
   get queueLength() { return this.wanted.length + this.workers.busy + this.ready.length; }
-  get idle() { return this.idleFrames > 3 && !this.albedoBusy && !this.reliefBusy; }
+  get idle() { return this.idleFrames > 3 && !this.albedoBusy && !this.reliefBusy && !this.tiles.busy; }
 
   // sunDir: THREE.Vector3 (planet-fixed); sunHalf: the Sun's angular radius in radians.
   update(rig, aspect, sunDir, sunHalf) {
@@ -199,13 +209,19 @@ export class Terrain {
     }
     if (this.ready.length && !(this.pace === 2 && this.frame % 2)) {
       const budget = this.pace ? 1 : Math.max(1, Math.min(8, Math.round((this.now - before) / 16.7))) + (this.ready.length > 6 ? 1 : 0);
-      for (let k = 0; k < budget && this.ready.length; k++) { const r = this.ready.shift(); this._upload(r.node, r.res); }
+      let k = 0;
+      for (; k < budget && this.ready.length; k++) { const r = this.ready.shift(); this._upload(r.node, r.res); }
+      for (; k < budget && this.readyRefresh.length; k++) this._uploadRefresh(this.readyRefresh.shift());
+    } else if (this.readyRefresh.length && !(this.pace === 2 && this.frame % 2)) {
+      const budget = this.pace ? 1 : Math.max(1, Math.min(8, Math.round((this.now - before) / 16.7)));
+      for (let k = 0; k < budget && this.readyRefresh.length; k++) this._uploadRefresh(this.readyRefresh.shift());
     }
     this._sun = [sunDir.x, sunDir.y, sunDir.z]; this._sunHalf = sunHalf;
     const cam = this._cam.copy(rig.pos), R = this.radius;
     const camLen = cam.length();
     this._camDir[0] = cam.x / camLen; this._camDir[1] = cam.y / camLen; this._camDir[2] = cam.z / camLen;
     this._camAlt = camLen - R;
+    this.tiles.update(cam, this._camAlt);
     const Ro = R + this.world.terrain.minAltitude;
     this._Ro2 = Ro * Ro;
     this._horizonCam = Math.sqrt(Math.max(0, camLen * camLen - this._Ro2));
@@ -261,9 +277,10 @@ export class Terrain {
 
     this.stalled = false;
     this._dispatch();
+    this._refresh();
     this._rebakeShadows();
     // Idle = nothing left to build, or nothing more can be built (pool exhausted).
-    this.idleFrames = (this.workers.busy === 0 && this.ready.length === 0 && this.staleShadows === 0 && this.readyShadows.length === 0 && this.fading === 0 && (this.wanted.length === 0 || this.stalled)) ? this.idleFrames + 1 : 0;
+    this.idleFrames = (this.workers.busy === 0 && this.ready.length === 0 && this.readyRefresh.length === 0 && this.staleData === 0 && this.staleShadows === 0 && this.readyShadows.length === 0 && this.fading === 0 && (this.wanted.length === 0 || this.stalled)) ? this.idleFrames + 1 : 0;
     if (this.frame % 240 === 0) for (const root of this.roots) this._prune(root);
   }
 
@@ -311,6 +328,10 @@ export class Terrain {
 
   _dispatch() {
     if (!this.wanted.length || !this.workers.idle) return;
+    // Map tiles on their way for the first time at this world: the fine ground waits for
+    // them a moment instead of being built from the coarse maps and then built again.
+    if (this.tiles.busy && this.now - this.worldAt < 5000) this.wanted = this.wanted.filter((n) => n.level <= 7);
+    if (!this.wanted.length) return;
     this.wanted.sort((a, b) => a.prio - b.prio);
     let k = 0;
     while (this.workers.idle && k < this.wanted.length) {
@@ -318,7 +339,7 @@ export class Terrain {
       const slot = this._reserveSlot();
       if (slot < 0) { this.stalled = true; break; }
       node.loading = true; node.reserved = slot;
-      node.shadowSun = this._sun;
+      node.shadowSun = this._sun; node.serial = this.ringSerial; node.box = null;
       const epoch = this.epoch;
       this.workers.run({ type: 'chunk', face: node.face, level: node.level, ix: node.ix, iy: node.iy, sun: this._sun, sunHalf: this._sunHalf })
         .then((res) => { if (epoch === this.epoch) this._onChunk(node, res); })
@@ -362,8 +383,103 @@ export class Terrain {
     return best;
   }
 
+  // --- map tiles round the traveller (terrain/tiles/tileRings.js) --------------------------
+  // An elevation ring arrives, moves or goes: the height code here and in every worker
+  // takes it, and the ground it changes is marked to be built again.
+  setRing(slot, raster) {
+    this.hs.setRing(slot, raster);
+    // (posted without a transfer list: each worker gets its own copy)
+    this.workers.tell(() => [{ type: 'ring', slot, raster: raster ? { width: raster.width, height: raster.height, zoom: raster.zoom, tx: raster.tx, ty: raster.ty, buffer: raster.data.buffer, water: raster.water } : null }]);
+    const now = raster ? mosaicBox(raster.zoom, raster.tx, raster.ty, raster.width / 256) : null, old = this.ringBoxes[slot] || null;
+    if (now) now.margin = 46 / 256 * 360 / 2 ** raster.zoom;          // the feathered edge, in degrees
+    this.ringBoxes[slot] = now; (this.ringAt || (this.ringAt = []))[slot] = this.ringSerial + 1;
+    this.regions.push({ serial: ++this.ringSerial, old, now, slot });
+    if (this.regions.length > 10) this.regions.shift();
+  }
+
+  // A picture ring (the land's colour): one texture the ground shader reads by place.
+  setRingPicture(name, pic) {
+    if (name !== 'colour') return;
+    const u = this.shared;
+    if (this.ringTex) { this.ringTex.dispose(); this.ringTex = null; }
+    if (!pic) { u.tRingColour.value = this.textures.white; u.uRingColour.value.w = 0; return; }
+    const tex = new THREE.DataTexture(pic.data, pic.width, pic.width, THREE.RGBAFormat, THREE.UnsignedByteType);
+    let w = pic.width; tex.mipmaps = [{ data: pic.data, width: w, height: w }, ...pic.mips.map((d) => (w >>= 1, { data: d, width: w, height: w }))];
+    tex.colorSpace = THREE.SRGBColorSpace; tex.flipY = false; tex.generateMipmaps = false;
+    tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter; tex.anisotropy = 4;
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping; tex.needsUpdate = true;
+    this.renderer.initTexture(tex);                 // to the GPU now, between frames
+    this.ringTex = tex; u.tRingColour.value = tex;
+    const n = 2 ** pic.zoom, tiles = pic.width / 256;
+    // x: longitude of the left edge in turns; y: Mercator Y of the top edge (radians);
+    // z: 1 / the mosaic's width in turns (its height in Mercator radians is 2 pi times less)
+    u.uRingColour.value.set(pic.tx / n - 0.5, Math.PI * (1 - 2 * pic.ty / n), n / tiles, 1);
+  }
+
+  // Does ground built at `node.serial` lie where a later ring changed the heights?
+  _stale(node) {
+    const ser = node.serial || 0;
+    let box = node.box;
+    if (!box) {
+      const c = node.center, len = c.length(), a = Math.min(90, node.radius / len * 57.3 * 1.2);
+      const lat = Math.asin(Math.max(-1, Math.min(1, c.z / len))) * 57.29577951, lon = Math.atan2(c.y, c.x) * 57.29577951;
+      box = node.box = { lat, lon, a, al: a / Math.max(0.05, Math.cos(Math.min(89, Math.abs(lat) + a) / 57.29577951)) };
+    }
+    const off = (b) => { const d = box.lon - (b.lon0 + b.lon1) / 2; return Math.abs(d - 360 * Math.round(d / 360)); };
+    const touches = (b) => !!b && off(b) <= (b.lon1 - b.lon0) / 2 + box.al && box.lat - box.a <= b.lat0 && box.lat + box.a >= b.lat1;
+    const inside = (b) => !!b && off(b) <= (b.lon1 - b.lon0) / 2 - b.margin - box.al && box.lat + box.a <= b.lat0 - b.margin && box.lat - box.a >= b.lat1 + b.margin;
+    for (const g of this.regions) {
+      if (g.serial <= ser) continue;
+      if (!touches(g.old) && !touches(g.now)) continue;
+      // (well inside a finer ring that was there before and still is: that one decides the heights)
+      let under = false;
+      for (let k = g.slot + 1; k < this.ringBoxes.length && !under; k++) under = inside(this.ringBoxes[k]) && (this.ringAt[k] || 0) < g.serial && (this.ringAt[k] || 0) <= ser;
+      if (under) continue;
+      if (inside(g.old) && inside(g.now)) continue;        // well inside both: the same heights as before
+      return true;
+    }
+    return false;
+  }
+
+  // Builds stale ground again, nearest first, when a worker has nothing newer to do.
+  _refresh() {
+    this.staleData = 0;
+    if (!this.ringSerial) return;
+    const slots = this.pool.slots;
+    for (;;) {
+      let best = null;
+      for (let i = 0; i < slots.length; i++) {
+        const n = slots[i].node;
+        if (!n || n.dead || n.refreshBusy || (n.serial || 0) >= this.ringSerial || n.lastVisit < this.frame - 2) continue;
+        if (!this._stale(n)) { n.serial = this.ringSerial; continue; }
+        this.staleData++;
+        if (!best || n.dist < best.dist) best = n;
+      }
+      if (!best || !this.workers.idle) return;
+      const node = best, epoch = this.epoch, serial = this.ringSerial, sun = this._sun;
+      // (it counts as up to date from now on: its new build is on the way, and asking again
+      // while that waits to be uploaded built the same ground over and over)
+      node.refreshBusy = true; node.serial = serial; this.staleData--;
+      this.workers.run({ type: 'chunk', face: node.face, level: node.level, ix: node.ix, iy: node.iy, sun, sunHalf: this._sunHalf })
+        .then((res) => { node.refreshBusy = false; if (epoch === this.epoch && node.slot >= 0 && !node.dead) this.readyRefresh.push({ node, res, serial, sun }); })
+        .catch((e) => { node.refreshBusy = false; console.error(e); });
+    }
+  }
+
   // A worker has finished a chunk: queue it for upload (see update).
   _onChunk(node, res) { this.ready.push({ node, res }); }
+
+  // Ground built again from better maps takes its old place.
+  _uploadRefresh(r) {
+    const node = r.node, res = r.res;
+    if (node.slot < 0 || node.dead) return;
+    this.pool.upload(node.slot, res);
+    this.uploads++;
+    node.center.set(res.center[0], res.center[1], res.center[2]);
+    node.radius = res.radius; node.minH = res.minH; node.maxH = res.maxH;
+    node.shadowSun = r.sun; node.box = null;
+    this.buildMs += res.ms; this.built++;
+  }
 
   _upload(node, res) {
     node.loading = false;

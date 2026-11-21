@@ -27,6 +27,9 @@ export class WorkerPool {
   // (the caller ignores them); new jobs queue behind the init message in each worker.
   reinit(initMessage) { for (const s of this.workers) s.w.postMessage(initMessage); }
 
+  // A message for every worker that wants no reply (it waits its turn behind a running job).
+  tell(make) { for (const s of this.workers) { const [message, transfer] = make(); s.w.postMessage(message, transfer || []); } }
+
   get idle() { let n = 0; for (const s of this.workers) if (!s.busy) n++; return n; }
   get busy() { return this.workers.length - this.idle; }
 

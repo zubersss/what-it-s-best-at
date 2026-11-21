@@ -29,6 +29,20 @@ export default {
       { url: 'data/earth_dem_namib.i16', width: 960, height: 720, lon0: 15.1, lon1: 15.9, lat0: -24.45, lat1: -25.05, feather: 0.06 },
       { url: 'data/earth_dem_alps.i16', width: 720, height: 420, lon0: 7.45, lon1: 8.05, lat0: 46.15, lat1: 45.8, feather: 0.06 },
     ],
+    // The whole planet, streamed as the traveller moves (terrain/tiles): mosaics of map
+    // tiles from services that need no key. Elevation: the same Terrain Tiles set, on AWS
+    // Open Data, at 2.4 km, 300 m and 30 m a pixel. Colour: NASA's Blue Marble at 600 m.
+    // The maps above stay underneath (and are all there is without a connection).
+    tiles: {
+      elevation: { url: 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
+        // (minFlow: what is drawn as a river from each ring, m3/s: the great rivers from far,
+        // every brook from near)
+        rings: [{ zoom: 6, below: 6.0e6, minFlow: 1500 }, { zoom: 9, below: 5.0e5, minFlow: 60 }, { zoom: 12, below: 4.0e4, minFlow: 0.5 }] },
+      // Rivers and lakes: worked out from the elevation where it arrives (tiles/hydrology.js),
+      // fed by the rain that really falls (NASA MERRA-2, scripts/fetch-earth-climate.py).
+      hydrology: { rain: 'data/earth_rain_720.u8' },
+      pictures: { colour: { url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg', zoom: 8, below: 2.0e6 } },
+    },
     layers: [
       { op: 'dem' },
       // What the maps cannot resolve: relief that grows on slopes (water-cut ground).

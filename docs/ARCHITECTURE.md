@@ -336,6 +336,72 @@ checks every linked program against the OpenGL ES 3.0 minimums in `npm run smoke
 every screenshot run; a shader that fails on the device shows a message on screen and in
 the benchmark results (`renderer.debug.onShaderError`).
 
+## Map tiles round the traveller (a streamed world)
+
+A world file may list `terrain.tiles`: services of 256-pixel Web Mercator tiles (the
+layout every map service uses). `terrain/tiles/tileRings.js` keeps a few square mosaics
+of them (4 x 4 tiles, a "ring" each) centred on the traveller and asks the tile worker
+(`tileWorker.js`: fetch, decode, assemble, off the main thread) for a new one when the
+traveller comes within a tile of a ring's edge. Too high (`below`) or too fast for a
+ring: it is not asked for.
+
+- **Elevation rings** (coarsest first) go to `DemSet.setRing` on the main thread and in
+  every chunk worker: Mercator rasters over the bundled ones, finest last, each with a
+  feathered edge 40 pixels wide. `topAt` counts a ring's tallest ground wherever the
+  ring, widened by the shadow range, is.
+- **Ground built from older data is built again**, nearest first, when a worker has
+  nothing newer to do (`Terrain._refresh`): a ring's arrival is a region with a serial;
+  a patch is stale if it touches the old or new box and is not well inside both (the
+  same heights) or well inside a finer ring that was already there. The new build takes
+  the patch's place in the pool (`_uploadRefresh`). For the first five seconds at a
+  world, while the first mosaics are on their way, only coarse patches are built.
+- **Picture rings** (the land's colour) become one texture with mip maps made in the
+  worker; the ground shader reads it by longitude and `atanh(sin(latitude))` and lays it
+  over the global colour map with a soft edge.
+- **Coastal water**: radar elevation leaves the sea at exactly zero near land. The worker
+  gives every water pixel a bed that falls away from the nearest land (a chamfer distance
+  transform), so there is a depth for the sea to be drawn and swum by.
+- **Tests**: the headless browser cannot reach the services. `scripts/lib/browser.mjs`
+  mirrors them at `/__ext/<host>/<path>` from a cache on disk (`/root/mapcache/ext`,
+  filled with curl on a miss) and tells the page through `window.__EXT`.
+- Without the services (no connection, Node scripts) the bundled maps are all there is.
+
+## Water
+
+- The `sea` layer says where water is: with an elevation map, wherever the map is at or
+  below the level; the layers before it fade out toward the shore. It reports the depth
+  (`hs.waterDepth` after `height()`).
+- The chunk builder writes `1 + depth` into the normal map's fourth number on water (on
+  land that number is cavity shading, 0 to 1): the shoreline is where it crosses 1, per
+  pixel.
+- `water/waves.js`: one table of sines, each a whole number of cycles across the 64 m
+  detail tile, running at deep-water speed, weighted by how it lines up with the wind.
+  The shader adds as many as are longer than five pixels; the eight longest also lift
+  the surface itself within 400 m (vertex shader; governor step `waves`); the game asks
+  the same sum for what floats (`waveHeightAt`).
+- Colour: light goes down to the bed and back, red lost first (pale sand in the shallows,
+  the water's own blue below); foam at the waterline, in bands along the bed's contours,
+  and on crests in a strong wind.
+- A walker sinks to the bed or to 1.25 m, whichever comes first, rides the waves where it
+  floats, and is slowed (`App.heightFn`, `rig.water`).
+- **Rivers and lakes** (`terrain/tiles/hydrology.js`, run in the tile worker on every
+  elevation mosaic of a world that lists `tiles.hydrology`): priority-flood from the sea
+  and from the stretches of the mosaic's edge where the coarser mosaic says the land
+  outside is downhill (elsewhere the edge is a wall); steepest way down on the filled
+  land; each cell sheds its rain less what the air takes back (`runoff`, from the bundled
+  yearly rainfall map), added up downstream into a mean flow. A river that crosses into
+  the mosaic (a coarse cell outside draining to one inside) puts its flow in at the lowest
+  ground near the crossing. Rivers are traced as smoothed lines with a level that never
+  rises, a width and a depth from the flow (`riverWidth`, `riverDepth`); lakes are pits
+  that fill where enough rain falls, and stretches of exactly level cells in the data.
+  `packWater` turns them into arrays for the height code: stretches of river with a grid
+  to find them, a raster of lake levels, lake beds cut into the mosaic.
+  `DemSet._water` answers from the finest ring at a place; the `sea` layer makes the
+  water (level, depth) and brings the banks down to it. Each ring draws rivers from its
+  own `minFlow` up: the great rivers from far, every brook from near.
+- Inland water has small waves and little foam (the shader knows it by its height above
+  the sea).
+
 ## Sky bodies
 
 One code path: a body is a lit mesh when it is more than ~2.5 pixels across and a point

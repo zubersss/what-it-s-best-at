@@ -9,6 +9,9 @@ import { Ephemeris, dateToJD, jdToDate, elevationAzimuth, latLonToDir } from './
 import { PostPipeline } from './post/post.js';
 import { Governor, MODES, FRAME } from './perf/governor.js';
 import { Benchmark } from './perf/benchmark.js';
+import { waveHeightAt, waveScale } from './water/waves.js';
+
+const SWIM_DEPTH = 1.25;        // metres of water a standing figure sinks into before it floats
 import { StartScreen, ResultsScreen, BenchBanner, Toast } from './ui/screens.js';
 import { immersive, keepAwake } from './ui/device.js';
 import { BUILD } from './core/build.js';
@@ -146,7 +149,24 @@ export class App {
 
   heightFn(world, hs) {
     const walkWL = 2 * (Math.PI / 2) * world.radius / (1 << world.terrain.maxLevel) / CONFIG.NORMAL_RES;
-    return (d) => hs.height(d[0], d[1], d[2], walkWL);
+    if (!world.surface.sea) return (d) => hs.height(d[0], d[1], d[2], walkWL);
+    // Water does not carry a walker: what stands in it sinks to the bed or to SWIM_DEPTH,
+    // whichever comes first, and rides the waves where it floats. (`_sink` is kept for the
+    // drawn ground asked for the same place right after: see rig.groundAt in init.)
+    const pos = new THREE.Vector3();
+    return (d) => {
+      const h = hs.height(d[0], d[1], d[2], walkWL), depth = hs.waterDepth;
+      this.depthAsked = depth;
+      if (depth <= 0) { this._sink = 0; return h; }
+      let sink = Math.min(depth, SWIM_DEPTH);
+      if (depth > 0.6) {
+        const u = this.terrain.shared.uWind.value, w = this.terrain.shared.uWave.value;
+        pos.set(d[0], d[1], d[2]).multiplyScalar(world.radius + h);
+        sink -= waveHeightAt(pos, world.radius, w.z, u, u.w) * Math.min(1, (depth - 0.6) / 1.5) * w.y;
+      }
+      this._sink = sink;
+      return h - sink;
+    };
   }
 
   async init() {
@@ -216,7 +236,8 @@ export class App {
     if (params.debug.includes('norelief') || params.debug.includes('nofar')) G.uQuality.value.w = 0;   // ?debug=norelief: no relief shading of far ground from the slope map
     this.nearShadow = new NearShadow(renderer);
     this.terrain = new Terrain(world, data.rasters, data.hs, renderer);
-    this.rig.groundAt = (d, dist) => this.terrain.drawnHeight(d, dist);   // the character stands on the ground as drawn
+    // the character stands on the ground as drawn (and in water as deep as heightFn just said)
+    this.rig.groundAt = (d, dist) => { const g = this.terrain.drawnHeight(d, dist); return g == null ? null : g - (this._sink || 0); };
     // the home world's cloud layer (a world without clouds: nothing is drawn)
     this.clouds = new CloudLayer(renderer);
     this.clouds.setWorld(world);
@@ -440,6 +461,8 @@ export class App {
         { label: `Mode: ${MODES[this.governor.mode].label}`, sub: `${MODES[this.governor.mode].fps} fps`, stay: true, act: () => this.toggleMode() },
         { label: 'Full screen', sub: 'and keep the screen on', act: () => this.touch.fullscreen() },
       ] },
+      // (what the maps are and whose: the streamed ones ask to be named where they are used)
+      { title: 'Maps', note: 'Elevation of Earth: Terrain Tiles on AWS Open Data (SRTM, GMTED2010 and 3DEP courtesy of the U.S. Geological Survey; ETOPO1, NOAA; EU-DEM, Copernicus; and others). Pictures of Earth: NASA Global Imagery Browse Services (GIBS), Blue Marble. The other worlds: NASA, JPL and USGS missions.', items: [] },
     ];
   }
 
@@ -993,6 +1016,16 @@ export class App {
     eph.update(jd, this.bodies.ids);
     if (b0) this.carryWith(M0, b0, carry);
     G.uTime.value = this.shotMode ? 0.25 : now / 1000;
+    {
+      // Wind and waves (until the weather sets them: a steady breeze from the west).
+      const sh = this.terrain.shared, e = rig.east;
+      const speed = this.world.surface.sea?.wind ?? 6;
+      sh.uWind.value.set(e[0], e[1], e[2], speed);
+      sh.uWave.value.set(waveScale(speed), this.wavesLift === false ? 0 : 1, this.shotMode ? 3.0 : (now / 1000) % 3600);
+      // how deep the water is where the figure stands (0 on land): the rig slows in it
+      // (under the flying figure too: no dust is raised from water)
+      if (this.world.surface.sea) { const f = rig.onFoot ? rig.feet : rig.pos, l = f.length(); this.terrain.hs.height(f.x / l, f.y / l, f.z / l, 1); rig.water = this.terrain.hs.waterDepth; } else rig.water = 0;
+    }
 
     // 2. Camera (a hands-off trip steers it first)
     this.updateTransfer(dt, input);
@@ -1166,7 +1199,7 @@ export class App {
     if (this.shotMode) {
       const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && !this.clouds.loading && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
       window.__shotReady = ready;
-      window.__stats = { calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.clouds.loading ? 'clouds' : ''}` };
+      window.__stats = { water: this.terrain.tiles.rings.map((r) => r.info ? `z${r.zoom}: ${r.info.rivers} rivers, ${Math.round(r.info.flow)} m3/s${r.info.inflow ? '' : ' (no inflow)'}` : null).filter(Boolean).join('; '), stale: this.terrain.staleData, tilesBusy: this.terrain.tiles.busy, refreshQ: this.terrain.readyRefresh.length, rings: this.terrain.ringSerial, tileFails: this.terrain.tiles.failures, busyW: this.terrain.workers.busy, calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.clouds.loading ? 'clouds' : ''}` };
     }
   }
 
@@ -1348,7 +1381,7 @@ export class App {
     if (dt > 0 && env.groundClearance) {
       const p = hero.group.position, c = env.groundClearance(p);            // metres of air under the figure
       const v = rig.velocity, vUp = v.dot(up), speed = v.length(), along = Math.sqrt(Math.max(0, speed * speed - vUp * vUp));
-      const k = dust.amount * dust.dustiness;
+      const k = rig.water > 0.1 ? 0 : dust.amount * dust.dustiness;        // (water raises no dust)
       if (c < 3.5) at.copy(rig.pos).add(p).addScaledVector(up, -(c - 0.15));   // the ground under the figure
       // touching down on the feet: a ring thrown outward from them at the moment they touch,
       // bigger the harder the landing

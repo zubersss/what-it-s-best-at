@@ -2,6 +2,7 @@
 // cliffs, tiling detail and wind ripples close to the camera. All colours and thresholds
 // come from world.surface.
 import * as THREE from 'three';
+import { WAVE_GLSL, LIFTED, WAVE_STEPS } from '../water/waves.js';
 import { CONFIG } from '../config.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
@@ -34,6 +35,11 @@ in vec2 aGrid;
 in vec4 aI0, aI1, aI2, aI3;
 uniform highp sampler2DArray tVert;     // xyz = vertex relative to the chunk's centre, w = height above datum
 uniform highp sampler2DArray tMorph;    // height change toward the parent LOD
+uniform highp sampler2DArray tNormal;   // (its fourth number says where water is, and how deep)
+uniform vec4 uSea;
+uniform vec4 uWind;          // xyz: where the wind blows to (unit, planet axes), w: its speed (m/s)
+uniform vec3 uWave;          // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
+${WAVE_GLSL}
 out vec2 vGrid;
 out float vMorph;            // 0 = this chunk's own shape and shading, 1 = its parent's
 out vec2 vDetailUv;
@@ -62,6 +68,16 @@ void main() {
   int face = int(aI3.w + 0.5);
   vTanU = normalize(FACE_U[face] - n * dot(FACE_U[face], n));
   vTanV = normalize(FACE_V[face] - n * dot(FACE_V[face], n));
+  if (uSea.x > 0.5 && uWave.y > 0.5 && aI2.z < 2.5) {
+    // Open water rises and falls with its waves (the long ones, where the mesh is fine
+    // enough to carry them; none at the shore, where the water is shallow).
+    float wa = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 0.0).a;
+    // (by distance, not by patch: neighbours of different detail must agree along their edge)
+    float deep = clamp((wa - 1.15) / 1.5, 0.0, 1.0) * (1.0 - smoothstep(160.0, 420.0, length(rel)));
+    deep *= 1.0 - 0.88 * smoothstep(2.0, 6.0, pv.w - uSea.y);          // (lakes and rivers: small waves)
+    if (deep > 0.0) rel += up * (wave(vDetailUv, uWave.z, vec2(dot(uWind.xyz, vTanU), dot(uWind.xyz, vTanV)), uWave.x, ${LIFTED}).z * deep);
+    vRel = rel;
+  }
   vChunk = vec4(aI2.w, aI3.x, aI2.z, 0.0);
   vParentOff = aI3.yz;
   gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
@@ -89,13 +105,18 @@ uniform vec4 uRipple;          // xy = ripple wave vector (whole cycles per deta
 uniform float uRoughness;
 uniform sampler2D tClouds;      // the home world's cloud map (its shadow on the ground)
 uniform vec4 uCloud;           // x how dark the shadow is (0: no clouds), y the cloud layer's radius (m), z the map's longitude shift (turns)
-uniform vec4 uSea;             // a sea: x = 1 if the world has one, y its level (m), z how tight the Sun's glint is, w how strong the ripples
+uniform vec4 uSea;             // water: x = 1 if the world has any, y the sea's level (m), z how tight the Sun's glint is, w how strong the ripples
 uniform vec3 uSeaColor;        // deep water's own colour
+uniform vec4 uWind;            // xyz: where the wind blows to (unit, planet axes), w: its speed (m/s)
+uniform vec3 uWave;            // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
+${WAVE_GLSL}
 uniform float uTime;
 uniform vec2 uGloss;           // ice and wet ground: x = how strong the Sun's sheen is (0: none), y = how tight (roughness)
 uniform float uFarRoughness;  // the same for ground whose chunk texels are kilometres (seen from orbit)
 uniform float uDetailStrength;
 uniform sampler2D tAlbedo;     // global map of the world's real brightness or colour (longitude 0..360 E from the left edge, north in the first row)
+uniform sampler2D tRingColour; // the same from map tiles round the traveller (Web Mercator, far finer; terrain/tiles)
+uniform vec4 uRingColour;      // longitude of its left edge (turns), Mercator Y of its top edge (radians), 1 / its width in turns, strength (0: none)
 uniform vec4 uAlbedoMap;       // rgb = 1 / the map's mean, w = how strongly it tints the palette (0 = no map)
 uniform float uAlbedoChroma;   // how much of the map's colour (not just its brightness) is used, 0..1
 uniform float uAlbedoSteep;    // how much of the map's tint steep rock takes (1: all, as gentle ground)
@@ -175,7 +196,9 @@ void main() {
     shadow = mix(shadow, texture(tShadow, vec3((pg * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1), vChunk.y)).r, pk);
   }
   vec3 N = normalize(nt.xyz);
-  float ao = nt.a;
+  // (the fourth number: cavity shading, 0..1, on land; 1 + the water's depth in metres on water)
+  float waterDepth = max(nt.a - 1.0, 0.0);
+  float ao = min(nt.a, 1.0);
   vec3 planetPos = uCamPlanetPos + vRel;
   vec3 up = normalize(planetPos);
   float dist = length(vRel);
@@ -239,7 +262,16 @@ void main() {
   vec3 mapTint = vec3(1.0);
   float mapW = 0.0;
   if (uAlbedoMap.w > 0.0) {
-    vec3 raw = textureGrad(tAlbedo, vec2(uvA.x + uAlbedoShift, uvA.y), gx, gy).rgb * uAlbedoMap.rgb;
+    vec3 raw = textureGrad(tAlbedo, vec2(uvA.x + uAlbedoShift, uvA.y), gx, gy).rgb;
+    if (uRingColour.w > 0.0) {
+      // (Mercator: columns even in longitude, rows in atanh(sin(latitude)))
+      float oz = max(1.0 - up.z * up.z, 1e-6), kv = uRingColour.z * 0.15915494;
+      vec2 uvR = vec2(fract(uvA.x - uRingColour.x) * uRingColour.z, (uRingColour.y - 0.5 * log((1.0 + up.z) / (1.0 - up.z))) * kv);
+      vec2 e2 = min(uvR, 1.0 - uvR);
+      float rw = smoothstep(0.0, 0.07, min(e2.x, e2.y)) * uRingColour.w;
+      if (rw > 0.0) raw = mix(raw, textureGrad(tRingColour, uvR, vec2(gx.x * uRingColour.z, -upX.z / oz * kv), vec2(gy.x * uRingColour.z, -upY.z / oz * kv)).rgb, rw);
+    }
+    raw *= uAlbedoMap.rgb;
     vec3 t = mix(albedoRange(raw, uAlbedoRange), raw, farW);
     mapW = uAlbedoMap.w * (1.0 - smoothstep(uAlbedoFade.x, uAlbedoFade.y, abs(up.z)));
     mapTint = mix(vec3(1.0), mix(vec3(dot(t, vec3(0.3333))), t, uAlbedoChroma), mapW);
@@ -322,16 +354,40 @@ void main() {
     }
   }
 
-  // --- the sea: flat ground at sea level is water (dark, rippled, shining)
-  float water = uSea.x > 0.5 ? 1.0 - smoothstep(uSea.y + 0.15, uSea.y + 0.9, vHeight) : 0.0;
+  // --- water: dark, moving, shining; its colour by how deep it is
+  float water = uSea.x > 0.5 ? smoothstep(0.02, 0.22, waterDepth) : 0.0;
+  float foam = 0.0, waveRough = 0.0;
   if (water > 0.0) {
-    vec2 drift = uTime * vec2(0.011, 0.006);
+    // waves: the long ones as slopes (the surface itself rises with them near the
+    // traveller, see the vertex shader), ripples from the detail texture on top
+    float fw = fwidth(vDetailUv.x) + fwidth(vDetailUv.y);                  // detail tiles per pixel
+    vec2 wind2 = vec2(dot(uWind.xyz, vTanU), dot(uWind.xyz, vTanV));
+    float shoal = 0.35 + 0.65 * smoothstep(0.0, 1.5, waterDepth);
+    // (a wave shorter than two pixels is roughness, not shape)
+    float mpp = fw * float(DETAIL_TILE);
+    int nw = ${WAVE_STEPS.map(([n, len]) => `mpp < ${(len / 5).toFixed(2)} ? ${n} : `).reverse().join('')}0;
+    float inland = smoothstep(2.0, 6.0, vHeight - uSea.y);                  // lakes and rivers: small waves
+    vec3 wv = wave(vDetailUv, uWave.z, wind2, uWave.x * shoal * (1.0 - 0.88 * inland), nw);
+    waveRough = uWave.x * 0.5 * smoothstep(0.02, 0.3, fw);
+    vec2 drift = uWave.z * vec2(0.011, 0.006);
     vec3 r1 = texture(tDetail, vDetailUv * 3.0 + drift).rgb - 0.5, r2 = texture(tDetail, vDetailUv * 13.0 - drift * 2.3).rgb - 0.5;
-    // (ripples smaller than a pixel only roughen the glint)
-    float near = 1.0 - smoothstep(0.02, 0.4, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
-    vec3 Nw = normalize(up + (uTanU * (r1.r + 0.6 * r2.r) + uTanV * (r1.g + 0.6 * r2.g)) * (uSea.w * near));
+    float near = 1.0 - smoothstep(0.02, 0.4, fw);
+    vec2 rip = (r1.rg + 0.6 * r2.rg) * (uSea.w * near * (0.4 + 0.1 * uWind.w));
+    vec3 Nw = normalize(up - uTanU * (wv.x + rip.x) - uTanV * (wv.y + rip.y));
     N = normalize(mix(N, Nw, water));
-    albedo = mix(albedo, uSeaColor, water);
+    // foam: a line where the water runs out on the shore, bands that follow the bed's
+    // contours and run in toward it, and the crests in a strong wind
+    float lace = texture(tDetail, vDetailUv * 5.0 - drift * 3.0).b * 0.6 + texture(tDetail, vDetailUv * 21.0 + drift * 5.0).b * 0.4;
+    float crest = smoothstep(0.55, 0.95, wv.z / max(uWave.x * 2.2, 0.05)) * smoothstep(7.0, 14.0, uWind.w) * smoothstep(0.45, 0.7, lace);
+    float inshore = 1.0 - smoothstep(0.25, 1.6 + uWave.x, waterDepth);
+    float band = smoothstep(0.62, 0.97, sin(6.2831853 * (waterDepth / (0.45 + 0.5 * uWave.x) + lace * 0.9) + uWave.z * 1.1)) * inshore * smoothstep(0.25, 0.55, lace + 0.35 * inshore);
+    float edge = 1.0 - smoothstep(0.0, 0.10 + 0.08 * lace, waterDepth);
+    foam = clamp(max(max(edge, band) * (1.0 - 0.85 * inland), crest), 0.0, 1.0) * water * near;
+    // colour: light goes down to the bed and comes back, red lost first; what is left of
+    // it shows the bed (pale sand), the rest is the water's own blue
+    vec3 through = exp(-vec3(0.42, 0.07, 0.035) * (waterDepth * 2.3));
+    vec3 body = vec3(0.30, 0.27, 0.20) * through + uSeaColor * (1.0 - through.b);
+    albedo = mix(albedo, mix(body, vec3(0.75), foam), water);
     ao = mix(ao, 1.0, water);
   }
 
@@ -354,11 +410,11 @@ void main() {
   if (water > 0.0) {
     // the Sun's glint (seen from orbit too) and the sky in the water at a grazing view
     vec3 Hh = normalize(uSunDir + V);
-    float rough = uSea.z + 0.25 * smoothstep(0.02, 0.6, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
+    float rough = uSea.z + waveRough + 0.25 * smoothstep(0.02, 0.6, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
     float nh = max(dot(N, Hh), 0.0), a2 = rough * rough, dd = nh * nh * (a2 - 1.0) + 1.0;
     float F = 0.02 + 0.98 * pow(1.0 - max(dot(V, Hh), 0.0), 5.0), Fv = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
     vec3 Rv = reflect(-V, N); Rv = normalize(Rv + up * max(0.0, 0.05 - dot(Rv, up)));
-    col += water * (directSun(planetPos) * shadow * (a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0) * 0.25 / max(dot(N, V), 0.2)) + Fv * skyLight(Rv, up) / PI);
+    col += water * (1.0 - foam) * (directSun(planetPos) * shadow * (a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0) * 0.25 / max(dot(N, V), 0.2)) + Fv * skyLight(Rv, up) / PI);
   } else if (uGloss.x > 0.0) {
     // the Sun's sheen on ice: a broad glint toward the Sun, strongest at a grazing view;
     // it fades with distance into the far ground's plain brightness
@@ -383,7 +439,8 @@ export function makeTerrainShared(world, textures) {
     uCover: { value: new THREE.Vector4() },
     // w: the cover pattern (d0.a + 0.3 d1.a) is about normal; logistic scale = its spread / 1.702
     uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
-    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) },
+    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) },
+    tRingColour: { value: textures.white }, uRingColour: { value: new THREE.Vector4(0, 0, 1, 0) },
     tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoShift: { value: 0 }, uAlbedoSteep: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
     uAlbedoRange: { value: new THREE.Vector2() }, uRockHue: { value: new THREE.Vector2() }, uCoverContrast: { value: 1 }, uBedrockSlope: { value: 0 },
     uDemBox: { value: Array.from({ length: DEM_N }, () => new THREE.Vector4()) }, uDemInfo: { value: Array.from({ length: DEM_N }, () => new THREE.Vector4()) },

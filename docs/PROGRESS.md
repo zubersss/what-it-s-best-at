@@ -277,6 +277,30 @@ every pixel: an Earth benchmark after each stage decides what stays on in Smooth
 services can be slow or away: everything must degrade to the bundled globe. Rivers from
 drainage are the hardest part to get right at the seams between rings.
 
+## Milestone 10, stages 1 and 2: what was built
+
+- **Earth streams**: three elevation rings (2.4 km, 300 m, 30 m a pixel) and a colour
+  ring (600 m) round the traveller, from AWS Terrain Tiles and NASA GIBS, through a tile
+  worker; ground built from older data is rebuilt in place. The Grand Canyon from Mather
+  Point is now the real canyon at 30 m (buttes, side canyons), and so is everywhere else
+  on Earth between 85 degrees north and south. Settles in about 100 s in the test
+  browser at a small picture size (the bundled-only Earth took about as long).
+- **The sea**: the map decides the shore; coastal water gets a bed; depth gives the
+  colour (pale shallows to blue); sixteen wind waves, the eight longest lifting the
+  surface near the traveller; the Sun's glint follows the waves; foam at the waterline.
+  Seen: open sea off Hawaii's Big Island with Mauna Kea on the horizon; the Kohala shore.
+- **Standing in water**: the figure sinks to 1.25 m and rides the waves, wades and swims
+  slowly, raises no dust; rocks do not stand in water.
+- **Rivers and lakes** from the land's shape and the real rainfall (see ARCHITECTURE,
+  "Water"). Checked at the Grand Canyon: the Colorado comes in from Lake Powell's side
+  with 594 m3/s, runs the inner gorge at 740 m (Phantom Ranch is at 740 m) carrying
+  635 m3/s, 139 m wide; a side creek runs down to it. The real river carries about 500.
+- Governor: step `waves`. The terrain shader reads 15 of a phone's 16 textures.
+- **Not done**: a swimming stroke (the figure treads water upright); water seen from
+  below; flow direction in the look of a river; waterfalls; lakes are untested by eye;
+  land below sea level (Death Valley, the Dutch polders) is flooded; rivers do not line
+  up across the edge between two rings; a river's colour is the sea's.
+
 ## Milestone 6 plan: the new worlds
 
 The owner's word: "finish up the rest of the milestones". No stop after every two worlds;

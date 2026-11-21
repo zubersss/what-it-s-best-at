@@ -92,6 +92,7 @@ export class CameraRig {
     // groundAt(dir, camDist) -> height of the ground as drawn (or null): set by the app, so
     // the character stands on the ground the player sees, not on the finer height function.
     this.groundAt = null;
+    this.water = 0;             // how deep the water is where the figure stands (m; the app sets it)
     this.auto = null;        // { mult } during a hands-off trip (set by the app)
     this._h = new THREE.Vector3(); this._r = new THREE.Vector3(); this._u = new THREE.Vector3(); this._t = new THREE.Vector3();
   }
@@ -430,7 +431,9 @@ export class CameraRig {
     let wf = fwd, ws = strafe; const wl = Math.hypot(wf, ws);
     if (this.landSpeed > FOOT.hard && this.clock - this.landedAt < FOOT.hardHold) { wf = 0; ws = 0; }     // still down on one knee
     if (wl > 1) { wf /= wl; ws /= wl; }
-    const top = (fast ? FOOT.super : FOOT.walk) * (slow ? 0.3 : 1);
+    // (wading is slow, swimming slower, and there is no super speed in water over the knee)
+    const wet = this.water > 1.1 ? 0.4 : this.water > 0.35 ? 0.65 : 1;
+    const top = (fast && this.water < 0.5 ? FOOT.super : FOOT.walk) * (slow ? 0.3 : 1) * wet;
     const tx = (hf.x * wf + hr.x * ws) * top, ty = (hf.y * wf + hr.y * ws) * top, tz = (hf.z * wf + hr.z * ws) * top;
     // Horizontal velocity eases toward the stick, faster on the ground than in the air.
     const v = this.footVel;

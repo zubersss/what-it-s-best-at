@@ -84,6 +84,24 @@ which serves the public bucket `asc-pds-services`), downloaded whole and reduced
 | `earth_slopes_4096.jpg` | The land's slope everywhere (the sea flat), as the other slope maps | Same, zoom 5 | As above |
 | `earth_dem_grandcanyon.i16`, `_everest`, `_hawaii`, `_namib`, `_alps` | Sharper elevation at five places, 93 m per pixel (Hawaii 186 m) | Same, zoom 11 (Hawaii 10). These windows come from SRTM (NASA / USGS, public domain), USGS 3DEP (public domain) and, for the Alps, EU-DEM | As above |
 
+| `earth_rain_720.u8` | Earth's mean yearly rainfall (2023), 720×360 bytes, byte = 3.2 × sqrt(mm a year), north first, from longitude −180: what the rivers are fed by | NASA GIBS, layer `MERRA2_Precipitation_Bias_Corrected_Monthly` (twelve months through WMS, colours turned back into values with the layer's colour map), `scripts/fetch-earth-climate.py` | NASA (MERRA-2, GMAO): public domain |
+
+### Streamed while the game runs (not in the repository)
+
+On Earth the game fetches map tiles round the traveller from two public services that
+need no key and no account and answer any web page (`src/worlds/earth.js`,
+`terrain.tiles`; `docs/ARCHITECTURE.md`, "Map tiles round the traveller"). Nothing is
+stored; the player's browser asks the services directly. The credits are in the game's
+MENU.
+
+| What | From | Rights |
+| --- | --- | --- |
+| Elevation at 2.4 km, 300 m and 30 m a pixel (zoom 6, 9, 12) | "Terrain Tiles" on the AWS Open Data registry, `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png` | Open data with attribution (below) |
+| The land's colour at 600 m | NASA GIBS, layer `BlueMarble_NextGeneration` (Web Mercator, level 8), `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/...` | NASA imagery: free to use; GIBS asks to be acknowledged: "We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS)." |
+
+The bed of coastal water is not data: the elevation set leaves the sea at zero near the
+shore, and the tile worker gives it a bed that falls away from the land.
+
 Attribution required by the Terrain Tiles set (its sources, as listed on
 `https://registry.opendata.aws/terrain-tiles/`): ArcticDEM terrain data DEM(s) were created
 from DigitalGlobe, Inc., imagery and funded under National Science Foundation awards
