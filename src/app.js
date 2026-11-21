@@ -1241,7 +1241,7 @@ export class App {
     rig.finalize(aspect, near, far);
     renderer.render(this.nearScene, rig.camera);
     prof.mark(8);
-    if (vol) this.cloudVolume.lay(near, far);
+    if (vol) this.cloudVolume.lay(near, far, rig);
     prof.mark(9);
     if (this.rain.mesh.visible || this.bolt.mesh.visible || this.rainbow.mesh.visible) renderer.render(this.weatherScene, rig.camera);
     if (this.hero.group.visible) {

@@ -369,6 +369,20 @@ and one of the loads goes away, which is the 100 against 55.
   by. The volume now reaches 16 km (it was 45: five steps over the last 27 km drew
   speckle, not cloud); beyond, the shell.
 
+- The cloud base rides `base` metres over the ground under the traveller: with cloud now
+  everywhere, a base over the sea put the canyon's rim (2 100 m) inside it.
+- For the phone: each of the six cloud passes covers only the part of the sky where its
+  slice can hold cloud; from the ground with a level view that is under one screen of
+  blending instead of four to six.
+- Reference pictures of this delivery (`docs/shots/`, at 660 x 309: there was no time for
+  the full set at the phone shape): `earth_ledge`, `earth_dusk`, `earth_forest_spruce`,
+  `earth_forest_hardwood`, `earth_meadow_cloud`, `earth_prairie`, `earth_clouds_air`,
+  `earth_florida_air`, `earth_hurricane`, `earth_tropics_rain`.
+- **Not looked at after these changes**: Everest, the Pacific at dawn, the lakes and the
+  Colorado (the haze and the land's colours changed there too), night, and the view from
+  orbit down to 40 km. Stability (`npm run stability`) was not run on the new grass,
+  flowers and clouds: the cut edge of the far clouds may crawl in motion.
+
 ### Flying over
 
 The owner's picture (brown flats with teal pools under a yellow haze) and two of the same

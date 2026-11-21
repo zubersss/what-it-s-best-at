@@ -544,7 +544,12 @@ ring: it is not asked for.
   within `volume.clear` metres of the eye the cloud is thin); from 900 m off the alpha is
   cut to a clean shape (`CRISP`), with the four looks set wider apart (`SPREAD`) and less
   jitter in the march there. Slices that end nearer than the traveller's distance below
-  the base (or above the top) are not laid at all.
+  the base (or above the top) are not laid at all, and each of the others covers only the
+  part of the view's height where its cloud can be (from under the layer, above the
+  height a ray must climb at to reach the base within the slice): with a level view
+  from the ground that is well under one screen of blending for all six.
+- The base stands `volume.base` over the ground under the traveller (followed slowly),
+  not over the sea. Inside a deep cloud the wisps are lighter and darker in turn.
 - `volume.dense` makes the cloud more solid; `volume.change` turns its shapes over with
   time (the noise drifts through its third axis), besides the drift with the wind.
 - Shapes: the world's cloud map (where, how much), a repeating 64-cube noise made in a
