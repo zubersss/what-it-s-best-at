@@ -402,6 +402,79 @@ ring: it is not asked for.
 - Inland water has small waves and little foam (the shader knows it by its height above
   the sea).
 
+## Trees and leaves (`src/life/`)
+
+- **What grows where** comes with the colour ring (terrain/tiles): the tile worker also
+  fetches land-cover classes (MODIS, IGBP legend) and canopy heights (GEDI) for the same
+  mosaic, turns their colours back into numbers with a palette file, and returns a class
+  and a height for every pixel. The picture's fourth channel carries the canopy's height
+  as a whole (height x how closed the class is, 0.2 m a step).
+- **`cover.js`** (plain data): how closed each class is, and `speciesFor(class, lat, lon,
+  altitude, beside water)`: the region's own trees as weighted lists (64 species, eight
+  shapes). A canopy measured taller than 8 m is forest whatever the class says.
+- **`treeBlock.js`** (in the terrain workers, job `trees`): the trees of a block of 0.001
+  degrees: a jittered site every 7 m, taken by the class's chance, less on slopes, never
+  in water or above the tree line; beside rivers and lakes the trees that follow water.
+- **`trees.js`**: keeps the blocks within `radius` (240 m) of the traveller, asks for the
+  nearest missing one when a worker is idle, and builds instance lists: one mesh per
+  shape and distance (near mesh under 110 m, far mesh beyond; `treeGeometry.js`), all
+  measured from an anchor at the traveller (rebuilt every 25 m of travel). One material:
+  the shared lighting, light wrapped round and through crowns, shadows asked for a
+  little outside the crown; wind (lean and swing by height and distance from the trunk);
+  the seasons (leaves turn, then draw in to the branches, by the date and hemisphere,
+  away from the tropics). Crowns cast flecked shadows (their depth pass drops four
+  pixels in ten).
+- **Beyond the trees** the ground shader raises the forest as a whole: the vertex shader
+  lifts the ground by the canopy's height (uneven as crowns are; not on rock faces or
+  water) from 0.8 to 1.25 of the trees' radius outward, or everywhere from above 1 500 m;
+  the fragment shader shades it as leaves. Under the trees the ground is grass in the
+  open, litter and leaf-filtered light under a closed canopy, fallen leaves in season.
+- **`leaves.js`**: 420 points that come loose overhead, ride the wind down turning, and
+  lie a moment; worked out in the vertex shader from a number of their own and the
+  clock; they stay put in the world as the camera moves.
+- Governor steps: `leaves`, `tree-shadows` (the far meshes stop casting), `trees-far`
+  (two thirds of the radius).
+
+## Clouds with depth (`src/sky/cloudVolume.js`)
+
+- Near the traveller (to `reach`, 45 km) the cloud layer is a volume; beyond it the thin
+  shell of `clouds.js`, which fades in where the volume fades out. Above 30 km only the
+  shell (and from space the globe's own clouds).
+- After the ground is drawn, a picture a third of the view each way is marched (26 steps,
+  short near the eye): two side by side, one stopping at whatever stands behind the
+  pixel, one running out to the sky. The HDR target's depth is a texture for this.
+  Back in the main picture two full-screen passes lay them over it; the depth test
+  chooses per pixel which (sky where nothing was drawn), so ridges keep clean edges.
+  Each lay reads four taps: the march starts at a different depth in every pixel.
+- Shapes: the world's cloud map (where, how much), a repeating 64-cube noise made in a
+  worker (`cloudNoiseData.js`: masses and the cells that eat their edges), a base and a
+  top; with weather, the day's cloud-top map makes the layer as deep as the tallest
+  cloud near (storms: 13 km).
+- Light: the Sun through the air to the cloud (once per ray), then through the cloud (one
+  look toward the Sun per step plus the layer above), brightest at edges facing it and
+  round the Sun; sky light from above and below; the air between cloud and eye;
+  lightning inside it.
+- Governor steps: `cloud-steps` (16), `cloud-volume` (off: the shell alone).
+
+## Weather (`src/weather/`)
+
+- A world's `weather` block names maps of one real day: rain, cloud-top height, cloud
+  (small), and that day's storms. `weather.js` looks them up at the traveller's place
+  every frame and derives: **wind** (the planet's belts plus a vortex round each storm:
+  calm eye, hardest at the eye wall), **rain** (only under the cloud) or **snow** (by a
+  rough temperature: latitude, altitude, season), **wetness** (builds in rain, dries
+  slowly), **shade** (the cloud between the traveller and the Sun, and over the sky),
+  **lightning** (under deep cloud where it rains hard: a place, a brightness, thunder on
+  its way at the speed of sound).
+- Who takes what: `uWind` (waves, trees, leaves, cloud drift); `G.uWeather` (the lighting
+  chunk: sunlight on things near the camera, sky light; the ground: wet is darker and
+  shines); `G.uFlash` (sky light for an instant); `rain.js` (1 400 streaks or flakes in a
+  box round the camera, stateless like the leaves); `bolt.js` (a stroke to the ground);
+  the audio (rain, wind, thunder); the rig (the wind carries what hangs in the air, only
+  while the stick is let go).
+- The ground and the clouds work out cloud shadow place by place (`OWN_CLOUD_SHADOW`);
+  everything else near the camera takes `uWeather.x`.
+
 ## Sky bodies
 
 One code path: a body is a lit mesh when it is more than ~2.5 pixels across and a point

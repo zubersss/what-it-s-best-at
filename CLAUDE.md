@@ -173,6 +173,7 @@ npm run worlds         # every world opens at its start with ground drawn and no
 node scripts/check-ephemeris.mjs   # every orbit and spin against JPL Horizons (no network; fails beyond a tolerance)
 node scripts/peek.mjs --world io [--shot ledge | --lat .. --lon ..] [--pan 4]   # a CPU sketch of the view from a place, in seconds: for choosing sites and times
 python3 scripts/fetch-worlds.py [job ...]   # the maps of the worlds of milestone 6 (5 GB of originals into .cache/maps), see docs/ASSETS.md
+python3 scripts/fetch-earth-weather.py   # the weather of 8 September 2017 for Earth: clouds, rain, cloud tops, storms (NASA GIBS)
 python3 scripts/fetch-earth-climate.py   # Earth's yearly rainfall for the rivers, from NASA GIBS (public/data/earth_rain_720.u8)
 python3 scripts/fit-orbits.py      # orbits fitted to JPL Horizons (needs ssd.jpl.nasa.gov; replies cached)
 npm run assets         # re-download and convert the small NASA/Yale files into public/data/
@@ -214,6 +215,7 @@ camera, to see the face; a standing one is turned to face it), `target=<body>|su
 body or `sun`, that many of its radii from its centre, looking at it; `round` degrees away from the Sun's side, `up` degrees above), `dust=1` (with `hero=1`: a touch-down dust burst
 frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last footfalls), `debug=noair|airall` (haze shadows off / everywhere),
 `debug=contactx4` (the rocks' contact-darkening spheres four times larger, to see the effect),
+`debug=flash` (a stroke of lightning held at its brightest, on worlds with weather),
 `debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
 `nofarrough`, `noboost`) for before/after pictures.
 
@@ -437,5 +439,17 @@ finished benchmark leaves its text in `window.__benchResult`.
   reached the Grand Canyon with a twentieth of its water. Only the stretches of edge
   where the coarser map says the land outside is downhill let water out; a river that
   comes in is put in where the coarser map says it crosses.
+- GLSL ES 3 reserves words that look like ordinary names: `patch`, `sample`, `filter`,
+  `input`, `output`, `common`, `active`, `partition`. A variable called `patch` broke
+  the ground shader on the test browser (and would on the phone); the build does not
+  compile shaders, so only a picture run shows it.
+- A map with 600 m pixels knows nothing of a cliff inside one: the far forest covered
+  the Grand Canyon's rock walls in green until the shader asked the ground's own slope.
+- Elevation in whole metres makes exactly level stretches of any gentle slope: "level
+  cells are water" drew a lake over a Vermont hillside. Water lies in a hollow: hardly
+  any ground round a real lake is lower than it.
+- Under trees the only light on the ground was the blue of the sky (the Sun is in the
+  crowns' shadow): a forest floor like water. Light under a canopy has come through
+  leaves; and crowns let flecks of Sun through.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

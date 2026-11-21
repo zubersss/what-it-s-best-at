@@ -85,7 +85,7 @@ export class Trees {
           vec3 autumn = vOwn.y > 1.5 ? vec3(0.42, 0.26, 0.03) : mix(vec3(0.40, 0.20, 0.03), vec3(0.30, 0.045, 0.02), smoothstep(0.35, 0.8, fract(vOwn.x * 7.3)));
           // (a crown is leaves and the gaps between them: as a surface it is darker than a leaf)
           vec3 leafC = mix(vLeafC * (0.5 + 0.22 * fract(vOwn.x * 13.7)), autumn * 0.6, turn);
-          vec3 albedo = mix(vTrunkC, leafC, step(0.5, vLeaf));
+          vec3 albedo = mix(vTrunkC * 0.6, leafC, step(0.5, vLeaf));
           // (the shadow is asked for a little outside the crown: on a mass of a few faces the
           // shadow map would draw the faces)
           float shadow = nearShadow(vRel + N * (vLeaf > 0.5 ? 0.45 : 0.05), N);
@@ -107,7 +107,12 @@ export class Trees {
         void main() { vec3 foot; float leaf; gl_Position = projectionMatrix * viewMatrix * vec4(treePosition(foot, leaf), 1.0); vLeaf = leaf; }`,
       // (a crown lets some of the Sun through: its shadow is flecked, not solid)
       fragmentShader: /* glsl */`in float vLeaf; layout(location = 0) out vec4 fragColor;
-        void main() { if (vLeaf > 0.5 && fract(sin(dot(floor(gl_FragCoord.xy * 0.5), vec2(12.9898, 78.233))) * 43758.5453) < 0.38) discard; fragColor = vec4(1.0); }`,
+        void main() {
+          // (which pixels: scattered, not in rows; the shadow's soft edge blends them)
+          uvec2 q = uvec2(gl_FragCoord.xy); uint h = q.x * 1597334677u ^ q.y * 3812015801u; h ^= h >> 15; h *= 2246822507u; h ^= h >> 13;
+          if (vLeaf > 0.5 && (h & 255u) < 80u) discard;
+          fragColor = vec4(1.0);
+        }`,
     });
     // one mesh per shape and distance: [shape][0 near, 1 far]
     this.sets = this.geos.map((pair) => pair.map((base, lod) => {

@@ -80,11 +80,19 @@ void main() {
   float d0 = texture(tSceneDepth, dUv + uDepthUv.zw * vec2(-0.9, -0.9)).r, d1 = texture(tSceneDepth, dUv + uDepthUv.zw * vec2(0.9, -0.9)).r;
   float d2 = texture(tSceneDepth, dUv + uDepthUv.zw * vec2(-0.9, 0.9)).r, d3 = texture(tSceneDepth, dUv + uDepthUv.zw * vec2(0.9, 0.9)).r;
   float far = max(max(d0, d1), max(d2, d3)), nearest = min(min(d0, d1), min(d2, d3));
-  if (sky ? far < 1.0 : nearest >= 1.0) { fragColor = vec4(0.0); return; }
+  // (Which of the two pictures is needed here is asked of a wider neighbourhood: where sky
+  // meets ground both are laid over the view with soft edges, and a picture left empty
+  // right beside the meeting line showed as a bright seam along every horizon.)
+  float w0 = texture(tSceneDepth, dUv + uDepthUv.zw * vec2(-5.0, -5.0)).r, w1 = texture(tSceneDepth, dUv + uDepthUv.zw * vec2(5.0, -5.0)).r;
+  float w2 = texture(tSceneDepth, dUv + uDepthUv.zw * vec2(-5.0, 5.0)).r, w3 = texture(tSceneDepth, dUv + uDepthUv.zw * vec2(5.0, 5.0)).r;
+  float farW = max(far, max(max(w0, w1), max(w2, w3))), nearW = min(nearest, min(min(w0, w1), min(w2, w3)));
+  if (sky ? farW < 1.0 : nearW >= 1.0) { fragColor = vec4(0.0); return; }
   float tStop = 1e9;
   if (!sky) {
     // (the farthest thing among them: a little too much cloud on a near edge, never a hole)
     float dg = max(max(d0 < 1.0 ? d0 : 0.0, d1 < 1.0 ? d1 : 0.0), max(d2 < 1.0 ? d2 : 0.0, d3 < 1.0 ? d3 : 0.0));
+    // (no ground behind this very pixel, only near it: as far as the nearest ground round it)
+    if (dg <= 0.0) dg = max(max(w0 < 1.0 ? w0 : 0.0, w1 < 1.0 ? w1 : 0.0), max(w2 < 1.0 ? w2 : 0.0, w3 < 1.0 ? w3 : 0.0));
     tStop = viewZ(dg) / max(dot(dir, uCamFwd), 0.05);
   }
   // the stretch of the ray inside the layer (between two spheres round the world)
@@ -153,7 +161,8 @@ layout(location = 0) out vec4 fragColor;
 void main() {
   // (four looks round the place: the march starts at a different depth in every pixel of
   // the small picture, and this takes the grain out of it)
-  vec2 uv = vec2(uHalf.x + clamp(vUv.x, uHalf.y, 1.0 - uHalf.y) * 0.5, vUv.y), d = uHalf.zw;
+  // (kept a pixel and a half inside this half of the small picture: its neighbour is the other half)
+  vec2 uv = vec2(uHalf.x + clamp(vUv.x * 0.5, 1.5 * uHalf.z, 0.5 - 1.5 * uHalf.z), clamp(vUv.y, 1.5 * uHalf.w, 1.0 - 1.5 * uHalf.w)), d = uHalf.zw;
   fragColor = 0.25 * (texture(tCloudPass, uv + d * vec2(0.9, 0.35)) + texture(tCloudPass, uv + d * vec2(-0.35, 0.9)) + texture(tCloudPass, uv + d * vec2(-0.9, -0.35)) + texture(tCloudPass, uv + d * vec2(0.35, -0.9)));
 }`;
 

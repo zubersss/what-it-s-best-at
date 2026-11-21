@@ -86,6 +86,9 @@ which serves the public bucket `asc-pds-services`), downloaded whole and reduced
 
 | `earth_rain_720.u8` | Earth's mean yearly rainfall (2023), 720×360 bytes, byte = 3.2 × sqrt(mm a year), north first, from longitude −180: what the rivers are fed by | NASA GIBS, layer `MERRA2_Precipitation_Bias_Corrected_Monthly` (twelve months through WMS, colours turned back into values with the layer's colour map), `scripts/fetch-earth-climate.py` | NASA (MERRA-2, GMAO): public domain |
 
+| `earth_clouds_4096.jpg`, `_512` (replaced), `earth_rain_2048.jpg`, `earth_cloudtop_1024.jpg`, `earth_storms.json` | The weather of 8 September 2017: where cloud was (VIIRS true colour, the clear Earth taken out), the day's rain (IMERG: byte = 60 × log2(1 + mm an hour)), cloud-top heights (MODIS Terra and Aqua: byte = 16 × km), and the tropical cyclones found in the rain map; Irma, Jose and Katia carry the positions and winds of the US National Hurricane Center's advisories of that day | NASA GIBS (`VIIRS_SNPP_CorrectedReflectance_TrueColor`, `IMERG_Precipitation_Rate`, `MODIS_Terra/Aqua_Cloud_Top_Height_Day`), `scripts/fetch-earth-weather.py` | NASA: public domain; NHC advisories: US government work, public domain |
+| `earth_cover_palette.json` | What the colours of the land-cover and canopy-height tiles mean (17 classes; 91 heights) | GIBS colour maps `MODIS_IGBP_Land_Cover_Type` and `GEDI_RH100_Mean_Color_Index` | NASA: public domain |
+
 ### Streamed while the game runs (not in the repository)
 
 On Earth the game fetches map tiles round the traveller from two public services that
@@ -98,6 +101,9 @@ MENU.
 | --- | --- | --- |
 | Elevation at 2.4 km, 300 m and 30 m a pixel (zoom 6, 9, 12) | "Terrain Tiles" on the AWS Open Data registry, `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png` | Open data with attribution (below) |
 | The land's colour at 600 m | NASA GIBS, layer `BlueMarble_NextGeneration` (Web Mercator, level 8), `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/...` | NASA imagery: free to use; GIBS asks to be acknowledged: "We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS)." |
+| Land-cover class at 500 m and canopy height at 1 km: where forest is, of what kind, how tall | NASA GIBS, layers `MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual` (2022) and `GEDI_ISS_L3_Canopy_Height_Mean_RH100_201904-202303` | NASA (MODIS land team; GEDI, University of Maryland and NASA Goddard): free to use, GIBS acknowledged as above |
+
+The tree species are not data either: land cover and height are measured, and the species is the region's dominant one for that class, from a table written for the game (`src/life/cover.js`).
 
 The bed of coastal water is not data: the elevation set leaves the sea at zero near the
 shore, and the tile worker gives it a bed that falls away from the land.

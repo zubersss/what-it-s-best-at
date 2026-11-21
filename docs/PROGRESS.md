@@ -301,6 +301,34 @@ drainage are the hardest part to get right at the seams between rings.
   land below sea level (Death Valley, the Dutch polders) is flooded; rivers do not line
   up across the edge between two rings; a river's colour is the sea's.
 
+## Milestone 10, stages 3 to 5: what was built
+
+- **Forests** (ARCHITECTURE, "Trees and leaves"): where forest is, of what kind and how
+  tall from NASA's land-cover and canopy-height tiles; the species from a table of each
+  region's own trees. Seen: pinyon and juniper on the Grand Canyon's South Rim (1 500
+  trees round Mather Point, with ponderosa and aspen); spruce, ponderosa and aspen on the
+  Kaibab Plateau; 3 761 red oak, sugar maple and beech in a Vermont wood in October, red
+  and gold, their leaves on the ground and in the air. Beyond 240 m the forest is raised
+  as a whole by the ground shader; from the air it is a green canopy over the hills.
+- **Clouds with depth** (ARCHITECTURE, "Clouds with depth"): a volume to 45 km, marched
+  at a third of the view and laid over the picture by depth; the old shell beyond.
+- **Weather** (ARCHITECTURE, "Weather"): Earth has the weather of 8 September 2017, from
+  NASA's maps of that day: hurricanes Irma, Jose and Katia stand in the Atlantic (they
+  are in the cloud map the globe wears from space, in the rain map and in the wind, which
+  circles each of them); rain and snow fall under the cloud, the ground gets wet and
+  shines, the cloud overhead dims the Sun and the sky, lightning strikes where the rain
+  is hard under deep cloud and its thunder comes late by the distance. The three
+  hurricanes are places in the target list and the journal.
+- Governor steps added: `rain`, `leaves`, `tree-shadows`, `trees-far`, `waves`,
+  `cloud-steps`, `cloud-volume` (22 in all).
+- **Not done, or weak**: a tree is a few lumps on a stick up close; no undergrowth or
+  grass blades; the far forest turns with the season in patches without knowing which
+  trees are evergreen; clouds are grainy at the small picture size and have no memory
+  between frames (no temporal smoothing); rain does not show as shafts from afar; snow
+  does not lie; the weather does not move or change with the clock (one day, standing
+  still); no fog, rainbow, tornado or aurora; the wind only carries a hovering figure.
+  None of it has been measured on the phone.
+
 ## Milestone 6 plan: the new worlds
 
 The owner's word: "finish up the rest of the milestones". No stop after every two worlds;
