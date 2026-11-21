@@ -401,6 +401,10 @@ export class Terrain {
   setRingPicture(name, pic) {
     if (name !== 'colour') return;
     const u = this.shared;
+    // what grows there (classes and canopy heights), for the workers that place the trees
+    const c = pic && pic.cover ? { cls: pic.cover.cls.buffer, tall: pic.cover.tall.buffer, width: pic.width, zoom: pic.zoom, tx: pic.tx, ty: pic.ty } : null;
+    this.workers.tell(() => [{ type: 'cover', cover: c }]);
+    this.coverSerial = c ? (this.coverSerial || 0) + 1 : 0;
     if (this.ringTex) { this.ringTex.dispose(); this.ringTex = null; }
     if (!pic) { u.tRingColour.value = this.textures.white; u.uRingColour.value.w = 0; return; }
     const tex = new THREE.DataTexture(pic.data, pic.width, pic.width, THREE.RGBAFormat, THREE.UnsignedByteType);

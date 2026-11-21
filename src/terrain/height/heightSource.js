@@ -34,6 +34,7 @@ export function createHeightSource(world, rasters = []) {
   const c = { x: 0, y: 0, z: 1, px: 0, py: 0, pz: 0, h: 0, slope: 0, res: 1e12, minWL: 0, water: 0, map: null };
   const n = fns.length;
   const regional = fns.filter((f) => f.prepare);
+  let cover = null;
 
   const hs = {
     radius,
@@ -45,6 +46,7 @@ export function createHeightSource(world, rasters = []) {
       c.h = 0; c.slope = 0; c.res = 1e12; c.minWL = minWL > 0.02 ? minWL : 0.02; c.water = 0; c.map = null;
       for (let i = 0; i < n; i++) fns[i](c);
       hs.baseSlope = c.slope; hs.waterDepth = c.water;
+      hs.nearWater = env.dem ? (env.dem.lakeL > -1e8 ? 0 : env.dem.rivS < 1e8 ? Math.max(0, env.dem.rivS - env.dem.rivA) : 1e9) : 1e9;
       return c.h;
     },
     // No ground within the world's shadow range of this place is higher than this (m above datum).
@@ -56,6 +58,25 @@ export function createHeightSource(world, rasters = []) {
     },
     // A ring of map tiles arrives, moves or goes (terrain/tiles; see DemSet.setRing).
     setRing(slot, raster) { env.dem?.setRing(slot, raster); },
+    // What grows where, from the same tiles: { cls: Uint8Array (land-cover class), tall:
+    // Uint8Array (canopy height, 0.25 m a step), width (pixels, square), zoom, tx, ty } or null.
+    setCover(c) {
+      cover = c ? { ...c, k: 256 * 2 ** c.zoom / (2 * Math.PI), lon0: c.tx / 2 ** c.zoom * 2 * Math.PI - Math.PI, my0: Math.PI * (1 - 2 * c.ty / 2 ** c.zoom) } : null;
+    },
+    // The class and canopy height at a unit direction: class + 256 * height (0.25 m steps),
+    // or -1 where no map says. (Read a little off the true place, by a noise of its own:
+    // the map's pixels are 600 m squares and forests do not end in straight lines.)
+    coverAt(x, y, z) {
+      if (!cover) return -1;
+      const w = 0.6 * noise3(x * radius / 260 + 9.1, y * radius / 260 - 4.2, z * radius / 260), w2 = 0.6 * noise3(x * radius / 260 - 2.3, y * radius / 260 + 7.7, z * radius / 260 + 5.5);
+      let l = Math.atan2(y, x) - cover.lon0; l -= 2 * Math.PI * Math.floor(l / (2 * Math.PI));
+      const px = l * cover.k + w, py = (cover.my0 - 0.5 * Math.log((1 + z) / (1 - z))) * cover.k + w2;
+      if (px < 0 || py < 0 || px >= cover.width || py >= cover.width) return -1;
+      const i = Math.floor(py) * cover.width + Math.floor(px);
+      return cover.cls[i] + 256 * cover.tall[i];
+    },
+    // After height(): metres from the nearest river's or lake's edge (1e9: none near).
+    nearWater: 1e9,
     // Optional speed-up when many nearby points follow: (x,y,z) unit direction of the
     // region's centre and its radius in metres. Call release() before querying elsewhere.
     prepare(x, y, z, rho) { for (const f of regional) f.prepare(x * radius, y * radius, z * radius, rho); },

@@ -10,6 +10,9 @@ import { PostPipeline } from './post/post.js';
 import { Governor, MODES, FRAME } from './perf/governor.js';
 import { Benchmark } from './perf/benchmark.js';
 import { waveHeightAt, waveScale } from './water/waves.js';
+import { Trees } from './life/trees.js';
+import { Leaves } from './life/leaves.js';
+import { CloudVolume } from './sky/cloudVolume.js';
 
 const SWIM_DEPTH = 1.25;        // metres of water a standing figure sinks into before it floats
 import { StartScreen, ResultsScreen, BenchBanner, Toast } from './ui/screens.js';
@@ -240,6 +243,7 @@ export class App {
     this.rig.groundAt = (d, dist) => { const g = this.terrain.drawnHeight(d, dist); return g == null ? null : g - (this._sink || 0); };
     // the home world's cloud layer (a world without clouds: nothing is drawn)
     this.clouds = new CloudLayer(renderer);
+    this.cloudVolume = new CloudVolume(renderer); this.cloudVolume.setWorld(world);
     this.clouds.setWorld(world);
     this.terrain.shared.uCloud.value = this.clouds.shadow;
     if (!this.shotMode) this.terrainBudget(MODES[this.governor.mode].patches ?? 1, 'mode');     // (reference pictures show them all)
@@ -250,6 +254,14 @@ export class App {
     this.rocks = new Rocks(world, data.hs);
     this.nearScene.add(this.terrain.group, this.rocks.mesh, this.clouds.mesh);
     this.nearShadow.addCaster(this.rocks.mesh, this.rocks.depthMaterial, null, () => this.rocks.nearCount);
+    // Trees (worlds that have them): drawn with the ground, and they cast shadows
+    this.trees = new Trees(world, this.terrain);
+    for (const set of this.trees.sets.flat()) {
+      this.nearScene.add(set.mesh);
+      this.nearShadow.addCaster(set.mesh, this.trees.depthMaterial, () => set.mesh.visible && (set.lod === 0 || this.trees.shadowsFar));
+    }
+    this.leaves = new Leaves(this.trees);
+    this.nearScene.add(this.leaves.mesh);
     this.placeLander(world, data.hs);
     this.hero = new Hero();
     this.heroScene.add(this.hero.group);
@@ -963,8 +975,9 @@ export class App {
       G.uPlanetRadius.value = w.radius;
       this.atmosphere.setWorld(w);
       this.terrain.setWorld(w, data.rasters, data.hs);
-      this.clouds.setWorld(w);
+      this.clouds.setWorld(w); this.cloudVolume.setWorld(w);
       this.rocks.setWorld(w, data.hs);
+      this.trees.setWorld(w);
       this.dust.setWorld(w);
       this.placeLander(w, data.hs);
       this.bodies.setWorld(w);
@@ -1065,6 +1078,16 @@ export class App {
     this.requestHeroVis(dt, sunHalf);
     this.terrain.update(rig, aspect0, G.uSunDir.value, sunHalf);
     this.rocks.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
+    {
+      const d = this.clock, day = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000;
+      this.trees.update(rig, day, this.terrain.shared.uWave.value.z);
+      // (beyond the trees the forest is raised as a whole; from high up, all of it)
+      const tr = this.trees, drawn = tr.def && rig.agl < (tr.def.below ?? 1500), r = (tr.def?.radius ?? 240) * tr.fraction;
+      this.terrain.shared.uShell.value.set(drawn ? r * 0.8 : 0, drawn ? r * 1.25 : 1, tr.def ? 1 : 0);
+      this.leaves.update(rig, this.post.viewH);
+      // (fallen leaves on the ground under the trees, in their season)
+      const se = tr.shared.uSeason.value; this.terrain.shared.uLitter.value = tr.def ? Math.min(1, se.x * 0.8 + se.y) : 0;
+    }
     this.lander.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
     this.updateHero(dt, sunHalf);
     this.updateOccluders();                         // (also with the character hidden: the lander and rocks)
@@ -1148,8 +1171,17 @@ export class App {
     // (clouds: their shadow reads the same map; the view must reach the layer's horizon)
     const cloudFar = this.clouds.update(rig.pos, world.radius);
     this.terrain.shared.tClouds.value = this.clouds.mesh.visible ? this.clouds.texture : this.terrain.textures.white;
-    rig.finalize(aspect, near, Math.max(this.terrain.farDistance, cloudFar) * 1.05);
+    const far = Math.max(this.terrain.farDistance, cloudFar) * 1.05;
+    rig.finalize(aspect, near, far);
+    // (near the traveller the cloud is a volume, laid over the ground once that is drawn)
+    const vol = this.cloudVolume.ready(rig.pos, this.clouds);
+    this.clouds.uniforms.uNearFade.value = vol ? this.cloudVolume.reach : 0;
     renderer.render(this.nearScene, rig.camera);
+    if (vol) {
+      this.cloudVolume.render(post, rig, near, far, this.terrain.shared.uWave.value.z, this.clouds, this.terrain.shared.uWind);
+      post.resumeScene();
+      this.cloudVolume.lay();
+    }
     if (this.hero.group.visible) {
       // Near the ground the hero shares the terrain's depth buffer (rocks can hide it);
       // higher up the terrain's near plane has moved past it, so it gets its own slice.
@@ -1197,9 +1229,9 @@ export class App {
     }
 
     if (this.shotMode) {
-      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && !this.clouds.loading && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
+      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.trees.busy && !this.cloudVolume.busy && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && !this.clouds.loading && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
       window.__shotReady = ready;
-      window.__stats = { water: this.terrain.tiles.rings.map((r) => r.info ? `z${r.zoom}: ${r.info.rivers} rivers, ${Math.round(r.info.flow)} m3/s${r.info.inflow ? '' : ' (no inflow)'}` : null).filter(Boolean).join('; '), stale: this.terrain.staleData, tilesBusy: this.terrain.tiles.busy, refreshQ: this.terrain.readyRefresh.length, rings: this.terrain.ringSerial, tileFails: this.terrain.tiles.failures, busyW: this.terrain.workers.busy, calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.clouds.loading ? 'clouds' : ''}` };
+      window.__stats = { trees: `${this.trees.count} (${Math.round(this.trees.triangles / 1000)}k triangles)${this.trees.names ? ': ' + this.trees.names : ''}`, water: this.terrain.tiles.rings.map((r) => r.info ? `z${r.zoom}: ${r.info.rivers} rivers, ${Math.round(r.info.flow)} m3/s${r.info.inflow ? '' : ' (no inflow)'}` : null).filter(Boolean).join('; '), stale: this.terrain.staleData, tilesBusy: this.terrain.tiles.busy, refreshQ: this.terrain.readyRefresh.length, rings: this.terrain.ringSerial, tileFails: this.terrain.tiles.failures, busyW: this.terrain.workers.busy, calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.clouds.loading ? 'clouds' : ''}` };
     }
   }
 

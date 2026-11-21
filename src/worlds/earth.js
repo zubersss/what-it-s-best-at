@@ -41,7 +41,13 @@ export default {
       // Rivers and lakes: worked out from the elevation where it arrives (tiles/hydrology.js),
       // fed by the rain that really falls (NASA MERRA-2, scripts/fetch-earth-climate.py).
       hydrology: { rain: 'data/earth_rain_720.u8' },
-      pictures: { colour: { url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg', zoom: 8, below: 2.0e6 } },
+      pictures: { colour: { url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg', zoom: 8, below: 2.0e6,
+        // What grows there: the land-cover class of every 500 m (MODIS, the IGBP legend) and
+        // how tall its canopy stands (GEDI's laser from the space station), both from NASA
+        // GIBS as coloured tiles; the palette file says what each colour means.
+        cover: { classes: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual/default/2022-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png', classesZoom: 8,
+          canopy: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GEDI_ISS_L3_Canopy_Height_Mean_RH100_201904-202303/default/2019-04-18/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png', canopyZoom: 7,
+          palette: 'data/earth_cover_palette.json' } } },
     },
     layers: [
       { op: 'dem' },
@@ -92,8 +98,15 @@ export default {
     absorber: { absorption: [0.65e-6, 1.88e-6, 0.085e-6], centerAltitude: 25000, halfWidth: 15000 },
   },
 
+  // Trees: where the land-cover map says forest, woodland or savanna, of the species the
+  // region really grows (life/cover.js), as tall as the canopy was measured.
+  life: { trees: { radius: 240, spacing: 7, below: 1500 } },
+
   // Clouds of one real day (the globe's own cloud map) as a layer overhead (see sky/clouds.js).
-  clouds: { map: 'data/earth_clouds_4096.jpg', lon0: -180, altitude: 4500, cover: 0.45, shadow: 0.6 },
+  // Near the traveller the layer is a volume to fly through: its base at 1 400 m, its
+  // tops up to 3 200 m higher where the map is thick, out to 45 km (cloudVolume.js).
+  clouds: { map: 'data/earth_clouds_4096.jpg', lon0: -180, altitude: 4500, cover: 0.45, shadow: 0.6,
+    volume: { base: 1400, thick: 3200, reach: 45000, above: 30000, scale: 5200 } },
 
   sky: { stars: { url: 'data/stars_bsc5.f32' } },
 

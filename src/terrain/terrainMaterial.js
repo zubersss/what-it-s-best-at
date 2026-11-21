@@ -37,6 +37,10 @@ uniform highp sampler2DArray tVert;     // xyz = vertex relative to the chunk's 
 uniform highp sampler2DArray tMorph;    // height change toward the parent LOD
 uniform highp sampler2DArray tNormal;   // (its fourth number says where water is, and how deep)
 uniform vec4 uSea;
+uniform sampler2D tRingColour;          // (its fourth number: how tall the canopy stands, 0.2 m a step)
+uniform vec4 uRingColour;
+uniform vec3 uShell;         // the forest raised as a whole: from x to y metres away it rises to its height; z: 1 if this world has forests
+out float vShell;            // how much of the canopy stands here (0: none, the ground is the ground)
 uniform vec4 uWind;          // xyz: where the wind blows to (unit, planet axes), w: its speed (m/s)
 uniform vec3 uWave;          // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
 ${WAVE_GLSL}
@@ -68,6 +72,23 @@ void main() {
   int face = int(aI3.w + 0.5);
   vTanU = normalize(FACE_U[face] - n * dot(FACE_U[face], n));
   vTanV = normalize(FACE_V[face] - n * dot(FACE_V[face], n));
+  vShell = 0.0;
+  if (uShell.z > 0.5 && uRingColour.w > 0.0) {
+    // Forest too far off to draw tree by tree: the ground itself rises to the canopy's
+    // height there, uneven as crowns are, and is shaded as leaves (fragment shader).
+    float lonT = atan(up.y, up.x) * 0.15915494, kv = uRingColour.z * 0.15915494;
+    vec2 uvR = vec2(fract(lonT - uRingColour.x) * uRingColour.z, (uRingColour.y - 0.5 * log((1.0 + up.z) / (1.0 - up.z))) * kv);
+    vec2 e2 = min(uvR, 1.0 - uvR);
+    if (min(e2.x, e2.y) > 0.0) {
+      float tall = textureLod(tRingColour, uvR, 0.0).a * 51.0 * smoothstep(0.0, 0.05, min(e2.x, e2.y));
+      float k = smoothstep(uShell.x, uShell.y, length(rel)) * smoothstep(2.0, 4.0, pv.w - uSea.y * uSea.x + 4.0 * (1.0 - uSea.x));
+      // (crowns: a whole number of them across the detail tile, so patches agree)
+      float crowns = 0.72 + 0.14 * (sin(6.2831853 * (5.0 * vDetailUv.x + 3.0 * vDetailUv.y)) + sin(6.2831853 * (-4.0 * vDetailUv.x + 7.0 * vDetailUv.y)));
+      vShell = k * smoothstep(0.5, 5.0, tall);
+      rel += up * (tall * crowns * k);
+      vRel = rel;
+    }
+  }
   if (uSea.x > 0.5 && uWave.y > 0.5 && aI2.z < 2.5) {
     // Open water rises and falls with its waves (the long ones, where the mesh is fine
     // enough to carry them; none at the shore, where the water is shallow).
@@ -109,6 +130,8 @@ uniform vec4 uSea;             // water: x = 1 if the world has any, y the sea's
 uniform vec3 uSeaColor;        // deep water's own colour
 uniform vec4 uWind;            // xyz: where the wind blows to (unit, planet axes), w: its speed (m/s)
 uniform vec3 uWave;            // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
+in float vShell;               // the forest raised as a whole (vertex shader): how much canopy stands here
+uniform float uLitter;         // fallen leaves under the trees, 0..1 by the season
 ${WAVE_GLSL}
 uniform float uTime;
 uniform vec2 uGloss;           // ice and wet ground: x = how strong the Sun's sheen is (0: none), y = how tight (roughness)
@@ -259,6 +282,7 @@ void main() {
   float farW = smoothstep(200.0, 2000.0, chunkTexel);
 
   // --- the world's real large-scale brightness and colour: maria, rays, dark sands
+  float canopyTall = 0.0;        // how tall the trees stand here (m; from the land-cover picture)
   vec3 mapTint = vec3(1.0);
   float mapW = 0.0;
   if (uAlbedoMap.w > 0.0) {
@@ -269,7 +293,7 @@ void main() {
       vec2 uvR = vec2(fract(uvA.x - uRingColour.x) * uRingColour.z, (uRingColour.y - 0.5 * log((1.0 + up.z) / (1.0 - up.z))) * kv);
       vec2 e2 = min(uvR, 1.0 - uvR);
       float rw = smoothstep(0.0, 0.07, min(e2.x, e2.y)) * uRingColour.w;
-      if (rw > 0.0) raw = mix(raw, textureGrad(tRingColour, uvR, vec2(gx.x * uRingColour.z, -upX.z / oz * kv), vec2(gy.x * uRingColour.z, -upY.z / oz * kv)).rgb, rw);
+      if (rw > 0.0) { vec4 ring = textureGrad(tRingColour, uvR, vec2(gx.x * uRingColour.z, -upX.z / oz * kv), vec2(gy.x * uRingColour.z, -upY.z / oz * kv)); raw = mix(raw, ring.rgb, rw); canopyTall = ring.a * 51.0 * rw; }
     }
     raw *= uAlbedoMap.rgb;
     vec3 t = mix(albedoRange(raw, uAlbedoRange), raw, farW);
@@ -351,6 +375,36 @@ void main() {
       vec3 east = normalize(vec3(-up.y, up.x, 0.0) + vec3(1e-6, 0.0, 0.0)), north = cross(up, east);
       float k = uRelief.x * nearFade * (1.0 - smoothstep(uReliefFade.x, uReliefFade.y, abs(up.z)));
       N = normalize(N - k * (dS.x * east + dS.y * north));
+    }
+  }
+
+  // --- forest: under the trees the ground is litter and shade; where the forest is raised
+  // as a whole (far off) the surface is its canopy: leaves, uneven, darker between crowns
+  if (canopyTall > 0.3) {
+    float wooded = smoothstep(0.5, 5.0, canopyTall) * flatW;
+    {
+      // open country is grass in patches; under a closed canopy it is litter and shade
+      vec3 g1 = texture(tDetail, vDetailUv * 0.5).rgb, g2 = texture(tDetail, vDetailUv * 4.0).rgb;
+      float veg = smoothstep(0.3, 3.0, canopyTall) * flatW * (1.0 - vShell), patch = smoothstep(0.35, 0.65, 0.6 * g1.r + 0.4 * g2.g);
+      vec3 grass = vec3(0.070, 0.095, 0.030) * mix(vec3(1.0), mapTint, 0.5) * (0.8 + 0.5 * g2.b);
+      vec3 litter = vec3(0.085, 0.070, 0.042) * mix(vec3(1.0), mapTint, 0.4);
+      albedo = mix(albedo, mix(grass, litter, smoothstep(4.0, 14.0, canopyTall) * (0.5 + 0.5 * patch)), veg * (0.45 + 0.35 * patch));
+    }
+    // (under a closed canopy little of the sky is seen)
+    ao *= mix(1.0, 0.5, smoothstep(6.0, 16.0, canopyTall) * flatW * (1.0 - vShell));
+    if (uLitter > 0.0) {
+      // fallen leaves: a scatter of them, thicker as the season goes on
+      vec3 f1 = texture(tDetail, vDetailUv * 23.0).rgb, f2 = texture(tDetail, vDetailUv * 61.0).rgb;
+      float lie = smoothstep(0.70 - 0.22 * uLitter, 0.80 - 0.22 * uLitter, 0.6 * f1.r + 0.4 * f2.g) * wooded * (1.0 - vShell) * (1.0 - smoothstep(0.004, 0.03, fwidth(vDetailUv.x) + fwidth(vDetailUv.y)));
+      albedo = mix(albedo, mix(vec3(0.17, 0.11, 0.035), vec3(0.13, 0.05, 0.03), smoothstep(0.35, 0.7, f1.b)), lie * 0.6);
+    }
+    if (vShell > 0.0) {
+      vec3 c1 = texture(tDetail, vDetailUv * 5.0).rgb - 0.5, c2 = texture(tDetail, vDetailUv * 1.0).rgb - 0.5;
+      float nearC = 1.0 - smoothstep(0.03, 0.5, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
+      N = normalize(N + (uTanU * (c1.r + 0.7 * c2.r) + uTanV * (c1.g + 0.7 * c2.g)) * (1.6 * vShell * nearC));
+      vec3 leaves = vec3(0.040, 0.078, 0.028) * mix(vec3(1.0), mapTint, 0.6) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
+      albedo = mix(albedo, leaves, vShell);
+      ao *= mix(1.0, 0.72 + 0.5 * clamp(c1.b + c2.b, -0.4, 0.5), vShell);
     }
   }
 
@@ -439,7 +493,7 @@ export function makeTerrainShared(world, textures) {
     uCover: { value: new THREE.Vector4() },
     // w: the cover pattern (d0.a + 0.3 d1.a) is about normal; logistic scale = its spread / 1.702
     uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
-    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) },
+    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) },
     tRingColour: { value: textures.white }, uRingColour: { value: new THREE.Vector4(0, 0, 1, 0) },
     tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoShift: { value: 0 }, uAlbedoSteep: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
     uAlbedoRange: { value: new THREE.Vector2() }, uRockHue: { value: new THREE.Vector2() }, uCoverContrast: { value: 1 }, uBedrockSlope: { value: 0 },

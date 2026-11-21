@@ -39,7 +39,17 @@ async function pixels(url) {
   } finally { done(); }
 }
 
-function tile(template, ext, z, x, y) {
+function tile(template, ext, z, x, y, maxZoom = 99) {
+  if (z > maxZoom) {
+    // (a layer that stops at a coarser zoom: the part of its last tile that covers this one, enlarged)
+    const k = z - maxZoom, f = 2 ** k, nn = 2 ** z, xw = ((x % nn) + nn) % nn;
+    return tile(template, ext, maxZoom, xw >> k, y >> k).then(({ data }) => {
+      if (!data) return { data: null };
+      const out = new Uint8ClampedArray(TILE * TILE * 4), ox = (xw % f) * TILE / f, oy = (y % f) * TILE / f;
+      for (let j = 0; j < TILE; j++) for (let i = 0; i < TILE; i++) { const q = ((oy + Math.floor(j / f)) * TILE + ox + Math.floor(i / f)) * 4, o = (j * TILE + i) * 4; out[o] = data[q]; out[o + 1] = data[q + 1]; out[o + 2] = data[q + 2]; out[o + 3] = data[q + 3]; }
+      return { data: out };
+    });
+  }
   const n = 2 ** z, xx = ((x % n) + n) % n;
   let url = template.replace('{z}', z).replace('{x}', xx).replace('{y}', y);
   if (ext) url = ext + '/' + url.replace(/^https?:\/\//, '');           // the test mirror (scripts/lib/browser.mjs)
@@ -96,6 +106,36 @@ function seaBed(h, W, metresPerPixel) {
     const m = (d[i] - 0.5) * metresPerPixel, bed = -(m < 400 ? m * 0.025 : 10 + Math.sqrt(m - 400) * 0.9);
     if (bed < h[i]) h[i] = Math.max(-32000, Math.round(bed < -1 ? bed : -1));
   }
+}
+
+// How closed each land-cover class's canopy is (index: the class, 1..17 as IGBP numbers
+// them; 0: unknown) and how tall where no measurement says (m).
+export const COVER_DENSITY = [0, 1, 1, 1, 1, 1, 0.5, 0.12, 0.55, 0.22, 0.02, 0.25, 0.01, 0.03, 0.15, 0, 0, 0];
+export const COVER_HEIGHT = [0, 18, 30, 16, 20, 18, 2.5, 1.5, 9, 7, 0, 6, 0, 0, 8, 0, 0, 0];
+let palette = null;
+async function coverOf(m, W, out) {
+  if (!palette) palette = fetch(m.cover.palette).then((r) => r.json());
+  const pal = await palette, { zoom, tx, ty, n } = m, rows = 2 ** zoom;
+  const get = (url, maxZoom) => { const jobs = []; for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const y = ty + j; jobs.push(y < 0 || y >= rows ? Promise.resolve({ data: null }) : tile(url, m.ext, zoom, tx + i, y, maxZoom)); } return Promise.all(jobs); };
+  const [ct, ht] = await Promise.all([get(m.cover.classes, m.cover.classesZoom ?? 99), m.cover.canopy ? get(m.cover.canopy, m.cover.canopyZoom ?? 99) : null]);
+  // colour -> meaning, remembered (a tile uses few colours)
+  const look = (table) => { const memo = new Map(); return (r, g, b) => { const key = (r << 16) | (g << 8) | b; let v = memo.get(key); if (v === undefined) { let best = 1e9; v = 0; for (const e of table) { const d = (e[0] - r) ** 2 + (e[1] - g) ** 2 + (e[2] - b) ** 2; if (d < best) { best = d; v = e[3]; } } if (best > 900) v = -1; memo.set(key, v); } return v; }; };
+  const classOf = look(pal.cover), heightOf = look(pal.canopy);
+  const cls = new Uint8Array(W * W), tall = new Uint8Array(W * W);
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const c = ct[j * n + i].data, hd = ht ? ht[j * n + i].data : null;
+    for (let y = 0; y < TILE; y++) for (let x = 0, q = y * TILE * 4, o = (j * TILE + y) * W + i * TILE; x < TILE; x++, q += 4, o++) {
+      const k = c && c[q + 3] > 128 ? Math.max(0, classOf(c[q], c[q + 1], c[q + 2])) : 0;
+      let h = hd && hd[q + 3] > 128 ? heightOf(hd[q], hd[q + 1], hd[q + 2]) : -1;
+      let dens = COVER_DENSITY[k];
+      if (h > 8 && k !== 15 && k !== 17) dens = Math.max(dens, Math.min(1, h / 15));       // (a canopy measured tall is forest, whatever the class says: see treeBlock.js)
+      // (a measured mean over open ground is lower than its trees: lift it for open classes)
+      h = h > 1 ? (dens < 0.6 ? Math.max(h * 1.5, COVER_HEIGHT[k]) : h) : COVER_HEIGHT[k];
+      cls[o] = k; tall[o] = Math.min(255, Math.round(h * 4));
+      out[o * 4 + 3] = Math.min(255, Math.round(h * dens * 5));
+    }
+  }
+  return { cls, tall };
 }
 
 // Rivers and lakes of an elevation mosaic (hydrology.js). m.hydrology: { rain: url of the
@@ -179,8 +219,19 @@ self.onmessage = async (ev) => {
         if (!d) continue;
         for (let y = 0; y < TILE; y++) out.set(d.subarray(y * TILE * 4, (y + 1) * TILE * 4), ((j * TILE + y) * W + i * TILE) * 4);
       }
+      // What grows there (m.cover: { classes: url of land-cover tiles, canopy: url of
+      // canopy-height tiles, their last zooms, palette: url of the colours' meanings }):
+      // a class and a canopy height for every pixel, for the trees; and in the picture's
+      // fourth channel the height of the canopy as a whole (height x how closed it is,
+      // 0.2 m a step), for the ground shader to raise the forest it cannot draw tree by tree.
+      let cover = null;
+      if (m.cover) { try { cover = await coverOf(m, W, out); } catch (e) { console.warn('land cover:', e); } }
+      if (latest.get(m.key) !== m.id) return;
+      if (!cover) for (let i = 3; i < out.length; i += 4) out[i] = 0;
       const mips = mipChain(out, W);
-      self.postMessage({ type: 'mosaic', id: m.id, key: m.key, kind: m.kind, zoom, tx, ty, n, buffer: out.buffer, mips: mips.map((x) => x.buffer) }, [out.buffer, ...mips.map((x) => x.buffer)]);
+      const msg = { type: 'mosaic', id: m.id, key: m.key, kind: m.kind, zoom, tx, ty, n, buffer: out.buffer, mips: mips.map((x) => x.buffer) }, transfer = [out.buffer, ...mips.map((x) => x.buffer)];
+      if (cover) { msg.cover = { cls: cover.cls.buffer, tall: cover.tall.buffer }; transfer.push(cover.cls.buffer, cover.tall.buffer); }
+      self.postMessage(msg, transfer);
     }
   } catch (e) {
     if (latest.get(m.key) === m.id) self.postMessage({ type: 'failed', id: m.id, key: m.key, reason: String(e?.message || e) });

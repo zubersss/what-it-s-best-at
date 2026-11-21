@@ -37,7 +37,8 @@ export class TileRings {
     (t.elevation?.rings || []).forEach((r, slot) => this.rings.push({ key: 'elevation' + slot, kind: 'elevation', slot, url: t.elevation.url, zoom: r.zoom, below: r.below ?? 1e12,
       // (rivers and lakes worked out from the elevation, if the world asks for them)
       hydrology: t.hydrology ? { rain: new URL(t.hydrology.rain, base).href, minFlow: r.minFlow ?? 1 } : null }));
-    for (const [name, p] of Object.entries(t.pictures || {})) this.rings.push({ key: 'picture:' + name, kind: 'picture', name, url: p.url, zoom: p.zoom, below: p.below ?? 1e12 });
+    for (const [name, p] of Object.entries(t.pictures || {})) this.rings.push({ key: 'picture:' + name, kind: 'picture', name, url: p.url, zoom: p.zoom, below: p.below ?? 1e12,
+      cover: p.cover ? { ...p.cover, palette: new URL(p.cover.palette, base).href } : null });
     for (const r of this.rings) { r.tx = null; r.ty = null; r.have = false; r.id = 0; r.retryAt = 0; r.fails = 0; }
   }
 
@@ -73,7 +74,7 @@ export class TileRings {
       const tx = Math.round(fx - N / 2), ty = Math.max(0, Math.min(n - N, Math.round(fy - N / 2)));
       if (n < N) continue;
       r.id = this.nextId++; r.wantTx = tx; r.wantTy = ty;
-      this.worker.postMessage({ type: 'want', id: r.id, key: r.key, url: r.url, kind: r.kind, zoom: r.zoom, tx, ty, n: N, ext: this.ext, hydrology: r.hydrology });
+      this.worker.postMessage({ type: 'want', id: r.id, key: r.key, url: r.url, kind: r.kind, zoom: r.zoom, tx, ty, n: N, ext: this.ext, hydrology: r.hydrology, cover: r.cover });
     }
   }
 
@@ -93,7 +94,8 @@ export class TileRings {
       this._give(r, { data: new Int16Array(m.buffer), width: W, height: W, zoom: m.zoom, tx: m.tx, ty: m.ty,
         water: w ? { segs: new Float32Array(w.segs), gridStart: new Int32Array(w.gridStart), gridItems: new Int32Array(w.gridItems), lake: w.lake ? new Uint16Array(w.lake) : null } : null });
     }
-    else this._give(r, { data: new Uint8Array(m.buffer), mips: m.mips.map((b) => new Uint8Array(b)), width: W, zoom: m.zoom, tx: m.tx, ty: m.ty });
+    else this._give(r, { data: new Uint8Array(m.buffer), mips: m.mips.map((b) => new Uint8Array(b)), width: W, zoom: m.zoom, tx: m.tx, ty: m.ty,
+      cover: m.cover ? { cls: new Uint8Array(m.cover.cls), tall: new Uint8Array(m.cover.tall) } : null });
   }
 
   _give(r, what) {
