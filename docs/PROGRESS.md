@@ -233,6 +233,9 @@ play mode at a place, the page's work by part, the governor's level, patches bui
   arriving in every frame the governor has nothing to compare ("frames without new
   terrain") and takes it for slow pixels: resolution to the floor, then every saving,
   curing nothing. The way back was one saving every three or four seconds.
+- **The view itself was true, and dull.** The same place at full quality (30 N, 140 W,
+  the scene's date): dawn over the open Pacific in the calm of the horse latitudes, wind
+  1 m/s, a clear sky. With that wind the wave table gave a sheet of glass to the horizon.
 
 **What was done**
 
@@ -247,6 +250,8 @@ play mode at a place, the page's work by part, the governor's level, patches bui
   shadows on the ground), rain thins to 40 % instead of stopping, savings come back
   three at a time (from the floor: all off again in 21 s in the simulation, was 75 s).
   Two new cases in `npm run govsim`.
+- The open sea is never flat: `waveScale` has a floor (0.3, a low swell), since waves
+  raised far away keep rolling through a calm. Lakes and rivers take an eighth of it.
 - **Instruments**, because the cause above is inferred, not measured: the one-line
   read-out says how many savings are on and `maps` while ground is being built again;
   the full read-out has the page's own work by part (`perf/profile.js`); the benchmark
