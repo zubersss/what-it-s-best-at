@@ -20,6 +20,12 @@ changes behaviour.
   5" and "Milestone 10 review" below. The lakes and rivers were put right at the very
   end (the review's follow-up: the real lakes were not being drawn and false ones were);
   `npm run lakes` now holds them to the real ones.
+- **The owner changed the art direction** (2026-11-21, after a review of the look, with
+  nine reference pictures): the painted look, Earth and its forests first. Milestone 11,
+  first delivery sent. See "Milestone 11 plan" and "first delivery" below, and
+  `CLAUDE.md`, "Choices in force". Next in that milestone: the owner's reaction first;
+  then water, the cloud volume and the far forest in the same hand, the character, and
+  the other worlds one at a time (give each a `look` block and its air).
 - **The phone's first word on Earth** (a screenshot of build 18c4a23, "this is what it
   looks like, fix it"): 18 fps at 0.96 MP in Smooth, the figure over a bare, flat sea
   under an empty twilight sky. See "The owner's Earth screenshot" below: what it was
@@ -252,6 +258,43 @@ one at a time):
 **Cost**: the look is cheaper per pixel than what it replaces where it replaces it; the
 grass is new work (124 000 triangles when all of it is drawn) and has a governor step.
 Not measured on the phone.
+
+## Milestone 11, first delivery: what was built
+
+Earth in the painted look, and its forests. Seen in pictures (660 x 309, the test
+machine): the South Rim at dawn, at dusk, a spruce and aspen forest on the Kaibab
+Plateau, a hardwood forest in Vermont at a low Sun, the forest from the air.
+
+- **Air, light, grade**: as planned. Tuned by looking: the sky's light on things 1.35
+  times the physical and turned a little toward green-blue (at 1.7 and plain blue, trunks
+  and shade were lavender); colour cleaning 0.7; `paintColour` is not applied to the
+  grass (its colours are chosen already, and came out lemon).
+- **Trees**: all eight shapes rebuilt from flat faces. A spruce as cones of boughs was a
+  stack of paper cones from below; it is now eleven plates of boughs that hang at their
+  tips. Broadleaf crowns are twelve small lumps (seven large ones were blocks overhead).
+  Leaf bunches as a three-tone pattern on every crown. Pale trunks carry dark scars.
+- **Grass**: `life/grass.js`. 166 000 triangles when all of it is drawn; governor step
+  `grass` (half the tufts).
+- **The Sun's beams**: with the bloom step. The Sun's own disc is kept out of the sum
+  (it showed as dots).
+- **Clouds**: two octaves, a clean edge, two tones under the look.
+- **The opening place** moved 900 m west along the South Rim to level, wooded ground at
+  the edge (`scripts/find-vista.mjs`, new: level ground with the land falling away
+  ahead, from the streamed elevation), and to 06:18 local time: the canyon at dawn
+  through the trees. The old place was a bare spur.
+- **Rocks**: lit by their faces, up to 2.6 m.
+
+**Not done, or weak**
+- The other fourteen worlds are still in the physical look. Mars and the Moon next.
+- The character is not restyled; it is lit by the same new light on Earth.
+- Trees: every tree of a kind is the same mesh turned; the fork of a broadleaf trunk
+  shows as a row of Ys from below. Bushes (juniper, pinyon) are plain lumps up close.
+- Ground: still the map's colours cleaned, with no drawn paths, flowers or fallen logs.
+  Steep rock is not faceted (`facets` is carried but unused).
+- Water, the cloud volume, rain and the far forest are not restyled (only lit by the new
+  light and graded).
+- Night and the views from orbit were not looked at in the new look.
+- Nothing is measured on the phone. The grass is the one new cost.
 
 ## The owner's Earth screenshot (build 18c4a23)
 

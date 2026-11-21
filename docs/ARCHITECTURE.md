@@ -336,6 +336,41 @@ checks every linked program against the OpenGL ES 3.0 minimums in `npm run smoke
 every screenshot run; a shader that fails on the device shows a message on screen and in
 the benchmark results (`renderer.debug.onShaderError`).
 
+## The painted look (`src/render/look.js`, a world's `look` block)
+
+The owner's art direction since milestone 11 (`CLAUDE.md`, "Choices in force"). It is a
+layer over the physical picture, not another renderer; a world without `look` is drawn
+as before.
+
+- **Air**: the world's own atmosphere numbers. Earth's `dust` is a low blue layer ten
+  times a clear day's haze; every table follows (far ground fades to the sky's own
+  horizon colour, a low Sun reddens through it).
+- **Light** (`lightingGlsl.js`): `uPaint` (x amount, y the sky's light on things, z how
+  clean colours are, w facets). `paintLit(nl)` is sunlight in two tones with a soft edge,
+  used in place of the cosine by the ground, rocks, trees and grass; `skyLight` is
+  stronger, more saturated and a little toward green-blue under the look (coloured
+  shade); `paintColour` makes a surface colour cleaner and nearer the middle. On the
+  ground the look fades out with `farW`: the globe keeps its round shading.
+- **Grade** (`post.js`, the composite pass, after the tone map): saturation, contrast,
+  and two tints (the dark half of the picture, the light half), from the look's `grade`
+  keyed by the Sun's height (night below -10 degrees, dusk at -2, low at 8, day from 30).
+  `Look.update` blends them every frame and fades the whole look to a third between
+  40 km and 400 km of altitude.
+- **The Sun's beams** (`post.js`, `uShaft`): ten steps from each pixel toward the Sun's
+  place on screen through the half-size picture, counting only sky light (its alpha is
+  how much of a place is lit ground). Trunks and crowns in the line cut the sum: shafts.
+  They go with the bloom's governor step.
+- **Shapes**: trees (`treeGeometry.js`) are built of flat faces: plates of boughs,
+  tufts, cut lumps; their crowns carry a pattern of leaf bunches in three tones
+  (`leafCells`, in the tree's own metres). Rocks are lit by their faces. Clouds are two
+  octaves of puff with a clean edge and two tones.
+- **Grass** (`life/grass.js`): 144 x 144 tufts of eight blades on a lattice fixed to the
+  ground that wraps round the camera (72 m); a tuft is its lattice number and a hash,
+  nothing is kept per tuft. The ground under it (height, how much grass, how dry) is a
+  64 x 64 table at 1.25 m kept on the CPU, also wrapping: only the rows that come in
+  ahead are worked out (200 places a frame), and it is sent as a float texture between
+  frames. Land cover decides where grass grows (`AMOUNT`, `DRY` by IGBP class).
+
 ## Map tiles round the traveller (a streamed world)
 
 A world file may list `terrain.tiles`: services of 256-pixel Web Mercator tiles (the

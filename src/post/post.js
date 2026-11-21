@@ -137,7 +137,7 @@ void main() {
   vec3 c = mix(scene, bloom, uBloom);
   // The Sun's beams (the painted look): along the line from this pixel to the Sun, how much
   // bright sky there is. Where trunks and crowns stand in that line the sum is small, so
-  // the light comes in shafts between them. Ten steps, each begun a little differently
+  // the light comes in shafts between them. Twelve steps, each begun a little differently
   // from pixel to pixel so the steps do not show; strongest near the Sun.
   if (uShaft.z > 0.0) {
     vec2 d = uShaft.xy - vUv;
@@ -145,8 +145,10 @@ void main() {
     vec3 s = vec3(0.0);
     // (only the sky's light counts: the half-size picture's fourth number is how much of a
     // place is lit ground, which is in the way of a beam, not its source)
-    for (int i = 0; i < 10; i++) { float t = (float(i) + j) / 10.0; vec4 q = texture(tShaft, clamp(vUv + d * t, 0.0, 1.0)); s += q.rgb * (1.0 - q.a) * (1.0 - 0.5 * t); }
-    c += s * (0.07 * uShaft.z * exp(-far * 2.4));
+    // (no place counts for more than a bright sky does: with the Sun's own disc in the sum,
+    // whether a step happened to land on it showed as a pattern of dots)
+    for (int i = 0; i < 12; i++) { float t = (float(i) + j) / 12.0; vec4 q = texture(tShaft, clamp(vUv + d * t, 0.0, 1.0)); s += min(q.rgb, vec3(1.6)) * (1.0 - q.a) * (1.0 - 0.5 * t); }
+    c += s * (0.075 * uShaft.z * exp(-far * 2.4));
   }
   c = agx(c);
   // The grade of a painted look (render/look.js): the darks lean one way and the lights
