@@ -108,7 +108,8 @@ export class Weather {
     const under = alt < Math.max(top, 2500) ? 1 : 0;           // (above the cloud it does not rain)
     // (the map is the day's mean; a shower comes and goes round it)
     const now = rate * under * (still ? 1 : 0.7 + 0.5 * Math.sin(this.time * 0.05 + lon) * Math.sin(this.time * 0.023 + lat));
-    this.temp = 28 - 0.0065 * alt - 0.5 * Math.max(0, Math.abs(lat) - 18) - 9 * Math.cos((day - 15) / 365.25 * 2 * Math.PI + (lat < 0 ? Math.PI : 0)) * Math.min(1, Math.abs(lat) / 45);
+    // (colder with height as far as the air goes on cooling, 11 km; with latitude; with the season)
+    this.temp = 28 - 0.0065 * Math.min(alt, 11000) - 0.5 * Math.max(0, Math.abs(lat) - 18) - 9 * Math.cos((day - 15) / 365.25 * 2 * Math.PI + (lat < 0 ? Math.PI : 0)) * Math.min(1, Math.abs(lat) / 45);
     const cold = Math.min(1, Math.max(0, (1.5 - this.temp) / 3));
     this.rain += (now * (1 - cold) - this.rain) * Math.min(1, dt * 0.5);
     this.snow += (now * cold - this.snow) * Math.min(1, dt * 0.5);
