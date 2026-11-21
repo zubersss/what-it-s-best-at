@@ -51,8 +51,13 @@ export class TileRings {
   get catchingUp() { if (performance.now() - (this.freshAt || 0) > 5000) return false; for (const r of this.rings) if (r.id && r.fresh && r.kind === 'elevation') return true; return false; }
 
   // Every frame. pos: the traveller in the world's own axes (metres from its centre);
-  // altitude above the datum (m).
-  update(pos, altitude) {
+  // altitude above the datum (m); vel: its velocity (m/s, same axes; optional); dest: where a
+  // hands-off trip ends (same axes; optional).
+  // Looking ahead: a new mosaic is centred up to half a tile ahead of the traveller along its
+  // way, and asked for when the place twelve seconds ahead nears the edge. And a trip's
+  // destination gets its mosaics while the traveller is still on the way (too high or too
+  // fast to use them where it is, or outside them): the fine ground is there on arrival.
+  update(pos, altitude, vel, dest) {
     if (!this.rings.length) return;
     const len = Math.hypot(pos.x, pos.y, pos.z) || 1, now = performance.now();
     // (speed from the last frame's place: smoothed, and no jump counts as speed)
@@ -62,10 +67,28 @@ export class TileRings {
     const speed = l.v;
     const lat = Math.asin(Math.max(-1, Math.min(1, pos.z / len))), lon = Math.atan2(pos.y, pos.x);
     const mercY = Math.log(Math.tan(Math.PI / 4 + Math.max(-1.48, Math.min(1.48, lat)) / 2));
+    // a place as fractions of the world map (x: 0..1 eastward from -180, y: 0..1 southward in Mercator)
+    const frac = (x, y, z) => { const L = Math.hypot(x, y, z) || 1, la = Math.asin(Math.max(-1, Math.min(1, z / L))); return [((Math.atan2(y, x) / (2 * Math.PI) + 0.5) % 1 + 1) % 1, (1 - Math.log(Math.tan(Math.PI / 4 + Math.max(-1.48, Math.min(1.48, la)) / 2)) / Math.PI) / 2]; };
+    const lead = vel && speed > 5 ? frac(pos.x + vel.x * 12, pos.y + vel.y * 12, pos.z + vel.z * 12) : null;
+    const end = dest ? frac(dest.x, dest.y, dest.z) : null;
+    const inside = (r, n, x, y, m) => { if (r.tx == null) return false; let dx = x * n - r.tx; dx -= n * Math.floor(dx / n); return dx >= m && dx <= N - m && y * n - r.ty >= m && y * n - r.ty <= N - m; };
     for (const r of this.rings) {
-      if (altitude > r.below || r.id || now < r.retryAt) continue;
+      if (r.id || now < r.retryAt) continue;
       const n = 2 ** r.zoom;
       const fx = ((lon / (2 * Math.PI) + 0.5) % 1 + 1) % 1 * n, fy = (1 - mercY / Math.PI) / 2 * n;
+      if (end && n >= N) {
+        // the destination's mosaic, unless this ring is in use under the traveller
+        const using = altitude <= r.below && inside(r, n, fx / n, fy / n, 0);
+        if (!using) {
+          if (!inside(r, n, end[0], end[1], 0.75)) {
+            const tx = Math.round(end[0] * n - N / 2), ty = Math.max(0, Math.min(n - N, Math.round(end[1] * n - N / 2)));
+            r.fresh = false; r.id = this.nextId++; r.wantTx = tx; r.wantTy = ty;
+            this.worker.postMessage({ type: 'want', id: r.id, key: r.key, url: r.url, kind: r.kind, zoom: r.zoom, tx, ty, n: N, ext: this.ext, hydrology: r.hydrology, cover: r.cover });
+          }
+          continue;          // (it waits there for the traveller)
+        }
+      }
+      if (altitude > r.below) continue;
       // (going too fast for this ring: it would be behind before it arrived)
       const tileM = 2 * Math.PI * len / n * Math.cos(lat);
       if (speed * 6 > tileM) continue;
@@ -74,13 +97,19 @@ export class TileRings {
         let dx = fx - r.tx; dx -= n * Math.floor(dx / n);
         const lowY = r.ty <= 0, highY = r.ty >= n - N;        // (at the map's top and bottom rows there is no further to go)
         ok = dx >= MARGIN && dx <= N - MARGIN && (lowY || fy - r.ty >= MARGIN) && (highY || fy - r.ty <= N - MARGIN);
+        // (... and the place twelve seconds ahead, if it is leaving by an edge the traveller is not already beside)
+        if (ok && lead) { let lx = lead[0] * n - r.tx; lx -= n * Math.floor(lx / n); const ly = lead[1] * n - r.ty; ok = lx >= MARGIN * 0.5 && lx <= N - MARGIN * 0.5 && (lowY || ly >= MARGIN * 0.5) && (highY || ly <= N - MARGIN * 0.5); }
         off = dx > N || fy < r.ty || fy > r.ty + N;           // (the traveller is outside this mosaic altogether: a jump)
       }
       if (ok) continue;
       // (asked for because the place has none yet, not because the traveller neared its edge)
       r.fresh = off; if (off && r.kind === 'elevation') this.freshAt = now;
-      const tx = Math.round(fx - N / 2), ty = Math.max(0, Math.min(n - N, Math.round(fy - N / 2)));
+      // (centred up to half a tile ahead along the traveller's way)
+      let cx = fx, cy = fy;
+      if (lead) { let ax = lead[0] * n - fx; ax -= n * Math.round(ax / n); const ay = lead[1] * n - fy, al = Math.hypot(ax, ay); if (al > 0.05) { const k = Math.min(0.5, al) / al; cx += ax * k; cy += ay * k; } }
+      const tx = Math.round(cx - N / 2), ty = Math.max(0, Math.min(n - N, Math.round(cy - N / 2)));
       if (n < N) continue;
+      if (r.have && r.tx === tx && r.ty === ty) continue;          // (the look ahead asks for what is already here: the traveller is too fast for this ring to lead it)
       r.id = this.nextId++; r.wantTx = tx; r.wantTy = ty;
       this.worker.postMessage({ type: 'want', id: r.id, key: r.key, url: r.url, kind: r.kind, zoom: r.zoom, tx, ty, n: N, ext: this.ext, hydrology: r.hydrology, cover: r.cover });
     }

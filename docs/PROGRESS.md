@@ -6,7 +6,7 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-*Handoff written at the second delivery of milestone 11 (the painted look).*
+*Handoff written at the third delivery of milestone 11 (the painted look).*
 
 - **The goal** (owner, 2026-11-20): the best possible product a Samsung Galaxy S23 Ultra
   runs without lag (`CLAUDE.md`, "The one goal"). Helpers: workflows only for the most
@@ -23,27 +23,24 @@ changes behaviour.
 - **The owner changed the art direction** (2026-11-21, after a review of the look, with
   nine reference pictures): the painted look, Earth and its forests first. Milestone 11.
   See "Milestone 11 plan" and "first delivery" below, and `CLAUDE.md`, "Choices in force".
-- **The phone's word on the first delivery** (build 345e2b7: a full Earth benchmark, two
-  screenshots, a list): **15 fps on every world at any resolution**, and the owner did not
-  like the view when flying over land, wanted the grass far denser with flowers that
-  differ by area, dense changing clouds to fly through, trees with far more leaves and
-  variety that move in the wind, and leaves that come off in a gale or a fast pass. All
-  of it is under "The owner's fifth phone results and the second painted delivery".
-  **Second delivery sent.**
-- **Not measured yet**: whether the frame rate is cured. The cause was read from the
-  numbers (the main picture's depth as a texture, and the cloud volume drawn in the
-  middle of the frame); the cure is in, the proof is the next benchmark. Asked of the
-  owner: an **Earth benchmark in Smooth**. Read first: fps by part (the Moon ran 54 fps
-  before all this), then "with a part of the picture left out" in the cost test.
-- **What to do next**: with the benchmark, tune from it first (if every world is still
-  slow, the next suspect is the size of the ground shader on worlds that use none of
-  Earth's blocks). With a complaint, reproduce it in a picture, fix, show before and
-  after. Then milestone 11's rest: water in the same hand, the far forest, the
-  character, night and orbit, and the other worlds one at a time (give each a `look`
-  block and its air). Older open items: a swimming stroke, rain shafts, moving weather,
-  Mars' costly pixel (the fourth results), lakes with islands finer than a cell
-  (Winnipesaukee), the Caspian 28 m too high, far rivers over filled hollows. Still
-  open: whether a 3D model file of the character exists.
+- **The phone's word on the second delivery** (build c51fae1: an Earth benchmark and a
+  list): **56.8 fps** (from 15.2): the frame-rate cure held. The owner then asked for
+  clouds that are denser, better and keep their place when one moves, better leaves on
+  the trees, and the ground loaded before one gets there. All of it is under "The
+  owner's sixth phone results and the third painted delivery". **Third delivery sent.**
+- **Asked of the owner**: an Earth benchmark in Smooth, and whether the clouds now stay
+  put and the ground is sharp on arrival. Read first: late frames while ground arrives
+  and "terrain patches built" (load-ahead builds more), the cloud lines of the cost test.
+- **What to do next**: with the benchmark, tune from it first. With a complaint,
+  reproduce it in a picture, fix, show before and after. Then: Earth's resolution on
+  the phone (1.3 MP of 4.45: the ground shader is where the time is; compile Earth's
+  blocks out of other worlds' shaders, and look for what the ground can do per vertex);
+  the cost test's baseline (see the sixth results); milestone 11's rest: water in the
+  same hand, the character, night and orbit, and the other worlds one at a time (give
+  each a `look` block and its air). Older open items: a swimming stroke, rain shafts,
+  moving weather, Mars' costly pixel, lakes with islands finer than a cell, the Caspian
+  28 m too high, far rivers over filled hollows. Still open: whether a 3D model file of
+  the character exists.
 - **How to work here** (all in CLAUDE.md): develop on the session's own branch, open a
   pull request into `main` and merge it yourself (through `gh api`); the phone link
   updates a minute later and shows the build's commit. Run `./scripts/build-check.sh`
@@ -297,6 +294,96 @@ Plateau, a hardwood forest in Vermont at a low Sun, the forest from the air.
   light and graded).
 - Night and the views from orbit were not looked at in the new look.
 - Nothing is measured on the phone. The grass is the one new cost.
+
+## The owner's sixth phone results (build c51fae1) and the third painted delivery
+
+**The numbers** (Earth benchmark, Smooth): **56.8 fps** on average (it was 15.2), Earth
+55.8, the flight 56.7, the Moon 57.8; 4.9 % of frames late; frames are two refreshes long
+(95 %) or four (4.5 %), never three: the page is paced at 60 on the 120 Hz screen, and a
+frame that misses waits a whole one. Resolution 1.98 MP on average: about 1.2 to 1.4 MP
+on Earth, 2.2 to 2.9 on the Moon. The page's own work 5.8 ms (the figure 2.2 of it).
+**The cure of the fifth results held**: nothing leaves the main picture, its depth is no
+texture, and the frame rate is back.
+
+**What the cost test could and could not say.** Its "everything on" ran from 36 to 61 ms
+over the test at one view (the phone warming, ground arriving), so the single savings
+measured first read as costing 5 to 14 ms *more* when switched on (detail, soft shadows,
+contact, at all three views): that is the drift, not the savings. Believed, because they
+are large and the same kind at each view: the ground and what stands on it are the bulk
+of the picture (24 to 30 ms of 55), the sky 15 to 20; the Sun's beams 4.4 ms at the
+opening view. Not believed: anything under 3 ms. **To do before the next reading**: time
+each saving against a baseline taken immediately before it, not every third.
+
+**What was done from it.**
+- The Sun's beams are worked out on a picture a quarter of the view each way and added
+  in the last pass (they were twelve looks a pixel at the screen's own 4.45 MP).
+- Nothing else in the governor: it held 60 with resolution alone and one feature step
+  for four seconds. Earth's low resolution (1.3 MP of 4.45) is the next thing to win
+  back; the ground shader is where the time is.
+
+**What the owner asked for** (with the results): clouds denser and better, and *"I don't
+like how they move when I move, they should be doing their own thing"*; trees with
+better leaves; and *"I want things to load before I get there, I don't like how things
+look really blurry before I show up"*.
+
+**Clouds that keep their place.** Four things tied the clouds to the traveller; all four
+are gone.
+- The base stood over the ground *under the traveller* and followed it: fly off the
+  canyon's rim and the whole sky sank 1 500 m in a few seconds. It now stands over the
+  country's height read from the world's coarse elevation, smoothed over a degree
+  (`CloudVolume.setGround`): a thing of the place.
+- The slices were of the view's depth: turn the view and a cloud passed from one slice
+  to another, and was cut to a different outline. They are now of distance from the eye,
+  laid as curved sheets (a 24 x 12 grid, each corner at the depth that distance has along
+  its own ray).
+- The clean edge was cut slice by slice: a cloud that lay across two slices thinned as
+  the boundary passed through it, which is whenever the traveller moved. The cut now
+  goes by all the cloud along the line of sight (the lay pass reads the six slices).
+- Beyond the volume's reach the shell drew *other* clouds (its own noise at another
+  height): clouds changed 16 km ahead as one flew. The shell now shows the same clouds:
+  the same cover rule, the volume's noise at the height where its masses are widest.
+- Besides: the fair-weather field is placed by the world's radius, not the layer's (it
+  shifted when the layer's height did); the shapes turn over five times more slowly
+  (`change` 0.006: at 0.03 the noise ran through the layer at 156 m/s and the clouds
+  boiled); the thinning round the eye is 120 m and to a third, not 300 m and to a tenth
+  (a cloud ahead melted before one reached it).
+- Denser and better: `dense` 2.8, a steeper edge in the density itself, fair-weather
+  cover 0.47 (at 0.62 the sky was a grey lid), the march's grain taken out in a pass of
+  its own before the lay.
+
+**Things ready before the traveller arrives.**
+- `Terrain._preload`: a patch the camera does not need finer is asked whether the place
+  ahead would: three seconds along the traveller's velocity, or, on a GO trip to a
+  place, the point over the place where the trip ends (`terrain.dest`). If so its
+  children are built and kept **without being drawn** (drawing them early would spend
+  the patch budget on ground far off), after everything the camera itself needs, and
+  kept up to date with the maps like drawn ground.
+- The map rings look ahead: a new mosaic is centred up to half a tile along the way and
+  is asked for when the place twelve seconds ahead nears the edge; a GO trip's
+  destination gets its mosaics while the traveller is still on the way (when the ring is
+  not in use under the traveller: too high, or outside it).
+- **Not measured**: how much sooner the ground is sharp on the phone. The patches are
+  built by the same three workers; ahead-of-need work competes with nothing the camera
+  wants (it queues behind it) but it is more work in all: watch "terrain patches built"
+  and the late frames while ground arrives in the next benchmark.
+
+**Leaves.** Every tree shape has a third, close level (within 34 m): the near tree with
+3.2 times the leaves, each a leaf's own shape (narrow at the stalk, widest two fifths
+out, a point) and standing at several depths over the mass, each lighter or darker than
+its neighbours. Governor step `tree-leaves` (the close level off).
+A crown seen near is leaves round a smaller, darker heart (the lumps at 0.7 of their size
+close, 0.86 near): with the lumps whole the leaves lay on a green ceiling and did not read.
+
+**Tests of this delivery.** Build check; `npm run smoke` (16 checks, 22 shaders, 15 of 16
+textures at most); `npm run target` (a GO trip in the real game, with the destination
+being got ready on the way); `npm run foot` on Mars. **`npm run foot -- --world earth`
+fails one check** ("super speed": the runner leaves its feet at 16.5 m/s on the sloping
+rim of the opening place before reaching 25; the test was written for Mars and the Moon,
+and nothing on foot was changed): look at it with the next on-foot work. Pictures at
+660 x 309: the opening view, the meadow, among the clouds twice (the view turned 40
+degrees), the hardwood and the spruce forest. **Not done**: the stability test on the
+new clouds, pictures of load-ahead (it shows only in motion), Everest, night, orbit.
+
 
 ## The owner's fifth phone results (build 345e2b7) and the second painted delivery
 

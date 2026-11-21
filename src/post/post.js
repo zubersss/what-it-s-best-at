@@ -93,6 +93,31 @@ void main() {
   outColor = vec4(sum / wsum, peak, s2 / max(s1, 1e-9), n / 576.0);
 }`;
 
+// The Sun's beams (the painted look): along the line from a pixel to the Sun, how much
+// bright sky there is. Where trunks and crowns stand in that line the sum is small, so the
+// light comes in shafts between them. Twelve steps, each begun a little differently from
+// pixel to pixel so the steps do not show; strongest near the Sun. Drawn into a picture a
+// quarter of the view each way and added in the last pass: at the screen's own size the
+// twelve looks a pixel were among the dearest things in the frame on the test phone.
+const SHAFT_FRAG = /* glsl */`
+uniform sampler2D tShaft;   // the picture at half size (the first step of the bloom): what the beams are cut from
+uniform sampler2D tBlueNoise;
+uniform float uNoiseSize;
+uniform vec4 uShaft;        // xy: the Sun on screen (0..1), z: strength of its beams, w: the picture's width over its height
+in vec2 vUv;
+layout(location = 0) out vec4 fragColor;
+void main() {
+  vec2 d = uShaft.xy - vUv;
+  float j = texture(tBlueNoise, gl_FragCoord.xy / uNoiseSize).r, far = length(d * vec2(uShaft.w, 1.0));
+  vec3 s = vec3(0.0);
+  // (only the sky's light counts: the half-size picture's fourth number is how much of a
+  // place is lit ground, which is in the way of a beam, not its source)
+  // (no place counts for more than a bright sky does: with the Sun's own disc in the sum,
+  // whether a step happened to land on it showed as a pattern of dots)
+  for (int i = 0; i < 12; i++) { float t = (float(i) + j) / 12.0; vec4 q = texture(tShaft, clamp(vUv + d * t, 0.0, 1.0)); s += min(q.rgb, vec3(1.6)) * (1.0 - q.a) * (1.0 - 0.5 * t); }
+  fragColor = vec4(s * (0.075 * uShaft.z * exp(-far * 2.4)), 1.0);
+}`;
+
 const COMPOSITE_FRAG = /* glsl */`
 uniform sampler2D tScene;
 uniform sampler2D tBloom;
@@ -105,7 +130,7 @@ uniform float uNoiseSize;
 uniform vec4 uGrade;        // the painted look's grade: x saturation, y contrast, z how much of the two tints
 uniform vec3 uGradeShade;   // tint of the dark half of the picture
 uniform vec3 uGradeLight;   // tint of the light half
-uniform sampler2D tShaft;   // the picture at half size (the first step of the bloom): what the Sun's beams are cut from
+uniform sampler2D tShaft;   // the Sun's beams, on a small picture of their own
 uniform vec4 uShaft;        // xy: the Sun on screen (0..1), z: strength of its beams (0: none), w: the picture's width over its height
 in vec2 vUv;
 out vec4 outColor;
@@ -135,21 +160,8 @@ void main() {
   vec3 scene = texture(tScene, min(vUv * uUvScale, uUvMax)).rgb;
   vec3 bloom = texture(tBloom, vUv).rgb * uBloomNorm;
   vec3 c = mix(scene, bloom, uBloom);
-  // The Sun's beams (the painted look): along the line from this pixel to the Sun, how much
-  // bright sky there is. Where trunks and crowns stand in that line the sum is small, so
-  // the light comes in shafts between them. Twelve steps, each begun a little differently
-  // from pixel to pixel so the steps do not show; strongest near the Sun.
-  if (uShaft.z > 0.0) {
-    vec2 d = uShaft.xy - vUv;
-    float j = texture(tBlueNoise, gl_FragCoord.xy / uNoiseSize).r, far = length(d * vec2(uShaft.w, 1.0));
-    vec3 s = vec3(0.0);
-    // (only the sky's light counts: the half-size picture's fourth number is how much of a
-    // place is lit ground, which is in the way of a beam, not its source)
-    // (no place counts for more than a bright sky does: with the Sun's own disc in the sum,
-    // whether a step happened to land on it showed as a pattern of dots)
-    for (int i = 0; i < 12; i++) { float t = (float(i) + j) / 12.0; vec4 q = texture(tShaft, clamp(vUv + d * t, 0.0, 1.0)); s += min(q.rgb, vec3(1.6)) * (1.0 - q.a) * (1.0 - 0.5 * t); }
-    c += s * (0.075 * uShaft.z * exp(-far * 2.4));
-  }
+  // (the Sun's beams, worked out on a small picture of their own: SHAFT_FRAG)
+  if (uShaft.z > 0.0) c += texture(tShaft, vUv).rgb;
   c = agx(c);
   // The grade of a painted look (render/look.js): the darks lean one way and the lights
   // the other (blue shade under a warm Sun, violet under a red one), colours stronger,
@@ -207,6 +219,7 @@ export class PostPipeline {
     this.downMat = makePassMaterial(DOWN_FRAG, { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() }, uUvScale: { value: new THREE.Vector2(1, 1) }, uUvMax: { value: new THREE.Vector2(1, 1) }, uClamp: { value: 1e9 } });
     this.upMat = makePassMaterial(UP_FRAG, { tSrc: { value: null }, tBase: { value: null }, uTexel: { value: new THREE.Vector2() } });
     this.meterMat = makePassMaterial(METER_FRAG, { tSrc: { value: null }, tScene: { value: null }, uViewSize: { value: new THREE.Vector2(1, 1) }, uFloor: { value: this.settings.shadowFloor }, uSunGrid: { value: new THREE.Vector3(0, 0, -1) } });
+    this.shaftMat = makePassMaterial(SHAFT_FRAG, { tShaft: { value: null }, tBlueNoise: { value: noise }, uNoiseSize: { value: BLUE_NOISE_SIZE }, uShaft: { value: new THREE.Vector4(0.5, 0.5, 0, 1) } });
     this.compositeMat = makePassMaterial(COMPOSITE_FRAG, {
       tScene: { value: null }, tBloom: { value: null }, tBlueNoise: { value: noise },
       uUvScale: { value: new THREE.Vector2(1, 1) }, uUvMax: { value: new THREE.Vector2(1, 1) },
@@ -242,7 +255,9 @@ export class PostPipeline {
       if (i < CONFIG.BLOOM_LEVELS - 1) this.bloomUp.push(new THREE.WebGLRenderTarget(w, h, { ...opts, depthBuffer: false }));
       bytes += w * h * 8 * (i < CONFIG.BLOOM_LEVELS - 1 ? 2 : 1);
     }
-    this.gpuBytes = bytes;
+    this.shaftTarget?.dispose();
+    this.shaftTarget = new THREE.WebGLRenderTarget(this.bloomDown[1].width, this.bloomDown[1].height, { ...opts, depthBuffer: false });
+    this.gpuBytes = bytes + this.shaftTarget.width * this.shaftTarget.height * 8;
     this.setScale(this.scale);
   }
 
@@ -317,8 +332,14 @@ export class PostPipeline {
     cm.uBloomNorm.value = 1 / this.bloomDown.length;
     cm.uBloom.value = this.bloomEnabled ? CONFIG.BLOOM_STRENGTH : 0;
     // (the Sun's beams go with the bloom: one governor step for both)
-    cm.tShaft.value = this.bloomDown[0].texture;
-    cm.uShaft.value.set(this.sunUv[0], this.sunUv[1], this.bloomEnabled && this.shaftsOn !== false ? this.shafts * this.sunUv[2] : 0, this.viewW / this.viewH);
+    const beams = this.bloomEnabled && this.shaftsOn !== false ? this.shafts * this.sunUv[2] : 0;
+    if (beams > 0) {
+      const sm = this.shaftMat.uniforms;
+      sm.tShaft.value = this.bloomDown[0].texture; sm.uShaft.value.set(this.sunUv[0], this.sunUv[1], beams, this.viewW / this.viewH);
+      renderPass(r, this.shaftMat, this.shaftTarget);
+    }
+    cm.tShaft.value = this.shaftTarget.texture;
+    cm.uShaft.value.set(this.sunUv[0], this.sunUv[1], beams, this.viewW / this.viewH);
     renderPass(r, this.compositeMat, null);
   }
 

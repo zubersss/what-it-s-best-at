@@ -385,10 +385,27 @@ as before.
   blends gentle ground toward `uGrassTone`, the mean colour of the grass drawn round the
   traveller (written by `life/grass.js`).
 - **Trees' variety** (`life/treeGeometry.js`): each of the eight shapes is built three
-  times over with other proportions (`VARIANTS`), near and far; a tree takes a variant by
-  its own number. Single leaves stand out of the crowns (`sprigs`, leaf value 2) and
+  times over with other proportions (`VARIANTS`), at three distances: close (within 34 m:
+  3.2 times the leaves, each a leaf's own shape of two triangles, at several depths over
+  the mass), near (80 m) and far; a tree takes a variant by its own number. Single leaves stand out of the crowns (`sprigs`, leaf value 2) and
   flutter in the vertex shader. `life/leaves.js` sheds leaves in their season, in a gale
   (from every tree) and when the traveller passes trees fast.
+
+## Ground ready ahead of the traveller
+
+- `Terrain.update` works out a place ahead: three seconds along the traveller's velocity
+  (from the camera's own movement, smoothed; kept above the ground), or `terrain.dest`
+  (set by the app during a GO trip to a place: the point over the place where the trip
+  ends). `_preload(node)` is called for every drawn patch the camera did not split: if
+  the place ahead would split it, its children are asked for (priority 500 and up: after
+  all the camera needs, before ground out of view) and, once loaded, visited the same
+  way. They are kept alive (`lastVisit`), kept up to date with the maps (`drawnAt`) and
+  **not drawn**: the camera's own rule decides what is drawn. Running out of patch slots
+  for them does not count as stalling.
+- `TileRings.update(pos, altitude, vel, dest)`: a new mosaic is centred up to half a tile
+  ahead along the way and asked for when the place twelve seconds ahead nears the edge;
+  with `dest`, a ring not in use under the traveller (too high for it, or outside it)
+  fetches the destination's mosaic and waits there.
 
 ## Map tiles round the traveller (a streamed world)
 
@@ -523,33 +540,38 @@ ring: it is not asked for.
   shell of `clouds.js`, which fades in where the volume fades out. Above 30 km only the
   shell (and from space the globe's own clouds).
 - **Before** the main picture is begun, a small picture is marched: six of them side by
-  side (a quarter of the view each way), one for each slice of the view's depth (0 to
-  300 m, to 900 m, to 2.4 km, to 5 km, to 9 km, to the reach); each pixel's ray is
-  followed through the part of the layer inside its slice (5 steps a slice). In the main
-  picture, after the ground, six full-screen passes lay them over it from the farthest to
-  the nearest, each at the depth where its slice begins: the depth test hides cloud
-  behind a ridge, to within a slice. Each lay reads four taps (the march starts at a
-  different depth in every pixel).
+  side (a quarter of the view each way), one for each slice of **distance from the eye**
+  (0 to 300 m, to 900 m, to 2.4 km, to 5 km, to 9 km, to the reach); each pixel's ray is
+  followed through the part of the layer inside its slice (7 steps a slice). A second
+  small pass takes the march's grain out (four looks a pixel, kept inside each slice's
+  own picture). In the main picture, after the ground, six passes lay them over it from
+  the farthest to the nearest, each a curved sheet at the distance where its slice
+  begins (a 24 x 12 grid, every corner at the depth that distance has along its own
+  ray): the depth test hides cloud behind a ridge, to within a slice.
 - Nothing reads the main picture's depth and nothing is drawn elsewhere in the middle of
   it: the first form did both (depth as a texture, the march after the ground) and cost
   the phone three quarters of its frame rate on every world (PROGRESS, "fifth phone
   results").
+- **Nothing about a cloud depends on where the traveller is or looks** (PROGRESS, "sixth
+  phone results": four things once did). The base stands `volume.base` over the
+  country's height from the world's coarse elevation, smoothed over a degree
+  (`setGround`); slices are of distance, not of the view's depth; the clean edge is cut
+  by all the cloud along the line of sight (the lay pass reads the six slices), not
+  slice by slice; and beyond the reach the shell (`clouds.js`) shows the same clouds:
+  the same cover rule and the volume's noise at the height where its masses are widest
+  (`uVol`, `uVolWind`), the shell itself standing at that height.
 - `volume.fair`: fair-weather cloud. Where the day's map shows no cloud the cover is still
   `fair` times a slow field (the cloud noise at a 47 km repeat), so there are fields of
   small heaps and clear stretches; the shell has the same rule with its own puffs.
 - The Sun on the cloud is a painter's, not the physical sum: `sunward` (less cloud 280 m
   toward the Sun than here, and height in the cloud) picks between a light shade (0.45)
   and full light; only a cover that is nearly whole darkens what is under it (storms).
-- Laying: the nearest slices are laid as marched (soft: wisps round the traveller, and
-  within `volume.clear` metres of the eye the cloud is thin); from 900 m off the alpha is
-  cut to a clean shape (`CRISP`), with the four looks set wider apart (`SPREAD`) and less
-  jitter in the march there. Slices that end nearer than the traveller's distance below
-  the base (or above the top) are not laid at all, and each of the others covers only the
-  part of the view's height where its cloud can be (from under the layer, above the
-  height a ray must climb at to reach the base within the slice): with a level view
-  from the ground that is well under one screen of blending for all six.
-- The base stands `volume.base` over the ground under the traveller (followed slowly),
-  not over the sea. Inside a deep cloud the wisps are lighter and darker in turn.
+- Laying: slices that end nearer than the traveller's distance below the base (or above
+  the top) are not laid at all, and each of the others covers only the part of the
+  view's height where its cloud can be: with a level view from the ground that is well
+  under one screen of blending for all six. Within `volume.clear` metres of the eye the
+  cloud is thinned to a third; inside a deep cloud the view is lighter and darker in
+  great soft patches.
 - `volume.dense` makes the cloud more solid; `volume.change` turns its shapes over with
   time (the noise drifts through its third axis), besides the drift with the wind.
 - Shapes: the world's cloud map (where, how much), a repeating 64-cube noise made in a
@@ -560,7 +582,7 @@ ring: it is not asked for.
   look toward the Sun per step plus the layer above), brightest at edges facing it and
   round the Sun; sky light from above and below; the air between cloud and eye;
   lightning inside it.
-- Governor steps: `cloud-steps` (22 for 36 along the whole ray, shared among the slices), `cloud-volume` (off: the shell alone), `sun-beams`.
+- Governor steps: `cloud-steps` (22 for 36 along the whole ray, shared among the slices), `cloud-volume` (off: the shell alone), `sun-beams` (worked out on a picture a quarter of the view each way, `SHAFT_FRAG` in post.js).
 
 ## Weather (`src/weather/`)
 

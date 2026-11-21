@@ -34,6 +34,7 @@ export const FEATURE_STEPS = [
   { id: 'rain', label: 'thinner rain and snow', apply: (app, off) => { if (app.rain) app.rain.share = off ? 0.4 : 1; } },
   { id: 'leaves', label: 'leaves in the wind', apply: (app, off) => { if (app.leaves) app.leaves.enabled = !off; } },
   { id: 'grass', label: 'half the grass', apply: (app, off) => { app.grass?.setFraction(off ? 0.5 : 1); } },
+  { id: 'tree-leaves', label: 'every leaf on the nearest trees', apply: (app, off) => { if (app.trees) { app.trees.closeOn = !off; app.trees.dirty = true; } } },
   { id: 'tree-shadows', label: 'shadows of the farther trees', apply: (app, off) => { if (app.trees) app.trees.shadowsFar = !off; } },
   { id: 'trees-far', label: 'trees to two thirds of their distance', apply: (app, off) => { app.trees?.setFraction(off ? 0.66 : 1); } },
   { id: 'sun-beams', label: "the Sun's beams through trees and cloud", apply: (app, off) => { app.post.shaftsOn = !off; } },
