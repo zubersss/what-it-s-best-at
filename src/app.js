@@ -156,7 +156,7 @@ export class App {
 
   heightFn(world, hs) {
     const walkWL = 2 * (Math.PI / 2) * world.radius / (1 << world.terrain.maxLevel) / CONFIG.NORMAL_RES;
-    this._sink = 0;                  // (a world without water: nothing sinks; the last world's value must not stay)
+    this._sink = 0; this._under = 0; // (a world without water: nothing sinks; the last world's values must not stay)
     if (!world.surface.sea) return (d) => hs.height(d[0], d[1], d[2], walkWL);
     // Water does not carry a walker: what stands in it sinks to the bed or to SWIM_DEPTH,
     // whichever comes first, and rides the waves where it floats. (`_sink` is kept for the
@@ -165,8 +165,9 @@ export class App {
     return (d) => {
       const h = hs.height(d[0], d[1], d[2], walkWL), depth = hs.waterDepth;
       this.depthAsked = depth;
-      if (depth <= 0) { this._sink = 0; return h; }
+      if (depth <= 0) { this._sink = 0; this._under = 0; return h; }
       let sink = Math.min(depth, SWIM_DEPTH);
+      this._under = sink;              // (how far under the still water's surface the walker's ground is: the camera's floor is the surface with its waves, which is that ground plus this)
       if (depth > 0.15) {
         // (the same share of the waves as the vertex shader lifts the water by: none at the
         // shore, a little on lakes and rivers)
@@ -249,7 +250,7 @@ export class App {
     this.terrain = new Terrain(world, data.rasters, data.hs, renderer);
     // the character stands on the ground as drawn (and in water as deep as heightFn just said)
     this.rig.groundAt = (d, dist) => { const g = this.terrain.drawnHeight(d, dist); return g == null ? null : g - (this._sink || 0); };
-    this.rig.sunkAt = () => Math.max(0, this._sink || 0);          // (the camera stays above the water its figure stands in)
+    this.rig.sunkAt = () => this._under || 0;          // (the camera stays above the water its figure stands in)
     // the home world's cloud layer (a world without clouds: nothing is drawn)
     this.clouds = new CloudLayer(renderer);
     this.cloudVolume = new CloudVolume(renderer); this.cloudVolume.setWorld(world);
