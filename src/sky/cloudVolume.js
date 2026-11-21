@@ -41,13 +41,18 @@ uniform vec3 uCamRight, uCamUp, uCamFwd;
 uniform vec4 uProj;            // x tan(half the vertical view angle), y aspect, z near, w far
 uniform vec4 uDepthUv;         // xy: the part of the depth picture in use, zw: a pixel of it
 uniform vec3 uCloudWind;       // where the noise has drifted to (noise units)
+uniform sampler2D tCloudTop;   // how high the cloud tops stand, where the day's map says (red x 16 km; 0: not seen)
+uniform vec3 uTops;            // x the base's altitude (m), y the tops' usual share of the layer, z 1 if there is a map
+uniform vec4 uBolt;            // lightning inside the cloud: xyz where (from the camera, m), w how bright
 in vec2 vUv;
 layout(location = 0) out vec4 fragColor;
 
-float mapCover(vec3 up) {
-  float m = textureLod(tCloudMap, vec2(atan(up.y, up.x) * 0.15915494 + uCloud.y, acos(clamp(up.z, -1.0, 1.0)) * 0.31830989), 0.0).r;
-  float lo = 1.0 - uCloud.x;
-  return smoothstep(lo - 0.08, lo + 0.34, m);
+// x: the cover at a place (0..1); y: how far up the layer its tops reach there (0..1)
+vec2 mapCover(vec3 up) {
+  vec2 uv = vec2(atan(up.y, up.x) * 0.15915494 + uCloud.y, acos(clamp(up.z, -1.0, 1.0)) * 0.31830989);
+  float m = textureLod(tCloudMap, uv, 0.0).r, lo = 1.0 - uCloud.x, top = uTops.y;
+  if (uTops.z > 0.5) { float km = textureLod(tCloudTop, uv, 0.0).r * 15.94; if (km > 0.4) top = clamp((km * 1000.0 - uTops.x) / uLayer.y, 0.15, 1.0); }
+  return vec2(smoothstep(lo - 0.08, lo + 0.34, m), top);
 }
 // How much cloud is at a place: c = the map's cover there (0..1), y = height in the layer (0..1).
 float density(vec3 p, float c, float y, bool fine) {
@@ -114,16 +119,19 @@ void main() {
     vec3 p = uCamPlanetPos + dir * t;
     float r = length(p); vec3 up = p / r;
     float y = (r - rb) / uLayer.y;
-    float c = mapCover(up) * (1.0 - smoothstep(0.7 * uCloud.w, uCloud.w, t));
+    vec2 mc = mapCover(up);
+    float c = mc.x * (1.0 - smoothstep(0.7 * uCloud.w, uCloud.w, t));
+    y /= mc.y;
     if (c < 0.01 || y <= 0.0 || y >= 1.0) continue;
     float d = density(p, c, y, t < 30000.0);
     if (d <= 0.001) continue;
     // toward the Sun: how much cloud the light came through (one look a little way off,
     // and the layer above this height as the map says it is)
-    float dl = density(p + uSunDir * 280.0, c, y + 280.0 * mu0 / uLayer.y, false);
-    float tau = sigma * (280.0 * (0.5 * d + dl) + (1.0 - y) * uLayer.y * c * 0.35 / max(mu0, 0.25));
+    float dl = density(p + uSunDir * 280.0, c, y + 280.0 * mu0 / (uLayer.y * mc.y), false);
+    float tau = sigma * (280.0 * (0.5 * d + dl) + (1.0 - y) * uLayer.y * mc.y * c * 0.35 / max(mu0, 0.25));
     float sunT = exp(-tau) + 0.18 * exp(-0.22 * tau);                         // (light scattered many times gets deeper than a single ray)
     vec3 light = sunC * (sunT * min(phase, 3.5) * (1.0 - 0.6 * exp(-2.5 * tau * d - 0.2))) + (skyC * (0.35 + 0.65 * y) + skyDown * (1.0 - y) * 0.4) * 0.6;
+    if (uBolt.w > 0.0) { vec3 fb = dir * t - uBolt.xyz; light += vec3(0.8, 0.88, 1.0) * (uBolt.w / (1.0 + dot(fb, fb) / (900.0 * 900.0))); }
     float a = 1.0 - exp(-sigma * d * dt);
     C += T * a * light;
     tMean += t * T * a; wSum += T * a;
@@ -142,7 +150,12 @@ uniform sampler2D tCloudPass;
 uniform vec4 uHalf;            // x: 0 for the ground half of the small picture, 0.5 for the sky half
 in vec2 vUv;
 layout(location = 0) out vec4 fragColor;
-void main() { fragColor = texture(tCloudPass, vec2(uHalf.x + vUv.x * 0.5, vUv.y)); }`;
+void main() {
+  // (four looks round the place: the march starts at a different depth in every pixel of
+  // the small picture, and this takes the grain out of it)
+  vec2 uv = vec2(uHalf.x + clamp(vUv.x, uHalf.y, 1.0 - uHalf.y) * 0.5, vUv.y), d = uHalf.zw;
+  fragColor = 0.25 * (texture(tCloudPass, uv + d * vec2(0.9, 0.35)) + texture(tCloudPass, uv + d * vec2(-0.35, 0.9)) + texture(tCloudPass, uv + d * vec2(-0.9, -0.35)) + texture(tCloudPass, uv + d * vec2(0.35, -0.9)));
+}`;
 
 export class CloudVolume {
   constructor(renderer) {
@@ -154,8 +167,9 @@ export class CloudVolume {
       uCloud: { value: new THREE.Vector4(0.5, 0, 1 / 5200, 45000) }, uLayer: { value: new THREE.Vector4(1, 1, 26, 0) },
       uCamRight: { value: new THREE.Vector3() }, uCamUp: { value: new THREE.Vector3() }, uCamFwd: { value: new THREE.Vector3() },
       uProj: { value: new THREE.Vector4() }, uDepthUv: { value: new THREE.Vector4() }, uCloudWind: { value: new THREE.Vector3() },
+      tCloudTop: { value: null }, uTops: { value: new THREE.Vector3(1400, 1, 0) }, uBolt: { value: new THREE.Vector4() },
     };
-    this.march = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1 }, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: MARCH, depthTest: false, depthWrite: false });
+    this.march = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1 }, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: MARCH, depthTest: false, depthWrite: false });
     const lay = (half, func) => new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, uniforms: { tCloudPass: { value: null }, uHalf: { value: new THREE.Vector4(half, 0, 0, 0) } }, vertexShader: /* glsl */`
         out vec2 vUv;
@@ -176,6 +190,17 @@ export class CloudVolume {
   setWorld(world) {
     this.def = world.clouds?.volume ? world.clouds : null;
     this.radius = world.radius;
+    // (the day's cloud-top map, if the world has weather: storms stand tall)
+    this.topsTex?.dispose(); this.topsTex = null; this.uniforms.tCloudTop.value = null; this.uniforms.uTops.value.z = 0;
+    if (this.def && world.weather?.tops) {
+      const w = world;
+      new THREE.TextureLoader().load(import.meta.env.BASE_URL + world.weather.tops, (t) => {
+        if (this.world !== w) { t.dispose(); return; }
+        t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping; t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true;
+        this.renderer.initTexture(t); this.topsTex = t; this.uniforms.tCloudTop.value = t; this.uniforms.uTops.value.z = 1;
+      });
+    }
+    this.world = world;
     if (this.def && !this.noise && !this.asked && typeof Worker !== 'undefined') {
       this.asked = true;
       const w = new Worker(new URL('./cloudNoiseWorker.js', import.meta.url), { type: 'module' });
@@ -204,8 +229,14 @@ export class CloudVolume {
 
   // Step 1: the small picture. post: the Post (its scene target and depth); rig: the camera rig;
   // near, far: the planes the ground was drawn with; time (s); wind: the terrain's wind uniform.
-  render(post, rig, near, far, time, layer, wind) {
+  render(post, rig, near, far, time, layer, wind, weather) {
     const r = this.renderer, v = this.def.volume, u = this.uniforms;
+    // (the layer is as thick as the tallest cloud near the traveller: storms reach 13 km)
+    const base = v.base ?? 1500, thick = Math.max(v.thick ?? 3000, Math.min(13000, (weather?.topNear || 0)) - base);
+    this.thickNow = this.thickNow ? this.thickNow + (thick - this.thickNow) * 0.05 : thick;
+    u.uTops.value.x = base; u.uTops.value.y = Math.min(1, (v.thick ?? 3000) / this.thickNow);
+    const fl = weather?.flash;
+    if (fl && !fl.ground) u.uBolt.value.set(fl.dir.x * fl.dist, fl.dir.y * fl.dist, fl.dir.z * fl.dist, weather.flashLight.z * 6); else u.uBolt.value.w = 0;
     const tw = Math.max(8, Math.round(post.viewW / 3)) * 2, th = Math.max(4, Math.round(post.viewH / 3));
     if (!this.target || this.tw !== tw || this.th !== th) {
       this.target?.dispose();
@@ -219,7 +250,7 @@ export class CloudVolume {
     u.uDepthUv.value.set(post.viewW / post.width, post.viewH / post.height, 1 / post.width, 1 / post.height);
     u.tSceneDepth.value = post.scene.depthTexture; u.tCloudMap.value = layer.texture;
     u.uCloud.value.set(this.def.cover ?? 0.8, this.def.lon0 === -180 ? 0.5 : 0, 1 / (v.scale ?? 5200), this.reach);
-    u.uLayer.value.set(this.radius + (v.base ?? 1500), v.thick ?? 3000, this.steps, time);
+    u.uLayer.value.set(this.radius + base, this.thickNow, this.steps, time);
     // the masses drift with the wind (slowly: this is not the weather moving, only the air)
     const w = wind?.value; if (w) this.drift.set(w.x, w.y, w.z).multiplyScalar(time * Math.min(20, w.w) / (v.scale ?? 5200));
     u.uCloudWind.value.copy(this.drift);
@@ -232,6 +263,9 @@ export class CloudVolume {
   // Step 2: over the main picture (the caller has bound it again).
   lay() {
     const r = this.renderer;
-    for (const m of [this.laySky, this.layGround]) { m.uniforms.tCloudPass.value = this.target.texture; this.quad.material = m; r.render(this.scene, this.camera); }
+    for (const m of [this.laySky, this.layGround]) {
+      m.uniforms.tCloudPass.value = this.target.texture; m.uniforms.uHalf.value.set(m === this.laySky ? 0.5 : 0, 2 / this.tw, 1 / this.tw, 1 / this.th);
+      this.quad.material = m; r.render(this.scene, this.camera);
+    }
   }
 }

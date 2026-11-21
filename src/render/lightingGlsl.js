@@ -27,6 +27,8 @@ uniform sampler2D tFroxelC;         //                      transmittance
 uniform vec2 uFroxelRange;          // x: exponent of the slice distribution, y: far limit (km)
 uniform vec2 uLutScaleInv;          // x: 1 / scale of the irradiance LUT, y: 1 / scale of the froxels
 uniform mat3 uSkyFrame;             // planet-fixed -> local sky frame
+uniform vec4 uWeather;              // x: the Sun through the cloud overhead (1: clear), y: sky light left under it, z: how wet the ground is
+uniform vec3 uFlash;                // lightning's light from the whole sky
 uniform vec3 uShineDir;             // toward the brightest sky body
 uniform vec3 uShineE;               // its irradiance at the ground (planetshine)
 uniform vec3 uHomeShine;            // sunlight the home world's day side sends up to something high above it
@@ -44,7 +46,13 @@ vec3 directSun(vec3 planetPos) {
   float r = length(pk);
   vec3 T = texture(tTransmittance, transmittanceUv(r, dot(pk, uSunDir) / r)).rgb;
   vec3 circ = texelFetch(tIrradiance, ivec2(0, IRR), 0).rgb * uLutScaleInv.x;
+  // (cloud between the Sun and the things round the camera; the ground and the clouds
+  // themselves work that out place by place and define OWN_CLOUD_SHADOW)
+#ifdef OWN_CLOUD_SHADOW
   return uSunIrradiance * (T + circ);
+#else
+  return uSunIrradiance * (T + circ) * uWeather.x;
+#endif
 }
 
 vec2 octEncode(vec3 n) {
@@ -70,7 +78,7 @@ vec3 skyLight(vec3 N, vec3 up) {
     vec3 there = texture(tIrradiance, vec2((ug * (float(SKYE_W) - 1.0) + 0.5) / float(SKYL_W), (float(IRR) + 1.5) / float(SKYL_H))).rgb * ((0.5 + 0.5 * dot(N, up)) / SKYE_SCALE);
     E = mix(E, there, uSkyGainMix);
   }
-  return E * uSunIrradiance;
+  return E * uSunIrradiance * uWeather.y + uFlash;
 }
 
 // How much of the sky a surface at camera-relative position rel (normal N) still sees past

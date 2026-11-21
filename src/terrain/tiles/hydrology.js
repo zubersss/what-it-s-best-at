@@ -123,11 +123,18 @@ export function hydrology(h, W, cell, rain, opts = {}) {
     for (let s = 0; s < N; s++) {
       if (lake[s] !== 65535 || seen[s]) continue;
       stack.length = 0; stack.push(s); seen[s] = 1; const cells = [];
+      // (water lies in a hollow: hardly any of the ground round it is lower. Elevation in
+      // whole metres also makes level stretches of gently sloping fields; those have lower
+      // ground all along one side.)
+      let rim = 0, lower = 0;
       while (stack.length) {
         const i = stack.pop(); cells.push(i); const x = i % W, y = (i - x) / W;
-        for (let k = 0; k < 8; k += 2) { const xx = x + DX[k], yy = y + DY[k]; if (xx < 0 || yy < 0 || xx >= W || yy >= W) continue; const j = yy * W + xx; if (lake[j] === 65535 && !seen[j]) { seen[j] = 1; stack.push(j); } }
+        for (let k = 0; k < 8; k += 2) {
+          const xx = x + DX[k], yy = y + DY[k]; if (xx < 0 || yy < 0 || xx >= W || yy >= W) continue; const j = yy * W + xx;
+          if (lake[j] === 65535) { if (!seen[j]) { seen[j] = 1; stack.push(j); } } else if (h[j] !== h[i]) { rim++; if (h[j] < h[i]) lower++; }
+        }
       }
-      const v = cells.length >= 60 ? enc(h[s]) : 0;
+      const v = cells.length >= 60 && lower < 0.12 * rim ? enc(h[s]) : 0;
       for (const i of cells) lake[i] = v;
     }
   }

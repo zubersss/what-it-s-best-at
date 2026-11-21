@@ -26,7 +26,7 @@ export const LIFTED = WAVES.filter((w) => w.lift).length;
 // The height of the waves a wind raises (m, the amplitude scale of the table): about a
 // quarter of the significant wave height of a fully grown sea, and never so tall that a
 // 64 m wave would break.
-export function waveScale(windSpeed) { return Math.min(1.5, 0.012 * windSpeed * windSpeed + 0.03); }
+export function waveScale(windSpeed) { return Math.min(3.2, 0.012 * windSpeed * windSpeed + 0.03); }
 
 // How many waves of the table are at least `px` pixels long when a pixel covers `mpp` metres.
 export const WAVE_STEPS = (() => { const out = []; let n = 0; while (n < WAVES.length) { const len = WAVES[n].len; while (n < WAVES.length && Math.abs(WAVES[n].len - len) < len * 0.3) n++; out.push([n, len]); } return out; })();

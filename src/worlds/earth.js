@@ -98,6 +98,10 @@ export default {
     absorber: { absorption: [0.65e-6, 1.88e-6, 0.085e-6], centerAltitude: 25000, halfWidth: 15000 },
   },
 
+  // The weather of one real day (scripts/fetch-earth-weather.py): 8 September 2017, with
+  // hurricanes Irma, Jose and Katia in the Atlantic at once.
+  weather: { day: '2017-09-08', rain: 'data/earth_rain_2048.jpg', tops: 'data/earth_cloudtop_1024.jpg', cloud: 'data/earth_clouds_512.jpg', storms: 'data/earth_storms.json' },
+
   // Trees: where the land-cover map says forest, woodland or savanna, of the species the
   // region really grows (life/cover.js), as tall as the canopy was measured.
   life: { trees: { radius: 240, spacing: 7, below: 1500 } },
@@ -139,6 +143,9 @@ export default {
     { id: 'antarctica', name: 'The South Pole', fact: 'Under your feet: 2 800 m of ice.', lat: -89.5, lon: 0 },
     { id: 'kilimanjaro', name: 'Kilimanjaro', fact: 'A volcano standing alone, with ice at the equator.', lat: -3.07, lon: 37.35 },
     { id: 'uluru', name: 'Uluru', fact: 'One rock, 348 m high and nine kilometres round.', lat: -25.345, lon: 131.036 },
+    { id: 'irma', name: 'Hurricane Irma (8 September 2017)', reach: 60000, fact: 'One of the strongest Atlantic hurricanes on record: winds of 250 km/h round a calm eye 40 km wide.', lat: 21.7, lon: 284.7 },
+    { id: 'jose', name: 'Hurricane Jose', reach: 60000, fact: 'Following Irma across the ocean two days behind it, almost as strong.', lat: 16.3, lon: 303.8 },
+    { id: 'katia', name: 'Hurricane Katia', reach: 60000, fact: 'The third hurricane of the same day, about to come ashore in Mexico.', lat: 21.3, lon: 264.4 },
     { id: 'canaveral', name: 'Cape Canaveral', fact: 'Where the journeys to every other world in this game began.', lat: 28.57, lon: 279.35 },
   ],
 };

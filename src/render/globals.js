@@ -16,6 +16,11 @@ export const G = {
   uCamFwd: { value: new THREE.Vector3(0, 0, -1) },
   uTanHalfFov: { value: new THREE.Vector2(1, 1) },
   // Planetshine: light reflected onto the ground by the brightest sky body (earthshine on the Moon).
+  // Weather where the traveller is (weather/weather.js): x how much of the Sun gets through
+  // the cloud overhead onto the things round the camera (1: all), y how much of the clear
+  // sky's light is left under that cloud, z how wet the ground is (0..1).
+  uWeather: { value: new THREE.Vector4(1, 1, 0, 0) },
+  uFlash: { value: new THREE.Vector3(0, 0, 0) },          // lightning: light from the whole sky for an instant
   uShineDir: { value: new THREE.Vector3(0, 0, 1) },
   uShineE: { value: new THREE.Vector3(0, 0, 0) },
   uHomeShine: { value: new THREE.Vector3(0, 0, 0) },      // light from the home world below, on something high above it facing straight down

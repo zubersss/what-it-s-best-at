@@ -36,6 +36,27 @@ export class Audio {
     this.hum = c.createGain(); this.hum.gain.value = 0; this.hum.connect(this.master);
     for (const f of [54, 54.7, 108.4]) { const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = f; const g = c.createGain(); g.gain.value = f > 100 ? 0.25 : 0.5; o.connect(g); g.connect(this.hum); o.start(); }
     this.air = voice('bandpass', 1800, 0.5);
+    this.rainV = voice('highpass', 2200, 0.2);         // rain on the suit and the ground
+    this.rainLow = voice('bandpass', 500, 0.4);        // ... and its body, in a downpour
+  }
+
+  // Thunder: a crack if it is near, then the long roll. power 0..1.5; dist (m).
+  thunder(power, dist) {
+    const c = this.ctx; if (!c || !this.on) return;
+    const t = c.currentTime, near = Math.max(0, 1 - dist / 4000), loud = Math.min(1, power * (0.25 + 1.6 / (1 + dist / 3000)));
+    const roll = (freq, q, peak, at, len) => {
+      const src = c.createBufferSource(); src.buffer = this.noise; src.loop = true; src.playbackRate.value = 0.35 + Math.random() * 0.25;
+      const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq; f.Q.value = q;
+      const g = c.createGain(); g.gain.setValueAtTime(0.0001, t + at); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + at + 0.03 + 0.3 * (1 - near));
+      // (the roll swells and fades two or three times as echoes come in)
+      const n = 3 + Math.floor(Math.random() * 3);
+      for (let k = 1; k <= n; k++) g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak * (0.25 + 0.6 * Math.random()) * (1 - k / (n + 1))), t + at + len * k / n);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + at + len + 0.6);
+      src.connect(f); f.connect(g); g.connect(this.master); src.start(t + at, Math.random()); src.stop(t + at + len + 1);
+    };
+    if (near > 0.2) roll(2600, 0.5, loud * near * 1.2, 0, 0.35);                 // the crack
+    roll(140 + 160 * near, 0.7, loud * 1.4, 0.02, 4 + 5 * Math.random());       // the roll
+    roll(70, 1.0, loud * 1.0, 0.3, 6 + 4 * Math.random());
   }
 
   setOn(on) {
@@ -84,8 +105,12 @@ export class Audio {
     // wind: the air's own (a breeze even standing still) and the air rushing past
     const air = Math.min(1, Math.pow(Math.max(0, s.airDensity) / 1.2, 0.33));            // Earth 1, Mars 0.26, Titan 1 (capped), Pluto 0.04
     const pass = Math.min(1, s.speed / 120);
-    set(this.wind.g.gain, air * (0.10 + 0.5 * pass)); set(this.wind.f.frequency, 260 + 900 * pass + 120 * Math.sin(t * 0.31));
-    set(this.gust.g.gain, air * 0.06 * (0.5 + 0.5 * Math.sin(t * 0.17) * Math.sin(t * 0.059)) * (1 + 2 * pass));
+    // (the weather's wind is heard standing still: a gale howls)
+    const blow = Math.min(1, Math.max(pass, (s.wind || 0) / 45));
+    set(this.wind.g.gain, air * (0.10 + 0.6 * blow)); set(this.wind.f.frequency, 260 + 900 * blow + 120 * Math.sin(t * 0.31));
+    set(this.gust.g.gain, air * 0.06 * (0.5 + 0.5 * Math.sin(t * 0.17) * Math.sin(t * 0.059)) * (1 + 2.5 * blow));
+    const rn = Math.min(1, (s.rain || 0) / 9);
+    set(this.rainV.g.gain, 0.11 * Math.sqrt(rn), 0.4); set(this.rainLow.g.gain, 0.10 * rn, 0.4);
     // flight: the suit's thrust, heard through the suit (so in vacuum too), louder with the stick
     const fly = s.flying ? 0.05 + 0.22 * s.throttle + (s.boost ? 0.12 : 0) : 0;
     set(this.rush.g.gain, fly); set(this.rush.f.frequency, 160 + 500 * s.throttle + (s.boost ? 500 : 0));

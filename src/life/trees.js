@@ -103,8 +103,11 @@ export class Trees {
     this.depthMaterial = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, colorWrite: false, uniforms: this.shared, side: THREE.DoubleSide,
       vertexShader: /* glsl */`${TREE_VERT}
-        void main() { vec3 foot; float leaf; gl_Position = projectionMatrix * viewMatrix * vec4(treePosition(foot, leaf), 1.0); }`,
-      fragmentShader: /* glsl */`layout(location = 0) out vec4 fragColor; void main() { fragColor = vec4(1.0); }`,
+        out float vLeaf;
+        void main() { vec3 foot; float leaf; gl_Position = projectionMatrix * viewMatrix * vec4(treePosition(foot, leaf), 1.0); vLeaf = leaf; }`,
+      // (a crown lets some of the Sun through: its shadow is flecked, not solid)
+      fragmentShader: /* glsl */`in float vLeaf; layout(location = 0) out vec4 fragColor;
+        void main() { if (vLeaf > 0.5 && fract(sin(dot(floor(gl_FragCoord.xy * 0.5), vec2(12.9898, 78.233))) * 43758.5453) < 0.38) discard; fragColor = vec4(1.0); }`,
     });
     // one mesh per shape and distance: [shape][0 near, 1 far]
     this.sets = this.geos.map((pair) => pair.map((base, lod) => {

@@ -82,6 +82,10 @@ void main() {
     if (min(e2.x, e2.y) > 0.0) {
       float tall = textureLod(tRingColour, uvR, 0.0).a * 51.0 * smoothstep(0.0, 0.05, min(e2.x, e2.y));
       float k = smoothstep(uShell.x, uShell.y, length(rel)) * smoothstep(2.0, 4.0, pv.w - uSea.y * uSea.x + 4.0 * (1.0 - uSea.x));
+      // (no forest on rock faces: the land-cover map's pixels are 600 m wide and know
+      // nothing of a cliff inside them; and none on water)
+      vec4 nv = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 1.0);
+      k *= smoothstep(0.80, 0.93, dot(normalize(nv.xyz), up)) * (1.0 - step(1.02, nv.a));
       // (crowns: a whole number of them across the detail tile, so patches agree)
       float crowns = 0.72 + 0.14 * (sin(6.2831853 * (5.0 * vDetailUv.x + 3.0 * vDetailUv.y)) + sin(6.2831853 * (-4.0 * vDetailUv.x + 7.0 * vDetailUv.y)));
       vShell = k * smoothstep(0.5, 5.0, tall);
@@ -283,6 +287,7 @@ void main() {
 
   // --- the world's real large-scale brightness and colour: maria, rays, dark sands
   float canopyTall = 0.0;        // how tall the trees stand here (m; from the land-cover picture)
+  float canopyShade = 0.0;       // how much of the sky a closed canopy hides from the ground here
   vec3 mapTint = vec3(1.0);
   float mapW = 0.0;
   if (uAlbedoMap.w > 0.0) {
@@ -385,13 +390,15 @@ void main() {
     {
       // open country is grass in patches; under a closed canopy it is litter and shade
       vec3 g1 = texture(tDetail, vDetailUv * 0.5).rgb, g2 = texture(tDetail, vDetailUv * 4.0).rgb;
-      float veg = smoothstep(0.3, 3.0, canopyTall) * flatW * (1.0 - vShell), patch = smoothstep(0.35, 0.65, 0.6 * g1.r + 0.4 * g2.g);
+      float veg = smoothstep(0.3, 3.0, canopyTall) * flatW * (1.0 - vShell), tuft = smoothstep(0.35, 0.65, 0.6 * g1.r + 0.4 * g2.g);
       vec3 grass = vec3(0.070, 0.095, 0.030) * mix(vec3(1.0), mapTint, 0.5) * (0.8 + 0.5 * g2.b);
       vec3 litter = vec3(0.085, 0.070, 0.042) * mix(vec3(1.0), mapTint, 0.4);
-      albedo = mix(albedo, mix(grass, litter, smoothstep(4.0, 14.0, canopyTall) * (0.5 + 0.5 * patch)), veg * (0.45 + 0.35 * patch));
+      albedo = mix(albedo, mix(grass, litter, smoothstep(4.0, 14.0, canopyTall) * (0.5 + 0.5 * tuft)), veg * (0.45 + 0.35 * tuft));
     }
-    // (under a closed canopy little of the sky is seen)
-    ao *= mix(1.0, 0.5, smoothstep(6.0, 16.0, canopyTall) * flatW * (1.0 - vShell));
+    // (under a closed canopy little of the sky is seen, and what light comes down has
+    // come through leaves)
+    canopyShade = smoothstep(6.0, 16.0, canopyTall) * flatW * (1.0 - vShell);
+    ao *= mix(1.0, 0.55, canopyShade);
     if (uLitter > 0.0) {
       // fallen leaves: a scatter of them, thicker as the season goes on
       vec3 f1 = texture(tDetail, vDetailUv * 23.0).rgb, f2 = texture(tDetail, vDetailUv * 61.0).rgb;
@@ -403,6 +410,8 @@ void main() {
       float nearC = 1.0 - smoothstep(0.03, 0.5, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
       N = normalize(N + (uTanU * (c1.r + 0.7 * c2.r) + uTanV * (c1.g + 0.7 * c2.g)) * (1.6 * vShell * nearC));
       vec3 leaves = vec3(0.040, 0.078, 0.028) * mix(vec3(1.0), mapTint, 0.6) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
+      // (in their season, in patches: the trees that turn among those that do not)
+      leaves = mix(leaves, mix(vec3(0.17, 0.10, 0.02), vec3(0.13, 0.035, 0.015), smoothstep(-0.1, 0.25, c1.r)) * (0.8 + 0.6 * (c2.b + 0.5)), uLitter * 0.85 * smoothstep(-0.12, 0.1, c2.r + 0.5 * c1.g));
       albedo = mix(albedo, leaves, vShell);
       ao *= mix(1.0, 0.72 + 0.5 * clamp(c1.b + c2.b, -0.4, 0.5), vShell);
     }
@@ -445,6 +454,9 @@ void main() {
     ao = mix(ao, 1.0, water);
   }
 
+  // (wet ground is darker: water fills the gaps between the grains)
+  albedo *= 1.0 - 0.32 * uWeather.z * (1.0 - water) * (1.0 - farW);
+
   // --- light
   if (uCloud.x > 0.0 && length(planetPos) < uCloud.y) {
     // the cloud that stands between this ground and the Sun
@@ -460,6 +472,7 @@ void main() {
   float diffuse = groundDiffuse(N, uSunDir, V, sigma);
   vec3 direct = directSun(planetPos) * shadow * diffuse;
   vec3 ambient = (skyLight(N, up) * ao + planetShine(N)) * contactSky(vRel, N) / PI;
+  if (canopyShade > 0.0) ambient = mix(ambient, dot(ambient, vec3(0.3, 0.55, 0.15)) * mix(vec3(0.85, 1.1, 0.5), vec3(1.25, 0.95, 0.45), uLitter), 0.85 * canopyShade);
   vec3 col = albedo * (direct + ambient);
   if (water > 0.0) {
     // the Sun's glint (seen from orbit too) and the sky in the water at a grazing view
@@ -469,13 +482,16 @@ void main() {
     float F = 0.02 + 0.98 * pow(1.0 - max(dot(V, Hh), 0.0), 5.0), Fv = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
     vec3 Rv = reflect(-V, N); Rv = normalize(Rv + up * max(0.0, 0.05 - dot(Rv, up)));
     col += water * (1.0 - foam) * (directSun(planetPos) * shadow * (a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0) * 0.25 / max(dot(N, V), 0.2)) + Fv * skyLight(Rv, up) / PI);
-  } else if (uGloss.x > 0.0) {
-    // the Sun's sheen on ice: a broad glint toward the Sun, strongest at a grazing view;
-    // it fades with distance into the far ground's plain brightness
+  } else if (uGloss.x > 0.0 || uWeather.z > 0.01) {
+    // the Sun's sheen on ice, and on ground the rain has wetted: a broad glint toward the
+    // Sun, strongest at a grazing view; it fades with distance into the far ground's plain
+    // brightness. Wet ground also mirrors a little of the sky at a low angle.
+    float wetK = uWeather.z * (1.0 - farW), gl = max(uGloss.x, 0.7 * wetK), gr = mix(uGloss.y, 0.22, step(uGloss.x, 0.7 * wetK));
     vec3 Hh = normalize(uSunDir + V);
-    float nh = max(dot(N, Hh), 0.0), a2 = uGloss.y * uGloss.y, dd = nh * nh * (a2 - 1.0) + 1.0;
+    float nh = max(dot(N, Hh), 0.0), a2 = gr * gr, dd = nh * nh * (a2 - 1.0) + 1.0;
     float F = 0.03 + 0.97 * pow(1.0 - max(dot(V, Hh), 0.0), 5.0);
-    col += directSun(planetPos) * shadow * (uGloss.x * (1.0 - farW) * a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0));
+    col += directSun(planetPos) * shadow * (gl * (1.0 - farW) * a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0));
+    if (wetK > 0.0) { vec3 Rw = reflect(-V, N); Rw = normalize(Rw + up * max(0.0, 0.05 - dot(Rw, up))); col += wetK * flatW * 0.5 * pow(1.0 - max(dot(N, V), 0.0), 4.0) * skyLight(Rw, up) / PI; }
   }
   col = aerialPerspective(col, vRel, albedo);      // the haze above depends on how bright the ground is
   fragColor = vec4(col * uExposure, 1.0);
@@ -556,7 +572,7 @@ export const DETAIL_TILE = 64;   // metres covered by one repeat of the detail t
 export function makeTerrainMaterial(shared, pool) {
   return new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
-    defines: { ...atmosphereDefines(), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, DETAIL_TILE, VERT_W: pool.VW, MORPH_START: CONFIG.MORPH_START },
+    defines: { ...atmosphereDefines(), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, DETAIL_TILE, VERT_W: pool.VW, MORPH_START: CONFIG.MORPH_START },
     vertexShader: VERT, fragmentShader: FRAG,
     uniforms: {
       ...shared,

@@ -13,6 +13,9 @@ import { waveHeightAt, waveScale } from './water/waves.js';
 import { Trees } from './life/trees.js';
 import { Leaves } from './life/leaves.js';
 import { CloudVolume } from './sky/cloudVolume.js';
+import { Weather } from './weather/weather.js';
+import { Rain } from './weather/rain.js';
+import { Bolt } from './weather/bolt.js';
 
 const SWIM_DEPTH = 1.25;        // metres of water a standing figure sinks into before it floats
 import { StartScreen, ResultsScreen, BenchBanner, Toast } from './ui/screens.js';
@@ -262,6 +265,11 @@ export class App {
     }
     this.leaves = new Leaves(this.trees);
     this.nearScene.add(this.leaves.mesh);
+    // Weather (worlds that have it): wind, rain, wet ground, shade, lightning
+    this.weather = new Weather(); this.weather.setWorld(world);
+    this.rain = new Rain(G);
+    this.bolt = new Bolt(G);
+    this.nearScene.add(this.rain.mesh, this.bolt.mesh);
     this.placeLander(world, data.hs);
     this.hero = new Hero();
     this.heroScene.add(this.hero.group);
@@ -977,7 +985,7 @@ export class App {
       this.terrain.setWorld(w, data.rasters, data.hs);
       this.clouds.setWorld(w); this.cloudVolume.setWorld(w);
       this.rocks.setWorld(w, data.hs);
-      this.trees.setWorld(w);
+      this.trees.setWorld(w); this.weather.setWorld(w);
       this.dust.setWorld(w);
       this.placeLander(w, data.hs);
       this.bodies.setWorld(w);
@@ -1030,10 +1038,23 @@ export class App {
     if (b0) this.carryWith(M0, b0, carry);
     G.uTime.value = this.shotMode ? 0.25 : now / 1000;
     {
-      // Wind and waves (until the weather sets them: a steady breeze from the west).
-      const sh = this.terrain.shared, e = rig.east;
-      const speed = this.world.surface.sea?.wind ?? 6;
-      sh.uWind.value.set(e[0], e[1], e[2], speed);
+      // Weather where the traveller is, and what follows from it: wind and waves, shade,
+      // wet ground, lightning's light. (A world without weather: a steady breeze from the west.)
+      const sh = this.terrain.shared, e = rig.east, wx = this.weather;
+      const d = this.clock, day = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000;
+      // (pictures: the weather settles at once and no lightning strikes by chance; debug=flash strikes on purpose)
+      wx.quiet = this.shotMode; wx.forceFlash = this.shotMode && this.params.debug.includes('flash');
+      wx.update(rig, this.shotMode ? 0.5 : dt, G.uSunDir.value, day);
+      const speed = wx.def ? Math.max(1.5, wx.windSpeed) : (this.world.surface.sea?.wind ?? 6);
+      if (wx.def) sh.uWind.value.set(wx.wind.x, wx.wind.y, wx.wind.z, speed); else sh.uWind.value.set(e[0], e[1], e[2], speed);
+      G.uWeather.value.set(wx.def ? wx.sunShade : 1, wx.def ? wx.skyShade : 1, wx.def ? wx.wet : 0, 0);
+      G.uFlash.value.copy(wx.flashLight);
+      this.rain.update(wx, rig, (now / 1000) % 3600);
+      this.bolt.update(wx, rig.agl);
+      for (const th of wx.heard()) this.audio.thunder(th.power, th.dist);
+      // (the wind carries what hangs in the air: only while the stick is let go, so that
+      // flight that is aimed still goes where it is aimed)
+      if (wx.def && rig.mode === 'hero' && !rig.onFoot && !this.transfer && rig.agl < 12000 && (rig.throttle || 0) < 0.05 && dt > 0) rig.pos.addScaledVector(wx.wind, wx.windSpeed * 0.5 * Math.min(dt, 0.1));
       sh.uWave.value.set(waveScale(speed), this.wavesLift === false ? 0 : 1, this.shotMode ? 3.0 : (now / 1000) % 3600);
       // how deep the water is where the figure stands (0 on land): the rig slows in it
       // (under the flying figure too: no dust is raised from water)
@@ -1126,7 +1147,7 @@ export class App {
       const dens = a ? (a.surfaceDensity ?? 0) * Math.exp(-Math.max(0, alt) / (a.rayleigh?.scaleHeight ?? 10000)) : 0;
       const foot = rig.mode === 'hero' && rig.onFoot, landed = this._wasAir && foot && !rig.airborne ? Math.max(1, rig.landSpeed) : 0;
       this._wasAir = !foot || rig.airborne;
-      this.audio.update(dt, { airDensity: dens, speed: rig.velocity.length(), onFoot: foot || rig.mode === 'walk', airborne: rig.airborne, throttle: rig.throttle || 0, boost: rig.boost, flying: rig.mode === 'hero' && !rig.onFoot, warp: this.warp.amount, landed });
+      this.audio.update(dt, { wind: this.weather.def ? this.weather.windSpeed : 0, rain: this.weather.rain + 0.5 * this.weather.snow, airDensity: dens, speed: rig.velocity.length(), onFoot: foot || rig.mode === 'walk', airborne: rig.airborne, throttle: rig.throttle || 0, boost: rig.boost, flying: rig.mode === 'hero' && !rig.onFoot, warp: this.warp.amount, landed });
     }
     this.stars?.setFrame(eph.icrfToFixed, rig, post.viewH);
     // ?aim=<body>: possible only now, once the bodies have a position for this moment.
@@ -1178,7 +1199,7 @@ export class App {
     this.clouds.uniforms.uNearFade.value = vol ? this.cloudVolume.reach : 0;
     renderer.render(this.nearScene, rig.camera);
     if (vol) {
-      this.cloudVolume.render(post, rig, near, far, this.terrain.shared.uWave.value.z, this.clouds, this.terrain.shared.uWind);
+      this.cloudVolume.render(post, rig, near, far, this.terrain.shared.uWave.value.z, this.clouds, this.terrain.shared.uWind, this.weather);
       post.resumeScene();
       this.cloudVolume.lay();
     }
@@ -1231,7 +1252,7 @@ export class App {
     if (this.shotMode) {
       const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.trees.busy && !this.cloudVolume.busy && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && !this.clouds.loading && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
       window.__shotReady = ready;
-      window.__stats = { trees: `${this.trees.count} (${Math.round(this.trees.triangles / 1000)}k triangles)${this.trees.names ? ': ' + this.trees.names : ''}`, water: this.terrain.tiles.rings.map((r) => r.info ? `z${r.zoom}: ${r.info.rivers} rivers, ${Math.round(r.info.flow)} m3/s${r.info.inflow ? '' : ' (no inflow)'}` : null).filter(Boolean).join('; '), stale: this.terrain.staleData, tilesBusy: this.terrain.tiles.busy, refreshQ: this.terrain.readyRefresh.length, rings: this.terrain.ringSerial, tileFails: this.terrain.tiles.failures, busyW: this.terrain.workers.busy, calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.clouds.loading ? 'clouds' : ''}` };
+      window.__stats = { weather: this.weather.def ? `wind ${this.weather.windSpeed.toFixed(0)} m/s, rain ${this.weather.rain.toFixed(1)} mm/h, snow ${this.weather.snow.toFixed(1)}, ${this.weather.temp.toFixed(0)} C, sun ${this.weather.sunShade.toFixed(2)}, sky ${this.weather.skyShade.toFixed(2)}, top ${Math.round(this.weather.top)} m` : '', trees: `${this.trees.count} (${Math.round(this.trees.triangles / 1000)}k triangles)${this.trees.names ? ': ' + this.trees.names : ''}`, water: this.terrain.tiles.rings.map((r) => r.info ? `z${r.zoom}: ${r.info.rivers} rivers, ${Math.round(r.info.flow)} m3/s${r.info.inflow ? '' : ' (no inflow)'}` : null).filter(Boolean).join('; '), stale: this.terrain.staleData, tilesBusy: this.terrain.tiles.busy, refreshQ: this.terrain.readyRefresh.length, rings: this.terrain.ringSerial, tileFails: this.terrain.tiles.failures, busyW: this.terrain.workers.busy, calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.clouds.loading ? 'clouds' : ''}` };
     }
   }
 
