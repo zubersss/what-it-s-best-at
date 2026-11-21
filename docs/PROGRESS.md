@@ -371,6 +371,19 @@ are gone.
 3.2 times the leaves, each a leaf's own shape (narrow at the stalk, widest two fifths
 out, a point) and standing at several depths over the mass, each lighter or darker than
 its neighbours. Governor step `tree-leaves` (the close level off).
+A crown seen near is leaves round a smaller, darker heart (the lumps at 0.7 of their size
+close, 0.86 near): with the lumps whole the leaves lay on a green ceiling and did not read.
+
+**Tests of this delivery.** Build check; `npm run smoke` (16 checks, 22 shaders, 15 of 16
+textures at most); `npm run target` (a GO trip in the real game, with the destination
+being got ready on the way); `npm run foot` on Mars. **`npm run foot -- --world earth`
+fails one check** ("super speed": the runner leaves its feet at 16.5 m/s on the sloping
+rim of the opening place before reaching 25; the test was written for Mars and the Moon,
+and nothing on foot was changed): look at it with the next on-foot work. Pictures at
+660 x 309: the opening view, the meadow, among the clouds twice (the view turned 40
+degrees), the hardwood and the spruce forest. **Not done**: the stability test on the
+new clouds, pictures of load-ahead (it shows only in motion), Everest, night, orbit.
+
 
 ## The owner's fifth phone results (build 345e2b7) and the second painted delivery
 
