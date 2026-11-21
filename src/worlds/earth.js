@@ -38,17 +38,27 @@ export default {
         // (minFlow: what is drawn as a river from each ring, m3/s: the great rivers from far,
         // every brook from near)
         rings: [{ zoom: 6, below: 6.0e6, minFlow: 1500 }, { zoom: 9, below: 5.0e5, minFlow: 60 }, { zoom: 12, below: 4.0e4, minFlow: 0.5 }] },
-      // Rivers and lakes: worked out from the elevation where it arrives (tiles/hydrology.js),
-      // fed by the rain that really falls (NASA MERRA-2, scripts/fetch-earth-climate.py).
-      hydrology: { rain: 'data/earth_rain_720.u8' },
-      pictures: { colour: { url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg', zoom: 8, below: 2.0e6 } },
+      // Rivers and lakes: read from the elevation where it arrives (tiles/hydrology.js): the
+      // rivers fed by the rain that really falls (NASA MERRA-2, scripts/fetch-earth-climate.py),
+      // the lakes where the elevation lies level, the large ones checked against the water
+      // seen from space (the map the globe's glint uses).
+      hydrology: { rain: 'data/earth_rain_720.u8', water: 'data/earth_water_2048.jpg' },
+      pictures: { colour: { url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg', zoom: 8, below: 2.0e6,
+        // What grows there: the land-cover class of every 500 m (MODIS, the IGBP legend) and
+        // how tall its canopy stands (GEDI's laser from the space station), both from NASA
+        // GIBS as coloured tiles; the palette file says what each colour means.
+        cover: { classes: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual/default/2022-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png', classesZoom: 8,
+          canopy: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GEDI_ISS_L3_Canopy_Height_Mean_RH100_201904-202303/default/2019-04-18/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png', canopyZoom: 7,
+          palette: 'data/earth_cover_palette.json' } } },
     },
     layers: [
       { op: 'dem' },
       // What the maps cannot resolve: relief that grows on slopes (water-cut ground).
       { op: 'fbm', seed: 3, maxWavelength: 60000, minWavelength: 0.8, roughness: 0.82, amp: 26, belowDem: 2.2, slopeGain: [0.04, 0.4, 0.15, 1.0], hetero: 0.5 },
       // Gullies and spurs on the mountain sides and canyon walls.
-      { op: 'ridged', seed: 5, maxWavelength: 1400, minWavelength: 20, roughness: 0.9, amp: 260, slopeMask: [0.12, 0.4], warp: 0.3 },
+      // (only what the map under the place cannot show: full under the bundled map from far
+      // off, a few metres over the 27 m elevation near the traveller)
+      { op: 'ridged', seed: 5, maxWavelength: 1400, minWavelength: 20, roughness: 0.9, amp: 260, slopeMask: [0.12, 0.4], warp: 0.3, belowDem: 4 },
       // Layered rock: beds stand as cliffs and benches wherever the ground is steep.
       // (on the Colorado Plateau, where the beds lie flat for hundreds of kilometres; elsewhere
       // they would draw contour lines on every mountain)
@@ -92,8 +102,19 @@ export default {
     absorber: { absorption: [0.65e-6, 1.88e-6, 0.085e-6], centerAltitude: 25000, halfWidth: 15000 },
   },
 
+  // The weather of one real day (scripts/fetch-earth-weather.py): 8 September 2017, with
+  // hurricanes Irma, Jose and Katia in the Atlantic at once.
+  weather: { day: '2017-09-08', rain: 'data/earth_rain_2048.jpg', tops: 'data/earth_cloudtop_1024.jpg', cloud: 'data/earth_clouds_512.jpg', storms: 'data/earth_storms.json' },
+
+  // Trees: where the land-cover map says forest, woodland or savanna, of the species the
+  // region really grows (life/cover.js), as tall as the canopy was measured.
+  life: { trees: { radius: 240, spacing: 7, below: 1500 } },
+
   // Clouds of one real day (the globe's own cloud map) as a layer overhead (see sky/clouds.js).
-  clouds: { map: 'data/earth_clouds_4096.jpg', lon0: -180, altitude: 4500, cover: 0.45, shadow: 0.6 },
+  // Near the traveller the layer is a volume to fly through: its base at 1 400 m, its
+  // tops up to 3 200 m higher where the map is thick, out to 45 km (cloudVolume.js).
+  clouds: { map: 'data/earth_clouds_4096.jpg', lon0: -180, altitude: 4500, cover: 0.45, shadow: 0.85,
+    volume: { base: 1400, thick: 3200, reach: 45000, above: 30000, scale: 5200 } },
 
   sky: { stars: { url: 'data/stars_bsc5.f32' } },
 
@@ -126,6 +147,9 @@ export default {
     { id: 'antarctica', name: 'The South Pole', fact: 'Under your feet: 2 800 m of ice.', lat: -89.5, lon: 0 },
     { id: 'kilimanjaro', name: 'Kilimanjaro', fact: 'A volcano standing alone, with ice at the equator.', lat: -3.07, lon: 37.35 },
     { id: 'uluru', name: 'Uluru', fact: 'One rock, 348 m high and nine kilometres round.', lat: -25.345, lon: 131.036 },
+    { id: 'irma', name: 'Hurricane Irma (8 September 2017)', reach: 60000, fact: 'One of the strongest Atlantic hurricanes on record: winds of 250 km/h round a calm eye 40 km wide.', lat: 21.7, lon: 284.7 },
+    { id: 'jose', name: 'Hurricane Jose', reach: 60000, fact: 'Following Irma across the ocean two days behind it, almost as strong.', lat: 16.3, lon: 303.8 },
+    { id: 'katia', name: 'Hurricane Katia', reach: 60000, fact: 'The third hurricane of the same day, about to come ashore in Mexico.', lat: 21.3, lon: 264.4 },
     { id: 'canaveral', name: 'Cape Canaveral', fact: 'Where the journeys to every other world in this game began.', lat: 28.57, lon: 279.35 },
   ],
 };

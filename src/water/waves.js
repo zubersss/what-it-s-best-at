@@ -26,7 +26,7 @@ export const LIFTED = WAVES.filter((w) => w.lift).length;
 // The height of the waves a wind raises (m, the amplitude scale of the table): about a
 // quarter of the significant wave height of a fully grown sea, and never so tall that a
 // 64 m wave would break.
-export function waveScale(windSpeed) { return Math.min(1.5, 0.012 * windSpeed * windSpeed + 0.03); }
+export function waveScale(windSpeed) { return Math.min(3.2, 0.012 * windSpeed * windSpeed + 0.03); }
 
 // How many waves of the table are at least `px` pixels long when a pixel covers `mpp` metres.
 export const WAVE_STEPS = (() => { const out = []; let n = 0; while (n < WAVES.length) { const len = WAVES[n].len; while (n < WAVES.length && Math.abs(WAVES[n].len - len) < len * 0.3) n++; out.push([n, len]); } return out; })();
@@ -67,8 +67,9 @@ export function waveHeightAt(pos, radius, time, wind, speed) {
   const du = F.u[0] * d[0] + F.u[1] * d[1] + F.u[2] * d[2], dv = F.v[0] * d[0] + F.v[1] * d[1] + F.v[2] * d[2];
   let ux = F.u[0] - d[0] * du, uy = F.u[1] - d[1] * du, uz = F.u[2] - d[2] * du, vx = F.v[0] - d[0] * dv, vy = F.v[1] - d[1] * dv, vz = F.v[2] - d[2] * dv;
   const ul = Math.hypot(ux, uy, uz) || 1, vl = Math.hypot(vx, vy, vz) || 1;
-  let wx = (wind.x * ux + wind.y * uy + wind.z * uz) / ul, wy = (wind.x * vx + wind.y * vy + wind.z * vz) / vl;
-  const wl = Math.hypot(wx, wy) || 1; wx /= wl; wy /= wl;
+  // (as the shader has it: the wind along each axis, the two not made a unit pair; away
+  // from a cube face's middle the axes are not at right angles)
+  const wx = (wind.x * ux + wind.y * uy + wind.z * uz) / ul, wy = (wind.x * vx + wind.y * vy + wind.z * vz) / vl;
   const scale = waveScale(speed);
   let h = 0;
   for (let q = 0; q < LIFTED; q++) {

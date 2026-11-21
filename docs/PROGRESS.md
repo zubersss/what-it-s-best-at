@@ -6,7 +6,7 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-*Handoff written at the start of milestone 10 (a living Earth).*
+*Handoff written at the checkpoint of milestone 10 (a living Earth).*
 
 - **The goal** (owner, 2026-11-20): the best possible product a Samsung Galaxy S23 Ultra
   runs without lag (`CLAUDE.md`, "The one goal"). Helpers: workflows only for the most
@@ -14,21 +14,34 @@ changes behaviour.
 - **The owner's last word** (with Smooth and Sharp benchmarks of build fa0c4c9): hyper
   focus on Earth and its physics: rivers and seas, clouds to fly through, forests of the
   real trees, wind in them and falling leaves, rain, thunder and lightning, hurricanes
-  and the other weather, and beautiful. Milestones 6 to 9 are `done`.
-- **What is being built**: "Milestone 10 plan" below, in five stages, each merged and
-  reported in a line or two. The task list of the session mirrors the stages.
-- **Asked of the owner**: an **Earth benchmark** (new button on the start screen: Earth's
-  five views, the flight to the Moon, the Moon's five), in Smooth, after each stage that
-  adds cost. Nothing on Earth has been measured on the phone. Still open: whether a 3D
-  model file of the character exists.
+  and the other weather, and beautiful.
+- **Delivered**: milestone 10, five stages, merged; `checkpoint sent`. What each stage
+  contains and what it does not is under "Milestone 10, stages 1 and 2", "stages 3 to
+  5" and "Milestone 10 review" below. The lakes and rivers were put right at the very
+  end (the review's follow-up: the real lakes were not being drawn and false ones were);
+  `npm run lakes` now holds them to the real ones.
+- **Not confirmed on the phone, any of it.** The phone was already short of pixels on
+  Mars at 60 fps, and Earth now does far more per pixel (trees, a cloud volume, weather).
+  Asked of the owner: an **Earth benchmark** in Smooth (start screen), and what looks
+  wrong. Expect to tune: which of the 22 governor steps go first on Earth, the cloud
+  volume's size and step count, the trees' radius. Still open: whether a 3D model file
+  of the character exists.
+- **What to do next**: with a benchmark, tune from it first. With a complaint, reproduce
+  it in a picture, fix, show before and after. Then the "not done, or weak" lists of
+  milestone 10 (a swimming stroke, tree shapes up close, cloud grain in motion, rain
+  shafts, moving weather), and Mars' costly pixel (the fourth results). Water still to
+  do: lakes with islands and bays finer than a cell are found only in part from far off
+  (Winnipesaukee), land under sea level that the sea reaches in the map is flooded (the
+  Caspian stands 28 m too high), far rivers crossing a filled hollow can stand tens of
+  metres off their ground, a lake under an overcast sky looks dull (Champlain).
 - **How to work here** (all in CLAUDE.md): develop on the session's own branch, open a
   pull request into `main` and merge it yourself (through `gh api`); the phone link
   updates a minute later and shows the build's commit. Run `./scripts/build-check.sh`
   before every merge, one headless browser at a time, and the checks listed under "Run
-  and test".
+  and test". Earth pictures need the map mirror's cache (`/root/mapcache/ext`, filled on
+  first use) and `--timeout 600`.
 - **Choosing a view without the browser**: `node scripts/peek.mjs` sketches what a
-  camera sees from a place in seconds. Use it before spending five minutes on a headless
-  picture.
+  camera sees from a place in seconds (bundled maps only).
 
 ## What exists today
 
@@ -300,6 +313,111 @@ drainage are the hardest part to get right at the seams between rings.
   below; flow direction in the look of a river; waterfalls; lakes are untested by eye;
   land below sea level (Death Valley, the Dutch polders) is flooded; rivers do not line
   up across the edge between two rings; a river's colour is the sea's.
+
+## Milestone 10, stages 3 to 5: what was built
+
+- **Forests** (ARCHITECTURE, "Trees and leaves"): where forest is, of what kind and how
+  tall from NASA's land-cover and canopy-height tiles; the species from a table of each
+  region's own trees. Seen: pinyon and juniper on the Grand Canyon's South Rim (1 500
+  trees round Mather Point, with ponderosa and aspen); spruce, ponderosa and aspen on the
+  Kaibab Plateau; 3 761 red oak, sugar maple and beech in a Vermont wood in October, red
+  and gold, their leaves on the ground and in the air. Beyond 240 m the forest is raised
+  as a whole by the ground shader; from the air it is a green canopy over the hills.
+- **Clouds with depth** (ARCHITECTURE, "Clouds with depth"): a volume to 45 km, marched
+  at a third of the view and laid over the picture by depth; the old shell beyond.
+- **Weather** (ARCHITECTURE, "Weather"): Earth has the weather of 8 September 2017, from
+  NASA's maps of that day: hurricanes Irma, Jose and Katia stand in the Atlantic (they
+  are in the cloud map the globe wears from space, in the rain map and in the wind, which
+  circles each of them); rain and snow fall under the cloud, the ground gets wet and
+  shines, the cloud overhead dims the Sun and the sky, lightning strikes where the rain
+  is hard under deep cloud and its thunder comes late by the distance. The three
+  hurricanes are places in the target list and the journal.
+- Governor steps added: `rain`, `leaves`, `tree-shadows`, `trees-far`, `waves`,
+  `cloud-steps`, `cloud-volume` (22 in all).
+- **Not done, or weak**: a tree is a few lumps on a stick up close; no undergrowth or
+  grass blades; the far forest turns with the season in patches without knowing which
+  trees are evergreen; clouds are grainy at the small picture size and have no memory
+  between frames (no temporal smoothing); rain does not show as shafts from afar; snow
+  does not lie; the weather does not move or change with the clock (one day, standing
+  still); no fog, rainbow, tornado or aurora; the wind only carries a hovering figure.
+  None of it has been measured on the phone.
+
+## Milestone 10 review (before the checkpoint)
+
+One workflow: four reviewers (tiles and water; trees and the ground shader; clouds and
+weather; the app, the rig and the governor) read everything since 7933ddf; a second
+reviewer tried to disprove each finding, running the code in Node where it could. 30
+findings, all taken as real and fixed:
+
+- **Tiles and water**: a lake's level was spread over ground far below its outlet (water
+  standing in the air); a river crossed dry pits on a causeway of its own level (a river
+  now fills the pits it runs through, and banks are never raised); lake shores had steps
+  of up to 50 m (the layers now fade toward a lake's edge as toward the sea's); rivers
+  moved between ring positions while the ground kept the old ones (ground with water in
+  it is always built again); a tile whose body stalled held its mosaic for ever; the
+  world left behind kept its mosaics in its height source; two curls wrote one file in
+  the test mirror.
+- **Trees and water**: leaf-dropping species with the gold flag turned inside out in
+  winter; the season froze above 1 500 m and jumped on the way down; the tree lattice
+  did not meet itself at longitude 0; "tall canopy is forest" was applied to different
+  heights in two places (how closed a canopy is now comes with the map, once); every
+  tree vanished whenever a map moved (they now stay until their block's new ones
+  arrive); a swimmer on a lake rode the sea's waves (the drawn ones are an eighth as
+  high); the CPU's wave sum and the shader's weighted the wind differently; the clock
+  the waves share wrapped every hour.
+- **Clouds and weather**: cloud noise and rain were moved by the wind's speed times all
+  the time passed (they slid about with every gust); the cloud's haze was read from the
+  wrong part of the screen; rain, lightning and the rainbow were painted over by the
+  cloud laid after them; the thickest cloud let a hundredth of the Sun's disc through;
+  strokes and thunder went on in orbit; things near the camera and the ground under them
+  used two laws for the same cloud's shade; the small picture's target was made anew at
+  every resolution step.
+- **App**: the lander and the rocks stayed on the ground of the maps that were there when
+  they were placed; the sink of the last sea stayed on the next world; the camera could go
+  under the water it draws only from above; a step up of resolution still on trial was
+  remembered; pictures were not still on a world with weather; the walker dropped half a
+  metre at every waterline.
+
+The second reviewer of "tiles and water" found three of those fixes had moved the fault
+rather than cured it, and following them up found two larger ones. What was done after:
+
+- **Lake shores and river banks** (the reviewer's patch, checked in Node on 11.7 million
+  sample pairs): a lake's level is read from the four cells round a place and eases out
+  over half a cell (`DemSet.lakeS`), a lake has one level, the layers' fade toward a
+  lake is continuous in place as well as in height, and a river's bank is blended whichever
+  way the ground lies. A finer mosaic worked out before the coarser one's rivers were
+  known is asked for again, once (`TileRings`).
+- **Lakes were being made by the flood, and the real ones were not drawn.** The test that
+  kept level stretches (`lower < 0.12 * rim`) could not pass: the rim was counted among
+  cells that are level by definition, so every real lake was dropped (0 < 0), and the only
+  "lakes" were filled pits: a sea of 71 000 km2 over Nevada, 66 000 km2 over Utah, the
+  Snake River Plain, a lake on the Little Colorado. Measured on fourteen lakes at three
+  zooms: every real lake is a level stretch in this elevation set, none has a bed in it.
+  The rule is now the one in ARCHITECTURE ("Rivers and lakes"): level stretches in a
+  hollow that can be kept full, the large ones checked against NASA's water map; pits
+  only as ponds. Checked against the real sizes (km2, found / real): Great Salt Lake
+  4 674 / 2 300 to 4 400, Champlain 929 / 1 269, Tahoe 460 / 490, Pyramid 468 / 487,
+  Titicaca 7 089 / 8 370, Superior 67 617 / 82 100, Michigan 50 771 / 58 000, Huron
+  51 510 / 59 600, Erie 23 380 / 25 700, Ontario 15 889 / 19 000, Victoria 53 199 /
+  68 800, Tanganyika 24 446 / 32 900, Turkana 5 570 / 6 400; the Tisza's plain, the Po
+  plain, Tulare's dry bed, Carson Sink, Black Rock Desert and the Snake River Plain are
+  land.
+- **Rivers lie on their ground**: a river's level is the one nearest the ground along its
+  way that never rises (it stood on the filled level as on a causeway; held to the
+  lowest ground so far it ran on in a trench after every pit). Along the Colorado on the
+  finest ring: within 4 m under and 1.4 m over the ground for nine tenths of its length.
+- **A lake's bed can lie under sea level** (Champlain's deep is in the map, and its dug
+  bed went to -32 m: both were drawn as pits of sea in the lake). Bad cells in the
+  elevation are mended: a mosaic over Vermont had a cell at 7 964 m beside one at
+  -2 496 m, Lake Winnipesaukee one at -1 926 m.
+- **A check that can fail**: `npm run lakes` (no browser, 15 s) finds thirteen real lakes
+  within a factor of their real area, seven places that must be land, no region drowned,
+  no step in the drawn surface at any water's edge, rivers within 6 m of their ground on
+  the finest ring. Its step test was shown to fail by breaking a fix on purpose.
+- **The gully layer cut 100 m gullies into real mountainsides**: made for the coarse
+  bundled map, it ran at full strength over the 27 m elevation too. It now adds only
+  what the map under the place cannot show (`belowDem` on `ridged`), as the roughness
+  layer already did. Mountains near the traveller are the real ones.
 
 ## Milestone 6 plan: the new worlds
 
@@ -1672,3 +1790,11 @@ Weakest: `mars_ledge_orbit_globe`.
   mode, saves, sound. Reviewed by one workflow (25 findings, all fixed: "Milestones 6 to
   9 review"). Tools: `worlds`, `ui`, `peek.mjs`, `check-ephemeris.mjs`, `fit-orbits.py`,
   `fetch-worlds.py`, `fetch-earth-terrain.py`.
+- **Milestone 10, a living Earth** (the owner, with the fourth phone results): governor
+  tuned (resolution first, strides, each world's level remembered) and an Earth
+  benchmark; Earth streamed from AWS Terrain Tiles and NASA GIBS (rings, a tile worker,
+  rebuild in place, a test mirror); the sea, lakes and rivers from the land's shape and
+  real rainfall; forests of each region's trees, wind, seasons, leaves; a cloud volume;
+  the weather of 8 September 2017 (three hurricanes), rain, snow, lightning, thunder, a
+  rainbow. Reviewed by one workflow (30 findings fixed). Tools: `fetch-earth-climate.py`,
+  `fetch-earth-weather.py`; `debug=flash`.

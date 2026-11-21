@@ -25,7 +25,7 @@ export class DemSet {
     // ... and the water there, from the finest ring that has any (see _water): a lake's
     // level (lakeL, -1e9: none); the nearest river's centre line (rivS metres away, 1e9:
     // none), its half width, level and depth
-    this.lakeL = -1e9; this.rivS = 1e9; this.rivA = 0; this.rivL = 0; this.rivD = 0;
+    this.lakeL = -1e9; this.lakeS = 0; this.rivS = 1e9; this.rivA = 0; this.rivL = 0; this.rivD = 0;
     this._h = 0; this._gx = 0; this._gy = 0;
     this.tops = null;
   }
@@ -170,7 +170,7 @@ export class DemSet {
   sample(x, y, z) {
     const lat = Math.asin(z < -1 ? -1 : z > 1 ? 1 : z) * RAD2DEG;
     let lon = Math.atan2(y, x) * RAD2DEG; if (lon < 0) lon += 360;
-    this._wet = false; this.lakeL = -1e9; this.rivS = 1e9;
+    this._wet = false; this.lakeL = -1e9; this.lakeS = 0; this.rivS = 1e9;
     // The rings first, finest first. Each lies on what is under it by its weight; `acc` is
     // how much of the answer is still to come from below.
     let acc = 1, rh = 0, re = 0, rn = 0, rres = 0;
@@ -196,7 +196,24 @@ export class DemSet {
   _water(r, px, py, cosLat) {
     const w = r.water, W = r.width;
     this._wet = true;                                       // (the finest ring answers; coarser ones are not asked)
-    if (w.lake) { const v = w.lake[Math.floor(py) * W + Math.floor(px)]; if (v) this.lakeL = v / 4 - 500; }
+    if (w.lake) {
+      // (from the four cells round the place, not the nearest one: lakeS is the share of them
+      // that are this lake's, eased from a half to all, so that its water and its shore end
+      // nowhere at a pixel's edge. A lake has one level in all its cells: see hydrology.js)
+      const qx = px < 0.5 ? 0 : px > W - 1.5 ? W - 1.5 : px - 0.5, qy = py < 0.5 ? 0 : py > W - 1.5 ? W - 1.5 : py - 0.5;
+      const ix = Math.min(W - 2, Math.floor(qx)), iy = Math.min(W - 2, Math.floor(qy)), tx = qx - ix, ty = qy - iy, o = iy * W + ix, lk = w.lake;
+      const v0 = lk[o], v1 = lk[o + 1], v2 = lk[o + W], v3 = lk[o + W + 1];
+      if (v0 | v1 | v2 | v3) {
+        const w0 = (1 - tx) * (1 - ty), w1 = tx * (1 - ty), w2 = (1 - tx) * ty, w3 = tx * ty;
+        let n = 0, lv = 0;
+        for (let q = 0; q < 4; q++) {
+          const v = q === 0 ? v0 : q === 1 ? v1 : q === 2 ? v2 : v3; if (!v || v === lv) continue;
+          const k = (v0 === v ? w0 : 0) + (v1 === v ? w1 : 0) + (v2 === v ? w2 : 0) + (v3 === v ? w3 : 0);
+          if (k > n) { n = k; lv = v; }
+        }
+        if (n > 0.5) { const t = n >= 1 ? 1 : (n - 0.5) * 2; this.lakeS = t * t * (3 - 2 * t); this.lakeL = lv / 4 - 500; }
+      }
+    }
     const G = W >> 3, c = (py >> 3) * G + (px >> 3), s = w.segs, m = 2 * Math.PI * this.radius * cosLat / (r.k * 2 * Math.PI);      // metres per pixel here
     let best = 1e9;
     for (let q = w.gridStart[c], e = w.gridStart[c + 1]; q < e; q++) {

@@ -31,6 +31,7 @@ export async function open({ dist = false, width = 880, height = 412, dsf = 1.25
   // browser: they are mirrored here from a cache on disk, filled with curl on a miss.
   // The page is told through window.__EXT (see below).
   // (first in line: the servers' own fall-backs would answer before it)
+  const extJobs = new Map();
   const extMirror = (req, res) => {
     const rel = decodeURIComponent((req.url || '').split('?')[0]).replace(/^\/+/, '');
     if (!/^[a-z0-9.-]+\/[A-Za-z0-9._\/-]+$/.test(rel) || rel.includes('..')) { res.statusCode = 400; res.end(); return; }
@@ -39,13 +40,20 @@ export async function open({ dist = false, width = 880, height = 412, dsf = 1.25
     if (fs.existsSync(file)) return send();
     if (fs.existsSync(miss)) { res.statusCode = 404; res.end(); return; }
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    execFile('curl', ['-sS', '-m', '60', '--retry', '2', '-o', file + '.part', '-w', '%{http_code}', 'https://' + rel], (err, out) => {
-      const code = String(out || '').trim();
-      if (!err && code === '200') { fs.renameSync(file + '.part', file); return send(); }
-      fs.rmSync(file + '.part', { force: true });
-      if (code === '404') fs.writeFileSync(miss, '');
-      res.statusCode = code === '404' ? 404 : 502; res.end();
-    });
+    // (one download per file however many ask while it is on its way: the page asks again
+    // after 20 s, and two curls writing one file broke it or ended the script)
+    let job = extJobs.get(file);
+    if (!job) {
+      job = new Promise((resolve) => execFile('curl', ['-sS', '-m', '60', '--retry', '2', '-o', file + '.part', '-w', '%{http_code}', 'https://' + rel], (err, out) => {
+        const code = String(out || '').trim();
+        try {
+          if (!err && code === '200') fs.renameSync(file + '.part', file); else { fs.rmSync(file + '.part', { force: true }); if (code === '404') fs.writeFileSync(miss, ''); }
+        } catch { /* the answer below says what is on disk */ }
+        extJobs.delete(file); resolve(code);
+      }));
+      extJobs.set(file, job);
+    }
+    job.then((code) => { if (fs.existsSync(file)) return send(); res.statusCode = code === '404' ? 404 : 502; res.end(); });
   };
   server.middlewares.stack.unshift({ route: '/__ext', handle: extMirror });
   if (!dist) await server.listen();

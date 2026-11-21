@@ -194,6 +194,9 @@ export class PostPipeline {
     const opts = { type: THREE.HalfFloatType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false };
     this.scene?.dispose();
     this.scene = new THREE.WebGLRenderTarget(this.width, this.height, { ...opts, depthBuffer: true, stencilBuffer: false });
+    // (the depth as a texture: the cloud volume reads what stands behind each pixel, sky/cloudVolume.js)
+    this.scene.depthTexture = new THREE.DepthTexture(this.width, this.height, THREE.UnsignedIntType);
+    this.scene.depthTexture.minFilter = this.scene.depthTexture.magFilter = THREE.NearestFilter;
     this.scene.texture.colorSpace = THREE.NoColorSpace;
     this.scene.scissorTest = true;
     for (const t of this.bloomDown) t.dispose();
@@ -231,6 +234,10 @@ export class PostPipeline {
     // is scissored to it, so a tile-based GPU never touches the tiles outside.
     r.clear(true, true, false);
   }
+
+  // Back to the HDR target after a pass elsewhere in the middle of the frame (the cloud
+  // volume's small picture): nothing is cleared.
+  resumeScene() { this.renderer.setRenderTarget(this.scene); }
 
   // Call right after the last scene draw: the depth buffer is not needed any more, so a
   // tile-based GPU does not have to write it back to memory.

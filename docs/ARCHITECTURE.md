@@ -391,9 +391,31 @@ ring: it is not asked for.
   land; each cell sheds its rain less what the air takes back (`runoff`, from the bundled
   yearly rainfall map), added up downstream into a mean flow. A river that crosses into
   the mosaic (a coarse cell outside draining to one inside) puts its flow in at the lowest
-  ground near the crossing. Rivers are traced as smoothed lines with a level that never
-  rises, a width and a depth from the flow (`riverWidth`, `riverDepth`); lakes are pits
-  that fill where enough rain falls, and stretches of exactly level cells in the data.
+  ground near the crossing. Rivers are traced as smoothed lines with a width and a depth from the flow
+  (`riverWidth`, `riverDepth`) and a level that never rises on the way down and stays as
+  near the ground along the way as that allows (a least-squares fit, standing above the
+  ground counted six times as dear as cutting into it; a lake's surface, the sea's and
+  the river it joins are met exactly). On the finest ring that is within a few metres of
+  the ground; on the coarse ones a river crossing a hollow the flood filled can stand
+  tens of metres off.
+  **Lakes are read from the elevation, not made by the flood**: every real lake lies in
+  the elevation set as a stretch of exactly level cells (checked on fourteen lakes at
+  three zooms), while a pit only the flood fills is nearly always a valley whose gorge is
+  narrower than a cell. A level stretch is a lake if it has enough middle (cells with all
+  eight neighbours level), lies in a hollow (few of the cells three out from its rim are
+  lower), does not touch the sea, and can be kept full: the flow that reaches it against
+  what open water loses to the air (`evaporation`), which leaves dry lake beds dry. Large
+  ones are settled by the bundled water map (`tiles.hydrology.water`, the globe's glint
+  map): seen as open water is a lake whatever its rim, a plain as level as a lake is land.
+  A stretch a metre or two lower that touches a higher one is the same lake (a great
+  lake's surface is not one whole number all over); ground beside a lake that is lower
+  than its water and cannot drain is under it; cells under sea level that the sea does
+  not reach (`inland`) are a lake's bed where one lies round them, and the `sea` layer
+  gives a lake's water the say over the sea's. A filled pit counts only on the finest
+  ring, shallow and in wet country (a pond). Bad cells are mended first: spikes
+  (`despike`: a cell more than four cell-widths off the middle of its nine) and holes (a
+  few cells under sea level deep inland). `npm run lakes` runs all of this in Node on
+  nine regions and compares with the real lakes.
   `packWater` turns them into arrays for the height code: stretches of river with a grid
   to find them, a raster of lake levels, lake beds cut into the mosaic.
   `DemSet._water` answers from the finest ring at a place; the `sea` layer makes the
@@ -401,6 +423,81 @@ ring: it is not asked for.
   own `minFlow` up: the great rivers from far, every brook from near.
 - Inland water has small waves and little foam (the shader knows it by its height above
   the sea).
+
+## Trees and leaves (`src/life/`)
+
+- **What grows where** comes with the colour ring (terrain/tiles): the tile worker also
+  fetches land-cover classes (MODIS, IGBP legend) and canopy heights (GEDI) for the same
+  mosaic, turns their colours back into numbers with a palette file, and returns a class
+  and a height for every pixel. The picture's fourth channel carries the canopy's height
+  as a whole (height x how closed the class is, 0.2 m a step).
+- **`cover.js`** (plain data): how closed each class is, and `speciesFor(class, lat, lon,
+  altitude, beside water)`: the region's own trees as weighted lists (64 species, eight
+  shapes). A canopy measured taller than 8 m is forest whatever the class says.
+- **`treeBlock.js`** (in the terrain workers, job `trees`): the trees of a block of 0.001
+  degrees: a jittered site every 7 m, taken by the class's chance, less on slopes, never
+  in water or above the tree line; beside rivers and lakes the trees that follow water.
+- **`trees.js`**: keeps the blocks within `radius` (240 m) of the traveller, asks for the
+  nearest missing one when a worker is idle, and builds instance lists: one mesh per
+  shape and distance (near mesh under 110 m, far mesh beyond; `treeGeometry.js`), all
+  measured from an anchor at the traveller (rebuilt every 25 m of travel). One material:
+  the shared lighting, light wrapped round and through crowns, shadows asked for a
+  little outside the crown; wind (lean and swing by height and distance from the trunk);
+  the seasons (leaves turn, then draw in to the branches, by the date and hemisphere,
+  away from the tropics). Crowns cast flecked shadows (their depth pass drops four
+  pixels in ten).
+- **Beyond the trees** the ground shader raises the forest as a whole: the vertex shader
+  lifts the ground by the canopy's height (uneven as crowns are; not on rock faces or
+  water) from 0.8 to 1.25 of the trees' radius outward, or everywhere from above 1 500 m;
+  the fragment shader shades it as leaves. Under the trees the ground is grass in the
+  open, litter and leaf-filtered light under a closed canopy, fallen leaves in season.
+- **`leaves.js`**: 420 points that come loose overhead, ride the wind down turning, and
+  lie a moment; worked out in the vertex shader from a number of their own and the
+  clock; they stay put in the world as the camera moves.
+- Governor steps: `leaves`, `tree-shadows` (the far meshes stop casting), `trees-far`
+  (two thirds of the radius).
+
+## Clouds with depth (`src/sky/cloudVolume.js`)
+
+- Near the traveller (to `reach`, 45 km) the cloud layer is a volume; beyond it the thin
+  shell of `clouds.js`, which fades in where the volume fades out. Above 30 km only the
+  shell (and from space the globe's own clouds).
+- After the ground is drawn, a picture a third of the view each way is marched (26 steps,
+  short near the eye): two side by side, one stopping at whatever stands behind the
+  pixel, one running out to the sky. The HDR target's depth is a texture for this.
+  Back in the main picture two full-screen passes lay them over it; the depth test
+  chooses per pixel which (sky where nothing was drawn), so ridges keep clean edges.
+  Each lay reads four taps: the march starts at a different depth in every pixel.
+- Shapes: the world's cloud map (where, how much), a repeating 64-cube noise made in a
+  worker (`cloudNoiseData.js`: masses and the cells that eat their edges), a base and a
+  top; with weather, the day's cloud-top map makes the layer as deep as the tallest
+  cloud near (storms: 13 km).
+- Light: the Sun through the air to the cloud (once per ray), then through the cloud (one
+  look toward the Sun per step plus the layer above), brightest at edges facing it and
+  round the Sun; sky light from above and below; the air between cloud and eye;
+  lightning inside it.
+- Governor steps: `cloud-steps` (16), `cloud-volume` (off: the shell alone).
+
+## Weather (`src/weather/`)
+
+- A world's `weather` block names maps of one real day: rain, cloud-top height, cloud
+  (small), and that day's storms. `weather.js` looks them up at the traveller's place
+  every frame and derives: **wind** (the planet's belts plus a vortex round each storm:
+  calm eye, hardest at the eye wall), **rain** (only under the cloud) or **snow** (by a
+  rough temperature: latitude, altitude, season), **wetness** (builds in rain, dries
+  slowly), **shade** (the cloud between the traveller and the Sun, and over the sky),
+  **lightning** (under deep cloud where it rains hard: a place, a brightness, thunder on
+  its way at the speed of sound).
+- Who takes what: `uWind` (waves, trees, leaves, cloud drift); `G.uWeather` (the lighting
+  chunk: sunlight on things near the camera, sky light; the ground: wet is darker and
+  shines); `G.uFlash` (sky light for an instant); `rain.js` (1 400 streaks or flakes in a
+  box round the camera, stateless like the leaves); `bolt.js` (a stroke to the ground);
+  the audio (rain, wind, thunder); the rig (the wind carries what hangs in the air, only
+  while the stick is let go). Rain, the stroke and the rainbow (`rainbow.js`: one additive
+  full-screen pass when rain falls opposite a low Sun) are in a scene of their own,
+  drawn after the cloud volume is laid over the picture.
+- The ground and the clouds work out cloud shadow place by place (`OWN_CLOUD_SHADOW`);
+  everything else near the camera takes `uWeather.x`.
 
 ## Sky bodies
 

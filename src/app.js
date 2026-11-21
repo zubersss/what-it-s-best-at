@@ -10,6 +10,13 @@ import { PostPipeline } from './post/post.js';
 import { Governor, MODES, FRAME } from './perf/governor.js';
 import { Benchmark } from './perf/benchmark.js';
 import { waveHeightAt, waveScale } from './water/waves.js';
+import { Trees } from './life/trees.js';
+import { Leaves } from './life/leaves.js';
+import { CloudVolume } from './sky/cloudVolume.js';
+import { Weather } from './weather/weather.js';
+import { Rain } from './weather/rain.js';
+import { Bolt } from './weather/bolt.js';
+import { Rainbow } from './weather/rainbow.js';
 
 const SWIM_DEPTH = 1.25;        // metres of water a standing figure sinks into before it floats
 import { StartScreen, ResultsScreen, BenchBanner, Toast } from './ui/screens.js';
@@ -149,6 +156,7 @@ export class App {
 
   heightFn(world, hs) {
     const walkWL = 2 * (Math.PI / 2) * world.radius / (1 << world.terrain.maxLevel) / CONFIG.NORMAL_RES;
+    this._sink = 0; this._under = 0; // (a world without water: nothing sinks; the last world's values must not stay)
     if (!world.surface.sea) return (d) => hs.height(d[0], d[1], d[2], walkWL);
     // Water does not carry a walker: what stands in it sinks to the bed or to SWIM_DEPTH,
     // whichever comes first, and rides the waves where it floats. (`_sink` is kept for the
@@ -157,12 +165,16 @@ export class App {
     return (d) => {
       const h = hs.height(d[0], d[1], d[2], walkWL), depth = hs.waterDepth;
       this.depthAsked = depth;
-      if (depth <= 0) { this._sink = 0; return h; }
+      if (depth <= 0) { this._sink = 0; this._under = 0; return h; }
       let sink = Math.min(depth, SWIM_DEPTH);
-      if (depth > 0.6) {
-        const u = this.terrain.shared.uWind.value, w = this.terrain.shared.uWave.value;
+      this._under = sink;              // (how far under the still water's surface the walker's ground is: the camera's floor is the surface with its waves, which is that ground plus this)
+      if (depth > 0.15) {
+        // (the same share of the waves as the vertex shader lifts the water by: none at the
+        // shore, a little on lakes and rivers)
+        const u = this.terrain.shared.uWind.value, w = this.terrain.shared.uWave.value, up = h - (world.surface.sea.level ?? 0);
+        const inland = up <= 2 ? 0 : up >= 6 ? 1 : ((up - 2) / 4) * ((up - 2) / 4) * (3 - 2 * (up - 2) / 4);
         pos.set(d[0], d[1], d[2]).multiplyScalar(world.radius + h);
-        sink -= waveHeightAt(pos, world.radius, w.z, u, u.w) * Math.min(1, (depth - 0.6) / 1.5) * w.y;
+        sink -= waveHeightAt(pos, world.radius, w.z, u, u.w) * Math.min(1, (depth - 0.15) / 1.5) * (1 - 0.88 * inland) * w.y;
       }
       this._sink = sink;
       return h - sink;
@@ -238,8 +250,10 @@ export class App {
     this.terrain = new Terrain(world, data.rasters, data.hs, renderer);
     // the character stands on the ground as drawn (and in water as deep as heightFn just said)
     this.rig.groundAt = (d, dist) => { const g = this.terrain.drawnHeight(d, dist); return g == null ? null : g - (this._sink || 0); };
+    this.rig.sunkAt = () => this._under || 0;          // (the camera stays above the water its figure stands in)
     // the home world's cloud layer (a world without clouds: nothing is drawn)
     this.clouds = new CloudLayer(renderer);
+    this.cloudVolume = new CloudVolume(renderer); this.cloudVolume.setWorld(world);
     this.clouds.setWorld(world);
     this.terrain.shared.uCloud.value = this.clouds.shadow;
     if (!this.shotMode) this.terrainBudget(MODES[this.governor.mode].patches ?? 1, 'mode');     // (reference pictures show them all)
@@ -250,6 +264,23 @@ export class App {
     this.rocks = new Rocks(world, data.hs);
     this.nearScene.add(this.terrain.group, this.rocks.mesh, this.clouds.mesh);
     this.nearShadow.addCaster(this.rocks.mesh, this.rocks.depthMaterial, null, () => this.rocks.nearCount);
+    // Trees (worlds that have them): drawn with the ground, and they cast shadows
+    this.trees = new Trees(world, this.terrain);
+    for (const set of this.trees.sets.flat()) {
+      this.nearScene.add(set.mesh);
+      this.nearShadow.addCaster(set.mesh, this.trees.depthMaterial, () => set.mesh.visible && (set.lod === 0 || this.trees.shadowsFar));
+    }
+    this.leaves = new Leaves(this.trees);
+    this.nearScene.add(this.leaves.mesh);
+    // Weather (worlds that have it): wind, rain, wet ground, shade, lightning
+    this.weather = new Weather(); this.weather.setWorld(world);
+    this.rain = new Rain(G);
+    this.bolt = new Bolt(G);
+    this.rainbow = new Rainbow(G);
+    // (in a scene of their own, drawn after the cloud volume is laid over the picture: drawn
+    // before it, rain ten metres away was painted over by cloud kilometres behind it)
+    this.weatherScene = new THREE.Scene();
+    this.weatherScene.add(this.rain.mesh, this.bolt.mesh, this.rainbow.mesh);
     this.placeLander(world, data.hs);
     this.hero = new Hero();
     this.heroScene.add(this.hero.group);
@@ -963,8 +994,9 @@ export class App {
       G.uPlanetRadius.value = w.radius;
       this.atmosphere.setWorld(w);
       this.terrain.setWorld(w, data.rasters, data.hs);
-      this.clouds.setWorld(w);
+      this.clouds.setWorld(w); this.cloudVolume.setWorld(w);
       this.rocks.setWorld(w, data.hs);
+      this.trees.setWorld(w); this.weather.setWorld(w);
       this.dust.setWorld(w);
       this.placeLander(w, data.hs);
       this.bodies.setWorld(w);
@@ -1017,11 +1049,32 @@ export class App {
     if (b0) this.carryWith(M0, b0, carry);
     G.uTime.value = this.shotMode ? 0.25 : now / 1000;
     {
-      // Wind and waves (until the weather sets them: a steady breeze from the west).
-      const sh = this.terrain.shared, e = rig.east;
-      const speed = this.world.surface.sea?.wind ?? 6;
-      sh.uWind.value.set(e[0], e[1], e[2], speed);
-      sh.uWave.value.set(waveScale(speed), this.wavesLift === false ? 0 : 1, this.shotMode ? 3.0 : (now / 1000) % 3600);
+      // Weather where the traveller is, and what follows from it: wind and waves, shade,
+      // wet ground, lightning's light. (A world without weather: a steady breeze from the west.)
+      const sh = this.terrain.shared, e = rig.east, wx = this.weather;
+      const d = this.clock, day = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000;
+      // (pictures: the weather settles at once and no lightning strikes by chance; debug=flash strikes on purpose)
+      wx.quiet = this.shotMode; wx.forceFlash = this.shotMode && this.params.debug.includes('flash');
+      const sunE = Math.max(G.uSunIrradiance.value.x, G.uSunIrradiance.value.y, G.uSunIrradiance.value.z, 1e-6) / Math.max(1e-3, 1 - (this.sunCover || 0));
+      wx.update(rig, dt, G.uSunDir.value, day, sunE);
+      const speed = wx.def ? Math.max(1.5, wx.windSpeed) : (this.world.surface.sea?.wind ?? 6);
+      if (wx.def) sh.uWind.value.set(wx.wind.x, wx.wind.y, wx.wind.z, speed); else sh.uWind.value.set(e[0], e[1], e[2], speed);
+      G.uWeather.value.set(wx.def ? wx.sunShade : 1, wx.def ? wx.skyShade : 1, wx.def ? wx.wet : 0, 0);
+      G.uFlash.value.copy(wx.flashLight);
+      this.rain.update(wx, rig, (now / 1000) % 14400);
+      this.bolt.update(wx, rig.agl, sunE);
+      this.rainbow.update(wx, rig, this.post.viewW / this.post.viewH, G.uSunDir.value);
+      for (const th of wx.heard()) if (rig.agl < 20000) this.audio.thunder(th.power, th.dist);          // (thunder needs air to arrive in)
+      // (the wind carries what hangs in the air: only while the stick is let go, so that
+      // flight that is aimed still goes where it is aimed)
+      if (wx.def && !this.shotMode && !bench && rig.mode === 'hero' && !rig.onFoot && !this.transfer && rig.agl < 12000 && (rig.throttle || 0) < 0.05 && dt > 0) rig.pos.addScaledVector(wx.wind, wx.windSpeed * 0.5 * Math.min(dt, 0.1));
+      // (streamed elevation has arrived or moved: what was stood on the old ground is stood again)
+      if (this._ringsSeen !== this.terrain.ringSerial && !this.terrain.tiles.busy) {
+        this._ringsSeen = this.terrain.ringSerial;
+        if (this.lander) this.placeLander(this.world, this.terrain.hs);
+        this.rocks.cellKey = '';
+      }
+      sh.uWave.value.set(waveScale(speed), this.wavesLift === false ? 0 : 1, this.shotMode ? 3.0 : (now / 1000) % 14400);
       // how deep the water is where the figure stands (0 on land): the rig slows in it
       // (under the flying figure too: no dust is raised from water)
       if (this.world.surface.sea) { const f = rig.onFoot ? rig.feet : rig.pos, l = f.length(); this.terrain.hs.height(f.x / l, f.y / l, f.z / l, 1); rig.water = this.terrain.hs.waterDepth; } else rig.water = 0;
@@ -1065,6 +1118,16 @@ export class App {
     this.requestHeroVis(dt, sunHalf);
     this.terrain.update(rig, aspect0, G.uSunDir.value, sunHalf);
     this.rocks.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
+    {
+      const d = this.clock, day = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000;
+      this.trees.update(rig, day, this.terrain.shared.uWave.value.z);
+      // (beyond the trees the forest is raised as a whole; from high up, all of it)
+      const tr = this.trees, drawn = tr.def && rig.agl < (tr.def.below ?? 1500), r = (tr.def?.radius ?? 240) * tr.fraction;
+      this.terrain.shared.uShell.value.set(drawn ? r * 0.8 : 0, drawn ? r * 1.25 : 1, tr.def ? 1 : 0);
+      this.leaves.update(rig, this.post.viewH);
+      // (fallen leaves on the ground under the trees, in their season)
+      const se = tr.shared.uSeason.value; this.terrain.shared.uLitter.value = tr.def ? Math.min(1, se.x * 0.8 + se.y) : 0;
+    }
     this.lander.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
     this.updateHero(dt, sunHalf);
     this.updateOccluders();                         // (also with the character hidden: the lander and rocks)
@@ -1103,7 +1166,7 @@ export class App {
       const dens = a ? (a.surfaceDensity ?? 0) * Math.exp(-Math.max(0, alt) / (a.rayleigh?.scaleHeight ?? 10000)) : 0;
       const foot = rig.mode === 'hero' && rig.onFoot, landed = this._wasAir && foot && !rig.airborne ? Math.max(1, rig.landSpeed) : 0;
       this._wasAir = !foot || rig.airborne;
-      this.audio.update(dt, { airDensity: dens, speed: rig.velocity.length(), onFoot: foot || rig.mode === 'walk', airborne: rig.airborne, throttle: rig.throttle || 0, boost: rig.boost, flying: rig.mode === 'hero' && !rig.onFoot, warp: this.warp.amount, landed });
+      this.audio.update(dt, { wind: this.weather.def ? this.weather.windSpeed : 0, rain: this.weather.rain + 0.5 * this.weather.snow, airDensity: dens, speed: rig.velocity.length(), onFoot: foot || rig.mode === 'walk', airborne: rig.airborne, throttle: rig.throttle || 0, boost: rig.boost, flying: rig.mode === 'hero' && !rig.onFoot, warp: this.warp.amount, landed });
     }
     this.stars?.setFrame(eph.icrfToFixed, rig, post.viewH);
     // ?aim=<body>: possible only now, once the bodies have a position for this moment.
@@ -1148,8 +1211,18 @@ export class App {
     // (clouds: their shadow reads the same map; the view must reach the layer's horizon)
     const cloudFar = this.clouds.update(rig.pos, world.radius);
     this.terrain.shared.tClouds.value = this.clouds.mesh.visible ? this.clouds.texture : this.terrain.textures.white;
-    rig.finalize(aspect, near, Math.max(this.terrain.farDistance, cloudFar) * 1.05);
+    const far = Math.max(this.terrain.farDistance, cloudFar) * 1.05;
+    rig.finalize(aspect, near, far);
+    // (near the traveller the cloud is a volume, laid over the ground once that is drawn)
+    const vol = this.cloudVolume.ready(rig.pos, this.clouds);
+    this.clouds.uniforms.uNearFade.value = vol ? this.cloudVolume.reach : 0;
     renderer.render(this.nearScene, rig.camera);
+    if (vol) {
+      this.cloudVolume.render(post, rig, near, far, this.terrain.shared.uWave.value.z, this.clouds, this.terrain.shared.uWind, this.weather);
+      post.resumeScene();
+      this.cloudVolume.lay();
+    }
+    if (this.rain.mesh.visible || this.bolt.mesh.visible || this.rainbow.mesh.visible) renderer.render(this.weatherScene, rig.camera);
     if (this.hero.group.visible) {
       // Near the ground the hero shares the terrain's depth buffer (rocks can hide it);
       // higher up the terrain's near plane has moved past it, so it gets its own slice.
@@ -1197,9 +1270,9 @@ export class App {
     }
 
     if (this.shotMode) {
-      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && !this.clouds.loading && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
+      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.trees.busy && !this.cloudVolume.busy && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && !this.clouds.loading && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
       window.__shotReady = ready;
-      window.__stats = { water: this.terrain.tiles.rings.map((r) => r.info ? `z${r.zoom}: ${r.info.rivers} rivers, ${Math.round(r.info.flow)} m3/s${r.info.inflow ? '' : ' (no inflow)'}` : null).filter(Boolean).join('; '), stale: this.terrain.staleData, tilesBusy: this.terrain.tiles.busy, refreshQ: this.terrain.readyRefresh.length, rings: this.terrain.ringSerial, tileFails: this.terrain.tiles.failures, busyW: this.terrain.workers.busy, calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.clouds.loading ? 'clouds' : ''}` };
+      window.__stats = { weather: this.weather.def ? `wind ${this.weather.windSpeed.toFixed(0)} m/s, rain ${this.weather.rain.toFixed(1)} mm/h, snow ${this.weather.snow.toFixed(1)}, ${this.weather.temp.toFixed(0)} C, sun ${this.weather.sunShade.toFixed(2)}, sky ${this.weather.skyShade.toFixed(2)}, top ${Math.round(this.weather.top)} m` : '', trees: `${this.trees.count} (${Math.round(this.trees.triangles / 1000)}k triangles)${this.trees.names ? ': ' + this.trees.names : ''}`, water: this.terrain.tiles.rings.map((r) => r.info ? `z${r.zoom}: ${r.info.rivers} rivers, ${Math.round(r.info.flow)} m3/s${r.info.inflow ? '' : ' (no inflow)'}` : null).filter(Boolean).join('; '), stale: this.terrain.staleData, tilesBusy: this.terrain.tiles.busy, refreshQ: this.terrain.readyRefresh.length, rings: this.terrain.ringSerial, tileFails: this.terrain.tiles.failures, busyW: this.terrain.workers.busy, calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.clouds.loading ? 'clouds' : ''}` };
     }
   }
 

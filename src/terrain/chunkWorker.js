@@ -2,6 +2,7 @@
 import { createHeightSource } from './height/heightSource.js';
 import { ChunkBuilder } from './chunkBuilder.js';
 import { ShadowBaker } from './shadowBake.js';
+import { treeBlock } from '../life/treeBlock.js';
 
 let hs = null, builder = null, baker = null;
 
@@ -17,6 +18,11 @@ self.onmessage = (ev) => {
     } else if (m.type === 'ring') {
       // (no reply: jobs sent after this message are built with the new ring)
       hs.setRing(m.slot, m.raster ? { ...m.raster, data: new Int16Array(m.raster.buffer) } : null);
+    } else if (m.type === 'cover') {
+      hs.setCover(m.cover ? { ...m.cover, cls: new Uint8Array(m.cover.cls), tall: new Uint8Array(m.cover.tall), closed: new Uint8Array(m.cover.closed) } : null);
+    } else if (m.type === 'trees') {
+      const b = treeBlock(hs, m.bi, m.bj, m.spacing);
+      self.postMessage({ type: 'trees', id: m.id, origin: b.origin, count: b.count, trees: b.trees.buffer }, [b.trees.buffer]);
     } else if (m.type === 'chunk') {
       const t0 = performance.now();
       const c = builder.build(m.face, m.level, m.ix, m.iy, m.sun, m.sunHalf);

@@ -65,6 +65,10 @@ export class Terrain {
   // source, the surface palette changes. The GPU pool itself is reused as is.
   setWorld(world, rasters, hs) {
     this.epoch++;
+    // (the world being left keeps its height source for a while, App.worldData: without the
+    // mosaics, which the workers will not have either if the traveller comes back)
+    for (let k = 0; k < this.ringBoxes.length; k++) this.hs.setRing(k, null);
+    this.hs.setCover?.(null);
     this.world = world; this.hs = hs;
     this.radius = world.radius; this.maxLevel = world.terrain.maxLevel;
     this.relief = world.terrain.maxAltitude - world.terrain.minAltitude;
@@ -80,7 +84,7 @@ export class Terrain {
     pool.setCount(0);
     this.roots = FACES.map((_, f) => new Node(f, 0, 0, 0, null, hs, this.relief));
     this.drawList.length = 0; this.wanted.length = 0; this.ready.length = 0; this.readyShadows.length = 0;
-    this.regions.length = 0; this.ringBoxes.length = 0; this.readyRefresh.length = 0; this.staleData = 0;
+    this.regions.length = 0; this.ringBoxes.length = 0; this.readyRefresh.length = 0; this.staleData = 0; this.ringWet = [];
     this.setRingPicture('colour', null);
     this.tiles.setWorld(world); this.worldAt = performance.now(); this.ringAt = [];
     this.lodScale = 1; this.idleFrames = 0;
@@ -393,7 +397,24 @@ export class Terrain {
     const now = raster ? mosaicBox(raster.zoom, raster.tx, raster.ty, raster.width / 256) : null, old = this.ringBoxes[slot] || null;
     if (now) now.margin = 46 / 256 * 360 / 2 ** raster.zoom;          // the feathered edge, in degrees
     this.ringBoxes[slot] = now; (this.ringAt || (this.ringAt = []))[slot] = this.ringSerial + 1;
-    this.regions.push({ serial: ++this.ringSerial, old, now, slot });
+    // Where the mosaic has water (a coarse grid, cells of 16 pixels): a mosaic's rivers and
+    // lakes are worked out afresh each time, from whatever the coarser mosaic said then, so
+    // ground that holds water is built again even where the heights themselves did not change.
+    const oldWet = (this.ringWet || (this.ringWet = []))[slot] || null;
+    let nowWet = null;
+    if (raster && raster.water) {
+      const W = raster.width, G = W >> 4, grid = new Uint8Array(G * G), wt = raster.water, sg = wt.segs;
+      for (let o = 0; o < sg.length; o += 10) {
+        const pad = (Math.max(sg[o + 6], sg[o + 7]) * 2.2 + 12) / 25 + 1;        // (pixels, generously: banks included)
+        const x0 = Math.max(0, Math.floor((Math.min(sg[o], sg[o + 2]) - pad) / 16)), x1 = Math.min(G - 1, Math.floor((Math.max(sg[o], sg[o + 2]) + pad) / 16));
+        const y0 = Math.max(0, Math.floor((Math.min(sg[o + 1], sg[o + 3]) - pad) / 16)), y1 = Math.min(G - 1, Math.floor((Math.max(sg[o + 1], sg[o + 3]) + pad) / 16));
+        for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) grid[y * G + x] = 1;
+      }
+      if (wt.lake) for (let y = 0; y < W; y += 4) for (let x = 0; x < W; x += 4) if (wt.lake[y * W + x]) grid[(y >> 4) * G + (x >> 4)] = 1;
+      nowWet = { grid, G, n: 2 ** raster.zoom, tx: raster.tx, ty: raster.ty };
+    }
+    this.ringWet[slot] = nowWet;
+    this.regions.push({ serial: ++this.ringSerial, old, now, slot, oldWet, nowWet });
     if (this.regions.length > 10) this.regions.shift();
   }
 
@@ -401,6 +422,10 @@ export class Terrain {
   setRingPicture(name, pic) {
     if (name !== 'colour') return;
     const u = this.shared;
+    // what grows there (classes and canopy heights), for the workers that place the trees
+    const c = pic && pic.cover ? { cls: pic.cover.cls.buffer, tall: pic.cover.tall.buffer, closed: pic.cover.closed.buffer, width: pic.width, zoom: pic.zoom, tx: pic.tx, ty: pic.ty } : null;
+    this.workers.tell(() => [{ type: 'cover', cover: c }]);
+    this.coverSerial = c ? (this.coverSerial || 0) + 1 : 0;
     if (this.ringTex) { this.ringTex.dispose(); this.ringTex = null; }
     if (!pic) { u.tRingColour.value = this.textures.white; u.uRingColour.value.w = 0; return; }
     const tex = new THREE.DataTexture(pic.data, pic.width, pic.width, THREE.RGBAFormat, THREE.UnsignedByteType);
@@ -435,9 +460,20 @@ export class Terrain {
       let under = false;
       for (let k = g.slot + 1; k < this.ringBoxes.length && !under; k++) under = inside(this.ringBoxes[k]) && (this.ringAt[k] || 0) < g.serial && (this.ringAt[k] || 0) <= ser;
       if (under) continue;
-      if (inside(g.old) && inside(g.now)) continue;        // well inside both: the same heights as before
+      // well inside both: the same heights as before, unless there is water here
+      if (inside(g.old) && inside(g.now) && !this._wet(g.oldWet, box) && !this._wet(g.nowWet, box)) continue;
       return true;
     }
+    return false;
+  }
+
+  // Is there water (a mosaic's coarse grid of it, see setRing) inside a patch's box?
+  _wet(w, box) {
+    if (!w) return false;
+    const px = (lon) => { let t = (lon + 180) / 360 * w.n - w.tx; t -= w.n * Math.floor(t / w.n); return t * 16; };           // grid cells from the mosaic's left edge
+    const py = (lat) => ((1 - Math.asinh(Math.tan(Math.max(-85, Math.min(85, lat)) * Math.PI / 180)) / Math.PI) / 2 * w.n - w.ty) * 16;
+    const xc = px(box.lon), half = box.al / 360 * w.n * 16 + 1, y0 = Math.floor(py(box.lat + box.a)) - 1, y1 = Math.floor(py(box.lat - box.a)) + 1;
+    for (let y = Math.max(0, y0); y <= Math.min(w.G - 1, y1); y++) for (let x = Math.max(0, Math.floor(xc - half)); x <= Math.min(w.G - 1, Math.floor(xc + half)); x++) if (w.grid[y * w.G + x]) return true;
     return false;
   }
 

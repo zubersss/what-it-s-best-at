@@ -20,6 +20,7 @@
     "transfer": "node scripts/transfer.mjs",
     "target": "node scripts/target-test.mjs",
     "worlds": "node scripts/worlds-test.mjs",
+    "lakes": "node scripts/lakes-check.mjs",
     "ui": "node scripts/ui-test.mjs"
   },
   "dependencies": {

@@ -6,7 +6,7 @@
 // Messages in:  { type: 'want', id, key, url, kind, zoom, tx, ty, n, ext }   (n x n tiles from column tx, row ty)
 // Messages out: { type: 'mosaic', id, key, kind, zoom, tx, ty, n, buffer, mips? } or { type: 'failed', id, key, reason }
 // A newer 'want' with the same key replaces an older one that has not finished.
-import { hydrology, packWater } from './hydrology.js';
+import { hydrology, packWater, seaBed, despike } from './hydrology.js';
 
 const TILE = 256;
 const cache = new Map();          // url -> Promise<{ data, at }> (decoded tiles, a few hundred at most)
@@ -22,24 +22,35 @@ function done() { const next = waiting.shift(); if (next) next(); else active--;
 async function pixels(url) {
   await slot();
   try {
-    let res = null;
+    let res = null, body = null;
     for (let attempt = 0; attempt < 3; attempt++) {
       // (a service that does not answer must not hold a mosaic for ever)
+      // (the limit covers the whole answer, body and all: a tile that stalls half way must not hold it either)
       const stop = new AbortController(), timer = setTimeout(() => stop.abort(), 20000);
-      try { res = await fetch(url, { mode: 'cors', credentials: 'omit', signal: stop.signal }); if (res.ok || res.status === 404) break; } catch (e) { if (attempt === 2) throw e; } finally { clearTimeout(timer); }
+      try { res = await fetch(url, { mode: 'cors', credentials: 'omit', signal: stop.signal }); if (res.ok) { body = await res.blob(); break; } if (res.status === 404) break; } catch (e) { res = null; if (attempt === 2) throw e; } finally { clearTimeout(timer); }
       await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
     }
     if (!res) throw new Error('no answer');
     if (res.status === 404) return null;
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const bmp = await createImageBitmap(await res.blob(), { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
+    if (!res.ok || !body) throw new Error('HTTP ' + res.status);
+    const bmp = await createImageBitmap(body, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
     const c = new OffscreenCanvas(TILE, TILE), g = c.getContext('2d', { willReadFrequently: true });
     g.drawImage(bmp, 0, 0, TILE, TILE); bmp.close?.();
     return g.getImageData(0, 0, TILE, TILE).data;
   } finally { done(); }
 }
 
-function tile(template, ext, z, x, y) {
+function tile(template, ext, z, x, y, maxZoom = 99) {
+  if (z > maxZoom) {
+    // (a layer that stops at a coarser zoom: the part of its last tile that covers this one, enlarged)
+    const k = z - maxZoom, f = 2 ** k, nn = 2 ** z, xw = ((x % nn) + nn) % nn;
+    return tile(template, ext, maxZoom, xw >> k, y >> k).then(({ data }) => {
+      if (!data) return { data: null };
+      const out = new Uint8ClampedArray(TILE * TILE * 4), ox = (xw % f) * TILE / f, oy = (y % f) * TILE / f;
+      for (let j = 0; j < TILE; j++) for (let i = 0; i < TILE; i++) { const q = ((oy + Math.floor(j / f)) * TILE + ox + Math.floor(i / f)) * 4, o = (j * TILE + i) * 4; out[o] = data[q]; out[o + 1] = data[q + 1]; out[o + 2] = data[q + 2]; out[o + 3] = data[q + 3]; }
+      return { data: out };
+    });
+  }
   const n = 2 ** z, xx = ((x % n) + n) % n;
   let url = template.replace('{z}', z).replace('{x}', xx).replace('{y}', y);
   if (ext) url = ext + '/' + url.replace(/^https?:\/\//, '');           // the test mirror (scripts/lib/browser.mjs)
@@ -69,45 +80,62 @@ function mipChain(top, w) {
   return mips;
 }
 
-// Elevation sets made from radar leave coastal water at exactly zero: no bed, so no
-// depth, and nothing to tell sea from a beach. Water pixels (zero or below) get a bed that
-// falls away from the land: 2.5 % for the first stretch, then more gently, as deep as the
-// set says where it knows better. Distance to land by a two-pass chamfer transform.
-function seaBed(h, W, metresPerPixel) {
-  const d = new Float32Array(W * W), far = 1e9;
-  let wet = 0;
-  for (let i = 0; i < W * W; i++) { if (h[i] <= 0) { d[i] = far; wet++; } }
-  if (!wet || wet === W * W) { if (wet) for (let i = 0; i < W * W; i++) if (h[i] === 0) h[i] = -30; return; }
-  const a = 1, b = 1.41421;
-  for (let y = 0; y < W; y++) for (let x = 0, o = y * W; x < W; x++, o++) {
-    let v = d[o]; if (v === 0) continue;
-    if (x > 0 && d[o - 1] + a < v) v = d[o - 1] + a;
-    if (y > 0) { if (d[o - W] + a < v) v = d[o - W] + a; if (x > 0 && d[o - W - 1] + b < v) v = d[o - W - 1] + b; if (x < W - 1 && d[o - W + 1] + b < v) v = d[o - W + 1] + b; }
-    d[o] = v;
+// How closed each land-cover class's canopy is (index: the class, 1..17 as IGBP numbers
+// them; 0: unknown) and how tall where no measurement says (m).
+export const COVER_DENSITY = [0, 1, 1, 1, 1, 1, 0.5, 0.12, 0.55, 0.22, 0.02, 0.25, 0.01, 0.03, 0.15, 0, 0, 0];
+export const COVER_HEIGHT = [0, 18, 30, 16, 20, 18, 2.5, 1.5, 9, 7, 0, 6, 0, 0, 8, 0, 0, 0];
+let palette = null;
+async function coverOf(m, W, out) {
+  if (!palette) palette = fetch(m.cover.palette).then((r) => r.json());
+  const pal = await palette, { zoom, tx, ty, n } = m, rows = 2 ** zoom;
+  const get = (url, maxZoom) => { const jobs = []; for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const y = ty + j; jobs.push(y < 0 || y >= rows ? Promise.resolve({ data: null }) : tile(url, m.ext, zoom, tx + i, y, maxZoom)); } return Promise.all(jobs); };
+  const [ct, ht] = await Promise.all([get(m.cover.classes, m.cover.classesZoom ?? 99), m.cover.canopy ? get(m.cover.canopy, m.cover.canopyZoom ?? 99) : null]);
+  // colour -> meaning, remembered (a tile uses few colours)
+  const look = (table) => { const memo = new Map(); return (r, g, b) => { const key = (r << 16) | (g << 8) | b; let v = memo.get(key); if (v === undefined) { let best = 1e9; v = 0; for (const e of table) { const d = (e[0] - r) ** 2 + (e[1] - g) ** 2 + (e[2] - b) ** 2; if (d < best) { best = d; v = e[3]; } } if (best > 900) v = -1; memo.set(key, v); } return v; }; };
+  const classOf = look(pal.cover), heightOf = look(pal.canopy);
+  const cls = new Uint8Array(W * W), tall = new Uint8Array(W * W), closed = new Uint8Array(W * W);        // class, canopy height (0.25 m), how closed (0..255)
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const c = ct[j * n + i].data, hd = ht ? ht[j * n + i].data : null;
+    for (let y = 0; y < TILE; y++) for (let x = 0, q = y * TILE * 4, o = (j * TILE + y) * W + i * TILE; x < TILE; x++, q += 4, o++) {
+      const k = c && c[q + 3] > 128 ? Math.max(0, classOf(c[q], c[q + 1], c[q + 2])) : 0;
+      let h = hd && hd[q + 3] > 128 ? heightOf(hd[q], hd[q + 1], hd[q + 2]) : -1;
+      let dens = COVER_DENSITY[k];
+      // (a canopy measured tall is forest, whatever the class calls it: the mountain
+      // parkland of the American West is "savanna" on the map)
+      if (h > 8 && k !== 15 && k !== 17) dens = Math.max(dens, Math.min(1, h / 15));
+      // (a measured mean over open ground is lower than its trees: lift it for open classes)
+      h = h > 1 ? (dens < 0.6 ? Math.max(h * 1.5, COVER_HEIGHT[k]) : h) : COVER_HEIGHT[k];
+      cls[o] = k; tall[o] = Math.min(255, Math.round(h * 4)); closed[o] = Math.round(dens * 255);
+      out[o * 4 + 3] = Math.min(255, Math.round(h * dens * 5));
+    }
   }
-  for (let y = W - 1; y >= 0; y--) for (let x = W - 1, o = y * W + x; x >= 0; x--, o--) {
-    let v = d[o]; if (v === 0) continue;
-    if (x < W - 1 && d[o + 1] + a < v) v = d[o + 1] + a;
-    if (y < W - 1) { if (d[o + W] + a < v) v = d[o + W] + a; if (x < W - 1 && d[o + W + 1] + b < v) v = d[o + W + 1] + b; if (x > 0 && d[o + W - 1] + b < v) v = d[o + W - 1] + b; }
-    d[o] = v;
-  }
-  for (let i = 0; i < W * W; i++) {
-    if (d[i] === 0) continue;
-    const m = (d[i] - 0.5) * metresPerPixel, bed = -(m < 400 ? m * 0.025 : 10 + Math.sqrt(m - 400) * 0.9);
-    if (bed < h[i]) h[i] = Math.max(-32000, Math.round(bed < -1 ? bed : -1));
-  }
+  return { cls, tall, closed };
 }
 
 // Rivers and lakes of an elevation mosaic (hydrology.js). m.hydrology: { rain: url of the
 // yearly rainfall map (720 x 360 bytes, 3.2 * sqrt(mm), north first, from longitude -180),
+// water: url of a grey picture of the world's water as seen from space (white: water),
 // minFlow (m3/s: what is drawn as a river at this zoom) }. The coarser mosaic's result, if
 // one is there or on its way, says what the rivers bring in over the edge.
 const hydro = new Map();          // zoom -> { res, tx, ty } (the last result at that zoom) or a promise of one
-let rainMap = null;
+let rainMap = null, waterMap = null;
+// A whole-world grey picture as { data (one byte a pixel), W, H }, or null.
+async function greyMap(url) {
+  try {
+    const r = await fetch(url); if (!r.ok) return null;
+    const bmp = await createImageBitmap(await r.blob(), { colorSpaceConversion: 'none', premultiplyAlpha: 'none' }), W = bmp.width, H = bmp.height;
+    const c = new OffscreenCanvas(W, H), g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(bmp, 0, 0); bmp.close?.();
+    const rgba = g.getImageData(0, 0, W, H).data, data = new Uint8Array(W * H);
+    for (let i = 0; i < data.length; i++) data[i] = rgba[i * 4];
+    return { data, W, H };
+  } catch (e) { return null; }
+}
 async function waters(m, h, W, cell) {
   try {
     if (!rainMap) rainMap = fetch(m.hydrology.rain).then((r) => (r.ok ? r.arrayBuffer() : null)).then((b) => (b ? new Uint8Array(b) : null)).catch(() => null);
-    const rain = await rainMap, n = 2 ** m.zoom;
+    if (!waterMap) waterMap = m.hydrology.water ? greyMap(m.hydrology.water) : Promise.resolve(null);
+    const rain = await rainMap, seen = await waterMap, n = 2 ** m.zoom;
     const rainAt = (x, y) => {
       if (!rain) return 600;
       const lon = (m.tx + x / TILE) / n * 360, lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * (m.ty + y / TILE) / n))) * 57.29577951;
@@ -121,6 +149,12 @@ async function waters(m, h, W, cell) {
     const s = coarse ? 2 ** (coarse.zoom - m.zoom) : 1;
     const res = hydrology(h, W, cell, rainAt, {
       minFlow: m.hydrology.minFlow,
+      lat: (y) => Math.atan(Math.sinh(Math.PI * (1 - 2 * (m.ty + y / TILE) / n))) * 57.29577951,
+      // (the water map: the whole world, north first, from longitude -180)
+      water: seen ? (x, y) => {
+        const lon = (m.tx + x / TILE) / n, lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * (m.ty + y / TILE) / n))) * 57.29577951;
+        return seen.data[Math.min(seen.H - 1, Math.max(0, Math.floor((90 - lat) / 180 * seen.H))) * seen.W + ((Math.floor(lon * seen.W) % seen.W) + seen.W) % seen.W];
+      } : null,
       coarse: coarse ? { q: coarse.res.q, down: coarse.res.down, W: coarse.res.W, s, ox: m.tx * TILE * s - coarse.tx * TILE, oy: m.ty * TILE * s - coarse.ty * TILE } : null,
     });
     const packed = packWater(res, h);
@@ -162,6 +196,7 @@ self.onmessage = async (ev) => {
         }
       }
       const cell = 40075016 / (TILE * rows) * Math.cos(Math.atan(Math.sinh(Math.PI * (1 - 2 * (ty + n / 2) / rows))));
+      despike(out, W, cell);
       seaBed(out, W, cell);
       const water = m.hydrology ? await waters(m, out, W, cell) : null;
       settle?.(water ? hydro.get(zoom + 0.5) : null);
@@ -179,8 +214,19 @@ self.onmessage = async (ev) => {
         if (!d) continue;
         for (let y = 0; y < TILE; y++) out.set(d.subarray(y * TILE * 4, (y + 1) * TILE * 4), ((j * TILE + y) * W + i * TILE) * 4);
       }
+      // What grows there (m.cover: { classes: url of land-cover tiles, canopy: url of
+      // canopy-height tiles, their last zooms, palette: url of the colours' meanings }):
+      // a class and a canopy height for every pixel, for the trees; and in the picture's
+      // fourth channel the height of the canopy as a whole (height x how closed it is,
+      // 0.2 m a step), for the ground shader to raise the forest it cannot draw tree by tree.
+      let cover = null;
+      if (m.cover) { try { cover = await coverOf(m, W, out); } catch (e) { console.warn('land cover:', e); } }
+      if (latest.get(m.key) !== m.id) return;
+      if (!cover) for (let i = 3; i < out.length; i += 4) out[i] = 0;
       const mips = mipChain(out, W);
-      self.postMessage({ type: 'mosaic', id: m.id, key: m.key, kind: m.kind, zoom, tx, ty, n, buffer: out.buffer, mips: mips.map((x) => x.buffer) }, [out.buffer, ...mips.map((x) => x.buffer)]);
+      const msg = { type: 'mosaic', id: m.id, key: m.key, kind: m.kind, zoom, tx, ty, n, buffer: out.buffer, mips: mips.map((x) => x.buffer) }, transfer = [out.buffer, ...mips.map((x) => x.buffer)];
+      if (cover) { msg.cover = { cls: cover.cls.buffer, tall: cover.tall.buffer, closed: cover.closed.buffer }; transfer.push(cover.cls.buffer, cover.tall.buffer, cover.closed.buffer); }
+      self.postMessage(msg, transfer);
     }
   } catch (e) {
     if (latest.get(m.key) === m.id) self.postMessage({ type: 'failed', id: m.id, key: m.key, reason: String(e?.message || e) });

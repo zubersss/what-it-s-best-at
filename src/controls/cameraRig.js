@@ -93,6 +93,7 @@ export class CameraRig {
     // the character stands on the ground the player sees, not on the finer height function.
     this.groundAt = null;
     this.water = 0;             // how deep the water is where the figure stands (m; the app sets it)
+    this.sunkAt = null;         // () -> how far under the water's surface the last heightAt answer was (m; the app sets it)
     this.auto = null;        // { mult } during a hands-off trip (set by the app)
     this._h = new THREE.Vector3(); this._r = new THREE.Vector3(); this._u = new THREE.Vector3(); this._t = new THREE.Vector3();
   }
@@ -509,7 +510,9 @@ export class CameraRig {
     this._camBack += (FOOT.camBack + 2.5 * sup - this._camBack) * k; this._camDrop += (FOOT.camDrop + 0.5 * sup - this._camDrop) * k;
     p.copy(body).addScaledVector(this.forward, -this._camBack).addScaledVector(this.up, this._camDrop);
     const l = p.length(), d = this._dir; d[0] = p.x / l; d[1] = p.y / l; d[2] = p.z / l;
-    const ground = this.world.radius + Math.max(this.heightAt(d), this._ground(d, 0));
+    // (in water the walker's ground is below the surface: the camera's floor is the surface,
+    // sunkAt says how far above that ground it is)
+    const ground = this.world.radius + Math.max(this.heightAt(d), this._ground(d, 0)) + (this.sunkAt ? this.sunkAt() : 0);
     let r = Math.max(l, ground + 0.6);
     // Keep the figure in sight: if the ground rises between the camera and the figure's
     // chest (a ridge, the lip of a slope), lift the camera until the line clears it.
@@ -534,7 +537,7 @@ export class CameraRig {
   _snapToGround(eye) {
     const p = this.pos, l = p.length();
     const d = this._dir; d[0] = p.x / l; d[1] = p.y / l; d[2] = p.z / l;
-    const ground = this.world.radius + this.heightAt(d);
+    const ground = this.world.radius + this.heightAt(d) + (this.sunkAt ? this.sunkAt() : 0);
     let r = l;
     if (eye != null) r = ground + eye; else r = Math.max(l, ground + 1.2);
     p.set(d[0] * r, d[1] * r, d[2] * r);

@@ -31,7 +31,13 @@ export const FEATURE_STEPS = [
   { id: 'dust', label: 'half the kicked-up dust, simpler cloud', apply: (app, off) => { app.dust.amount = off ? 0.5 : 1; } },
   { id: 'rocks', label: 'half the rocks', apply: (app, off) => { app.rocks.setFraction(off ? 0.5 : 1); } },
   { id: 'fine-shadows', label: 'coarser shadows of nearby rocks', apply: (app, off) => { app.nearShadow.fine = !off; } },
+  { id: 'rain', label: 'rain and snow in the air', apply: (app, off) => { if (app.rain) app.rain.enabled = !off; } },
+  { id: 'leaves', label: 'leaves in the wind', apply: (app, off) => { if (app.leaves) app.leaves.enabled = !off; } },
+  { id: 'tree-shadows', label: 'shadows of the farther trees', apply: (app, off) => { if (app.trees) app.trees.shadowsFar = !off; } },
+  { id: 'trees-far', label: 'trees to two thirds of their distance', apply: (app, off) => { app.trees?.setFraction(off ? 0.66 : 1); } },
   { id: 'waves', label: 'waves that lift the water (they stay as shading)', apply: (app, off) => { app.wavesLift = !off; } },
+  { id: 'cloud-steps', label: 'coarser clouds near you', apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.steps = off ? 16 : 26; } },
+  { id: 'cloud-volume', label: 'clouds with depth (they stay as a layer)', apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.enabled = !off; } },
   { id: 'clouds', label: 'the cloud layer and its shadows', apply: (app, off) => { if (app.clouds) app.clouds.enabled = !off; } },
   { id: 'terrain-1', label: 'terrain detail (fewer patches)', apply: (app, off) => { app.terrainBudget(off ? 0.8 : 1, 'terrain-1'); } },
   { id: 'bloom', label: 'glow around bright things', apply: (app, off) => { app.post.bloomEnabled = !off; } },
@@ -257,7 +263,8 @@ export class Governor {
     // a passing dip (a burst of terrain loading) the way back is one jump, not a climb.
     if (this.featureLevel === 0 && this.sinceDown > GOOD_AFTER && (this.goodLevel == null || this.resLevel < this.goodLevel)) this.goodLevel = this.resLevel;
     // ... and it is what this place is remembered by.
-    if (this.place && this.known && this.sinceDown > GOOD_AFTER && this._learned !== this.resLevel) {
+    // (not while a step up is still on trial: one that is taken back must not be remembered)
+    if (this.place && this.known && this.sinceDown > GOOD_AFTER && this.sinceUp > 8 && this._probeFrames < 0 && this._learned !== this.resLevel) {
       this._learned = this.resLevel; this.known[`${this.mode}:${this.place}`] = this.resLevel; this.onLearn?.();
     }
     // Late is judged against the interval itself, not the measured refresh: if every

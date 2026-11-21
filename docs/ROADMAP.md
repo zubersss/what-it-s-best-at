@@ -21,7 +21,7 @@ owner's reply or phone results), `done`.
 | 7 | Getting around | done |
 | 8 | Things to do | done |
 | 9 | Earth's surface | done |
-| 10 | A living Earth (owner, with the fourth phone results): the whole planet in real detail, seas, lakes and rivers, real forests, clouds to fly through, weather | in progress |
+| 10 | A living Earth (owner, with the fourth phone results): the whole planet in real detail, seas, lakes and rivers, real forests, clouds to fly through, weather | checkpoint sent |
 
 ## 1. Phone link and measurement
 
@@ -167,3 +167,10 @@ Accepts milestones 6 to 9. Delivered in stages, each merged and reported; the pl
 3. Forests, wind in the trees, leaves, seasons.
 4. Clouds to fly through.
 5. Weather: rain, snow, lightning and thunder, storms, wind.
+
+Built, all five (see `docs/PROGRESS.md`, "Milestone 10, stages 1 and 2" and "stages 3 to
+5", and what is not done in each). Earth streams its terrain, colour and land cover from
+AWS Terrain Tiles and NASA GIBS; the sea, lakes and rivers; forests of each region's
+trees with wind, seasons and falling leaves; clouds with depth; the real weather of
+8 September 2017 with its three Atlantic hurricanes, rain, snow, lightning, thunder and
+a rainbow. Reviewed (30 findings fixed). Nothing of it is measured on the phone yet.
