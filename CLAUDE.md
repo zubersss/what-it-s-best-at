@@ -518,5 +518,15 @@ finished benchmark leaves its text in `window.__benchResult`.
   forest and on a canyon rim 2 km up, and from the air over low country the land was a
   grey blur. Before sending a look, fly it: pictures from 900 m and 2 km, toward the Sun
   and away, over flat country.
+- Nothing about a thing in the world may hang on where the traveller stands or looks, or
+  the owner sees it "move when I move". The clouds did four times over: a base that
+  followed the ground under the traveller (the sky sank when one flew off a rim), slices
+  of the view's depth (a turn of the head recut every cloud), an edge cut slice by slice
+  (a cloud thinned as a boundary passed through it), and other clouds far off than near.
+  Anything drawn in layers of distance: layers of distance from the eye, one rule for
+  the whole line of sight, and the same thing far as near.
+- A benchmark's cost table is only as good as its baseline: with "everything on" drifting
+  from 36 to 61 ms over the test, the savings measured first read as costing 14 ms.
+  Believe differences that are large and repeat at every view; nothing under 3 ms.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

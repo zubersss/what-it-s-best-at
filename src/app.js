@@ -258,7 +258,7 @@ export class App {
     this.rig.sunkAt = () => this._under || 0;          // (the camera stays above the water its figure stands in)
     // the home world's cloud layer (a world without clouds: nothing is drawn)
     this.clouds = new CloudLayer(renderer);
-    this.cloudVolume = new CloudVolume(renderer); this.cloudVolume.setWorld(world);
+    this.cloudVolume = new CloudVolume(renderer); this.cloudVolume.setWorld(world); this.cloudVolume.setGround(data.rasters[0]);
     this.clouds.setWorld(world);
     this.terrain.shared.uCloud.value = this.clouds.shadow;
     if (!this.shotMode) this.terrainBudget(MODES[this.governor.mode].patches ?? 1, 'mode');     // (reference pictures show them all)
@@ -273,7 +273,7 @@ export class App {
     this.trees = new Trees(world, this.terrain);
     for (const set of this.trees.sets.flat(2)) {
       this.nearScene.add(set.mesh);
-      this.nearShadow.addCaster(set.mesh, this.trees.depthMaterial, () => set.mesh.visible && (set.lod === 0 || this.trees.shadowsFar));
+      this.nearShadow.addCaster(set.mesh, this.trees.depthMaterial, () => set.mesh.visible && (set.lod <= 1 || this.trees.shadowsFar));
     }
     this.grass = new Grass(this.terrain, this.terrain.shared.uWind); this.grass.setWorld(world);
     this.nearScene.add(this.grass.mesh);
@@ -1002,7 +1002,7 @@ export class App {
       G.uPlanetRadius.value = w.radius;
       this.atmosphere.setWorld(w);
       this.terrain.setWorld(w, data.rasters, data.hs);
-      this.clouds.setWorld(w); this.cloudVolume.setWorld(w);
+      this.clouds.setWorld(w); this.cloudVolume.setWorld(w); this.cloudVolume.setGround(data.rasters[0]);
       this.rocks.setWorld(w, data.hs);
       this.trees.setWorld(w); this.weather.setWorld(w); this.look.setWorld(w); this.grass.setWorld(w);
       this.dust.setWorld(w);
@@ -1128,6 +1128,10 @@ export class App {
     const sunHalf = Math.asin(SOLAR_SYSTEM.sun.radius / eph.sunDistance);
     this.atmosphere.updateAir(rig.pos, G.uSunDir.value, this.terrain);     // before the terrain takes the workers
     this.requestHeroVis(dt, sunHalf);
+    // (a GO trip to a place: the ground and the maps there are got ready while on the way,
+    // for a traveller arriving a few hundred metres over it)
+    const tg = this.transfer && this._tgtU && this._tgtU.kind === 'place' ? this._tgtU.pos : null;
+    if (tg) { const l = Math.hypot(tg[0], tg[1], tg[2]); this.terrain.dest = (this._destV || (this._destV = new THREE.Vector3())).set(tg[0], tg[1], tg[2]).multiplyScalar((l + OVER_PLACE * 0.5) / l); } else this.terrain.dest = null;
     this.terrain.update(rig, aspect0, G.uSunDir.value, sunHalf);
     prof.mark(2);
     this.rocks.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
@@ -1223,7 +1227,7 @@ export class App {
     // (clouds: near the traveller the layer is a volume. Its small picture is marched now,
     // before the main picture is begun, and laid over the ground further down: nothing
     // interrupts the main picture, see sky/cloudVolume.js)
-    const cloudFar = this.clouds.update(rig.pos, world.radius);
+    const cloudFar = this.clouds.update(rig.pos, world.radius, this.cloudVolume);
     const vol = this.cloudVolume.ready(rig.pos, this.clouds);
     this.clouds.uniforms.uNearFade.value = vol ? this.cloudVolume.reach : 0;
     if (vol) this.cloudVolume.render(post, rig, this.terrain.shared.uWave.value.z, this.clouds, this.terrain.shared.uWind, this.weather);

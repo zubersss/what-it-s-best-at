@@ -69,20 +69,30 @@ class Shape {
     const t = (1 + Math.sqrt(5)) / 2, V = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]];
     const F = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]];
     const c0 = Math.cos(R() * 6.28), s0 = Math.sin(R() * 6.28);
+    // (seen near, a crown is leaves round a smaller, darker heart: this.core < 1, and the heart's leaf number 1.25)
+    const core = this.core || 1; rx *= core; ry *= core;
     const P = V.map((v) => { const l = Math.hypot(...v), k = 1 - rough + 2 * rough * R(), x = v[0] / l, z = v[2] / l; return [cx + (x * c0 - z * s0) * rx * k, cy + v[1] / l * ry * k, cz + (x * s0 + z * c0) * rx * k]; });
-    for (const f of F) this.tri(P[f[0]], P[f[1]], P[f[2]], 1, cx, cy, cz);
+    for (const f of F) this.tri(P[f[0]], P[f[1]], P[f[2]], core < 1 ? 1.25 : 1, cx, cy, cz);
   }
 
   // Leaves: `count` single leaves standing out of a mass round (cx, cy, cz), radii (rx,
   // ry): each a pointed triangle `size` long, hanging outward and down. They are what the
   // outline of a crown is made of, and what the wind moves most (their leaf number is 2).
   sprigs(cx, cy, cz, rx, ry, count, size, R, low = -0.5) {
-    for (let k = 0; k < count; k++) {
+    const leafy = this.leafy || 1, n = Math.round(count * leafy);
+    for (let k = 0; k < n; k++) {
       const u = low + (1 - low) * R(), a = R() * 6.2831853, h = Math.sqrt(Math.max(0, 1 - u * u)), dx = Math.cos(a) * h, dz = Math.sin(a) * h;
-      const px = cx + dx * rx * 1.02, py = cy + u * ry * 1.02, pz = cz + dz * rx * 1.02, len = size * (0.7 + 0.6 * R()), w = len * 0.42;
+      // (seen close, the leaves stand at several depths: some lie on the mass, some reach out of it)
+      const out = leafy >= 2 ? 0.74 + 0.46 * R() : leafy > 1 ? 0.9 + 0.2 * R() : 1.02;
+      const px = cx + dx * rx * out, py = cy + u * ry * out, pz = cz + dz * rx * out, len = size * (0.7 + 0.6 * R()) * (leafy >= 2 ? 0.9 : 1), w = len * 0.42;
       // (its stalk end on the mass, its point outward and a little down; its width across both)
       const tx = -dz, tz = dx, ox = dx * 0.75, oy = u * 0.5 - 0.5, oz = dz * 0.75;
-      this.tri([px - tx * w, py + 0.25 * len, pz - tz * w], [px + tx * w, py + 0.25 * len, pz + tz * w], [px + ox * len, py + oy * len, pz + oz * len], 2, cx, cy, cz);
+      if (leafy >= 2) {
+        // a leaf's own shape: narrow at the stalk, widest two fifths of the way out, a point
+        const m = 0.42, mx = px + ox * len * m, my = py + oy * len * m + 0.1 * len, mz = pz + oz * len * m, tip = [px + ox * len, py + oy * len, pz + oz * len];
+        const l = [mx - tx * w * 0.8, my, mz - tz * w * 0.8], r = [mx + tx * w * 0.8, my, mz + tz * w * 0.8];
+        this.tri([px, py + 0.2 * len, pz], l, r, 2, cx, cy, cz); this.tri(l, tip, r, 2, cx, cy, cz);
+      } else this.tri([px - tx * w, py + 0.25 * len, pz - tz * w], [px + tx * w, py + 0.25 * len, pz + tz * w], [px + ox * len, py + oy * len, pz + oz * len], 2, cx, cy, cz);
     }
   }
 
@@ -113,16 +123,22 @@ class Shape {
   }
 }
 
-// One list per shape, of VARIANTS trees of that shape, each [near mesh, far mesh]: no two
+// One list per shape, of VARIANTS trees of that shape, each [close mesh, near mesh, far
+// mesh] (close: three times the leaves, each a leaf's own shape, round a smaller heart;
+// near: half as many again as the plain count): no two
 // neighbours need be the same tree turned round. (Widths are for a tree whose crown-width
 // number is 1; heights are fractions of the tree's height.)
-export const VARIANTS = 3;
+export const VARIANTS = 3, LEAFY = 3.2;
 export function makeTreeGeometries() {
   const out = [];
   // near, far: (shape, random numbers, which variant) => fills the shape
   const make = (seed, near, far) => {
     const list = [];
-    for (let v = 0; v < VARIANTS; v++) { const a = new Shape(), b = new Shape(); near(a, rng(seed + v * 7919), v); far(b, rng(seed + 1000 + v * 7919), v); list.push([a.build(), b.build()]); }
+    for (let v = 0; v < VARIANTS; v++) {
+      const c = new Shape(), a = new Shape(), b = new Shape(); c.leafy = LEAFY; c.core = 0.7; a.leafy = 1.7; a.core = 0.86;
+      near(c, rng(seed + v * 7919), v); near(a, rng(seed + v * 7919), v); far(b, rng(seed + 1000 + v * 7919), v);
+      list.push([c.build(), a.build(), b.build()]);
+    }
     out.push(list);
   };
 
@@ -213,8 +229,9 @@ export function makeTreeGeometries() {
       const l = [mid[0] - sn * w, mid[1] - 0.02, mid[2] + c * w], r = [mid[0] + sn * w, mid[1] - 0.02, mid[2] - c * w];
       s.tri(top, l, mid, 1, top[0], 0.8, top[2]); s.tri(top, mid, r, 1, top[0], 0.8, top[2]); s.tri(l, end, mid, 1, top[0], 0.8, top[2]); s.tri(mid, end, r, 1, top[0], 0.8, top[2]);
       // (leaflets: pointed leaves hanging off both edges of the frond)
-      if (near) for (let j = 1; j <= 4; j++) for (const sd of [-1, 1]) {
-        const t = j / 5, bx = top[0] + c * len * t, bz = top[2] + sn * len * t, by = top[1] + rise * Math.sin(t * 3.14) - (t > 0.5 ? (t - 0.5) * 0.3 : 0);
+      const nl = near ? (s.leafy >= 2 ? 9 : 4) : 0;
+      for (let j = 1; j <= nl; j++) for (const sd of [-1, 1]) {
+        const t = j / (nl + 1), bx = top[0] + c * len * t, bz = top[2] + sn * len * t, by = top[1] + rise * Math.sin(t * 3.14) - (t > 0.5 ? (t - 0.5) * 0.3 : 0);
         s.tri([bx, by, bz], [bx + c * 0.035, by, bz + sn * 0.035], [bx + c * 0.02 - sn * sd * 0.07, by - 0.05, bz + sn * 0.02 + c * sd * 0.07], 2, top[0], 0.8, top[2]);
       }
     }

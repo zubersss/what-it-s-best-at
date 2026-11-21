@@ -16,8 +16,8 @@ import { makeTreeGeometries, VARIANTS } from './treeGeometry.js';
 import { SPECIES } from './cover.js';
 import { BLOCK_DEG, TREE_FLOATS, blockLon } from './treeBlock.js';
 
-const NEAR_CAP = 768, FAR_CAP = 4096;       // instances of one shape, near mesh and far mesh
-const NEAR_M = 80;                           // trees nearer than this get the near mesh
+const CLOSE_CAP = 192, NEAR_CAP = 768, FAR_CAP = 4096;       // instances of one shape: close, near and far mesh
+const CLOSE_M = 34, NEAR_M = 80;             // trees nearer than these get the close mesh (every leaf), the near mesh
 const REBUILD_M = 25;                        // the instance lists are made again when the traveller has moved this far
 
 const TREE_VERT = /* glsl */`
@@ -105,7 +105,9 @@ export class Trees {
             float c = leafCells(vTreeM * 2.6) * 0.65 + leafCells(vTreeM * 6.1 + 3.3) * 0.35, near = 1.0 - smoothstep(60.0, 140.0, length(vRel));
             leafC *= mix(1.0, 0.72 + 0.3 * smoothstep(0.40, 0.44, c) + 0.26 * smoothstep(0.58, 0.62, c), near);
           }
-          if (vLeaf > 1.5) leafC *= 1.14;
+          // (single leaves: each lighter or darker than its neighbours)
+          if (vLeaf > 1.5) leafC *= 0.94 + 0.44 * smoothstep(0.35, 0.65, leafCells(vTreeM * 4.7 + 1.9));
+          else if (vLeaf > 1.1) leafC *= 0.74;          // (the heart of a crown seen near: darker than the leaves round it)
           vec3 albedo = mix(vTrunkC * 0.6, leafC, step(0.5, vLeaf));
           if (uPaint.x > 0.0 && vLeaf < 0.5 && dot(vTrunkC, vec3(0.333)) > 0.4) albedo *= 1.0 - 0.75 * step(0.8, fract(vY * 31.0 + vOwn.x * 9.0)) * step(0.35, fract(vY * 7.7 + vOwn.x * 3.0));
           // (the shadow is asked for a little outside the crown: on a mass of a few faces the
@@ -142,10 +144,9 @@ export class Trees {
           fragColor = vec4(1.0);
         }`,
     });
-    // one mesh per shape and distance: [shape][0 near, 1 far]
-    // one mesh per shape, variant and distance: [shape][variant][0 near, 1 far]
+    // one mesh per shape, variant and distance: [shape][variant][0 close, 1 near, 2 far]
     this.sets = this.geos.map((variants) => variants.map((pair) => pair.map((base, lod) => {
-      const cap = lod ? FAR_CAP : NEAR_CAP, geo = new THREE.InstancedBufferGeometry();
+      const cap = [CLOSE_CAP, NEAR_CAP, FAR_CAP][lod], geo = new THREE.InstancedBufferGeometry();
       for (const name of ['position', 'normal', 'aLeaf', 'aSway']) geo.setAttribute(name, base.attributes[name]);
       const at = (n) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(cap * n), n); a.setUsage(THREE.DynamicDrawUsage); return a; };
       const iA = at(4), iB = at(4), iC = at(3), iD = at(3);
@@ -247,7 +248,7 @@ export class Trees {
     const u = this.shared;
     u.uTreeEast.value.set(...this._e); u.uTreeNorth.value.set(...this._n); u.uTreeUp.value.set(...this._u);
     for (const s of this.sets.flat(2)) s.count = 0;
-    const r2 = (radius + 10) * (radius + 10), near2 = NEAR_M * NEAR_M;
+    const r2 = (radius + 10) * (radius + 10), near2 = NEAR_M * NEAR_M, close2 = CLOSE_M * CLOSE_M * (this.closeOn === false ? 0 : 1);
     let nearest = 1e9, names = new Map(), falling = 0, near = 0;
     for (const b of this.blocks.values()) {
       if (b.state !== 1 || !b.count) continue;
@@ -256,7 +257,7 @@ export class Trees {
       for (let k = 0, q = 0; k < b.count; k++, q += TREE_FLOATS) {
         const x = ox + T[q], y = oy + T[q + 1], z = oz + T[q + 2], d2 = x * x + y * y + z * z;
         if (d2 > r2) continue;
-        const sp = SPECIES[T[q + 6]], own = T[q + 7], set = this.sets[sp.arch][Math.min(VARIANTS - 1, Math.floor(((own * 7.31) % 1) * VARIANTS))][d2 < near2 ? 0 : 1];
+        const sp = SPECIES[T[q + 6]], own = T[q + 7], set = this.sets[sp.arch][Math.min(VARIANTS - 1, Math.floor(((own * 7.31) % 1) * VARIANTS))][d2 < close2 ? 0 : d2 < near2 ? 1 : 2];
         if (set.count >= set.cap) continue;
         const i = set.count++;
         set.iA.array.set([x, y, z, T[q + 3]], i * 4);

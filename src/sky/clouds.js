@@ -25,6 +25,10 @@ ${LIGHTING_PARS}
 uniform sampler2D tCloudMap;
 uniform vec4 uCloud;           // x cover, y the shell's radius (m), z longitude shift of the map (turns), w 1 = the camera is below the shell
 uniform float uFair;           // the cover of fair-weather cloud where the day's map has none (0: none; see cloudVolume.js)
+precision highp sampler3D;
+uniform sampler3D tCloudNoise; // the volume's own noise: far off, this shell shows the same clouds the volume does near
+uniform vec4 uVol;             // x: 1 / the noise's scale (1/m; 0: no volume), y: the world's radius in units of the fair-weather field, z: the radius at which the volume's masses are widest (m)
+uniform vec3 uVolWind;         // where the volume's noise has drifted to
 uniform float uNearFade;       // metres: nearer than this the cloud is drawn as a volume instead (cloudVolume.js); 0: all of it is this shell
 in vec3 vRel;
 layout(location = 0) out vec4 fragColor;
@@ -57,8 +61,19 @@ void main() {
   float dens = m * (0.25 + 1.7 * d) + (d - 0.45) * 0.2 * smoothstep(0.1, 0.4, m);
   float lo = 1.0 - uCloud.x;
   float cover = smoothstep(lo - 0.08, lo + 0.34, dens);
-  // (fair-weather cloud, as the volume near the traveller has it: fields of small heaps where the map is clear)
-  if (uFair > 0.0) cover = max(cover, uFair * 1.7 * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) / 0.55 * smoothstep(0.42, 0.6, d) * smoothstep(0.28, 0.48, vnoise(up * 140.0 + 3.7)));
+  if (uVol.x > 0.0) {
+    // With a volume near the traveller, this shell is the same clouds seen from far off: the
+    // same cover (the day's map, and fair-weather fields where it is clear), carved by the
+    // same noise at the height where the masses are widest. A cloud keeps its place and
+    // its outline when the traveller comes near and the volume takes it over. (Not where
+    // a mass is smaller than a pixel: there, its mean.)
+    float c = smoothstep(lo - 0.08, lo + 0.34, m);
+    if (uFair > 0.0) c = max(c, uFair * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, texture(tCloudNoise, up * uVol.y + 0.31).r) / 0.55);
+    float n = texture(tCloudNoise, up * (uVol.z * uVol.x) + uVolWind).r;
+    float dv = clamp((n - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
+    float small = smoothstep(500.0, 1800.0, px * uVol.z);
+    cover = mix(smoothstep(0.0, 0.45, dv) * 0.75, c * 0.5, small);
+  }
   // seen at a slant the layer is longer to look through
   float mu = max(abs(dot(V, up)), 0.12);
   float alpha = 1.0 - exp(-cover * (0.4 + cover) * 1.7 / mu);
@@ -69,7 +84,7 @@ void main() {
   // and around the Sun's direction; from below a thick cloud is grey
   float mu0 = dot(up, uSunDir), cs = dot(-V, uSunDir);
   float fwd = 0.6 + 0.9 * pow(max(cs, 0.0), 8.0);
-  float under = uCloud.w > 0.5 ? mix(1.0, 0.42, cover) : 1.0;
+  float under = uCloud.w > 0.5 ? mix(1.0, uVol.x > 0.0 ? 0.6 : 0.42, cover) : 1.0;
   vec3 sun = directSun(planetPos) * smoothstep(-0.06, 0.08, mu0) * fwd * under;
   vec3 col = vec3(0.86) * (sun * 0.42 + skyLight(uCloud.w > 0.5 ? -up : up, up) * 0.9 + skyLight(up, up) * 0.25) / PI;
   // (... in two tones: its body, and its thick middle a step darker)
@@ -83,7 +98,7 @@ export class CloudLayer {
     this.renderer = renderer;
     const blank = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); blank.needsUpdate = true;
     this.blank = blank; this.texture = blank;
-    this.uniforms = { ...lightingUniforms(), tCloudMap: { value: blank }, uCloud: { value: new THREE.Vector4(0.8, 1, 0, 1) }, uNearFade: { value: 0 }, uFair: { value: 0 } };
+    this.uniforms = { ...lightingUniforms(), tCloudMap: { value: blank }, uCloud: { value: new THREE.Vector4(0.8, 1, 0, 1) }, uNearFade: { value: 0 }, uFair: { value: 0 }, tCloudNoise: { value: null }, uVol: { value: new THREE.Vector4() }, uVolWind: { value: new THREE.Vector3() } };
     const mat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1 }, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: FRAG,
       side: THREE.DoubleSide, depthTest: true, depthWrite: false, transparent: true,
@@ -122,8 +137,17 @@ export class CloudLayer {
 
   // cam: the camera (planet-fixed, m). Returns how far the camera must be able to see for
   // the layer to reach its horizon (0: nothing to draw).
-  update(cam, worldRadius) {
+  // volume: the cloud volume (cloudVolume.js), whose clouds this shell shows from far off.
+  update(cam, worldRadius, volume) {
     const on = !!this.def && this.enabled && this.texture !== this.blank;
+    const v = this.def?.volume, match = !!(v && volume && volume.noise && volume.base != null);
+    if (match) {
+      // (the shell stands where the volume's masses are widest: a third of the way up them)
+      this.radius = worldRadius + volume.base + 0.3 * (v.thick ?? 3000);
+      this.mesh.scale.setScalar(this.radius);
+      this.uniforms.tCloudNoise.value = volume.noise; this.uniforms.uVolWind.value.copy(volume.drift);
+      this.uniforms.uVol.value.set(1 / (v.scale ?? 5200), worldRadius / (v.scale ?? 5200) * 0.11, this.radius, 0);
+    } else this.uniforms.uVol.value.x = 0;
     this.mesh.visible = on;
     this.shadow.x = on && this.shadows !== false ? (this.def.shadow ?? 0.6) : 0;
     if (!on) return 0;

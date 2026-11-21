@@ -4,12 +4,13 @@
 //
 // How it is drawn, each frame the volume is on:
 //   1. Before the main picture is begun, a small picture is marched: six of them side by
-//      side (a quarter of the view each way), one for each slice of the view's depth
+//      side (a quarter of the view each way), one for each slice of distance from the eye
 //      (0 to 300 m, to 900 m, to 2.4 km, to 5 km, to 9 km, to the reach). Every pixel's
 //      ray is followed through the part of the cloud layer that lies in its slice, the
-//      cloud's light and what it lets through added up along it.
-//   2. In the main picture, once the ground is drawn, six full-screen passes lay them
-//      over it from the farthest to the nearest, each at the depth where its slice
+//      cloud's light and what it lets through added up along it. A second small pass
+//      takes the grain out of it.
+//   2. In the main picture, once the ground is drawn, six passes lay them over it from
+//      the farthest to the nearest, each a curved sheet at the distance where its slice
 //      begins: the depth test lets a slice through only where the ground is farther
 //      than that. So a ridge hides the cloud behind it, to within a slice.
 // Nothing reads the main picture's depth and nothing is drawn elsewhere in the middle of
@@ -17,6 +18,11 @@
 // after the ground. On the test phone every world then ran at a quarter of its frame
 // rate, at any resolution: a tile-based GPU pays for both in full pictures written out
 // and read back.)
+// And nothing about a cloud hangs on where the traveller is or looks: the base stands
+// over the country's own height (setGround), the slices are of distance and not of the
+// view's depth, the clean edge is cut by all the cloud along the line of sight, and the
+// far shell (clouds.js) shows the same clouds. Each of these was once otherwise, and the
+// clouds "moved when I moved".
 // Shapes: the world's cloud map says where cloud is and how much; a repeating 3-D noise
 // carves it into masses between a base and a top that rises where the map is thick.
 // Light: the Sun through the air to the cloud, then through the cloud itself (a short
@@ -45,6 +51,7 @@ uniform vec3 uCamRight, uCamUp, uCamFwd;
 uniform vec4 uProj;            // x tan(half the vertical view angle), y aspect, z near, w far
 uniform float uSliceZ[SLICES + 1];   // where each slice of the view's depth begins and ends (m)
 uniform float uDense;          // how solid the cloud is, against the plain measure
+uniform float uFieldK;         // the world's radius in units of the fair-weather field's noise
 uniform vec2 uFair;            // x: the cover of fair-weather cloud where the day's map has none (0: none); y: how far round the eye the cloud is thinned (m)
 uniform vec3 uCloudWind;       // where the noise has drifted to (noise units)
 uniform sampler2D tCloudTop;   // how high the cloud tops stand, where the day's map says (red x 16 km; 0: not seen)
@@ -63,8 +70,9 @@ vec2 mapCover(vec3 up) {
     // fair-weather cloud: where the day's map shows none there are still fields of small
     // heaps, with clear stretches between the fields (the map's pixels are 10 km: it
     // never saw them)
-    float field = texture(tCloudNoise, up * (uLayer.x * uCloud.z * 0.11) + 0.31).r;
-    c = max(c, uFair.x * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.2, 0.42, field) / 0.55);
+    // (placed by the world's own radius: the field must not shift when the layer's height does)
+    float field = texture(tCloudNoise, up * uFieldK + 0.31).r;
+    c = max(c, uFair.x * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, field) / 0.55);
   }
   return vec2(c, top);
 }
@@ -74,7 +82,7 @@ float density(vec3 p, float c, float y, bool fine) {
   float profile = smoothstep(0.0, 0.1, y) * (1.0 - smoothstep(0.45 + 0.5 * c, 0.55 + 0.45 * c, y));
   vec3 q = p * uCloud.z + uCloudWind;
   vec2 n = texture(tCloudNoise, q).rg;
-  float d = clamp((n.r * profile - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 1.6, 0.0, 1.0);
+  float d = clamp((n.r * profile - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
   if (fine && d > 0.0) {
     // small cells eat at the edges (not the hearts) of the masses
     float e = texture(tCloudNoise, q * 5.3 + 0.37).g;
@@ -89,7 +97,9 @@ void main() {
   vec2 uv = fract(cellf), ndc = uv * 2.0 - 1.0;
   gHazeUv = uv;
   vec3 dir = normalize(uCamFwd + uCamRight * (ndc.x * uProj.x * uProj.y) + uCamUp * (ndc.y * uProj.x));
-  float cosv = max(dot(dir, uCamFwd), 0.05), tA = uSliceZ[slice] / cosv, tB = uSliceZ[slice + 1] / cosv;
+  // (slices by distance from the eye, not by depth along the view: a cloud must not pass
+  // from one slice to another because the view was turned)
+  float tA = uSliceZ[slice], tB = uSliceZ[slice + 1];
   // the stretch of the ray inside the layer (between two spheres round the world)
   float rc = length(uCamPlanetPos), rb = uLayer.x, rt = uLayer.x + uLayer.y;
   float b = dot(uCamPlanetPos, dir), disc = b * b - rc * rc;
@@ -142,7 +152,7 @@ void main() {
       // a blank wall
       float e2 = texture(tCloudNoise, p * (uCloud.z * 19.0) + uCloudWind * 3.0 + 0.71).g, nearK = 1.0 - smoothstep(600.0, 2500.0, t);
       d *= mix(1.0, smoothstep(0.25, 0.75, e2 + 0.5 * d), 0.7 * nearK);
-      d *= mix(0.1, 1.0, smoothstep(0.0, uFair.y, t));
+      d *= mix(0.35, 1.0, smoothstep(0.0, uFair.y, t));
       // (and lighter and darker by the way one looks: see wispV)
       wisp = mix(1.0, wispV, 1.0 - smoothstep(500.0, 1500.0, t));
     }
@@ -174,30 +184,52 @@ void main() {
   fragColor = vec4(col * uExposure * alpha, alpha);
 }`;
 
-const LAY = /* glsl */`
+// The march's grain taken out: every pixel of every slice's picture becomes the mean of
+// four looks round it (the march starts at a different depth in every pixel).
+const SMOOTH = /* glsl */`
 uniform sampler2D tCloudPass;
-uniform vec4 uCell;            // xy: where this slice's picture begins in the part in use (0..1), zw: its size there
 uniform vec2 uPixel;           // a pixel of the part in use
 uniform vec2 uUsed;            // the part of the target that is in use
-uniform vec2 uCrisp;           // x: how clean the cloud's edge is cut (0: as marched, soft; 1: a clean shape), y: how far apart the four looks are (pixels)
 in vec2 vUv;
 layout(location = 0) out vec4 fragColor;
 void main() {
-  // (four looks round the place: the march starts at a different depth in every pixel of
-  // the small picture, and this takes the grain out of it)
-  // (kept a pixel and a half inside this slice's picture: its neighbours are other slices)
-  vec2 uv = uCell.xy + clamp(vUv * uCell.zw, 2.5 * uPixel, uCell.zw - 2.5 * uPixel), d = uPixel * uCrisp.y;
-  #define TAP(o) texture(tCloudPass, (uv + d * o) * uUsed)
-  vec4 c = 0.25 * (TAP(vec2(0.9, 0.35)) + TAP(vec2(-0.35, 0.9)) + TAP(vec2(-0.9, -0.35)) + TAP(vec2(0.35, -0.9)));
-  // (the painted look: a cloud some way off is a shape with a clean edge, cut out of the soft
-  // mass the march gives)
-  if (uCrisp.x > 0.0 && c.a > 0.001) c *= mix(1.0, smoothstep(0.1, 0.62, c.a) / c.a, uCrisp.x);
+  // (kept inside this slice's own picture: its neighbours are other slices)
+  vec2 cells = vec2(float(COLS), float(ROWS)), cell = min(floor(vUv * cells), cells - 1.0), lo = cell / cells + 0.5 * uPixel, hi = (cell + 1.0) / cells - 0.5 * uPixel;
+  #define TAP(o) texture(tCloudPass, clamp(vUv + uPixel * o, lo, hi) * uUsed)
+  fragColor = 0.25 * (TAP(vec2(1.2, 0.45)) + TAP(vec2(-0.45, 1.2)) + TAP(vec2(-1.2, -0.45)) + TAP(vec2(0.45, -1.2)));
+}`;
+
+const LAY = /* glsl */`
+uniform sampler2D tCloudPass;
+uniform float uSlice;          // which slice this pass lays
+uniform vec2 uPixel;           // a pixel of the part in use
+uniform vec2 uUsed;            // the part of the target that is in use
+uniform float uCrisp;          // how clean the cloud's edge is cut (0: as marched, soft; 1: a clean shape)
+in vec2 vUv;
+layout(location = 0) out vec4 fragColor;
+vec4 look(float k) {
+  vec2 cells = vec2(float(COLS), float(ROWS)), cell = vec2(mod(k, cells.x), floor(k / cells.x));
+  return texture(tCloudPass, (cell + clamp(vUv, 0.5 * uPixel * cells, 1.0 - 0.5 * uPixel * cells)) / cells * uUsed);
+}
+void main() {
+  vec4 c = look(uSlice);
+  if (c.a < 0.003) discard;
+  // The painted look: a cloud is a shape with a clean edge, cut out of the soft mass the
+  // march gives. The cut goes by all the cloud along the line of sight, in whatever slices
+  // it lies: cut slice by slice, a cloud thinned and changed its outline as the boundary
+  // between two slices passed through it, which is to say whenever the traveller moved.
+  if (uCrisp > 0.0) {
+    float through = 1.0;
+    for (int j = 0; j < SLICES; j++) through *= 1.0 - look(float(j)).a;
+    float all = 1.0 - through;
+    c *= mix(1.0, smoothstep(0.1, 0.62, all) / max(all, 0.003), uCrisp);
+  }
   fragColor = c;
 }`;
 
 // The slices of the view's depth (m; the last ends at the volume's reach), and how their
 // pictures are laid out in the small target.
-const SLICE_Z = [0, 300, 900, 2400, 5000, 9000], CRISP = [0, 0.25, 0.7, 1, 1, 1], SPREAD = [1, 1, 1.2, 1.7, 1.8, 1.8], COLS = 3, ROWS = 2, SLICES = COLS * ROWS, SMALL = 4;
+const SLICE_Z = [0, 300, 900, 2400, 5000, 9000], COLS = 3, ROWS = 2, SLICES = COLS * ROWS, SMALL = 4;
 
 export class CloudVolume {
   constructor(renderer) {
@@ -205,22 +237,35 @@ export class CloudVolume {
     this.enabled = true; this.steps = 36; this.def = null; this.noise = null; this.active = false;
     this.target = null; this.tw = 0; this.th = 0;
     this.uniforms = {
-      ...lightingUniforms(), tCloudNoise: { value: null }, tCloudMap: { value: null }, uSliceZ: { value: new Float32Array(SLICES + 1) }, uDense: { value: 1 }, uFair: { value: new THREE.Vector2(0, 300) },
+      ...lightingUniforms(), tCloudNoise: { value: null }, tCloudMap: { value: null }, uSliceZ: { value: new Float32Array(SLICES + 1) }, uDense: { value: 1 }, uFair: { value: new THREE.Vector2(0, 300) }, uFieldK: { value: 1 },
       uCloud: { value: new THREE.Vector4(0.5, 0, 1 / 5200, 45000) }, uLayer: { value: new THREE.Vector4(1, 1, 26, 0) },
       uCamRight: { value: new THREE.Vector3() }, uCamUp: { value: new THREE.Vector3() }, uCamFwd: { value: new THREE.Vector3() },
       uProj: { value: new THREE.Vector4() }, uCloudWind: { value: new THREE.Vector3() },
       tCloudTop: { value: null }, uTops: { value: new THREE.Vector3(1400, 1, 0) }, uBolt: { value: new THREE.Vector4() },
     };
     this.march = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, HAZE_UV: 1, SLICES, COLS, ROWS }, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: MARCH, depthTest: false, depthWrite: false });
+    this.smoothMat = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: { COLS, ROWS }, uniforms: { tCloudPass: { value: null }, uPixel: { value: new THREE.Vector2() }, uUsed: { value: new THREE.Vector2(1, 1) } }, vertexShader: VERT, fragmentShader: SMOOTH, depthTest: false, depthWrite: false });
+    // A slice is laid as a sheet at the distance where it begins: a grid over the view, each
+    // corner at the depth that distance has along its own ray.
     this.layMat = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3, uniforms: { tCloudPass: { value: null }, uCell: { value: new THREE.Vector4() }, uPixel: { value: new THREE.Vector2() }, uUsed: { value: new THREE.Vector2(1, 1) }, uDepth: { value: 0 }, uCrisp: { value: new THREE.Vector2(0, 1) }, uY: { value: new THREE.Vector2(-1, 1) } }, vertexShader: /* glsl */`
-        uniform float uDepth;
+      glslVersion: THREE.GLSL3, defines: { COLS, ROWS, SLICES },
+      uniforms: { tCloudPass: { value: null }, uSlice: { value: 0 }, uPixel: { value: new THREE.Vector2() }, uUsed: { value: new THREE.Vector2(1, 1) }, uCrisp: { value: 0 }, uY: { value: new THREE.Vector2(-1, 1) }, uSheet: { value: new THREE.Vector4() }, uDist: { value: 0 } }, vertexShader: /* glsl */`
         uniform vec2 uY;         // the part of the view's height this slice can show cloud in (-1 bottom .. 1 top)
+        uniform vec4 uSheet;     // x: tan(half the view angle) across, y: up and down, z: near, w: far
+        uniform float uDist;     // how far from the eye the slice begins (m)
         out vec2 vUv;
-        void main() { float y = mix(uY.x, uY.y, position.y * 0.5 + 0.5); vUv = vec2(position.x, y) * 0.5 + 0.5; gl_Position = vec4(position.x, y, uDepth, 1.0); }`,          // (at the depth where the slice begins)
+        void main() {
+          float y = mix(uY.x, uY.y, position.y * 0.5 + 0.5);
+          vUv = vec2(position.x, y) * 0.5 + 0.5;
+          vec2 q = vec2(position.x * uSheet.x, y * uSheet.y);
+          float z = uDist / sqrt(1.0 + dot(q, q)), n = uSheet.z, f = uSheet.w;
+          gl_Position = vec4(position.x, y, z <= n ? -1.0 : min(1.0, (f + n) / (f - n) - 2.0 * f * n / ((f - n) * z)), 1.0);
+        }`,
       fragmentShader: LAY, depthTest: true, depthFunc: THREE.LessEqualDepth, depthWrite: false, transparent: true,
       blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
     });
+    this.sheet = new THREE.Mesh(new THREE.PlaneGeometry(2, 2, 24, 12), this.layMat); this.sheet.frustumCulled = false;
+    this.sheetScene = new THREE.Scene(); this.sheetScene.add(this.sheet);
     const tri = new THREE.BufferGeometry();
     tri.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
     this.quad = new THREE.Mesh(tri, this.march); this.quad.frustumCulled = false;
@@ -265,7 +310,6 @@ export class CloudVolume {
   ready(cam, layer) {
     const v = this.def?.volume;
     this.active = !!(v && this.enabled && this.noise && layer.mesh.visible && cam.length() - this.radius < (v.above ?? 30000));
-    if (!this.active) this.wasOn = false;
     return this.active;
   }
   get reach() { return this.def?.volume?.reach ?? 16000; }
@@ -276,11 +320,12 @@ export class CloudVolume {
     const r = this.renderer, v = this.def.volume, u = this.uniforms;
     // (the layer is as thick as the tallest cloud near the traveller: storms reach 13 km)
     // The base stands that high over the country, not over the sea: on a plateau 2 km up a
-    // base at 1 400 m would be fog on the ground. It follows the ground under the
-    // traveller slowly (a canyon crossed in a moment does not pull the clouds down).
-    const altNow = rig.pos.length() - this.radius, ground = Math.max(0, altNow - rig.agl);
-    this.lift = this.lift == null || !this.wasOn ? ground : this.lift + (ground - this.lift) * Math.min(1, (this.dtReal ?? 0.016) * 0.08);
-    this.wasOn = true;
+    // base at 1 400 m would be fog on the ground. The country's height is read from the
+    // world's coarse elevation, smoothed over a degree: a thing of the place, not of where
+    // the traveller happens to stand (it once followed the ground under the traveller, and
+    // the whole sky sank when one flew out over a canyon).
+    const altNow = rig.pos.length() - this.radius;
+    this.lift = this.groundAt ? this.groundAt(rig.pos) : 0;
     const base = (v.base ?? 1500) + this.lift, thick = Math.max(v.thick ?? 3000, Math.min(13000, (weather?.topNear || 0)) - base);
     this.thickNow = this.thickNow ? this.thickNow + (thick - this.thickNow) * 0.05 : thick;
     u.uTops.value.x = base; u.uTops.value.y = Math.min(1, (v.thick ?? 3000) / this.thickNow);
@@ -292,21 +337,21 @@ export class CloudVolume {
     // the middle of the very frames that were late already.
     const fw = Math.max(8, Math.ceil(post.width / SMALL)) * COLS, fh = Math.max(4, Math.ceil(post.height / SMALL)) * ROWS;
     if (!this.target || this.fw !== fw || this.fh !== fh) {
-      this.target?.dispose();
-      this.target = new THREE.WebGLRenderTarget(fw, fh, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false });
-      this.target.texture.wrapS = this.target.texture.wrapT = THREE.ClampToEdgeWrapping;
-      this.target.scissorTest = true;
+      this.target?.dispose(); this.smooth?.dispose();
+      const make = () => { const t = new THREE.WebGLRenderTarget(fw, fh, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false }); t.texture.wrapS = t.texture.wrapT = THREE.ClampToEdgeWrapping; t.scissorTest = true; return t; };
+      this.target = make(); this.smooth = make();          // (as marched; and with the grain taken out)
       this.fw = fw; this.fh = fh;
     }
     const tw = Math.max(8, Math.round(post.viewW / SMALL)) * COLS, th = Math.max(4, Math.round(post.viewH / SMALL)) * ROWS;
     this.tw = tw; this.th = th;
-    this.target.viewport.set(0, 0, tw, th); this.target.scissor.set(0, 0, tw, th);
+    for (const t of [this.target, this.smooth]) { t.viewport.set(0, 0, tw, th); t.scissor.set(0, 0, tw, th); }
     u.uCamRight.value.copy(rig.right); u.uCamUp.value.copy(rig.up); u.uCamFwd.value.copy(rig.forward);
-    u.uProj.value.set(Math.tan(rig.fov * Math.PI / 360), post.viewW / post.viewH, 0, 0);
+    u.uProj.value.set(Math.tan(rig.fov * Math.PI / 360), post.viewW / post.viewH, 0, 0); this.aspect = post.viewW / post.viewH;
     const z = u.uSliceZ.value; for (let k = 0; k < SLICES; k++) z[k] = SLICE_Z[k]; z[SLICES] = this.reach;
     // (no ray meets the layer nearer than the traveller's distance below its base or above its top)
     const alt = altNow; this.below = alt < base; this.minDist = alt < base ? base - alt : alt > base + this.thickNow ? alt - base - this.thickNow : 0;
-    u.uDense.value = v.dense ?? 1; u.uFair.value.set(v.fair ?? 0, v.clear ?? 300);
+    u.uDense.value = v.dense ?? 1; u.uFair.value.set(v.fair ?? 0, v.clear ?? 120); u.uFieldK.value = this.radius / (v.scale ?? 5200) * 0.11;
+    this.base = base;
     u.tCloudMap.value = layer.texture;
     u.uCloud.value.set(this.def.cover ?? 0.8, this.def.lon0 === -180 ? 0.5 : 0, 1 / (v.scale ?? 5200), this.reach);
     // (the governor's step count is for the whole ray: shared out among the slices)
@@ -315,17 +360,41 @@ export class CloudVolume {
     // (added up frame by frame: the wind's gusts must not move the whole field by their share
     // of all the time that has passed)
     const w = wind?.value, dtw = this.lastTime == null || time < this.lastTime ? 0 : Math.min(0.2, time - this.lastTime);
-    this.lastTime = time; this.dtReal = dtw;
+    this.lastTime = time;
     if (w) this.drift.addScaledVector(w, dtw * Math.min(20, w.w) / (v.scale ?? 5200));
     // (... and they change as they go: the noise rises slowly through the layer's shape, so a
     // mass is not the same mass a minute later)
-    this.drift.z += dtw * (v.change ?? 0.012);
+    this.drift.z += dtw * (v.change ?? 0.006);
     for (const c of ['x', 'y', 'z']) this.drift[c] -= Math.floor(this.drift[c]);          // (the noise repeats every unit)
     u.uCloudWind.value.copy(this.drift);
     this.quad.material = this.march;
     r.setRenderTarget(this.target);
     r.setClearColor(0x000000, 0); r.clear(true, false, false);
     r.render(this.scene, this.camera);
+    const su = this.smoothMat.uniforms;
+    su.tCloudPass.value = this.target.texture; su.uPixel.value.set(1 / tw, 1 / th); su.uUsed.value.set(tw / fw, th / fh);
+    this.quad.material = this.smoothMat;
+    r.setRenderTarget(this.smooth);
+    r.clear(true, false, false);
+    r.render(this.scene, this.camera);
+  }
+
+  // The world's coarse elevation (its first bundled raster: whole-world, Int16 metres), for
+  // the height the cloud base stands over. null: none.
+  setGround(raster) {
+    if (!raster || !raster.wrap) { this.groundAt = null; return; }
+    const { data, width: W, height: H } = raster, lon0 = raster.lon0 ?? 0, lat0 = raster.lat0 ?? 90, lat1 = raster.lat1 ?? -90;
+    const at = (lat, lon) => {
+      const fx = (((lon - lon0) / 360) % 1 + 1) % 1 * W - 0.5, fy = Math.min(H - 1.001, Math.max(0, (lat0 - lat) / (lat0 - lat1) * H - 0.5));
+      const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0, xa = ((x0 % W) + W) % W, xb = (xa + 1) % W;
+      const sc = raster.scale ?? 1, h = (x, y) => Math.max(0, data[y * W + x] * sc);
+      return (h(xa, y0) * (1 - tx) + h(xb, y0) * tx) * (1 - ty) + (h(xa, y0 + 1) * (1 - tx) + h(xb, y0 + 1) * tx) * ty;
+    };
+    this.groundAt = (p) => {
+      const len = p.length(), lat = Math.asin(p.z / len) * 57.29578, lon = Math.atan2(p.y, p.x) * 57.29578, k = 1 / Math.max(0.2, Math.cos(lat / 57.29578));
+      let sum = 0; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) sum += at(Math.max(-89.9, Math.min(89.9, lat + j * 0.4)), lon + i * 0.4 * k);
+      return sum / 9;
+    };
   }
 
   // Step 2: over the main picture, once the ground is drawn. near, far: the planes it was
@@ -339,13 +408,12 @@ export class CloudVolume {
     const U = rig.localUp, dot = (v) => v.x * U[0] + v.y * U[1] + v.z * U[2];
     const sp = dot(rig.forward), cp = dot(rig.up), level = Math.abs(dot(rig.right)) < 0.03 && cp > 0.2 && this.minDist > 0;
     const pitch = Math.atan2(sp, cp), ty = Math.tan(rig.fov * Math.PI / 360);
-    u.tCloudPass.value = this.target.texture;
+    u.tCloudPass.value = this.smooth.texture;
     u.uPixel.value.set(1 / this.tw, 1 / this.th); u.uUsed.value.set(this.tw / this.fw, this.th / this.fh);
-    this.quad.material = m;
+    u.uSheet.value.set(ty * this.aspect, ty, near, far); u.uCrisp.value = G.uPaint.value.x;
     for (let k = SLICES - 1; k >= 0; k--) {
       const z = SLICE_Z[k], end = k + 1 < SLICES ? SLICE_Z[k + 1] : this.reach;
       if (z >= far || end < this.minDist) continue;
-      u.uCrisp.value.set(CRISP[k] * G.uPaint.value.x, SPREAD[k]);
       let y0 = -1, y1 = 1;
       if (level) {
         const el = Math.asin(Math.min(1, this.minDist / end)) - 0.03;
@@ -354,10 +422,9 @@ export class CloudVolume {
         if (y0 >= 1 || y1 <= -1) continue;
       }
       u.uY.value.set(y0, y1);
-      u.uCell.value.set((k % COLS) / COLS, Math.floor(k / COLS) / ROWS, 1 / COLS, 1 / ROWS);
-      u.uDepth.value = z <= near ? -1 : Math.min(1, (far + near) / (far - near) - 2 * far * near / ((far - near) * z));
+      u.uSlice.value = k; u.uDist.value = z;
       m.uniformsNeedUpdate = true;
-      r.render(this.scene, this.camera);
+      r.render(this.sheetScene, this.camera);
     }
   }
 }

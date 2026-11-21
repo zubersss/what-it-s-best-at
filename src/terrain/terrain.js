@@ -10,6 +10,7 @@ import { makeDetailTexture, makeStrataTexture } from './surfaceTextures.js';
 import { FACES, dirToFace } from './cubeSphere.js';
 import { TileRings, mosaicBox } from './tiles/tileRings.js';
 
+const _focus = new THREE.Vector3(), _vel = new THREE.Vector3();
 const _rel = new THREE.Vector3(), _sphere = new THREE.Sphere(), _m = new THREE.Matrix4(), _p = new THREE.Matrix4();
 const FADE_MS = 600;       // how long a new chunk takes to settle from its parent's look into its own
 
@@ -47,7 +48,7 @@ export class Terrain {
     this.buildMs = 0; this.built = 0;
     this.idleFrames = 0;
     this.gpuBytes = this.pool.gpuBytes + 256 * 256 * 4 * 4 / 3 + 4096 * 2048 * 4 * 4 / 3 + 4096 * 4096 * 4 / 3;      // + one global albedo map (RGBA8) and one slope map (R8)
-    this._cam = new THREE.Vector3(); this._camDir = [0, 0, 1];
+    this._cam = new THREE.Vector3(); this._camDir = [0, 0, 1]; this._focusDir = [0, 0, 1]; this._focusAlt = 0; this._focus = null; this.dest = null;
     this.loadAlbedoMap(world);
     this.loadReliefMap(world);
     this.tiles.setWorld(world); this.worldAt = performance.now(); this.ringAt = [];
@@ -228,7 +229,17 @@ export class Terrain {
     const camLen = cam.length();
     this._camDir[0] = cam.x / camLen; this._camDir[1] = cam.y / camLen; this._camDir[2] = cam.z / camLen;
     this._camAlt = camLen - R;
-    this.tiles.update(cam, this._camAlt);
+    // Where the ground should be ready before the traveller gets there: the end of a GO
+    // trip (this.dest, set by the app), or the place three seconds ahead at this speed.
+    // Patches are built for that place as well as for the camera's (_preload), and the map
+    // rings look ahead too.
+    const vel = this._velocity(cam), speed = vel.length();
+    let focus = null;
+    if (this.dest) focus = _focus.copy(this.dest);
+    else if (speed > 8) { focus = _focus.copy(cam).addScaledVector(vel, 3); const low = camLen - rig.agl + 2; if (focus.length() < low) focus.setLength(low); }
+    this._focus = focus;
+    if (focus) { const fl = focus.length(); this._focusDir[0] = focus.x / fl; this._focusDir[1] = focus.y / fl; this._focusDir[2] = focus.z / fl; this._focusAlt = fl - R; }
+    this.tiles.update(cam, this._camAlt, vel, this.dest);
     const Ro = R + this.world.terrain.minAltitude;
     this._Ro2 = Ro * Ro;
     this._horizonCam = Math.sqrt(Math.max(0, camLen * camLen - this._Ro2));
@@ -313,7 +324,9 @@ export class Terrain {
     const d = node.distanceTo(this._cam, this._camDir, this._camAlt, this.radius);
     node.dist = d;
     const f = vis > 0 ? this.splitIn : this.splitOut;
+    let split = false;
     if (node.level < this.maxLevel && d < f * node.edge) {
+      split = true;
       if (!node.children) node.split(this.hs, this.relief);
       node.lastSplit = this.frame;
       let ready = true;
@@ -330,8 +343,38 @@ export class Terrain {
       }
     }
     node.childrenLive = false;
-    if (node.slot >= 0) { if (vis === 2) this.drawList.push(node); }
+    if (node.slot >= 0) { if (vis === 2) this.drawList.push(node); if (this._focus && !split) this._preload(node); }
     else if (!node.loading) { node.prio = -1; this.wanted.push(node); }
+  }
+
+  // A drawn patch the camera does not need finer: would the place ahead (this._focus)? Then
+  // its children are built now and kept, without being drawn: when the traveller arrives
+  // they are there. They are asked for after everything the camera itself needs, and kept
+  // up to date with the maps like drawn ground.
+  _preload(node) {
+    if (node.level >= this.maxLevel) return;
+    const d = node.distanceTo(this._focus, this._focusDir, this._focusAlt, this.radius);
+    if (d >= this.splitIn * node.edge) return;
+    if (!node.children) node.split(this.hs, this.relief);
+    node.lastSplit = this.frame;
+    for (const c of node.children) {
+      c.lastVisit = this.frame;
+      if (c.slot >= 0) { c.drawnAt = this.frame; c.dist = 1e7 + d; this._preload(c); }
+      else if (!c.loading) { c.prio = 500 + d / node.edge + c.level * 0.01; this.wanted.push(c); }
+    }
+  }
+
+  // The traveller's velocity (m/s, the world's axes), from where the camera was a frame
+  // ago: smoothed, and a jump is not speed.
+  _velocity(cam) {
+    const l = this._lastCam || (this._lastCam = { p: cam.clone(), t: this.now, v: new THREE.Vector3() });
+    const dt = (this.now - l.t) / 1000;
+    if (dt > 0.001) {
+      _vel.subVectors(cam, l.p).divideScalar(dt);
+      if (_vel.length() * dt > 0.02 * this.radius || dt > 1) l.v.set(0, 0, 0); else l.v.lerp(_vel, Math.min(1, dt * 4));
+      l.p.copy(cam); l.t = this.now;
+    }
+    return l.v;
   }
 
   _dispatch() {
@@ -346,7 +389,7 @@ export class Terrain {
     while (this.workers.idle && k < this.wanted.length) {
       const node = this.wanted[k++];
       const slot = this._reserveSlot();
-      if (slot < 0) { this.stalled = true; break; }
+      if (slot < 0) { if (node.prio < 400 || node.prio >= 1000) this.stalled = true; break; }          // (ground built ahead of need does not count as running out)
       node.loading = true; node.reserved = slot;
       node.shadowSun = this._sun; node.serial = this.ringSerial; node.box = null;
       const epoch = this.epoch;
