@@ -5,7 +5,8 @@
 // The 10-minute soak repeats laps and also reports minute by minute, to show what heat
 // does. The result is plain text the owner can copy and paste back.
 import { WORLDS } from '../worlds/index.js';
-import { MODES } from './governor.js';
+import { Profile, PARTS } from './profile.js';
+import { MODES, FEATURE_STEPS } from './governor.js';
 import { latLonToDir } from '../core/ephemeris.js';
 import { BUILD } from '../core/build.js';
 
@@ -33,6 +34,9 @@ export class Benchmark {
     const cap = Math.ceil(this.duration * 125);
     this.dt = new Float32Array(cap); this.px = new Float32Array(cap); this.at = new Float32Array(cap); this.part = new Uint8Array(cap);
     this.sc = new Float32Array(cap); this.ph = new Uint8Array(cap); this.up = new Uint8Array(cap);        // the page's own work per frame (ms); which stop of the route (0-4, 5 = flight, 6-10)
+    // where the page's own work goes, per stop (perf/profile.js: the parts of a frame)
+    this.pt = new Float64Array(11 * PARTS.length); this.ptLast = Float64Array.from(app.profile.total);
+    this.cost = null; this.costLines = null;
     this.rebakesFrom = app.terrain.rebakes || 0;
     this.n = 0;
     this.hitches = [];
@@ -54,6 +58,7 @@ export class Benchmark {
     const t = Math.min(this.duration, (performance.now() - this.t0) / 1000), mmss = (x) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}`;
     const p = this.phase;
     const where = p < 0 ? '' : p < 5 ? `${WORLDS[this.first].name} · ${this.names[this.first][p]}` : p === 5 ? `flight to ${WORLDS[this.second].name}` : `${WORLDS[this.second].name} · ${this.names[this.second][p - 6]}`;
+    if (this.cost) return `Benchmark · measuring what each thing costs · ${this.cost.status}`;
     return `${this.kind === 'soak' ? 'Soak test' : this.kind === 'earth' ? 'Earth benchmark' : 'Benchmark'} ${mmss(t)} / ${mmss(this.duration)} · ${where}`;
   }
 
@@ -78,12 +83,15 @@ export class Benchmark {
   update(dtMs, cause) {
     if (!this.active) return;
     const app = this.app, rig = app.rig;
+    // (after the lap: what each thing costs to draw, see CostTest)
+    if (this.cost) { if (!this.cost.update()) { this.costLines = this.cost.lines; this.cost = null; this._finish(false); } return; }
     const t = (performance.now() - this.t0) / 1000;
     // --- record
     if (this.n < this.dt.length && t > 0.5) {
       this.dt[this.n] = dtMs; this.px[this.n] = app.post.viewW * app.post.viewH; this.at[this.n] = t;
       this.part[this.n] = this.phase < 0 ? 0 : this.phase < 5 ? 0 : this.phase === 5 ? 1 : 2;
       this.sc[this.n] = app.scriptMs || 0; this.ph[this.n] = Math.max(0, this.phase); this.up[this.n] = Math.min(255, app.lastUploads || 0);
+      { const tot = app.profile.total, o = Math.max(0, this.phase) * PARTS.length; for (let i = 0; i < PARTS.length; i++) { this.pt[o + i] += tot[i] - this.ptLast[i]; this.ptLast[i] = tot[i]; } }
       this.n++;
       if (dtMs > 100) this.hitches.push({ t: +t.toFixed(1), ms: Math.round(dtMs), cause });
       this.maxCalls = Math.max(this.maxCalls, app.stats.calls || 0); this.maxTris = Math.max(this.maxTris, app.stats.triangles || 0);
@@ -92,7 +100,10 @@ export class Benchmark {
     if (b) { b[0] += Math.max(0, app.terrain.built - this.lastBuilt); b[1] += Math.max(0, app.terrain.buildMs - this.lastBuildMs); }
     this.lastBuilt = app.terrain.built; this.lastBuildMs = app.terrain.buildMs;
     if (this.n % 60 === 1) this.maxGpuBytes = Math.max(this.maxGpuBytes, app.gpuBytes);
-    if (t >= this.duration) { this._finish(false); return; }
+    if (t >= this.duration) {
+      if (this.kind === 'soak') { this._finish(false); return; }
+      this.releaseAll(); this.cost = new CostTest(this); return;
+    }
 
     // --- script
     const lap = Math.floor(t / LAP), lt = t - lap * LAP;
@@ -148,6 +159,7 @@ export class Benchmark {
 
   _finish(stopped) {
     this.active = false;
+    if (this.cost) { this.cost.restore(); this.costLines = this.cost.lines; this.cost = null; }
     this.releaseAll();
     this.app.onBenchmarkDone(this.report(stopped));
   }
@@ -187,6 +199,8 @@ export class Benchmark {
       const name = k < 5 ? `${WORLDS[this.first].name} ${this.names[this.first][k]}` : k === 5 ? 'flight' : `${WORLDS[this.second].name} ${this.names[this.second][k - 6]}`;
       const d = idx.map((i) => dts[i]);
       L.push(`  ${name}: ${fps(d).toFixed(1)} · ${(100 * d.filter((x) => x > target * 1.5).length / d.length).toFixed(1)} % · ${avg(idx.map((i) => sc[i])).toFixed(1)} ms · ${mp(avg(idx.map((i) => px[i])))}`);
+      // (the three largest parts of that work, ms a frame)
+      L.push(`      ${Profile.text(Array.from(this.pt.subarray(k * PARTS.length, (k + 1) * PARTS.length), (v) => v / idx.length), 0.2).split(' · ').slice(0, 4).join(' · ')}`);
     }
     // Frames that took in new terrain against the rest (is it the arriving ground that is
     // late?), and how many screen refreshes the frames took.
@@ -221,6 +235,8 @@ export class Benchmark {
     for (const h of worst) L.push(`  ${h.t}s ${h.ms} ms — ${h.cause}`);
     if (this.hitches.length > worst.length) L.push(`  (the ${worst.length} longest are listed)`);
     L.push(`most at once: ${this.maxCalls} draw calls, ${Math.round(this.maxTris / 1000)}k triangles, about ${Math.round(this.maxGpuBytes / 1048576)} MB of GPU memory`);
+    // What each thing costs to draw, measured after the lap (CostTest).
+    if (this.costLines?.length) { L.push(''); for (const l of this.costLines) L.push(l); L.push(''); }
     L.push(`terrain patches built: ${builds} · shadows re-baked: ${(app.terrain.rebakes || 0) - this.rebakesFrom} · patch cap at the end: ${app.terrain.maxChunks}`);
     L.push(`screen ${window.innerWidth}x${window.innerHeight} CSS px · pixel ratio ${(+(window.devicePixelRatio || 1).toFixed(3))} · refresh ${g.vsync ? Math.round(1000 / g.vsync) : '?'} Hz`);
     if (app.shaderErrors?.length) L.push(`SHADERS THAT FAILED ON THIS DEVICE: ${app.shaderErrors.length} — ${app.shaderErrors.join(' / ')}`);
@@ -228,5 +244,113 @@ export class Benchmark {
     if (app.hiddenCount !== this.hiddenFrom) L.push('note: the page was in the background for part of this run, so the numbers are not reliable');
     L.push(navigator.userAgent);
     return L.join('\n');
+  }
+}
+
+// What each thing costs to draw, measured on the device itself, after the lap. A frame's
+// length on a phone is a whole number of screen refreshes: it says that the frame was too
+// long, not by how much or because of what. Here the picture is held at one size, every
+// saving the governor has is switched on alone in turn, and each frame is timed from its
+// start until the GPU has finished drawing it (reading one pixel back waits for that).
+// At the first world's opening view and at the views its world file lists (scene.costViews:
+// { name, lat, lon, alt, heading, pitch }, the heaviest places it has).
+const WARM = 5, TAKE = 16, HELD = 2.07e6;
+class CostTest {
+  constructor(bench) {
+    const app = bench.app, g = app.governor, w = WORLDS[bench.first];
+    this.bench = bench; this.app = app; this.g = g;
+    const b0 = bench.names[bench.first][0];
+    this.views = [{ world: bench.first, name: `${w.name}, ${b0}`, bookmark: b0 }, ...(w.scene.costViews || []).map((v) => ({ world: bench.first, bookmark: b0, ...v, name: `${w.name}, ${v.name}` }))];
+    // everything on, the governor still
+    this.level = g.featureLevel; this.resLevel = g.resLevel; this.fixedBefore = g.fixed;
+    for (let i = this.level - 1; i >= 0; i--) FEATURE_STEPS[i].apply(app, false);
+    g.featureLevel = 0;
+    const held = Math.min(1, Math.sqrt(HELD / g.nativePixels)), small = Math.min(1, Math.sqrt(1.0e6 / g.nativePixels));
+    // [what is switched off (-1 nothing, -2 everything, else that step), the picture's scale]
+    // (not the steps that draw fewer patches: the ground would have to settle again each time)
+    this.configs = [[-1, held], ...FEATURE_STEPS.map((f, i) => [i, held]).filter(([i]) => !FEATURE_STEPS[i].id.startsWith('terrain-')), [-2, held], [-1, small], [-1, 1]];
+    this.off = []; this.lines = []; this.px = new Uint8Array(4); this.vi = -1; this.state = 'settle';
+    this._next();
+  }
+
+  get status() { const v = this.views[this.vi]; return `${v ? v.name : ''} ${this.state === 'settle' ? '(waiting for the ground)' : `${this.ci + 1}/${this.configs.length}`}`; }
+
+  _next() {
+    if (++this.vi >= this.views.length) return false;
+    const v = this.views[this.vi];
+    this._set(-1, this.configs[0][1]);
+    this.state = 'settle'; this.placed = v.lat == null; this.t0 = performance.now(); this.ms = new Float32Array(this.configs.length);
+    this.bench.goto(v.world, v.bookmark);
+    return true;
+  }
+
+  // Switches on the one saving (or all, or none) and holds the picture at `scale`.
+  _set(which, scale) {
+    const app = this.app, g = this.g;
+    for (const i of this.off) FEATURE_STEPS[i].apply(app, false);
+    this.off = which === -2 ? FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-')) : which >= 0 ? [which] : [];
+    for (const i of this.off) FEATURE_STEPS[i].apply(app, true);
+    g.fixed = scale; g._applyScale();
+  }
+
+  _config(ci) { this.ci = ci; this._set(this.configs[ci][0], this.configs[ci][1]); this.state = 'measure'; this.k = 0; this.n = 0; this.sum = 0; }
+
+  // Every frame, at its start. False when the test is over.
+  update() {
+    const app = this.app, now = performance.now(), v = this.views[this.vi];
+    if (this.state === 'settle') {
+      if (this.bench.busy || app.switching || app.world.id !== v.world) { this.t0 = now; return true; }
+      if (!this.placed) {
+        const rig = app.rig;
+        rig.setLatLon(v.lat, v.lon, 1.7, v.heading ?? 0, v.pitch ?? 0);
+        if (v.alt != null) { rig.pos.setLength(app.world.radius + v.alt); rig.onFoot = false; rig.hover = true; } else if (rig.mode === 'hero') rig.standUp();
+        rig.velocity.set(0, 0, 0); app.jumpedAt = now; this.placed = true; this.t0 = now;
+        return true;
+      }
+      const s = (now - this.t0) / 1000;
+      if (s > 2.5 && (app.terrain.idle || s > 14)) this._config(0);
+      return true;
+    }
+    // (a software renderer, a second a frame: two frames each tell as much)
+    if (this.n >= (this.slow ? 2 : TAKE) || this.k >= 60) {
+      this.ms[this.ci] = this.n ? this.sum / this.n : NaN;
+      if (this.ci + 1 < this.configs.length) this._config(this.ci + 1);
+      else { this._report(); if (!this._next()) { this.restore(); return false; } }
+    }
+    return true;
+  }
+
+  // Every frame, when all of it has been sent to be drawn. t0: when the frame's work began.
+  frameDone(t0) {
+    if (this.state !== 'measure') return;
+    const gl = this.app.renderer.getContext();
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, this.px);          // (returns when the frame is drawn)
+    const ms = performance.now() - t0;
+    // (not the first frames after a change, nor a frame that took in new ground)
+    this.slow = ms > 250;
+    if (++this.k > (this.slow ? 1 : WARM) && !this.app.terrain.uploads) { this.sum += ms; this.n++; }
+  }
+
+  _report() {
+    const v = this.views[this.vi], g = this.g, c = this.configs, ms = this.ms, f = (x) => (isNaN(x) ? '?' : x.toFixed(1));
+    const mp = (scale) => (g.nativePixels * scale * scale / 1e6).toFixed(2);
+    const on = ms[0], n = c.length;
+    this.lines.push(`what each thing costs to draw · ${v.name} (ms a frame, from the frame's start until it is drawn; picture held at ${mp(c[0][1])} MP):`);
+    this.lines.push(`  everything on ${f(on)} · every saving on ${f(ms[n - 3])} · everything on at ${mp(c[n - 2][1])} MP ${f(ms[n - 2])} · at native (${mp(1)} MP) ${f(ms[n - 1])}`);
+    const saved = [];
+    for (let k = 1; k < n - 3; k++) { const d = on - ms[k]; if (!isNaN(d)) saved.push([FEATURE_STEPS[c[k][0]].id, d]); }
+    saved.sort((a, b) => b[1] - a[1]);
+    this.lines.push(`  saved by one saving alone: ${saved.filter((x) => Math.abs(x[1]) >= 0.3).map((x) => `${x[0]} ${x[1].toFixed(1)}`).join(' · ') || 'nothing over 0.3'}`);
+  }
+
+  // The governor as it was.
+  restore() {
+    const app = this.app, g = this.g;
+    for (const i of this.off) FEATURE_STEPS[i].apply(app, false);
+    this.off = [];
+    g.fixed = this.fixedBefore ?? null; g.resLevel = this.resLevel; g._applyScale();
+    for (let i = 0; i < this.level; i++) FEATURE_STEPS[i].apply(app, true);
+    g.featureLevel = this.level;
+    this.state = 'done';
   }
 }

@@ -7,6 +7,7 @@ import { WORLDS } from './worlds/index.js';
 import { SOLAR_SYSTEM, AU_M } from './worlds/solarSystem.js';
 import { Ephemeris, dateToJD, jdToDate, elevationAzimuth, latLonToDir } from './core/ephemeris.js';
 import { PostPipeline } from './post/post.js';
+import { Profile, PARTS } from './perf/profile.js';
 import { Governor, MODES, FRAME } from './perf/governor.js';
 import { Benchmark } from './perf/benchmark.js';
 import { waveHeightAt, waveScale } from './water/waves.js';
@@ -187,6 +188,8 @@ export class App {
     this.post.instant = this.shotMode;
     let savedMode = null;
     try { savedMode = localStorage.getItem('sse.mode'); } catch { /* storage blocked: use the default */ }
+    this.profile = new Profile();          // where each frame's own work goes (perf/profile.js)
+    this.profileParts = PARTS;
     this.governor = new Governor(this, params.mode || savedMode || 'smooth', this.shotMode ? (params.scale ?? 1) : params.scale);
     // (what each world held last time, per mode: a return starts from it)
     if (typeof this.save.data.gov !== 'object' || !this.save.data.gov) this.save.data.gov = {};
@@ -1012,7 +1015,8 @@ export class App {
   }
 
   frame(now) {
-    const frameStart = performance.now();
+    const frameStart = performance.now(), prof = this.profile;
+    prof.begin();
     const dtMs = this.lastNow ? now - this.lastNow : 16.7;
     this.lastNow = now;
     const dt = Math.min(dtMs, 100) / 1000;
@@ -1080,6 +1084,7 @@ export class App {
       if (this.world.surface.sea) { const f = rig.onFoot ? rig.feet : rig.pos, l = f.length(); this.terrain.hs.height(f.x / l, f.y / l, f.z / l, 1); rig.water = this.terrain.hs.waterDepth; } else rig.water = 0;
     }
 
+    prof.mark(0);
     // 2. Camera (a hands-off trip steers it first)
     this.updateTransfer(dt, input);
     rig.update(dt, input, input.down('KeyZ'));
@@ -1111,12 +1116,14 @@ export class App {
     G.uCamPlanetPos.value.copy(rig.pos);
     this.terrain.tintAt(rig.pos, G.uGroundTint.value);
 
+    prof.mark(1);
     // 3. Terrain LOD, rocks, lander, hero
     const aspect0 = post.width / post.height;
     const sunHalf = Math.asin(SOLAR_SYSTEM.sun.radius / eph.sunDistance);
     this.atmosphere.updateAir(rig.pos, G.uSunDir.value, this.terrain);     // before the terrain takes the workers
     this.requestHeroVis(dt, sunHalf);
     this.terrain.update(rig, aspect0, G.uSunDir.value, sunHalf);
+    prof.mark(2);
     this.rocks.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
     {
       const d = this.clock, day = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000;
@@ -1129,8 +1136,10 @@ export class App {
       const se = tr.shared.uSeason.value; this.terrain.shared.uLitter.value = tr.def ? Math.min(1, se.x * 0.8 + se.y) : 0;
     }
     this.lander.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
+    prof.mark(3);
     this.updateHero(dt, sunHalf);
     this.updateOccluders();                         // (also with the character hidden: the lander and rocks)
+    prof.mark(4);
 
     // 4. Atmosphere LUTs
     governor.beginFrame();
@@ -1199,14 +1208,17 @@ export class App {
       else post.setSun(0, 0, 0, false);
     }
 
+    prof.mark(5);
     // 5. Near shadow map (ship, rocks, hero)
     this.nearShadow.render(rig.pos, G.uSunDir.value, rig.localUp);
+    prof.mark(6);
 
     // 6. Scene into the HDR target: far pass, clear depth, near pass, then the hero.
     post.beginScene();
     rig.finalize(aspect, 0.002, 100);         // (the sky bodies' slots can come close when one of them fills the view: SkyBodies.update)
     renderer.render(this.farScene, rig.camera);
     renderer.clearDepth();
+    prof.mark(7);
     const near = Math.max(0.25, Math.min(2e6, rig.agl * 0.15));
     // (clouds: their shadow reads the same map; the view must reach the layer's horizon)
     const cloudFar = this.clouds.update(rig.pos, world.radius);
@@ -1217,11 +1229,13 @@ export class App {
     const vol = this.cloudVolume.ready(rig.pos, this.clouds);
     this.clouds.uniforms.uNearFade.value = vol ? this.cloudVolume.reach : 0;
     renderer.render(this.nearScene, rig.camera);
+    prof.mark(8);
     if (vol) {
       this.cloudVolume.render(post, rig, near, far, this.terrain.shared.uWave.value.z, this.clouds, this.terrain.shared.uWind, this.weather);
       post.resumeScene();
       this.cloudVolume.lay();
     }
+    prof.mark(9);
     if (this.rain.mesh.visible || this.bolt.mesh.visible || this.rainbow.mesh.visible) renderer.render(this.weatherScene, rig.camera);
     if (this.hero.group.visible) {
       // Near the ground the hero shares the terrain's depth buffer (rocks can hide it);
@@ -1236,11 +1250,13 @@ export class App {
       }
     }
     post.endScene();
+    prof.mark(10);
 
     // 7. Post
     post.render(dt);
     if (this.photoWanted) { this.photoWanted = false; this.savePhoto(); }
     governor.endFrame();
+    if (bench && this.benchmark.cost) this.benchmark.cost.frameDone(frameStart);
     const settling = cause !== 'unknown' && cause !== 'quality step' && !cause.startsWith('new terrain');
     // An upload's cost can land a frame or two later (the driver finishes textures and
     // mip maps on its own time), so the three frames after one count as soft too.
@@ -1248,6 +1264,7 @@ export class App {
     // (the page's own work for this frame: everything from the start of frame() to here)
     // (dtMs is the previous frame's time: it goes with that frame's work)
     const prevScript = this.scriptMs || 0;
+    prof.mark(11); prof.end();
     this.scriptMs = performance.now() - frameStart;
     governor.update(dtMs, settling ? FRAME.IGNORE : this.softFrames > 0 ? FRAME.SOFT : FRAME.NORMAL, prevScript);
     this.lastUploads = this.terrain.uploads; this.terrain.uploads = 0;
@@ -1513,6 +1530,8 @@ export class App {
       lat: ll.lat, lon: ll.lon, alt: rig.altitude, agl: rig.agl, heading: rig.heading, pitch: rig.pitch, fov: rig.fov,
       speed: fmtSpeed(rig.velocity.length()), nearest: `${this.nearestName} ${fmtDistance(this.nearestClear)}`, target,
       hover: rig.hover, pull: rig.pull.length(), onFoot: rig.mode === 'hero' && rig.onFoot, airborne: rig.airborne,
+      savings: this.governor.featureLevel, building: this.terrain.staleData + this.terrain.readyRefresh.length, built: this.terrain.built,
+      work: this.scriptMs || 0, parts: Profile.text(this.profile.avg, 0.3),
     };
   }
 }

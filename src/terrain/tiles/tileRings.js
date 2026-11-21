@@ -44,6 +44,11 @@ export class TileRings {
 
   // True while a mosaic that is wanted has not arrived (and has not failed).
   get busy() { for (const r of this.rings) if (r.id) return true; return false; }
+  // ... of the elevation only (the heights the ground is built from).
+  get busyElevation() { for (const r of this.rings) if (r.id && r.kind === 'elevation') return true; return false; }
+  // True while elevation is on its way for a place that has none yet (the start, a jump,
+  // the end of a fast trip), and for five seconds at most: fine ground waits for it.
+  get catchingUp() { if (performance.now() - (this.freshAt || 0) > 5000) return false; for (const r of this.rings) if (r.id && r.fresh && r.kind === 'elevation') return true; return false; }
 
   // Every frame. pos: the traveller in the world's own axes (metres from its centre);
   // altitude above the datum (m).
@@ -64,13 +69,16 @@ export class TileRings {
       // (going too fast for this ring: it would be behind before it arrived)
       const tileM = 2 * Math.PI * len / n * Math.cos(lat);
       if (speed * 6 > tileM) continue;
-      let ok = r.tx != null;
+      let ok = r.tx != null, off = !ok;
       if (ok) {
         let dx = fx - r.tx; dx -= n * Math.floor(dx / n);
         const lowY = r.ty <= 0, highY = r.ty >= n - N;        // (at the map's top and bottom rows there is no further to go)
         ok = dx >= MARGIN && dx <= N - MARGIN && (lowY || fy - r.ty >= MARGIN) && (highY || fy - r.ty <= N - MARGIN);
+        off = dx > N || fy < r.ty || fy > r.ty + N;           // (the traveller is outside this mosaic altogether: a jump)
       }
       if (ok) continue;
+      // (asked for because the place has none yet, not because the traveller neared its edge)
+      r.fresh = off; if (off && r.kind === 'elevation') this.freshAt = now;
       const tx = Math.round(fx - N / 2), ty = Math.max(0, Math.min(n - N, Math.round(fy - N / 2)));
       if (n < N) continue;
       r.id = this.nextId++; r.wantTx = tx; r.wantTy = ty;

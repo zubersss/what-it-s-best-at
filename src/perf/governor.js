@@ -31,14 +31,16 @@ export const FEATURE_STEPS = [
   { id: 'dust', label: 'half the kicked-up dust, simpler cloud', apply: (app, off) => { app.dust.amount = off ? 0.5 : 1; } },
   { id: 'rocks', label: 'half the rocks', apply: (app, off) => { app.rocks.setFraction(off ? 0.5 : 1); } },
   { id: 'fine-shadows', label: 'coarser shadows of nearby rocks', apply: (app, off) => { app.nearShadow.fine = !off; } },
-  { id: 'rain', label: 'rain and snow in the air', apply: (app, off) => { if (app.rain) app.rain.enabled = !off; } },
+  { id: 'rain', label: 'thinner rain and snow', apply: (app, off) => { if (app.rain) app.rain.share = off ? 0.4 : 1; } },
   { id: 'leaves', label: 'leaves in the wind', apply: (app, off) => { if (app.leaves) app.leaves.enabled = !off; } },
   { id: 'tree-shadows', label: 'shadows of the farther trees', apply: (app, off) => { if (app.trees) app.trees.shadowsFar = !off; } },
   { id: 'trees-far', label: 'trees to two thirds of their distance', apply: (app, off) => { app.trees?.setFraction(off ? 0.66 : 1); } },
   { id: 'waves', label: 'waves that lift the water (they stay as shading)', apply: (app, off) => { app.wavesLift = !off; } },
   { id: 'cloud-steps', label: 'coarser clouds near you', apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.steps = off ? 16 : 26; } },
   { id: 'cloud-volume', label: 'clouds with depth (they stay as a layer)', apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.enabled = !off; } },
-  { id: 'clouds', label: 'the cloud layer and its shadows', apply: (app, off) => { if (app.clouds) app.clouds.enabled = !off; } },
+  // (the layer itself is never switched off: a hurricane with a clear sky is not one, and the
+  // layer is one texture on the sky)
+  { id: 'clouds', label: "the clouds' shadows on the ground", apply: (app, off) => { if (app.clouds) app.clouds.shadows = !off; } },
   { id: 'terrain-1', label: 'terrain detail (fewer patches)', apply: (app, off) => { app.terrainBudget(off ? 0.8 : 1, 'terrain-1'); } },
   { id: 'bloom', label: 'glow around bright things', apply: (app, off) => { app.post.bloomEnabled = !off; } },
   { id: 'terrain-2', label: 'terrain detail (fewer patches again)', apply: (app, off) => { app.terrainBudget(off ? 0.64 : 1, 'terrain-2'); } },
@@ -352,6 +354,10 @@ export class Governor {
     }
   }
 
+  // Every saving switched on: where a device that cannot keep up ends. (For pictures and
+  // tests of what is left then; the governor steps back up from it as usual.)
+  toFloor() { while (this.featureLevel < FEATURE_STEPS.length) FEATURE_STEPS[this.featureLevel++].apply(this.app, true); }
+
   // Lower resolution first, then features. But resolution only cures frames that are slow
   // because of pixels. When the page's own work fills most of the frame (draw calls, terrain
   // arriving, the simulation), fewer pixels change nothing: on the test phone a 10 s stretch
@@ -385,15 +391,22 @@ export class Governor {
       this.resLevel = Math.min(this.maxResLevel, this._upFrom); this._applyScale();
       this._note(`resolution down to ${(this.pixels / 1e6).toFixed(2)} MP`);
       this.sinceStep = 0; this.sinceDown = 0;
+    } else if (this._upFeat) {
+      for (let k = 0; k < this._upFeat && this.featureLevel < FEATURE_STEPS.length; k++) { const f = FEATURE_STEPS[this.featureLevel++]; f.apply(this.app, true); this._note(`off: ${f.label}`); }
+      this.sinceStep = 0; this.sinceDown = 0;
     } else this._down(1);
-    this.goodLevel = null; this._upFrom = null;
+    this.goodLevel = null; this._upFrom = null; this._upFeat = 0;
   }
 
   _up() {
     if (this.featureLevel > 0) {
-      const f = FEATURE_STEPS[--this.featureLevel];
-      f.apply(this.app, false); this._note(`back on: ${f.label}`);
+      // (three at a time: after a passing dip, a burst of ground arriving, the way back up
+      // through twenty savings one by one took two minutes of a picture with nothing in it)
+      let n = 0;
+      for (; n < 3 && this.featureLevel > 0; n++) { const f = FEATURE_STEPS[--this.featureLevel]; f.apply(this.app, false); this._note(`back on: ${f.label}`); }
+      this._upFeat = n; this._upFrom = null;
     } else if (this.resLevel > 0) {
+      this._upFeat = 0;
       this._upFrom = this.resLevel;
       this.resLevel = this.goodLevel != null && this.goodLevel < this.resLevel ? this.goodLevel : this.resLevel - 1;
       this._applyScale(); this._note(`resolution up to ${(this.pixels / 1e6).toFixed(2)} MP`);
