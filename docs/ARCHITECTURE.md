@@ -819,8 +819,9 @@ Two things in the results say *what* is slow, not only that something is:
 - **The cost test** (`CostTest`, after the lap; not in the soak): at the first world's
   opening view and at each of its `scene.costViews`, the governor is held still at
   2.07 MP with everything on, then each saving of `FEATURE_STEPS` is switched on alone
-  (not the two that draw fewer patches), then all of them, then everything on at 1 MP
-  and at native. Each frame is timed from its start until one pixel read back from the
+  (not the two that draw fewer patches; "everything on" is measured again after every
+  three, and each saving is set against the measures on either side of it), then all of
+  them, then everything on at 1 MP and at native. Each frame is timed from its start until one pixel read back from the
   canvas returns, which is when the GPU has drawn it: a time that is not rounded to
   screen refreshes. Frames that took in ground and the first five after a change are
   left out. Three lines a view: the four totals, and what each saving saves alone.

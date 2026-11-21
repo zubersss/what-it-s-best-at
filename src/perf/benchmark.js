@@ -268,7 +268,13 @@ class CostTest {
     const held = Math.min(1, Math.sqrt(HELD / g.nativePixels)), small = Math.min(1, Math.sqrt(1.0e6 / g.nativePixels));
     // [what is switched off (-1 nothing, -2 everything, else that step), the picture's scale]
     // (not the steps that draw fewer patches: the ground would have to settle again each time)
-    this.configs = [[-1, held], ...FEATURE_STEPS.map((f, i) => [i, held]).filter(([i]) => !FEATURE_STEPS[i].id.startsWith('terrain-')), [-2, held], [-1, small], [-1, 1]];
+    // (everything on is measured again after every three savings: a frame grows slower over a
+    // minute of this, from heat and from ground still arriving, and each saving is set against
+    // the measures of "everything on" on either side of it, not against the first)
+    const steps = FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-'));
+    this.configs = [[-1, held]];
+    steps.forEach((i, k) => { this.configs.push([i, held]); if (k % 3 === 2 || k === steps.length - 1) this.configs.push([-1, held]); });
+    this.configs.push([-2, held], [-1, held], [-1, small], [-1, 1]);
     this.off = []; this.lines = []; this.px = new Uint8Array(4); this.vi = -1; this.state = 'settle';
     this._next();
   }
@@ -312,7 +318,8 @@ class CostTest {
       return true;
     }
     // (a software renderer, a second a frame: two frames each tell as much)
-    if (this.n >= (this.slow ? 2 : TAKE) || this.k >= 60) {
+    // (and it cannot wait for frames without new ground there: sixty frames at most here, six there)
+    if (this.n >= (this.slow ? 2 : TAKE) || this.k >= (this.slow ? 6 : 60)) {
       this.ms[this.ci] = this.n ? this.sum / this.n : NaN;
       if (this.ci + 1 < this.configs.length) this._config(this.ci + 1);
       else { this._report(); if (!this._next()) { this.restore(); return false; } }
@@ -328,17 +335,25 @@ class CostTest {
     const ms = performance.now() - t0;
     // (not the first frames after a change, nor a frame that took in new ground)
     this.slow = ms > 250;
-    if (++this.k > (this.slow ? 1 : WARM) && !this.app.terrain.uploads) { this.sum += ms; this.n++; }
+    if (++this.k > (this.slow ? 1 : WARM) && (this.slow || !this.app.terrain.uploads)) { this.sum += ms; this.n++; }
   }
 
   _report() {
     const v = this.views[this.vi], g = this.g, c = this.configs, ms = this.ms, f = (x) => (isNaN(x) ? '?' : x.toFixed(1));
     const mp = (scale) => (g.nativePixels * scale * scale / 1e6).toFixed(2);
-    const on = ms[0], n = c.length;
-    this.lines.push(`what each thing costs to draw · ${v.name} (ms a frame, from the frame's start until it is drawn; picture held at ${mp(c[0][1])} MP):`);
-    this.lines.push(`  everything on ${f(on)} · every saving on ${f(ms[n - 3])} · everything on at ${mp(c[n - 2][1])} MP ${f(ms[n - 2])} · at native (${mp(1)} MP) ${f(ms[n - 1])}`);
+    const n = c.length, held = c[0][1], isOn = (k) => c[k][0] === -1 && c[k][1] === held;
+    // "everything on" at config k: between the measures of it on either side
+    const onAt = (k) => {
+      let a = k, b = k; while (a > 0 && !isOn(a)) a--; while (b < n - 1 && !isOn(b)) b++;
+      if (!isOn(b)) b = a;
+      return a === b ? ms[a] : ms[a] + (ms[b] - ms[a]) * (k - a) / (b - a);
+    };
+    const ons = []; for (let k = 0; k < n; k++) if (isOn(k) && !isNaN(ms[k])) ons.push(ms[k]);
+    const on = ons.length ? ons.reduce((x, y) => x + y, 0) / ons.length : NaN;
+    this.lines.push(`what each thing costs to draw · ${v.name} (ms a frame, from the frame's start until it is drawn; picture held at ${mp(held)} MP):`);
+    this.lines.push(`  everything on ${f(on)} (from ${f(Math.min(...ons))} to ${f(Math.max(...ons))} over the test) · every saving on ${f(ms[n - 4])} · everything on at ${mp(c[n - 2][1])} MP ${f(ms[n - 2])} · at native (${mp(1)} MP) ${f(ms[n - 1])}`);
     const saved = [];
-    for (let k = 1; k < n - 3; k++) { const d = on - ms[k]; if (!isNaN(d)) saved.push([FEATURE_STEPS[c[k][0]].id, d]); }
+    for (let k = 1; k < n - 4; k++) { if (c[k][0] < 0) continue; const d = onAt(k) - ms[k]; if (!isNaN(d)) saved.push([FEATURE_STEPS[c[k][0]].id, d]); }
     saved.sort((a, b) => b[1] - a[1]);
     this.lines.push(`  saved by one saving alone: ${saved.filter((x) => Math.abs(x[1]) >= 0.3).map((x) => `${x[0]} ${x[1].toFixed(1)}`).join(' · ') || 'nothing over 0.3'}`);
   }

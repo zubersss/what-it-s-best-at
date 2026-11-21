@@ -60,7 +60,7 @@ if (!flag('no-bench')) {
   const text = await page.evaluate(() => window.__benchResult || '');
   check('results screen is up', await page.isVisible('#results'));
   // (the cost test: every view has its three lines, with numbers in them)
-  if (!soak) check('the cost test measured each view', (text.match(/^what each thing costs to draw/gm) || []).length === (earth ? 3 : 1) && /everything on \d+\.\d ·/.test(text) && !/everything on \? ·/.test(text), (text.match(/^what each thing costs.*$/gm) || []).join(' | ').slice(0, 200));
+  if (!soak) check('the cost test measured each view', (text.match(/^what each thing costs to draw/gm) || []).length === (earth ? 3 : 1) && /everything on \d+\.\d \(from/.test(text) && !/everything on \? /.test(text), (text.match(/^what each thing costs.*$/gm) || []).join(' | ').slice(0, 200));
   check('the page\'s work is named by part at every stop', (text.match(/^      [a-z ]+ \d+\.\d( ·|$)/gm) || []).length >= 6);
   if (soak) check('soak has a minute-by-minute table with ten rows', (text.match(/^\s+\d+: [\d.]+ fps/gm) || []).length === 10);
   check('results have every line the owner asked for', ['average fps', '1% low', 'worst frame', 'render resolution', 'quality steps', 'hitches over 100 ms', 'GPU:', 'pixel ratio', 'mode', 'build'].every((k) => text.includes(k)));
