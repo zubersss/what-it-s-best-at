@@ -20,12 +20,14 @@ changes behaviour.
   5" and "Milestone 10 review" below. The lakes and rivers were put right at the very
   end (the review's follow-up: the real lakes were not being drawn and false ones were);
   `npm run lakes` now holds them to the real ones.
-- **Not confirmed on the phone, any of it.** The phone was already short of pixels on
-  Mars at 60 fps, and Earth now does far more per pixel (trees, a cloud volume, weather).
-  Asked of the owner: an **Earth benchmark** in Smooth (start screen), and what looks
-  wrong. Expect to tune: which of the 22 governor steps go first on Earth, the cloud
-  volume's size and step count, the trees' radius. Still open: whether a 3D model file
-  of the character exists.
+- **The phone's first word on Earth** (a screenshot of build 18c4a23, "this is what it
+  looks like, fix it"): 18 fps at 0.96 MP in Smooth, the figure over a bare, flat sea
+  under an empty twilight sky. See "The owner's Earth screenshot" below: what it was
+  and what was done. **Still not measured**: no benchmark of Earth has come back.
+  Asked of the owner again: an **Earth benchmark** in Smooth (start screen). It now
+  ends with a cost test (what each effect costs to draw, timed on the phone) and names
+  the parts of the page's own work at every stop: read those first, and cut what they
+  show instead of guessing. Still open: whether a 3D model file of the character exists.
 - **What to do next**: with a benchmark, tune from it first. With a complaint, reproduce
   it in a picture, fix, show before and after. Then the "not done, or weak" lists of
   milestone 10 (a swimming stroke, tree shapes up close, cloud grain in motion, rain
@@ -207,6 +209,59 @@ What was changed:
 - Smooth still draws 0.8 of the patch cap. With one draw call a patch costs the page
   almost nothing, so this can probably go back to all 180: decide from the next results
   (one change at a time; the phone is the judge).
+
+## The owner's Earth screenshot (build 18c4a23)
+
+One picture, no benchmark: `18 fps · 0.96 MP · Smooth`, the figure hovering over a
+smooth sea to the horizon, a clear twilight sky, nothing else. So: the fewest pixels the
+governor allows, every saving switched on (the cloud layer is step 15 of 22 and it was
+gone), and still a third of the frame rate. Where on Earth it was taken is not known (a
+calm sea at dawn: at the scene's date that is the Pacific west of California).
+
+**What was found** (headless, `scripts/play-profile.mjs`, a new script: the real game in
+play mode at a place, the page's work by part, the governor's level, patches built):
+
+- At the governor's floor Earth's sea costs no more per frame in the software renderer
+  than Mars' ledge does (1.7 s against 2.2 s a frame at the same size). The picture is
+  not what is three times too slow.
+- **Arriving at a place on Earth built about 600 patches for the 85 drawn.** A place's
+  three elevation rings arrive one after another (and one or two again, see TileRings),
+  and after each of them every loaded patch the ring touched was built again: the same
+  ground up to five times, and five times as many patches as are on screen (430 are
+  loaded). Each came to the GPU in a frame of its own, and on the phone a frame that
+  takes in ground is the frame that comes late (third and fourth results). With ground
+  arriving in every frame the governor has nothing to compare ("frames without new
+  terrain") and takes it for slow pixels: resolution to the floor, then every saving,
+  curing nothing. The way back was one saving every three or four seconds.
+
+**What was done**
+
+- Stale ground is built again **once**, when no elevation is on its way any more (ten
+  seconds at most), and **only what is drawn**, with the parents the drawn patches lean
+  on; the rest stays stale until it is drawn. It goes to the GPU **in bursts**, up to
+  sixteen patches twice a second. After a jump, fine ground waits up to five seconds
+  for elevation (as at the start). Here: 600 builds became about 450 with the wait not
+  working (a second a frame); on the phone the 280 of the first descent should mostly
+  wait too.
+- The governor: the cloud layer is never switched off (step `clouds` now takes its
+  shadows on the ground), rain thins to 40 % instead of stopping, savings come back
+  three at a time (from the floor: all off again in 21 s in the simulation, was 75 s).
+  Two new cases in `npm run govsim`.
+- **Instruments**, because the cause above is inferred, not measured: the one-line
+  read-out says how many savings are on and `maps` while ground is being built again;
+  the full read-out has the page's own work by part (`perf/profile.js`); the benchmark
+  prints the largest parts at every stop, and after its lap runs a **cost test**: at
+  the first world's opening view and at the world's `scene.costViews` (Earth: in the
+  hurricane, in the forest), with the picture held at 2.07 MP, each saving is switched
+  on alone and frames are timed from their start until the GPU has drawn them (reading
+  one pixel back waits for it). A frame's length on a phone is a whole number of
+  refreshes; this is the first measure of the GPU's time that is not.
+
+**If the next benchmark still shows Earth slow**: the cost test says which effect; the
+parts say which work. Candidates not yet ruled out, none visible headless: the cloud
+volume's switch to its own small picture and back in the middle of the frame (a tile
+GPU stores and reloads the whole HDR picture and its depth for that), the scene's depth
+kept as a texture, heat from the workers.
 
 ## The owner's fourth phone results (build fa0c4c9, after milestones 6 to 9)
 

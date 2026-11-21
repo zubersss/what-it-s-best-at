@@ -1,6 +1,6 @@
 // Headless smoke test of the parts a screenshot bookmark never touches: the start screen,
 // Play, the Smooth/Sharp switch, the HUD states, and a complete benchmark run with its
-// results screen.   node scripts/smoke.mjs [--dist] [--out <dir>] [--no-bench] [--soak]
+// results screen.   node scripts/smoke.mjs [--dist] [--out <dir>] [--no-bench] [--soak] [--earth]
 // --soak runs the 10-minute soak instead of the 3-minute benchmark (two extra laps, and
 // the minute-by-minute table).
 // Software WebGL: the frame rates it prints are meaningless; it checks that things work.
@@ -42,9 +42,10 @@ await snap(path.join(out, 'playing_full_hud.png'));
 console.log(await page.evaluate(() => window.__app.governor.summary), '| steps so far:', await page.evaluate(() => window.__app.governor.log.map((s) => s.text).join('; ')));
 
 if (!flag('no-bench')) {
-  const soak = flag('soak'), limit = soak ? 760000 : 330000;
-  await goto(base + (soak ? '?bench=soak' : '?bench=run'));
-  await page.waitForFunction(() => window.__app?.benchmark?.active, null, { timeout: 240000 });
+  // (--earth: the Earth benchmark; the cost test after the lap takes its time in a software renderer)
+  const soak = flag('soak'), earth = flag('earth'), limit = soak ? 760000 : earth ? 2400000 : 1500000;
+  await goto(base + (soak ? '?bench=soak' : earth ? '?world=earth&bench=earth' : '?bench=run'));
+  await page.waitForFunction(() => window.__app?.benchmark?.active, null, { timeout: earth ? 900000 : 240000 });
   check(`benchmark starts from ?bench=${soak ? 'soak' : 'run'}`, true);
   const t0 = Date.now();
   let shot = 0;
@@ -58,6 +59,9 @@ if (!flag('no-bench')) {
   }
   const text = await page.evaluate(() => window.__benchResult || '');
   check('results screen is up', await page.isVisible('#results'));
+  // (the cost test: every view has its three lines, with numbers in them)
+  if (!soak) check('the cost test measured each view', (text.match(/^what each thing costs to draw/gm) || []).length === (earth ? 3 : 1) && /everything on \d+\.\d ·/.test(text) && !/everything on \? ·/.test(text), (text.match(/^what each thing costs.*$/gm) || []).join(' | ').slice(0, 200));
+  check('the page\'s work is named by part at every stop', (text.match(/^      [a-z ]+ \d+\.\d( ·|$)/gm) || []).length >= 6);
   if (soak) check('soak has a minute-by-minute table with ten rows', (text.match(/^\s+\d+: [\d.]+ fps/gm) || []).length === 10);
   check('results have every line the owner asked for', ['average fps', '1% low', 'worst frame', 'render resolution', 'quality steps', 'hitches over 100 ms', 'GPU:', 'pixel ratio', 'mode', 'build'].every((k) => text.includes(k)));
   await snap(path.join(out, 'results_screen.png'));
