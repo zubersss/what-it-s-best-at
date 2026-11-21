@@ -4,6 +4,7 @@
 //           shade: 1.7,          the sky's light on things, against the physical (coloured shade)
 //           colour: 1,           how much cleaner surface colours are
 //           facets: 0.6,         how much steep rock is lit by its faces (a cut-stone look)
+//           shafts: 1,           the Sun's beams through trees and cloud (post.js)
 //           grade: { day, low, dusk, night } }   the picture's grade by the Sun's height
 //
 // A grade: { sat, contrast, tint (0..1: how much of the two tints), shade: [r, g, b] (the
@@ -27,8 +28,10 @@ export class Look {
 
   // sunDeg: the Sun's height at the traveller (degrees); altitude (m); uniforms: the
   // composite pass's (post.compositeMat.uniforms).
-  update(sunDeg, altitude, uniforms) {
+  update(sunDeg, altitude, uniforms, post) {
     this.uniforms = uniforms;
+    // (the Sun's beams: only with the Sun up and low air to shine through)
+    if (post) post.shafts = this.def ? (this.def.shafts ?? 0) * Math.min(1, Math.max(0, (sunDeg + 2) / 6)) * Math.min(1, Math.max(0, 1 - (altitude - 8000) / 8000)) : 0;
     const d = this.def;
     if (!d) { this.apply(null, 0); return; }
     const x = Math.min(1, Math.max(0, (Math.log10(Math.max(1, altitude)) - 4.6) / 1.0)), near = 1 - (1 - 0.33) * x * x * (3 - 2 * x);

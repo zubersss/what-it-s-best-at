@@ -105,6 +105,8 @@ uniform float uNoiseSize;
 uniform vec4 uGrade;        // the painted look's grade: x saturation, y contrast, z how much of the two tints
 uniform vec3 uGradeShade;   // tint of the dark half of the picture
 uniform vec3 uGradeLight;   // tint of the light half
+uniform sampler2D tShaft;   // the picture at half size (the first step of the bloom): what the Sun's beams are cut from
+uniform vec4 uShaft;        // xy: the Sun on screen (0..1), z: strength of its beams (0: none), w: the picture's width over its height
 in vec2 vUv;
 out vec4 outColor;
 
@@ -133,6 +135,19 @@ void main() {
   vec3 scene = texture(tScene, min(vUv * uUvScale, uUvMax)).rgb;
   vec3 bloom = texture(tBloom, vUv).rgb * uBloomNorm;
   vec3 c = mix(scene, bloom, uBloom);
+  // The Sun's beams (the painted look): along the line from this pixel to the Sun, how much
+  // bright sky there is. Where trunks and crowns stand in that line the sum is small, so
+  // the light comes in shafts between them. Ten steps, each begun a little differently
+  // from pixel to pixel so the steps do not show; strongest near the Sun.
+  if (uShaft.z > 0.0) {
+    vec2 d = uShaft.xy - vUv;
+    float j = texture(tBlueNoise, gl_FragCoord.xy / uNoiseSize).r, far = length(d * vec2(uShaft.w, 1.0));
+    vec3 s = vec3(0.0);
+    // (only the sky's light counts: the half-size picture's fourth number is how much of a
+    // place is lit ground, which is in the way of a beam, not its source)
+    for (int i = 0; i < 10; i++) { float t = (float(i) + j) / 10.0; vec4 q = texture(tShaft, clamp(vUv + d * t, 0.0, 1.0)); s += q.rgb * (1.0 - q.a) * (1.0 - 0.5 * t); }
+    c += s * (0.07 * uShaft.z * exp(-far * 2.4));
+  }
   c = agx(c);
   // The grade of a painted look (render/look.js): the darks lean one way and the lights
   // the other (blue shade under a warm Sun, violet under a red one), colours stronger,
@@ -175,6 +190,7 @@ export class PostPipeline {
     this.targetExposure = 20;
     this.measuredLog2 = 0;
     this.instant = false;              // screenshot mode: converge immediately
+    this.sunUv = [0.5, 0.5, 0]; this.shafts = 0;       // the Sun's beams: its place on screen and weight; their strength (render/look.js)
     this.stableReads = 0;
     this._readPending = false;
     this._readBuf = new Float32Array(4);
@@ -193,6 +209,7 @@ export class PostPipeline {
       tScene: { value: null }, tBloom: { value: null }, tBlueNoise: { value: noise },
       uUvScale: { value: new THREE.Vector2(1, 1) }, uUvMax: { value: new THREE.Vector2(1, 1) },
       uBloom: { value: CONFIG.BLOOM_STRENGTH }, uBloomNorm: { value: 0.2 }, uNoiseSize: { value: BLUE_NOISE_SIZE },
+      tShaft: { value: null }, uShaft: { value: new THREE.Vector4(0.5, 0.5, 0, 1) },
       uGrade: { value: new THREE.Vector4(1, 1, 0, 0) }, uGradeShade: { value: new THREE.Vector3(1, 1, 1) }, uGradeLight: { value: new THREE.Vector3(1, 1, 1) },
     });
   }
@@ -303,6 +320,9 @@ export class PostPipeline {
     // The accumulated bloom is a sum over levels; normalise so strength is a true mix weight.
     cm.uBloomNorm.value = 1 / this.bloomDown.length;
     cm.uBloom.value = this.bloomEnabled ? CONFIG.BLOOM_STRENGTH : 0;
+    // (the Sun's beams go with the bloom: one governor step for both)
+    cm.tShaft.value = this.bloomDown[0].texture;
+    cm.uShaft.value.set(this.sunUv[0], this.sunUv[1], this.bloomEnabled ? this.shafts * this.sunUv[2] : 0, this.viewW / this.viewH);
     renderPass(r, this.compositeMat, null);
   }
 
@@ -311,6 +331,10 @@ export class PostPipeline {
   // front of the camera.
   setSun(u, v, radiusFraction, visible) {
     const g = this.meterMat.uniforms.uSunGrid.value;
+    // (for the beams: where it is, and how much it counts: all in the picture, fading to
+    // none a third of a picture outside it)
+    const out = Math.max(0, -u, u - 1, -v, v - 1);
+    this.sunUv[0] = u; this.sunUv[1] = v; this.sunUv[2] = visible ? Math.max(0, 1 - out * 3) : 0;
     if (!visible) { g.set(0, 0, -1); return; }
     g.set(u * 32, v * 18, radiusFraction * 18 + 1.6);
   }
