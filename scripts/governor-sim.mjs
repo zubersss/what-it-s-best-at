@@ -76,6 +76,24 @@ run('Phone-like: 10 s of slow work per frame that nothing cures', { vsyncMs: 8.3
   if (at == null || at > 4) { console.log(`FAILED: took ${at == null ? 'more than 30' : at.toFixed(1)} s to reach a size that holds`); process.exitCode = 1; }
   if (g.loadLevel !== 0 || g.streamLevel !== 0) { console.log('FAILED: terrain levers pulled for slow pixels'); process.exitCode = 1; }
 }
+// The test phone on Earth (build 18c4a23): ground built again from arriving maps came in
+// every frame for half a minute, every saving was switched on, and the picture stayed bare
+// long after. Two things must hold now. Ground that arrives in bursts, twice a second, one
+// late frame each, costs nothing in quality ...
+{
+  const g = run('Phone on Earth: a burst of ground twice a second, the rest on time (nothing given up)', { vsyncMs: 8.333, mode: 'smooth', native: NATIVE, seconds: 40, uploadsEvery: 30, cost: (p) => 3 + 2.5 * p / 1e6, work: () => 5,
+    events: (t, gg) => { if (t < 0.02 && gg.resLevel !== 0) { gg.resLevel = 0; gg._applyScale(); } } });
+  if (g.featureLevel !== 0 || g.resLevel !== 0 || g.loadLevel !== 0) { console.log(`FAILED: quality given up for bursts of ground (resolution ${g.resLevel} steps down, ${g.featureLevel} savings, patches ${g.loadLevel})`); process.exitCode = 1; }
+}
+// ... and from the floor (every saving on, the fewest pixels) the savings are all off
+// again within 45 s once frames are on time.
+{
+  let back = null;
+  run('After a long dip (every saving on): the way back', { vsyncMs: 8.333, mode: 'smooth', native: NATIVE, seconds: 90, cost: (p) => 3 + 3.0 * p / 1e6,
+    events: (t, gg) => { if (t < 0.02 && gg.featureLevel === 0) { gg.resLevel = gg.maxResLevel; gg._applyScale(); gg.toFloor(); } if (back == null && t > 1 && gg.featureLevel === 0) back = t; } });
+  if (back == null || back > 45) { console.log(`FAILED: the savings took ${back == null ? 'more than 90' : back.toFixed(0)} s to come off again`); process.exitCode = 1; }
+  else console.log(`  every saving off again after ${back.toFixed(0)} s`);
+}
 // A place seen before starts from what it held.
 {
   const known = { 'smooth:mars': 7 };

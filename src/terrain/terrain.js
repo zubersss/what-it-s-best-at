@@ -213,12 +213,15 @@ export class Terrain {
     }
     if (this.ready.length && !(this.pace === 2 && this.frame % 2)) {
       const budget = this.pace ? 1 : Math.max(1, Math.min(8, Math.round((this.now - before) / 16.7))) + (this.ready.length > 6 ? 1 : 0);
-      let k = 0;
-      for (; k < budget && this.ready.length; k++) { const r = this.ready.shift(); this._upload(r.node, r.res); }
-      for (; k < budget && this.readyRefresh.length; k++) this._uploadRefresh(this.readyRefresh.shift());
-    } else if (this.readyRefresh.length && !(this.pace === 2 && this.frame % 2)) {
-      const budget = this.pace ? 1 : Math.max(1, Math.min(8, Math.round((this.now - before) / 16.7)));
-      for (let k = 0; k < budget && this.readyRefresh.length; k++) this._uploadRefresh(this.readyRefresh.shift());
+      for (let k = 0; k < budget && this.ready.length; k++) { const r = this.ready.shift(); this._upload(r.node, r.res); }
+    }
+    // Ground built again from better maps goes up in bursts: a dozen at once, twice a
+    // second. (A frame that takes in ground can be late on a phone whether it takes one
+    // patch or ten: the cost is the frame's, not the patch's. One at a time, a hundred
+    // patches were a hundred late frames.)
+    if (this.readyRefresh.length && (this.readyRefresh.length >= 12 || this.now - (this._burstAt || 0) > 500)) {
+      this._burstAt = this.now;
+      for (let k = 0; k < 16 && this.readyRefresh.length; k++) this._uploadRefresh(this.readyRefresh.shift());
     }
     this._sun = [sunDir.x, sunDir.y, sunDir.z]; this._sunHalf = sunHalf;
     const cam = this._cam.copy(rig.pos), R = this.radius;
@@ -261,6 +264,7 @@ export class Terrain {
     let far = 1000, fading = 0;
     for (let i = 0, o = 0; i < list.length; i++, o += INSTANCE_FLOATS) {
       const n = list[i], s = slots[n.slot], par = n.parent, hasPar = !!par && par.slot >= 0;
+      n.drawnAt = this.frame; if (par) par.drawnAt = this.frame;          // (see _refresh)
       const x = n.center.x - cam.x, y = n.center.y - cam.y, z = n.center.z - cam.z;
       s.morphX = par ? this.splitIn * par.edge : 1e15;
       // A chunk that has just taken over from its parent starts out looking exactly like
@@ -332,9 +336,10 @@ export class Terrain {
 
   _dispatch() {
     if (!this.wanted.length || !this.workers.idle) return;
-    // Map tiles on their way for the first time at this world: the fine ground waits for
-    // them a moment instead of being built from the coarse maps and then built again.
-    if (this.tiles.busy && this.now - this.worldAt < 5000) this.wanted = this.wanted.filter((n) => n.level <= 7);
+    // Map tiles on their way for a place that has none yet (the start, a jump, the end of a
+    // fast trip): the fine ground waits for them a moment instead of being built from the
+    // coarse maps and then built again.
+    if ((this.tiles.busy && this.now - this.worldAt < 5000) || this.tiles.catchingUp) this.wanted = this.wanted.filter((n) => n.level <= 7);
     if (!this.wanted.length) return;
     this.wanted.sort((a, b) => a.prio - b.prio);
     let k = 0;
@@ -453,6 +458,8 @@ export class Terrain {
     const off = (b) => { const d = box.lon - (b.lon0 + b.lon1) / 2; return Math.abs(d - 360 * Math.round(d / 360)); };
     const touches = (b) => !!b && off(b) <= (b.lon1 - b.lon0) / 2 + box.al && box.lat - box.a <= b.lat0 && box.lat + box.a >= b.lat1;
     const inside = (b) => !!b && off(b) <= (b.lon1 - b.lon0) / 2 - b.margin - box.al && box.lat + box.a <= b.lat0 - b.margin && box.lat - box.a >= b.lat1 + b.margin;
+    // (built before the oldest change still remembered: it has missed some, so it is stale)
+    if (this.regions.length && ser < this.regions[0].serial - 1) return true;
     for (const g of this.regions) {
       if (g.serial <= ser) continue;
       if (!touches(g.old) && !touches(g.now)) continue;
@@ -478,20 +485,31 @@ export class Terrain {
   }
 
   // Builds stale ground again, nearest first, when a worker has nothing newer to do.
+  // Only once the maps on their way have all arrived, and only the ground that is on screen
+  // (with the parents its shape leans on): a place's three rings arrive one after another,
+  // and building after each of them built the same ground three times over, and four times
+  // as many patches as were drawn (600 builds for 85 patches; on a phone every one that
+  // comes in is a frame that can be late, and they came in for a minute on end). Ground
+  // that is loaded but not on screen stays stale and is built again when it is drawn.
   _refresh() {
     this.staleData = 0;
     if (!this.ringSerial) return;
     const slots = this.pool.slots;
+    // (ten seconds at most: maps that keep coming, on a steady flight, must not keep old ground for ever)
+    if (!this.tiles.busyElevation) this._heldSince = this.now;
+    const hold = this.tiles.busyElevation && this.now - (this._heldSince || 0) < 10000;
+    let first = true;
     for (;;) {
       let best = null;
       for (let i = 0; i < slots.length; i++) {
         const n = slots[i].node;
-        if (!n || n.dead || n.refreshBusy || (n.serial || 0) >= this.ringSerial || n.lastVisit < this.frame - 2) continue;
+        if (!n || n.dead || n.refreshBusy || (n.serial || 0) >= this.ringSerial || !(n.drawnAt >= this.frame - 2)) continue;
         if (!this._stale(n)) { n.serial = this.ringSerial; continue; }
-        this.staleData++;
+        if (first) this.staleData++;
         if (!best || n.dist < best.dist) best = n;
       }
-      if (!best || !this.workers.idle) return;
+      first = false;
+      if (!best || hold || !this.workers.idle) return;
       const node = best, epoch = this.epoch, serial = this.ringSerial, sun = this._sun;
       // (it counts as up to date from now on: its new build is on the way, and asking again
       // while that waits to be uploaded built the same ground over and over)

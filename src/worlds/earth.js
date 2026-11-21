@@ -125,6 +125,12 @@ export default {
     start: { lat: 36.0617, lon: 247.8923, eye: 1.7, heading: 5, pitch: -8 },
     ship: { east: -40, north: -30, heading: 30 },
     exposure: { key: 0.18, min: 0.5, max: 2.0e5, speed: 1.6, shadowFloor: 0.2, highlight: 6 },
+    // The heaviest views, for the benchmark's cost test: the eye wall of the hurricane (deep
+    // cloud, rain, a storm sea) and the forest of the North Rim.
+    costViews: [
+      { name: 'in the hurricane', lat: 21.7, lon: 284.7, alt: 60, heading: 90, pitch: -6 },
+      { name: 'in the forest', lat: 36.2, lon: 247.94, heading: 180, pitch: -4 },
+    ],
     bookmarks: {
       ledge: { label: 'The Grand Canyon from Mather Point', heading: 5, pitch: -8, fov: 60 },
       sun: { label: 'The morning Sun over the rim', heading: 78, pitch: 18, fov: 40 },

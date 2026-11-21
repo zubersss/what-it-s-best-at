@@ -116,7 +116,7 @@ export class CloudLayer {
   update(cam, worldRadius) {
     const on = !!this.def && this.enabled && this.texture !== this.blank;
     this.mesh.visible = on;
-    this.shadow.x = on ? (this.def.shadow ?? 0.6) : 0;
+    this.shadow.x = on && this.shadows !== false ? (this.def.shadow ?? 0.6) : 0;
     if (!on) return 0;
     const r = cam.length(), shift = this.def.lon0 === -180 ? 0.5 : 0;
     this.mesh.position.set(-cam.x, -cam.y, -cam.z);

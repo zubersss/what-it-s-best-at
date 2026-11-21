@@ -63,7 +63,7 @@ export class Rain {
     const u = this.uniforms, fall = weather.rain + weather.snow, snow = fall > 0 ? weather.snow / fall : 0;
     const want = this.enabled && rig.agl < 3000 ? Math.min(1, fall / 6) : 0;
     this.amount += (want - this.amount) * 0.08;
-    const n = Math.round(COUNT * Math.sqrt(this.amount));
+    const n = Math.round(COUNT * Math.sqrt(this.amount) * (this.share ?? 1));          // (share: the governor's thinner rain)
     this.geo.setDrawRange(0, n * 2); this.mesh.visible = n > 0;
     const e = weather._e, nn = weather._n, up = weather._u, sp = weather.windSpeed, w = weather.wind;
     u.uRainEast.value.set(...e); u.uRainNorth.value.set(...nn); u.uRainUp.value.set(...up);

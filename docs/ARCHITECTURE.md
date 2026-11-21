@@ -349,12 +349,18 @@ ring: it is not asked for.
   every chunk worker: Mercator rasters over the bundled ones, finest last, each with a
   feathered edge 40 pixels wide. `topAt` counts a ring's tallest ground wherever the
   ring, widened by the shadow range, is.
-- **Ground built from older data is built again**, nearest first, when a worker has
-  nothing newer to do (`Terrain._refresh`): a ring's arrival is a region with a serial;
-  a patch is stale if it touches the old or new box and is not well inside both (the
-  same heights) or well inside a finer ring that was already there. The new build takes
-  the patch's place in the pool (`_uploadRefresh`). For the first five seconds at a
-  world, while the first mosaics are on their way, only coarse patches are built.
+- **Ground built from older data is built again** (`Terrain._refresh`): a ring's arrival
+  is a region with a serial; a patch is stale if it touches the old or new box and is
+  not well inside both (the same heights) or well inside a finer ring that was already
+  there (and if it was built before the oldest region still remembered). Three rules
+  keep this from flooding a phone: it waits until no elevation is on its way (ten
+  seconds at most), so a place's three rings cost one rebuild, not three; only patches
+  that are drawn, and their parents, are built again (the rest stay stale until they
+  are drawn); and the new builds go to the GPU in bursts, up to sixteen twice a second
+  (`_uploadRefresh`), because on a phone the cost of taking in ground is the frame's,
+  not the patch's. While elevation is on its way for a place that has none (the start, a
+  jump, the end of a fast trip: `TileRings.catchingUp`, five seconds at most), only
+  coarse patches are built.
 - **Picture rings** (the land's colour) become one texture with mip maps made in the
   worker; the ground shader reads it by longitude and `atanh(sin(latitude))` and lays it
   over the global colour map with a soft edge.
@@ -802,7 +808,26 @@ bookmarks. The soak is 600 s of laps. It drives the game through virtual keys, s
 exercises the same code as a player. Every rendered frame is recorded (frame time, render
 pixels, part of the lap). Frames over 100 ms are listed with their cause from
 `App.frameCause`. The results are plain text (`window.__benchResult`), shown on the
-results screen with a Copy button. `?bench=run|soak` starts one without a tap.
+results screen with a Copy button. `?bench=run|soak|earth` starts one without a tap.
+
+Two things in the results say *what* is slow, not only that something is:
+
+- **The page's own work by part** (`src/perf/profile.js`): `App.frame` is cut by marks
+  into twelve named parts (sky and weather, steering, terrain, rocks and trees,
+  character, air, shadow map, far view, ground, clouds, rain and figure, finishing); the
+  benchmark prints the largest at every stop, the full read-out shows them live.
+- **The cost test** (`CostTest`, after the lap; not in the soak): at the first world's
+  opening view and at each of its `scene.costViews`, the governor is held still at
+  2.07 MP with everything on, then each saving of `FEATURE_STEPS` is switched on alone
+  (not the two that draw fewer patches; "everything on" is measured again after every
+  three, and each saving is set against the measures on either side of it), then all of
+  them, then everything on at 1 MP and at native. Each frame is timed from its start until one pixel read back from the
+  canvas returns, which is when the GPU has drawn it: a time that is not rounded to
+  screen refreshes. Frames that took in ground and the first five after a change are
+  left out. Three lines a view: the four totals, and what each saving saves alone.
+
+`scripts/play-profile.mjs` does the first of these headless, in the real game at a place
+(`--at "lat,lon,alt"`, `--floor` for every saving on), with the patches built so far.
 
 ## Phone target (Samsung Galaxy S23 Ultra)
 

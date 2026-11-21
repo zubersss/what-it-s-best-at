@@ -171,6 +171,7 @@ npm run transfer       # GO trips flown without a browser: arrival, time against
 npm run target         # the target list, marker and a GO trip in the real game (headless)
 npm run worlds         # every world opens at its start with ground drawn and no errors (headless, about an hour; -- --only io,titan)
 npm run lakes          # Earth's lakes and rivers against the real ones, without a browser (15 s; -- --list, -- utah vermont)
+node scripts/play-profile.mjs [--world earth] [--at "21.7,284.7,40"] [--floor] [--seconds 120] [--shot out.png]   # the real game in play mode at a place: the page's work by part, the governor's level, patches built (--floor: every saving on)
 node scripts/check-ephemeris.mjs   # every orbit and spin against JPL Horizons (no network; fails beyond a tolerance)
 node scripts/peek.mjs --world io [--shot ledge | --lat .. --lon ..] [--pan 4]   # a CPU sketch of the view from a place, in seconds: for choosing sites and times
 python3 scripts/fetch-worlds.py [job ...]   # the maps of the worlds of milestone 6 (5 GB of originals into .cache/maps), see docs/ASSETS.md
@@ -480,5 +481,19 @@ finished benchmark leaves its text in `window.__benchResult`.
   may take "at or under zero" to mean the sea without asking whether the sea reaches it.
 - A layer made to add relief to a coarse map must stop where the map is fine (`belowDem`):
   the gully layer cut 100 m gullies into mountains that 27 m elevation already showed.
+- Count the work a change of data sets off before it reaches a phone: three map rings
+  arriving one after another had the same ground built up to five times, and all that was
+  loaded with it (600 builds for 85 patches on screen). Build again once, when what is on
+  its way has arrived, and only what is drawn. `node scripts/play-profile.mjs --at ...`
+  prints patches built and the page's work by part in the real game.
+- When every frame is of one kind (ground arriving in each), the governor has nothing to
+  compare and takes it for slow pixels: it went to the fewest pixels and every saving and
+  cured nothing. Work that comes in bursts leaves frames to compare.
+- The governor's last steps must leave the scene what it is: with the cloud layer and the
+  rain switched off, a hurricane was a calm blue sky. A step thins; it does not remove
+  what the place is about. Look at `--floor` pictures after adding steps.
+- A frame's length on a phone is a whole number of refreshes: it cannot say what a thing
+  costs. The benchmark's cost test times frames until the GPU has drawn them (one pixel
+  read back) with each saving on alone. Ask for a benchmark, read that table, then cut.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.
