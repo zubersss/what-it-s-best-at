@@ -6,7 +6,7 @@
 // Messages in:  { type: 'want', id, key, url, kind, zoom, tx, ty, n, ext }   (n x n tiles from column tx, row ty)
 // Messages out: { type: 'mosaic', id, key, kind, zoom, tx, ty, n, buffer, mips? } or { type: 'failed', id, key, reason }
 // A newer 'want' with the same key replaces an older one that has not finished.
-import { hydrology, packWater } from './hydrology.js';
+import { hydrology, packWater, seaBed, despike } from './hydrology.js';
 
 const TILE = 256;
 const cache = new Map();          // url -> Promise<{ data, at }> (decoded tiles, a few hundred at most)
@@ -80,35 +80,6 @@ function mipChain(top, w) {
   return mips;
 }
 
-// Elevation sets made from radar leave coastal water at exactly zero: no bed, so no
-// depth, and nothing to tell sea from a beach. Water pixels (zero or below) get a bed that
-// falls away from the land: 2.5 % for the first stretch, then more gently, as deep as the
-// set says where it knows better. Distance to land by a two-pass chamfer transform.
-function seaBed(h, W, metresPerPixel) {
-  const d = new Float32Array(W * W), far = 1e9;
-  let wet = 0;
-  for (let i = 0; i < W * W; i++) { if (h[i] <= 0) { d[i] = far; wet++; } }
-  if (!wet || wet === W * W) { if (wet) for (let i = 0; i < W * W; i++) if (h[i] === 0) h[i] = -30; return; }
-  const a = 1, b = 1.41421;
-  for (let y = 0; y < W; y++) for (let x = 0, o = y * W; x < W; x++, o++) {
-    let v = d[o]; if (v === 0) continue;
-    if (x > 0 && d[o - 1] + a < v) v = d[o - 1] + a;
-    if (y > 0) { if (d[o - W] + a < v) v = d[o - W] + a; if (x > 0 && d[o - W - 1] + b < v) v = d[o - W - 1] + b; if (x < W - 1 && d[o - W + 1] + b < v) v = d[o - W + 1] + b; }
-    d[o] = v;
-  }
-  for (let y = W - 1; y >= 0; y--) for (let x = W - 1, o = y * W + x; x >= 0; x--, o--) {
-    let v = d[o]; if (v === 0) continue;
-    if (x < W - 1 && d[o + 1] + a < v) v = d[o + 1] + a;
-    if (y < W - 1) { if (d[o + W] + a < v) v = d[o + W] + a; if (x < W - 1 && d[o + W + 1] + b < v) v = d[o + W + 1] + b; if (x > 0 && d[o + W - 1] + b < v) v = d[o + W - 1] + b; }
-    d[o] = v;
-  }
-  for (let i = 0; i < W * W; i++) {
-    if (d[i] === 0) continue;
-    const m = (d[i] - 0.5) * metresPerPixel, bed = -(m < 400 ? m * 0.025 : 10 + Math.sqrt(m - 400) * 0.9);
-    if (bed < h[i]) h[i] = Math.max(-32000, Math.round(bed < -1 ? bed : -1));
-  }
-}
-
 // How closed each land-cover class's canopy is (index: the class, 1..17 as IGBP numbers
 // them; 0: unknown) and how tall where no measurement says (m).
 export const COVER_DENSITY = [0, 1, 1, 1, 1, 1, 0.5, 0.12, 0.55, 0.22, 0.02, 0.25, 0.01, 0.03, 0.15, 0, 0, 0];
@@ -143,14 +114,28 @@ async function coverOf(m, W, out) {
 
 // Rivers and lakes of an elevation mosaic (hydrology.js). m.hydrology: { rain: url of the
 // yearly rainfall map (720 x 360 bytes, 3.2 * sqrt(mm), north first, from longitude -180),
+// water: url of a grey picture of the world's water as seen from space (white: water),
 // minFlow (m3/s: what is drawn as a river at this zoom) }. The coarser mosaic's result, if
 // one is there or on its way, says what the rivers bring in over the edge.
 const hydro = new Map();          // zoom -> { res, tx, ty } (the last result at that zoom) or a promise of one
-let rainMap = null;
+let rainMap = null, waterMap = null;
+// A whole-world grey picture as { data (one byte a pixel), W, H }, or null.
+async function greyMap(url) {
+  try {
+    const r = await fetch(url); if (!r.ok) return null;
+    const bmp = await createImageBitmap(await r.blob(), { colorSpaceConversion: 'none', premultiplyAlpha: 'none' }), W = bmp.width, H = bmp.height;
+    const c = new OffscreenCanvas(W, H), g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(bmp, 0, 0); bmp.close?.();
+    const rgba = g.getImageData(0, 0, W, H).data, data = new Uint8Array(W * H);
+    for (let i = 0; i < data.length; i++) data[i] = rgba[i * 4];
+    return { data, W, H };
+  } catch (e) { return null; }
+}
 async function waters(m, h, W, cell) {
   try {
     if (!rainMap) rainMap = fetch(m.hydrology.rain).then((r) => (r.ok ? r.arrayBuffer() : null)).then((b) => (b ? new Uint8Array(b) : null)).catch(() => null);
-    const rain = await rainMap, n = 2 ** m.zoom;
+    if (!waterMap) waterMap = m.hydrology.water ? greyMap(m.hydrology.water) : Promise.resolve(null);
+    const rain = await rainMap, seen = await waterMap, n = 2 ** m.zoom;
     const rainAt = (x, y) => {
       if (!rain) return 600;
       const lon = (m.tx + x / TILE) / n * 360, lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * (m.ty + y / TILE) / n))) * 57.29577951;
@@ -164,6 +149,12 @@ async function waters(m, h, W, cell) {
     const s = coarse ? 2 ** (coarse.zoom - m.zoom) : 1;
     const res = hydrology(h, W, cell, rainAt, {
       minFlow: m.hydrology.minFlow,
+      lat: (y) => Math.atan(Math.sinh(Math.PI * (1 - 2 * (m.ty + y / TILE) / n))) * 57.29577951,
+      // (the water map: the whole world, north first, from longitude -180)
+      water: seen ? (x, y) => {
+        const lon = (m.tx + x / TILE) / n, lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * (m.ty + y / TILE) / n))) * 57.29577951;
+        return seen.data[Math.min(seen.H - 1, Math.max(0, Math.floor((90 - lat) / 180 * seen.H))) * seen.W + ((Math.floor(lon * seen.W) % seen.W) + seen.W) % seen.W];
+      } : null,
       coarse: coarse ? { q: coarse.res.q, down: coarse.res.down, W: coarse.res.W, s, ox: m.tx * TILE * s - coarse.tx * TILE, oy: m.ty * TILE * s - coarse.ty * TILE } : null,
     });
     const packed = packWater(res, h);
@@ -205,6 +196,7 @@ self.onmessage = async (ev) => {
         }
       }
       const cell = 40075016 / (TILE * rows) * Math.cos(Math.atan(Math.sinh(Math.PI * (1 - 2 * (ty + n / 2) / rows))));
+      despike(out, W, cell);
       seaBed(out, W, cell);
       const water = m.hydrology ? await waters(m, out, W, cell) : null;
       settle?.(water ? hydro.get(zoom + 0.5) : null);

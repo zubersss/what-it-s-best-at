@@ -69,17 +69,20 @@ export const OPS = {
   },
 
   // Ridged multifractal (sharp crests, V gullies), masked to slopes: spur-and-gully walls.
-  // `amp` is the total relief in metres.
+  // `amp` is the total relief in metres. `belowDem`: as for fbm, wavelengths the raster
+  // under the point shows itself fade out (a map with 27 m pixels has its own gullies:
+  // 100 m ones cut into it were ours, not the mountain's).
   ridged(def) {
     const oct = octaves(def);
     let norm = 0;
     for (const o of oct) norm += o.a;
-    const amp = def.amp / norm, sm = def.slopeMask, warp = def.warp || 0;
+    const amp = def.amp / norm, sm = def.slopeMask, warp = def.warp || 0, below = def.belowDem || 0;
     const wf = 1 / (def.maxWavelength * 2.3), wamp = warp * def.maxWavelength;
     const s = def.seed;
     return (c) => {
       const mask = sm ? smoothstep(sm[0], sm[1], c.slope) : 1;
       if (mask <= 0 || oct[0].wl <= c.minWL) return;
+      const cut = below ? below * c.res : Infinity;
       let x = c.px, y = c.py, z = c.pz;
       if (warp) {
         const wx = c.px * wf, wy = c.py * wf, wz = c.pz * wf;
@@ -91,7 +94,8 @@ export const OPS = {
       for (let k = 0; k < oct.length; k++) {
         const o = oct[k];
         if (o.wl <= c.minWL) break;
-        const w = lodWeight(o.wl, c.minWL);
+        let w = lodWeight(o.wl, c.minWL);
+        if (o.wl > cut) { const q = cut / o.wl; w *= q * q; if (w < 0.004) continue; }
         let r = 1 - Math.abs(noise3(x * o.f + o.ox, y * o.f + o.oy, z * o.f + o.oz));
         r *= r;
         const v = r * weight;
@@ -436,25 +440,36 @@ export const OPS = {
         const up = map - level;
         // (as deep as the map says from the very edge: a floor on the depth was a step in what
         // a walker stands on; water with no bed in the map at all still gets a hand's depth)
-        if (up <= 0) { c.water = up < -0.02 ? -up : up === 0 ? 0.5 : 0.02; c.h = level; c.slope = 0; return; }
+        // (not inside a lake: a deep lake's bed can lie under the sea's level, its water does not)
         const dem = c.dem;
-        // a lake: its bed is in the map, its level comes with the ring
-        if (dem.lakeL > map) { c.water = dem.lakeL - map; c.h = dem.lakeL; c.slope = 0; return; }
-        if (dem.lakeL > -1e8) {
-          // its shore: the layers before this one fade out toward the water's edge, as at the sea's
-          const upL = map - dem.lakeL;
-          if (upL < 6) { const t = upL / 6, k = t * t * (3 - 2 * t), hh = dem.lakeL + upL + (c.h - map) * k; c.h = hh > dem.lakeL + upL * 0.25 ? hh : dem.lakeL + upL * 0.25; c.slope *= k; }
-          return;
+        if (up <= 0 && !(dem.lakeS >= 1)) { c.water = up < -0.02 ? -up : up === 0 ? 0.5 : 0.02; c.h = level; c.slope = 0; return; }
+        // a lake (its bed is in the map, its level comes with the ring) and its shore, on which
+        // the layers before this one fade out toward the water's edge, as at the sea's.
+        // lakeS: 1 in the lake and on its shore, easing to 0 half a pixel past the last cell
+        // that knows the level; water and fading both go by it, so neither ends at a pixel's edge.
+        let tapL = 0, tapS = 0;
+        if (dem.lakeS > 0) {
+          const L = dem.lakeL, s = dem.lakeS, upL = map - L;
+          const t = upL <= 0 ? 0 : upL < 6 ? upL / 6 : 1, k = t * t * (3 - 2 * t), kf = 1 - (1 - k) * s;
+          let g = map + (c.h - map) * kf;
+          // (never under the map below the level, nor less than a quarter of the way up above it)
+          const low = upL > 0 ? L + upL * 0.25 : map; if (g < low) g += (low - g) * s;
+          if (s >= 1 && L > g) { c.water = L - g; c.h = L; c.slope = 0; return; }
+          c.h = g; c.slope *= kf;
+          if (s < 1) { tapL = L; tapS = s; }
         }
         // a river: water between its banks, a bed rounded across it, and the land beside it
-        // brought down to the water's edge
+        // brought to the water's edge (down to it, or up to it where the ground is lower: a
+        // bank that rises to the water, not a wall at either edge of it)
+        let bank = false;
         if (dem.rivS < 1e8) {
-          const a = dem.rivA, s = dem.rivS, L = dem.rivL, bank = 4 + a * 1.2;
+          const a = dem.rivA, s = dem.rivS, L = dem.rivL, wide = 4 + a * 1.2;
           if (s < a) { const u = s / a; c.water = 0.02 + dem.rivD * (1 - u * u); c.h = L; c.slope = 0; return; }
-          // (the bank comes down to the water; ground already lower is left alone: raised to
-          // the river's level it ended in a wall along the bank's far edge)
-          if (s < a + bank) { const u = (s - a) / bank, k = u * u * (3 - 2 * u); if (c.h > L + 0.05) c.h = L + 0.05 + (c.h - L - 0.05) * k; c.slope *= k; return; }
+          if (s < a + wide) { const u = (s - a) / wide, k = u * u * (3 - 2 * u); c.h = L + 0.05 + (c.h - L - 0.05) * k; c.slope *= k; bank = true; }
         }
+        // (past the last cell that knows a lake's level its water thins to nothing)
+        if (tapS > 0) { const depth = (tapL - c.h) * tapS; if (depth > 0) { c.water = depth; c.h += depth; c.slope = 0; return; } }
+        if (bank) return;
         if (up < 6) {
           const t = up / 6, k = t * t * (3 - 2 * t), h = level + up + (c.h - map) * k;
           c.h = h > level + up * 0.25 ? h : level + up * 0.25; c.slope *= k;

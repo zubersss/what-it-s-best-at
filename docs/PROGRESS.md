@@ -372,6 +372,37 @@ findings, all taken as real and fixed:
   remembered; pictures were not still on a world with weather; the walker dropped half a
   metre at every waterline.
 
+The second reviewer of "tiles and water" found three of those fixes had moved the fault
+rather than cured it, and following them up found two larger ones. What was done after:
+
+- **Lake shores and river banks** (the reviewer's patch, checked in Node on 11.7 million
+  sample pairs): a lake's level is read from the four cells round a place and eases out
+  over half a cell (`DemSet.lakeS`), a lake has one level, the layers' fade toward a
+  lake is continuous in place as well as in height, and a river's bank is blended whichever
+  way the ground lies. A finer mosaic worked out before the coarser one's rivers were
+  known is asked for again, once (`TileRings`).
+- **Lakes were being made by the flood, and the real ones were not drawn.** The test that
+  kept level stretches (`lower < 0.12 * rim`) could not pass: the rim was counted among
+  cells that are level by definition, so every real lake was dropped (0 < 0), and the only
+  "lakes" were filled pits: a sea of 71 000 km2 over Nevada, 66 000 km2 over Utah, the
+  Snake River Plain, a lake on the Little Colorado. Measured on fourteen lakes at three
+  zooms: every real lake is a level stretch in this elevation set, none has a bed in it.
+  The rule is now the one in ARCHITECTURE ("Rivers and lakes"): level stretches in a
+  hollow that can be kept full, the large ones checked against NASA's water map; pits
+  only as ponds. Checked against the real sizes: Great Salt Lake 3 600 km2 (4 400 real),
+  Champlain 1 261 (1 269), Tahoe 540 (490), Pyramid 515 (487), Superior 69 600 (82 100),
+  Victoria 54 400 (68 800), Tanganyika 24 100 (32 900); the Tisza's plain, Tulare's dry
+  bed and Carson Sink are land.
+- **Rivers cut, they do not fill**: a river's level follows the ground down, so it runs
+  through the far side of a pit instead of standing on the filled level.
+- **A lake's bed can lie under sea level** (Champlain's was dug to -32 m and drawn as a
+  pit of sea in the lake); and holes in the elevation (a cell in Lake Winnipesaukee reads
+  68 m under the sea) are filled.
+- **The gully layer cut 100 m gullies into real mountainsides**: made for the coarse
+  bundled map, it ran at full strength over the 27 m elevation too. It now adds only
+  what the map under the place cannot show (`belowDem` on `ridged`), as the roughness
+  layer already did. Mountains near the traveller are the real ones.
+
 ## Milestone 6 plan: the new worlds
 
 The owner's word: "finish up the rest of the milestones". No stop after every two worlds;

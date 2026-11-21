@@ -38,9 +38,11 @@ export default {
         // (minFlow: what is drawn as a river from each ring, m3/s: the great rivers from far,
         // every brook from near)
         rings: [{ zoom: 6, below: 6.0e6, minFlow: 1500 }, { zoom: 9, below: 5.0e5, minFlow: 60 }, { zoom: 12, below: 4.0e4, minFlow: 0.5 }] },
-      // Rivers and lakes: worked out from the elevation where it arrives (tiles/hydrology.js),
-      // fed by the rain that really falls (NASA MERRA-2, scripts/fetch-earth-climate.py).
-      hydrology: { rain: 'data/earth_rain_720.u8' },
+      // Rivers and lakes: read from the elevation where it arrives (tiles/hydrology.js): the
+      // rivers fed by the rain that really falls (NASA MERRA-2, scripts/fetch-earth-climate.py),
+      // the lakes where the elevation lies level, the large ones checked against the water
+      // seen from space (the map the globe's glint uses).
+      hydrology: { rain: 'data/earth_rain_720.u8', water: 'data/earth_water_2048.jpg' },
       pictures: { colour: { url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg', zoom: 8, below: 2.0e6,
         // What grows there: the land-cover class of every 500 m (MODIS, the IGBP legend) and
         // how tall its canopy stands (GEDI's laser from the space station), both from NASA
@@ -54,7 +56,9 @@ export default {
       // What the maps cannot resolve: relief that grows on slopes (water-cut ground).
       { op: 'fbm', seed: 3, maxWavelength: 60000, minWavelength: 0.8, roughness: 0.82, amp: 26, belowDem: 2.2, slopeGain: [0.04, 0.4, 0.15, 1.0], hetero: 0.5 },
       // Gullies and spurs on the mountain sides and canyon walls.
-      { op: 'ridged', seed: 5, maxWavelength: 1400, minWavelength: 20, roughness: 0.9, amp: 260, slopeMask: [0.12, 0.4], warp: 0.3 },
+      // (only what the map under the place cannot show: full under the bundled map from far
+      // off, a few metres over the 27 m elevation near the traveller)
+      { op: 'ridged', seed: 5, maxWavelength: 1400, minWavelength: 20, roughness: 0.9, amp: 260, slopeMask: [0.12, 0.4], warp: 0.3, belowDem: 4 },
       // Layered rock: beds stand as cliffs and benches wherever the ground is steep.
       // (on the Colorado Plateau, where the beds lie flat for hundreds of kilometres; elsewhere
       // they would draw contour lines on every mountain)

@@ -36,7 +36,7 @@ export class TileRings {
     const base = typeof document !== 'undefined' ? document.baseURI : '';
     (t.elevation?.rings || []).forEach((r, slot) => this.rings.push({ key: 'elevation' + slot, kind: 'elevation', slot, url: t.elevation.url, zoom: r.zoom, below: r.below ?? 1e12,
       // (rivers and lakes worked out from the elevation, if the world asks for them)
-      hydrology: t.hydrology ? { rain: new URL(t.hydrology.rain, base).href, minFlow: r.minFlow ?? 1 } : null }));
+      hydrology: t.hydrology ? { rain: new URL(t.hydrology.rain, base).href, water: t.hydrology.water ? new URL(t.hydrology.water, base).href : null, minFlow: r.minFlow ?? 1 } : null }));
     for (const [name, p] of Object.entries(t.pictures || {})) this.rings.push({ key: 'picture:' + name, kind: 'picture', name, url: p.url, zoom: p.zoom, below: p.below ?? 1e12,
       cover: p.cover ? { ...p.cover, palette: new URL(p.cover.palette, base).href } : null });
     for (const r of this.rings) { r.tx = null; r.ty = null; r.have = false; r.id = 0; r.retryAt = 0; r.fails = 0; }
@@ -91,6 +91,15 @@ export class TileRings {
     const W = m.n * TILE;
     if (r.kind === 'elevation') {
       const w = m.water; r.info = w ? w.info : null;
+      if (r.hydrology) {
+        // Rivers come into a mosaic where the coarser one says they cross its edge. One worked
+        // out before the coarser was ready (it waits 8 s, then goes without) is asked for again,
+        // once: finer ones when this arrives with water, this one if a coarser has come since.
+        const inflow = !!(w && w.info.inflow), el = (q) => q.kind === 'elevation' && q.have && q.info;
+        if (w) for (const f of this.rings) if (el(f) && f.zoom > r.zoom && !f.id && !f.info.inflow && !f.redone) { f.redone = true; f.tx = null; }
+        if (inflow) r.redone = false;
+        else if (w && !r.redone && this.rings.some((q) => q !== r && el(q) && q.zoom < r.zoom)) { r.redone = true; r.tx = null; }
+      }
       this._give(r, { data: new Int16Array(m.buffer), width: W, height: W, zoom: m.zoom, tx: m.tx, ty: m.ty,
         water: w ? { segs: new Float32Array(w.segs), gridStart: new Int32Array(w.gridStart), gridItems: new Int32Array(w.gridItems), lake: w.lake ? new Uint16Array(w.lake) : null } : null });
     }

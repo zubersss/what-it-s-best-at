@@ -467,5 +467,13 @@ finished benchmark leaves its text in `window.__benchResult`.
 - Waiting on `ps | grep shots.mjs` inside a command that goes on to run `shots.mjs` waits
   for ever: the pattern is in the waiting command's own line. (The lesson about `pgrep -f`
   above, met again.)
+- A lake is in the elevation as a stretch of exactly level cells; a pit that only the
+  flood fills is a valley whose gorge is narrower than a cell (filled, Nevada was a sea).
+  And a test must be seen to pass on the real thing: the one that kept level stretches
+  could not (its rim was counted among cells level by definition), so no real lake was
+  drawn for a whole stage. After changing the lake or river rules, list the lakes of a
+  few known regions against their real sizes before any picture.
+- A layer made to add relief to a coarse map must stop where the map is fine (`belowDem`):
+  the gully layer cut 100 m gullies into mountains that 27 m elevation already showed.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

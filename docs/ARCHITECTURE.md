@@ -391,9 +391,20 @@ ring: it is not asked for.
   land; each cell sheds its rain less what the air takes back (`runoff`, from the bundled
   yearly rainfall map), added up downstream into a mean flow. A river that crosses into
   the mosaic (a coarse cell outside draining to one inside) puts its flow in at the lowest
-  ground near the crossing. Rivers are traced as smoothed lines with a level that never
-  rises, a width and a depth from the flow (`riverWidth`, `riverDepth`); lakes are pits
-  that fill where enough rain falls, and stretches of exactly level cells in the data.
+  ground near the crossing. Rivers are traced as smoothed lines with a width and a depth from the flow
+  (`riverWidth`, `riverDepth`) and a level that never rises: the ground's own along the
+  way, so a river cuts through a pit the flood filled and never stands above the land.
+  **Lakes are read from the elevation, not made by the flood**: every real lake lies in
+  the elevation set as a stretch of exactly level cells (checked on fourteen lakes at
+  three zooms), while a pit only the flood fills is nearly always a valley whose gorge is
+  narrower than a cell. A level stretch is a lake if it has enough middle (cells with all
+  eight neighbours level), lies in a hollow (few of the cells three out from its rim are
+  lower), does not touch the sea, and can be kept full: the flow that reaches it against
+  what open water loses to the air (`evaporation`), which leaves dry lake beds dry. Large
+  ones are settled by the bundled water map (`tiles.hydrology.water`, the globe's glint
+  map): seen as open water is a lake whatever its rim, a plain as level as a lake is land.
+  A filled pit counts only on the finest ring, shallow and in wet country (a pond).
+  Holes in the elevation (a few cells under sea level deep inland) are filled first.
   `packWater` turns them into arrays for the height code: stretches of river with a grid
   to find them, a raster of lake levels, lake beds cut into the mosaic.
   `DemSet._water` answers from the finest ring at a place; the `sea` layer makes the
