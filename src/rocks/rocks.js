@@ -116,7 +116,10 @@ export class Rocks {
           float top = smoothstep(0.45, 0.95, dot(N, up));
           vec3 albedo = mix(uRockAlbedo * vMisc.y, uDustAlbedo, top * uDustCap) * uGroundTint;   // (the map's range is already in uGroundTint: Terrain.tintAt)       // dust settles on top; local rock is the local colour
           float contact = mix(0.55, 1.0, smoothstep(-0.35, 0.25, vLocal.z));        // darker where it meets the ground
-          vec3 direct = directSun(planetPos) * vMisc.x * nearShadow(vRel, N) * groundDiffuse(N, uSunDir, V, uRoughness);
+          float diffuse = groundDiffuse(N, uSunDir, V, uRoughness);
+          // (the painted look: a rock is its faces, each either lit or in shade)
+          if (uPaint.x > 0.0) { N = normalize(mix(N, F, 0.6 * uPaint.x)); diffuse = mix(diffuse, paintLit(dot(N, uSunDir)), uPaint.x); albedo = paintColour(albedo); }
+          vec3 direct = directSun(planetPos) * vMisc.x * nearShadow(vRel, N) * diffuse;
           vec3 col = albedo * (direct + (skyLight(N, up) * contact + planetShine(N)) / PI);
           col = aerialPerspective(col, vRel);
           fragColor = vec4(col * uExposure, 1.0);

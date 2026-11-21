@@ -470,6 +470,10 @@ void main() {
   // vertical; real Mars is about half). Far ground blends to the world's farRoughness.
   float sigma = mix(uRoughness, uFarRoughness, farW);
   float diffuse = groundDiffuse(N, uSunDir, V, sigma);
+  // (the painted look: two tones of light, cleaner colours; not from far off, where the
+  // globe keeps its round shading)
+  float paint = uPaint.x * (1.0 - farW);
+  if (paint > 0.0) { diffuse = mix(diffuse, paintLit(dot(N, uSunDir)), paint); albedo = mix(albedo, paintColour(albedo), 1.0 - water); }
   vec3 direct = directSun(planetPos) * shadow * diffuse;
   vec3 ambient = (skyLight(N, up) * ao + planetShine(N)) * contactSky(vRel, N) / PI;
   if (canopyShade > 0.0) ambient = mix(ambient, dot(ambient, vec3(0.3, 0.55, 0.15)) * mix(vec3(0.85, 1.1, 0.5), vec3(1.25, 0.95, 0.45), uLitter), 0.85 * canopyShade);

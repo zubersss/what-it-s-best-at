@@ -65,17 +65,25 @@ export class Trees {
       glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: this.shared, side: THREE.DoubleSide,
       vertexShader: /* glsl */`${TREE_VERT}
         in vec3 iC; in vec3 iD;
-        out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out float vLeaf; out float vY; out vec2 vOwn;
+        out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out float vLeaf; out float vY; out vec2 vOwn; out vec3 vTreeM;
         void main() {
           vec3 foot; float leaf;
           vec3 rel = treePosition(foot, leaf);
+          vTreeM = vec3(position.x * iB.x, position.y, position.z * iB.x) * iA.w + iB.z * 37.0;        // metres in the tree's own frame (for the pattern of its leaves)
           vRel = rel; vN = treeNormal(); vLeaf = leaf; vY = position.y; vLeafC = iC; vTrunkC = iD; vOwn = vec2(iB.z, iB.w);
           gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
         }`,
       fragmentShader: /* glsl */`${LIGHTING_PARS}
         uniform vec3 uSeason;
-        in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in float vLeaf; in float vY; in vec2 vOwn;
+        in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in float vLeaf; in float vY; in vec2 vOwn; in vec3 vTreeM;
         layout(location = 0) out vec4 fragColor;
+        float leafHash(vec3 p) { p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+        // bunches of leaves: cells about 40 cm across, each a tone of its own
+        float leafCells(vec3 x) {
+          vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(mix(leafHash(i), leafHash(i + vec3(1, 0, 0)), f.x), mix(leafHash(i + vec3(0, 1, 0)), leafHash(i + vec3(1, 1, 0)), f.x), f.y),
+                     mix(mix(leafHash(i + vec3(0, 0, 1)), leafHash(i + vec3(1, 0, 1)), f.x), mix(leafHash(i + vec3(0, 1, 1)), leafHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+        }
         void main() {
           vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel);
           vec3 N = normalize(vN);
@@ -85,16 +93,29 @@ export class Trees {
           vec3 autumn = vOwn.y > 1.5 ? vec3(0.42, 0.26, 0.03) : mix(vec3(0.40, 0.20, 0.03), vec3(0.30, 0.045, 0.02), smoothstep(0.35, 0.8, fract(vOwn.x * 7.3)));
           // (a crown is leaves and the gaps between them: as a surface it is darker than a leaf)
           vec3 leafC = mix(vLeafC * (0.5 + 0.22 * fract(vOwn.x * 13.7)), autumn * 0.6, turn);
+          // (the painted look: a crown's faces that look up are its light tone, those that look
+          // down its dark one; a pale trunk has its dark scars, as aspen and birch do)
+          if (uPaint.x > 0.0 && vLeaf > 0.5) {
+            leafC = mix(leafC, dot(leafC, vec3(0.2, 0.7, 0.1)) * vec3(0.62, 1.0, 0.36), 0.45) * mix(0.5, 1.15, smoothstep(-0.45, 0.55, dot(N, up)));
+            // (a crown is bunches of leaves, drawn as patches of three tones with clean edges;
+            // not from far off, where a patch is smaller than a pixel)
+            float c = leafCells(vTreeM * 2.6) * 0.65 + leafCells(vTreeM * 6.1 + 3.3) * 0.35, near = 1.0 - smoothstep(60.0, 140.0, length(vRel));
+            leafC *= mix(1.0, 0.72 + 0.3 * smoothstep(0.40, 0.44, c) + 0.26 * smoothstep(0.58, 0.62, c), near);
+          }
           vec3 albedo = mix(vTrunkC * 0.6, leafC, step(0.5, vLeaf));
+          if (uPaint.x > 0.0 && vLeaf < 0.5 && dot(vTrunkC, vec3(0.333)) > 0.4) albedo *= 1.0 - 0.75 * step(0.8, fract(vY * 31.0 + vOwn.x * 9.0)) * step(0.35, fract(vY * 7.7 + vOwn.x * 3.0));
           // (the shadow is asked for a little outside the crown: on a mass of a few faces the
           // shadow map would draw the faces)
           float shadow = nearShadow(vRel + N * (vLeaf > 0.5 ? 0.45 : 0.05), N);
           vec3 sun = directSun(planetPos) * shadow;
           // a crown is not a wall: light wraps round it, and some comes through from behind
           float nl = dot(N, uSunDir), lit = vLeaf > 0.5 ? max(nl * 0.7 + 0.3, 0.0) : max(nl, 0.0);
+          if (uPaint.x > 0.0) { lit = mix(lit, paintLit(vLeaf > 0.5 ? nl * 0.75 + 0.25 : nl) * PI, uPaint.x); albedo = paintColour(albedo); leafC = paintColour(leafC); }
           float through = vLeaf > 0.5 ? max(-nl, 0.0) * 0.28 : 0.0;
           // inside and under a crown less sky is seen
           float open = vLeaf > 0.5 ? mix(0.35, 1.0, smoothstep(-0.6, 0.8, dot(N, up))) : mix(0.22, 0.6, smoothstep(0.0, 0.5, vY));
+          // (the painted look: the shaded side of a crown is its dark tone, not a bright one lit by the sky)
+          if (uPaint.x > 0.0 && vLeaf > 0.5) open *= 0.62;
           vec3 col = (albedo * (sun * lit + skyLight(N, up) * open + planetShine(N)) + leafC * sun * through * vec3(1.1, 1.25, 0.6)) / PI;
           col = aerialPerspective(col, vRel);
           fragColor = vec4(col * uExposure, 1.0);

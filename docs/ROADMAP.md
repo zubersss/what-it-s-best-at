@@ -21,7 +21,8 @@ owner's reply or phone results), `done`.
 | 7 | Getting around | done |
 | 8 | Things to do | done |
 | 9 | Earth's surface | done |
-| 10 | A living Earth (owner, with the fourth phone results): the whole planet in real detail, seas, lakes and rivers, real forests, clouds to fly through, weather | checkpoint sent |
+| 10 | A living Earth (owner, with the fourth phone results): the whole planet in real detail, seas, lakes and rivers, real forests, clouds to fly through, weather | done |
+| 11 | The painted look (owner: a new art direction for the whole game, Earth and its forests first) | first delivery sent (Earth, forests); the other worlds to follow |
 
 ## 1. Phone link and measurement
 
@@ -174,3 +175,18 @@ AWS Terrain Tiles and NASA GIBS; the sea, lakes and rivers; forests of each regi
 trees with wind, seasons and falling leaves; clouds with depth; the real weather of
 8 September 2017 with its three Atlantic hurricanes, rain, snow, lightning, thunder and
 a rainbow. Reviewed (30 findings fixed). Nothing of it is measured on the phone yet.
+
+## 11. The painted look
+
+The owner, with nine reference pictures of a stylised landscape game: "change the
+direction and everything you need to change ... idc if its a 180% change ... let's start
+with earth though and the forests". This replaces "mission-camera realism" as the look
+the game aims at (`CLAUDE.md`, "Choices in force"). The plan and the principles are in
+`docs/PROGRESS.md`, "Milestone 11 plan". The places, their shapes, the sky's geometry and
+the data stay real; how they are drawn changes.
+
+1. Earth: light in two tones with coloured shade, clean colours, the far ground lost in
+   the air layer by layer, a grade for each time of day.
+2. The forest: tree shapes that are known by their outline, grass, cut rocks.
+3. Sky, clouds and water in the same hand; then the other worlds, one by one.
+

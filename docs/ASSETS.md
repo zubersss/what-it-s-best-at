@@ -143,3 +143,12 @@ Code-level attributions (not assets): the AgX tone-map fit follows the publicly
 documented AgX matrices (Troy Sobotka) in the minimal form popularised by Benjamin
 Wrensch (MIT); the atmosphere follows Sébastien Hillaire, "A Scalable and Production
 Ready Sky and Atmosphere Rendering Technique" (EGSR 2020) — implemented from the paper.
+
+## The painted look (milestone 11)
+
+No asset was added for it. The tree shapes, the grass, the leaf patterns and the grades
+are made in code for this game. The owner's reference pictures (screenshots of a
+published game) are a direction, not an asset: they are not in the repository, nothing
+is traced or sampled from them, and no texture, model, palette file or interface element
+of that game is used.
+

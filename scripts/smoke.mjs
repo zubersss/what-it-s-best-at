@@ -25,9 +25,13 @@ check('build shown on the start screen', /build \w+/.test(await page.textContent
 await page.waitForTimeout(8000);
 await snap(path.join(out, 'start_screen.png'));
 const before = await page.evaluate(() => window.__app.governor.mode);
-await page.click('#start button.mode');
+// (noWaitAfter: a click otherwise waits for the page to come to rest, which at a frame
+// every two seconds in a software renderer can take more than its 30 s)
+await page.click('#start button.mode', { noWaitAfter: true });
+await page.waitForFunction((b) => window.__app.governor.mode !== b, before, { timeout: 60000 }).catch(() => {});
 check('mode button switches Smooth <-> Sharp', (await page.evaluate(() => window.__app.governor.mode)) !== before);
-await page.click('#start button.mode');
+await page.click('#start button.mode', { noWaitAfter: true });
+await page.waitForFunction((b) => window.__app.governor.mode === b, before, { timeout: 60000 }).catch(() => {});
 await page.waitForSelector('#start button.primary:not([disabled])', { timeout: 300000 });   // (Play unlocks once the ground under the start is drawn)
 await page.click('#start button.primary', { noWaitAfter: true });
 check('Play hides the start screen', !(await page.isVisible('#start')));
@@ -66,10 +70,10 @@ if (!flag('no-bench')) {
   check('results have every line the owner asked for', ['average fps', '1% low', 'worst frame', 'render resolution', 'quality steps', 'hitches over 100 ms', 'GPU:', 'pixel ratio', 'mode', 'build'].every((k) => text.includes(k)));
   await snap(path.join(out, 'results_screen.png'));
   console.log('\n' + text + '\n');
-  await page.click('#results button.primary');
+  await page.click('#results button.primary', { noWaitAfter: true });
   await page.waitForTimeout(500);
   console.log('copy button says:', await page.textContent('#results button.primary'));
-  await page.click('#results .row button:not(.primary)');
+  await page.click('#results .row button:not(.primary)', { noWaitAfter: true });
   check('closing the results returns to the start screen', await page.isVisible('#start'));
 }
 // Every shader linked so far (after the benchmark: both worlds, the flight, the sky)

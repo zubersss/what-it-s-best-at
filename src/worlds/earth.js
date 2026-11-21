@@ -86,9 +86,9 @@ export default {
     slopes: { dustMax: 0.36, screeMin: 0.55, screeMax: 0.8, rockMin: 1.0 },
     sandBelow: -20000, sandFade: 1500,
     ripples: { wavelength: 1, strength: 0 },
-    detailStrength: 0.6,
+    detailStrength: 0.25,
     sea: { level: 0, color: [0.008, 0.030, 0.070], roughness: 0.10, ripples: 0.07 },
-    rocks: { count: 300, radius: 110, size: [0.2, 1.6], albedo: [0.2, 0.18, 0.16] },
+    rocks: { count: 300, radius: 110, size: [0.3, 2.6], albedo: [0.22, 0.19, 0.165] },
   },
 
   atmosphere: {
@@ -96,10 +96,25 @@ export default {
     surfaceDensity: 1.225,
     occluderAltitude: 0,
     rayleigh: { scattering: [5.8e-6, 13.5e-6, 33.1e-6], scaleHeight: 8000 },
-    // haze: a clear day (visibility over 100 km)
-    dust: { scattering: [3.0e-6, 3.0e-6, 3.0e-6], absorption: [0.3e-6, 0.3e-6, 0.3e-6], phaseG: [0.76, 0.76, 0.76], scaleHeight: 1200 },
+    // haze: the low air of the painted look, blue and thick: a ridge five kilometres off
+    // is a flat shape a shade nearer the sky's colour, the next one nearer still. (It
+    // scatters blue most, as clean air does, so the far ground goes blue by day and the
+    // Sun low through it goes red. A clear day's real haze was a tenth of this, and grey.)
+    dust: { scattering: [0.5e-4, 1.0e-4, 1.8e-4], absorption: [0.1e-6, 0.1e-6, 0.1e-6], phaseG: [0.6, 0.55, 0.5], scaleHeight: 2200 },
     // ozone: takes orange light out of long light paths (the blue of dusk)
     absorber: { absorption: [0.65e-6, 1.88e-6, 0.085e-6], centerAltitude: 25000, halfWidth: 15000 },
+  },
+
+  // The painted look (render/look.js): light in two tones, shade lit by the sky's colour,
+  // clean colours, and a grade for each time of day.
+  look: {
+    paint: 1, shade: 1.35, colour: 0.7, facets: 0.6, shafts: 1,
+    grade: {
+      day: { sat: 1.18, contrast: 1.06, tint: 1, shade: [0.84, 1.02, 1.04], light: [1.05, 1.0, 0.93] },
+      low: { sat: 1.3, contrast: 1.08, tint: 1, shade: [0.95, 0.86, 1.02], light: [1.12, 0.98, 0.8] },
+      dusk: { sat: 1.35, contrast: 1.1, tint: 1, shade: [1.02, 0.74, 0.84], light: [1.16, 0.9, 0.72] },
+      night: { sat: 1.1, contrast: 1.05, tint: 1, shade: [0.72, 0.88, 1.18], light: [0.9, 1.0, 1.14] },
+    },
   },
 
   // The weather of one real day (scripts/fetch-earth-weather.py): 8 September 2017, with
@@ -108,7 +123,8 @@ export default {
 
   // Trees: where the land-cover map says forest, woodland or savanna, of the species the
   // region really grows (life/cover.js), as tall as the canopy was measured.
-  life: { trees: { radius: 240, spacing: 7, below: 1500 } },
+  // Grass: tufts of blades round the traveller where the land-cover map has grass (life/grass.js).
+  life: { trees: { radius: 240, spacing: 7, below: 1500 }, grass: { below: 90 } },
 
   // Clouds of one real day (the globe's own cloud map) as a layer overhead (see sky/clouds.js).
   // Near the traveller the layer is a volume to fly through: its base at 1 400 m, its
@@ -122,8 +138,8 @@ export default {
     dateUTC: '2024-06-21T14:30:00Z',   // the June solstice, an hour and a half after sunrise at the canyon
     // Mather Point on the South Rim of the Grand Canyon: a mile down to the Colorado River
     // and sixteen kilometres across to the North Rim.
-    start: { lat: 36.0617, lon: 247.8923, eye: 1.7, heading: 5, pitch: -8 },
-    ship: { east: -40, north: -30, heading: 30 },
+    start: { lat: 36.06574, lon: 247.88258, eye: 1.7, heading: 42, pitch: -5 },          // (a level, wooded place on the South Rim: scripts/find-vista.mjs)
+    ship: { east: -30, north: -45, heading: 30 },
     exposure: { key: 0.18, min: 0.5, max: 2.0e5, speed: 1.6, shadowFloor: 0.2, highlight: 6 },
     // The heaviest views, for the benchmark's cost test: the eye wall of the hurricane (deep
     // cloud, rain, a storm sea) and the forest of the North Rim.
@@ -132,7 +148,7 @@ export default {
       { name: 'in the forest', lat: 36.2, lon: 247.94, heading: 180, pitch: -4 },
     ],
     bookmarks: {
-      ledge: { label: 'The Grand Canyon from Mather Point', heading: 5, pitch: -8, fov: 60 },
+      ledge: { label: 'The Grand Canyon from the South Rim, early', heading: 42, pitch: -5, fov: 60, timeOffsetHours: -1.2 },
       sun: { label: 'The morning Sun over the rim', heading: 78, pitch: 18, fov: 40 },
       wall: { label: 'The North Rim, sixteen kilometres away', heading: 350, pitch: -3, fov: 26 },
       ship: { label: 'The lander on the rim', east: -20, north: -12, heading: 230, pitch: 3, fov: 50 },

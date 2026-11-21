@@ -33,6 +33,7 @@ uniform vec3 uShineDir;             // toward the brightest sky body
 uniform vec3 uShineE;               // its irradiance at the ground (planetshine)
 uniform vec3 uHomeShine;            // sunlight the home world's day side sends up to something high above it
 uniform vec4 uQuality;              // governor switches: x close-up detail, y soft shadow edges, z edge-glow samples
+uniform vec4 uPaint;                // the painted look: x amount, y sky light on things, z colour, w facets (globals.js)
 uniform float uPhotometry;          // 0 = matte dust under air (Oren-Nayar), 1 = airless regolith (lunarDiffuse)
 uniform vec3 uGroundTint;           // the world's albedo map at the camera, relative to its mean
 uniform vec4 uOccluders[16];        // spheres that hide the sky from the ground beside them (camera-relative
@@ -78,7 +79,21 @@ vec3 skyLight(vec3 N, vec3 up) {
     vec3 there = texture(tIrradiance, vec2((ug * (float(SKYE_W) - 1.0) + 0.5) / float(SKYL_W), (float(IRR) + 1.5) / float(SKYL_H))).rgb * ((0.5 + 0.5 * dot(N, up)) / SKYE_SCALE);
     E = mix(E, there, uSkyGainMix);
   }
+  // (the painted look: shade is lit by more of the sky than is physical, and by its colour
+  // more than its grey: shadows are blue at noon and violet at dusk, never black)
+  if (uPaint.x > 0.0) { float g = dot(E, vec3(0.3, 0.55, 0.15)); E = max(vec3(0.0), mix(vec3(g), E, 1.0 + 0.3 * uPaint.x)) * mix(vec3(1.0), uPaint.y * vec3(0.88, 1.06, 0.98), uPaint.x); }
   return E * uSunIrradiance * uWeather.y + uFlash;
+}
+
+// The painted look's light and colour. paintLit: sunlight on a surface in two tones with a
+// soft edge between them, in place of the plain cosine (x: the cosine of the Sun's angle
+// on the surface; the result already holds the 1 / pi of a matte surface). paintColour: a
+// surface colour made cleaner, more of its own hue and nearer the middle in brightness.
+float paintLit(float nl) { return smoothstep(-0.04, 0.34, nl) * (0.62 + 0.38 * smoothstep(0.3, 1.0, nl)) * 0.3183099; }
+vec3 paintColour(vec3 c) {
+  float g = dot(c, vec3(0.3, 0.55, 0.15));
+  vec3 s = max(vec3(0.0), mix(vec3(g), c, 1.0 + 0.55 * uPaint.z));
+  return mix(c, s * pow(max(g, 1e-4) / 0.18, -0.12), uPaint.x);
 }
 
 // How much of the sky a surface at camera-relative position rel (normal N) still sees past

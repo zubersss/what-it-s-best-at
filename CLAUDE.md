@@ -5,7 +5,7 @@ Future sessions have no memory except this file and `docs/`. Read this file,
 **Start with "Where things stand" at the top of `docs/PROGRESS.md`**: it says what was
 last delivered, what the owner was asked for and exactly what to do next.
 
-- `docs/ROADMAP.md` — the nine milestones, in order, with a status for each.
+- `docs/ROADMAP.md` — the milestones, in order, with a status for each.
 - `docs/PROGRESS.md` — what exists, decisions taken and why, known problems, session log.
 - `docs/ARCHITECTURE.md` — how the engine is put together: frames, units, frame order, modules.
 - `docs/ASSETS.md` — source and licence of every asset.
@@ -58,12 +58,20 @@ job). Ordinary work is done directly.
 These were the charter's fixed decisions. They are still how the game is built, because
 they have served it well; they are no longer rules.
 
-- **Look: "mission-camera realism"**: the Sun as the one real light with physical bounce
-  (sky light, sunlit ground, planetshine); HDR rendering, auto-exposure and a filmic tone
-  map; real large landforms with clean shapes up close; the true sky (Sun, moons and
-  planets at their real positions, sizes and phases); natural colour. The owner's
-  character is the one deliberately fantastical thing in it, and the cloth flows in
-  vacuum because the owner wants it to.
+- **Look: the painted look** (owner, 2026-11-21, with reference pictures of a stylised
+  landscape game: "change the direction ... idc if its a 180% change"; it replaces
+  "mission-camera realism"). The principles are the landscape poster's: few colours, each
+  time of day a pair of them (the light's and the shade's); shade that is coloured, never
+  black; the far ground lost in the air layer by layer; trees, rocks and grass as bold
+  shapes known by their outline; a big soft Sun. **The places stay real**: elevation,
+  land cover, species, weather, the true sky for the date. Only how they are drawn
+  changes. The principles are taken, never that game's artwork, palettes picture for
+  picture, places or interface; the reference pictures are not in the repository.
+  A world is drawn this way when its file has a `look` block (`src/render/look.js`);
+  Earth is the first, the others follow one at a time and keep the physical picture
+  (the Sun as the one light, HDR, auto-exposure, a filmic tone map) until then. That
+  physical base stays underneath the look everywhere: the look changes the air's numbers,
+  how light falls on a surface and the grade, not the engine.
 - **Tech**: three.js `WebGLRenderer` on WebGL 2, GLSL, Vite, plain JavaScript, static
   build, 64-bit world positions with camera-relative rendering, no logarithmic depth
   buffer. The whole codebase is built on these; changing one is a large job, to be done
