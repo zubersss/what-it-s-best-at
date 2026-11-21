@@ -8,13 +8,14 @@
 // rock faces or above the tree line; beside a river or a lake the trees that follow
 // water grow whatever the class says.
 import { hash3, noise3 } from '../terrain/height/noise.js';
-import { COVER_DENSITY, speciesFor, pick, treeLine, SPECIES } from './cover.js';
+import { speciesFor, pick, treeLine, SPECIES } from './cover.js';
 
 export const BLOCK_DEG = 0.001;
 export const TREE_FLOATS = 8;          // x, y, z (m from the block's origin, planet axes), height, crown width, turn, species, a number of its own
 
 // (the block's width in longitude: the same for every block of a one-degree band of latitude)
-export function blockLon(bi) { const band = Math.floor(bi * BLOCK_DEG) + 0.5; return BLOCK_DEG / Math.max(0.05, Math.cos(band * Math.PI / 180)); }
+// (a whole number of blocks round the world: the lattice meets itself at longitude 0)
+export function blockLon(bi) { const band = Math.floor(bi * BLOCK_DEG) + 0.5; return 360 / Math.max(1, Math.round(360 / (BLOCK_DEG / Math.max(0.05, Math.cos(band * Math.PI / 180))))); }
 
 // hs: the world's height source (with setCover given); radius; bi, bj: the block; spacing (m).
 // Returns { origin: [x, y, z] (planet-centred, m), count, trees: Float32Array }.
@@ -33,11 +34,10 @@ export function treeBlock(hs, bi, bj, spacing = 7) {
     dirOf(lat, lon, d);
     const cover = hs.coverAt(d[0], d[1], d[2]);
     if (cover < 0) continue;
-    const cls = cover & 255, tall = (cover >> 8) / 4;
-    let dens = COVER_DENSITY[cls] || 0;
-    // (a canopy measured tall is forest, whatever the class calls it: the mountain parkland
-    // of the American West is "savanna" on the map)
-    if (tall > 8 && cls !== 15 && cls !== 17) dens = Math.max(dens, Math.min(1, tall / 15));
+    // (how closed the canopy is comes with the map: the tile worker works it out once, for
+    // the trees here and for the far forest the ground shader raises, so the two agree)
+    const cls = cover & 255, tall = ((cover >> 8) & 255) / 4;
+    let dens = (cover >> 16) / 255;
     // (clumps and clearings: the same class is not the same everywhere)
     const px = d[0] * R, py = d[1] * R, pz = d[2] * R;
     dens *= 0.55 + 0.9 * (0.5 + 0.5 * noise3(px / 140 + 3.7, py / 140, pz / 140 - 1.1));

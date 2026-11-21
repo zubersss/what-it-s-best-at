@@ -22,17 +22,18 @@ function done() { const next = waiting.shift(); if (next) next(); else active--;
 async function pixels(url) {
   await slot();
   try {
-    let res = null;
+    let res = null, body = null;
     for (let attempt = 0; attempt < 3; attempt++) {
       // (a service that does not answer must not hold a mosaic for ever)
+      // (the limit covers the whole answer, body and all: a tile that stalls half way must not hold it either)
       const stop = new AbortController(), timer = setTimeout(() => stop.abort(), 20000);
-      try { res = await fetch(url, { mode: 'cors', credentials: 'omit', signal: stop.signal }); if (res.ok || res.status === 404) break; } catch (e) { if (attempt === 2) throw e; } finally { clearTimeout(timer); }
+      try { res = await fetch(url, { mode: 'cors', credentials: 'omit', signal: stop.signal }); if (res.ok) { body = await res.blob(); break; } if (res.status === 404) break; } catch (e) { res = null; if (attempt === 2) throw e; } finally { clearTimeout(timer); }
       await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
     }
     if (!res) throw new Error('no answer');
     if (res.status === 404) return null;
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const bmp = await createImageBitmap(await res.blob(), { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
+    if (!res.ok || !body) throw new Error('HTTP ' + res.status);
+    const bmp = await createImageBitmap(body, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
     const c = new OffscreenCanvas(TILE, TILE), g = c.getContext('2d', { willReadFrequently: true });
     g.drawImage(bmp, 0, 0, TILE, TILE); bmp.close?.();
     return g.getImageData(0, 0, TILE, TILE).data;
@@ -121,21 +122,23 @@ async function coverOf(m, W, out) {
   // colour -> meaning, remembered (a tile uses few colours)
   const look = (table) => { const memo = new Map(); return (r, g, b) => { const key = (r << 16) | (g << 8) | b; let v = memo.get(key); if (v === undefined) { let best = 1e9; v = 0; for (const e of table) { const d = (e[0] - r) ** 2 + (e[1] - g) ** 2 + (e[2] - b) ** 2; if (d < best) { best = d; v = e[3]; } } if (best > 900) v = -1; memo.set(key, v); } return v; }; };
   const classOf = look(pal.cover), heightOf = look(pal.canopy);
-  const cls = new Uint8Array(W * W), tall = new Uint8Array(W * W);
+  const cls = new Uint8Array(W * W), tall = new Uint8Array(W * W), closed = new Uint8Array(W * W);        // class, canopy height (0.25 m), how closed (0..255)
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const c = ct[j * n + i].data, hd = ht ? ht[j * n + i].data : null;
     for (let y = 0; y < TILE; y++) for (let x = 0, q = y * TILE * 4, o = (j * TILE + y) * W + i * TILE; x < TILE; x++, q += 4, o++) {
       const k = c && c[q + 3] > 128 ? Math.max(0, classOf(c[q], c[q + 1], c[q + 2])) : 0;
       let h = hd && hd[q + 3] > 128 ? heightOf(hd[q], hd[q + 1], hd[q + 2]) : -1;
       let dens = COVER_DENSITY[k];
-      if (h > 8 && k !== 15 && k !== 17) dens = Math.max(dens, Math.min(1, h / 15));       // (a canopy measured tall is forest, whatever the class says: see treeBlock.js)
+      // (a canopy measured tall is forest, whatever the class calls it: the mountain
+      // parkland of the American West is "savanna" on the map)
+      if (h > 8 && k !== 15 && k !== 17) dens = Math.max(dens, Math.min(1, h / 15));
       // (a measured mean over open ground is lower than its trees: lift it for open classes)
       h = h > 1 ? (dens < 0.6 ? Math.max(h * 1.5, COVER_HEIGHT[k]) : h) : COVER_HEIGHT[k];
-      cls[o] = k; tall[o] = Math.min(255, Math.round(h * 4));
+      cls[o] = k; tall[o] = Math.min(255, Math.round(h * 4)); closed[o] = Math.round(dens * 255);
       out[o * 4 + 3] = Math.min(255, Math.round(h * dens * 5));
     }
   }
-  return { cls, tall };
+  return { cls, tall, closed };
 }
 
 // Rivers and lakes of an elevation mosaic (hydrology.js). m.hydrology: { rain: url of the
@@ -230,7 +233,7 @@ self.onmessage = async (ev) => {
       if (!cover) for (let i = 3; i < out.length; i += 4) out[i] = 0;
       const mips = mipChain(out, W);
       const msg = { type: 'mosaic', id: m.id, key: m.key, kind: m.kind, zoom, tx, ty, n, buffer: out.buffer, mips: mips.map((x) => x.buffer) }, transfer = [out.buffer, ...mips.map((x) => x.buffer)];
-      if (cover) { msg.cover = { cls: cover.cls.buffer, tall: cover.tall.buffer }; transfer.push(cover.cls.buffer, cover.tall.buffer); }
+      if (cover) { msg.cover = { cls: cover.cls.buffer, tall: cover.tall.buffer, closed: cover.closed.buffer }; transfer.push(cover.cls.buffer, cover.tall.buffer, cover.closed.buffer); }
       self.postMessage(msg, transfer);
     }
   } catch (e) {

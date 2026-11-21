@@ -263,7 +263,8 @@ export class Governor {
     // a passing dip (a burst of terrain loading) the way back is one jump, not a climb.
     if (this.featureLevel === 0 && this.sinceDown > GOOD_AFTER && (this.goodLevel == null || this.resLevel < this.goodLevel)) this.goodLevel = this.resLevel;
     // ... and it is what this place is remembered by.
-    if (this.place && this.known && this.sinceDown > GOOD_AFTER && this._learned !== this.resLevel) {
+    // (not while a step up is still on trial: one that is taken back must not be remembered)
+    if (this.place && this.known && this.sinceDown > GOOD_AFTER && this.sinceUp > 8 && this._probeFrames < 0 && this._learned !== this.resLevel) {
       this._learned = this.resLevel; this.known[`${this.mode}:${this.place}`] = this.resLevel; this.onLearn?.();
     }
     // Late is judged against the interval itself, not the measured refresh: if every

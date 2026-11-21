@@ -109,7 +109,7 @@ export default {
   // Clouds of one real day (the globe's own cloud map) as a layer overhead (see sky/clouds.js).
   // Near the traveller the layer is a volume to fly through: its base at 1 400 m, its
   // tops up to 3 200 m higher where the map is thick, out to 45 km (cloudVolume.js).
-  clouds: { map: 'data/earth_clouds_4096.jpg', lon0: -180, altitude: 4500, cover: 0.45, shadow: 0.6,
+  clouds: { map: 'data/earth_clouds_4096.jpg', lon0: -180, altitude: 4500, cover: 0.45, shadow: 0.85,
     volume: { base: 1400, thick: 3200, reach: 45000, above: 30000, scale: 5200 } },
 
   sky: { stars: { url: 'data/stars_bsc5.f32' } },

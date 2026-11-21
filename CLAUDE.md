@@ -451,5 +451,21 @@ finished benchmark leaves its text in `window.__benchResult`.
 - Under trees the only light on the ground was the blue of the sky (the Sun is in the
   crowns' shadow): a forest floor like water. Light under a canopy has come through
   leaves; and crowns let flecks of Sun through.
+- Anything that moves with the wind is added up frame by frame (`+= speed * dt`). Speed
+  times the clock moves the whole field by every gust's share of all the time passed:
+  the clouds slid back and forth and the rain jumped metres between frames.
+- A pass that draws into a small picture of its own must not use `gl_FragCoord` for
+  anything laid out in the main view (the haze's froxels): it says where its pixel is
+  (`HAZE_UV`). And its target is made once at the largest size and used in part, like
+  the main picture: made anew at each resolution step, it is an allocation in the
+  middle of the frames that were late already.
+- What is placed on the ground (lander, rocks, trees) is placed again when streamed
+  elevation arrives: it was placed on the ground of the maps that were there at the time.
+- When two places must agree on a rule (how closed a canopy is, the waves a swimmer rides,
+  the shade of a cloud), one of them works it out and hands it to the other. Written
+  twice, each was different within a day.
+- Waiting on `ps | grep shots.mjs` inside a command that goes on to run `shots.mjs` waits
+  for ever: the pattern is in the waiting command's own line. (The lesson about `pgrep -f`
+  above, met again.)
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

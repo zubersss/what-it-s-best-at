@@ -20,18 +20,21 @@ export class Rain {
       uRainEast: { value: new THREE.Vector3(1, 0, 0) }, uRainNorth: { value: new THREE.Vector3(0, 1, 0) }, uRainUp: { value: new THREE.Vector3(0, 0, 1) },
       uFall: { value: new THREE.Vector4(0, 0, 9, 0) },         // xy: the wind's push east and north (m/s), z: how fast it falls (m/s), w: time (s)
       uKind: { value: new THREE.Vector3(0, 0, 0) },            // x: 0 rain, 1 snow; yz: the camera's travel east and north (m, wrapped)
+      uBlown: { value: new THREE.Vector2(0, 0) },              // how far the wind has carried the air east and north (m, wrapped)
     };
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, uniforms: this.uniforms, transparent: true, depthWrite: false, depthTest: true,
       blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
       vertexShader: /* glsl */`
         in vec4 aSeed;
-        uniform vec3 uRainEast, uRainNorth, uRainUp, uKind; uniform vec4 uFall;
+        uniform vec3 uRainEast, uRainNorth, uRainUp, uKind; uniform vec4 uFall; uniform vec2 uBlown;
         out float vA;
         void main() {
           float snow = uKind.x, speed = uFall.z * (0.8 + 0.4 * aSeed.z);
-          float t = uFall.w + aSeed.w * 40.0 - position.x * mix(0.035, 0.04, snow);      // (the streak's other end: a moment earlier)
-          vec2 drift = uFall.xy * t + vec2(sin(t * 1.7 + aSeed.x * 9.0), cos(t * 1.3 + aSeed.y * 7.0)) * (0.5 * snow);
+          float ago = position.x * mix(0.035, 0.04, snow), t = uFall.w + aSeed.w * 40.0 - ago;      // (the streak's other end: a moment earlier)
+          // (how far the wind has carried the air is added up on the CPU, uBlown: the wind
+          // gusts, and its speed times all the time that has passed threw the rain about)
+          vec2 drift = uBlown - uFall.xy * ago + vec2(sin(t * 1.7 + aSeed.x * 9.0), cos(t * 1.3 + aSeed.y * 7.0)) * (0.5 * snow);
           vec2 p = mod(aSeed.xy * ${BOX.toFixed(1)} + drift - uKind.yz, ${BOX.toFixed(1)}) - ${(BOX / 2).toFixed(1)};
           float h = mod(aSeed.z * 53.0 - speed * t, ${TALL.toFixed(1)}) - ${(TALL * 0.4).toFixed(1)};
           vec3 rel = uRainEast * p.x + uRainNorth * p.y + uRainUp * h;
@@ -65,7 +68,10 @@ export class Rain {
     const e = weather._e, nn = weather._n, up = weather._u, sp = weather.windSpeed, w = weather.wind;
     u.uRainEast.value.set(...e); u.uRainNorth.value.set(...nn); u.uRainUp.value.set(...up);
     const we = (w.x * e[0] + w.y * e[1] + w.z * e[2]) * sp, wn = (w.x * nn[0] + w.y * nn[1] + w.z * nn[2]) * sp;
-    u.uFall.value.set(we * (snow > 0.5 ? 0.8 : 0.5), wn * (snow > 0.5 ? 0.8 : 0.5), snow > 0.5 ? 1.4 : 9, time);
+    const k = snow > 0.5 ? 0.8 : 0.5, dt = this._t == null || time < this._t ? 0 : Math.min(0.2, time - this._t);
+    this._t = time;
+    u.uFall.value.set(we * k, wn * k, snow > 0.5 ? 1.4 : 9, time);
+    const b = u.uBlown.value; b.x = ((b.x + we * k * dt) % BOX + BOX) % BOX; b.y = ((b.y + wn * k * dt) % BOX + BOX) % BOX;
     const p = rig.pos, t = u.uKind.value;
     if (this._has) {
       const dx = p.x - this._last.x, dy = p.y - this._last.y, dz = p.z - this._last.z;

@@ -30,7 +30,8 @@ export class Weather {
   setWorld(world) {
     this.epoch++;
     this.def = world.weather || null; this.maps = {}; this.storms = []; this.radius = world.radius; this.world = world;
-    this.rain = this.snow = this.wet = 0; this.sunShade = this.skyShade = 1; this.flash = null; this.thunder.length = 0;
+    this.rain = this.snow = this.wet = 0; this.sunShade = this.skyShade = 1; this.flash = null; this.thunder.length = 0; this.flashLight.set(0, 0, 0);
+    this.shadow = world.clouds?.shadow ?? 0.6;                 // (how dark this world's cloud shadow is: the ground's own number)
     if (!this.def || typeof document === 'undefined') return;
     const epoch = this.epoch, base = import.meta.env.BASE_URL;
     // (the maps as plain numbers: they are looked up at one place a frame, not drawn)
@@ -80,14 +81,17 @@ export class Weather {
   }
 
   // Every frame. rig: the camera rig; dt (s); sunDir: toward the Sun (planet axes, unit); day: day of the year.
-  update(rig, dt, sunDir, day = 180) {
+  // sunE: the Sun's irradiance in the game's units (a stroke is measured against it).
+  update(rig, dt, sunDir, day = 180, sunE = 1) {
     this.time += dt;
     if (!this.def) { this.windSpeed = 0; return; }
     const p = rig.pos, len = p.length(), lat = Math.asin(p.z / len) / RAD, lon = Math.atan2(p.y, p.x) / RAD, alt = len - this.radius;
     localFrame([p.x, p.y, p.z], this._e, this._n, this._u);
     // --- wind (with gusts of its own)
     const w = this.windAt(lat, lon, this._w || (this._w = [0, 0]));
-    const gust = 1 + 0.18 * Math.sin(this.time * 0.37) * Math.sin(this.time * 0.11 + 1.3) + 0.08 * Math.sin(this.time * 1.9);
+    // (pictures are still: no gusts, no showers passing, everything at its settled value)
+    const still = !!this.quiet; if (still) dt = 1e3;
+    const gust = still ? 1 : 1 + 0.18 * Math.sin(this.time * 0.37) * Math.sin(this.time * 0.11 + 1.3) + 0.08 * Math.sin(this.time * 1.9);
     const sp = Math.hypot(w[0], w[1]) * gust;
     this.windSpeed += (sp - this.windSpeed) * Math.min(1, dt * 0.8);
     const il = 1 / Math.max(1e-3, Math.hypot(w[0], w[1]));
@@ -96,16 +100,20 @@ export class Weather {
     const top = this.topAt(lat, lon), cover = this.sample('cloud', lat, lon) / 255, rate = this.rainAt(lat, lon);
     this.top = top; this.cover = cover;
     // (the tallest cloud within 50 km, looked for a little at a time: the cloud volume is made that deep)
-    { const a = this.time * 2.4, r = 8000 + 42000 * ((this.time * 0.37) % 1), t2 = this.topAt(lat + Math.cos(a) * r / 111200, lon + Math.sin(a) * r / (111200 * Math.max(0.2, Math.cos(lat * RAD))));
+    if (still) {
+      let m = top; for (let k = 0; k < 24; k++) { const a = k * 2.4, r = 8000 + 42000 * ((k * 0.37) % 1); m = Math.max(m, this.topAt(lat + Math.cos(a) * r / 111200, lon + Math.sin(a) * r / (111200 * Math.max(0.2, Math.cos(lat * RAD))))); }
+      this.topNear = m;
+    } else { const a = this.time * 2.4, r = 8000 + 42000 * ((this.time * 0.37) % 1), t2 = this.topAt(lat + Math.cos(a) * r / 111200, lon + Math.sin(a) * r / (111200 * Math.max(0.2, Math.cos(lat * RAD))));
       this.topNear = Math.max(top, t2, (this.topNear || 0) - 150 * dt); }
     const under = alt < Math.max(top, 2500) ? 1 : 0;           // (above the cloud it does not rain)
     // (the map is the day's mean; a shower comes and goes round it)
-    const now = rate * under * (0.7 + 0.5 * Math.sin(this.time * 0.05 + lon) * Math.sin(this.time * 0.023 + lat));
+    const now = rate * under * (still ? 1 : 0.7 + 0.5 * Math.sin(this.time * 0.05 + lon) * Math.sin(this.time * 0.023 + lat));
     this.temp = 28 - 0.0065 * alt - 0.5 * Math.max(0, Math.abs(lat) - 18) - 9 * Math.cos((day - 15) / 365.25 * 2 * Math.PI + (lat < 0 ? Math.PI : 0)) * Math.min(1, Math.abs(lat) / 45);
     const cold = Math.min(1, Math.max(0, (1.5 - this.temp) / 3));
     this.rain += (now * (1 - cold) - this.rain) * Math.min(1, dt * 0.5);
     this.snow += (now * cold - this.snow) * Math.min(1, dt * 0.5);
     this.wet += ((this.rain > 0.15 ? 1 : 0) - this.wet) * Math.min(1, dt * (this.rain > 0.15 ? 0.08 + 0.05 * this.rain : 0.01));
+    if (still) this.topNear = 0;                             // (looked for afresh below, the same every frame)
     // --- shade: the cloud between the traveller and the Sun, and over the sky
     let shade = 1, sky = 1;
     if (alt < Math.max(top, 4500)) {
@@ -113,9 +121,11 @@ export class Weather {
       const up = this._u, mu = Math.max(0.15, sunDir.x * up[0] + sunDir.y * up[1] + sunDir.z * up[2]), reach = Math.min(40000, (Math.max(top, 3000) - alt) / mu);
       const se = sunDir.x * this._e[0] + sunDir.y * this._e[1] + sunDir.z * this._e[2], sn = sunDir.x * this._n[0] + sunDir.y * this._n[1] + sunDir.z * this._n[2];
       const c2 = this.sample('cloud', lat + sn * reach / 111200, lon + se * reach / (111200 * Math.max(0.2, Math.cos(lat * RAD)))) / 255;
-      const k = (x) => { const t = Math.min(1, Math.max(0, (x - 0.35) / 0.45)); return t * t * (3 - 2 * t); };
-      shade = 1 - 0.92 * k(c2) * Math.min(1, 0.6 + rate * 0.2);
-      sky = 1 - 0.6 * k(cover) * Math.min(1, 0.55 + rate * 0.15);
+      // (the same law as the ground shader's cloud shadow, terrainMaterial.js: the figure and
+      // the trees must stand in the light the ground under them is in)
+      const k = (x, a, b) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+      shade = 1 - this.shadow * k(c2, 0.2, 0.7);
+      sky = 1 - 0.6 * k(cover, 0.35, 0.8) * Math.min(1, 0.55 + rate * 0.15);
     }
     this.sunShade += (shade - this.sunShade) * Math.min(1, dt * 1.5);
     this.skyShade += (sky - this.skyShade) * Math.min(1, dt * 1.5);
@@ -126,6 +136,8 @@ export class Weather {
     const fl = this.flash;
     if (fl) { fl.age += dt; if (fl.age > 0.5) this.flash = null; }
     this.nextFlash -= dt;
+    // (no storm is seen or heard from above the weather)
+    if (alt > 18000) { this.flash = null; this.flashLight.set(0, 0, 0); return; }
     if (this.forceFlash) {
       // (a picture of a stroke: held at its brightest, three kilometres ahead to the north-east)
       const v = new THREE.Vector3(this._e[0] * 2000 + this._n[0] * 2200 + this._u[0] * 700, this._e[1] * 2000 + this._n[1] * 2200 + this._u[1] * 700, this._e[2] * 2000 + this._n[2] * 2200 + this._u[2] * 700), d3 = v.length();
@@ -155,7 +167,8 @@ export class Weather {
     const f = this.flash;
     if (f) {
       const flick = Math.max(0, Math.sin(f.age * 38 + f.seed * 6) * 0.5 + 0.5) * Math.exp(-f.age * 9) * (f.age < 0.04 ? 1.6 : 1);
-      const e = f.power * flick * 2.2e4 / (1 + (f.dist / 2500) * (f.dist / 2500));
+      // (for an instant a stroke three kilometres off lights the land about as full sunlight does)
+      const e = f.power * flick * 1.3 * sunE / (1 + (f.dist / 3000) * (f.dist / 3000));
       this.flashLight.set(0.82 * e, 0.88 * e, 1.0 * e);
     } else this.flashLight.set(0, 0, 0);
   }

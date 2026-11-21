@@ -112,10 +112,35 @@ export function hydrology(h, W, cell, rain, opts = {}) {
   const lake = new Uint16Array(N), enc = (m) => Math.max(1, Math.min(65535, Math.round((m + 500) * 4)));
   for (let y = 1; y < W - 1; y++) for (let x = 1; x < W - 1; x++) {
     const i = y * W + x; if (h[i] <= 0) continue;
-    if (fill[i] - h[i] > 3 && rain(x, y) > lakeRain) { lake[i] = enc(fill[i]); continue; }
+    if (fill[i] - h[i] > 3 && rain(x, y) > lakeRain) { lake[i] = 65534; continue; }          // (a pit that fills; kept below if it is wide enough)
     const v = h[i]; let flat = true;
     for (let k = 0; k < 8 && flat; k++) flat = h[(y + DY[k]) * W + x + DX[k]] === v;
     if (flat) lake[i] = 65535;                              // (marked; kept below only in stretches large enough)
+  }
+  {
+    // A river fills the pits it runs through, wet land or dry: where its way down crosses
+    // a hollow (the filled level stands above the ground), the whole hollow at that level
+    // is water. (Left as land, the river crossed it on a causeway of its own level.)
+    const stack = [];
+    for (let i = 0; i < N; i++) {
+      if (q[i] < minFlow || h[i] <= 0 || lake[i] || fill[i] - h[i] < 0.6) continue;
+      const level = fill[i]; stack.length = 0; stack.push(i); lake[i] = 65534;
+      while (stack.length) {
+        const c = stack.pop(), x = c % W, y = (c - x) / W;
+        for (let k = 0; k < 8; k++) { const xx = x + DX[k], yy = y + DY[k]; if (xx < 1 || yy < 1 || xx >= W - 1 || yy >= W - 1) continue; const j = yy * W + xx; if (!lake[j] && h[j] > 0 && fill[j] - h[j] > 0.3 && Math.abs(fill[j] - level) < 0.2) { lake[j] = 65534; stack.push(j); } }
+      }
+    }
+    // pits: keep the hollows of 12 cells or more
+    const seenP = new Uint8Array(N);
+    for (let s0 = 0; s0 < N; s0++) {
+      if (lake[s0] !== 65534 || seenP[s0]) continue;
+      stack.length = 0; stack.push(s0); seenP[s0] = 1; const cells = [];
+      while (stack.length) {
+        const c = stack.pop(); cells.push(c); const x = c % W, y = (c - x) / W;
+        for (let k = 0; k < 8; k++) { const xx = x + DX[k], yy = y + DY[k]; if (xx < 0 || yy < 0 || xx >= W || yy >= W) continue; const j = yy * W + xx; if (lake[j] === 65534 && !seenP[j]) { seenP[j] = 1; stack.push(j); } }
+      }
+      for (const c of cells) lake[c] = cells.length >= 12 ? enc(fill[c]) : 0;
+    }
   }
   {
     // level stretches: keep those of 60 cells or more (a lake, a wide river), drop the rest
@@ -219,13 +244,15 @@ export function packWater(res, h) {
       const m = Math.min(d[i], 1e6) * cell, level = lake[i] / 4 - 500, bed = level - Math.min(60, 0.4 + (m < 300 ? m * 0.03 : 9 + Math.sqrt(m - 300) * 0.5));
       if (bed < h[i]) h[i] = Math.round(bed - 0.5);
     }
-    // spread the levels two pixels outward
+    // spread the levels two pixels outward, onto the shore only: ground no lower than the
+    // water (below a lake's outlet the ground falls away, and a level carried out over it
+    // stood there as a slab of water in the air)
     for (let pass = 0; pass < 2; pass++) {
       const src = lake.slice();
       for (let y = 1; y < W - 1; y++) for (let x = 1, o = y * W + 1; x < W - 1; x++, o++) {
         if (src[o]) continue;
         const v = src[o - 1] || src[o + 1] || src[o - W] || src[o + W] || src[o - W - 1] || src[o - W + 1] || src[o + W - 1] || src[o + W + 1];
-        if (v) lake[o] = v;
+        if (v && h[o] >= v / 4 - 500 - 0.5) lake[o] = v;
       }
     }
   }

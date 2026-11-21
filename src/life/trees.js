@@ -33,7 +33,7 @@ vec3 treePosition(out vec3 foot, out float leaf) {
   float c = cos(iB.y), s = sin(iB.y);
   vec3 p = position;
   // bare in winter: the leaves draw in to the branches (the trunk stays)
-  float gone = aLeaf * iB.w * uSeason.y;
+  float gone = aLeaf * min(iB.w, 1.0) * uSeason.y;         // (iB.w is 1 or 2 on trees that drop their leaves: which colour they turn)
   p.xz *= iB.x * (1.0 - 0.85 * gone);
   vec3 l = vec3(p.x * c - p.z * s, p.y, p.x * s + p.z * c) * iA.w;
   // wind: the whole tree leans a little and its crown swings, gust by gust, each tree in
@@ -139,6 +139,7 @@ export class Trees {
   setWorld(world) {
     this.world = world; this.def = world.life?.trees || null;
     this.blocks.clear(); this.asked = 0; this.dirty = true; this.serial = -1;
+    this.shared.uSeason.value.set(0, 0, 0);
     for (const s of this.sets.flat()) { s.count = 0; s.geo.instanceCount = 0; s.mesh.visible = false; }
     this.count = 0; this.triangles = 0; this.names = ''; this.falling = 0;
   }
@@ -154,21 +155,33 @@ export class Trees {
     const R = this.world.radius, radius = (def.radius ?? 240) * this.fraction;
     const show = rig.agl < (def.below ?? 1500) && !!t.coverSerial;
     for (const s of this.sets.flat()) s.mesh.visible = show && s.count > 0;
-    if (!show) return;
-    // (a new land-cover picture or new elevation: every tree is worked out again)
-    const serial = t.coverSerial * 100000 + t.ringSerial;
-    if (serial !== this.serial) { this.serial = serial; this.blocks.clear(); this.dirty = true; }
     const p = rig.pos, len = p.length(), lat = Math.asin(p.z / len) * 180 / Math.PI, lon = ((Math.atan2(p.y, p.x) * 180 / Math.PI) + 360) % 360;
+    {
+      // The year in the leaves (worked out whether or not trees are drawn: the far forest
+      // and the ground under it take their season from here too): y runs 0 at the spring
+      // equinox of this hemisphere, 0.5 at the autumn one. Leaves turn through the autumn,
+      // are gone in winter, back in spring; only away from the tropics.
+      const y = (((day - 80) / 365.25 + (lat < 0 ? 0.5 : 0)) % 1 + 1) % 1, sm = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+      const far = sm(25, 38, Math.abs(lat)), bare = (y > 0.5 ? sm(0.62, 0.72, y) : 1 - sm(0.02, 0.12, y)) * far;
+      this.shared.uSeason.value.set(sm(0.46, 0.62, y) * (y > 0.4 ? 1 : 0) * far, bare, time);
+    }
+    if (!show) return;
+    // A new land-cover picture or new elevation: every tree is worked out again. The trees
+    // that stand stay until their block's new ones arrive (they vanished all at once before,
+    // every time a map moved).
+    const serial = t.coverSerial * 100000 + t.ringSerial;
+    if (serial !== this.serial) { this.serial = serial; for (const b of this.blocks.values()) b.stale = true; }
     const bi0 = Math.floor(lat / BLOCK_DEG), nb = Math.ceil(radius / 111.2);
     let want = null, wantD = 1e9;
     for (let bi = bi0 - nb; bi <= bi0 + nb; bi++) {
-      const dLon = blockLon(bi), bj0 = Math.floor(lon / dLon);
-      for (let bj = bj0 - nb; bj <= bj0 + nb; bj++) {
+      const dLon = blockLon(bi), count = Math.round(360 / dLon), bj0 = Math.floor(lon / dLon);
+      for (let bu = bj0 - nb; bu <= bj0 + nb; bu++) {
         // (the block's middle, in metres from the traveller along the ground)
-        const dy = ((bi + 0.5) * BLOCK_DEG - lat) * 111200, dx = ((bj + 0.5) * dLon - lon) * 111200 * Math.cos(lat * Math.PI / 180), d = Math.hypot(dx, dy);
+        const dy = ((bi + 0.5) * BLOCK_DEG - lat) * 111200, dx = ((bu + 0.5) * dLon - lon) * 111200 * Math.cos(lat * Math.PI / 180), d = Math.hypot(dx, dy);
         if (d > radius + 80) continue;
+        const bj = ((bu % count) + count) % count;          // (the lattice goes once round the world and meets itself)
         const key = bi + ':' + bj, b = this.blocks.get(key);
-        if (b) { b.used = this.frame; continue; }
+        if (b) { b.used = this.frame; if (!b.stale || b.asking) continue; }
         this.missing++;
         if (d < wantD) { wantD = d; want = [bi, bj, key]; }
       }
@@ -177,9 +190,15 @@ export class Trees {
     if (want && this.asked < 2 && t.workers.idle && !t.tiles.busy && t.wanted.length === 0) {
       const [bi, bj, key] = want, epoch = t.epoch, serialAt = this.serial, job = t.workers.run({ type: 'trees', bi, bj, spacing: def.spacing ?? 7 });
       if (job) {
-        const b = { state: 0, used: this.frame }; this.blocks.set(key, b); this.asked++;
-        job.then((res) => { this.asked--; if (epoch !== t.epoch || serialAt !== this.serial) { if (this.blocks.get(key) === b) this.blocks.delete(key); return; } b.state = 1; b.origin = res.origin; b.trees = new Float32Array(res.trees); b.count = res.count; this.dirty = true; })
-          .catch((e) => { this.asked--; this.blocks.delete(key); console.error(e); });
+        let b = this.blocks.get(key);
+        if (!b) { b = { state: 0, used: this.frame }; this.blocks.set(key, b); }
+        b.asking = true; this.asked++;
+        job.then((res) => {
+          this.asked--; b.asking = false;
+          if (epoch !== t.epoch) return;                       // another world by now
+          // (worked out from maps that have changed again since: kept as it is, and asked for again)
+          b.state = 1; b.origin = res.origin; b.trees = new Float32Array(res.trees); b.count = res.count; b.stale = serialAt !== this.serial; this.dirty = true;
+        }).catch((e) => { this.asked--; b.asking = false; if (b.state === 0) this.blocks.delete(key); console.error(e); });
       }
     }
     if (this.frame % 600 === 0) for (const [key, b] of this.blocks) if (b.state === 1 && b.used < this.frame - 1200) this.blocks.delete(key);
@@ -188,12 +207,6 @@ export class Trees {
     const u = this.shared;
     u.uAnchorRel.value.subVectors(this.anchor, p);
     u.uTreeRadius.value = radius;
-    // The year in the leaves: y runs 0 at the spring equinox of this hemisphere, 0.5 at the
-    // autumn one. Leaves turn through the autumn, are gone in winter, back in spring; only
-    // away from the tropics.
-    const y = (((day - 80) / 365.25 + (lat < 0 ? 0.5 : 0)) % 1 + 1) % 1, sm = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
-    const far = sm(25, 38, Math.abs(lat)), bare = (y > 0.5 ? sm(0.62, 0.72, y) : 1 - sm(0.02, 0.12, y)) * far;
-    u.uSeason.value.set(sm(0.46, 0.62, y) * (y > 0.4 ? 1 : 0) * far, bare, time);
   }
 
   // The instance lists, from the blocks that are in: near trees to the near meshes, the

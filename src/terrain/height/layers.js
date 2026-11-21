@@ -434,16 +434,26 @@ export const OPS = {
       const map = c.map;
       if (map != null) {
         const up = map - level;
-        if (up <= 0) { c.water = up < -0.5 ? -up : 0.5; c.h = level; c.slope = 0; return; }
+        // (as deep as the map says from the very edge: a floor on the depth was a step in what
+        // a walker stands on; water with no bed in the map at all still gets a hand's depth)
+        if (up <= 0) { c.water = up < -0.02 ? -up : up === 0 ? 0.5 : 0.02; c.h = level; c.slope = 0; return; }
         const dem = c.dem;
         // a lake: its bed is in the map, its level comes with the ring
         if (dem.lakeL > map) { c.water = dem.lakeL - map; c.h = dem.lakeL; c.slope = 0; return; }
+        if (dem.lakeL > -1e8) {
+          // its shore: the layers before this one fade out toward the water's edge, as at the sea's
+          const upL = map - dem.lakeL;
+          if (upL < 6) { const t = upL / 6, k = t * t * (3 - 2 * t), hh = dem.lakeL + upL + (c.h - map) * k; c.h = hh > dem.lakeL + upL * 0.25 ? hh : dem.lakeL + upL * 0.25; c.slope *= k; }
+          return;
+        }
         // a river: water between its banks, a bed rounded across it, and the land beside it
         // brought down to the water's edge
         if (dem.rivS < 1e8) {
           const a = dem.rivA, s = dem.rivS, L = dem.rivL, bank = 4 + a * 1.2;
-          if (s < a) { const u = s / a; c.water = Math.max(0.25, dem.rivD * (1 - u * u)); c.h = L; c.slope = 0; return; }
-          if (s < a + bank) { const u = (s - a) / bank, k = u * u * (3 - 2 * u); c.h = L + 0.05 + (Math.max(c.h, L + 0.3) - L - 0.05) * k; c.slope *= k; return; }
+          if (s < a) { const u = s / a; c.water = 0.02 + dem.rivD * (1 - u * u); c.h = L; c.slope = 0; return; }
+          // (the bank comes down to the water; ground already lower is left alone: raised to
+          // the river's level it ended in a wall along the bank's far edge)
+          if (s < a + bank) { const u = (s - a) / bank, k = u * u * (3 - 2 * u); if (c.h > L + 0.05) c.h = L + 0.05 + (c.h - L - 0.05) * k; c.slope *= k; return; }
         }
         if (up < 6) {
           const t = up / 6, k = t * t * (3 - 2 * t), h = level + up + (c.h - map) * k;

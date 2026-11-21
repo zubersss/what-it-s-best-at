@@ -329,6 +329,42 @@ drainage are the hardest part to get right at the seams between rings.
   still); no fog, rainbow, tornado or aurora; the wind only carries a hovering figure.
   None of it has been measured on the phone.
 
+## Milestone 10 review (before the checkpoint)
+
+One workflow: four reviewers (tiles and water; trees and the ground shader; clouds and
+weather; the app, the rig and the governor) read everything since 7933ddf; a second
+reviewer tried to disprove each finding, running the code in Node where it could. 30
+findings, all taken as real and fixed:
+
+- **Tiles and water**: a lake's level was spread over ground far below its outlet (water
+  standing in the air); a river crossed dry pits on a causeway of its own level (a river
+  now fills the pits it runs through, and banks are never raised); lake shores had steps
+  of up to 50 m (the layers now fade toward a lake's edge as toward the sea's); rivers
+  moved between ring positions while the ground kept the old ones (ground with water in
+  it is always built again); a tile whose body stalled held its mosaic for ever; the
+  world left behind kept its mosaics in its height source; two curls wrote one file in
+  the test mirror.
+- **Trees and water**: leaf-dropping species with the gold flag turned inside out in
+  winter; the season froze above 1 500 m and jumped on the way down; the tree lattice
+  did not meet itself at longitude 0; "tall canopy is forest" was applied to different
+  heights in two places (how closed a canopy is now comes with the map, once); every
+  tree vanished whenever a map moved (they now stay until their block's new ones
+  arrive); a swimmer on a lake rode the sea's waves (the drawn ones are an eighth as
+  high); the CPU's wave sum and the shader's weighted the wind differently; the clock
+  the waves share wrapped every hour.
+- **Clouds and weather**: cloud noise and rain were moved by the wind's speed times all
+  the time passed (they slid about with every gust); the cloud's haze was read from the
+  wrong part of the screen; rain, lightning and the rainbow were painted over by the
+  cloud laid after them; the thickest cloud let a hundredth of the Sun's disc through;
+  strokes and thunder went on in orbit; things near the camera and the ground under them
+  used two laws for the same cloud's shade; the small picture's target was made anew at
+  every resolution step.
+- **App**: the lander and the rocks stayed on the ground of the maps that were there when
+  they were placed; the sink of the last sea stayed on the next world; the camera could go
+  under the water it draws only from above; a step up of resolution still on trial was
+  remembered; pictures were not still on a world with weather; the walker dropped half a
+  metre at every waterline.
+
 ## Milestone 6 plan: the new worlds
 
 The owner's word: "finish up the rest of the milestones". No stop after every two worlds;

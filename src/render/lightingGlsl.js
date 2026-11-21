@@ -122,6 +122,9 @@ vec3 homeShine(vec3 N, vec3 up) { float d = clamp(0.5 - 0.5 * dot(N, up), 0.0, 1
 // it does in photographs from orbit. This holds where the line of sight crosses the low
 // air close to the place it looks at (a steep view); along a grazing line the air is lit
 // by all the ground it passes over, which is the mean (weight fades out by angle).
+#ifdef HAZE_UV
+vec2 gHazeUv;                       // this pixel's place in the main view (0..1), set by the pass before it asks for haze
+#endif
 vec3 hazeOverGround(vec3 color, vec3 rel, vec3 rho) {
   float dist = length(rel);
   // Same path through the air as the froxel pass computed for this view ray.
@@ -172,7 +175,13 @@ vec3 hazeOverGround(vec3 color, vec3 rel, vec3 rho) {
   float s = float(FROX_D) * pow(clamp((dist * 0.001 - pathA) / max(pathB - pathA, 1e-4), 0.0, 1.0), 1.0 / uFroxelRange.x);
   float c = max(s - 1.0, 0.0);
   float k0 = min(floor(c), float(FROX_D) - 1.0), k1 = min(k0 + 1.0, float(FROX_D) - 1.0), f = c - k0;
+  // (a pass that does not draw into the main view at its own size, the cloud volume's small
+  // picture, says where its pixel is in the main view: HAZE_UV)
+#ifdef HAZE_UV
+  vec2 uv = clamp(gHazeUv, vec2(0.5) / vec2(FROX_W, FROX_H), 1.0 - vec2(0.5) / vec2(FROX_W, FROX_H));
+#else
   vec2 uv = clamp(gl_FragCoord.xy / uViewport, vec2(0.5) / vec2(FROX_W, FROX_H), 1.0 - vec2(0.5) / vec2(FROX_W, FROX_H));
+#endif
   vec2 atlas = vec2(float(ATLAS_X), float(ATLAS_Y));
   vec2 t0 = (vec2(mod(k0, atlas.x), floor(k0 / atlas.x)) + uv) / atlas;
   vec2 t1 = (vec2(mod(k1, atlas.x), floor(k1 / atlas.x)) + uv) / atlas;

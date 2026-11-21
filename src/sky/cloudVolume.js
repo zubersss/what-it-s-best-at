@@ -74,6 +74,7 @@ void main() {
   // which of the two pictures this pixel belongs to, and its ray
   bool sky = vUv.x > 0.5;
   vec2 uv = vec2(fract(vUv.x * 2.0), vUv.y), ndc = uv * 2.0 - 1.0;
+  gHazeUv = uv;
   vec3 dir = normalize(uCamFwd + uCamRight * (ndc.x * uProj.x * uProj.y) + uCamUp * (ndc.y * uProj.x));
   // what stands behind the nine pixels of the view this one covers (four looks)
   vec2 dUv = uv * uDepthUv.xy;
@@ -146,7 +147,9 @@ void main() {
     T *= 1.0 - a;
     if (T < 0.02) break;
   }
-  float alpha = 1.0 - T;
+  // (cut off at a fiftieth, the march has let that much through: stretched so the thickest
+  // cloud lets nothing through. The Sun's disc is tens of thousands of times white.)
+  float alpha = clamp((1.0 - T) / 0.98, 0.0, 1.0);
   if (alpha < 0.003) { fragColor = vec4(0.0); return; }
   // the cloud's own brightness, seen through the air between it and the eye
   vec3 col = aerialPerspective(C / alpha / PI, dir * (tMean / max(wSum, 1e-5)));
@@ -155,7 +158,8 @@ void main() {
 
 const LAY = /* glsl */`
 uniform sampler2D tCloudPass;
-uniform vec4 uHalf;            // x: 0 for the ground half of the small picture, 0.5 for the sky half
+uniform vec4 uHalf;            // x: 0 for the ground half of the small picture, 0.5 for the sky half; zw: a pixel of the part in use
+uniform vec2 uUsed;            // the part of the target that is in use
 in vec2 vUv;
 layout(location = 0) out vec4 fragColor;
 void main() {
@@ -163,7 +167,8 @@ void main() {
   // the small picture, and this takes the grain out of it)
   // (kept a pixel and a half inside this half of the small picture: its neighbour is the other half)
   vec2 uv = vec2(uHalf.x + clamp(vUv.x * 0.5, 1.5 * uHalf.z, 0.5 - 1.5 * uHalf.z), clamp(vUv.y, 1.5 * uHalf.w, 1.0 - 1.5 * uHalf.w)), d = uHalf.zw;
-  fragColor = 0.25 * (texture(tCloudPass, uv + d * vec2(0.9, 0.35)) + texture(tCloudPass, uv + d * vec2(-0.35, 0.9)) + texture(tCloudPass, uv + d * vec2(-0.9, -0.35)) + texture(tCloudPass, uv + d * vec2(0.35, -0.9)));
+  #define TAP(o) texture(tCloudPass, (uv + d * o) * uUsed)
+  fragColor = 0.25 * (TAP(vec2(0.9, 0.35)) + TAP(vec2(-0.35, 0.9)) + TAP(vec2(-0.9, -0.35)) + TAP(vec2(0.35, -0.9)));
 }`;
 
 export class CloudVolume {
@@ -178,9 +183,9 @@ export class CloudVolume {
       uProj: { value: new THREE.Vector4() }, uDepthUv: { value: new THREE.Vector4() }, uCloudWind: { value: new THREE.Vector3() },
       tCloudTop: { value: null }, uTops: { value: new THREE.Vector3(1400, 1, 0) }, uBolt: { value: new THREE.Vector4() },
     };
-    this.march = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1 }, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: MARCH, depthTest: false, depthWrite: false });
+    this.march = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, HAZE_UV: 1 }, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: MARCH, depthTest: false, depthWrite: false });
     const lay = (half, func) => new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3, uniforms: { tCloudPass: { value: null }, uHalf: { value: new THREE.Vector4(half, 0, 0, 0) } }, vertexShader: /* glsl */`
+      glslVersion: THREE.GLSL3, uniforms: { tCloudPass: { value: null }, uHalf: { value: new THREE.Vector4(half, 0, 0, 0) }, uUsed: { value: new THREE.Vector2(1, 1) } }, vertexShader: /* glsl */`
         out vec2 vUv;
         void main() { vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 1.0, 1.0); }`,          // (at the far plane: the depth test tells sky from ground)
       fragmentShader: LAY, depthTest: true, depthFunc: func, depthWrite: false, transparent: true,
@@ -246,13 +251,21 @@ export class CloudVolume {
     u.uTops.value.x = base; u.uTops.value.y = Math.min(1, (v.thick ?? 3000) / this.thickNow);
     const fl = weather?.flash;
     if (fl && !fl.ground) u.uBolt.value.set(fl.dir.x * fl.dist, fl.dir.y * fl.dist, fl.dir.z * fl.dist, weather.flashLight.z * 6); else u.uBolt.value.w = 0;
-    const tw = Math.max(8, Math.round(post.viewW / 3)) * 2, th = Math.max(4, Math.round(post.viewH / 3));
-    if (!this.target || this.tw !== tw || this.th !== th) {
+    // The target is as large as the view can ever be (a third of the canvas each way) and
+    // only the part the governor's resolution asks for is used, as with the main picture:
+    // made anew at every resolution step it cost an allocation in the middle of the very
+    // frames that were late already.
+    const fw = Math.max(8, Math.ceil(post.width / 3)) * 2, fh = Math.max(4, Math.ceil(post.height / 3));
+    if (!this.target || this.fw !== fw || this.fh !== fh) {
       this.target?.dispose();
-      this.target = new THREE.WebGLRenderTarget(tw, th, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false });
+      this.target = new THREE.WebGLRenderTarget(fw, fh, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false });
       this.target.texture.wrapS = this.target.texture.wrapT = THREE.ClampToEdgeWrapping;
-      this.tw = tw; this.th = th;
+      this.target.scissorTest = true;
+      this.fw = fw; this.fh = fh;
     }
+    const tw = Math.max(8, Math.round(post.viewW / 3)) * 2, th = Math.max(4, Math.round(post.viewH / 3));
+    this.tw = tw; this.th = th;
+    this.target.viewport.set(0, 0, tw, th); this.target.scissor.set(0, 0, tw, th);
     const cam = rig.camera, e = cam.matrixWorld.elements;
     u.uCamRight.value.set(e[0], e[1], e[2]); u.uCamUp.value.set(e[4], e[5], e[6]); u.uCamFwd.value.set(-e[8], -e[9], -e[10]);
     u.uProj.value.set(Math.tan(rig.fov * Math.PI / 360), post.viewW / post.viewH, near, far);
@@ -261,7 +274,12 @@ export class CloudVolume {
     u.uCloud.value.set(this.def.cover ?? 0.8, this.def.lon0 === -180 ? 0.5 : 0, 1 / (v.scale ?? 5200), this.reach);
     u.uLayer.value.set(this.radius + base, this.thickNow, this.steps, time);
     // the masses drift with the wind (slowly: this is not the weather moving, only the air)
-    const w = wind?.value; if (w) this.drift.set(w.x, w.y, w.z).multiplyScalar(time * Math.min(20, w.w) / (v.scale ?? 5200));
+    // (added up frame by frame: the wind's gusts must not move the whole field by their share
+    // of all the time that has passed)
+    const w = wind?.value, dtw = this.lastTime == null || time < this.lastTime ? 0 : Math.min(0.2, time - this.lastTime);
+    this.lastTime = time;
+    if (w) this.drift.addScaledVector(w, dtw * Math.min(20, w.w) / (v.scale ?? 5200));
+    for (const c of ['x', 'y', 'z']) this.drift[c] -= Math.floor(this.drift[c]);          // (the noise repeats every unit)
     u.uCloudWind.value.copy(this.drift);
     this.quad.material = this.march;
     r.setRenderTarget(this.target);
@@ -273,7 +291,8 @@ export class CloudVolume {
   lay() {
     const r = this.renderer;
     for (const m of [this.laySky, this.layGround]) {
-      m.uniforms.tCloudPass.value = this.target.texture; m.uniforms.uHalf.value.set(m === this.laySky ? 0.5 : 0, 2 / this.tw, 1 / this.tw, 1 / this.th);
+      m.uniforms.tCloudPass.value = this.target.texture; m.uniforms.uHalf.value.set(m === this.laySky ? 0.5 : 0, 0, 1 / this.tw, 1 / this.th);
+      m.uniforms.uUsed.value.set(this.tw / this.fw, this.th / this.fh);
       this.quad.material = m; r.render(this.scene, this.camera);
     }
   }

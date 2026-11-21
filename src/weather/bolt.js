@@ -24,7 +24,7 @@ export class Bolt {
   }
 
   // Every frame. weather: the Weather (its flash and local frame); agl: the camera's height above the ground (m).
-  update(weather, agl) {
+  update(weather, agl, sunE = 1) {
     const f = weather.flash;
     if (!f || !f.ground) { this.mesh.visible = false; this.seen = null; return; }
     if (this.seen !== f) {
@@ -47,7 +47,7 @@ export class Bolt {
       this.geo.setDrawRange(0, k * 2); this.geo.attributes.position.needsUpdate = true;
     }
     const flick = Math.max(0, Math.sin(f.age * 38 + f.seed * 6) * 0.5 + 0.5) * Math.exp(-f.age * 10);
-    this.uniforms.uBoltGlow.value = 6e6 * f.power * flick;
+    this.uniforms.uBoltGlow.value = 400 * sunE * f.power * flick;          // (far brighter than anything sunlit: it blooms)
     this.mesh.visible = flick > 0.02;
   }
 }

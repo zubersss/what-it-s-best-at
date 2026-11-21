@@ -67,8 +67,9 @@ export function waveHeightAt(pos, radius, time, wind, speed) {
   const du = F.u[0] * d[0] + F.u[1] * d[1] + F.u[2] * d[2], dv = F.v[0] * d[0] + F.v[1] * d[1] + F.v[2] * d[2];
   let ux = F.u[0] - d[0] * du, uy = F.u[1] - d[1] * du, uz = F.u[2] - d[2] * du, vx = F.v[0] - d[0] * dv, vy = F.v[1] - d[1] * dv, vz = F.v[2] - d[2] * dv;
   const ul = Math.hypot(ux, uy, uz) || 1, vl = Math.hypot(vx, vy, vz) || 1;
-  let wx = (wind.x * ux + wind.y * uy + wind.z * uz) / ul, wy = (wind.x * vx + wind.y * vy + wind.z * vz) / vl;
-  const wl = Math.hypot(wx, wy) || 1; wx /= wl; wy /= wl;
+  // (as the shader has it: the wind along each axis, the two not made a unit pair; away
+  // from a cube face's middle the axes are not at right angles)
+  const wx = (wind.x * ux + wind.y * uy + wind.z * uz) / ul, wy = (wind.x * vx + wind.y * vy + wind.z * vz) / vl;
   const scale = waveScale(speed);
   let h = 0;
   for (let q = 0; q < LIFTED; q++) {

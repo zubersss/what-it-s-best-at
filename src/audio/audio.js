@@ -43,7 +43,9 @@ export class Audio {
   // Thunder: a crack if it is near, then the long roll. power 0..1.5; dist (m).
   thunder(power, dist) {
     const c = this.ctx; if (!c || !this.on) return;
-    const t = c.currentTime, near = Math.max(0, 1 - dist / 4000), loud = Math.min(1, power * (0.25 + 1.6 / (1 + dist / 3000)));
+    // (fainter with distance, to nothing by fifty kilometres)
+    const t = c.currentTime, near = Math.max(0, 1 - dist / 4000), loud = Math.min(1, power * 1.8 / (1 + dist / 3000)) * Math.max(0, 1 - dist / 50000);
+    if (loud < 0.01) return;
     const roll = (freq, q, peak, at, len) => {
       const src = c.createBufferSource(); src.buffer = this.noise; src.loop = true; src.playbackRate.value = 0.35 + Math.random() * 0.25;
       const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq; f.Q.value = q;

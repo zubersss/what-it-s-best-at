@@ -19,7 +19,7 @@ self.onmessage = (ev) => {
       // (no reply: jobs sent after this message are built with the new ring)
       hs.setRing(m.slot, m.raster ? { ...m.raster, data: new Int16Array(m.raster.buffer) } : null);
     } else if (m.type === 'cover') {
-      hs.setCover(m.cover ? { ...m.cover, cls: new Uint8Array(m.cover.cls), tall: new Uint8Array(m.cover.tall) } : null);
+      hs.setCover(m.cover ? { ...m.cover, cls: new Uint8Array(m.cover.cls), tall: new Uint8Array(m.cover.tall), closed: new Uint8Array(m.cover.closed) } : null);
     } else if (m.type === 'trees') {
       const b = treeBlock(hs, m.bi, m.bj, m.spacing);
       self.postMessage({ type: 'trees', id: m.id, origin: b.origin, count: b.count, trees: b.trees.buffer }, [b.trees.buffer]);

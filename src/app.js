@@ -16,6 +16,7 @@ import { CloudVolume } from './sky/cloudVolume.js';
 import { Weather } from './weather/weather.js';
 import { Rain } from './weather/rain.js';
 import { Bolt } from './weather/bolt.js';
+import { Rainbow } from './weather/rainbow.js';
 
 const SWIM_DEPTH = 1.25;        // metres of water a standing figure sinks into before it floats
 import { StartScreen, ResultsScreen, BenchBanner, Toast } from './ui/screens.js';
@@ -155,6 +156,7 @@ export class App {
 
   heightFn(world, hs) {
     const walkWL = 2 * (Math.PI / 2) * world.radius / (1 << world.terrain.maxLevel) / CONFIG.NORMAL_RES;
+    this._sink = 0;                  // (a world without water: nothing sinks; the last world's value must not stay)
     if (!world.surface.sea) return (d) => hs.height(d[0], d[1], d[2], walkWL);
     // Water does not carry a walker: what stands in it sinks to the bed or to SWIM_DEPTH,
     // whichever comes first, and rides the waves where it floats. (`_sink` is kept for the
@@ -165,10 +167,13 @@ export class App {
       this.depthAsked = depth;
       if (depth <= 0) { this._sink = 0; return h; }
       let sink = Math.min(depth, SWIM_DEPTH);
-      if (depth > 0.6) {
-        const u = this.terrain.shared.uWind.value, w = this.terrain.shared.uWave.value;
+      if (depth > 0.15) {
+        // (the same share of the waves as the vertex shader lifts the water by: none at the
+        // shore, a little on lakes and rivers)
+        const u = this.terrain.shared.uWind.value, w = this.terrain.shared.uWave.value, up = h - (world.surface.sea.level ?? 0);
+        const inland = up <= 2 ? 0 : up >= 6 ? 1 : ((up - 2) / 4) * ((up - 2) / 4) * (3 - 2 * (up - 2) / 4);
         pos.set(d[0], d[1], d[2]).multiplyScalar(world.radius + h);
-        sink -= waveHeightAt(pos, world.radius, w.z, u, u.w) * Math.min(1, (depth - 0.6) / 1.5) * w.y;
+        sink -= waveHeightAt(pos, world.radius, w.z, u, u.w) * Math.min(1, (depth - 0.15) / 1.5) * (1 - 0.88 * inland) * w.y;
       }
       this._sink = sink;
       return h - sink;
@@ -244,6 +249,7 @@ export class App {
     this.terrain = new Terrain(world, data.rasters, data.hs, renderer);
     // the character stands on the ground as drawn (and in water as deep as heightFn just said)
     this.rig.groundAt = (d, dist) => { const g = this.terrain.drawnHeight(d, dist); return g == null ? null : g - (this._sink || 0); };
+    this.rig.sunkAt = () => Math.max(0, this._sink || 0);          // (the camera stays above the water its figure stands in)
     // the home world's cloud layer (a world without clouds: nothing is drawn)
     this.clouds = new CloudLayer(renderer);
     this.cloudVolume = new CloudVolume(renderer); this.cloudVolume.setWorld(world);
@@ -269,7 +275,11 @@ export class App {
     this.weather = new Weather(); this.weather.setWorld(world);
     this.rain = new Rain(G);
     this.bolt = new Bolt(G);
-    this.nearScene.add(this.rain.mesh, this.bolt.mesh);
+    this.rainbow = new Rainbow(G);
+    // (in a scene of their own, drawn after the cloud volume is laid over the picture: drawn
+    // before it, rain ten metres away was painted over by cloud kilometres behind it)
+    this.weatherScene = new THREE.Scene();
+    this.weatherScene.add(this.rain.mesh, this.bolt.mesh, this.rainbow.mesh);
     this.placeLander(world, data.hs);
     this.hero = new Hero();
     this.heroScene.add(this.hero.group);
@@ -1044,18 +1054,26 @@ export class App {
       const d = this.clock, day = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000;
       // (pictures: the weather settles at once and no lightning strikes by chance; debug=flash strikes on purpose)
       wx.quiet = this.shotMode; wx.forceFlash = this.shotMode && this.params.debug.includes('flash');
-      wx.update(rig, this.shotMode ? 0.5 : dt, G.uSunDir.value, day);
+      const sunE = Math.max(G.uSunIrradiance.value.x, G.uSunIrradiance.value.y, G.uSunIrradiance.value.z, 1e-6) / Math.max(1e-3, 1 - (this.sunCover || 0));
+      wx.update(rig, dt, G.uSunDir.value, day, sunE);
       const speed = wx.def ? Math.max(1.5, wx.windSpeed) : (this.world.surface.sea?.wind ?? 6);
       if (wx.def) sh.uWind.value.set(wx.wind.x, wx.wind.y, wx.wind.z, speed); else sh.uWind.value.set(e[0], e[1], e[2], speed);
       G.uWeather.value.set(wx.def ? wx.sunShade : 1, wx.def ? wx.skyShade : 1, wx.def ? wx.wet : 0, 0);
       G.uFlash.value.copy(wx.flashLight);
-      this.rain.update(wx, rig, (now / 1000) % 3600);
-      this.bolt.update(wx, rig.agl);
-      for (const th of wx.heard()) this.audio.thunder(th.power, th.dist);
+      this.rain.update(wx, rig, (now / 1000) % 14400);
+      this.bolt.update(wx, rig.agl, sunE);
+      this.rainbow.update(wx, rig, this.post.viewW / this.post.viewH, G.uSunDir.value);
+      for (const th of wx.heard()) if (rig.agl < 20000) this.audio.thunder(th.power, th.dist);          // (thunder needs air to arrive in)
       // (the wind carries what hangs in the air: only while the stick is let go, so that
       // flight that is aimed still goes where it is aimed)
-      if (wx.def && rig.mode === 'hero' && !rig.onFoot && !this.transfer && rig.agl < 12000 && (rig.throttle || 0) < 0.05 && dt > 0) rig.pos.addScaledVector(wx.wind, wx.windSpeed * 0.5 * Math.min(dt, 0.1));
-      sh.uWave.value.set(waveScale(speed), this.wavesLift === false ? 0 : 1, this.shotMode ? 3.0 : (now / 1000) % 3600);
+      if (wx.def && !this.shotMode && !bench && rig.mode === 'hero' && !rig.onFoot && !this.transfer && rig.agl < 12000 && (rig.throttle || 0) < 0.05 && dt > 0) rig.pos.addScaledVector(wx.wind, wx.windSpeed * 0.5 * Math.min(dt, 0.1));
+      // (streamed elevation has arrived or moved: what was stood on the old ground is stood again)
+      if (this._ringsSeen !== this.terrain.ringSerial && !this.terrain.tiles.busy) {
+        this._ringsSeen = this.terrain.ringSerial;
+        if (this.lander) this.placeLander(this.world, this.terrain.hs);
+        this.rocks.cellKey = '';
+      }
+      sh.uWave.value.set(waveScale(speed), this.wavesLift === false ? 0 : 1, this.shotMode ? 3.0 : (now / 1000) % 14400);
       // how deep the water is where the figure stands (0 on land): the rig slows in it
       // (under the flying figure too: no dust is raised from water)
       if (this.world.surface.sea) { const f = rig.onFoot ? rig.feet : rig.pos, l = f.length(); this.terrain.hs.height(f.x / l, f.y / l, f.z / l, 1); rig.water = this.terrain.hs.waterDepth; } else rig.water = 0;
@@ -1203,6 +1221,7 @@ export class App {
       post.resumeScene();
       this.cloudVolume.lay();
     }
+    if (this.rain.mesh.visible || this.bolt.mesh.visible || this.rainbow.mesh.visible) renderer.render(this.weatherScene, rig.camera);
     if (this.hero.group.visible) {
       // Near the ground the hero shares the terrain's depth buffer (rocks can hide it);
       // higher up the terrain's near plane has moved past it, so it gets its own slice.
