@@ -471,7 +471,9 @@ ring: it is not asked for.
   shines); `G.uFlash` (sky light for an instant); `rain.js` (1 400 streaks or flakes in a
   box round the camera, stateless like the leaves); `bolt.js` (a stroke to the ground);
   the audio (rain, wind, thunder); the rig (the wind carries what hangs in the air, only
-  while the stick is let go).
+  while the stick is let go). Rain, the stroke and the rainbow (`rainbow.js`: one additive
+  full-screen pass when rain falls opposite a low Sun) are in a scene of their own,
+  drawn after the cloud volume is laid over the picture.
 - The ground and the clouds work out cloud shadow place by place (`OWN_CLOUD_SHADOW`);
   everything else near the camera takes `uWeather.x`.
 

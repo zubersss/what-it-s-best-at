@@ -6,7 +6,7 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-*Handoff written at the start of milestone 10 (a living Earth).*
+*Handoff written at the checkpoint of milestone 10 (a living Earth).*
 
 - **The goal** (owner, 2026-11-20): the best possible product a Samsung Galaxy S23 Ultra
   runs without lag (`CLAUDE.md`, "The one goal"). Helpers: workflows only for the most
@@ -14,21 +14,28 @@ changes behaviour.
 - **The owner's last word** (with Smooth and Sharp benchmarks of build fa0c4c9): hyper
   focus on Earth and its physics: rivers and seas, clouds to fly through, forests of the
   real trees, wind in them and falling leaves, rain, thunder and lightning, hurricanes
-  and the other weather, and beautiful. Milestones 6 to 9 are `done`.
-- **What is being built**: "Milestone 10 plan" below, in five stages, each merged and
-  reported in a line or two. The task list of the session mirrors the stages.
-- **Asked of the owner**: an **Earth benchmark** (new button on the start screen: Earth's
-  five views, the flight to the Moon, the Moon's five), in Smooth, after each stage that
-  adds cost. Nothing on Earth has been measured on the phone. Still open: whether a 3D
-  model file of the character exists.
+  and the other weather, and beautiful.
+- **Delivered**: milestone 10, five stages, merged; `checkpoint sent`. What each stage
+  contains and what it does not is under "Milestone 10, stages 1 and 2", "stages 3 to
+  5" and "Milestone 10 review" below.
+- **Not confirmed on the phone, any of it.** The phone was already short of pixels on
+  Mars at 60 fps, and Earth now does far more per pixel (trees, a cloud volume, weather).
+  Asked of the owner: an **Earth benchmark** in Smooth (start screen), and what looks
+  wrong. Expect to tune: which of the 22 governor steps go first on Earth, the cloud
+  volume's size and step count, the trees' radius. Still open: whether a 3D model file
+  of the character exists.
+- **What to do next**: with a benchmark, tune from it first. With a complaint, reproduce
+  it in a picture, fix, show before and after. Then the "not done, or weak" lists of
+  milestone 10 (a swimming stroke, tree shapes up close, cloud grain in motion, rain
+  shafts, moving weather), and Mars' costly pixel (the fourth results).
 - **How to work here** (all in CLAUDE.md): develop on the session's own branch, open a
   pull request into `main` and merge it yourself (through `gh api`); the phone link
   updates a minute later and shows the build's commit. Run `./scripts/build-check.sh`
   before every merge, one headless browser at a time, and the checks listed under "Run
-  and test".
+  and test". Earth pictures need the map mirror's cache (`/root/mapcache/ext`, filled on
+  first use) and `--timeout 600`.
 - **Choosing a view without the browser**: `node scripts/peek.mjs` sketches what a
-  camera sees from a place in seconds. Use it before spending five minutes on a headless
-  picture.
+  camera sees from a place in seconds (bundled maps only).
 
 ## What exists today
 
@@ -1736,3 +1743,11 @@ Weakest: `mars_ledge_orbit_globe`.
   mode, saves, sound. Reviewed by one workflow (25 findings, all fixed: "Milestones 6 to
   9 review"). Tools: `worlds`, `ui`, `peek.mjs`, `check-ephemeris.mjs`, `fit-orbits.py`,
   `fetch-worlds.py`, `fetch-earth-terrain.py`.
+- **Milestone 10, a living Earth** (the owner, with the fourth phone results): governor
+  tuned (resolution first, strides, each world's level remembered) and an Earth
+  benchmark; Earth streamed from AWS Terrain Tiles and NASA GIBS (rings, a tile worker,
+  rebuild in place, a test mirror); the sea, lakes and rivers from the land's shape and
+  real rainfall; forests of each region's trees, wind, seasons, leaves; a cloud volume;
+  the weather of 8 September 2017 (three hurricanes), rain, snow, lightning, thunder, a
+  rainbow. Reviewed by one workflow (30 findings fixed). Tools: `fetch-earth-climate.py`,
+  `fetch-earth-weather.py`; `debug=flash`.
