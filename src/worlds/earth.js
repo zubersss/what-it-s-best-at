@@ -49,7 +49,12 @@ export default {
         // GIBS as coloured tiles; the palette file says what each colour means.
         cover: { classes: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual/default/2022-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png', classesZoom: 8,
           canopy: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GEDI_ISS_L3_Canopy_Height_Mean_RH100_201904-202303/default/2019-04-18/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png', canopyZoom: 7,
-          palette: 'data/earth_cover_palette.json' } } },
+          palette: 'data/earth_cover_palette.json',
+          // the painted look from the air: the land wears a clean version of its class's own
+          // colour (the mean of the satellite picture over that class, made clearer), this
+          // much of it over the satellite's; classes not listed keep the satellite's colour
+          paint: 0.6, colours: { 1: [26, 50, 30], 2: [24, 62, 18], 3: [34, 56, 20], 4: [30, 60, 16], 5: [28, 55, 22], 6: [78, 78, 38], 8: [44, 66, 22], 9: [70, 80, 30],
+            10: [112, 104, 50], 11: [40, 68, 34], 12: [72, 88, 34], 14: [52, 76, 26] } } } },
     },
     layers: [
       { op: 'dem' },
@@ -100,7 +105,10 @@ export default {
     // is a flat shape a shade nearer the sky's colour, the next one nearer still. (It
     // scatters blue most, as clean air does, so the far ground goes blue by day and the
     // Sun low through it goes red. A clear day's real haze was a tenth of this, and grey.)
-    dust: { scattering: [0.5e-4, 1.0e-4, 1.8e-4], absorption: [0.1e-6, 0.1e-6, 0.1e-6], phaseG: [0.6, 0.55, 0.5], scaleHeight: 2200 },
+    // (thinner than at first and standing higher: seen from the air the first numbers made
+    // the land a grey blur, most of all toward the Sun; on the canyon's rim, 2 100 m up,
+    // the air is nearly what it was)
+    dust: { scattering: [0.3e-4, 0.52e-4, 0.85e-4], absorption: [0.1e-6, 0.1e-6, 0.1e-6], phaseG: [0.5, 0.48, 0.45], scaleHeight: 4000 },
     // ozone: takes orange light out of long light paths (the blue of dusk)
     absorber: { absorption: [0.65e-6, 1.88e-6, 0.085e-6], centerAltitude: 25000, halfWidth: 15000 },
   },
@@ -128,9 +136,11 @@ export default {
 
   // Clouds of one real day (the globe's own cloud map) as a layer overhead (see sky/clouds.js).
   // Near the traveller the layer is a volume to fly through: its base at 1 400 m, its
-  // tops up to 3 200 m higher where the map is thick, out to 45 km (cloudVolume.js).
+  // tops up to 3 200 m higher where the map is thick, out to 16 km (cloudVolume.js).
+  // dense: how solid; change: how fast its shapes turn over; fair: fields of small heaps
+  // where the day's map shows no cloud; clear: the cloud is thin this near the eye (m).
   clouds: { map: 'data/earth_clouds_4096.jpg', lon0: -180, altitude: 4500, cover: 0.45, shadow: 0.85,
-    volume: { base: 1400, thick: 3200, reach: 45000, above: 30000, scale: 5200 } },
+    volume: { base: 1400, thick: 3200, reach: 16000, above: 30000, scale: 5200, dense: 2.2, change: 0.03, fair: 0.5, clear: 300 } },
 
   sky: { stars: { url: 'data/stars_bsc5.f32' } },
 

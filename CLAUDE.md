@@ -503,5 +503,20 @@ finished benchmark leaves its text in `window.__benchResult`.
 - A frame's length on a phone is a whole number of refreshes: it cannot say what a thing
   costs. The benchmark's cost test times frames until the GPU has drawn them (one pixel
   read back) with each saving on alone. Ask for a benchmark, read that table, then cut.
+- Nothing leaves the main picture between its clear and its last draw, and its depth is
+  never a texture. The cloud volume once read the depth as a texture and was marched in
+  the middle of the frame: every world ran at 15 fps on the phone at any resolution (a
+  tile-based GPU writes the whole half-float picture and its depth out and reads them
+  back, 50 ms and more). The sign of it in a benchmark: a cost no resolution and no
+  saving changes, smaller at full resolution. What needs depth is drawn as passes at set
+  depths inside the picture, or before it.
+- A change that puts something everywhere (fair-weather cloud where the map had none) must
+  be looked at where the ground is high: a cloud base 1 400 m over the sea was fog on a
+  plateau 2 100 m up, and the opening view was a blank orange wall. Heights of things in
+  the air are over the country, not over the sea.
+- A look tuned in one kind of place is wrong in another: the painted haze was set in a
+  forest and on a canyon rim 2 km up, and from the air over low country the land was a
+  grey blur. Before sending a look, fly it: pictures from 900 m and 2 km, toward the Sun
+  and away, over flat country.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

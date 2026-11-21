@@ -271,7 +271,7 @@ export class App {
     this.nearShadow.addCaster(this.rocks.mesh, this.rocks.depthMaterial, null, () => this.rocks.nearCount);
     // Trees (worlds that have them): drawn with the ground, and they cast shadows
     this.trees = new Trees(world, this.terrain);
-    for (const set of this.trees.sets.flat()) {
+    for (const set of this.trees.sets.flat(2)) {
       this.nearScene.add(set.mesh);
       this.nearShadow.addCaster(set.mesh, this.trees.depthMaterial, () => set.mesh.visible && (set.lod === 0 || this.trees.shadowsFar));
     }
@@ -1220,6 +1220,14 @@ export class App {
     this.nearShadow.render(rig.pos, G.uSunDir.value, rig.localUp);
     prof.mark(6);
 
+    // (clouds: near the traveller the layer is a volume. Its small picture is marched now,
+    // before the main picture is begun, and laid over the ground further down: nothing
+    // interrupts the main picture, see sky/cloudVolume.js)
+    const cloudFar = this.clouds.update(rig.pos, world.radius);
+    const vol = this.cloudVolume.ready(rig.pos, this.clouds);
+    this.clouds.uniforms.uNearFade.value = vol ? this.cloudVolume.reach : 0;
+    if (vol) this.cloudVolume.render(post, rig, this.terrain.shared.uWave.value.z, this.clouds, this.terrain.shared.uWind, this.weather);
+    prof.mark(9);
     // 6. Scene into the HDR target: far pass, clear depth, near pass, then the hero.
     post.beginScene();
     rig.finalize(aspect, 0.002, 100);         // (the sky bodies' slots can come close when one of them fills the view: SkyBodies.update)
@@ -1228,20 +1236,12 @@ export class App {
     prof.mark(7);
     const near = Math.max(0.25, Math.min(2e6, rig.agl * 0.15));
     // (clouds: their shadow reads the same map; the view must reach the layer's horizon)
-    const cloudFar = this.clouds.update(rig.pos, world.radius);
     this.terrain.shared.tClouds.value = this.clouds.mesh.visible ? this.clouds.texture : this.terrain.textures.white;
     const far = Math.max(this.terrain.farDistance, cloudFar) * 1.05;
     rig.finalize(aspect, near, far);
-    // (near the traveller the cloud is a volume, laid over the ground once that is drawn)
-    const vol = this.cloudVolume.ready(rig.pos, this.clouds);
-    this.clouds.uniforms.uNearFade.value = vol ? this.cloudVolume.reach : 0;
     renderer.render(this.nearScene, rig.camera);
     prof.mark(8);
-    if (vol) {
-      this.cloudVolume.render(post, rig, near, far, this.terrain.shared.uWave.value.z, this.clouds, this.terrain.shared.uWind, this.weather);
-      post.resumeScene();
-      this.cloudVolume.lay();
-    }
+    if (vol) this.cloudVolume.lay(near, far, rig);
     prof.mark(9);
     if (this.rain.mesh.visible || this.bolt.mesh.visible || this.rainbow.mesh.visible) renderer.render(this.weatherScene, rig.camera);
     if (this.hero.group.visible) {

@@ -93,6 +93,7 @@ async function coverOf(m, W, out) {
   // colour -> meaning, remembered (a tile uses few colours)
   const look = (table) => { const memo = new Map(); return (r, g, b) => { const key = (r << 16) | (g << 8) | b; let v = memo.get(key); if (v === undefined) { let best = 1e9; v = 0; for (const e of table) { const d = (e[0] - r) ** 2 + (e[1] - g) ** 2 + (e[2] - b) ** 2; if (d < best) { best = d; v = e[3]; } } if (best > 900) v = -1; memo.set(key, v); } return v; }; };
   const classOf = look(pal.cover), heightOf = look(pal.canopy);
+  const paint = m.cover.colours ? (m.cover.paint ?? 0) : 0;
   const cls = new Uint8Array(W * W), tall = new Uint8Array(W * W), closed = new Uint8Array(W * W);        // class, canopy height (0.25 m), how closed (0..255)
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const c = ct[j * n + i].data, hd = ht ? ht[j * n + i].data : null;
@@ -107,6 +108,9 @@ async function coverOf(m, W, out) {
       h = h > 1 ? (dens < 0.6 ? Math.max(h * 1.5, COVER_HEIGHT[k]) : h) : COVER_HEIGHT[k];
       cls[o] = k; tall[o] = Math.min(255, Math.round(h * 4)); closed[o] = Math.round(dens * 255);
       out[o * 4 + 3] = Math.min(255, Math.round(h * dens * 5));
+      // (the painted look: the land's colour drawn toward its class's own, m.cover.paint of the way)
+      const pc = paint && m.cover.colours[k];
+      if (pc) { const q4 = o * 4; out[q4] += (pc[0] - out[q4]) * paint; out[q4 + 1] += (pc[1] - out[q4 + 1]) * paint; out[q4 + 2] += (pc[2] - out[q4 + 2]) * paint; }
     }
   }
   return { cls, tall, closed };
