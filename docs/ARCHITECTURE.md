@@ -392,8 +392,12 @@ ring: it is not asked for.
   yearly rainfall map), added up downstream into a mean flow. A river that crosses into
   the mosaic (a coarse cell outside draining to one inside) puts its flow in at the lowest
   ground near the crossing. Rivers are traced as smoothed lines with a width and a depth from the flow
-  (`riverWidth`, `riverDepth`) and a level that never rises: the ground's own along the
-  way, so a river cuts through a pit the flood filled and never stands above the land.
+  (`riverWidth`, `riverDepth`) and a level that never rises on the way down and stays as
+  near the ground along the way as that allows (a least-squares fit, standing above the
+  ground counted six times as dear as cutting into it; a lake's surface, the sea's and
+  the river it joins are met exactly). On the finest ring that is within a few metres of
+  the ground; on the coarse ones a river crossing a hollow the flood filled can stand
+  tens of metres off.
   **Lakes are read from the elevation, not made by the flood**: every real lake lies in
   the elevation set as a stretch of exactly level cells (checked on fourteen lakes at
   three zooms), while a pit only the flood fills is nearly always a valley whose gorge is
@@ -403,8 +407,15 @@ ring: it is not asked for.
   what open water loses to the air (`evaporation`), which leaves dry lake beds dry. Large
   ones are settled by the bundled water map (`tiles.hydrology.water`, the globe's glint
   map): seen as open water is a lake whatever its rim, a plain as level as a lake is land.
-  A filled pit counts only on the finest ring, shallow and in wet country (a pond).
-  Holes in the elevation (a few cells under sea level deep inland) are filled first.
+  A stretch a metre or two lower that touches a higher one is the same lake (a great
+  lake's surface is not one whole number all over); ground beside a lake that is lower
+  than its water and cannot drain is under it; cells under sea level that the sea does
+  not reach (`inland`) are a lake's bed where one lies round them, and the `sea` layer
+  gives a lake's water the say over the sea's. A filled pit counts only on the finest
+  ring, shallow and in wet country (a pond). Bad cells are mended first: spikes
+  (`despike`: a cell more than four cell-widths off the middle of its nine) and holes (a
+  few cells under sea level deep inland). `npm run lakes` runs all of this in Node on
+  nine regions and compares with the real lakes.
   `packWater` turns them into arrays for the height code: stretches of river with a grid
   to find them, a raster of lake levels, lake beds cut into the mosaic.
   `DemSet._water` answers from the finest ring at a place; the `sea` layer makes the
