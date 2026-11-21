@@ -31,19 +31,20 @@ export function createHeightSource(world, rasters = []) {
   // nearby plus `shadowHeadroom` for what the procedural layers can add on top.
   const reach = terrain.shadowRange ?? 150000, headroom = terrain.shadowHeadroom ?? 1500;
   if (env.dem) env.dem.buildTops(reach);
-  const c = { x: 0, y: 0, z: 1, px: 0, py: 0, pz: 0, h: 0, slope: 0, res: 1e12, minWL: 0 };
+  const c = { x: 0, y: 0, z: 1, px: 0, py: 0, pz: 0, h: 0, slope: 0, res: 1e12, minWL: 0, water: 0, map: null };
   const n = fns.length;
   const regional = fns.filter((f) => f.prepare);
 
   const hs = {
     radius,
     baseSlope: 0,
+    waterDepth: 0,              // after height(): how deep the water is there (m; 0 on land)
     height(x, y, z, minWL) {
       c.x = x; c.y = y; c.z = z;
       c.px = x * radius; c.py = y * radius; c.pz = z * radius;
-      c.h = 0; c.slope = 0; c.res = 1e12; c.minWL = minWL > 0.02 ? minWL : 0.02;
+      c.h = 0; c.slope = 0; c.res = 1e12; c.minWL = minWL > 0.02 ? minWL : 0.02; c.water = 0; c.map = null;
       for (let i = 0; i < n; i++) fns[i](c);
-      hs.baseSlope = c.slope;
+      hs.baseSlope = c.slope; hs.waterDepth = c.water;
       return c.h;
     },
     // No ground within the world's shadow range of this place is higher than this (m above datum).
@@ -53,6 +54,8 @@ export function createHeightSource(world, rasters = []) {
       for (let i = 0; i < tops.length; i++) top += tops[i](x, y, z, reach);
       return Math.min(terrain.maxAltitude, top);
     },
+    // A ring of map tiles arrives, moves or goes (terrain/tiles; see DemSet.setRing).
+    setRing(slot, raster) { env.dem?.setRing(slot, raster); },
     // Optional speed-up when many nearby points follow: (x,y,z) unit direction of the
     // region's centre and its radius in metres. Call release() before querying elsewhere.
     prepare(x, y, z, rho) { for (const f of regional) f.prepare(x * radius, y * radius, z * radius, rho); },

@@ -65,8 +65,8 @@ function rockGeometry() {
 
 export class Rocks {
   constructor(world, hs) {
-    this.seaLevel = null;            // (set from the world just below and in setWorld)
     this.world = world; this.hs = hs;
+    this.seaLevel = world.surface.sea ? (world.surface.sea.level ?? 0) : null;     // (and in setWorld)
     const def = world.surface.rocks || { count: 0, radius: 100, size: [0.3, 1], albedo: [0.15, 0.1, 0.07] };
     this.def = def; this.capacity = 512;                // fixed instance buffer; a world may use fewer
     this.cell = 7;
@@ -226,7 +226,7 @@ export class Rocks {
       const lat = (i + (h1 & 0xffff) / 65536) * dLat, lon = (j + (h1 >>> 16) / 65536) * dLon;
       latLonToDir(lat, lon, d);
       const ground = hs.height(d[0], d[1], d[2], 0.6);
-      if (this.seaLevel != null && ground <= this.seaLevel + 0.3) continue;      // no rocks standing on the sea
+      if (hs.waterDepth > 0 || (this.seaLevel != null && ground <= this.seaLevel + 0.3)) continue;      // no rocks standing on water
       const r = R + ground;
       const x = d[0] * r, y = d[1] * r, z = d[2] * r;
       const dist = Math.hypot(x - cam.x, y - cam.y, z - cam.z);

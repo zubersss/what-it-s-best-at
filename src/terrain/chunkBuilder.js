@@ -79,6 +79,7 @@ export class ChunkBuilder {
     this.M = this.NR + 3;
     const M = this.M;
     this.H = new Float64Array(M * M);
+    this.Wd = new Float32Array(M * M);          // how deep the water is at each sample (0 on land)
     this.P = new Float64Array(M * M * 3);
     this.D = new Float64Array(M * M * 3);
     this.hp = new Float64Array((this.G + 1) * (this.G + 1));
@@ -93,7 +94,7 @@ export class ChunkBuilder {
 
   // sun: [x,y,z] unit direction (planet-fixed) and sunHalf: its angular radius, for the baked shadow map.
   build(face, level, ix, iy, sun, sunHalf) {
-    const { hs, G, NR, M, H, P, D, step } = this;
+    const { hs, G, NR, M, H, Wd, P, D, step } = this;
     const R = hs.radius;
     const size = 2 / (1 << level), a0 = -1 + ix * size, b0 = -1 + iy * size;
     const edge = nodeEdge(level, R);
@@ -109,7 +110,7 @@ export class ChunkBuilder {
         faceToDir(face, a, b, dir);
         const h = hs.height(dir[0], dir[1], dir[2], minWL);
         const o = j * M + i, r = R + h;
-        H[o] = h;
+        H[o] = h; Wd[o] = hs.waterDepth;
         D[o * 3] = dir[0]; D[o * 3 + 1] = dir[1]; D[o * 3 + 2] = dir[2];
         P[o * 3] = dir[0] * r; P[o * 3 + 1] = dir[1] * r; P[o * 3 + 2] = dir[2] * r;
         if (h < minH) minH = h; if (h > maxH) maxH = h;
@@ -176,7 +177,7 @@ export class ChunkBuilder {
 
     const texel = edge / NR;
 
-    // World-space normal map (RGBA16F): xyz normal, a = cavity occlusion. Its mip maps are
+    // World-space normal map (RGBA16F): xyz normal, a = cavity occlusion (on water: 1 + depth). Its mip maps are
     // made here too and follow it in the same array, level after level: asking the GPU to
     // build them costs a render job per patch (and it cannot do one layer of a texture array).
     const T = NR + 1, nf = this.nf[0];
@@ -191,7 +192,8 @@ export class ChunkBuilder {
       // Cavity term from the immediate neighbours only (so it never changes across chunk edges):
       // texels sitting in a crease receive less sky light.
       const cav = ((H[s - 1] + H[s + 1] + H[s - M] + H[s + M]) * 0.25 - H[s]) / texel;
-      const ao = 1 / (1 + Math.max(0, cav) * 5.0);
+      // (water: the fourth number is 1 + its depth in metres instead: see terrainMaterial.js)
+      const ao = Wd[s] > 0 ? 1 + Wd[s] : 1 / (1 + Math.max(0, cav) * 5.0);
       const t = (j * T + i) * 4;
       nf[t] = nx; nf[t + 1] = ny; nf[t + 2] = nz; nf[t + 3] = ao;
     }

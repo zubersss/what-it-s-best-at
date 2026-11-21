@@ -37,7 +37,8 @@ export const OPS = {
     const dem = env.dem;
     return (c) => {
       dem.sample(c.x, c.y, c.z);
-      c.h += dem.h;
+      c.h += dem.h; c.map = dem.h;            // (map: the elevation map's own height, for layers that ask what it said)
+      c.dem = dem;                            // (and the map itself: the water it knows of at this place)
       c.slope = Math.hypot(dem.gE, dem.gN);
       c.res = dem.res;
     };
@@ -423,14 +424,39 @@ export const OPS = {
   },
 
   // A sea: no ground lies below `level` (m). Put it last, so the water stays flat.
+  // With an elevation map the map decides where the shore is: what it has below the level
+  // is water (as deep as it says), and what it has above is land, on which the layers
+  // before this one fade out toward the water's edge (they would dig pools into a beach
+  // and raise islets off it).
   sea(def) {
     const level = def.level ?? 0;
     return (c) => {
+      const map = c.map;
+      if (map != null) {
+        const up = map - level;
+        if (up <= 0) { c.water = up < -0.5 ? -up : 0.5; c.h = level; c.slope = 0; return; }
+        const dem = c.dem;
+        // a lake: its bed is in the map, its level comes with the ring
+        if (dem.lakeL > map) { c.water = dem.lakeL - map; c.h = dem.lakeL; c.slope = 0; return; }
+        // a river: water between its banks, a bed rounded across it, and the land beside it
+        // brought down to the water's edge
+        if (dem.rivS < 1e8) {
+          const a = dem.rivA, s = dem.rivS, L = dem.rivL, bank = 4 + a * 1.2;
+          if (s < a) { const u = s / a; c.water = Math.max(0.25, dem.rivD * (1 - u * u)); c.h = L; c.slope = 0; return; }
+          if (s < a + bank) { const u = (s - a) / bank, k = u * u * (3 - 2 * u); c.h = L + 0.05 + (Math.max(c.h, L + 0.3) - L - 0.05) * k; c.slope *= k; return; }
+        }
+        if (up < 6) {
+          const t = up / 6, k = t * t * (3 - 2 * t), h = level + up + (c.h - map) * k;
+          c.h = h > level + up * 0.25 ? h : level + up * 0.25; c.slope *= k;
+        }
+        return;
+      }
       if (c.h >= level + 2) return;
       // (the slope fades to nothing across the shore instead of stopping at it)
       const t = Math.max(0, (c.h - level) / 2);
       c.slope *= t;
-      if (c.h < level) c.h = level;
+      // (how deep the water is here: its colour, its waves and what stands in it follow)
+      if (c.h < level) { c.water = level - c.h; c.h = level; }
     };
   },
 };

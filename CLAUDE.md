@@ -173,6 +173,7 @@ npm run worlds         # every world opens at its start with ground drawn and no
 node scripts/check-ephemeris.mjs   # every orbit and spin against JPL Horizons (no network; fails beyond a tolerance)
 node scripts/peek.mjs --world io [--shot ledge | --lat .. --lon ..] [--pan 4]   # a CPU sketch of the view from a place, in seconds: for choosing sites and times
 python3 scripts/fetch-worlds.py [job ...]   # the maps of the worlds of milestone 6 (5 GB of originals into .cache/maps), see docs/ASSETS.md
+python3 scripts/fetch-earth-climate.py   # Earth's yearly rainfall for the rivers, from NASA GIBS (public/data/earth_rain_720.u8)
 python3 scripts/fit-orbits.py      # orbits fitted to JPL Horizons (needs ssd.jpl.nasa.gov; replies cached)
 npm run assets         # re-download and convert the small NASA/Yale files into public/data/
 python3 scripts/fetch-maps.py   # the rest of public/data/ (needs: pip install rasterio numpy pillow), see docs/ASSETS.md
@@ -417,5 +418,24 @@ finished benchmark leaves its text in `window.__benchResult`.
   gets none): update text in place. And release the pointer lock when an overlay opens.
 - A scripted benchmark must not depend on the sky: a moon in the way became a world to
   hand over to and changed the route. During a benchmark only its destination counts.
+- Earth streams its maps while the game runs (terrain/tiles). The test browser cannot
+  reach the services: `scripts/lib/browser.mjs` mirrors them from `/root/mapcache/ext`
+  (curl on a miss). A first picture at a new place fetches some 60 tiles and is slow;
+  Earth pictures need `--timeout 600` at the phone shape. Node scripts (`peek`, the
+  flight simulations) see only the bundled maps.
+- Something marked "build again" must be marked done when the new build is asked for,
+  not when it lands: between the two it was asked for again every frame (932 builds
+  queued for 400 patches, and a scene that never settled).
+- When one number carries two meanings (the normal map's fourth: cavity shading on land,
+  1 + depth on water), the writer and the reader change in the same edit: a builder
+  still writing the old form drew the sea as land and a black band at the horizon.
+- Radar elevation (SRTM) has the sea at exactly zero near land: no bed, no depth, nothing
+  to tell sea from a beach. The tile worker gives coastal water a bed by its distance
+  from land.
+- A window cut from the land is not a drainage basin: flooding inward from every edge
+  cell sent Lake Powell out backwards over the edge it enters by, and the Colorado
+  reached the Grand Canyon with a twentieth of its water. Only the stretches of edge
+  where the coarser map says the land outside is downhill let water out; a river that
+  comes in is put in where the coarser map says it crosses.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

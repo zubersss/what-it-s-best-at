@@ -14,6 +14,9 @@ self.onmessage = (ev) => {
       baker = new ShadowBaker(hs, m.cfg, m.world);
       builder = new ChunkBuilder(hs, m.cfg, baker);
       self.postMessage({ type: 'ready' });
+    } else if (m.type === 'ring') {
+      // (no reply: jobs sent after this message are built with the new ring)
+      hs.setRing(m.slot, m.raster ? { ...m.raster, data: new Int16Array(m.raster.buffer) } : null);
     } else if (m.type === 'chunk') {
       const t0 = performance.now();
       const c = builder.build(m.face, m.level, m.ix, m.iy, m.sun, m.sunHalf);

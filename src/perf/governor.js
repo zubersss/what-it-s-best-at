@@ -31,6 +31,7 @@ export const FEATURE_STEPS = [
   { id: 'dust', label: 'half the kicked-up dust, simpler cloud', apply: (app, off) => { app.dust.amount = off ? 0.5 : 1; } },
   { id: 'rocks', label: 'half the rocks', apply: (app, off) => { app.rocks.setFraction(off ? 0.5 : 1); } },
   { id: 'fine-shadows', label: 'coarser shadows of nearby rocks', apply: (app, off) => { app.nearShadow.fine = !off; } },
+  { id: 'waves', label: 'waves that lift the water (they stay as shading)', apply: (app, off) => { app.wavesLift = !off; } },
   { id: 'clouds', label: 'the cloud layer and its shadows', apply: (app, off) => { if (app.clouds) app.clouds.enabled = !off; } },
   { id: 'terrain-1', label: 'terrain detail (fewer patches)', apply: (app, off) => { app.terrainBudget(off ? 0.8 : 1, 'terrain-1'); } },
   { id: 'bloom', label: 'glow around bright things', apply: (app, off) => { app.post.bloomEnabled = !off; } },

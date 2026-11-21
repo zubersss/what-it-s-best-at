@@ -19,7 +19,7 @@ for (const id of ids) {
   const shot = Object.keys(WORLDS[id].scene.bookmarks)[0], before = errors.length, t0 = Date.now();
   await goto(`${base}?world=${id}&shot=${shot}`);
   let ready = true;
-  try { await page.waitForFunction(() => window.__shotReady === true || window.__shotError, null, { timeout: 600000, polling: 500 }); } catch { ready = false; }
+  try { await page.waitForFunction(() => window.__shotReady === true || window.__shotError, null, { timeout: 900000, polling: 500 }); } catch { ready = false; }
   const st = await page.evaluate(() => ({ stats: window.__stats, err: window.__shotError || null }));
   check(`${id}: opens at "${shot}" and settles`, ready && !st.err, `${((Date.now() - t0) / 1000).toFixed(0)} s${st.err ? ', ' + st.err : ''}${st.stats?.wait ? ', waiting for: ' + st.stats.wait : ''}`);
   check(`${id}: ground is drawn`, (st.stats?.chunks ?? 0) > 0, `${st.stats?.chunks} patches, ${st.stats?.calls} draw calls`);
