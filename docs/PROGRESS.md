@@ -389,15 +389,25 @@ rather than cured it, and following them up found two larger ones. What was done
   zooms: every real lake is a level stretch in this elevation set, none has a bed in it.
   The rule is now the one in ARCHITECTURE ("Rivers and lakes"): level stretches in a
   hollow that can be kept full, the large ones checked against NASA's water map; pits
-  only as ponds. Checked against the real sizes: Great Salt Lake 3 600 km2 (4 400 real),
-  Champlain 1 261 (1 269), Tahoe 540 (490), Pyramid 515 (487), Superior 69 600 (82 100),
-  Victoria 54 400 (68 800), Tanganyika 24 100 (32 900); the Tisza's plain, Tulare's dry
-  bed and Carson Sink are land.
-- **Rivers cut, they do not fill**: a river's level follows the ground down, so it runs
-  through the far side of a pit instead of standing on the filled level.
-- **A lake's bed can lie under sea level** (Champlain's was dug to -32 m and drawn as a
-  pit of sea in the lake); and holes in the elevation (a cell in Lake Winnipesaukee reads
-  68 m under the sea) are filled.
+  only as ponds. Checked against the real sizes (km2, found / real): Great Salt Lake
+  4 674 / 2 300 to 4 400, Champlain 929 / 1 269, Tahoe 460 / 490, Pyramid 468 / 487,
+  Titicaca 7 089 / 8 370, Superior 67 617 / 82 100, Michigan 50 771 / 58 000, Huron
+  51 510 / 59 600, Erie 23 380 / 25 700, Ontario 15 889 / 19 000, Victoria 53 199 /
+  68 800, Tanganyika 24 446 / 32 900, Turkana 5 570 / 6 400; the Tisza's plain, the Po
+  plain, Tulare's dry bed, Carson Sink, Black Rock Desert and the Snake River Plain are
+  land.
+- **Rivers lie on their ground**: a river's level is the one nearest the ground along its
+  way that never rises (it stood on the filled level as on a causeway; held to the
+  lowest ground so far it ran on in a trench after every pit). Along the Colorado on the
+  finest ring: within 4 m under and 1.4 m over the ground for nine tenths of its length.
+- **A lake's bed can lie under sea level** (Champlain's deep is in the map, and its dug
+  bed went to -32 m: both were drawn as pits of sea in the lake). Bad cells in the
+  elevation are mended: a mosaic over Vermont had a cell at 7 964 m beside one at
+  -2 496 m, Lake Winnipesaukee one at -1 926 m.
+- **A check that can fail**: `npm run lakes` (no browser, 15 s) finds thirteen real lakes
+  within a factor of their real area, seven places that must be land, no region drowned,
+  no step in the drawn surface at any water's edge, rivers within 6 m of their ground on
+  the finest ring. Its step test was shown to fail by breaking a fix on purpose.
 - **The gully layer cut 100 m gullies into real mountainsides**: made for the coarse
   bundled map, it ran at full strength over the 27 m elevation too. It now adds only
   what the map under the place cannot show (`belowDem` on `ridged`), as the roughness

@@ -170,6 +170,7 @@ npm run govsim         # the governor against simulated GPUs (no browser)
 npm run transfer       # GO trips flown without a browser: arrival, time against the marker's estimate
 npm run target         # the target list, marker and a GO trip in the real game (headless)
 npm run worlds         # every world opens at its start with ground drawn and no errors (headless, about an hour; -- --only io,titan)
+npm run lakes          # Earth's lakes and rivers against the real ones, without a browser (15 s; -- --list, -- utah vermont)
 node scripts/check-ephemeris.mjs   # every orbit and spin against JPL Horizons (no network; fails beyond a tolerance)
 node scripts/peek.mjs --world io [--shot ledge | --lat .. --lon ..] [--pan 4]   # a CPU sketch of the view from a place, in seconds: for choosing sites and times
 python3 scripts/fetch-worlds.py [job ...]   # the maps of the worlds of milestone 6 (5 GB of originals into .cache/maps), see docs/ASSETS.md
@@ -471,8 +472,12 @@ finished benchmark leaves its text in `window.__benchResult`.
   flood fills is a valley whose gorge is narrower than a cell (filled, Nevada was a sea).
   And a test must be seen to pass on the real thing: the one that kept level stretches
   could not (its rim was counted among cells level by definition), so no real lake was
-  drawn for a whole stage. After changing the lake or river rules, list the lakes of a
-  few known regions against their real sizes before any picture.
+  drawn for a whole stage. After changing the lake or river rules run `npm run lakes`
+  before any picture; and when a check is new, break the thing it guards once to see it fail
+  (its first form looked only at lake edges and passed over a 27 m wall inside a lake).
+- Streamed elevation has bad cells (a spike of 7 964 m in Vermont, holes far under the
+  sea inside lakes) and real lake beds under sea level (Champlain). Nothing downstream
+  may take "at or under zero" to mean the sea without asking whether the sea reaches it.
 - A layer made to add relief to a coarse map must stop where the map is fine (`belowDem`):
   the gully layer cut 100 m gullies into mountains that 27 m elevation already showed.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
