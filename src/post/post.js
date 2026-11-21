@@ -226,9 +226,7 @@ export class PostPipeline {
     const opts = { type: THREE.HalfFloatType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false };
     this.scene?.dispose();
     this.scene = new THREE.WebGLRenderTarget(this.width, this.height, { ...opts, depthBuffer: true, stencilBuffer: false });
-    // (the depth as a texture: the cloud volume reads what stands behind each pixel, sky/cloudVolume.js)
-    this.scene.depthTexture = new THREE.DepthTexture(this.width, this.height, THREE.UnsignedIntType);
-    this.scene.depthTexture.minFilter = this.scene.depthTexture.magFilter = THREE.NearestFilter;
+    // (the depth is a plain buffer, never a texture: see sky/cloudVolume.js for what that cost on a phone)
     this.scene.texture.colorSpace = THREE.NoColorSpace;
     this.scene.scissorTest = true;
     for (const t of this.bloomDown) t.dispose();
@@ -266,10 +264,6 @@ export class PostPipeline {
     // is scissored to it, so a tile-based GPU never touches the tiles outside.
     r.clear(true, true, false);
   }
-
-  // Back to the HDR target after a pass elsewhere in the middle of the frame (the cloud
-  // volume's small picture): nothing is cleared.
-  resumeScene() { this.renderer.setRenderTarget(this.scene); }
 
   // Call right after the last scene draw: the depth buffer is not needed any more, so a
   // tile-based GPU does not have to write it back to memory.
@@ -324,7 +318,7 @@ export class PostPipeline {
     cm.uBloom.value = this.bloomEnabled ? CONFIG.BLOOM_STRENGTH : 0;
     // (the Sun's beams go with the bloom: one governor step for both)
     cm.tShaft.value = this.bloomDown[0].texture;
-    cm.uShaft.value.set(this.sunUv[0], this.sunUv[1], this.bloomEnabled ? this.shafts * this.sunUv[2] : 0, this.viewW / this.viewH);
+    cm.uShaft.value.set(this.sunUv[0], this.sunUv[1], this.bloomEnabled && this.shaftsOn !== false ? this.shafts * this.sunUv[2] : 0, this.viewW / this.viewH);
     renderPass(r, this.compositeMat, null);
   }
 

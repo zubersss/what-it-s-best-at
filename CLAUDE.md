@@ -503,5 +503,12 @@ finished benchmark leaves its text in `window.__benchResult`.
 - A frame's length on a phone is a whole number of refreshes: it cannot say what a thing
   costs. The benchmark's cost test times frames until the GPU has drawn them (one pixel
   read back) with each saving on alone. Ask for a benchmark, read that table, then cut.
+- Nothing leaves the main picture between its clear and its last draw, and its depth is
+  never a texture. The cloud volume once read the depth as a texture and was marched in
+  the middle of the frame: every world ran at 15 fps on the phone at any resolution (a
+  tile-based GPU writes the whole half-float picture and its depth out and reads them
+  back, 50 ms and more). The sign of it in a benchmark: a cost no resolution and no
+  saving changes, smaller at full resolution. What needs depth is drawn as passes at set
+  depths inside the picture, or before it.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

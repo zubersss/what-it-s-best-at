@@ -12,12 +12,12 @@ import { G } from '../render/globals.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
-import { makeTreeGeometries } from './treeGeometry.js';
+import { makeTreeGeometries, VARIANTS } from './treeGeometry.js';
 import { SPECIES } from './cover.js';
 import { BLOCK_DEG, TREE_FLOATS, blockLon } from './treeBlock.js';
 
 const NEAR_CAP = 768, FAR_CAP = 4096;       // instances of one shape, near mesh and far mesh
-const NEAR_M = 110;                          // trees nearer than this get the near mesh
+const NEAR_M = 80;                           // trees nearer than this get the near mesh
 const REBUILD_M = 25;                        // the instance lists are made again when the traveller has moved this far
 
 const TREE_VERT = /* glsl */`
@@ -33,7 +33,7 @@ vec3 treePosition(out vec3 foot, out float leaf) {
   float c = cos(iB.y), s = sin(iB.y);
   vec3 p = position;
   // bare in winter: the leaves draw in to the branches (the trunk stays)
-  float gone = aLeaf * min(iB.w, 1.0) * uSeason.y;         // (iB.w is 1 or 2 on trees that drop their leaves: which colour they turn)
+  float gone = min(aLeaf, 1.0) * min(iB.w, 1.0) * uSeason.y;         // (iB.w is 1 or 2 on trees that drop their leaves: which colour they turn)
   p.xz *= iB.x * (1.0 - 0.85 * gone);
   vec3 l = vec3(p.x * c - p.z * s, p.y, p.x * s + p.z * c) * iA.w;
   // wind: the whole tree leans a little and its crown swings, gust by gust, each tree in
@@ -44,7 +44,10 @@ vec3 treePosition(out vec3 foot, out float leaf) {
   // (out to nothing at the edge of the trees' radius, so none pops in)
   float fade = 1.0 - smoothstep(uTreeRadius * 0.82, uTreeRadius, length(foot));
   leaf = aLeaf;
-  return foot + (uTreeEast * l.x + uTreeUp * l.y + uTreeNorth * l.z + uTreeWind.xyz * bend) * fade;
+  // (single leaves flutter, each in its own time, harder the harder it blows)
+  vec3 flutter = vec3(0.0);
+  if (aLeaf > 1.5) { float ph = dot(position, vec3(41.0, 57.0, 73.0)) + iB.z * 31.0, amp = iA.w * (0.0012 + 0.0009 * uTreeWind.w); flutter = (uTreeEast * sin(uSeason.z * 7.3 + ph) + uTreeUp * sin(uSeason.z * 9.1 + ph * 1.7) + uTreeNorth * sin(uSeason.z * 6.1 + ph * 0.6)) * amp; }
+  return foot + (uTreeEast * l.x + uTreeUp * l.y + uTreeNorth * l.z + uTreeWind.xyz * bend + flutter) * fade;
 }
 vec3 treeNormal() {
   float c = cos(iB.y), s = sin(iB.y);
@@ -96,12 +99,13 @@ export class Trees {
           // (the painted look: a crown's faces that look up are its light tone, those that look
           // down its dark one; a pale trunk has its dark scars, as aspen and birch do)
           if (uPaint.x > 0.0 && vLeaf > 0.5) {
-            leafC = mix(leafC, dot(leafC, vec3(0.2, 0.7, 0.1)) * vec3(0.62, 1.0, 0.36), 0.45) * mix(0.5, 1.15, smoothstep(-0.45, 0.55, dot(N, up)));
+            leafC = mix(leafC, dot(leafC, vec3(0.2, 0.7, 0.1)) * vec3(0.62, 1.0, 0.36), 0.45) * mix(0.64, 1.15, smoothstep(-0.45, 0.55, dot(N, up)));
             // (a crown is bunches of leaves, drawn as patches of three tones with clean edges;
             // not from far off, where a patch is smaller than a pixel)
             float c = leafCells(vTreeM * 2.6) * 0.65 + leafCells(vTreeM * 6.1 + 3.3) * 0.35, near = 1.0 - smoothstep(60.0, 140.0, length(vRel));
             leafC *= mix(1.0, 0.72 + 0.3 * smoothstep(0.40, 0.44, c) + 0.26 * smoothstep(0.58, 0.62, c), near);
           }
+          if (vLeaf > 1.5) leafC *= 1.14;
           vec3 albedo = mix(vTrunkC * 0.6, leafC, step(0.5, vLeaf));
           if (uPaint.x > 0.0 && vLeaf < 0.5 && dot(vTrunkC, vec3(0.333)) > 0.4) albedo *= 1.0 - 0.75 * step(0.8, fract(vY * 31.0 + vOwn.x * 9.0)) * step(0.35, fract(vY * 7.7 + vOwn.x * 3.0));
           // (the shadow is asked for a little outside the crown: on a mass of a few faces the
@@ -113,10 +117,13 @@ export class Trees {
           if (uPaint.x > 0.0) { lit = mix(lit, paintLit(vLeaf > 0.5 ? nl * 0.75 + 0.25 : nl) * PI, uPaint.x); albedo = paintColour(albedo); leafC = paintColour(leafC); }
           float through = vLeaf > 0.5 ? max(-nl, 0.0) * 0.28 : 0.0;
           // inside and under a crown less sky is seen
-          float open = vLeaf > 0.5 ? mix(0.35, 1.0, smoothstep(-0.6, 0.8, dot(N, up))) : mix(0.22, 0.6, smoothstep(0.0, 0.5, vY));
+          float open = vLeaf > 0.5 ? mix(0.5, 1.0, smoothstep(-0.6, 0.8, dot(N, up))) : mix(0.22, 0.6, smoothstep(0.0, 0.5, vY));
           // (the painted look: the shaded side of a crown is its dark tone, not a bright one lit by the sky)
-          if (uPaint.x > 0.0 && vLeaf > 0.5) open *= 0.62;
-          vec3 col = (albedo * (sun * lit + skyLight(N, up) * open + planetShine(N)) + leafC * sun * through * vec3(1.1, 1.25, 0.6)) / PI;
+          if (uPaint.x > 0.0 && vLeaf > 0.5) open *= 0.8;
+          // (and in the shade of the wood a crown is never black: by day some light has always
+          // come down through the leaves above it, green from the passage)
+          vec3 glow = vLeaf > 0.5 ? leafC * directSun(planetPos) * (0.07 * smoothstep(0.0, 0.25, dot(up, uSunDir))) * vec3(0.9, 1.2, 0.5) : vec3(0.0);
+          vec3 col = (albedo * (sun * lit + skyLight(N, up) * open + planetShine(N)) + leafC * sun * through * vec3(1.1, 1.25, 0.6) + glow) / PI;
           col = aerialPerspective(col, vRel);
           fragColor = vec4(col * uExposure, 1.0);
         }`,
@@ -136,7 +143,8 @@ export class Trees {
         }`,
     });
     // one mesh per shape and distance: [shape][0 near, 1 far]
-    this.sets = this.geos.map((pair) => pair.map((base, lod) => {
+    // one mesh per shape, variant and distance: [shape][variant][0 near, 1 far]
+    this.sets = this.geos.map((variants) => variants.map((pair) => pair.map((base, lod) => {
       const cap = lod ? FAR_CAP : NEAR_CAP, geo = new THREE.InstancedBufferGeometry();
       for (const name of ['position', 'normal', 'aLeaf', 'aSway']) geo.setAttribute(name, base.attributes[name]);
       const at = (n) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(cap * n), n); a.setUsage(THREE.DynamicDrawUsage); return a; };
@@ -146,8 +154,8 @@ export class Trees {
       const mesh = new THREE.Mesh(geo, this.material);
       mesh.frustumCulled = false; mesh.visible = false;
       return { geo, mesh, cap, iA, iB, iC, iD, count: 0, tris: base.attributes.position.count / 3, lod };
-    }));
-    this.meshes = this.sets.flat().map((s) => s.mesh);
+    })));
+    this.meshes = this.sets.flat(2).map((s) => s.mesh);
     this.blocks = new Map();                 // 'bi:bj' -> { state: 0 asked, 1 ready, origin, trees, count, used }
     this.asked = 0; this.frame = 0; this.serial = -1;
     this.anchor = new THREE.Vector3(); this.builtAt = new THREE.Vector3(1e12, 0, 0); this.dirty = false;
@@ -161,7 +169,7 @@ export class Trees {
     this.world = world; this.def = world.life?.trees || null;
     this.blocks.clear(); this.asked = 0; this.dirty = true; this.serial = -1;
     this.shared.uSeason.value.set(0, 0, 0);
-    for (const s of this.sets.flat()) { s.count = 0; s.geo.instanceCount = 0; s.mesh.visible = false; }
+    for (const s of this.sets.flat(2)) { s.count = 0; s.geo.instanceCount = 0; s.mesh.visible = false; }
     this.count = 0; this.triangles = 0; this.names = ''; this.falling = 0;
   }
 
@@ -175,7 +183,7 @@ export class Trees {
     if (!def) return;
     const R = this.world.radius, radius = (def.radius ?? 240) * this.fraction;
     const show = rig.agl < (def.below ?? 1500) && !!t.coverSerial;
-    for (const s of this.sets.flat()) s.mesh.visible = show && s.count > 0;
+    for (const s of this.sets.flat(2)) s.mesh.visible = show && s.count > 0;
     const p = rig.pos, len = p.length(), lat = Math.asin(p.z / len) * 180 / Math.PI, lon = ((Math.atan2(p.y, p.x) * 180 / Math.PI) + 360) % 360;
     {
       // The year in the leaves (worked out whether or not trees are drawn: the far forest
@@ -238,9 +246,9 @@ export class Trees {
     localFrame([A.x, A.y, A.z], this._e, this._n, this._u);
     const u = this.shared;
     u.uTreeEast.value.set(...this._e); u.uTreeNorth.value.set(...this._n); u.uTreeUp.value.set(...this._u);
-    for (const s of this.sets.flat()) s.count = 0;
+    for (const s of this.sets.flat(2)) s.count = 0;
     const r2 = (radius + 10) * (radius + 10), near2 = NEAR_M * NEAR_M;
-    let nearest = 1e9, names = new Map(), falling = 0;
+    let nearest = 1e9, names = new Map(), falling = 0, near = 0;
     for (const b of this.blocks.values()) {
       if (b.state !== 1 || !b.count) continue;
       const ox = b.origin[0] - A.x, oy = b.origin[1] - A.y, oz = b.origin[2] - A.z, T = b.trees;
@@ -248,23 +256,23 @@ export class Trees {
       for (let k = 0, q = 0; k < b.count; k++, q += TREE_FLOATS) {
         const x = ox + T[q], y = oy + T[q + 1], z = oz + T[q + 2], d2 = x * x + y * y + z * z;
         if (d2 > r2) continue;
-        const sp = SPECIES[T[q + 6]], set = this.sets[sp.arch][d2 < near2 ? 0 : 1];
+        const sp = SPECIES[T[q + 6]], own = T[q + 7], set = this.sets[sp.arch][Math.min(VARIANTS - 1, Math.floor(((own * 7.31) % 1) * VARIANTS))][d2 < near2 ? 0 : 1];
         if (set.count >= set.cap) continue;
-        const i = set.count++, own = T[q + 7];
+        const i = set.count++;
         set.iA.array.set([x, y, z, T[q + 3]], i * 4);
         set.iB.array.set([T[q + 4], T[q + 5], own, sp.fall], i * 4);
         set.iC.array.set(sp.leaf, i * 3); set.iD.array.set(sp.trunk, i * 3);
-        if (d2 < 60 * 60) { names.set(sp.name, (names.get(sp.name) || 0) + 1); if (sp.fall) falling++; }
+        if (d2 < 60 * 60) { names.set(sp.name, (names.get(sp.name) || 0) + 1); near++; if (sp.fall) falling++; }
         if (d2 < nearest) nearest = d2;
       }
     }
     let count = 0, tris = 0;
-    for (const s of this.sets.flat()) {
+    for (const s of this.sets.flat(2)) {
       s.geo.instanceCount = s.count; s.mesh.visible = s.count > 0;
       if (s.count) { for (const a of [s.iA, s.iB, s.iC, s.iD]) { a.clearUpdateRanges?.(); a.addUpdateRange?.(0, s.count * a.itemSize); a.needsUpdate = true; } }
       count += s.count; tris += s.count * s.tris;
     }
-    this.count = count; this.triangles = tris; this.falling = falling;
+    this.count = count; this.triangles = tris; this.falling = falling; this.near = near;          // (near: trees within 60 m, for the leaves that come off them)
     this.names = [...names.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map((e) => e[0]).join(', ');
   }
 

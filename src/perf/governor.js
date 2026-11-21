@@ -36,8 +36,9 @@ export const FEATURE_STEPS = [
   { id: 'grass', label: 'half the grass', apply: (app, off) => { app.grass?.setFraction(off ? 0.5 : 1); } },
   { id: 'tree-shadows', label: 'shadows of the farther trees', apply: (app, off) => { if (app.trees) app.trees.shadowsFar = !off; } },
   { id: 'trees-far', label: 'trees to two thirds of their distance', apply: (app, off) => { app.trees?.setFraction(off ? 0.66 : 1); } },
+  { id: 'sun-beams', label: "the Sun's beams through trees and cloud", apply: (app, off) => { app.post.shaftsOn = !off; } },
   { id: 'waves', label: 'waves that lift the water (they stay as shading)', apply: (app, off) => { app.wavesLift = !off; } },
-  { id: 'cloud-steps', label: 'coarser clouds near you', apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.steps = off ? 16 : 26; } },
+  { id: 'cloud-steps', label: 'coarser clouds near you', apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.steps = off ? 22 : 36; } },
   { id: 'cloud-volume', label: 'clouds with depth (they stay as a layer)', apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.enabled = !off; } },
   // (the layer itself is never switched off: a hurricane with a clear sky is not one, and the
   // layer is one texture on the sky)

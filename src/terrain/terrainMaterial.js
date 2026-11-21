@@ -132,6 +132,7 @@ uniform sampler2D tClouds;      // the home world's cloud map (its shadow on the
 uniform vec4 uCloud;           // x how dark the shadow is (0: no clouds), y the cloud layer's radius (m), z the map's longitude shift (turns)
 uniform vec4 uSea;             // water: x = 1 if the world has any, y the sea's level (m), z how tight the Sun's glint is, w how strong the ripples
 uniform vec3 uSeaColor;        // deep water's own colour
+uniform vec4 uGrassTone;       // the colour of the grass round the traveller, and how much of the ground it covers (0: none drawn)
 uniform vec4 uWind;            // xyz: where the wind blows to (unit, planet axes), w: its speed (m/s)
 uniform vec3 uWave;            // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
 in float vShell;               // the forest raised as a whole (vertex shader): how much canopy stands here
@@ -417,6 +418,25 @@ void main() {
     }
   }
 
+  // --- the grass beyond the blades: round the traveller the grass is drawn blade by blade
+  // (life/grass.js) for some tens of metres; beyond that the ground wears its colour and
+  // fades back into the map's own over some hundreds of metres
+  if (uGrassTone.a > 0.0) {
+    float dG = length(vRel), gw = uGrassTone.a * flatW * (1.0 - vShell) * (1.0 - smoothstep(6.0, 16.0, canopyTall)) * (1.0 - smoothstep(180.0, 900.0, dG));
+    if (gw > 0.0) albedo = mix(albedo, uGrassTone.rgb * (0.82 + 0.36 * d1.g), gw);
+  }
+
+  // --- the land from the air (the painted look): stretches of lighter and darker ground
+  // some hundreds of metres across, with clean edges, as fields, stands of trees and open
+  // ground lie beside each other. (Placed by the direction itself: whole repeats round the
+  // globe, so no seam.)
+  if (uPaint.x > 0.0 && farW < 1.0) {
+    vec2 kp = vec2(14000.0, 7000.0);
+    float pa = textureGrad(tDetail, uvA * kp, gx * kp, gy * kp).a, pb = textureGrad(tDetail, uvA * kp * 3.7 + 0.31, gx * kp * 3.7, gy * kp * 3.7).a;
+    float lay = smoothstep(0.42, 0.58, 0.6 * pa + 0.4 * pb);
+    albedo *= mix(vec3(1.0), mix(vec3(0.85, 0.90, 0.85), vec3(1.15, 1.11, 1.0), lay), uPaint.x * (1.0 - farW) * flatW * smoothstep(60.0, 400.0, length(vRel)));
+  }
+
   // --- water: dark, moving, shining; its colour by how deep it is
   float water = uSea.x > 0.5 ? smoothstep(0.02, 0.22, waterDepth) : 0.0;
   float foam = 0.0, waveRough = 0.0;
@@ -513,7 +533,7 @@ export function makeTerrainShared(world, textures) {
     uCover: { value: new THREE.Vector4() },
     // w: the cover pattern (d0.a + 0.3 d1.a) is about normal; logistic scale = its spread / 1.702
     uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
-    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) },
+    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) },
     tRingColour: { value: textures.white }, uRingColour: { value: new THREE.Vector4(0, 0, 1, 0) },
     tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoShift: { value: 0 }, uAlbedoSteep: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
     uAlbedoRange: { value: new THREE.Vector2() }, uRockHue: { value: new THREE.Vector2() }, uCoverContrast: { value: 1 }, uBedrockSlope: { value: 0 },

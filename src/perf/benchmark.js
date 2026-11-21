@@ -255,6 +255,19 @@ export class Benchmark {
 // At the first world's opening view and at the views its world file lists (scene.costViews:
 // { name, lat, lon, alt, heading, pitch }, the heaviest places it has).
 const WARM = 5, TAKE = 16, HELD = 2.07e6;
+// Whole parts of the picture left out, one at a time (configs -10 and below): what the
+// savings cannot say. The fourth benchmark with a cost test showed a frame that took as
+// long with every saving on and at any size: the cost was in none of the things a saving
+// switches. "Nothing drawn" is what the measuring itself costs (the post chain and the
+// pixel read back), to be taken off the rest.
+const PARTS_OUT = [
+  ['no grass', (app, out) => app.grass?.setFraction(out ? 0 : 1)],
+  ['no trees', (app, out) => app.trees?.setFraction(out ? 0.02 : 1)],
+  ['no figure', (app, out) => { app.heroScene.visible = !out; app.dustScene.visible = !out; }],
+  ['no ground or things on it', (app, out) => { app.nearScene.visible = !out; }],
+  ['no sky', (app, out) => { app.farScene.visible = !out; }],
+  ['nothing drawn', (app, out) => { app.nearScene.visible = app.farScene.visible = app.heroScene.visible = app.dustScene.visible = !out; }],
+];
 class CostTest {
   constructor(bench) {
     const app = bench.app, g = app.governor, w = WORLDS[bench.first];
@@ -274,6 +287,7 @@ class CostTest {
     const steps = FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-'));
     this.configs = [[-1, held]];
     steps.forEach((i, k) => { this.configs.push([i, held]); if (k % 3 === 2 || k === steps.length - 1) this.configs.push([-1, held]); });
+    PARTS_OUT.forEach((p, k) => this.configs.push([-10 - k, held]));
     this.configs.push([-2, held], [-1, held], [-1, small], [-1, 1]);
     this.off = []; this.lines = []; this.px = new Uint8Array(4); this.vi = -1; this.state = 'settle';
     this._next();
@@ -294,6 +308,8 @@ class CostTest {
   _set(which, scale) {
     const app = this.app, g = this.g;
     for (const i of this.off) FEATURE_STEPS[i].apply(app, false);
+    if (this.partOut != null) { PARTS_OUT[this.partOut][1](app, false); this.partOut = null; }
+    if (which <= -10) { this.partOut = -10 - which; PARTS_OUT[this.partOut][1](app, true); }
     this.off = which === -2 ? FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-')) : which >= 0 ? [which] : [];
     for (const i of this.off) FEATURE_STEPS[i].apply(app, true);
     g.fixed = scale; g._applyScale();
@@ -354,6 +370,8 @@ class CostTest {
     this.lines.push(`  everything on ${f(on)} (from ${f(Math.min(...ons))} to ${f(Math.max(...ons))} over the test) · every saving on ${f(ms[n - 4])} · everything on at ${mp(c[n - 2][1])} MP ${f(ms[n - 2])} · at native (${mp(1)} MP) ${f(ms[n - 1])}`);
     const saved = [];
     for (let k = 1; k < n - 4; k++) { if (c[k][0] < 0) continue; const d = onAt(k) - ms[k]; if (!isNaN(d)) saved.push([FEATURE_STEPS[c[k][0]].id, d]); }
+    const parts = []; for (let k = 1; k < n - 4; k++) if (c[k][0] <= -10) parts.push(`${PARTS_OUT[-10 - c[k][0]][0]} ${f(ms[k])}`);
+    this.lines.push(`  with a part of the picture left out: ${parts.join(' · ')}`);
     saved.sort((a, b) => b[1] - a[1]);
     this.lines.push(`  saved by one saving alone: ${saved.filter((x) => Math.abs(x[1]) >= 0.3).map((x) => `${x[0]} ${x[1].toFixed(1)}`).join(' · ') || 'nothing over 0.3'}`);
   }
@@ -363,6 +381,7 @@ class CostTest {
     const app = this.app, g = this.g;
     for (const i of this.off) FEATURE_STEPS[i].apply(app, false);
     this.off = [];
+    if (this.partOut != null) { PARTS_OUT[this.partOut][1](app, false); this.partOut = null; }
     g.fixed = this.fixedBefore ?? null; g.resLevel = this.resLevel; g._applyScale();
     for (let i = 0; i < this.level; i++) FEATURE_STEPS[i].apply(app, true);
     g.featureLevel = this.level;

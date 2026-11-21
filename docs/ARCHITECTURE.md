@@ -364,12 +364,31 @@ as before.
   tufts, cut lumps; their crowns carry a pattern of leaf bunches in three tones
   (`leafCells`, in the tree's own metres). Rocks are lit by their faces. Clouds are two
   octaves of puff with a clean edge and two tones.
-- **Grass** (`life/grass.js`): 144 x 144 tufts of eight blades on a lattice fixed to the
-  ground that wraps round the camera (72 m); a tuft is its lattice number and a hash,
-  nothing is kept per tuft. The ground under it (height, how much grass, how dry) is a
-  64 x 64 table at 1.25 m kept on the CPU, also wrapping: only the rows that come in
-  ahead are worked out (200 places a frame), and it is sent as a float texture between
-  frames. Land cover decides where grass grows (`AMOUNT`, `DRY` by IGBP class).
+- **Grass and flowers** (`life/grass.js`): three lattices fixed to the ground that wrap
+  round the camera: grass close by (120 x 120 tufts 0.22 m apart, eight blades), grass
+  farther out (144 x 144 at 0.5 m, seven blades), flowers (96 x 96 at 0.45 m: a stem,
+  five petals, a middle). A tuft is its lattice number and a hash, nothing is kept per
+  tuft; instances are drawn in a scrambled order, so the governor's share is a count of
+  instances. The ground under them is a 64 x 64 table at 1.25 m kept on the CPU, also
+  wrapping (only the rows that come in ahead are worked out, 200 places a frame), sent as
+  a float texture between frames: height, how much grass, how dry, and the flowers there
+  (whole part: which of seven kinds; fraction: how many). Land cover decides the grass
+  (`AMOUNT`, `DRY` by IGBP class) and, with latitude and height, the kinds of flower
+  (`FLORA`); noise over the world's own coordinates makes patches of one kind some 40 m
+  across and drifts within them.
+- **The land from the air** (painted look): the tile worker draws each pixel of the colour
+  ring part of the way to a clean colour of its land-cover class (`cover.paint`,
+  `cover.colours` in the world file; classes not listed keep the satellite's colour).
+  The ground shader adds stretches of lighter and darker ground with clean edges (two
+  looks at the detail texture's fourth channel at 2.9 km and 780 m repeats, by the
+  direction's longitude and latitude: whole repeats round the globe), and out to 900 m
+  blends gentle ground toward `uGrassTone`, the mean colour of the grass drawn round the
+  traveller (written by `life/grass.js`).
+- **Trees' variety** (`life/treeGeometry.js`): each of the eight shapes is built three
+  times over with other proportions (`VARIANTS`), near and far; a tree takes a variant by
+  its own number. Single leaves stand out of the crowns (`sprigs`, leaf value 2) and
+  flutter in the vertex shader. `life/leaves.js` sheds leaves in their season, in a gale
+  (from every tree) and when the traveller passes trees fast.
 
 ## Map tiles round the traveller (a streamed world)
 
@@ -500,15 +519,34 @@ ring: it is not asked for.
 
 ## Clouds with depth (`src/sky/cloudVolume.js`)
 
-- Near the traveller (to `reach`, 45 km) the cloud layer is a volume; beyond it the thin
+- Near the traveller (to `reach`, 16 km) the cloud layer is a volume; beyond it the thin
   shell of `clouds.js`, which fades in where the volume fades out. Above 30 km only the
   shell (and from space the globe's own clouds).
-- After the ground is drawn, a picture a third of the view each way is marched (26 steps,
-  short near the eye): two side by side, one stopping at whatever stands behind the
-  pixel, one running out to the sky. The HDR target's depth is a texture for this.
-  Back in the main picture two full-screen passes lay them over it; the depth test
-  chooses per pixel which (sky where nothing was drawn), so ridges keep clean edges.
-  Each lay reads four taps: the march starts at a different depth in every pixel.
+- **Before** the main picture is begun, a small picture is marched: six of them side by
+  side (a quarter of the view each way), one for each slice of the view's depth (0 to
+  300 m, to 900 m, to 2.4 km, to 5 km, to 9 km, to the reach); each pixel's ray is
+  followed through the part of the layer inside its slice (5 steps a slice). In the main
+  picture, after the ground, six full-screen passes lay them over it from the farthest to
+  the nearest, each at the depth where its slice begins: the depth test hides cloud
+  behind a ridge, to within a slice. Each lay reads four taps (the march starts at a
+  different depth in every pixel).
+- Nothing reads the main picture's depth and nothing is drawn elsewhere in the middle of
+  it: the first form did both (depth as a texture, the march after the ground) and cost
+  the phone three quarters of its frame rate on every world (PROGRESS, "fifth phone
+  results").
+- `volume.fair`: fair-weather cloud. Where the day's map shows no cloud the cover is still
+  `fair` times a slow field (the cloud noise at a 47 km repeat), so there are fields of
+  small heaps and clear stretches; the shell has the same rule with its own puffs.
+- The Sun on the cloud is a painter's, not the physical sum: `sunward` (less cloud 280 m
+  toward the Sun than here, and height in the cloud) picks between a light shade (0.45)
+  and full light; only a cover that is nearly whole darkens what is under it (storms).
+- Laying: the nearest slices are laid as marched (soft: wisps round the traveller, and
+  within `volume.clear` metres of the eye the cloud is thin); from 900 m off the alpha is
+  cut to a clean shape (`CRISP`), with the four looks set wider apart (`SPREAD`) and less
+  jitter in the march there. Slices that end nearer than the traveller's distance below
+  the base (or above the top) are not laid at all.
+- `volume.dense` makes the cloud more solid; `volume.change` turns its shapes over with
+  time (the noise drifts through its third axis), besides the drift with the wind.
 - Shapes: the world's cloud map (where, how much), a repeating 64-cube noise made in a
   worker (`cloudNoiseData.js`: masses and the cells that eat their edges), a base and a
   top; with weather, the day's cloud-top map makes the layer as deep as the tallest
@@ -517,7 +555,7 @@ ring: it is not asked for.
   look toward the Sun per step plus the layer above), brightest at edges facing it and
   round the Sun; sky light from above and below; the air between cloud and eye;
   lightning inside it.
-- Governor steps: `cloud-steps` (16), `cloud-volume` (off: the shell alone).
+- Governor steps: `cloud-steps` (22 for 36 along the whole ray, shared among the slices), `cloud-volume` (off: the shell alone), `sun-beams`.
 
 ## Weather (`src/weather/`)
 

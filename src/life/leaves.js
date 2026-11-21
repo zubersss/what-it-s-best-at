@@ -78,8 +78,12 @@ export class Leaves {
   update(rig, viewH) {
     const tr = this.trees, s = tr.shared.uSeason.value, wind = tr.shared.uTreeWind.value.w;
     // how many: by the season, by the wind, by how many leaf-dropping trees stand near
-    const want = this.enabled && tr.def && rig.agl < 200 ? Math.min(1, s.x * 1.3 + 0.5 * s.y * (1 - s.y) * 4 + Math.max(0, wind - 9) / 14) * Math.min(1, tr.falling / 12) : 0;
-    this.amount += (want - this.amount) * 0.05;
+    // (in their season, from the trees that drop their leaves; in a gale, from every tree,
+    // green; and from the trees a traveller tears past: the wind of its passing takes them)
+    const speed = rig.onFoot ? (rig.footVel?.length() || 0) : rig.velocity.length(), all = Math.min(1, (tr.near || 0) / 8);
+    const pass = this._pass = Math.max((this._pass || 0) * 0.985, Math.min(1, Math.max(0, speed - 18) / 50) * all);
+    const want = this.enabled && tr.def && rig.agl < 200 ? Math.max(Math.min(1, s.x * 1.3 + 0.5 * s.y * (1 - s.y) * 4) * Math.min(1, tr.falling / 12), Math.min(1, Math.max(0, wind - 9) / 12) * all, pass) : 0;
+    this.amount += (want - this.amount) * (want > this.amount ? 0.12 : 0.02);
     const n = Math.round(COUNT * this.amount);
     this.geo.setDrawRange(0, n); this.mesh.visible = n > 0;
     const p = rig.pos, t = this.uniforms.uTravel.value, e = tr.shared.uTreeEast.value, nn = tr.shared.uTreeNorth.value;

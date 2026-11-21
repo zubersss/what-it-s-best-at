@@ -24,6 +24,7 @@ const FRAG = /* glsl */`
 ${LIGHTING_PARS}
 uniform sampler2D tCloudMap;
 uniform vec4 uCloud;           // x cover, y the shell's radius (m), z longitude shift of the map (turns), w 1 = the camera is below the shell
+uniform float uFair;           // the cover of fair-weather cloud where the day's map has none (0: none; see cloudVolume.js)
 uniform float uNearFade;       // metres: nearer than this the cloud is drawn as a volume instead (cloudVolume.js); 0: all of it is this shell
 in vec3 vRel;
 layout(location = 0) out vec4 fragColor;
@@ -56,6 +57,8 @@ void main() {
   float dens = m * (0.25 + 1.7 * d) + (d - 0.45) * 0.2 * smoothstep(0.1, 0.4, m);
   float lo = 1.0 - uCloud.x;
   float cover = smoothstep(lo - 0.08, lo + 0.34, dens);
+  // (fair-weather cloud, as the volume near the traveller has it: fields of small heaps where the map is clear)
+  if (uFair > 0.0) cover = max(cover, uFair * 1.7 * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) / 0.55 * smoothstep(0.52, 0.72, d) * smoothstep(0.32, 0.52, vnoise(up * 140.0 + 3.7)));
   // seen at a slant the layer is longer to look through
   float mu = max(abs(dot(V, up)), 0.12);
   float alpha = 1.0 - exp(-cover * (0.4 + cover) * 1.7 / mu);
@@ -80,7 +83,7 @@ export class CloudLayer {
     this.renderer = renderer;
     const blank = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); blank.needsUpdate = true;
     this.blank = blank; this.texture = blank;
-    this.uniforms = { ...lightingUniforms(), tCloudMap: { value: blank }, uCloud: { value: new THREE.Vector4(0.8, 1, 0, 1) }, uNearFade: { value: 0 } };
+    this.uniforms = { ...lightingUniforms(), tCloudMap: { value: blank }, uCloud: { value: new THREE.Vector4(0.8, 1, 0, 1) }, uNearFade: { value: 0 }, uFair: { value: 0 } };
     const mat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1 }, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: FRAG,
       side: THREE.DoubleSide, depthTest: true, depthWrite: false, transparent: true,
@@ -127,6 +130,7 @@ export class CloudLayer {
     const r = cam.length(), shift = this.def.lon0 === -180 ? 0.5 : 0;
     this.mesh.position.set(-cam.x, -cam.y, -cam.z);
     this.uniforms.uCloud.value.set(this.def.cover ?? 0.8, this.radius, shift, r < this.radius ? 1 : 0);
+    this.uniforms.uFair.value = this.def.volume?.fair ?? 0;
     this.shadow.y = this.radius; this.shadow.z = shift;
     return Math.sqrt(Math.max(0, r * r - worldRadius * worldRadius)) + Math.sqrt(this.radius * this.radius - worldRadius * worldRadius);
   }

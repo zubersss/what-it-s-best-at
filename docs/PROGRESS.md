@@ -296,6 +296,100 @@ Plateau, a hardwood forest in Vermont at a low Sun, the forest from the air.
 - Night and the views from orbit were not looked at in the new look.
 - Nothing is measured on the phone. The grass is the one new cost.
 
+## The owner's fifth phone results (build 345e2b7) and the second painted delivery
+
+*The first Earth benchmark to come back, in Smooth, with two screenshots and a list of
+what the owner did not like.*
+
+**The numbers.** 15.2 fps on average, a 1 % low of 4.2, half the frames late; Earth 14.0,
+the flight 15.6, **the Moon 16.0**. The governor at its floor (0.96 MP, 22 savings) and
+nothing cured. The page's own work 4.4 ms a frame: not the cause. The cost test, which
+times frames until the GPU has drawn them: about 100 ms a frame with everything on at
+2.07 MP, the same with every saving on, the same at 1.00 MP, and **51 to 58 ms at the
+full 4.45 MP**. Build fa0c4c9 ran the Moon at 54 fps on the same phone.
+
+**What that says.** A cost of 50 to 100 ms a frame that no resolution and no feature
+changes, on every world, and that is *smaller* when the whole target is in use, is not
+shading: it is whole pictures being written out of the GPU's tiles and read back. Two
+things in the frame did that, both new since fa0c4c9 and both there on every world:
+the main picture's depth had been made a texture (for the cloud volume to read), and the
+cloud volume was marched in the middle of the main picture (leave the target, draw
+elsewhere, come back). On a tile-based GPU each is a full store and load of a 4.45 MP
+half-float picture and its depth. At full resolution the clear covers the whole target
+and one of the loads goes away, which is the 100 against 55.
+
+**What was done.**
+- The depth is a plain buffer again; nothing leaves the main picture between its clear
+  and its last draw (`post.resumeScene` is gone).
+- The cloud volume no longer reads depth. It is marched **before** the main picture as
+  six slices of the view's depth, side by side in one small target, and laid over the
+  ground as six full-screen passes at the depths where the slices begin: the depth test
+  hides cloud behind a ridge, to within a slice (`sky/cloudVolume.js`).
+- The benchmark's cost test now also times the frame **with a part of the picture left
+  out** (grass, trees, the figure, the ground and what stands on it, the sky, everything):
+  if the fixed cost is still there, those lines say where it lives.
+- The Sun's beams got a governor step (12 looks a pixel at the screen's own size).
+- This is a diagnosis from numbers, not a measurement of the cure: **the next benchmark
+  is the proof.** If the Moon is still slow, read "with a part of the picture left out"
+  first; the next suspect is the ground shader's size (Earth's blocks compiled into
+  every world's shader: make them compile-time).
+
+**What the owner asked for, and what was built.**
+- *"I don't like how it looks when I'm flying over something"* (a screenshot over the
+  Bahama shallows: brown ground with teal blobs): see "Flying over" below.
+- *Grass much denser, and flowers, different ones in different areas*: three lattices
+  from the one ground table (`life/grass.js`): thick grass close by (0.22 m apart, a box
+  of 26 m), grass farther out (0.5 m, 72 m), flowers (0.45 m, 43 m): about six times
+  the blades underfoot. Seven kinds of flower (daisies, poppies, lupins, buttercups,
+  fireweed and heather, orange poppies, the big pink flowers of the wet tropics); which
+  grow where follows the land cover, the latitude and the height, one kind to a patch
+  some 40 m across, in drifts with bare grass between. The governor's step now lowers
+  the count of instances (they are drawn in a scrambled order), so the work goes down.
+- *Trees with a lot more leaves, variety, moving in the wind*: every shape is built in
+  three variants (proportions, lean, how the masses sit) and each tree takes one by its
+  own number; single leaves stand out of every crown (`sprigs`) and flutter each in its
+  own time, harder in a harder wind.
+- *Leaves fall when it is extra windy or when I fly by superfast*: in a gale every tree
+  sheds (green out of season); a traveller passing trees faster than 18 m/s tears
+  leaves off them (`life/leaves.js`).
+- *Dense, changing clouds to fly through*. What was wrong, seen in pictures: outside the
+  day's weather systems the sky was **empty** (the day's cloud map has 10 km pixels and
+  a clear reading below half cover), inside them it was a flat sheet, and inside a cloud
+  the view was one flat colour. Now: **fair-weather cloud** (`clouds.volume.fair`): where
+  the map is clear there are still fields of small heaps with clear stretches between,
+  in the volume and in the far shell; the volume is 2.2 times as solid (`dense`) and its
+  shapes turn over with time (`change`); the Sun lights it as a painter does (full on
+  the tops and the sides turned to it, shade in the hearts and under the masses; with
+  the cloud made denser the physical sum had every cloud in its own shadow, dark blue
+  against the sky); from 900 m off the cloud is cut to a clean shape (the march is soft
+  and grainy at a quarter of the view); close by, wisps are torn out of it and the
+  cloud round the eye is thin (`clear`, 300 m), so flying through one is shapes going
+  by. The volume now reaches 16 km (it was 45: five steps over the last 27 km drew
+  speckle, not cloud); beyond, the shell.
+
+### Flying over
+
+The owner's picture (brown flats with teal pools under a yellow haze) and two of the same
+kind made here (Florida from 900 m and from 2 200 m: a grey-green blur) say three things.
+- **The haze was far too thick from the air**, most of all toward the Sun. Earth's haze:
+  scattering halved and a little less forward, standing higher (scale height 4 km for
+  2.2), so that on the canyon's rim the air is nearly what it was. Check `ledge` and
+  `dusk` after.
+- **The land had no clear colour.** The satellite picture's vegetation is dark and
+  brownish (its mean over each land-cover class was measured: forest 30/46/13, grassland
+  103/90/59 of 255). In the painted look the tile worker now draws each pixel 60 % of the
+  way to a clean colour of its class (`pictures.colour.cover.paint`, `colours`): forests
+  green, grassland gold-olive, crops, wetland; deserts, snow, towns and water keep the
+  satellite's. Only the ring near the traveller is painted (the globe from far keeps
+  the satellite's face).
+- **Nothing between the 600 m map and the trees.** The ground shader lays stretches of
+  lighter and darker ground some hundreds of metres across, with clean edges (two looks
+  at the detail texture's slow channel, placed by direction so they have no seam), and
+  out to 900 m the ground wears the colour of the grass that is drawn blade by blade
+  near the traveller (`uGrassTone`), so the field does not end at the last blade.
+- The pools themselves were right (low ground a metre over the sea with water in its
+  hollows: tidal flats); what made them ugly was the bare brown round them.
+
 ## The owner's Earth screenshot (build 18c4a23)
 
 One picture, no benchmark: `18 fps · 0.96 MP · Smooth`, the figure hovering over a
