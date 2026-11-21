@@ -140,7 +140,7 @@ export default {
   // dense: how solid; change: how fast its shapes turn over; fair: fields of small heaps
   // where the day's map shows no cloud; clear: the cloud is thin this near the eye (m).
   clouds: { map: 'data/earth_clouds_4096.jpg', lon0: -180, altitude: 4500, cover: 0.45, shadow: 0.85,
-    volume: { base: 1400, thick: 3200, reach: 16000, above: 30000, scale: 5200, dense: 2.2, change: 0.03, fair: 0.42, clear: 300 } },
+    volume: { base: 1400, thick: 3200, reach: 16000, above: 30000, scale: 5200, dense: 2.2, change: 0.03, fair: 0.5, clear: 300 } },
 
   sky: { stars: { url: 'data/stars_bsc5.f32' } },
 

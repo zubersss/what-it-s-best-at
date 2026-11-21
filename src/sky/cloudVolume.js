@@ -64,7 +64,7 @@ vec2 mapCover(vec3 up) {
     // heaps, with clear stretches between the fields (the map's pixels are 10 km: it
     // never saw them)
     float field = texture(tCloudNoise, up * (uLayer.x * uCloud.z * 0.11) + 0.31).r;
-    c = max(c, uFair.x * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.24, 0.46, field) / 0.55);
+    c = max(c, uFair.x * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.2, 0.42, field) / 0.55);
   }
   return vec2(c, top);
 }
@@ -108,7 +108,7 @@ void main() {
   float n = uLayer.z, L = t1 - t0;
   float jit = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
   // (the far slices are cut to clean shapes when they are laid: less grain there, a little banding instead)
-  float jw = slice >= 3 ? 0.4 : 1.0;
+  float jw = slice >= 2 ? 0.4 : 1.0;
   vec3 mid = uCamPlanetPos + dir * (t0 + 0.4 * L);
   vec3 sunC = directSun(mid), upM = normalize(mid);
   vec3 skyC = skyLight(upM, upM), skyDown = skyLight(-upM, upM);

@@ -58,7 +58,7 @@ void main() {
   float lo = 1.0 - uCloud.x;
   float cover = smoothstep(lo - 0.08, lo + 0.34, dens);
   // (fair-weather cloud, as the volume near the traveller has it: fields of small heaps where the map is clear)
-  if (uFair > 0.0) cover = max(cover, uFair * 1.7 * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) / 0.55 * smoothstep(0.52, 0.72, d) * smoothstep(0.32, 0.52, vnoise(up * 140.0 + 3.7)));
+  if (uFair > 0.0) cover = max(cover, uFair * 1.7 * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) / 0.55 * smoothstep(0.42, 0.6, d) * smoothstep(0.28, 0.48, vnoise(up * 140.0 + 3.7)));
   // seen at a slant the layer is longer to look through
   float mu = max(abs(dot(V, up)), 0.12);
   float alpha = 1.0 - exp(-cover * (0.4 + cover) * 1.7 / mu);

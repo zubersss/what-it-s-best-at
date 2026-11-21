@@ -6,7 +6,7 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-*Handoff written at the checkpoint of milestone 10 (a living Earth).*
+*Handoff written at the second delivery of milestone 11 (the painted look).*
 
 - **The goal** (owner, 2026-11-20): the best possible product a Samsung Galaxy S23 Ultra
   runs without lag (`CLAUDE.md`, "The one goal"). Helpers: workflows only for the most
@@ -21,27 +21,29 @@ changes behaviour.
   end (the review's follow-up: the real lakes were not being drawn and false ones were);
   `npm run lakes` now holds them to the real ones.
 - **The owner changed the art direction** (2026-11-21, after a review of the look, with
-  nine reference pictures): the painted look, Earth and its forests first. Milestone 11,
-  first delivery sent. See "Milestone 11 plan" and "first delivery" below, and
-  `CLAUDE.md`, "Choices in force". Next in that milestone: the owner's reaction first;
-  then water, the cloud volume and the far forest in the same hand, the character, and
-  the other worlds one at a time (give each a `look` block and its air).
-- **The phone's first word on Earth** (a screenshot of build 18c4a23, "this is what it
-  looks like, fix it"): 18 fps at 0.96 MP in Smooth, the figure over a bare, flat sea
-  under an empty twilight sky. See "The owner's Earth screenshot" below: what it was
-  and what was done. **Still not measured**: no benchmark of Earth has come back.
-  Asked of the owner again: an **Earth benchmark** in Smooth (start screen). It now
-  ends with a cost test (what each effect costs to draw, timed on the phone) and names
-  the parts of the page's own work at every stop: read those first, and cut what they
-  show instead of guessing. Still open: whether a 3D model file of the character exists.
-- **What to do next**: with a benchmark, tune from it first. With a complaint, reproduce
-  it in a picture, fix, show before and after. Then the "not done, or weak" lists of
-  milestone 10 (a swimming stroke, tree shapes up close, cloud grain in motion, rain
-  shafts, moving weather), and Mars' costly pixel (the fourth results). Water still to
-  do: lakes with islands and bays finer than a cell are found only in part from far off
-  (Winnipesaukee), land under sea level that the sea reaches in the map is flooded (the
-  Caspian stands 28 m too high), far rivers crossing a filled hollow can stand tens of
-  metres off their ground, a lake under an overcast sky looks dull (Champlain).
+  nine reference pictures): the painted look, Earth and its forests first. Milestone 11.
+  See "Milestone 11 plan" and "first delivery" below, and `CLAUDE.md`, "Choices in force".
+- **The phone's word on the first delivery** (build 345e2b7: a full Earth benchmark, two
+  screenshots, a list): **15 fps on every world at any resolution**, and the owner did not
+  like the view when flying over land, wanted the grass far denser with flowers that
+  differ by area, dense changing clouds to fly through, trees with far more leaves and
+  variety that move in the wind, and leaves that come off in a gale or a fast pass. All
+  of it is under "The owner's fifth phone results and the second painted delivery".
+  **Second delivery sent.**
+- **Not measured yet**: whether the frame rate is cured. The cause was read from the
+  numbers (the main picture's depth as a texture, and the cloud volume drawn in the
+  middle of the frame); the cure is in, the proof is the next benchmark. Asked of the
+  owner: an **Earth benchmark in Smooth**. Read first: fps by part (the Moon ran 54 fps
+  before all this), then "with a part of the picture left out" in the cost test.
+- **What to do next**: with the benchmark, tune from it first (if every world is still
+  slow, the next suspect is the size of the ground shader on worlds that use none of
+  Earth's blocks). With a complaint, reproduce it in a picture, fix, show before and
+  after. Then milestone 11's rest: water in the same hand, the far forest, the
+  character, night and orbit, and the other worlds one at a time (give each a `look`
+  block and its air). Older open items: a swimming stroke, rain shafts, moving weather,
+  Mars' costly pixel (the fourth results), lakes with islands finer than a cell
+  (Winnipesaukee), the Caspian 28 m too high, far rivers over filled hollows. Still
+  open: whether a 3D model file of the character exists.
 - **How to work here** (all in CLAUDE.md): develop on the session's own branch, open a
   pull request into `main` and merge it yourself (through `gh api`); the phone link
   updates a minute later and shows the build's commit. Run `./scripts/build-check.sh`
