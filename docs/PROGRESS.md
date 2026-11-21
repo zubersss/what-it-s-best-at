@@ -17,7 +17,9 @@ changes behaviour.
   and the other weather, and beautiful.
 - **Delivered**: milestone 10, five stages, merged; `checkpoint sent`. What each stage
   contains and what it does not is under "Milestone 10, stages 1 and 2", "stages 3 to
-  5" and "Milestone 10 review" below.
+  5" and "Milestone 10 review" below. The lakes and rivers were put right at the very
+  end (the review's follow-up: the real lakes were not being drawn and false ones were);
+  `npm run lakes` now holds them to the real ones.
 - **Not confirmed on the phone, any of it.** The phone was already short of pixels on
   Mars at 60 fps, and Earth now does far more per pixel (trees, a cloud volume, weather).
   Asked of the owner: an **Earth benchmark** in Smooth (start screen), and what looks
@@ -27,7 +29,11 @@ changes behaviour.
 - **What to do next**: with a benchmark, tune from it first. With a complaint, reproduce
   it in a picture, fix, show before and after. Then the "not done, or weak" lists of
   milestone 10 (a swimming stroke, tree shapes up close, cloud grain in motion, rain
-  shafts, moving weather), and Mars' costly pixel (the fourth results).
+  shafts, moving weather), and Mars' costly pixel (the fourth results). Water still to
+  do: lakes with islands and bays finer than a cell are found only in part from far off
+  (Winnipesaukee), land under sea level that the sea reaches in the map is flooded (the
+  Caspian stands 28 m too high), far rivers crossing a filled hollow can stand tens of
+  metres off their ground, a lake under an overcast sky looks dull (Champlain).
 - **How to work here** (all in CLAUDE.md): develop on the session's own branch, open a
   pull request into `main` and merge it yourself (through `gh api`); the phone link
   updates a minute later and shows the build's commit. Run `./scripts/build-check.sh`
