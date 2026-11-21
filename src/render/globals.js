@@ -28,6 +28,10 @@ export const G = {
   // z = full sample count for the glow on a planet's edge seen from space, w = relief
   // shading of far ground from the world's slope map.
   uQuality: { value: new THREE.Vector4(1, 1, 1, 1) },
+  // The painted look (a world's `look`, see render/look.js): x how much of it (0: the plain
+  // physical picture), y how much stronger the light of the sky is on things (coloured
+  // shade), z how much cleaner the colours of surfaces are, w how flat a faceted rock face is lit.
+  uPaint: { value: new THREE.Vector4(0, 1, 1, 0) },
   // How the world's ground scatters sunlight: 0 = matte dust under air, 1 = airless regolith.
   uPhotometry: { value: 0 },
   // The world's albedo map at the camera, relative to its mean (1 when there is no map):

@@ -430,6 +430,8 @@ export class Terrain {
     // what grows there (classes and canopy heights), for the workers that place the trees
     const c = pic && pic.cover ? { cls: pic.cover.cls.buffer, tall: pic.cover.tall.buffer, closed: pic.cover.closed.buffer, width: pic.width, zoom: pic.zoom, tx: pic.tx, ty: pic.ty } : null;
     this.workers.tell(() => [{ type: 'cover', cover: c }]);
+    // (here too: the grass asks the main thread's height code what grows at a place)
+    this.hs.setCover?.(pic && pic.cover ? { cls: pic.cover.cls, tall: pic.cover.tall, closed: pic.cover.closed, width: pic.width, zoom: pic.zoom, tx: pic.tx, ty: pic.ty } : null);
     this.coverSerial = c ? (this.coverSerial || 0) + 1 : 0;
     if (this.ringTex) { this.ringTex.dispose(); this.ringTex = null; }
     if (!pic) { u.tRingColour.value = this.textures.white; u.uRingColour.value.w = 0; return; }

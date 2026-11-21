@@ -210,6 +210,49 @@ What was changed:
   almost nothing, so this can probably go back to all 180: decide from the next results
   (one change at a time; the phone is the judge).
 
+## Milestone 11 plan: the painted look
+
+**The owner's word** (after a review of the look, with nine pictures of a stylised
+landscape game as reference): change the direction to that style, "full permission to go
+back and change everything", starting with Earth and the forests.
+
+**What is taken from the references, and what is not.** Taken: the principles, which are
+those of the landscape poster. Few colours, each time of day a pair of them (the light's
+and the shade's); shade that is coloured, never black; the far ground lost in the air
+layer by layer, each ridge a flat shape a step nearer the sky; trees, rocks and grass
+drawn as bold shapes known by their outline; a big soft Sun. Not taken: that game's
+artwork, its palettes picture for picture, its places or its interface. The reference
+pictures are not in the repository and nothing is traced from them. Our places stay the
+real ones (elevation, land cover, species, weather, the sky's geometry); only how they
+are drawn changes. The owner's character was always the fantastical thing in the
+picture; now the picture meets it halfway.
+
+**How, in this engine** (all generic and data-driven: a world's `look` block and its
+existing numbers; a world without `look` is drawn as before, so the other worlds change
+one at a time):
+
+1. *Air*: the look's haze is real scattering, only much more of it and low: Earth's
+   `atmosphere.dust` becomes a blue layer 2 km deep (it was a clear day's grey haze, a
+   tenth as strong). Every table of the sky follows from it, so far ground fades to the
+   colour the sky really has at the horizon, and a low Sun goes red through it.
+2. *Light*: `paintLit` (two tones with a soft edge) in place of the cosine on the ground,
+   rocks, trees and grass; `skyLight` stronger and more saturated under the look, so
+   shade takes the sky's colour. `paintColour`: surface colours cleaner and nearer the
+   middle. Less grain in the ground (`detailStrength`).
+3. *Grade* (`render/look.js`, in the composite pass): saturation, contrast and two tints
+   (the dark half of the picture, the light half), keyed by the Sun's height: day, low,
+   dusk, night. Fades from 40 km up: a planet from orbit keeps its own face.
+4. *Forest*: tree shapes rebuilt (`treeGeometry.js`): skirts of boughs, tufts, cut lumps,
+   every face flat. Grass (`life/grass.js`): a lattice of tufts fixed to the ground that
+   wraps round the camera, the ground under it from a small table kept on the CPU.
+   Rocks lit by their faces, and larger.
+5. Then: clouds and the Sun's glow, water, light shafts; the governor's steps; the other
+   worlds.
+
+**Cost**: the look is cheaper per pixel than what it replaces where it replaces it; the
+grass is new work (124 000 triangles when all of it is drawn) and has a governor step.
+Not measured on the phone.
+
 ## The owner's Earth screenshot (build 18c4a23)
 
 One picture, no benchmark: `18 fps · 0.96 MP · Smooth`, the figure hovering over a

@@ -48,7 +48,10 @@ void main() {
   float px = length(ux) + length(uy);                     // radians per pixel
   vec3 q = up * 900.0;
   float d = 0.0, a = 0.5, f = 1.0;
-  for (int i = 0; i < 4; i++) { d += a * vnoise(q * f) * (1.0 - smoothstep(0.15, 0.6, px * 900.0 * f)); a *= 0.55; f *= 2.7; }
+  // (the painted look: a cloud is a few round masses with a clean edge, not a fine froth)
+  int octs = uPaint.x > 0.5 ? 2 : 4;
+  for (int i = 0; i < octs; i++) { d += a * vnoise(q * f) * (1.0 - smoothstep(0.15, 0.6, px * 900.0 * f)); a *= 0.55; f *= 2.7; }
+  if (uPaint.x > 0.5) d *= 1.18;
   // (the detail carves the map's cloud into pieces: thin cloud breaks up, thick cloud stays)
   float dens = m * (0.25 + 1.7 * d) + (d - 0.45) * 0.2 * smoothstep(0.1, 0.4, m);
   float lo = 1.0 - uCloud.x;
@@ -56,6 +59,7 @@ void main() {
   // seen at a slant the layer is longer to look through
   float mu = max(abs(dot(V, up)), 0.12);
   float alpha = 1.0 - exp(-cover * (0.4 + cover) * 1.7 / mu);
+  if (uPaint.x > 0.0) alpha = mix(alpha, smoothstep(0.16, 0.5, cover) * 0.96, uPaint.x);
   if (uNearFade > 0.0) alpha *= smoothstep(0.7 * uNearFade, uNearFade, dist);
   if (alpha < 0.004) discard;
   // light: the Sun through the air to this height, more of it at the cloud's sunward edge
@@ -65,6 +69,8 @@ void main() {
   float under = uCloud.w > 0.5 ? mix(1.0, 0.42, cover) : 1.0;
   vec3 sun = directSun(planetPos) * smoothstep(-0.06, 0.08, mu0) * fwd * under;
   vec3 col = vec3(0.86) * (sun * 0.42 + skyLight(uCloud.w > 0.5 ? -up : up, up) * 0.9 + skyLight(up, up) * 0.25) / PI;
+  // (... in two tones: its body, and its thick middle a step darker)
+  if (uPaint.x > 0.0) col *= mix(1.0, mix(1.0, 0.8, smoothstep(0.55, 0.7, cover)), uPaint.x);
   col = aerialPerspective(col, vRel);
   fragColor = vec4(col * uExposure * alpha, alpha);
 }`;

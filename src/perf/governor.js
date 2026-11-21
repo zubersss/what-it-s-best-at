@@ -33,6 +33,7 @@ export const FEATURE_STEPS = [
   { id: 'fine-shadows', label: 'coarser shadows of nearby rocks', apply: (app, off) => { app.nearShadow.fine = !off; } },
   { id: 'rain', label: 'thinner rain and snow', apply: (app, off) => { if (app.rain) app.rain.share = off ? 0.4 : 1; } },
   { id: 'leaves', label: 'leaves in the wind', apply: (app, off) => { if (app.leaves) app.leaves.enabled = !off; } },
+  { id: 'grass', label: 'half the grass', apply: (app, off) => { app.grass?.setFraction(off ? 0.5 : 1); } },
   { id: 'tree-shadows', label: 'shadows of the farther trees', apply: (app, off) => { if (app.trees) app.trees.shadowsFar = !off; } },
   { id: 'trees-far', label: 'trees to two thirds of their distance', apply: (app, off) => { app.trees?.setFraction(off ? 0.66 : 1); } },
   { id: 'waves', label: 'waves that lift the water (they stay as shading)', apply: (app, off) => { app.wavesLift = !off; } },

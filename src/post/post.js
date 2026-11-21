@@ -102,6 +102,9 @@ uniform vec2 uUvMax;
 uniform float uBloom;
 uniform float uBloomNorm;
 uniform float uNoiseSize;
+uniform vec4 uGrade;        // the painted look's grade: x saturation, y contrast, z how much of the two tints
+uniform vec3 uGradeShade;   // tint of the dark half of the picture
+uniform vec3 uGradeLight;   // tint of the light half
 in vec2 vUv;
 out vec4 outColor;
 
@@ -131,6 +134,15 @@ void main() {
   vec3 bloom = texture(tBloom, vUv).rgb * uBloomNorm;
   vec3 c = mix(scene, bloom, uBloom);
   c = agx(c);
+  // The grade of a painted look (render/look.js): the darks lean one way and the lights
+  // the other (blue shade under a warm Sun, violet under a red one), colours stronger,
+  // a little more contrast. Nothing when uGrade.z is 0 and x, y are 1.
+  if (uGrade.z > 0.0 || uGrade.x != 1.0 || uGrade.y != 1.0) {
+    float l = dot(c, vec3(0.3, 0.55, 0.15));
+    c = mix(vec3(l), c, uGrade.x);
+    c *= mix(vec3(1.0), mix(uGradeShade, uGradeLight, smoothstep(0.12, 0.7, l)), uGrade.z);
+    c = clamp((c - 0.45) * uGrade.y + 0.45, 0.0, 1.0);
+  }
   // Blue-noise dither, triangular PDF, one 8-bit step wide: removes sky banding.
   float n = texture(tBlueNoise, gl_FragCoord.xy / uNoiseSize).r;
   float t = n * 2.0 - 1.0;
@@ -181,6 +193,7 @@ export class PostPipeline {
       tScene: { value: null }, tBloom: { value: null }, tBlueNoise: { value: noise },
       uUvScale: { value: new THREE.Vector2(1, 1) }, uUvMax: { value: new THREE.Vector2(1, 1) },
       uBloom: { value: CONFIG.BLOOM_STRENGTH }, uBloomNorm: { value: 0.2 }, uNoiseSize: { value: BLUE_NOISE_SIZE },
+      uGrade: { value: new THREE.Vector4(1, 1, 0, 0) }, uGradeShade: { value: new THREE.Vector3(1, 1, 1) }, uGradeLight: { value: new THREE.Vector3(1, 1, 1) },
     });
   }
 
