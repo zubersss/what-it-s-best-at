@@ -1332,6 +1332,12 @@ export class App {
     const near = Math.max(0.25, Math.min(2e6, rig.agl * 0.15));
     // (clouds: their shadow reads the same map; the view must reach the layer's horizon)
     this.terrain.shared.tClouds.value = this.clouds.mesh.visible ? this.clouds.texture : this.terrain.textures.white;
+    {
+      // (the ground is shaded by the very heaps the layer shows: its numbers, handed over)
+      const sh = this.terrain.shared, cu = this.clouds.uniforms, on = this.clouds.mesh.visible && this.clouds.heap.w > 0.5 && !!cu.tCloudNoise.value;
+      sh.uCloudHeap.value.copy(this.clouds.heap); if (!on) sh.uCloudHeap.value.w = 0;
+      if (on) { sh.tCloudNoise.value = cu.tCloudNoise.value; sh.uCloudVol.value.set(cu.uVol.value.x, cu.uVol.value.y, cu.uVol.value.z); sh.uCloudWind.value.copy(cu.uVolWind.value); }
+    }
     const far = Math.max(this.terrain.farDistance, cloudFar) * 1.05;
     rig.finalize(aspect, near, far);
     renderer.render(this.nearScene, rig.camera);

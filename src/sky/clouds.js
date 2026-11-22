@@ -12,6 +12,23 @@ import { G } from '../render/globals.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 
+// A heap of the cloud layer over a place, as the layer draws it and as the ground is shaded
+// by it (terrainMaterial.js): one rule, written here, for both.
+//   noise: the cloud volume's noise; up: the direction from the world's centre; m: the day's
+//   map there; lo: 1 - the layer's cover; fair: the cover of fair-weather cloud where the map
+//   has none; vol: x 1 / the noise's scale, y the fair-weather field's scale, z the radius at
+//   which the volume's masses are widest; wind: where the noise has drifted to; fine: how
+//   much of the smaller lobes (0: none; 1: all). c: the cover there (0..1). Returns 0..1.
+export const HEAP_GLSL = /* glsl */`
+float cloudHeap(highp sampler3D noise, vec3 up, float m, float lo, float fair, vec3 vol, vec3 wind, float fine, out float c) {
+  c = smoothstep(lo - 0.08, lo + 0.34, m);
+  if (fair > 0.0) c = max(c, min(0.5, fair * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, texture(noise, up * vol.y + 0.31).r) / 0.55));
+  vec3 qv = up * (vol.z * vol.x) + wind;
+  float n = texture(noise, qv).r;
+  if (fine > 0.0) n += (texture(noise, qv * 5.3 + 0.37).g - 0.5) * 0.26 * fine;
+  return clamp((n - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
+}`;
+
 const VERT = /* glsl */`
 out vec3 vRel;
 void main() {
@@ -32,6 +49,7 @@ uniform vec3 uVolWind;         // where the volume's noise has drifted to
 uniform float uNearFade;       // metres: nearer than this the cloud is drawn as a volume instead (cloudVolume.js); 0: all of it is this shell
 in vec3 vRel;
 layout(location = 0) out vec4 fragColor;
+${HEAP_GLSL}
 float hash(vec3 p) { p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float vnoise(vec3 x) {
   vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
@@ -72,11 +90,7 @@ void main() {
     // same noise at the height where the masses are widest. A cloud keeps its place and
     // its outline when the traveller comes near and the volume takes it over. (Not where
     // a mass is smaller than a pixel: there, its mean.)
-    float c = smoothstep(lo - 0.08, lo + 0.34, m);
-    if (uFair > 0.0) c = max(c, min(0.5, uFair * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, texture(tCloudNoise, up * uVol.y + 0.31).r) / 0.55));
-    vec3 qv = up * (uVol.z * uVol.x) + uVolWind;
-    float n = texture(tCloudNoise, qv).r + (texture(tCloudNoise, qv * 5.3 + 0.37).g - 0.5) * 0.26 * (1.0 - smoothstep(150.0, 600.0, px * uVol.z));
-    float dv = clamp((n - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
+    float c, dv = cloudHeap(tCloudNoise, up, m, lo, uFair, uVol.xyz, uVolWind, 1.0 - smoothstep(150.0, 600.0, px * uVol.z), c);
     float small = far;
     cover = mix(smoothstep(0.0, 0.45, dv) * 0.75, c * 0.5, small);
     // A heap seen from above has a lit side and a side in its own shade: the same cloud a
@@ -135,6 +149,9 @@ export class CloudLayer {
     this.def = null; this.enabled = true; this.loading = false; this.radius = 0; this.epoch = 0;
     // what the terrain shader needs for the shadow: strength, shell radius, map shift (see setWorld / update)
     this.shadow = new THREE.Vector4(0, 1, 0, 0);
+    // heap: x 1 - the cover, y the fair-weather cover, w 1 when the ground can be shaded by
+    // the layer's own heaps (the volume's noise is there); the ground shader's uCloudHeap.
+    this.heap = new THREE.Vector4(0, 0, 0, 0);
   }
 
   // The home world changed: its cloud map is fetched (decoded off the main thread).
@@ -174,6 +191,7 @@ export class CloudLayer {
       this.uniforms.tCloudNoise.value = volume.noise; this.uniforms.uVolWind.value.copy(volume.drift);
       this.uniforms.uVol.value.set(1 / (v.scale ?? 5200), worldRadius / (v.scale ?? 5200) * 0.11, this.radius, 0);
     } else this.uniforms.uVol.value.x = 0;
+    if (!on || !match) this.heap.w = 0;
     this.mesh.visible = on;
     this.shadow.x = on && this.shadows !== false ? (this.def.shadow ?? 0.6) : 0;
     if (!on) return 0;
@@ -182,6 +200,8 @@ export class CloudLayer {
     this.uniforms.uCloud.value.set(this.def.cover ?? 0.8, this.radius, shift, r < this.radius ? 1 : 0);
     this.uniforms.uFair.value = this.def.volume?.fair ?? 0;
     this.shadow.y = this.radius; this.shadow.z = shift;
+    // (what the ground needs to be shaded by the heaps the layer shows: see heap below)
+    this.heap.set(1 - (this.def.cover ?? 0.8), this.uniforms.uFair.value, 0, match && this.shadows !== false ? 1 : 0);
     return Math.sqrt(Math.max(0, r * r - worldRadius * worldRadius)) + Math.sqrt(this.radius * this.radius - worldRadius * worldRadius);
   }
 }
