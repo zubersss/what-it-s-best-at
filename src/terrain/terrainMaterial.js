@@ -90,8 +90,12 @@ void main() {
       // level of the normal map: a small steep spot on a wooded hillside is not a cliff, and
       // each one was a pit in the canopy. Patches of different detail then ask about the same
       // stretch of ground along their shared edge; what difference is left their skirts hide.)
-      vec4 nv = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), clamp(log2(187.0 / max(aI2.z, 1.0)), 1.0, 5.0));
-      k *= smoothstep(0.78, 0.92, dot(normalize(nv.xyz), up)) * (1.0 - step(1.02, textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 1.0).a));
+      // (never the whole of a patch in one: a small patch on a steep hillside lost its canopy
+      // all at once, a square hole in the forest. And the trees' own rule for slopes, of
+      // life/treeBlock.js: all of them up to a slope of 0.5, none from 0.95; the canopy
+      // used to end at 39 degrees where trees stand to 43, and they stood on bare ground.)
+      vec4 nv = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), clamp(log2(187.0 / max(aI2.z, 1.0)), 1.0, 3.0));
+      k *= smoothstep(0.725, 0.894, dot(normalize(nv.xyz), up)) * (1.0 - step(1.02, textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 1.0).a));
       // (crowns: a whole number of them across the detail tile, so patches agree; only near
       // enough that a patch's vertices can carry them: on the far patches the bumps fell
       // between the vertices and came out as stripes down every hillside. By distance,
