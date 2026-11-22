@@ -81,13 +81,12 @@ float density(vec3 p, float c, float y, bool fine) {
   // rounded below, billowing above; a thick cover stands taller
   float profile = smoothstep(0.0, 0.1, y) * (1.0 - smoothstep(0.45 + 0.5 * c, 0.55 + 0.45 * c, y));
   vec3 q = p * uCloud.z + uCloudWind;
-  vec2 n = texture(tCloudNoise, q).rg;
-  float d = clamp((n.r * profile - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
-  if (fine && d > 0.0) {
-    // small cells eat at the edges (not the hearts) of the masses
-    float e = texture(tCloudNoise, q * 5.3 + 0.37).g;
-    d = clamp((d - e * 0.32 * (1.0 - d)) / (1.0 - 0.32 * (1.0 - d) * e + 1e-3), 0.0, 1.0);
-  }
+  float n = texture(tCloudNoise, q).r, e = 0.5;
+  // (smaller cells push the outline in and out: a heap's edge is rounded lobes, not one smooth curve)
+  if (fine) { e = texture(tCloudNoise, q * 5.3 + 0.37).g; n += (e - 0.5) * 0.26; }
+  float d = clamp((n * profile - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
+  // (and eat at the edges, not the hearts, of the masses)
+  if (fine && d > 0.0) d = clamp((d - e * 0.4 * (1.0 - d)) / (1.0 - 0.4 * (1.0 - d) * e + 1e-3), 0.0, 1.0);
   return d;
 }
 void main() {
@@ -146,15 +145,15 @@ void main() {
     float d = density(p, c, y, t < 30000.0);
     if (d <= 0.001) continue;
     float wisp = 1.0;
-    if (t < 2500.0) {
+    if (t < 1000.0) {
       // close by: wisps a few hundred metres across torn out of the cloud, and the cloud
       // round the eye itself thin, so that flying through one is shapes going by and not
       // a blank wall
-      float e2 = texture(tCloudNoise, p * (uCloud.z * 19.0) + uCloudWind * 3.0 + 0.71).g, nearK = 1.0 - smoothstep(600.0, 2500.0, t);
+      float e2 = texture(tCloudNoise, p * (uCloud.z * 19.0) + uCloudWind * 3.0 + 0.71).g, nearK = 1.0 - smoothstep(300.0, 1000.0, t);
       d *= mix(1.0, smoothstep(0.25, 0.75, e2 + 0.5 * d), 0.7 * nearK);
       d *= mix(0.35, 1.0, smoothstep(0.0, uFair.y, t));
       // (and lighter and darker by the way one looks: see wispV)
-      wisp = mix(1.0, wispV, 1.0 - smoothstep(500.0, 1500.0, t));
+      wisp = mix(1.0, wispV, 1.0 - smoothstep(400.0, 1000.0, t));
     }
     // The Sun on the cloud, as a painter has it: full on the tops and on the sides turned
     // to it (less cloud a little way toward the Sun than here), little in the hearts and
@@ -165,8 +164,9 @@ void main() {
     // scattered heaps the light comes down between them)
     float above = 0.012 * (1.0 - y) * uLayer.y * mc.y * smoothstep(0.55, 0.95, c) * 0.35 / max(mu0, 0.25);
     // (a small cloud's shade is light: the Sun's light goes round inside it; a storm's is not)
-    float lit = mix(0.36, 1.0, smoothstep(0.2, 0.7, sunward)) * min(exp(-above) + 0.18 * exp(-0.22 * above), 1.0);
-    vec3 light = sunC * (lit * min(0.6 + 0.4 * phase, 2.5)) + (skyC * (0.45 + 0.55 * y) + skyDown * (1.0 - y) * 0.5) * 0.8;
+    // (two tones with a clean line between them, the shade a light one: a poster's cloud)
+    float lit = mix(0.64, 1.0, smoothstep(0.4, 0.56, sunward)) * min(exp(-above) + 0.18 * exp(-0.22 * above), 1.0);
+    vec3 light = sunC * (lit * min(0.6 + 0.4 * phase, 2.5)) + (skyC * (0.45 + 0.55 * y) + skyDown * (1.0 - y) * 0.5) * 0.55;
     light *= wisp;
     if (uBolt.w > 0.0) { vec3 fb = dir * t - uBolt.xyz; light += vec3(0.8, 0.88, 1.0) * (uBolt.w / (1.0 + dot(fb, fb) / (900.0 * 900.0))); }
     float a = 1.0 - exp(-sigma * d * dt);
@@ -222,7 +222,7 @@ void main() {
     float through = 1.0;
     for (int j = 0; j < SLICES; j++) through *= 1.0 - look(float(j)).a;
     float all = 1.0 - through;
-    c *= mix(1.0, smoothstep(0.1, 0.62, all) / max(all, 0.003), uCrisp);
+    c *= mix(1.0, smoothstep(0.18, 0.5, all) / max(all, 0.003), uCrisp);
   }
   fragColor = c;
 }`;
