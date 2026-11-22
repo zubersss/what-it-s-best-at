@@ -73,18 +73,21 @@ vec2 mapCover(vec3 up) {
     // (placed by the world's own radius: the field must not shift when the layer's height does)
     float field = texture(tCloudNoise, up * uFieldK + 0.31).r;
     // (never a whole cover: fair weather has sky between its heaps)
-    c = max(c, min(0.7, uFair.x * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, field) / 0.55));
+    c = max(c, min(0.5, uFair.x * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, field) / 0.55));
   }
   return vec2(c, top);
 }
 // How much cloud is at a place: c = the map's cover there (0..1), y = height in the layer (0..1).
 float density(vec3 p, float c, float y, bool fine) {
-  // rounded below, billowing above; a thick cover stands taller
-  float profile = smoothstep(0.0, 0.1, y) * (1.0 - smoothstep(0.45 + 0.5 * c, 0.55 + 0.45 * c, y));
   vec3 q = p * uCloud.z + uCloudWind;
   float n = texture(tCloudNoise, q).r, e = 0.5;
   // (smaller cells push the outline in and out: a heap's edge is rounded lobes, not one smooth curve)
   if (fine) { e = texture(tCloudNoise, q * 5.3 + 0.37).g; n += (e - 0.5) * 0.26; }
+  // rounded below; above, a dome: a heap stands tallest over its middle and low at its
+  // edges (with one height for all, a sky full of them was a flat-topped deck); a thick
+  // cover stands taller
+  float over = n - (1.0 - c) * 0.85, top = mix(0.36, 1.0, smoothstep(0.0, 0.32, over)) * (0.6 + 0.4 * c);
+  float profile = smoothstep(0.0, 0.1, y) * (1.0 - smoothstep(top - 0.14, top, y));
   float d = clamp((n * profile - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
   // (and eat at the edges, not the hearts, of the masses)
   if (fine && d > 0.0) d = clamp((d - e * 0.4 * (1.0 - d)) / (1.0 - 0.4 * (1.0 - d) * e + 1e-3), 0.0, 1.0);

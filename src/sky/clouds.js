@@ -68,7 +68,7 @@ void main() {
     // its outline when the traveller comes near and the volume takes it over. (Not where
     // a mass is smaller than a pixel: there, its mean.)
     float c = smoothstep(lo - 0.08, lo + 0.34, m);
-    if (uFair > 0.0) c = max(c, min(0.7, uFair * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, texture(tCloudNoise, up * uVol.y + 0.31).r) / 0.55));
+    if (uFair > 0.0) c = max(c, min(0.5, uFair * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, texture(tCloudNoise, up * uVol.y + 0.31).r) / 0.55));
     vec3 qv = up * (uVol.z * uVol.x) + uVolWind;
     float n = texture(tCloudNoise, qv).r + (texture(tCloudNoise, qv * 5.3 + 0.37).g - 0.5) * 0.26 * (1.0 - smoothstep(150.0, 600.0, px * uVol.z));
     float dv = clamp((n - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
@@ -87,7 +87,8 @@ void main() {
   float fwd = 0.6 + 0.9 * pow(max(cs, 0.0), 8.0);
   float under = uCloud.w > 0.5 ? mix(1.0, uVol.x > 0.0 ? 0.6 : 0.42, cover) : 1.0;
   vec3 sun = directSun(planetPos) * smoothstep(-0.06, 0.08, mu0) * fwd * under;
-  vec3 col = vec3(0.86) * (sun * 0.42 + skyLight(uCloud.w > 0.5 ? -up : up, up) * 0.9 + skyLight(up, up) * 0.25) / PI;
+  // (matched to the volume near the traveller, whose sunlit faces are white)
+  vec3 col = vec3(0.86) * (sun * (uVol.x > 0.0 ? 0.8 : 0.42) + skyLight(uCloud.w > 0.5 ? -up : up, up) * 0.9 + skyLight(up, up) * 0.25) / PI;
   // (... in two tones: its body, and its thick middle a step darker)
   if (uPaint.x > 0.0) col *= mix(1.0, mix(1.0, 0.8, smoothstep(0.55, 0.7, cover)), uPaint.x);
   col = aerialPerspective(col, vRel);
