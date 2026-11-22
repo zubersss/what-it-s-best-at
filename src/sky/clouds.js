@@ -115,7 +115,9 @@ void main() {
   if (far > 0.0) {
     vec3 ps = normalize(up + uSunDir * 0.0035);
     float m1 = textureGrad(tCloudMap, vec2(atan(ps.y, ps.x) * 0.15915494 + uCloud.z, acos(clamp(ps.z, -1.0, 1.0)) * 0.31830989), gx, gy).r;
-    alpha = mix(alpha, smoothstep(0.04, 0.9, m), far);
+    // (thin cloud shows only from very far, where the whole globe is in view: nearer, the
+    // map's faint parts were grey veils of fog lying over the land)
+    alpha = mix(alpha, mix(smoothstep(0.2, 0.55, m), smoothstep(0.04, 0.9, m), smoothstep(2500.0, 9000.0, px * uCloud.y)), far);
     relief = mix(relief, clamp(1.0 + 1.3 * (m - m1), 0.55, 1.25), far);
   }
   if (uNearFade > 0.0) alpha *= smoothstep(0.7 * uNearFade, uNearFade, dist);
@@ -127,7 +129,9 @@ void main() {
   float under = uCloud.w > 0.5 ? mix(1.0, uVol.x > 0.0 ? 0.6 : 0.42, cover) : 1.0;
   vec3 sun = directSun(planetPos) * smoothstep(-0.06, 0.08, mu0) * fwd * under;
   // (matched to the volume near the traveller, whose sunlit faces are white)
-  vec3 col = vec3(0.86) * (sun * (uVol.x > 0.0 ? 0.8 : 0.42) + skyLight(uCloud.w > 0.5 ? -up : up, up) * 0.9 + skyLight(up, up) * 0.25) / PI;
+  // (... and as white without the volume, in the painted look: with the governor's last
+  // saving on, the same clouds were grey)
+  vec3 col = vec3(0.86) * (sun * (uVol.x > 0.0 ? 0.8 : mix(0.42, 0.8, uPaint.x)) + skyLight(uCloud.w > 0.5 ? -up : up, up) * 0.9 + skyLight(up, up) * 0.25) / PI;
   // (... in two tones: its body, and its thick middle a step darker)
   if (uPaint.x > 0.0) col *= mix(1.0, mix(1.0, 0.8, smoothstep(0.55, 0.7, cover)), uPaint.x * (1.0 - far));
   col *= relief;
