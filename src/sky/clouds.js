@@ -105,7 +105,9 @@ void main() {
   // seen at a slant the layer is longer to look through
   float mu = max(abs(dot(V, up)), 0.12);
   float alpha = 1.0 - exp(-cover * (0.4 + cover) * 1.7 / mu);
-  if (uPaint.x > 0.0) alpha = mix(alpha, smoothstep(0.16, 0.5, cover) * 0.96, uPaint.x);
+  // (a clean edge: a heap is white or it is not there. With a soft one, seen from above
+  // the heaps were grey veils over the land.)
+  if (uPaint.x > 0.0) alpha = mix(alpha, smoothstep(0.2, 0.38, cover) * 0.97, uPaint.x);
   // From far off (a cloud's heaps smaller than a pixel) the layer is the day's map itself, as
   // the globe seen from another world wears it (sky/bodies.js): all of its cloud, thin and
   // thick, every mass lit on its sunward side and in its own shade on the other. (It was the
