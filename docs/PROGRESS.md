@@ -486,7 +486,10 @@ closer to the references.
   (springs and neaps), up to about 3 m on Earth; the beach it leaves is drawn as wet
   sand at its own depth, with a wash at the water's edge; the character wades by it.
   Waves: the smallest waves are half again as tall (`waveScale` at least 0.45).
-- **Rain** four times as dense (5 600 streaks), and it hides what is far (`rainVeil`).
+- **Rain** four times as dense (5 600 streaks), each a strip with a width of its own
+  (they were one-pixel lines: on the phone the heaviest rain was a few scratches, and a
+  bug drew one streak in twelve right across the box), a third of them close round the
+  eye; and rain hides what is far (`rainVeil`).
 - **Storms come in squalls**: bursts of rain and wind every minute or two, a darker
   sky, lightning sooner; in a storm the clouds are denser, drift up to 55 m/s and
   change shape up to thirteen times as fast.

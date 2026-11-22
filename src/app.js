@@ -1146,7 +1146,7 @@ export class App {
       if (wx.def) sh.uWind.value.set(wx.wind.x, wx.wind.y, wx.wind.z, speed); else sh.uWind.value.set(e[0], e[1], e[2], speed);
       G.uWeather.value.set(wx.def ? wx.sunShade : 1, wx.def ? wx.skyShade : 1, wx.def ? wx.wet : 0, wx.def && this.rain.enabled ? wx.veil : 0);
       G.uFlash.value.copy(wx.flashLight);
-      this.rain.update(wx, rig, (now / 1000) % 14400);
+      this.rain.update(wx, rig, (now / 1000) % 14400, 2 * Math.tan(rig.camera.fov * Math.PI / 360) / Math.max(2, this.post.viewH));
       this.bolt.update(wx, rig.agl, sunE);
       this.rainbow.update(wx, rig, this.post.viewW / this.post.viewH, G.uSunDir.value);
       for (const th of wx.heard()) if (rig.agl < 20000) this.audio.thunder(th.power, th.dist);          // (thunder needs air to arrive in)

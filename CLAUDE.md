@@ -453,7 +453,7 @@ finished benchmark leaves its text in `window.__benchResult`.
   where the coarser map says the land outside is downhill let water out; a river that
   comes in is put in where the coarser map says it crosses.
 - GLSL ES 3 reserves words that look like ordinary names: `patch`, `sample`, `filter`,
-  `input`, `output`, `common`, `active`, `partition`. A variable called `patch` broke
+  `input`, `output`, `common`, `active`, `partition`, `half`. A variable called `patch` broke
   the ground shader on the test browser (and would on the phone); the build does not
   compile shaders, so only a picture run shows it.
 - A map with 600 m pixels knows nothing of a cliff inside one: the far forest covered
@@ -553,5 +553,8 @@ finished benchmark leaves its text in `window.__benchResult`.
 - Foliage made of cards alone is a lace one sees straight through, and a forest of it a
   green noise. A crown needs a dark inside (a heart of crossed cards in every bunch, a
   skirt under every tier of a fir): then it is a mass with a cut edge.
+- Two ends of one thing wrapped into a box each by itself come apart at the box's edge:
+  one rain streak in twelve was a line drawn right across the box (the scratches that
+  were taken for the rain). Wrap one end, and work the other out from it.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

@@ -673,7 +673,10 @@ ring: it is not asked for.
 - **Rain hides what is far** (`weather.veil`, `uWeather.w`, `rainVeil` in the lighting
   chunk): everything lit is mixed toward the sky's grey by `1 - exp(-distance x veil)`,
   the veil growing with the rate (visibility a few hundred metres in a cloudburst).
-  `rain.js` draws 5 600 streaks (the governor's `rain` step: half of them).
+  `rain.js` draws 5 600 streaks (the governor's `rain` step: half of them), each a strip
+  turned to the eye, a few millimetres wide and never under a pixel and a half; a third
+  of them in a small box round the eye. In a storm the cloud's base is darker and lighter
+  in great patches that go by with the wind (`uStorm` in the cloud volume).
 
 ## Sky bodies
 

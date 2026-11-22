@@ -128,7 +128,8 @@ export class Weather {
     this.snow += (now * cold - this.snow) * Math.min(1, dt * 0.5);
     this.wet += ((this.rain > 0.15 ? 1 : 0) - this.wet) * Math.min(1, dt * (this.rain > 0.15 ? 0.08 + 0.05 * this.rain : 0.01));
     // (what falls hides what is far: a share of the view a metre; snow hides twice as well)
-    this.veil = Math.min(0.0045, 0.00026 * Math.pow(this.rain + 2 * this.snow, 0.85));
+    // (moderate rain, 6 mm an hour: one sees some 6 km; a cloudburst of 50: one)
+    this.veil = Math.min(0.0045, 0.00014 * Math.pow(this.rain + 2 * this.snow, 0.85));
     if (still) this.topNear = 0;                             // (looked for afresh below, the same every frame)
     // --- shade: the cloud between the traveller and the Sun, and over the sky
     let shade = 1, sky = 1;

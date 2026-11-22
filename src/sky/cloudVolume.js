@@ -51,6 +51,7 @@ uniform vec3 uCamRight, uCamUp, uCamFwd;
 uniform vec4 uProj;            // x tan(half the vertical view angle), y aspect, z near, w far
 uniform float uSliceZ[SLICES + 1];   // where each slice of the view's depth begins and ends (m)
 uniform float uDense;          // how solid the cloud is, against the plain measure
+uniform float uStorm;          // how much of a storm this is (0..1): its base is darker and lighter in great patches
 uniform float uFieldK;         // the world's radius in units of the fair-weather field's noise
 uniform vec2 uFair;            // x: the cover of fair-weather cloud where the day's map has none (0: none); y: how far round the eye the cloud is thinned (m)
 uniform vec3 uCloudWind;       // where the noise has drifted to (noise units)
@@ -172,6 +173,9 @@ void main() {
     float lit = mix(0.64, 1.0, smoothstep(0.4, 0.56, sunward)) * min(exp(-above) + 0.18 * exp(-0.22 * above), 1.0);
     vec3 light = sunC * (lit * min(0.6 + 0.4 * phase, 2.5)) + (skyC * (0.45 + 0.55 * y) + skyDown * (1.0 - y) * 0.5) * 0.55;
     light *= wisp;
+    // (a storm's base: darker and lighter in great patches that go by with the wind and
+    // turn over; a settled overcast is one even grey)
+    if (uStorm > 0.02 && y < 0.6) { float sm = texture(tCloudNoise, (p * uCloud.z + uCloudWind) * 1.9 + 0.23).g; light *= mix(1.0, 0.36 + 1.25 * sm, uStorm * (1.0 - y / 0.6)); }
     if (uBolt.w > 0.0) { vec3 fb = dir * t - uBolt.xyz; light += vec3(0.8, 0.88, 1.0) * (uBolt.w / (1.0 + dot(fb, fb) / (900.0 * 900.0))); }
     float a = 1.0 - exp(-sigma * d * dt);
     C += T * a * light;
@@ -241,7 +245,7 @@ export class CloudVolume {
     this.enabled = true; this.steps = 36; this.def = null; this.noise = null; this.active = false;
     this.target = null; this.tw = 0; this.th = 0;
     this.uniforms = {
-      ...lightingUniforms(), tCloudNoise: { value: null }, tCloudMap: { value: null }, uSliceZ: { value: new Float32Array(SLICES + 1) }, uDense: { value: 1 }, uFair: { value: new THREE.Vector2(0, 300) }, uFieldK: { value: 1 },
+      ...lightingUniforms(), tCloudNoise: { value: null }, tCloudMap: { value: null }, uSliceZ: { value: new Float32Array(SLICES + 1) }, uDense: { value: 1 }, uStorm: { value: 0 }, uFair: { value: new THREE.Vector2(0, 300) }, uFieldK: { value: 1 },
       uCloud: { value: new THREE.Vector4(0.5, 0, 1 / 5200, 45000) }, uLayer: { value: new THREE.Vector4(1, 1, 26, 0) },
       uCamRight: { value: new THREE.Vector3() }, uCamUp: { value: new THREE.Vector3() }, uCamFwd: { value: new THREE.Vector3() },
       uProj: { value: new THREE.Vector4() }, uCloudWind: { value: new THREE.Vector3() },
@@ -362,6 +366,7 @@ export class CloudVolume {
     const z = u.uSliceZ.value; for (let k = 0; k < SLICES; k++) z[k] = SLICE_Z[k]; z[SLICES] = this.reach;
     // (no ray meets the layer nearer than the traveller's distance below its base or above its top)
     const alt = altNow; this.below = alt < base; this.minDist = alt < base ? base - alt : alt > base + this.thickNow ? alt - base - this.thickNow : 0;
+    u.uStorm.value = Math.min(1, sN + 0.4 * squall);
     u.uDense.value = (v.dense ?? 1) * (1 + 0.45 * sN + 0.35 * squall); u.uFair.value.set(v.fair ?? 0, v.clear ?? 120); u.uFieldK.value = this.radius / (v.scale ?? 5200) * 0.11;
     this.base = base;
     u.tCloudMap.value = layer.texture;
