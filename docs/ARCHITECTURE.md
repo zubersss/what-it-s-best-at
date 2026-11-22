@@ -421,6 +421,19 @@ as before.
   `life/leaves.js` sheds leaves in their season, in a gale (from every tree) and when
   the traveller passes trees fast.
 
+**Seen from above** (two things of the look that are right on the ground and wrong from
+the air):
+- `uHaze` (`look.js`, `look.spaceHaze`, default 0.45): how much of the haze lies over what
+  is seen. 1 up to 2.5 km, down to 0.45 from 25 km: `hazeOverGround` mixes its result
+  back toward the unhazed colour by it, and `forestAir` is gone by half of it. The look's
+  low air is five times a clear day's; looked through whole from above it was a milky
+  veil, and from orbit the home world was a pale ball.
+- **The relief light** (`look.reliefLight`, `uAirRelief` in the ground shader): ground more
+  than 1.5 km off (in full by 9 km) is lit, for its slopes, by a Sun no higher than 35
+  degrees from the real Sun's side; level ground keeps the brightness the real Sun gives
+  it. Under a high Sun the two-tone light puts every slope in the light and the land was
+  as flat as a carpet from the air. Nothing changes while the Sun is under 35 degrees.
+
 ## Ground ready ahead of the traveller
 
 - `Terrain.update` works out a place ahead: three seconds along the traveller's velocity
@@ -472,6 +485,12 @@ ring: it is not asked for.
   mirrors them at `/__ext/<host>/<path>` from a cache on disk (`/root/mapcache/ext`,
   filled with curl on a miss) and tells the page through `window.__EXT`.
 - Without the services (no connection, Node scripts) the bundled maps are all there is.
+- **A picture's zoom follows the height** (`pictures.colour.zooms: [[zoom, up to (m)], ...]`,
+  finest first): the same four tiles a side, coarser and so wider the higher the
+  traveller is (Earth: 600 m a pixel over 600 km below 125 km, to 10 km a pixel over
+  10 000 km below 2 000 km). The zoom in use is kept until the height is a seventh past
+  its range; a trip's destination is asked for at the finest. Land cover and canopy come
+  at the same zoom.
 
 ## Water
 
@@ -590,6 +609,17 @@ ring: it is not asked for.
 - **The air of a wood** (`forestAir` in the lighting chunk): trees, the forest's floor and
   the far canopy are mixed toward the sky's light by distance (to 38 % by some hundreds of
   metres): row behind row of trees paler, and the far forest lighter than the near.
+- **The far trees** (`groves.js`, `life.trees.far: { radius, spacing, below }`): beyond the
+  trees one walks among, one tree shape in every few out to 2 km, each the picture of a
+  whole tree on two crossed quads with a rosette in its crown (what a far mesh is), in
+  **one instanced draw** (the shape is a number of the instance's own; where each picture
+  is in the atlas is read off the far meshes). Placed by `treeBlock` itself on blocks of
+  0.01 degrees with a site every 30 m (job `trees` with `deg` and `salt`), so the same
+  land cover, slopes, water and tree line decide. They grow in where the nearer trees
+  end and are drawn after the ground: the raised canopy hides their lower part for
+  nothing, and their crowns stand out of it. From higher than the nearer trees are drawn
+  (1 500 m) they begin at the eye: they are the trees a traveller sees coming down.
+  Governor step `far-trees` (half of them); the cost test leaves them out as a part.
 - **Beyond the trees** the canopy is up to its height where the last trees stand (0.62 to
   0.98 of the radius; the trees shrink away from 0.86), and its normal leans toward the
   eye by how far from overhead one looks: the canopy shows the sides of its crowns, lit
@@ -881,7 +911,13 @@ exposure alone decides whether they are visible.
   four sizes of generated puff, lit by the Sun through the air and by the sky. Its shadow
   on the ground is one extra texture read in the terrain shader (`tClouds`, `uCloud`):
   the cloud where the sunbeam to that ground crossed the layer. The near pass's far
-  plane reaches the layer's horizon. Governor step `clouds`.
+  plane reaches the layer's horizon. Governor step `clouds` (one of the last three).
+  **From far off** (where a cloud's heaps are smaller than a pixel: 500 to 1 800 m a pixel
+  on the shell, `far`) the layer is the day's map itself, as the globe seen from another
+  world wears it: `smoothstep(0.04, 0.9, map)`, every mass lit on its sunward side and in
+  its own shade on the other (the same map a little way toward the Sun). Nearer, each
+  heap has a lit and a shaded side from the volume's own noise a few hundred metres
+  toward the Sun (`relief`). Neither depends on the cloud volume being on.
 - The albedo map can start at longitude -180 (`albedoMap.lon0: -180`, Earth's globe
   maps) and steep rock can take less of its tint (`steep`): snow does not lie on cliffs.
 
