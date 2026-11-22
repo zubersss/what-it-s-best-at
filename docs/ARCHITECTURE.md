@@ -481,7 +481,7 @@ ring: it is not asked for.
 - `water/waves.js`: one table of sines, each a whole number of cycles across the 64 m
   detail tile, running at deep-water speed, weighted by how it lines up with the wind.
   The shader adds as many as are longer than five pixels; the eight longest also lift
-  the surface itself within 400 m (vertex shader; governor step `waves`); the game asks
+  the surface itself within 400 m (vertex shader; no governor step: on the phone it saved nothing measurable); the game asks
   the same sum for what floats (`waveHeightAt`).
 - Colour: light goes down to the bed and back, red lost first (pale sand in the shallows,
   the water's own blue below); foam at the waterline, in bands along the bed's contours,
@@ -669,7 +669,7 @@ ring: it is not asked for.
 - **Rain hides what is far** (`weather.veil`, `uWeather.w`, `rainVeil` in the lighting
   chunk): everything lit is mixed toward the sky's grey by `1 - exp(-distance x veil)`,
   the veil growing with the rate (visibility a few hundred metres in a cloudburst).
-  `rain.js` draws 5 600 streaks (the governor's `rain` step: a quarter of them).
+  `rain.js` draws 5 600 streaks (the governor's `rain` step: half of them).
 
 ## Sky bodies
 
@@ -906,8 +906,8 @@ changes) and the composite pass scales it up to the canvas.
 size is one of four steps (1, 0.60, 0.36, 0.22 of the native area), the smallest that still
 holds the picture the governor has chosen; the browser scales it to the screen. The last
 pass then writes as many pixels as the picture has, not the screen's 4.45 million whatever
-the resolution (the fourth phone benchmark: a frame with nothing drawn took 28 ms at
-2.07 MP and 19 ms at 1 MP). A step down waits three seconds, a step up is at once; the
+the resolution (the seventh phone benchmark, build ef3201a: with nothing drawn at all a
+frame still took 19 to 28 ms of the 58). A step down waits three seconds, a step up is at once; the
 frame after a change is reported to the governor as `screen size changed` and not judged.
 `app.canvasHold` ('fit' / 'full') pins it for the cost test.
 

@@ -298,7 +298,10 @@ export class App {
       for (const set of this.trees.sets.flat(2)) order(set.mesh, -20);
       order(this.rocks.mesh, -10);
     }
-    if (this.shotMode) this.nearShadow.every = 1;          // (a picture must not depend on which frame it is)
+    // (a picture must not depend on which frame it is; and at Sharp's 30 frames a second
+    // every tile is drawn every frame: a turn of four frames there would be 7 shadow
+    // pictures a second under trees that sway)
+    this.nearShadow.every = this.shotMode || MODES[this.governor.mode].fps < 45 ? 1 : 2;
     // Weather (worlds that have it): wind, rain, wet ground, shade, lightning
     this.weather = new Weather(); this.weather.setWorld(world);
     this.look = new Look(); this.look.setWorld(world);          // the world's look, if it has one of its own (render/look.js)
@@ -632,6 +635,7 @@ export class App {
     const next = this.governor.mode === 'smooth' ? 'sharp' : 'smooth';
     this.governor.setMode(next);
     this.terrainBudget(MODES[next].patches ?? 1, 'mode');
+    this.nearShadow.every = this.shotMode || MODES[next].fps < 45 ? 1 : 2;
     try { localStorage.setItem('sse.mode', next); } catch { /* storage blocked: the choice lasts for this visit */ }
     this.startScreen?.setMode(next);
     this.toast?.show(`${MODES[next].label} — ${MODES[next].fps} fps`);

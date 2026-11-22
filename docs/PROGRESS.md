@@ -428,6 +428,70 @@ of the tropical, acacia and palm shapes in the game (only in the preview). Cloud
 from below toward the Sun they are one cream tone; the far shell is flatter and dimmer
 than the volume it continues. Nothing here was measured on the phone.
 
+## The owner's seventh phone results (build ef3201a) and the sixth painted delivery
+
+**The numbers** (Earth benchmark, Smooth): **53.7 fps** on average (56.8 at the sixth),
+1 % low 16.9, 9.4 % of frames late. **Earth 48.3** (it was 55.8: the trees' cut-out cards
+and the storms came in between), the flight 53.9, the Moon 58.8. By stop on Earth: ledge
+44.2, sun 43.2, wall 59.2, **ship 37.6**, dusk 57.0. Resolution at the floor nearly all the
+time on Earth (0.96 MP of 4.45) with every saving on (102 quality steps); the page's own
+work 5.7 ms (the figure 2.3). 137 draw calls, 1 188 k triangles, 237 MB at most.
+
+**What the cost test said** (three views at 2.07 MP; its times are from a frame's start
+until one pixel is read back, about twice what a frame takes in play, so only the
+proportions count): everything on 58 ms; **every saving on 49 to 59**: the savings together
+buy almost nothing; at 1 MP 43, at native 73: a third of the frame does not depend on the
+picture's size at all. Parts left out: no ground or things on it 23 to 32; **nothing
+drawn at all 19 to 28**. So nearly half a frame was paid with an empty picture, and no
+saving and no resolution step could touch it. What that was, looked for in the code:
+1. **The last pass wrote the screen's 4.45 million pixels** whatever the picture's size
+   (tone map, grade, dither, beams, bloom mix: a long shader).
+2. **The shadow atlas was drawn whole every frame**: 6.3 million depth pixels cleared and
+   every rock and every tree's cut-out cards drawn into them.
+3. **The ground was drawn first** and shaded under everything that then covered it
+   (grass, trees, rocks), by the most expensive shader in the game.
+
+**What was done from it** (none of it measured on the phone yet):
+- `App.fitCanvas`: the canvas's own pixel size follows the picture's (four steps), the
+  browser scales it to the screen; the last pass writes the picture's pixels only.
+- `nearShadow`: the tiles are drawn in turns (the figure's every frame, the fine one
+  every other, the wide one every fourth; all of them at Sharp's 30 fps), each kept
+  where it was drawn; `npm run shadowturns` holds it to the same picture.
+- Draw order: grass and leaves, trees, rocks and lander, the ground last.
+- The cost test leaves more parts out (the shadow maps, the ground's shading, the last
+  pass at the picture's size) and sets each against a baseline taken just before it.
+- **To watch for in the next results**: late frames in a rhythm of four (frame lengths
+  2, 2, 2, 4 refreshes) would be the wide shadow tile's turn: then draw its trees as
+  their far meshes (6 triangles each) in that tile. And the line "the ground's shading"
+  says whether the ground's shader is the next thing to cut.
+
+**What the owner asked for** (with the results, and eight reference pictures): keep
+working on the performance; far things should look good; *"I want the ground to be
+loaded in when I'm super high in the sky"*; the water needs a lot of work: waves and
+tide; rain a lot denser; clouds that change a lot more, like an actual storm; trees
+closer to the references.
+
+**Built for it** (the sixth painted delivery):
+- **From high up**: patches split sooner from 1.2 km (it was from 30 km), fully by 12 km:
+  between those heights the ground under the traveller was a blur on the phone. The
+  land-cover colours are laid on softly (a class's edge fades over three pixels): from
+  40 km and more the land was a mosaic of 600 m blocks.
+- **Far forest**: the canopy beyond the trees is up to its height where the last trees
+  stand (from above there was a brown ring of bare ground between the two), is lit by
+  the sides of its crowns as trees are, and stands in the same air (`forestAir`).
+- **Tide**: the sea falls and rises twice a day by the Moon's and the Sun's real places
+  (springs and neaps), up to about 3 m on Earth; the beach it leaves is drawn as wet
+  sand at its own depth, with a wash at the water's edge; the character wades by it.
+  Waves: the smallest waves are half again as tall (`waveScale` at least 0.45).
+- **Rain** four times as dense (5 600 streaks), and it hides what is far (`rainVeil`).
+- **Storms come in squalls**: bursts of rain and wind every minute or two, a darker
+  sky, lightning sooner; in a storm the clouds hang lower, are denser, drift up to
+  55 m/s and change shape up to thirteen times as fast.
+- **Trees**: every bunch of sprays has a dark heart and every tier of a fir a dark
+  skirt (a crown is a mass with a cut edge, not a lace); firs a third narrower with more
+  boughs; a cold green for conifers and a warm one for broad leaves; furrowed bark near
+  by; row behind row of trees paler in the wood's air.
+
 ## The owner's sixth phone results (build c51fae1) and the third painted delivery
 
 **The numbers** (Earth benchmark, Smooth): **56.8 fps** on average (it was 15.2), Earth
