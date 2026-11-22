@@ -150,7 +150,7 @@ export class Trees {
           float nl = dot(N, uSunDir), lit = !wood ? max(nl * 0.7 + 0.3, 0.0) : max(nl, 0.0);
           if (uPaint.x > 0.0) { lit = mix(lit, paintLit(!wood ? nl * 0.75 + 0.25 : nl) * PI, uPaint.x); albedo = paintColour(albedo); leafC = paintColour(leafC); }
           // (and seen against the Sun, foliage glows: the light comes through needles and leaves)
-          float through = wood ? 0.0 : max(-nl, 0.0) * 0.28 + (card ? 0.26 * pow(max(dot(-V, uSunDir), 0.0), 4.0) : 0.0);
+          float through = wood ? 0.0 : max(-nl, 0.0) * 0.28 + (card ? 0.4 * pow(max(dot(-V, uSunDir), 0.0), 4.0) : 0.0);
           // inside and under a crown less sky is seen
           float open = !wood ? mix(0.5, 1.0, smoothstep(-0.6, 0.8, dot(N, up))) : mix(0.22, 0.6, smoothstep(0.0, 0.5, vY));
           // (the painted look: the shaded side of a crown is its dark tone, not a bright one lit by the sky)

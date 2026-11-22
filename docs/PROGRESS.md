@@ -76,18 +76,19 @@ merged, not live**):
    (wood is told apart by the picture's third byte); the leaves that fall (`leaves.js`)
    are untouched; the palm keeps plain faces.
 
-**State at the last update of this block:** steps 1 and 2 done, step 3 under way. Seen in
-the game (`t1`): the spruce forest (needled boughs, light through them), the hardwood
-forest (a canopy of leaf shapes on limbs), the forest from the air (tree shapes near, the
-far forest a dark layer: what the references have), the opening view. No shader errors;
-a closed forest's trees are 166 000 triangles (they were 620 000). Changed since and
-being pictured as `t2` (`dist_t2`: over the tree tops `...&heading=75&pitch=-8&fov=60&alt=40`,
-the hardwood forest, the spruce forest): a gentler glow against the Sun, crowns darker
-beneath, fir tiers with gaps, fuller near aspens, slimmer hardwood trunks (they were
-0.9 m through). `docs/ASSETS.md` and `docs/ARCHITECTURE.md` are written. **Left**: look at
-`t2`; the hardwood canopy is too evenly bright (wants deep shade under the leaves, as
-the references' aspen grove has); then step 4 (build check, smoke, reference pictures,
-tree sheets, merge, checkpoint, ask for a benchmark).
+**State at the last update of this block:** steps 1 to 3 done, step 4 under way. Seen in
+the game: the spruce forest, the hardwood forest (twice; trunks slimmed), the forest from
+the air and over the tree tops, the opening view; no shader errors; a closed forest's
+trees are 166 000 triangles (they were 620 000). Reference pictures and the two tree
+sheets in `docs/shots/` are refreshed; `docs/ASSETS.md` and `docs/ARCHITECTURE.md` are
+written. Running as this is written: build `dist_t3` (the last shader change: light
+through foliage against the Sun 0.4), two pictures, then `npm run smoke` on it
+(`$S/smoke_t3.txt`, must end `SMOKE 0`). **Left**: if smoke passes, open the pull
+request into `main`, merge, confirm the deploy, send the checkpoint and ask for an Earth
+benchmark. Weak still, for the next pass: the hardwood canopy seen from under is evenly
+bright (the references have deep shade among the leaves); over the tree tops toward a
+low Sun the forest is nearly black; leaves very near the camera are soft (the sprays are
+256 pixels); winter (see 5 above).
 
 
 *Handoff written at the fourth delivery of milestone 11 (the painted look).*
