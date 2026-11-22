@@ -61,7 +61,10 @@ void main() {
   float dens = m * (0.25 + 1.7 * d) + (d - 0.45) * 0.2 * smoothstep(0.1, 0.4, m);
   float lo = 1.0 - uCloud.x;
   float cover = smoothstep(lo - 0.08, lo + 0.34, dens);
-  float far = 0.0;               // how far off this is: 1 where a cloud's heaps are smaller than a pixel
+  // (how far off this is: 1 where a cloud's heaps are smaller than a pixel. Whether or not
+  // there is a volume near the traveller: with the governor's last saving on there is
+  // none, and from space the Earth then had no cloud at all.)
+  float far = smoothstep(500.0, 1800.0, px * uCloud.y);
   float relief = 1.0;            // the Sun on a heap's own shape: over 1 on its sunward side, under 1 in its own shade
   if (uVol.x > 0.0) {
     // With a volume near the traveller, this shell is the same clouds seen from far off: the
@@ -74,9 +77,8 @@ void main() {
     vec3 qv = up * (uVol.z * uVol.x) + uVolWind;
     float n = texture(tCloudNoise, qv).r + (texture(tCloudNoise, qv * 5.3 + 0.37).g - 0.5) * 0.26 * (1.0 - smoothstep(150.0, 600.0, px * uVol.z));
     float dv = clamp((n - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
-    float small = smoothstep(500.0, 1800.0, px * uVol.z);
+    float small = far;
     cover = mix(smoothstep(0.0, 0.45, dv) * 0.75, c * 0.5, small);
-    far = small;
     // A heap seen from above has a lit side and a side in its own shade: the same cloud a
     // few hundred metres toward the Sun says which this is (as the volume does near the
     // traveller). Flat white, the layer was a picture laid over the land.
