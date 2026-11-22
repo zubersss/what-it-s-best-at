@@ -181,6 +181,7 @@ npm run worlds         # every world opens at its start with ground drawn and no
 npm run lakes          # Earth's lakes and rivers against the real ones, without a browser (15 s; -- --list, -- utah vermont)
 node scripts/play-profile.mjs [--world earth] [--at "21.7,284.7,40"] [--floor] [--seconds 120] [--shot out.png]   # the real game in play mode at a place: the page's work by part, the governor's level, patches built (--floor: every saving on)
 node scripts/tree-preview.mjs [--out dir] [--variant 1] [--only 0,2] [--below]   # every tree shape at its three distances, drawn without a browser in seconds (PNG sheets)
+node scripts/make-tree-atlas.mjs [--look file.png]   # the trees' picture (public/data/tree_atlas.png): run again after changing a spray or a tree shape
 node scripts/check-ephemeris.mjs   # every orbit and spin against JPL Horizons (no network; fails beyond a tolerance)
 node scripts/peek.mjs --world io [--shot ledge | --lat .. --lon ..] [--pan 4]   # a CPU sketch of the view from a place, in seconds: for choosing sites and times
 python3 scripts/fetch-worlds.py [job ...]   # the maps of the worlds of milestone 6 (5 GB of originals into .cache/maps), see docs/ASSETS.md
@@ -536,5 +537,9 @@ finished benchmark leaves its text in `window.__benchResult`.
 - A cover set on one level of a 3-D noise is not the cover of the sky: a layer as deep as
   the noise's period shows the union of all its levels from below. "60 %" was a grey lid.
   Judge the amount of cloud from above and from below, not from the number.
+- "Closer to the reference" asked three times running means the technique is wrong, not
+  the tuning. The owner's trees are finely cut foliage on a skeleton, shaded as one mass;
+  three deliveries polished low-polygon lumps before the trees were rebuilt as cut-out
+  cards. When a look is asked for by pictures, name what the pictures are made of first.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.
