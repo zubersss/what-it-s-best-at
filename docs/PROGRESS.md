@@ -539,6 +539,18 @@ closer to the references.
   boughs; a cold green for conifers and a warm one for broad leaves; furrowed bark near
   by; row behind row of trees paler in the wood's air.
 
+**Pictures of this delivery** (`docs/shots/`, 660 x 309, taken from frozen builds while it
+was made): `earth_hurricane_rain.png` (60 m over the sea in Irma's eye wall),
+`delivery6_storm_before_after.png` (the same view before: the rain was a few scratches),
+`earth_beach_tide_rain.png` (a lagoon at Cape Canaveral, the tide part out),
+`earth_forest_inside_6.png` and `earth_forest_far_6.png` (the Kaibab Plateau's forest at
+36.3 N 247.9 E, from inside and from 45 m over it),
+`delivery6_far_forest_before_after.png` (the far forest before, at another place, with
+its brown ring), `earth_from_40km.png`. For a picture inside a forest use that place:
+`lat=36.3&lon=247.9&heading=0&pitch=2&t=3` (no `alt`: `alt` is height above the datum,
+not above the ground; over it: `alt=2685`). The cost view called "in the forest"
+(36.2 N 247.94 E) looks out over a canyon.
+
 ## The owner's sixth phone results (build c51fae1) and the third painted delivery
 
 **The numbers** (Earth benchmark, Smooth): **56.8 fps** on average (it was 15.2), Earth
