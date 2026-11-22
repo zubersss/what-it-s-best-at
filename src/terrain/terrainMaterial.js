@@ -85,10 +85,15 @@ void main() {
       float k = smoothstep(uShell.x, uShell.y, length(rel)) * smoothstep(2.0, 4.0, pv.w - uSea.y * uSea.x + 4.0 * (1.0 - uSea.x));
       // (no forest on rock faces: the land-cover map's pixels are 600 m wide and know
       // nothing of a cliff inside them; and none on water)
-      vec4 nv = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 1.0);
-      k *= smoothstep(0.80, 0.93, dot(normalize(nv.xyz), up)) * (1.0 - step(1.02, nv.a));
-      // (crowns: a whole number of them across the detail tile, so patches agree)
-      float crowns = 0.72 + 0.14 * (sin(6.2831853 * (5.0 * vDetailUv.x + 3.0 * vDetailUv.y)) + sin(6.2831853 * (-4.0 * vDetailUv.x + 7.0 * vDetailUv.y)));
+      // (the slope over some tens of metres, a coarse level of the normal map: a small steep
+      // spot on a wooded hillside is not a cliff, and each one was a pit in the canopy)
+      vec4 nv = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 3.0);
+      k *= smoothstep(0.78, 0.92, dot(normalize(nv.xyz), up)) * (1.0 - step(1.02, textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 1.0).a));
+      // (crowns: a whole number of them across the detail tile, so patches agree; only near
+      // enough that a patch's vertices can carry them: on the far patches the bumps fell
+      // between the vertices and came out as stripes down every hillside. By distance,
+      // not by patch: neighbours of different detail must agree along their edge.)
+      float crowns = 0.72 + 0.14 * (1.0 - smoothstep(160.0, 380.0, length(rel))) * (sin(6.2831853 * (5.0 * vDetailUv.x + 3.0 * vDetailUv.y)) + sin(6.2831853 * (-4.0 * vDetailUv.x + 7.0 * vDetailUv.y)));
       vShell = k * smoothstep(0.5, 5.0, tall);
       rel += up * (tall * crowns * k);
       vRel = rel;
