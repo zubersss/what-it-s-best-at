@@ -84,6 +84,10 @@ const GRASS_VERT = /* glsl */`
     float dist = length(rel2);
     // (out to nothing at the edge of the box; thinner where the map has less grass, tuft by tuft)
     float keep = step(h.y, g.g * 1.15) * (1.0 - smoothstep(0.36 * BOX, 0.48 * BOX, dist));
+    // (no tuft here: out of the picture altogether. Left in, a blade of no height is a
+    // sliver lying on the ground that still lands on a pixel now and then: a sprinkle of
+    // dark specks on water, sand and rock, wherever there is no grass.)
+    if (keep <= 0.0) { vRel = vec3(0.0); vAlb = vec4(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
     // (stretches of taller and shorter, greener and drier grass, some metres across)
     float lie = sin(at.x * 0.13 + 2.0 * sin(at.y * 0.071)) * sin(at.y * 0.11 + 1.7 + 1.5 * sin(at.x * 0.053));
     float tall = (0.24 + 0.34 * h2.x) * (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) * (0.85 + 0.3 * lie) * keep;
