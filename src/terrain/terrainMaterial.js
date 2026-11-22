@@ -504,6 +504,10 @@ void main() {
     float band = smoothstep(0.62, 0.97, sin(6.2831853 * (waterDepth / (0.45 + 0.5 * uWave.x) + lace * 0.9) + uWave.z * 1.1)) * inshore * smoothstep(0.25, 0.55, lace + 0.35 * inshore);
     float edge = 1.0 - smoothstep(0.0, 0.10 + 0.08 * lace, waterDepth);
     foam = clamp(max(max(edge, band) * (1.0 - 0.85 * inland), crest), 0.0, 1.0) * water * near;
+    // (far off, where no single crest is seen: the share of the sea that is white in this
+    // wind, in streaks; a gale's sea is grey-white to the horizon, not a blue sheet)
+    float white = clamp(3.84e-6 * pow(max(uWind.w, 0.0), 3.41), 0.0, 0.45) * (1.0 - inland);
+    if (white > 0.004) foam = max(foam, white * smoothstep(0.3, 0.7, texture(tDetail, vDetailUv * 1.3 - drift * 2.0).b + 0.3 * white) * water * (1.0 - 0.7 * near));
     // colour: light goes down to the bed and comes back, red lost first; what is left of
     // it shows the bed (pale sand), the rest is the water's own blue
     vec3 through = exp(-vec3(0.42, 0.07, 0.035) * (waterDepth * 2.3));
