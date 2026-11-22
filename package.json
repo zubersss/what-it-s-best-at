@@ -21,7 +21,8 @@
     "target": "node scripts/target-test.mjs",
     "worlds": "node scripts/worlds-test.mjs",
     "lakes": "node scripts/lakes-check.mjs",
-    "ui": "node scripts/ui-test.mjs"
+    "ui": "node scripts/ui-test.mjs",
+    "shadowturns": "node scripts/shadow-turns-test.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"

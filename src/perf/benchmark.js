@@ -261,12 +261,18 @@ const WARM = 5, TAKE = 16, HELD = 2.07e6;
 // switches. "Nothing drawn" is what the measuring itself costs (the post chain and the
 // pixel read back), to be taken off the rest.
 const PARTS_OUT = [
-  ['no grass', (app, out) => app.grass?.setFraction(out ? 0 : 1)],
-  ['no trees', (app, out) => app.trees?.setFraction(out ? 0.02 : 1)],
-  ['no figure', (app, out) => { app.heroScene.visible = !out; app.dustScene.visible = !out; }],
-  ['no ground or things on it', (app, out) => { app.nearScene.visible = !out; }],
-  ['no sky', (app, out) => { app.farScene.visible = !out; }],
-  ['nothing drawn', (app, out) => { app.nearScene.visible = app.farScene.visible = app.heroScene.visible = app.dustScene.visible = !out; }],
+  ['grass', (app, out) => app.grass?.setFraction(out ? 0 : 1)],
+  ['trees', (app, out) => app.trees?.setFraction(out ? 0.02 : 1)],
+  ['the figure', (app, out) => { app.heroScene.visible = !out; app.dustScene.visible = !out; }],
+  // (the shadows of trees, rocks and the figure: drawn into their own maps before the picture)
+  ['the shadow maps', (app, out) => { app.nearShadow.off = out; }],
+  // (the ground in one flat tone: its triangles are still drawn, its shading is not)
+  ["the ground's shading", (app, out) => { app.terrain.shared.uPlain.value = out ? 1 : 0; }],
+  ['the ground and all on it', (app, out) => { app.nearScene.visible = !out; }],
+  ['the sky', (app, out) => { app.farScene.visible = !out; }],
+  // (the last pass over the canvas at the picture's size, as it now is, instead of the screen's: App.fitCanvas)
+  ["the last pass at the picture's size, not the screen's", (app, out) => { app.canvasHold = out ? 'fit' : 'full'; }],
+  ['everything', (app, out) => { app.nearScene.visible = app.farScene.visible = app.heroScene.visible = app.dustScene.visible = !out; }],
 ];
 class CostTest {
   constructor(bench) {
@@ -287,8 +293,12 @@ class CostTest {
     const steps = FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-'));
     this.configs = [[-1, held]];
     steps.forEach((i, k) => { this.configs.push([i, held]); if (k % 3 === 2 || k === steps.length - 1) this.configs.push([-1, held]); });
-    PARTS_OUT.forEach((p, k) => this.configs.push([-10 - k, held]));
+    // (a part left out is set against "everything on" measured just before it)
+    PARTS_OUT.forEach((p, k) => this.configs.push([-1, held], [-10 - k, held]));
     this.configs.push([-2, held], [-1, held], [-1, small], [-1, 1]);
+    // (the canvas at the screen's own size while the parts are measured, so that the one
+    // part that changes it is seen against the rest: App.fitCanvas)
+    app.canvasHold = 'full';
     this.off = []; this.lines = []; this.px = new Uint8Array(4); this.vi = -1; this.state = 'settle';
     this._next();
   }
@@ -370,8 +380,11 @@ class CostTest {
     this.lines.push(`  everything on ${f(on)} (from ${f(Math.min(...ons))} to ${f(Math.max(...ons))} over the test) · every saving on ${f(ms[n - 4])} · everything on at ${mp(c[n - 2][1])} MP ${f(ms[n - 2])} · at native (${mp(1)} MP) ${f(ms[n - 1])}`);
     const saved = [];
     for (let k = 1; k < n - 4; k++) { if (c[k][0] < 0) continue; const d = onAt(k) - ms[k]; if (!isNaN(d)) saved.push([FEATURE_STEPS[c[k][0]].id, d]); }
-    const parts = []; for (let k = 1; k < n - 4; k++) if (c[k][0] <= -10) parts.push(`${PARTS_OUT[-10 - c[k][0]][0]} ${f(ms[k])}`);
-    this.lines.push(`  with a part of the picture left out: ${parts.join(' · ')}`);
+    // (what leaving each part out saves, against "everything on" just before it; the last is
+    // what is left with nothing drawn at all: the measuring itself and the page's own work)
+    const parts = []; let none = NaN;
+    for (let k = 1; k < n - 4; k++) if (c[k][0] <= -10) { const i = -10 - c[k][0]; if (i === PARTS_OUT.length - 1) none = ms[k]; else parts.push(`${PARTS_OUT[i][0]} ${f(ms[k - 1] - ms[k])}`); }
+    this.lines.push(`  saved by leaving a part out: ${parts.join(' · ')} · (with nothing drawn at all a frame still takes ${f(none)})`);
     saved.sort((a, b) => b[1] - a[1]);
     this.lines.push(`  saved by one saving alone: ${saved.filter((x) => Math.abs(x[1]) >= 0.3).map((x) => `${x[0]} ${x[1].toFixed(1)}`).join(' · ') || 'nothing over 0.3'}`);
   }
@@ -383,6 +396,7 @@ class CostTest {
     this.off = [];
     if (this.partOut != null) { PARTS_OUT[this.partOut][1](app, false); this.partOut = null; }
     g.fixed = this.fixedBefore ?? null; g.resLevel = this.resLevel; g._applyScale();
+    app.canvasHold = null;
     for (let i = 0; i < this.level; i++) FEATURE_STEPS[i].apply(app, true);
     g.featureLevel = this.level;
     this.state = 'done';

@@ -55,6 +55,9 @@ import { createHeightSource, loadRasters } from './terrain/height/heightSource.j
 import { Terrain } from './terrain/terrain.js';
 
 const C_LIGHT = 299792458;
+// The canvas's size as a share of the screen's pixels (App.fitCanvas): the governor's
+// resolution levels 0, 4, 8 and 12 (0.88 to those powers).
+const CANVAS_STEPS = [1, 0.5997, 0.3596, 0.2157];
 // What the camera reads while a full-screen panel is open: nothing is pressed.
 const NO_INPUT = { dx: 0, dy: 0, wheel: 0, moveX: 0, moveY: 0, down: () => false, hit: () => false };
 
@@ -279,6 +282,18 @@ export class App {
     this.nearScene.add(this.grass.mesh);
     this.leaves = new Leaves(this.trees);
     this.nearScene.add(this.leaves.mesh);
+    // The order solid things are drawn in: what stands in front first, the ground last.
+    // The ground's pixels are by far the dearest in the picture, and drawn first (as it
+    // was, being the oldest object) all of it was shaded and then covered: under a meadow's
+    // grass and a forest's crowns that was most of the screen, paid for twice. Drawn last,
+    // only the ground that shows is shaded (the depth test throws the rest out unshaded).
+    {
+      const order = (o, n) => o.traverse((m) => { m.renderOrder = n; });
+      order(this.grass.mesh, -30); order(this.leaves.mesh, -30);
+      for (const set of this.trees.sets.flat(2)) order(set.mesh, -20);
+      order(this.rocks.mesh, -10);
+    }
+    if (this.shotMode) this.nearShadow.every = 1;          // (a picture must not depend on which frame it is)
     // Weather (worlds that have it): wind, rain, wet ground, shade, lightning
     this.weather = new Weather(); this.weather.setWorld(world);
     this.look = new Look(); this.look.setWorld(world);          // the world's look, if it has one of its own (render/look.js)
@@ -326,7 +341,7 @@ export class App {
   placeLander(world, hs) {
     if (this.lander) { this.nearScene.remove(this.lander.mesh); this.nearShadow.removeCaster(this.lander.mesh); this.lander.mesh.geometry.dispose(); }
     this.lander = new Lander(world, hs, latLonToDir(world.scene.start.lat, world.scene.start.lon));
-    this.nearScene.add(this.lander.mesh);
+    this.nearScene.add(this.lander.mesh); this.lander.mesh.renderOrder = -10;
     this.nearShadow.addCaster(this.lander.mesh, this.lander.depthMaterial);
   }
 
@@ -544,6 +559,31 @@ export class App {
     this.post.resize(w, h);
     this.governor.setNative(w * h);
     this.resizedAt = performance.now();
+    this.canvasArea = 1; this._canvasOkAt = this.resizedAt;
+  }
+
+  // The canvas's own size in pixels follows the picture's, in four steps (the governor's
+  // resolution levels 0, 4, 8 and 12). The last pass (tone map, grade, glow) fills the
+  // canvas whatever size the picture under it was drawn at: on the phone that was 4.45
+  // million pixels of it every frame while the picture itself was down to 1 million, a cost
+  // no saving and no resolution step touched. The browser stretches a smaller canvas over
+  // the screen for nothing, and the picture is no softer for it (it was stretched in that
+  // last pass before). A step down waits three seconds, since a new size is a new buffer
+  // and not something to do back and forth; a step up is taken at once.
+  fitCanvas(now) {
+    const post = this.post, area = post.scale * post.scale, hold = this.canvasHold;
+    if (this.canvasArea == null) { this.canvasArea = 1; this._canvasOkAt = now; }
+    let want = 1;
+    for (const a of CANVAS_STEPS) if (a >= area * 0.98) want = a;       // the smallest that still holds the picture
+    // (the benchmark's cost test holds it: 'fit' = the step for the picture, at once; 'full' = the screen's own size)
+    if (hold === 'full') want = 1;
+    if (want === this.canvasArea) { this._canvasOkAt = now; return; }
+    if (want < this.canvasArea && !hold && now - this._canvasOkAt < 3000) return;
+    this.canvasArea = want; this._canvasOkAt = now;
+    const k = Math.sqrt(want);
+    this.renderer.setSize(Math.max(2, Math.round(post.width * k)), Math.max(2, Math.round(post.height * k)), false);
+    this.canvasSteps = (this.canvasSteps || 0) + 1;
+    this.canvasAt = now;
   }
 
   start() {
@@ -632,6 +672,7 @@ export class App {
     if (now < (this.bodies?.mapsAt ?? -1e9) + 1500) return 'sky maps arriving';
     if (now < this.resumedAt + 1500) return 'page came back from the background';
     if (now < this.resizedAt + 1500) return 'screen size changed';
+    if (now < (this.canvasAt ?? -1e9) + 200) return 'screen size changed';       // (the canvas took a new size: fitCanvas)
     if (this.governor.sinceStep < 0.4) return 'quality step';
     if (uploads) return `new terrain (${uploads} patch${uploads > 1 ? 'es' : ''})`;
     if (now < this.loadedAt + 4000) return 'start-up';
@@ -1157,6 +1198,7 @@ export class App {
     // (a photograph is one frame at full size; the governor does not count it)
     if (this.photoWanted) this.resizedAt = now;
     post.setScale(this.photoWanted ? 1 : governor.scale);
+    this.fitCanvas(now);
     G.uViewport.value.set(post.viewW, post.viewH);
     G.uExposure.value = post.exposure;
     const aspect = post.viewW / post.viewH;
