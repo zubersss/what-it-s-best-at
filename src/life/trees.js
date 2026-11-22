@@ -150,8 +150,10 @@ export class Trees {
           bool heart = (vLeaf > 3.1 && vLeaf < 3.5) || (vLeaf > 1.1 && vLeaf < 1.5);
           if (vLeaf > 3.1 && vLeaf < 3.5) leafC *= 0.5;
           vec3 albedo = wood ? vTrunkC * 0.6 : leafC;
-          // (bark near by: furrows running up the trunk, wandering a little)
+          // (bark near by: furrows running up the trunk, wandering a little; and a trunk is
+          // round even in the shade of the wood, where no light says so: darker toward its edges)
           if (wood && !card) {
+            albedo *= mix(0.66, 1.0, smoothstep(0.1, 0.65, abs(dot(N, V))));
             float dW = length(vRel);
             if (dW < 60.0) { vec2 q = vTreeM.xz - vOwn.x * 37.0; float a = atan(q.y, q.x); albedo *= 1.0 - 0.38 * smoothstep(0.5, 0.8, abs(fract(a * 1.7507 + 0.32 * sin(vTreeM.y * 1.3 + a * 2.0)) - 0.5) * 2.0) * (1.0 - smoothstep(25.0, 60.0, dW)); }
           }

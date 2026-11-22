@@ -223,7 +223,9 @@ vec3 rainVeil(vec3 color, vec3 rel) {
 // amount: how much forest this is (1: a tree). Trees, the ground under them and the far
 // canopy all ask here, so that they agree.
 vec3 forestAir(vec3 color, vec3 rel, vec3 up, float amount) {
-  return mix(color, skyLight(up, up) * (0.3 / PI), uPaint.x * 0.38 * amount * (1.0 - exp(-length(rel) / 150.0)));
+  // (the sky's light, a third of the way to grey: with its full blue the far firs were cyan)
+  vec3 air = skyLight(up, up); air = mix(air, vec3(dot(air, vec3(0.3, 0.55, 0.15))), 0.35);
+  return mix(color, air * (0.3 / PI), uPaint.x * 0.34 * amount * (1.0 - exp(-length(rel) / 150.0)));
 }
 vec3 aerialPerspective(vec3 color, vec3 rel) { return rainVeil(hazeOverGround(color, rel, vec3(1.0)), rel); }
 // The ground itself, with its own albedo.
