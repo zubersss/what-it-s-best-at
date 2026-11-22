@@ -222,7 +222,7 @@ export function makeTreeGeometries() {
   // wide and low, tall.
   make(37, (s, R, L, v, q) => {
     const wide = [1, 1.2, 0.84][v], tall = [1, 0.9, 1.1][v], split = [0.38, 0.32, 0.44][v], M = [4, 4, 3][v], sides = [3, 5, 6][q];
-    s.trunk([[0, 0, 0], [0.012, split * 0.55, 0.004], [0.006, split, 0]], 0.028, 0.017, sides);
+    s.trunk([[0, 0, 0], [0.012, split * 0.55, 0.004], [0.006, split, 0]], 0.023, 0.015, sides);
     const list = [], top = [0.006, split, 0];
     for (let i = 0; i < M; i++) {
       // a limb out and up, with a bend in it; two twigs from its end; a bunch on each and one hanging under the bend
