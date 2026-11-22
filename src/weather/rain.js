@@ -4,7 +4,7 @@
 // How many are drawn follows how hard it falls.
 //
 // A streak is a narrow strip turned to the eye: as wide as a drop's smear (a few
-// millimetres) and never under a pixel and a half, so that rain is seen on a phone's
+// millimetres) and never under two pixels, so that rain is seen on a phone's
 // screen. (As one-pixel lines the heaviest rain there is was a few scratches; and the two
 // ends of a line were wrapped into the box apart, so one streak in twelve was drawn right
 // across it.) A third of them fall in a small box round the eye: the rain one sees drop
@@ -61,13 +61,14 @@ export class Rain {
           vec3 tail = head - vel * mix(0.034, 0.03, snow);
           vec3 hv = (viewMatrix * vec4(head, 1.0)).xyz, tv = (viewMatrix * vec4(tail, 1.0)).xyz, at = mix(hv, tv, position.x);
           vec3 sd = cross(at, tv - hv); float sl = length(sd);
-          // (as wide as the smear, and never under a pixel and a half of the picture)
+          // (as wide as the smear, and never under two pixels of the picture: narrower, a slanted
+          // streak came out as a row of dashes)
           // (hw, not the word for a half: GLSL keeps that one for itself)
-          float dist = max(-at.z, 0.05), hw = max(mix(0.0035, 0.011, snow), 0.75 * uPix * dist);
+          float dist = max(-at.z, 0.05), hw = max(mix(0.0035, 0.011, snow), 1.0 * uPix * dist);
           if (sl > 1e-6) at += sd / sl * (hw * position.y);
           float d0 = length(head);
           vA = vec2((1.0 - smoothstep(0.36 * box, 0.5 * box, max(abs(p.x), abs(p.y)))) * smoothstep(0.4, 1.6, d0)
-                    // (a strip widened to a pixel and a half carries less: a far drop is faint, not fat)
+                    // (a strip widened to two pixels carries less: a far drop is faint, not fat)
                     * min(1.0, mix(0.0035, 0.011, snow) / hw * 2.2),
                     position.x);
           gl_Position = projectionMatrix * vec4(at, 1.0);
@@ -84,7 +85,7 @@ export class Rain {
           // as bright as the scene behind it: rain that could not be seen.)
           vec3 light = skyLight(uRainUp, uRainUp) * (mix(1.5, 1.9, uKind.x) / PI);
           // (bright at the drop, fading along the smear behind it)
-          float a = vA.x * mix(0.55, 0.7, uKind.x) * (1.0 - 0.7 * vA.y);
+          float a = vA.x * mix(0.45, 0.7, uKind.x) * (1.0 - 0.7 * vA.y);
           fragColor = vec4(light * a * uExposure, a);
         }`,
     });
