@@ -384,12 +384,17 @@ as before.
   direction's longitude and latitude: whole repeats round the globe), and out to 900 m
   blends gentle ground toward `uGrassTone`, the mean colour of the grass drawn round the
   traveller (written by `life/grass.js`).
-- **Trees' variety** (`life/treeGeometry.js`): each of the eight shapes is built three
-  times over with other proportions (`VARIANTS`), at three distances: close (within 34 m:
-  3.2 times the leaves, each a leaf's own shape of two triangles, at several depths over
-  the mass), near (80 m) and far; a tree takes a variant by its own number. Single leaves stand out of the crowns (`sprigs`, leaf value 2) and
-  flutter in the vertex shader. `life/leaves.js` sheds leaves in their season, in a gale
-  (from every tree) and when the traveller passes trees fast.
+- **Tree shapes** (`life/treeGeometry.js`; `scripts/tree-preview.mjs` draws them all):
+  eight shapes, each built three times over with other proportions (`VARIANTS`), each at
+  three distances: close (within 34 m), near (80 m), far. One builder a shape is called at
+  the three qualities with the same random numbers for the skeleton and others for the
+  leaves, so the three are the same tree. Pieces: `trunk` and `limb` (wood), `frond` (a
+  fir's bough), `spray` (a pine's needles), `cluster` (a ball of single leaves round a
+  dark heart), `lump` and `skirt` (the masses of the far meshes). `aLeaf`: 0 wood, 1 a
+  mass, 1.25 a dark heart, 2 a single leaf or needle (these flutter). Normals are flat
+  and lean outward from the middle of their bunch; a leaf seen from its under side is
+  darker. `life/leaves.js` sheds leaves in their season, in a gale (from every tree) and
+  when the traveller passes trees fast.
 
 ## Ground ready ahead of the traveller
 
@@ -560,6 +565,10 @@ ring: it is not asked for.
   slice by slice; and beyond the reach the shell (`clouds.js`) shows the same clouds:
   the same cover rule and the volume's noise at the height where its masses are widest
   (`uVol`, `uVolWind`), the shell itself standing at that height.
+- Shape (`density`): the noise, pushed in and out by its smaller cells (lobes), cut at a
+  level set by the cover; the top of the layer at each place stands higher the further
+  the noise is over that level (a dome over each heap's middle). The cover is of one
+  level: the sky seen from below is the union of all of them and much fuller.
 - `volume.fair`: fair-weather cloud. Where the day's map shows no cloud the cover is still
   `fair` times a slow field (the cloud noise at a 47 km repeat), so there are fields of
   small heaps and clear stretches; the shell has the same rule with its own puffs.

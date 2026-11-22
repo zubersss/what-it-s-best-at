@@ -6,7 +6,7 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-*Handoff written at the third delivery of milestone 11 (the painted look).*
+*Handoff written at the fourth delivery of milestone 11 (the painted look).*
 
 - **The goal** (owner, 2026-11-20): the best possible product a Samsung Galaxy S23 Ultra
   runs without lag (`CLAUDE.md`, "The one goal"). Helpers: workflows only for the most
@@ -28,9 +28,13 @@ changes behaviour.
   clouds that are denser, better and keep their place when one moves, better leaves on
   the trees, and the ground loaded before one gets there. All of it is under "The
   owner's sixth phone results and the third painted delivery". **Third delivery sent.**
-- **Asked of the owner**: an Earth benchmark in Smooth, and whether the clouds now stay
-  put and the ground is sharp on arrival. Read first: late frames while ground arrives
-  and "terrain patches built" (load-ahead builds more), the cloud lines of the cost test.
+- **Then** (no benchmark, a complaint): "the trees still look bad", closer to the
+  references, and more and better clouds. **Fourth delivery sent**: the tree shapes
+  rebuilt from their skeletons at all three distances, a fuller sky of lobed, domed heaps.
+  See "The fourth painted delivery".
+- **Asked of the owner**: an Earth benchmark in Smooth (the trees have many more
+  triangles far off, the load-ahead builds more ground: neither is measured), and how the
+  trees and clouds look now.
 - **What to do next**: with the benchmark, tune from it first. With a complaint,
   reproduce it in a picture, fix, show before and after. Then: Earth's resolution on
   the phone (1.3 MP of 4.45: the ground shader is where the time is; compile Earth's
@@ -294,6 +298,58 @@ Plateau, a hardwood forest in Vermont at a low Sun, the forest from the air.
   light and graded).
 - Night and the views from orbit were not looked at in the new look.
 - Nothing is measured on the phone. The grass is the one new cost.
+
+## The fourth painted delivery: trees from their skeletons, a fuller sky
+
+*The owner, after the third delivery: "Refine it even further, the trees still look bad to
+me, making them look closer to the references, and also increase the density of clouds
+and still make it look better." No benchmark came with it.*
+
+**Trees: what was wrong, seen side by side with the references.** In the references a
+tree is a skeleton that can be seen (trunk, limbs, twigs) with its foliage in separate
+bunches at the limbs' ends and sky between them; firs are tiers of ragged boughs, pines
+bare bent trunks with round sprays of needles, aspens white poles with small round
+leaves on thin branches. Ours were stacks of flat plates and solid lumps with loose
+triangles stuck on, and **beyond 80 m (most of the trees in any view) three plates on a
+stick or one floating lump**: that, more than anything close by, was "the trees look bad".
+- `scripts/tree-preview.mjs` (new): every shape at its three distances drawn without a
+  browser in seconds (a small z-buffer and a PNG writer). The far meshes were first *seen*
+  there; a forest picture takes ten minutes and never shows one tree alone.
+- `life/treeGeometry.js` rebuilt: one builder a shape, called at three qualities with the
+  same random numbers for the skeleton (so the three are the same tree) and others for
+  the leaves. New pieces: `frond` (a fir's bough: a blade with needles down both sides
+  that rises a little and hangs), `spray` (a pine's bunch of needles: a spiky ball round
+  a small dark heart), `cluster` (a ball of single leaves at several depths round a dark
+  heart; close by each leaf has a leaf's shape, an aspen's nearly round), `trunk` (through
+  several points: trunks bend). All eight shapes have limbs; far off the bunches are lumps
+  in the same places and firs a stack of jagged skirts with the same outline.
+- Triangles a tree (close / near / far): fir 1 300 / 740 / 100, pine 1 150 / 400 / 190,
+  broadleaf 2 200 / 810 / 380, tropical 780 / 330 / 190, acacia 730 / 320 / 210, bush
+  720 / 290 / 150, palm 330 / 160 / 36, aspen 1 000 / 230 / 100. **The far meshes are
+  two to eight times what they were**, and they are the many: watch the triangle count
+  and the tree lines of the next benchmark (`trees-far` and `tree-leaves` are the steps).
+- In the shader a leaf or a bough seen from its under side is a third darker: a fir's
+  tiers are light above and dark beneath, which is what makes them tiers.
+
+**Clouds.** More of them, and each a better shape.
+- Smaller cells of the noise push the outline in and out before the density is cut (the
+  shell does the same): rounded lobes instead of one smooth curve.
+- A heap stands tallest over its middle and low at its edges (`top` in `density`): with
+  one height for all, a full sky was a flat-topped deck from above.
+- Two tones with a clean line between them, the shade a light one (0.64 of the light);
+  less of the sky's blue in the shade; the far shell as bright as the volume.
+- More and smaller heaps (`scale` 4 200 m, `fair` 0.44, never more than 0.5 from the
+  fair-weather rule); only a cover that is nearly whole darkens what is under it.
+- **The number that misled**: the cover asked for is of one level of the noise; a column
+  3.6 km tall goes through most of a period of it, and the sky seen from below is the
+  union of all its levels. A setting that should have been 60 % cover was a grey lid.
+  It took three pictures from below and one from above to see it.
+
+**Not done, or weak.** Trees: the far forest from the air is still a field of lumps; the
+close fir's blades are large flat faces when the camera is among the boughs; no picture
+of the tropical, acacia and palm shapes in the game (only in the preview). Clouds: seen
+from below toward the Sun they are one cream tone; the far shell is flatter and dimmer
+than the volume it continues. Nothing here was measured on the phone.
 
 ## The owner's sixth phone results (build c51fae1) and the third painted delivery
 

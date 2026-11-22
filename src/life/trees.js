@@ -91,6 +91,8 @@ export class Trees {
           vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel);
           vec3 N = normalize(vN);
           if (vLeaf < 0.5) N *= sign(dot(N, V));                // (trunks are open tubes: light the side that is seen)
+          // (a leaf or a bough's blade seen from its under side: the side that looks away from the sky)
+          float under = vLeaf > 0.5 && dot(N, V) < 0.0 ? 1.0 : 0.0;
           // leaves in their season: green, then each tree's own gold, orange or red
           float turn = vOwn.y > 0.5 ? clamp(uSeason.x * 1.6 - vOwn.x * 0.6, 0.0, 1.0) : 0.0;
           vec3 autumn = vOwn.y > 1.5 ? vec3(0.42, 0.26, 0.03) : mix(vec3(0.40, 0.20, 0.03), vec3(0.30, 0.045, 0.02), smoothstep(0.35, 0.8, fract(vOwn.x * 7.3)));
@@ -106,6 +108,7 @@ export class Trees {
             leafC *= mix(1.0, 0.72 + 0.3 * smoothstep(0.40, 0.44, c) + 0.26 * smoothstep(0.58, 0.62, c), near);
           }
           // (single leaves: each lighter or darker than its neighbours)
+          leafC *= 1.0 - 0.36 * under;
           if (vLeaf > 1.5) leafC *= 0.94 + 0.44 * smoothstep(0.35, 0.65, leafCells(vTreeM * 4.7 + 1.9));
           else if (vLeaf > 1.1) leafC *= 0.74;          // (the heart of a crown seen near: darker than the leaves round it)
           vec3 albedo = mix(vTrunkC * 0.6, leafC, step(0.5, vLeaf));
