@@ -570,6 +570,10 @@ ring: it is not asked for.
 - **`leaves.js`**: 420 points that come loose overhead, ride the wind down turning, and
   lie a moment; worked out in the vertex shader from a number of their own and the
   clock; they stay put in the world as the camera moves.
+- **What casts a tree's shadow** is the next simpler mesh of the same tree (`set.cast`):
+  the nearest trees cast as their near mesh, the others as their far mesh (two crossed
+  pictures of the tree and a rosette in its crown, 6 triangles). A whole tree's card keeps
+  its leaves in winter, so a bare tree's shadow is thinned in the depth pass instead.
 - **A crown's dark inside.** Sprays alone are a lace one sees through. Every bunch of
   sprays has a **heart** (`Shape.heart`: three crossed cards of a rosette, `aLeaf` 3.25,
   drawn at half tone and taking no light through), and every tier of a fir a **skirt**
@@ -664,8 +668,8 @@ ring: it is not asked for.
   two slow beats (about one and two and a half minutes) bring bursts: the rain up to two
   and a half times, gusts of 40 % more wind, a darker sky, lightning sooner.
   `weather.storminess` (0..1, eased: by rain, wind and how tall the cloud is) is what the
-  cloud volume reads: a lower base, denser cloud, drift up to 55 m/s and shapes that turn
-  over up to thirteen times as fast.
+  cloud volume reads: denser cloud, drift up to 55 m/s and shapes that turn over up to
+  thirteen times as fast (the base stays put: it must not move because the traveller did).
 - **Rain hides what is far** (`weather.veil`, `uWeather.w`, `rainVeil` in the lighting
   chunk): everything lit is mixed toward the sky's grey by `1 - exp(-distance x veil)`,
   the veil growing with the rate (visibility a few hundred metres in a cloudburst).

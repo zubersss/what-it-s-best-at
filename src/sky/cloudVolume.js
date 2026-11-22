@@ -330,13 +330,15 @@ export class CloudVolume {
     // the whole sky sank when one flew out over a canyon).
     const altNow = rig.pos.length() - this.radius;
     this.lift = this.groundAt ? this.groundAt(rig.pos) : 0;
-    // A storm's cloud (weather.storminess, and the squalls that pass through it): the base
-    // comes down ragged, the cloud is thicker and darker, it runs with the wind at the
-    // wind's own speed and turns over many times faster. In settled weather none of this.
+    // A storm's cloud (weather.storminess, and the squalls that pass through it): the cloud
+    // is thicker and darker, it runs with the wind at the wind's own speed and turns over
+    // many times faster. In settled weather none of this. (Its base stays where it is: a
+    // base that came down as the traveller flew into the storm was the sky moving because
+    // the traveller did.)
     const storm = weather?.storminess || 0, squall = weather?.squall || 0;
-    this.stormNow = this.stormNow == null ? storm : this.stormNow + (storm - this.stormNow) * 0.02;
+    this.stormNow = this.stormNow == null || this.lastTime == null || time < this.lastTime ? storm : this.stormNow + (storm - this.stormNow) * Math.min(1, 1.2 * Math.min(0.2, time - this.lastTime));
     const sN = this.stormNow;
-    const base = (v.base ?? 1500) + this.lift - 450 * sN, thick = Math.max(v.thick ?? 3000, Math.min(13000, (weather?.topNear || 0)) - base);
+    const base = (v.base ?? 1500) + this.lift, thick = Math.max(v.thick ?? 3000, Math.min(13000, (weather?.topNear || 0)) - base);
     this.thickNow = this.thickNow ? this.thickNow + (thick - this.thickNow) * 0.05 : thick;
     u.uTops.value.x = base; u.uTops.value.y = Math.min(1, (v.thick ?? 3000) / this.thickNow);
     const fl = weather?.flash;

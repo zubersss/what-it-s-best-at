@@ -180,15 +180,19 @@ export class Trees {
     this.depthMaterial = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, colorWrite: false, uniforms: this.shared, side: THREE.DoubleSide,
       vertexShader: /* glsl */`${TREE_VERT}
-        out float vLeaf; out vec2 vUv;
-        void main() { vec3 foot; float leaf; gl_Position = projectionMatrix * viewMatrix * vec4(treePosition(foot, leaf), 1.0); vLeaf = leaf; vUv = aUv; }`,
+        out float vLeaf; out vec2 vUv; out float vBare;
+        void main() {
+          vec3 foot; float leaf; gl_Position = projectionMatrix * viewMatrix * vec4(treePosition(foot, leaf), 1.0); vLeaf = leaf; vUv = aUv;
+          // (a whole tree's card keeps its leaves in winter: its shadow then is thinned instead)
+          vBare = aLeaf > 3.5 ? min(iB.w, 1.0) * uSeason.y : 0.0;
+        }`,
       // (a crown lets some of the Sun through: its shadow is flecked, not solid)
-      fragmentShader: /* glsl */`uniform sampler2D tTreeAtlas; in float vLeaf; in vec2 vUv; layout(location = 0) out vec4 fragColor;
+      fragmentShader: /* glsl */`uniform sampler2D tTreeAtlas; in float vLeaf; in vec2 vUv; in float vBare; layout(location = 0) out vec4 fragColor;
         void main() {
           if (vUv.x >= 0.0 && texture(tTreeAtlas, vUv).r < 0.3) discard;
           // (which pixels: scattered, not in rows; the shadow's soft edge blends them)
           uvec2 q = uvec2(gl_FragCoord.xy); uint h = q.x * 1597334677u ^ q.y * 3812015801u; h ^= h >> 15; h *= 2246822507u; h ^= h >> 13;
-          if (vLeaf > 0.5 && (h & 255u) < 80u) discard;
+          if (vLeaf > 0.5 && float(h & 255u) < 80.0 + 150.0 * vBare) discard;
           fragColor = vec4(1.0);
         }`,
     });
@@ -204,6 +208,20 @@ export class Trees {
       mesh.frustumCulled = false; mesh.visible = false;
       return { geo, mesh, cap, iA, iB, iC, iD, count: 0, tris: base.attributes.position.count / 3, lod };
     })));
+    // What casts a tree's shadow: the next simpler mesh of the same tree (the nearest trees
+    // cast as their near mesh, those farther as their far mesh: two crossed pictures of
+    // the tree and a rosette in its crown). The shadow pass was drawing every spray of
+    // every tree within 150 m, as many triangles again as the view itself, into a map
+    // whose texels are 15 cm. set.cast: the mesh the shadow pass draws for the set.
+    for (const variants of this.sets) for (const trio of variants) trio.forEach((s, lod) => {
+      const src = trio[Math.min(2, lod + 1)];
+      if (src === s) { s.cast = s.mesh; return; }
+      const g = new THREE.InstancedBufferGeometry();
+      for (const name of ['position', 'normal', 'aLeaf', 'aSway', 'aUv']) g.setAttribute(name, src.geo.attributes[name]);
+      g.setAttribute('iA', s.iA); g.setAttribute('iB', s.iB);
+      g.instanceCount = 0;
+      s.castGeo = g; s.cast = new THREE.Mesh(g, this.depthMaterial); s.cast.frustumCulled = false;
+    });
     this.meshes = this.sets.flat(2).map((s) => s.mesh);
     this.blocks = new Map();                 // 'bi:bj' -> { state: 0 asked, 1 ready, origin, trees, count, used }
     this.asked = 0; this.frame = 0; this.serial = -1;
@@ -218,7 +236,7 @@ export class Trees {
     this.world = world; this.def = world.life?.trees || null;
     this.blocks.clear(); this.asked = 0; this.dirty = true; this.serial = -1;
     this.shared.uSeason.value.set(0, 0, 0);
-    for (const s of this.sets.flat(2)) { s.count = 0; s.geo.instanceCount = 0; s.mesh.visible = false; }
+    for (const s of this.sets.flat(2)) { s.count = 0; s.geo.instanceCount = 0; if (s.castGeo) s.castGeo.instanceCount = 0; s.mesh.visible = false; }
     this.count = 0; this.triangles = 0; this.names = ''; this.falling = 0;
   }
 
@@ -318,6 +336,7 @@ export class Trees {
     let count = 0, tris = 0;
     for (const s of this.sets.flat(2)) {
       s.geo.instanceCount = s.count; s.mesh.visible = s.count > 0 && this.atlasReady;
+      if (s.castGeo) s.castGeo.instanceCount = s.count;
       if (s.count) { for (const a of [s.iA, s.iB, s.iC, s.iD]) { a.clearUpdateRanges?.(); a.addUpdateRange?.(0, s.count * a.itemSize); a.needsUpdate = true; } }
       count += s.count; tris += s.count * s.tris;
     }

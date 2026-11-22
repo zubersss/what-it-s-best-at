@@ -281,7 +281,7 @@ export class App {
     this.trees = new Trees(world, this.terrain); this.trees.renderer = renderer;
     for (const set of this.trees.sets.flat(2)) {
       this.nearScene.add(set.mesh);
-      this.nearShadow.addCaster(set.mesh, this.trees.depthMaterial, () => set.mesh.visible && (set.lod <= 1 || this.trees.shadowsFar));
+      this.nearShadow.addCaster(set.cast, this.trees.depthMaterial, () => set.mesh.visible && (set.lod <= 1 || this.trees.shadowsFar));
     }
     this.grass = new Grass(this.terrain, this.terrain.shared.uWind); this.grass.setWorld(world);
     this.nearScene.add(this.grass.mesh);

@@ -458,6 +458,9 @@ saving and no resolution step could touch it. What that was, looked for in the c
   every other, the wide one every fourth; all of them at Sharp's 30 fps), each kept
   where it was drawn; `npm run shadowturns` holds it to the same picture.
 - Draw order: grass and leaves, trees, rocks and lander, the ground last.
+- Trees cast their shadows as their next simpler mesh (`set.cast` in `trees.js`): the
+  shadow pass was drawing every spray of every tree within 150 m (some 300 000 triangles
+  of cut-outs in a closed forest, as many again as the view).
 - The cost test leaves more parts out (the shadow maps, the ground's shading, the last
   pass at the picture's size) and sets each against a baseline taken just before it.
 - **To watch for in the next results**: late frames in a rhythm of four (frame lengths
@@ -485,8 +488,8 @@ closer to the references.
   Waves: the smallest waves are half again as tall (`waveScale` at least 0.45).
 - **Rain** four times as dense (5 600 streaks), and it hides what is far (`rainVeil`).
 - **Storms come in squalls**: bursts of rain and wind every minute or two, a darker
-  sky, lightning sooner; in a storm the clouds hang lower, are denser, drift up to
-  55 m/s and change shape up to thirteen times as fast.
+  sky, lightning sooner; in a storm the clouds are denser, drift up to 55 m/s and
+  change shape up to thirteen times as fast.
 - **Trees**: every bunch of sprays has a dark heart and every tier of a fir a dark
   skirt (a crown is a mass with a cut edge, not a lace); firs a third narrower with more
   boughs; a cold green for conifers and a warm one for broad leaves; furrowed bark near
