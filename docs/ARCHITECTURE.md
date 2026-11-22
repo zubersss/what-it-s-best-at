@@ -209,11 +209,14 @@ on a phone from orbit). Governor step `far-relief` (`uQuality.w`). `surface.farR
 replaces the Oren–Nayar roughness for ground whose chunk texels are kilometres: the
 grain-scale value kept a whole disc nearly as bright at its edge as at its centre.
 
-From high up (from `SPACE_BOOST_FROM`, 1.2 km, fully above `SPACE_BOOST_ALT`, 12 km) chunks
-split up to `SPLIT_SPACE_BOOST` (2.2) times sooner: fewer are in view the higher one is, and
-a phone has several pixels per normal texel. (It began at 30 km: between 2 and 30 km up the
-ground under the traveller was a blur of seven and more pixels a texel on the phone. The
-patch cap still rules: where the governor has lowered it, `lodScale` takes the boost back.)
+From high up (from `SPACE_BOOST_FROM`, 1.2 km, fully above `SPACE_BOOST_ALT`, 150 km) chunks
+split up to `SPLIT_SPACE_BOOST` (2.2) times sooner, by the square of the height's logarithm
+between the two: fewer are in view the higher one is, and a phone has several pixels per
+normal texel. The curve keeps about as many patches in view at every height as a view from
+the ground has (110 to 150 at the canyon; without it 98, 73 and 56 at 3, 12 and 40 km).
+(It began at 30 km: between 2 and 30 km up the ground under the traveller was a blur of
+seven and more pixels a texel on the phone. The patch cap still rules: where the governor
+has lowered it, `lodScale` takes the boost back.)
 
 **Photometry** (`surface.photometry`): `'lunar'` switches the ground and the rocks from
 Oren–Nayar to the lunar-Lambert function times the Moon's measured phase curve

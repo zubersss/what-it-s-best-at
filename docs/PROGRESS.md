@@ -475,8 +475,11 @@ tide; rain a lot denser; clouds that change a lot more, like an actual storm; tr
 closer to the references.
 
 **Built for it** (the sixth painted delivery):
-- **From high up**: patches split sooner from 1.2 km (it was from 30 km), fully by 12 km:
-  between those heights the ground under the traveller was a blur on the phone. The
+- **From high up**: patches split sooner from 1.2 km (it was from 30 km), growing to the
+  full 2.2 at 150 km, so that about as many patches are in view at every height as from
+  the ground (the first try, full by 12 km, drew 177 patches and 675 000 triangles from
+  12 km where 73 had been: more than the ground view itself). Between 2 and 30 km the
+  ground under the traveller was a blur on the phone. The
   land-cover colours are laid on softly (a class's edge fades over three pixels): from
   40 km and more the land was a mosaic of 600 m blocks.
 - **Far forest**: the canopy beyond the trees is up to its height where the last trees
