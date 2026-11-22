@@ -462,6 +462,8 @@ void main() {
   // tide; the sea stands uTide.x under it (the Moon's and the Sun's pull, worked out for
   // the place and the hour: App.updateTide), and every wave runs a little way up the
   // beach and back. Sand the water has left is dark and wet. The sea only.
+  // (the beach: the strip of ground that stands a step above high water is sand, pale and dry)
+  if (uSea.x > 0.5 && waterDepth <= 0.0) { float hb = vHeight - uSea.y; if (hb < 0.9 && hb > -0.5) albedo = mix(albedo, vec3(0.40, 0.34, 0.24), (1.0 - smoothstep(0.3, 0.9, hb)) * flatW); }
   if (uSea.x > 0.5 && waterDepth > 0.0) {
     float seaK = 1.0 - smoothstep(2.0, 6.0, vHeight - uSea.y);
     if (seaK > 0.0) {
@@ -471,7 +473,7 @@ void main() {
       left += (0.07 + 0.16 * uWave.x) * sin(uWave.z * 0.85 + 12.566 * ph) * seaK * (1.0 - smoothstep(0.0, 1.0, abs(left)));
       float bared = (1.0 - smoothstep(0.0, 0.03, left)) * smoothstep(0.0, 0.05, waterDepth);
       waterDepth = max(left, 0.0);
-      if (bared > 0.0) { albedo = mix(albedo, vec3(0.16, 0.14, 0.105), bared); ao = mix(ao, 1.0, bared); N = normalize(mix(N, up, 0.7 * bared)); }
+      if (bared > 0.0) { albedo = mix(albedo, vec3(0.21, 0.175, 0.12), bared); ao = mix(ao, 1.0, bared); N = normalize(mix(N, up, 0.7 * bared)); }
     }
   }
 
