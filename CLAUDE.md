@@ -563,5 +563,11 @@ finished benchmark leaves its text in `window.__benchResult`.
 - Something meant to be seen against the scene must be lit by something the scene is not:
   rain lit by a set share of the Sun's light came out exactly as bright as the overcast
   behind it. A drop shows the sky: it is lit by `skyLight`, above the veil's grey.
+- A thing "switched off" by giving it no size is still drawn: a grass blade of no height
+  is a sliver on the ground that lands on a pixel now and then, and 160 000 of them were a
+  sprinkle of dark specks on every water and sand. Throw the vertex out of the picture
+  (`gl_Position = vec4(2.0, 2.0, 2.0, 1.0)`). To find what draws a thing nobody can
+  name, take the parts out of their scenes one at a time and count
+  (the scratch script of 2026-11-22 did it in one browser session; guessing took three pictures).
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

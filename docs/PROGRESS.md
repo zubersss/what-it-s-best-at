@@ -522,7 +522,10 @@ closer to the references.
   sand at its own depth, with a wash at the water's edge; the character wades by it.
   Waves: the smallest waves are half again as tall (`waveScale` at least 0.45), they
   lift the water at every governor level, and in wind the far sea is streaked white to
-  the horizon. A strip of dry sand stands above high water.
+  the horizon. A strip of dry sand stands above high water. The dark specks on the sea
+  off low shores were grass: tufts that are not there were drawn with no height, and a
+  blade of no height still lands on a pixel now and then; they are thrown out of the
+  picture now (which also spares the phone their triangles wherever grass is thin).
 - **Rain** four times as dense (5 600 streaks), each a strip with a width of its own
   (they were one-pixel lines: on the phone the heaviest rain was a few scratches, and a
   bug drew one streak in twelve right across the box), a third of them close round the
