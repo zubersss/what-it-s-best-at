@@ -929,10 +929,10 @@ exposure alone decides whether they are visible.
   layer (`uCloudHeap`, `uCloudVol`, `uCloudWind`, `tCloudNoise` in the ground shader, the
   fifteenth of its sixteen textures): every cloud has its shadow beside it on the land,
   and nothing is shaded where no cloud is drawn.
-  **From far off** (`far`: where a heap is under a pixel wide, 500 to 1 800 m a pixel
-  across the line of sight) a field of heaps is a white veil as thick as the share of sky
+  **From far off** (`far`: where a pixel is 1.5 to 5 km wide across the line of sight, and
+  a heap no more than a pixel or two) a field of heaps is a white veil as thick as the share of sky
   it covers (0.55 of the cover), and the ground takes the field's mean shade; from farther
-  still (2.5 to 9 km a pixel: the whole globe in view) the layer is the day's map itself
+  still (4 to 12 km a pixel: the whole globe in view) the layer is the day's map itself
   as the globe seen from another world wears it, `smoothstep(0.04, 0.9, map)`, lit by its
   own relief. None of this depends on the cloud volume being on.
 - The albedo map can start at longitude -180 (`albedoMap.lon0: -180`, Earth's globe

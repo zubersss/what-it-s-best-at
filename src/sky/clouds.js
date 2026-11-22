@@ -86,7 +86,8 @@ void main() {
   // angle a heap is still as wide as it was. By the longer of the two, every cloud a few
   // hundred kilometres off from 100 km up was a grey veil, with the crisp shadows of its
   // heaps on the ground under it.)
-  float far = smoothstep(500.0, 1800.0, 2.0 * min(length(ux), length(uy)) * uCloud.y);
+  // (heaps, some kilometres wide, stay heaps until a pixel is a kilometre and a half across)
+  float far = smoothstep(1500.0, 5000.0, 2.0 * min(length(ux), length(uy)) * uCloud.y);
   float relief = 1.0;            // the Sun on a heap's own shape: over 1 on its sunward side, under 1 in its own shade
   if (uVol.x > 0.0) {
     // With a volume near the traveller, this shell is the same clouds seen from far off: the
@@ -125,7 +126,7 @@ void main() {
     // field of heaps is a white veil as thick as the share of sky it covers: the same cover
     // the heaps are cut from, so no cloud appears from far that is not there from near.
     // (With the map's own faint parts shown, grey sheets of fog lay over half the land.)
-    alpha = mix(alpha, mix(0.55 * smoothstep(lo - 0.08, lo + 0.34, m), smoothstep(0.04, 0.9, m), smoothstep(2500.0, 9000.0, px * uCloud.y)), far);
+    alpha = mix(alpha, mix(0.55 * smoothstep(lo - 0.08, lo + 0.34, m), smoothstep(0.04, 0.9, m), smoothstep(4000.0, 12000.0, px * uCloud.y)), far);
     relief = mix(relief, clamp(1.0 + 1.3 * (m - m1), 0.55, 1.25), far);
   }
   if (uNearFade > 0.0) alpha *= smoothstep(0.7 * uNearFade, uNearFade, dist);
