@@ -108,7 +108,7 @@ class Shape {
   // way out, a point; `round`: nearly as wide as long, an aspen's). heart: a dark lump at
   // the middle, this share of the bunch's size (0: none), so the bunch is not see-through.
   cluster(cx, cy, cz, rx, ry, n, size, R, heart = 0.5, round = false) {
-    if (heart > 0) this.lump(cx, cy, cz, rx * heart, ry * heart, R, 0.3, 1.25);
+    if (heart > 0) this.lump(cx, cy, cz, rx * heart, ry * heart, R, 0.3, 1.25, this.q < 2);
     const kite = this.q === 2;
     for (let k = 0; k < n; k++) {
       const u = -0.65 + 1.65 * R(), a = R() * 6.2831853, h = Math.sqrt(Math.max(0, 1 - u * u)), dx = Math.cos(a) * h, dz = Math.sin(a) * h, out = 0.62 + 0.5 * R();
@@ -171,17 +171,17 @@ export function makeTreeGeometries() {
   // shorter to the top, and a spire (spruce, fir, larch, redwood). Far off: a stack of
   // jagged skirts with the same outline. Variants: fuller, sparser, taller-crowned.
   make(11, (s, R, L, v, q) => {
-    const tiers = [13, 11, 15][v], wide = [1, 0.84, 1.1][v], foot = [0.15, 0.24, 0.1][v], per = [0, 6, 8][q];
+    const tiers = [13, 11, 15][v], wide = [1, 0.84, 1.1][v], foot = [0.15, 0.24, 0.1][v], per = [0, 5, 8][q];
     s.trunk([[0, 0, 0], [0.004, 0.5, 0.003], [0, 0.97, 0]], 0.018, 0.003, [3, 4, 6][q]);
     for (let k = 0; k < tiers; k++) {
       const t = k / (tiers - 1), y = foot + (0.94 - foot) * Math.pow(t, 0.9), rr = (0.235 * Math.pow(1 - t, 0.8) + 0.028) * (0.78 + 0.4 * R()) * wide, turn = R() * TAU;
       if (q === 0) { if (k % 2 === 0 || k === tiers - 1) s.skirt(0, 0, y - 0.02, y + rr * 0.6 + 0.06, rr * 1.05, 6, L, 0.5, 0.5); continue; }
       // (a dark heart to the tier: the trunk is not seen through a fir)
-      s.skirt(0, 0, y - 0.005, y + rr * 0.55 + 0.03, rr * 0.62, 5, L, 0.3, 0.6, 1.25);
+      s.skirt(0, 0, y - 0.005, y + rr * 0.55 + 0.03, rr * 0.62, q === 2 ? 5 : 4, L, 0.3, 0.6, 1.25);
       for (let j = 0; j < per; j++) {
         if (L() < 0.07) continue;
         const a = turn + (j + 0.4 * (L() - 0.5)) / per * TAU;
-        s.frond([Math.cos(a) * 0.008, y, Math.sin(a) * 0.008], a, rr * (0.8 + 0.38 * L()), rr * 0.52, q === 2 ? 5 : 3, 0.16 + 0.22 * L(), L);
+        s.frond([Math.cos(a) * 0.008, y, Math.sin(a) * 0.008], a, rr * (0.8 + 0.38 * L()), rr * (q === 2 ? 0.52 : 0.6), q === 2 ? 5 : 2, 0.16 + 0.22 * L(), L);
       }
     }
     s.skirt(0, 0, 0.93, 1.0, 0.026, 3, L, 0.1, 0.7);
@@ -197,7 +197,7 @@ export function makeTreeGeometries() {
       const t = k / (N - 1), y = low + (0.9 - low) * t, a = k * 2.4 + R(), len = (0.15 + 0.15 * (1 - t)) * (0.7 + 0.5 * R()), up = 0.25 + 0.35 * R(), big = 0.115 * (0.85 + 0.4 * R());
       if ((q === 1 && k % 4 === 3) || (q === 0 && k % 2 === 1)) continue;
       const root = tr(y), mid = [root[0] + Math.cos(a) * len * 0.6, y + len * 0.08, root[2] + Math.sin(a) * len * 0.6], end = [root[0] + Math.cos(a) * len, y + len * up, root[2] + Math.sin(a) * len];
-      if (q === 0) { s.limb(root, end, 0.005, 0.002, 3); s.lump(end[0], end[1], end[2], big * 1.2, big * 0.8, L, 0.3); continue; }
+      if (q === 0) { s.limb(root, end, 0.005, 0.002, 3); s.lump(end[0], end[1], end[2], big * 1.25, big * 0.85, L, 0.3, 1, true); continue; }
       s.limb(root, mid, 0.007, 0.004, 3); s.limb(mid, end, 0.004, 0.002, 3);
       s.spray(end, big, q === 2 ? 20 : 11, L);
       s.spray([mid[0] + (L() - 0.5) * 0.04, mid[1] + 0.035, mid[2] + (L() - 0.5) * 0.04], big * 0.8, q === 2 ? 14 : 7, L, q === 2);
@@ -211,10 +211,12 @@ export function makeTreeGeometries() {
   // What the broad crowns share: bunches of leaves [x, y, z, rx, ry] drawn as leaves round a
   // dark heart (close: n leaves each; near: fewer; far: a lump each).
   const bunches = (s, L, list, n, size, heart, round) => {
-    for (const [x, y, z, rx, ry] of list) {
-      if (s.q === 0) s.lump(x, y, z, rx, ry, L, 0.3);
-      else s.cluster(x, y, z, rx, ry, s.q === 2 ? n : Math.round(n * 0.4), size * (s.q === 2 ? 1 : 1.15), L, s.q === 2 ? heart : Math.min(0.8, heart + 0.2), round);
-    }
+    list.forEach(([x, y, z, rx, ry], i) => {
+      // (far off: every other bunch, half as large again, the smaller ones of eight faces:
+      // far trees are the many, and a forest of them is drawn in its thousands)
+      if (s.q === 0) { if (i % 2 === 0) s.lump(x, y, z, rx * 1.45, ry * 1.4, L, 0.3, 1, i % 4 === 2); return; }
+      s.cluster(x, y, z, rx, ry, s.q === 2 ? n : Math.round(n * 0.33), size * (s.q === 2 ? 1 : 1.2), L, s.q === 2 ? heart : Math.min(0.8, heart + 0.2), round);
+    });
   };
 
   // 2 broadleaf: a trunk that parts into limbs, each limb into two, a ball of leaves at every
@@ -227,7 +229,7 @@ export function makeTreeGeometries() {
     for (let i = 0; i < M; i++) {
       // a limb out and up, with a bend in it; two twigs from its end; a bunch on each and one hanging under the bend
       const a = i / M * TAU + R() * 0.7, d = (0.12 + 0.04 * R()) * wide, bend = [Math.cos(a) * d * 0.55, split + 0.07 * tall, Math.sin(a) * d * 0.55], e1 = [Math.cos(a) * d * 1.25, split + (0.2 + 0.05 * R()) * tall, Math.sin(a) * d * 1.25];
-      s.limb([top[0], top[1] - 0.03, top[2]], bend, 0.014, 0.01, q ? 4 : 3); s.limb(bend, e1, 0.01, 0.006, q ? 4 : 3);
+      if (q) { s.limb([top[0], top[1] - 0.03, top[2]], bend, 0.014, 0.01, 4); s.limb(bend, e1, 0.01, 0.006, 4); } else s.limb([top[0], top[1] - 0.03, top[2]], e1, 0.013, 0.006, 3);
       list.push([Math.cos(a) * d * 1.9, split + (0.1 + 0.05 * R()) * tall, Math.sin(a) * d * 1.9, (0.13 + 0.03 * R()) * wide, 0.095 + 0.02 * R()]);
       for (const da of [-0.6, 0.6]) {
         const b = a + da + (R() - 0.5) * 0.3, d2 = (0.1 + 0.05 * R()) * wide, e2 = [e1[0] + Math.cos(b) * d2, e1[1] + (0.09 + 0.08 * R()) * tall, e1[2] + Math.sin(b) * d2];
@@ -265,7 +267,7 @@ export function makeTreeGeometries() {
       s.limb([0.012, fork - 0.02, 0], e1, 0.013, 0.007, q ? 4 : 3);
       for (const da of [-0.5, 0.5]) {
         const b = a + da + (R() - 0.5) * 0.3, d2 = 0.13 + 0.06 * R(), e2 = [e1[0] + Math.cos(b) * d2, flat - 0.02 + 0.03 * R(), e1[2] + Math.sin(b) * d2];
-        s.limb(e1, e2, 0.007, 0.003, 3);
+        if (q) s.limb(e1, e2, 0.007, 0.003, 3);
         list.push([e2[0], e2[1] + 0.02, e2[2], 0.15 + 0.05 * R(), 0.035 + 0.012 * R()]);
       }
     }
