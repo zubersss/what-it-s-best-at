@@ -42,9 +42,21 @@ skipped, so frames are evenly spaced.
    irradiance when Sun/altitude change; aerial-perspective froxel atlas every frame).
    `sun`, `bodies`, `stars` update their uniforms.
 5. `nearShadow.render` → one 16-bit depth atlas, three tiles along the Sun: rocks and lander ±150 m (15 cm texels), the same ±20 m (4 cm; only the nearest rocks, governor step `fine-shadows`), the character alone ±3.5 m around it (7 mm).
+   **The tiles are drawn in turns**: the character's every frame, the fine one every
+   other frame, the wide one every fourth (`nearShadow.every`; 1 in screenshot mode), and
+   at once when the Sun has moved 0.03 degrees, when the tile's middle has left the camera
+   by 0.3 of its half width, or when it was never drawn. A tile not drawn keeps the place
+   it was drawn at (`state[k]`: the shader's `uShadowAtlas[k]` follows it, and
+   `uShadowAtlas[3].zw` carry the depth the camera has moved since along the Sun's ray),
+   so a shadow stays where it lies while the camera moves. A partial draw clears only its
+   own square. `npm run shadowturns` checks that a held tile draws the same picture as a
+   fresh one after a 4 m walk, and fails when the kept place is wrong.
 6. HDR target (RGBA16F, sub-viewport = render scale):
    **far pass** (sky bodies, Sun disc, stars, additive sky in-scatter) → **clear depth** →
-   **near pass** (terrain front-to-back, rocks, ship) → if the character is shown, the
+   **near pass** (grass and leaves first, then trees, rocks and the lander, the terrain
+   last and front-to-back: `renderOrder` -30, -20, -10, 0. What stands on the ground hides
+   much of it, and the ground's shader is the most expensive there is: drawn last, the
+   hidden ground is never shaded) → if the character is shown, the
    **character pass** and the **dust pass** (each its own scene). Near the ground (terrain
    near plane up to 1 m) both use the terrain's depth: character first, then dust. Higher
    up, where the terrain's near plane has moved past the figure, the dust is drawn first
@@ -197,9 +209,14 @@ on a phone from orbit). Governor step `far-relief` (`uQuality.w`). `surface.farR
 replaces the Oren–Nayar roughness for ground whose chunk texels are kilometres: the
 grain-scale value kept a whole disc nearly as bright at its edge as at its centre.
 
-From high up (above about 30 km, fully above `SPACE_BOOST_ALT`) chunks split up to
-`SPLIT_SPACE_BOOST` (2.2) times sooner: only a few dozen are in view there, and a phone has
-several pixels per normal texel.
+From high up (from `SPACE_BOOST_FROM`, 1.2 km, fully above `SPACE_BOOST_ALT`, 150 km) chunks
+split up to `SPLIT_SPACE_BOOST` (2.2) times sooner, by the square of the height's logarithm
+between the two: fewer are in view the higher one is, and a phone has several pixels per
+normal texel. The curve keeps about as many patches in view at every height as a view from
+the ground has (110 to 150 at the canyon; without it 98, 73 and 56 at 3, 12 and 40 km).
+(It began at 30 km: between 2 and 30 km up the ground under the traveller was a blur of
+seven and more pixels a texel on the phone. The patch cap still rules: where the governor
+has lowered it, `lodScale` takes the boost back.)
 
 **Photometry** (`surface.photometry`): `'lunar'` switches the ground and the rocks from
 Oren–Nayar to the lunar-Lambert function times the Moon's measured phase curve
@@ -467,7 +484,7 @@ ring: it is not asked for.
 - `water/waves.js`: one table of sines, each a whole number of cycles across the 64 m
   detail tile, running at deep-water speed, weighted by how it lines up with the wind.
   The shader adds as many as are longer than five pixels; the eight longest also lift
-  the surface itself within 400 m (vertex shader; governor step `waves`); the game asks
+  the surface itself within 400 m (vertex shader; no governor step: on the phone it saved nothing measurable); the game asks
   the same sum for what floats (`waveHeightAt`).
 - Colour: light goes down to the bed and back, red lost first (pale sand in the shallows,
   the water's own blue below); foam at the waterline, in bands along the bed's contours,
@@ -513,6 +530,22 @@ ring: it is not asked for.
   own `minFlow` up: the great rivers from far, every brook from near.
 - Inland water has small waves and little foam (the shader knows it by its height above
   the sea).
+- **Far off, in wind**, where no single crest is seen, the share of the sea that is white
+  in that wind (Monahan's rule, at most 45 %) is laid on in streaks: a gale's sea is
+  grey-white to the horizon. **The beach**: ground less than a step above the sea's level
+  is pale dry sand.
+- **The tide** (`sea.tide: { by: [[body, metres], ...], gain }`, `App.updateTide`): each
+  body named raises the sea by `metres x (1.5 cos^2 - 0.5)` of the angle between it and the
+  traveller's zenith (the equilibrium tide: two bulges a day, springs and neaps as the Moon
+  and the Sun line up or cross), times `gain` (a shore's own amplification). The shore is
+  mapped at high water: the level is counted downward from there (`uTide.x`, 0 to about
+  -2 x the sum x gain). The vertex shader lowers the sea's surface by it near the
+  traveller (out to 1 km, fading from 400 m; only vertices near the sea's level ask), and
+  where the water was shallower than the drop the bed is drawn bare at its own depth; the
+  fragment shader draws that bed as wet sand, and at the water's edge a wash that runs up
+  and back with the swell. Lakes and rivers have none (by their height above the sea).
+  The character floats and wades by the same level (`heightFn` in `app.js`). The full
+  read-out shows the tide.
 
 ## Trees and leaves (`src/life/`)
 
@@ -544,6 +577,23 @@ ring: it is not asked for.
 - **`leaves.js`**: 420 points that come loose overhead, ride the wind down turning, and
   lie a moment; worked out in the vertex shader from a number of their own and the
   clock; they stay put in the world as the camera moves.
+- **What casts a tree's shadow** is the next simpler mesh of the same tree (`set.cast`):
+  the nearest trees cast as their near mesh, the others as their far mesh (two crossed
+  pictures of the tree and a rosette in its crown, 6 triangles). A whole tree's card keeps
+  its leaves in winter, so a bare tree's shadow is thinned in the depth pass instead.
+- **A crown's dark inside.** Sprays alone are a lace one sees through. Every bunch of
+  sprays has a **heart** (`Shape.heart`: three crossed cards of a rosette, `aLeaf` 3.25,
+  drawn at half tone and taking no light through), and every tier of a fir a **skirt**
+  under its boughs (plain faces, 1.25). The whole-tree picture is drawn from the near mesh
+  and so has them. `paintLeaf` (the painted look's green) keeps a species' own side of
+  green: warm for broad leaves, cold for firs and spruces. Trunks near by have furrows.
+- **The air of a wood** (`forestAir` in the lighting chunk): trees, the forest's floor and
+  the far canopy are mixed toward the sky's light by distance (to 38 % by some hundreds of
+  metres): row behind row of trees paler, and the far forest lighter than the near.
+- **Beyond the trees** the canopy is up to its height where the last trees stand (0.62 to
+  0.98 of the radius; the trees shrink away from 0.86), and its normal leans toward the
+  eye by how far from overhead one looks: the canopy shows the sides of its crowns, lit
+  with the Sun behind the eye and dark against it, as the trees drawn one by one are.
 - Governor steps: `leaves`, `tree-shadows` (the far meshes stop casting), `trees-far`
   (two thirds of the radius).
 
@@ -613,7 +663,7 @@ ring: it is not asked for.
   its way at the speed of sound).
 - Who takes what: `uWind` (waves, trees, leaves, cloud drift); `G.uWeather` (the lighting
   chunk: sunlight on things near the camera, sky light; the ground: wet is darker and
-  shines); `G.uFlash` (sky light for an instant); `rain.js` (1 400 streaks or flakes in a
+  shines); `G.uFlash` (sky light for an instant); `rain.js` (5 600 streaks or flakes in a
   box round the camera, stateless like the leaves); `bolt.js` (a stroke to the ground);
   the audio (rain, wind, thunder); the rig (the wind carries what hangs in the air, only
   while the stick is let go). Rain, the stroke and the rainbow (`rainbow.js`: one additive
@@ -621,6 +671,24 @@ ring: it is not asked for.
   drawn after the cloud volume is laid over the picture.
 - The ground and the clouds work out cloud shadow place by place (`OWN_CLOUD_SHADOW`);
   everything else near the camera takes `uWeather.x`.
+- **A storm comes in squalls** (`weather.squall`, 0..1): where it rains hard or blows hard,
+  two slow beats (about one and two and a half minutes) bring bursts: the rain up to two
+  and a half times, gusts of 40 % more wind, a darker sky, lightning sooner.
+  `weather.storminess` (0..1, eased: by rain, wind and how tall the cloud is) is what the
+  cloud volume reads: denser cloud, drift up to 55 m/s and shapes that turn over up to
+  thirteen times as fast (the base stays put: it must not move because the traveller did).
+- **Rain hides what is far** (`weather.veil`, `uWeather.w`, `rainVeil` in the lighting
+  chunk): everything lit is mixed toward the sky's grey by `1 - exp(-distance x veil)`,
+  the veil growing with the rate (visibility a few hundred metres in a cloudburst).
+  `rain.js` draws 5 600 streaks (the governor's `rain` step: half of them), each a strip
+  turned to the eye, a few millimetres wide and never under a pixel and a half; a third
+  of them in a small box round the eye, lit by the sky they fall from (`skyLight`: over
+  the veil's grey and the ground's under an overcast, dark at night, lit by lightning).
+  Rain nearer than the terrain's near plane (0.15 of the height: metres, in flight) is
+  drawn again in a slice of its own from the eye to that plane, without the depth test.
+  The sky dome takes the same veil (through 1 500 m of rain overhead, tens of kilometres
+  toward the horizon). In a storm the cloud's base is darker and lighter in great patches
+  that go by with the wind (`uStorm` in the cloud volume).
 
 ## Sky bodies
 
@@ -853,6 +921,15 @@ bloom upsample → composite (~4.5 % bloom mix) → AgX → blue-noise dither. T
 into a sub-viewport of a fixed, native-size target (no reallocations when the resolution
 changes) and the composite pass scales it up to the canvas.
 
+**The canvas follows the picture** (`App.fitCanvas`, `CANVAS_STEPS`): the canvas's own pixel
+size is one of four steps (1, 0.60, 0.36, 0.22 of the native area), the smallest that still
+holds the picture the governor has chosen; the browser scales it to the screen. The last
+pass then writes as many pixels as the picture has, not the screen's 4.45 million whatever
+the resolution (the seventh phone benchmark, build ef3201a: with nothing drawn at all a
+frame still took 19 to 28 ms of the 58). A step down waits three seconds, a step up is at once; the
+frame after a change is reported to the governor as `screen size changed` and not judged.
+`app.canvasHold` ('fit' / 'full') pins it for the cost test.
+
 A world may set `exposure.dim: { above, power, most }`: past that exposure the target is
 divided by (target / above)^power, at most by `most`, so the picture darkens as the scene
 does (the Moon uses it: an earthlit night and the ground toward a low Sun come out about
@@ -938,7 +1015,11 @@ Two things in the results say *what* is slow, not only that something is:
   2.07 MP with everything on, then each saving of `FEATURE_STEPS` is switched on alone
   (not the two that draw fewer patches; "everything on" is measured again after every
   three, and each saving is set against the measures on either side of it), then all of
-  them, then everything on at 1 MP and at native. Each frame is timed from its start until one pixel read back from the
+  them, then everything on at 1 MP and at native. Then **whole parts are left out one at a
+  time** (`PARTS_OUT`: grass, trees, the figure, the shadow maps, the ground's shading
+  (`uPlain`: the ground drawn in one flat tone), the ground and all on it, the sky, the
+  last pass at the picture's size instead of the screen's, everything), each set against a
+  fresh "everything on": what a part costs, and what a frame costs with nothing in it. Each frame is timed from its start until one pixel read back from the
   canvas returns, which is when the GPU has drawn it: a time that is not rounded to
   screen refreshes. Frames that took in ground and the first five after a change are
   left out. Three lines a view: the four totals, and what each saving saves alone.

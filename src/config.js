@@ -11,9 +11,17 @@ export const CONFIG = {
   SPLIT_FACTOR_OFFSCREEN: 0.3,
   // From high up only a few dozen patches are in view, far below the patch cap, and a
   // phone's screen has several pixels per patch texel: patches split this many times sooner
-  // above SPACE_BOOST_ALT (blended in from a tenth of it).
+  // above SPACE_BOOST_ALT (blended in from SPACE_BOOST_FROM).
+  // (From 1.2 km up, growing with the square of the height's logarithm to the full boost at
+  // 150 km: it once began at 30 km, and from a few kilometres up the ground looked "not
+  // loaded": seven screen pixels to a texel of the ground's own maps on the phone, with
+  // half the patch pool unused. The curve keeps about as many patches in view at every
+  // height as a view from the ground has (measured at the canyon: 98, 73, 56 and 94
+  // patches at 3, 12, 40 and 150 km before; about 110 to 150 with it): nothing more is
+  // drawn from the air than from the ground, and no more is built than the pool holds.)
   SPLIT_SPACE_BOOST: 2.2,
-  SPACE_BOOST_ALT: 300000,
+  SPACE_BOOST_FROM: 1200,
+  SPACE_BOOST_ALT: 150000,
   MIN_FOOT_GRAVITY: 1.0,    // m/s^2: on foot, gravity never counts for less (tiny moons; see cameraRig.js)
   MORPH_START: 0.72,        // fraction of the merge distance where geomorphing starts
   WORKERS: 3,

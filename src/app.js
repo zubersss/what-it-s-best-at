@@ -55,6 +55,9 @@ import { createHeightSource, loadRasters } from './terrain/height/heightSource.j
 import { Terrain } from './terrain/terrain.js';
 
 const C_LIGHT = 299792458;
+// The canvas's size as a share of the screen's pixels (App.fitCanvas): the governor's
+// resolution levels 0, 4, 8 and 12 (0.88 to those powers).
+const CANVAS_STEPS = [1, 0.5997, 0.3596, 0.2157];
 // What the camera reads while a full-screen panel is open: nothing is pressed.
 const NO_INPUT = { dx: 0, dy: 0, wheel: 0, moveX: 0, moveY: 0, down: () => false, hit: () => false };
 
@@ -166,21 +169,26 @@ export class App {
     // drawn ground asked for the same place right after: see rig.groundAt in init.)
     const pos = new THREE.Vector3();
     return (d) => {
-      const h = hs.height(d[0], d[1], d[2], walkWL), depth = hs.waterDepth;
+      const h = hs.height(d[0], d[1], d[2], walkWL), mapped = hs.waterDepth;
+      if (mapped <= 0) { this.depthAsked = 0; this._sink = 0; this._under = 0; return h; }
+      // (the tide: the sea stands under the level its shore is mapped at, and where it was
+      // shallower than that the bed is bare; lakes and rivers have none. As the ground
+      // shader has it.)
+      const up = h - (world.surface.sea.level ?? 0);
+      const inland = up <= 2 ? 0 : up >= 6 ? 1 : ((up - 2) / 4) * ((up - 2) / 4) * (3 - 2 * (up - 2) / 4);
+      const drop = Math.min(mapped, -(this.tide || 0) * (1 - inland)), depth = mapped - drop;
       this.depthAsked = depth;
-      if (depth <= 0) { this._sink = 0; this._under = 0; return h; }
       let sink = Math.min(depth, SWIM_DEPTH);
       this._under = sink;              // (how far under the still water's surface the walker's ground is: the camera's floor is the surface with its waves, which is that ground plus this)
       if (depth > 0.15) {
         // (the same share of the waves as the vertex shader lifts the water by: none at the
         // shore, a little on lakes and rivers)
-        const u = this.terrain.shared.uWind.value, w = this.terrain.shared.uWave.value, up = h - (world.surface.sea.level ?? 0);
-        const inland = up <= 2 ? 0 : up >= 6 ? 1 : ((up - 2) / 4) * ((up - 2) / 4) * (3 - 2 * (up - 2) / 4);
+        const u = this.terrain.shared.uWind.value, w = this.terrain.shared.uWave.value;
         pos.set(d[0], d[1], d[2]).multiplyScalar(world.radius + h);
-        sink -= waveHeightAt(pos, world.radius, w.z, u, u.w) * Math.min(1, (depth - 0.15) / 1.5) * (1 - 0.88 * inland) * w.y;
+        sink -= waveHeightAt(pos, world.radius, w.z, u, u.w) * Math.min(1, (depth - 0.15) / 1.5) * (1 - 0.8 * inland) * w.y;
       }
-      this._sink = sink;
-      return h - sink;
+      this._sink = sink + drop;
+      return h - sink - drop;
     };
   }
 
@@ -273,12 +281,27 @@ export class App {
     this.trees = new Trees(world, this.terrain); this.trees.renderer = renderer;
     for (const set of this.trees.sets.flat(2)) {
       this.nearScene.add(set.mesh);
-      this.nearShadow.addCaster(set.mesh, this.trees.depthMaterial, () => set.mesh.visible && (set.lod <= 1 || this.trees.shadowsFar));
+      this.nearShadow.addCaster(set.cast, this.trees.depthMaterial, () => set.mesh.visible && (set.lod <= 1 || this.trees.shadowsFar));
     }
     this.grass = new Grass(this.terrain, this.terrain.shared.uWind); this.grass.setWorld(world);
     this.nearScene.add(this.grass.mesh);
     this.leaves = new Leaves(this.trees);
     this.nearScene.add(this.leaves.mesh);
+    // The order solid things are drawn in: what stands in front first, the ground last.
+    // The ground's pixels are by far the dearest in the picture, and drawn first (as it
+    // was, being the oldest object) all of it was shaded and then covered: under a meadow's
+    // grass and a forest's crowns that was most of the screen, paid for twice. Drawn last,
+    // only the ground that shows is shaded (the depth test throws the rest out unshaded).
+    {
+      const order = (o, n) => o.traverse((m) => { m.renderOrder = n; });
+      order(this.grass.mesh, -30); order(this.leaves.mesh, -30);
+      for (const set of this.trees.sets.flat(2)) order(set.mesh, -20);
+      order(this.rocks.mesh, -10);
+    }
+    // (a picture must not depend on which frame it is; and at Sharp's 30 frames a second
+    // every tile is drawn every frame: a turn of four frames there would be 7 shadow
+    // pictures a second under trees that sway)
+    this.nearShadow.every = this.shotMode || MODES[this.governor.mode].fps < 45 ? 1 : 2;
     // Weather (worlds that have it): wind, rain, wet ground, shade, lightning
     this.weather = new Weather(); this.weather.setWorld(world);
     this.look = new Look(); this.look.setWorld(world);          // the world's look, if it has one of its own (render/look.js)
@@ -326,7 +349,7 @@ export class App {
   placeLander(world, hs) {
     if (this.lander) { this.nearScene.remove(this.lander.mesh); this.nearShadow.removeCaster(this.lander.mesh); this.lander.mesh.geometry.dispose(); }
     this.lander = new Lander(world, hs, latLonToDir(world.scene.start.lat, world.scene.start.lon));
-    this.nearScene.add(this.lander.mesh);
+    this.nearScene.add(this.lander.mesh); this.lander.mesh.renderOrder = -10;
     this.nearShadow.addCaster(this.lander.mesh, this.lander.depthMaterial);
   }
 
@@ -544,6 +567,31 @@ export class App {
     this.post.resize(w, h);
     this.governor.setNative(w * h);
     this.resizedAt = performance.now();
+    this.canvasArea = 1; this._canvasOkAt = this.resizedAt;
+  }
+
+  // The canvas's own size in pixels follows the picture's, in four steps (the governor's
+  // resolution levels 0, 4, 8 and 12). The last pass (tone map, grade, glow) fills the
+  // canvas whatever size the picture under it was drawn at: on the phone that was 4.45
+  // million pixels of it every frame while the picture itself was down to 1 million, a cost
+  // no saving and no resolution step touched. The browser stretches a smaller canvas over
+  // the screen for nothing, and the picture is no softer for it (it was stretched in that
+  // last pass before). A step down waits three seconds, since a new size is a new buffer
+  // and not something to do back and forth; a step up is taken at once.
+  fitCanvas(now) {
+    const post = this.post, area = post.scale * post.scale, hold = this.canvasHold;
+    if (this.canvasArea == null) { this.canvasArea = 1; this._canvasOkAt = now; }
+    let want = 1;
+    for (const a of CANVAS_STEPS) if (a >= area * 0.98) want = a;       // the smallest that still holds the picture
+    // (the benchmark's cost test holds it: 'fit' = the step for the picture, at once; 'full' = the screen's own size)
+    if (hold === 'full') want = 1;
+    if (want === this.canvasArea) { this._canvasOkAt = now; return; }
+    if (want < this.canvasArea && !hold && now - this._canvasOkAt < 3000) return;
+    this.canvasArea = want; this._canvasOkAt = now;
+    const k = Math.sqrt(want);
+    this.renderer.setSize(Math.max(2, Math.round(post.width * k)), Math.max(2, Math.round(post.height * k)), false);
+    this.canvasSteps = (this.canvasSteps || 0) + 1;
+    this.canvasAt = now;
   }
 
   start() {
@@ -587,6 +635,7 @@ export class App {
     const next = this.governor.mode === 'smooth' ? 'sharp' : 'smooth';
     this.governor.setMode(next);
     this.terrainBudget(MODES[next].patches ?? 1, 'mode');
+    this.nearShadow.every = this.shotMode || MODES[next].fps < 45 ? 1 : 2;
     try { localStorage.setItem('sse.mode', next); } catch { /* storage blocked: the choice lasts for this visit */ }
     this.startScreen?.setMode(next);
     this.toast?.show(`${MODES[next].label} — ${MODES[next].fps} fps`);
@@ -632,6 +681,7 @@ export class App {
     if (now < (this.bodies?.mapsAt ?? -1e9) + 1500) return 'sky maps arriving';
     if (now < this.resumedAt + 1500) return 'page came back from the background';
     if (now < this.resizedAt + 1500) return 'screen size changed';
+    if (now < (this.canvasAt ?? -1e9) + 200) return 'screen size changed';       // (the canvas took a new size: fitCanvas)
     if (this.governor.sinceStep < 0.4) return 'quality step';
     if (uploads) return `new terrain (${uploads} patch${uploads > 1 ? 'es' : ''})`;
     if (now < this.loadedAt + 4000) return 'start-up';
@@ -863,6 +913,32 @@ export class App {
     return b ? out.set(b.pos[0], b.pos[1], b.pos[2]) : null;
   }
 
+  // The tide where the traveller is: the sea's level against the highest tide (metres, 0 or
+  // below; the mapped shore is the highest tide's). The world file names the bodies that
+  // pull and how high each would raise an ocean that covered the whole world (sea.tide.by:
+  // [id, metres]: on Earth the Moon 0.36, the Sun 0.16). High water under such a body and
+  // on the far side of the world from it, low water where it stands on the horizon: so
+  // twice a day, an hour later each day as the Moon goes round; spring tides when the
+  // Moon and the Sun pull along one line, neaps when they pull across each other. A real
+  // shore makes more of it than an open ocean would (sea.tide.gain).
+  updateTide(dt) {
+    const t = this.world.surface.sea?.tide, u = this.terrain.shared.uTide.value;
+    if (!t) { u.x = 0; this.tide = 0; this.tideText = ''; return; }
+    const p = this.rig.pos, pl = p.length(), b = this._tideB || (this._tideB = new THREE.Vector3());
+    let h = 0, top = 0;
+    for (const [id, m] of t.by) {
+      top += m;
+      if (!this.bodyPosition(id, b)) continue;
+      const c = (b.x * p.x + b.y * p.y + b.z * p.z) / (b.length() * pl);
+      h += m * (1.5 * c * c - 0.5);
+    }
+    const level = (h - top) * (t.gain ?? 1), was = this.tide;
+    // (rising or falling: by the clock's own pace, which may run fast or backwards)
+    if (was != null && dt > 0 && level !== was) this.tideTrend = (this.tideTrend || 0) * 0.9 + 0.1 * Math.sign(level - was);
+    this.tide = level; u.x = level;
+    this.tideText = `${(-level).toFixed(1)} m under high water, ${Math.abs(this.tideTrend || 0) < 0.05 ? 'slack' : this.tideTrend > 0 ? 'rising' : 'falling'}`;
+  }
+
   // Keeps the traveller where it was relative to body `carry.id` over the step the
   // ephemeris just made: M0 the home axes before it, b0 the body's place before it. The
   // home axes turned by R = M1 * M0^T meanwhile; position and every vector kept in those
@@ -1068,9 +1144,9 @@ export class App {
       wx.update(rig, dt, G.uSunDir.value, day, sunE);
       const speed = wx.def ? Math.max(1.5, wx.windSpeed) : (this.world.surface.sea?.wind ?? 6);
       if (wx.def) sh.uWind.value.set(wx.wind.x, wx.wind.y, wx.wind.z, speed); else sh.uWind.value.set(e[0], e[1], e[2], speed);
-      G.uWeather.value.set(wx.def ? wx.sunShade : 1, wx.def ? wx.skyShade : 1, wx.def ? wx.wet : 0, 0);
+      G.uWeather.value.set(wx.def ? wx.sunShade : 1, wx.def ? wx.skyShade : 1, wx.def ? wx.wet : 0, wx.def && this.rain.enabled ? wx.veil : 0);
       G.uFlash.value.copy(wx.flashLight);
-      this.rain.update(wx, rig, (now / 1000) % 14400);
+      this.rain.update(wx, rig, (now / 1000) % 14400, 2 * Math.tan(rig.camera.fov * Math.PI / 360) / Math.max(2, this.post.viewH));
       this.bolt.update(wx, rig.agl, sunE);
       this.rainbow.update(wx, rig, this.post.viewW / this.post.viewH, G.uSunDir.value);
       for (const th of wx.heard()) if (rig.agl < 20000) this.audio.thunder(th.power, th.dist);          // (thunder needs air to arrive in)
@@ -1086,7 +1162,12 @@ export class App {
       sh.uWave.value.set(waveScale(speed), this.wavesLift === false ? 0 : 1, this.shotMode ? 3.0 : (now / 1000) % 14400);
       // how deep the water is where the figure stands (0 on land): the rig slows in it
       // (under the flying figure too: no dust is raised from water)
-      if (this.world.surface.sea) { const f = rig.onFoot ? rig.feet : rig.pos, l = f.length(); this.terrain.hs.height(f.x / l, f.y / l, f.z / l, 1); rig.water = this.terrain.hs.waterDepth; } else rig.water = 0;
+      this.updateTide(dt);
+      if (this.world.surface.sea) {
+        const f = rig.onFoot ? rig.feet : rig.pos, l = f.length(), h = this.terrain.hs.height(f.x / l, f.y / l, f.z / l, 1), up = h - (this.world.surface.sea.level ?? 0);
+        // (what the tide has left of it; lakes and rivers keep theirs)
+        rig.water = Math.max(0, this.terrain.hs.waterDepth + (up < 4 ? this.tide || 0 : 0));
+      } else rig.water = 0;
     }
 
     prof.mark(0);
@@ -1140,7 +1221,9 @@ export class App {
       this.trees.update(rig, day, this.terrain.shared.uWave.value.z);
       // (beyond the trees the forest is raised as a whole; from high up, all of it)
       const tr = this.trees, drawn = tr.def && rig.agl < (tr.def.below ?? 1500), r = (tr.def?.radius ?? 240) * tr.fraction;
-      this.terrain.shared.uShell.value.set(drawn ? r * 0.8 : 0, drawn ? r * 1.25 : 1, tr.def ? 1 : 0);
+      // (it is up to its height where the last trees stand: from above, the ground showed
+      // brown in a ring between the trees and the canopy)
+      this.terrain.shared.uShell.value.set(drawn ? r * 0.62 : 0, drawn ? r * 0.98 : 1, tr.def ? 1 : 0);
       this.leaves.update(rig, this.post.viewH);
       this.grass.update(rig, dt, renderer);
       // (fallen leaves on the ground under the trees, in their season)
@@ -1157,6 +1240,7 @@ export class App {
     // (a photograph is one frame at full size; the governor does not count it)
     if (this.photoWanted) this.resizedAt = now;
     post.setScale(this.photoWanted ? 1 : governor.scale);
+    this.fitCanvas(now);
     G.uViewport.value.set(post.viewW, post.viewH);
     G.uExposure.value = post.exposure;
     const aspect = post.viewW / post.viewH;
@@ -1248,6 +1332,15 @@ export class App {
     if (vol) this.cloudVolume.lay(near, far, rig);
     prof.mark(9);
     if (this.rain.mesh.visible || this.bolt.mesh.visible || this.rainbow.mesh.visible) renderer.render(this.weatherScene, rig.camera);
+    // The rain nearer than the terrain's near plane (a few metres up that plane is past the
+    // eye's own rain, and from 60 m in a hurricane not a streak was seen): drawn again in
+    // a slice of its own, from the eye to that plane. Nothing else stands in that slice but
+    // the character, which is drawn after it.
+    if (this.rain.mesh.visible && near > 1.0) {
+      rig.finalize(aspect, 0.2, near * 1.02);
+      this.rain.material.depthTest = false; renderer.render(this.rain.mesh, rig.camera); this.rain.material.depthTest = true;
+      rig.finalize(aspect, near, far);
+    }
     if (this.hero.group.visible) {
       // Near the ground the hero shares the terrain's depth buffer (rocks can hide it);
       // higher up the terrain's near plane has moved past it, so it gets its own slice.
@@ -1539,7 +1632,7 @@ export class App {
       gpuBytes: this.gpuBytes, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries,
       exposure: post.exposure, sunEl: sun.elevation, sunAz: sun.azimuth,
       lat: ll.lat, lon: ll.lon, alt: rig.altitude, agl: rig.agl, heading: rig.heading, pitch: rig.pitch, fov: rig.fov,
-      speed: fmtSpeed(rig.velocity.length()), nearest: `${this.nearestName} ${fmtDistance(this.nearestClear)}`, target,
+      speed: fmtSpeed(rig.velocity.length()), nearest: `${this.nearestName} ${fmtDistance(this.nearestClear)}`, target, tide: this.tideText || '',
       hover: rig.hover, pull: rig.pull.length(), onFoot: rig.mode === 'hero' && rig.onFoot, airborne: rig.airborne,
       savings: this.governor.featureLevel, building: this.terrain.staleData + this.terrain.readyRefresh.length, built: this.terrain.built,
       work: this.scriptMs || 0, parts: Profile.text(this.profile.avg, 0.3),

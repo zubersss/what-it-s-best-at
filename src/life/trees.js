@@ -44,7 +44,7 @@ vec3 treePosition(out vec3 foot, out float leaf) {
   float swing = sin(uSeason.z * (1.6 + iB.z) + iB.z * 40.0 + p.y * 3.0) * 0.5 + 0.5 * sin(uSeason.z * 3.7 + iB.z * 17.0 + p.x * 9.0);
   float bend = aSway * iA.w * (0.004 * uTreeWind.w * gust + 0.0025 * uTreeWind.w * swing);
   // (out to nothing at the edge of the trees' radius, so none pops in)
-  float fade = 1.0 - smoothstep(uTreeRadius * 0.82, uTreeRadius, length(foot));
+  float fade = 1.0 - smoothstep(uTreeRadius * 0.86, uTreeRadius, length(foot));
   leaf = aLeaf;
   // (single leaves flutter, each in its own time, harder the harder it blows)
   vec3 flutter = vec3(0.0);
@@ -99,6 +99,12 @@ export class Trees {
           return mix(mix(mix(leafHash(i), leafHash(i + vec3(1, 0, 0)), f.x), mix(leafHash(i + vec3(0, 1, 0)), leafHash(i + vec3(1, 1, 0)), f.x), f.y),
                      mix(mix(leafHash(i + vec3(0, 0, 1)), leafHash(i + vec3(1, 0, 1)), f.x), mix(leafHash(i + vec3(0, 1, 1)), leafHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
         }
+        // (the painted look's leaf: a cleaner green of the tree's own kind, warm for broad
+        // leaves, a cold blue-green for firs and spruces, told by the colour the species has)
+        vec3 paintLeaf(vec3 c) {
+          vec3 hue = mix(vec3(0.62, 1.0, 0.36), vec3(0.36, 1.0, 0.62), smoothstep(-0.2, 0.2, (c.b - c.r) / max(c.g, 1e-4)));
+          return mix(c, dot(c, vec3(0.2, 0.7, 0.1)) * hue, 0.45);
+        }
         void main() {
           // A card: cut out of the picture first of all (most of a card is nothing). Far off the
           // cut is taken lower: averaged down, needles and leaves cover less of a pixel, and a
@@ -124,7 +130,7 @@ export class Trees {
           // (the painted look: a crown's faces that look up are its light tone, those that look
           // down its dark one; a pale trunk has its dark scars, as aspen and birch do)
           if (uPaint.x > 0.0 && vLeaf > 0.5 && !card) {
-            leafC = mix(leafC, dot(leafC, vec3(0.2, 0.7, 0.1)) * vec3(0.62, 1.0, 0.36), 0.45) * mix(0.64, 1.15, smoothstep(-0.45, 0.55, dot(N, up)));
+            leafC = paintLeaf(leafC) * mix(0.64, 1.15, smoothstep(-0.45, 0.55, dot(N, up)));
             // (a crown is bunches of leaves, drawn as patches of three tones with clean edges;
             // not from far off, where a patch is smaller than a pixel)
             float c = leafCells(vTreeM * 2.6) * 0.65 + leafCells(vTreeM * 6.1 + 3.3) * 0.35, near = 1.0 - smoothstep(60.0, 140.0, length(vRel));
@@ -133,14 +139,24 @@ export class Trees {
           // (single leaves: each lighter or darker than its neighbours)
           leafC *= 1.0 - 0.36 * under;
           if (vLeaf > 1.5) leafC *= 0.94 + 0.44 * smoothstep(0.35, 0.65, leafCells(vTreeM * 4.7 + 1.9));
-          else if (vLeaf > 1.1) leafC *= 0.74;          // (the heart of a crown seen near: darker than the leaves round it)
+          else if (vLeaf > 1.1) leafC *= 0.46;          // (the heart of a mass of foliage: the dark inside, see Shape.heart in treeGeometry.js)
           // (a card's foliage: cleaner green, lighter where the crown looks up; and each needle
           // and leaf its own tone, from the picture)
           if (card) {
-            if (uPaint.x > 0.0) leafC = mix(leafC, dot(leafC, vec3(0.2, 0.7, 0.1)) * vec3(0.62, 1.0, 0.36), 0.45) * mix(0.5, 1.12, smoothstep(-0.5, 0.6, dot(N, up)));
+            if (uPaint.x > 0.0) leafC = paintLeaf(leafC) * mix(0.5, 1.12, smoothstep(-0.5, 0.6, dot(N, up)));
             leafC *= 0.46 + 0.6 * cut.g;
           }
+          // (the heart of a bunch: the dark inside of the crown, see Shape.heart in treeGeometry.js)
+          bool heart = (vLeaf > 3.1 && vLeaf < 3.5) || (vLeaf > 1.1 && vLeaf < 1.5);
+          if (vLeaf > 3.1 && vLeaf < 3.5) leafC *= 0.5;
           vec3 albedo = wood ? vTrunkC * 0.6 : leafC;
+          // (bark near by: furrows running up the trunk, wandering a little; and a trunk is
+          // round even in the shade of the wood, where no light says so: darker toward its edges)
+          if (wood && !card) {
+            albedo *= mix(0.66, 1.0, smoothstep(0.1, 0.65, abs(dot(N, V))));
+            float dW = length(vRel);
+            if (dW < 60.0) { vec2 q = vTreeM.xz - vOwn.x * 37.0; float a = atan(q.y, q.x); albedo *= 1.0 - 0.38 * smoothstep(0.5, 0.8, abs(fract(a * 1.7507 + 0.32 * sin(vTreeM.y * 1.3 + a * 2.0)) - 0.5) * 2.0) * (1.0 - smoothstep(25.0, 60.0, dW)); }
+          }
           if (uPaint.x > 0.0 && wood && dot(vTrunkC, vec3(0.333)) > 0.4) albedo *= 1.0 - 0.75 * step(0.8, fract(vY * 31.0 + vOwn.x * 9.0)) * step(0.35, fract(vY * 7.7 + vOwn.x * 3.0));
           // (the shadow is asked for a little outside the crown: on a mass of a few faces the
           // shadow map would draw the faces)
@@ -150,7 +166,7 @@ export class Trees {
           float nl = dot(N, uSunDir), lit = !wood ? max(nl * 0.7 + 0.3, 0.0) : max(nl, 0.0);
           if (uPaint.x > 0.0) { lit = mix(lit, paintLit(!wood ? nl * 0.75 + 0.25 : nl) * PI, uPaint.x); albedo = paintColour(albedo); leafC = paintColour(leafC); }
           // (and seen against the Sun, foliage glows: the light comes through needles and leaves)
-          float through = wood ? 0.0 : max(-nl, 0.0) * 0.28 + (card ? 0.4 * pow(max(dot(-V, uSunDir), 0.0), 4.0) : 0.0);
+          float through = wood || heart ? 0.0 : max(-nl, 0.0) * 0.28 + (card ? 0.4 * pow(max(dot(-V, uSunDir), 0.0), 4.0) : 0.0);
           // inside and under a crown less sky is seen
           float open = !wood ? mix(0.5, 1.0, smoothstep(-0.6, 0.8, dot(N, up))) : mix(0.22, 0.6, smoothstep(0.0, 0.5, vY));
           // (the painted look: the shaded side of a crown is its dark tone, not a bright one lit by the sky)
@@ -159,22 +175,26 @@ export class Trees {
           // come down through the leaves above it, green from the passage)
           vec3 glow = !wood ? leafC * directSun(planetPos) * (0.07 * smoothstep(0.0, 0.25, dot(up, uSunDir))) * vec3(0.9, 1.2, 0.5) : vec3(0.0);
           vec3 col = (albedo * (sun * lit + skyLight(N, up) * open + planetShine(N)) + leafC * sun * through * vec3(1.1, 1.25, 0.6) + glow) / PI;
-          col = aerialPerspective(col, vRel);
+          col = aerialPerspective(forestAir(col, vRel, up, 1.0), vRel);
           fragColor = vec4(col * uExposure, 1.0);
         }`,
     });
     this.depthMaterial = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, colorWrite: false, uniforms: this.shared, side: THREE.DoubleSide,
       vertexShader: /* glsl */`${TREE_VERT}
-        out float vLeaf; out vec2 vUv;
-        void main() { vec3 foot; float leaf; gl_Position = projectionMatrix * viewMatrix * vec4(treePosition(foot, leaf), 1.0); vLeaf = leaf; vUv = aUv; }`,
+        out float vLeaf; out vec2 vUv; out float vBare;
+        void main() {
+          vec3 foot; float leaf; gl_Position = projectionMatrix * viewMatrix * vec4(treePosition(foot, leaf), 1.0); vLeaf = leaf; vUv = aUv;
+          // (a whole tree's card keeps its leaves in winter: its shadow then is thinned instead)
+          vBare = aLeaf > 3.5 ? min(iB.w, 1.0) * uSeason.y : 0.0;
+        }`,
       // (a crown lets some of the Sun through: its shadow is flecked, not solid)
-      fragmentShader: /* glsl */`uniform sampler2D tTreeAtlas; in float vLeaf; in vec2 vUv; layout(location = 0) out vec4 fragColor;
+      fragmentShader: /* glsl */`uniform sampler2D tTreeAtlas; in float vLeaf; in vec2 vUv; in float vBare; layout(location = 0) out vec4 fragColor;
         void main() {
           if (vUv.x >= 0.0 && texture(tTreeAtlas, vUv).r < 0.3) discard;
           // (which pixels: scattered, not in rows; the shadow's soft edge blends them)
           uvec2 q = uvec2(gl_FragCoord.xy); uint h = q.x * 1597334677u ^ q.y * 3812015801u; h ^= h >> 15; h *= 2246822507u; h ^= h >> 13;
-          if (vLeaf > 0.5 && (h & 255u) < 80u) discard;
+          if (vLeaf > 0.5 && float(h & 255u) < 80.0 + 150.0 * vBare) discard;
           fragColor = vec4(1.0);
         }`,
     });
@@ -190,6 +210,20 @@ export class Trees {
       mesh.frustumCulled = false; mesh.visible = false;
       return { geo, mesh, cap, iA, iB, iC, iD, count: 0, tris: base.attributes.position.count / 3, lod };
     })));
+    // What casts a tree's shadow: the next simpler mesh of the same tree (the nearest trees
+    // cast as their near mesh, those farther as their far mesh: two crossed pictures of
+    // the tree and a rosette in its crown). The shadow pass was drawing every spray of
+    // every tree within 150 m, as many triangles again as the view itself, into a map
+    // whose texels are 15 cm. set.cast: the mesh the shadow pass draws for the set.
+    for (const variants of this.sets) for (const trio of variants) trio.forEach((s, lod) => {
+      const src = trio[Math.min(2, lod + 1)];
+      if (src === s) { s.cast = s.mesh; return; }
+      const g = new THREE.InstancedBufferGeometry();
+      for (const name of ['position', 'normal', 'aLeaf', 'aSway', 'aUv']) g.setAttribute(name, src.geo.attributes[name]);
+      g.setAttribute('iA', s.iA); g.setAttribute('iB', s.iB);
+      g.instanceCount = 0;
+      s.castGeo = g; s.cast = new THREE.Mesh(g, this.depthMaterial); s.cast.frustumCulled = false;
+    });
     this.meshes = this.sets.flat(2).map((s) => s.mesh);
     this.blocks = new Map();                 // 'bi:bj' -> { state: 0 asked, 1 ready, origin, trees, count, used }
     this.asked = 0; this.frame = 0; this.serial = -1;
@@ -204,7 +238,7 @@ export class Trees {
     this.world = world; this.def = world.life?.trees || null;
     this.blocks.clear(); this.asked = 0; this.dirty = true; this.serial = -1;
     this.shared.uSeason.value.set(0, 0, 0);
-    for (const s of this.sets.flat(2)) { s.count = 0; s.geo.instanceCount = 0; s.mesh.visible = false; }
+    for (const s of this.sets.flat(2)) { s.count = 0; s.geo.instanceCount = 0; if (s.castGeo) s.castGeo.instanceCount = 0; s.mesh.visible = false; }
     this.count = 0; this.triangles = 0; this.names = ''; this.falling = 0;
   }
 
@@ -304,6 +338,7 @@ export class Trees {
     let count = 0, tris = 0;
     for (const s of this.sets.flat(2)) {
       s.geo.instanceCount = s.count; s.mesh.visible = s.count > 0 && this.atlasReady;
+      if (s.castGeo) s.castGeo.instanceCount = s.count;
       if (s.count) { for (const a of [s.iA, s.iB, s.iC, s.iD]) { a.clearUpdateRanges?.(); a.addUpdateRange?.(0, s.count * a.itemSize); a.needsUpdate = true; } }
       count += s.count; tris += s.count * s.tris;
     }

@@ -51,6 +51,7 @@ uniform vec3 uCamRight, uCamUp, uCamFwd;
 uniform vec4 uProj;            // x tan(half the vertical view angle), y aspect, z near, w far
 uniform float uSliceZ[SLICES + 1];   // where each slice of the view's depth begins and ends (m)
 uniform float uDense;          // how solid the cloud is, against the plain measure
+uniform float uStorm;          // how much of a storm this is (0..1): its base is darker and lighter in great patches
 uniform float uFieldK;         // the world's radius in units of the fair-weather field's noise
 uniform vec2 uFair;            // x: the cover of fair-weather cloud where the day's map has none (0: none); y: how far round the eye the cloud is thinned (m)
 uniform vec3 uCloudWind;       // where the noise has drifted to (noise units)
@@ -172,6 +173,9 @@ void main() {
     float lit = mix(0.64, 1.0, smoothstep(0.4, 0.56, sunward)) * min(exp(-above) + 0.18 * exp(-0.22 * above), 1.0);
     vec3 light = sunC * (lit * min(0.6 + 0.4 * phase, 2.5)) + (skyC * (0.45 + 0.55 * y) + skyDown * (1.0 - y) * 0.5) * 0.55;
     light *= wisp;
+    // (a storm's base: darker and lighter in great patches that go by with the wind and
+    // turn over; a settled overcast is one even grey)
+    if (uStorm > 0.02 && y < 0.6) { float sm = texture(tCloudNoise, (p * uCloud.z + uCloudWind) * 1.9 + 0.23).g; light *= mix(1.0, 0.36 + 1.25 * sm, uStorm * (1.0 - y / 0.6)); }
     if (uBolt.w > 0.0) { vec3 fb = dir * t - uBolt.xyz; light += vec3(0.8, 0.88, 1.0) * (uBolt.w / (1.0 + dot(fb, fb) / (900.0 * 900.0))); }
     float a = 1.0 - exp(-sigma * d * dt);
     C += T * a * light;
@@ -241,7 +245,7 @@ export class CloudVolume {
     this.enabled = true; this.steps = 36; this.def = null; this.noise = null; this.active = false;
     this.target = null; this.tw = 0; this.th = 0;
     this.uniforms = {
-      ...lightingUniforms(), tCloudNoise: { value: null }, tCloudMap: { value: null }, uSliceZ: { value: new Float32Array(SLICES + 1) }, uDense: { value: 1 }, uFair: { value: new THREE.Vector2(0, 300) }, uFieldK: { value: 1 },
+      ...lightingUniforms(), tCloudNoise: { value: null }, tCloudMap: { value: null }, uSliceZ: { value: new Float32Array(SLICES + 1) }, uDense: { value: 1 }, uStorm: { value: 0 }, uFair: { value: new THREE.Vector2(0, 300) }, uFieldK: { value: 1 },
       uCloud: { value: new THREE.Vector4(0.5, 0, 1 / 5200, 45000) }, uLayer: { value: new THREE.Vector4(1, 1, 26, 0) },
       uCamRight: { value: new THREE.Vector3() }, uCamUp: { value: new THREE.Vector3() }, uCamFwd: { value: new THREE.Vector3() },
       uProj: { value: new THREE.Vector4() }, uCloudWind: { value: new THREE.Vector3() },
@@ -330,6 +334,14 @@ export class CloudVolume {
     // the whole sky sank when one flew out over a canyon).
     const altNow = rig.pos.length() - this.radius;
     this.lift = this.groundAt ? this.groundAt(rig.pos) : 0;
+    // A storm's cloud (weather.storminess, and the squalls that pass through it): the cloud
+    // is thicker and darker, it runs with the wind at the wind's own speed and turns over
+    // many times faster. In settled weather none of this. (Its base stays where it is: a
+    // base that came down as the traveller flew into the storm was the sky moving because
+    // the traveller did.)
+    const storm = weather?.storminess || 0, squall = weather?.squall || 0;
+    this.stormNow = this.stormNow == null || this.lastTime == null || time < this.lastTime ? storm : this.stormNow + (storm - this.stormNow) * Math.min(1, 1.2 * Math.min(0.2, time - this.lastTime));
+    const sN = this.stormNow;
     const base = (v.base ?? 1500) + this.lift, thick = Math.max(v.thick ?? 3000, Math.min(13000, (weather?.topNear || 0)) - base);
     this.thickNow = this.thickNow ? this.thickNow + (thick - this.thickNow) * 0.05 : thick;
     u.uTops.value.x = base; u.uTops.value.y = Math.min(1, (v.thick ?? 3000) / this.thickNow);
@@ -354,7 +366,8 @@ export class CloudVolume {
     const z = u.uSliceZ.value; for (let k = 0; k < SLICES; k++) z[k] = SLICE_Z[k]; z[SLICES] = this.reach;
     // (no ray meets the layer nearer than the traveller's distance below its base or above its top)
     const alt = altNow; this.below = alt < base; this.minDist = alt < base ? base - alt : alt > base + this.thickNow ? alt - base - this.thickNow : 0;
-    u.uDense.value = v.dense ?? 1; u.uFair.value.set(v.fair ?? 0, v.clear ?? 120); u.uFieldK.value = this.radius / (v.scale ?? 5200) * 0.11;
+    u.uStorm.value = Math.min(1, sN + 0.4 * squall);
+    u.uDense.value = (v.dense ?? 1) * (1 + 0.45 * sN + 0.35 * squall); u.uFair.value.set(v.fair ?? 0, v.clear ?? 120); u.uFieldK.value = this.radius / (v.scale ?? 5200) * 0.11;
     this.base = base;
     u.tCloudMap.value = layer.texture;
     u.uCloud.value.set(this.def.cover ?? 0.8, this.def.lon0 === -180 ? 0.5 : 0, 1 / (v.scale ?? 5200), this.reach);
@@ -365,10 +378,12 @@ export class CloudVolume {
     // of all the time that has passed)
     const w = wind?.value, dtw = this.lastTime == null || time < this.lastTime ? 0 : Math.min(0.2, time - this.lastTime);
     this.lastTime = time;
-    if (w) this.drift.addScaledVector(w, dtw * Math.min(20, w.w) / (v.scale ?? 5200));
+    // (in a storm: the wind's own speed, up to 55 m/s: the scud races overhead)
+    if (w) this.drift.addScaledVector(w, dtw * Math.min(20 + 35 * sN, w.w) / (v.scale ?? 5200));
     // (... and they change as they go: the noise rises slowly through the layer's shape, so a
-    // mass is not the same mass a minute later)
-    this.drift.z += dtw * (v.change ?? 0.006);
+    // mass is not the same mass a minute later; in a storm it boils: up to nine times as fast,
+    // and faster again while a squall passes)
+    this.drift.z += dtw * (v.change ?? 0.006) * (1 + 8 * sN + 4 * squall);
     for (const c of ['x', 'y', 'z']) this.drift[c] -= Math.floor(this.drift[c]);          // (the noise repeats every unit)
     u.uCloudWind.value.copy(this.drift);
     this.quad.material = this.march;

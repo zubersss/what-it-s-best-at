@@ -6,7 +6,44 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-### HANDOFF: the trees' fifth pass — delivered; read this before anything else
+### The sixth painted delivery (speed, far things, water, storms, trees): read this first
+
+*2026-11-22, after the owner's seventh phone results (Earth benchmark of build ef3201a)
+and a list. The whole of it is under "The owner's seventh phone results and the sixth
+painted delivery" below; this is the short of it.*
+
+- **The phone said**: Earth 48.3 fps at the floor resolution with every saving on; nearly
+  half a frame paid with nothing drawn at all. Three things were found and changed (the
+  last pass at the picture's size, the shadow tiles drawn in turns and trees casting as
+  simpler meshes, the ground drawn last). **None of it is measured on the phone.**
+- **The owner asked for**: speed; far things that look good; the ground loaded when high
+  in the sky; waves and tide; much denser rain; clouds that change like a real storm;
+  trees closer to the references. All seven have something in this delivery.
+- **Tested** on the build that was merged: the build check, `npm run smoke` (every check;
+  every shader within the phone's limits), `npm run shadowturns`, `npm run govsim`,
+  `npm run lakes`; pictures of the hurricane, the beach, the open sea, the forest from
+  inside and from above, the opening view, from 12 and 40 km, and the Moon with the canvas
+  made smaller. **Not run**: the stability test, the full reference set.
+- **Asked of the owner**: an **Earth benchmark in Smooth**. Its cost test now leaves
+  whole parts out against fresh baselines: read "the shadow maps", "the ground's
+  shading", "the last pass at the picture's size" and "nothing drawn" first.
+- **What to do next, in order:**
+  1. With the benchmark: if Earth holds 60 at more than the floor resolution, the cure
+     held; give the phone back what the governor took (it steps up by itself). If late
+     frames come in a rhythm of four, it is the wide shadow tile's turn (see the seventh
+     results). If "the ground's shading" is the largest part left, cut the ground's
+     shader: compile Earth's blocks out of the other worlds', and look for what can be
+     done per vertex.
+  2. With a complaint about a look: reproduce it in a picture, fix, show before and after.
+  3. Known to be weak (not done): the far forest is still a raised, flat-shaded canopy
+     with no tree shapes on its skyline (a ring of whole-tree cards beyond the trees
+     would give them; it is fill the phone must first have room for); the tide's beach is
+     a narrow band on steep shores; the storm's clouds were seen in still pictures only
+     (how they move and turn over was not seen); rain was not seen in motion; the cut-out
+     trees and the shadow turns were not run through the stability test; winter trees.
+  4. Then the rest of milestone 11 (the list under the fifth pass below still holds).
+
+### The trees' fifth pass (the delivery before; kept for what it says of the trees)
 
 *Written 2026-11-22 at the owner's request ("write a handoff so the next session knows
 exactly what you're doing"). The fifth pass is merged and live; this block says what it
@@ -427,6 +464,97 @@ close fir's blades are large flat faces when the camera is among the boughs; no 
 of the tropical, acacia and palm shapes in the game (only in the preview). Clouds: seen
 from below toward the Sun they are one cream tone; the far shell is flatter and dimmer
 than the volume it continues. Nothing here was measured on the phone.
+
+## The owner's seventh phone results (build ef3201a) and the sixth painted delivery
+
+**The numbers** (Earth benchmark, Smooth): **53.7 fps** on average (56.8 at the sixth),
+1 % low 16.9, 9.4 % of frames late. **Earth 48.3** (it was 55.8: the trees' cut-out cards
+and the storms came in between), the flight 53.9, the Moon 58.8. By stop on Earth: ledge
+44.2, sun 43.2, wall 59.2, **ship 37.6**, dusk 57.0. Resolution at the floor nearly all the
+time on Earth (0.96 MP of 4.45) with every saving on (102 quality steps); the page's own
+work 5.7 ms (the figure 2.3). 137 draw calls, 1 188 k triangles, 237 MB at most.
+
+**What the cost test said** (three views at 2.07 MP; its times are from a frame's start
+until one pixel is read back, about twice what a frame takes in play, so only the
+proportions count): everything on 58 ms; **every saving on 49 to 59**: the savings together
+buy almost nothing; at 1 MP 43, at native 73: a third of the frame does not depend on the
+picture's size at all. Parts left out: no ground or things on it 23 to 32; **nothing
+drawn at all 19 to 28**. So nearly half a frame was paid with an empty picture, and no
+saving and no resolution step could touch it. What that was, looked for in the code:
+1. **The last pass wrote the screen's 4.45 million pixels** whatever the picture's size
+   (tone map, grade, dither, beams, bloom mix: a long shader).
+2. **The shadow atlas was drawn whole every frame**: 6.3 million depth pixels cleared and
+   every rock and every tree's cut-out cards drawn into them.
+3. **The ground was drawn first** and shaded under everything that then covered it
+   (grass, trees, rocks), by the most expensive shader in the game.
+
+**What was done from it** (none of it measured on the phone yet):
+- `App.fitCanvas`: the canvas's own pixel size follows the picture's (four steps), the
+  browser scales it to the screen; the last pass writes the picture's pixels only.
+- `nearShadow`: the tiles are drawn in turns (the figure's every frame, the fine one
+  every other, the wide one every fourth; all of them at Sharp's 30 fps), each kept
+  where it was drawn; `npm run shadowturns` holds it to the same picture.
+- Draw order: grass and leaves, trees, rocks and lander, the ground last.
+- Trees cast their shadows as their next simpler mesh (`set.cast` in `trees.js`): the
+  shadow pass was drawing every spray of every tree within 150 m (some 300 000 triangles
+  of cut-outs in a closed forest, as many again as the view).
+- The cost test leaves more parts out (the shadow maps, the ground's shading, the last
+  pass at the picture's size) and sets each against a baseline taken just before it.
+- **To watch for in the next results**: late frames in a rhythm of four (frame lengths
+  2, 2, 2, 4 refreshes) would be the wide shadow tile's turn: then draw its trees as
+  their far meshes (6 triangles each) in that tile. And the line "the ground's shading"
+  says whether the ground's shader is the next thing to cut.
+
+**What the owner asked for** (with the results, and eight reference pictures): keep
+working on the performance; far things should look good; *"I want the ground to be
+loaded in when I'm super high in the sky"*; the water needs a lot of work: waves and
+tide; rain a lot denser; clouds that change a lot more, like an actual storm; trees
+closer to the references.
+
+**Built for it** (the sixth painted delivery):
+- **From high up**: patches split sooner from 1.2 km (it was from 30 km), growing to the
+  full 2.2 at 150 km, so that about as many patches are in view at every height as from
+  the ground (the first try, full by 12 km, drew 177 patches and 675 000 triangles from
+  12 km where 73 had been: more than the ground view itself). Between 2 and 30 km the
+  ground under the traveller was a blur on the phone. The
+  land-cover colours are laid on softly (a class's edge fades over three pixels): from
+  40 km and more the land was a mosaic of 600 m blocks.
+- **Far forest**: the canopy beyond the trees is up to its height where the last trees
+  stand (from above there was a brown ring of bare ground between the two), is lit by
+  the sides of its crowns as trees are, and stands in the same air (`forestAir`).
+- **Tide**: the sea falls and rises twice a day by the Moon's and the Sun's real places
+  (springs and neaps), up to about 3 m on Earth; the beach it leaves is drawn as wet
+  sand at its own depth, with a wash at the water's edge; the character wades by it.
+  Waves: the smallest waves are half again as tall (`waveScale` at least 0.45), they
+  lift the water at every governor level, and in wind the far sea is streaked white to
+  the horizon. A strip of dry sand stands above high water. The dark specks on the sea
+  off low shores were grass: tufts that are not there were drawn with no height, and a
+  blade of no height still lands on a pixel now and then; they are thrown out of the
+  picture now (which also spares the phone their triangles wherever grass is thin).
+- **Rain** four times as dense (5 600 streaks), each a strip with a width of its own
+  (they were one-pixel lines: on the phone the heaviest rain was a few scratches, and a
+  bug drew one streak in twelve right across the box), a third of them close round the
+  eye, lit by the sky it falls from (lit by a share of the Sun's light it was as bright
+  as the scene behind it: unseen); and rain hides what is far (`rainVeil`), the sky too.
+- **Storms come in squalls**: bursts of rain and wind every minute or two, a darker
+  sky, lightning sooner; in a storm the clouds are denser, drift up to 55 m/s and
+  change shape up to thirteen times as fast.
+- **Trees**: every bunch of sprays has a dark heart and every tier of a fir a dark
+  skirt (a crown is a mass with a cut edge, not a lace); firs a third narrower with more
+  boughs; a cold green for conifers and a warm one for broad leaves; furrowed bark near
+  by; row behind row of trees paler in the wood's air.
+
+**Pictures of this delivery** (`docs/shots/`, 660 x 309, taken from frozen builds while it
+was made): `earth_hurricane_rain.png` (60 m over the sea in Irma's eye wall),
+`delivery6_storm_before_after.png` (the same view before: the rain was a few scratches),
+`earth_beach_tide_rain.png` (a lagoon at Cape Canaveral, the tide part out),
+`earth_forest_inside_6.png` and `earth_forest_far_6.png` (the Kaibab Plateau's forest at
+36.3 N 247.9 E, from inside and from 45 m over it),
+`delivery6_far_forest_before_after.png` (the far forest before, at another place, with
+its brown ring), `earth_from_40km.png`. For a picture inside a forest use that place:
+`lat=36.3&lon=247.9&heading=0&pitch=2&t=3` (no `alt`: `alt` is height above the datum,
+not above the ground; over it: `alt=2685`). The cost view called "in the forest"
+(36.2 N 247.94 E) looks out over a canyon.
 
 ## The owner's sixth phone results (build c51fae1) and the third painted delivery
 

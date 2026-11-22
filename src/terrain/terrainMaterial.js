@@ -43,6 +43,7 @@ uniform vec3 uShell;         // the forest raised as a whole: from x to y metres
 out float vShell;            // how much of the canopy stands here (0: none, the ground is the ground)
 uniform vec4 uWind;          // xyz: where the wind blows to (unit, planet axes), w: its speed (m/s)
 uniform vec3 uWave;          // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
+uniform vec2 uTide;          // x: the sea's level against the level its shore is mapped at (m, 0 or below: the map is the highest tide)
 ${WAVE_GLSL}
 out vec2 vGrid;
 out float vMorph;            // 0 = this chunk's own shape and shading, 1 = its parent's
@@ -84,23 +85,42 @@ void main() {
       float k = smoothstep(uShell.x, uShell.y, length(rel)) * smoothstep(2.0, 4.0, pv.w - uSea.y * uSea.x + 4.0 * (1.0 - uSea.x));
       // (no forest on rock faces: the land-cover map's pixels are 600 m wide and know
       // nothing of a cliff inside them; and none on water)
-      vec4 nv = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 1.0);
-      k *= smoothstep(0.80, 0.93, dot(normalize(nv.xyz), up)) * (1.0 - step(1.02, nv.a));
-      // (crowns: a whole number of them across the detail tile, so patches agree)
-      float crowns = 0.72 + 0.14 * (sin(6.2831853 * (5.0 * vDetailUv.x + 3.0 * vDetailUv.y)) + sin(6.2831853 * (-4.0 * vDetailUv.x + 7.0 * vDetailUv.y)));
+      // (the slope over about a hundred metres, whatever the patch's size, from a coarse
+      // level of the normal map: a small steep spot on a wooded hillside is not a cliff, and
+      // each one was a pit in the canopy. Patches of different detail then ask about the same
+      // stretch of ground along their shared edge; what difference is left their skirts hide.)
+      vec4 nv = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), clamp(log2(187.0 / max(aI2.z, 1.0)), 1.0, 5.0));
+      k *= smoothstep(0.78, 0.92, dot(normalize(nv.xyz), up)) * (1.0 - step(1.02, textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 1.0).a));
+      // (crowns: a whole number of them across the detail tile, so patches agree; only near
+      // enough that a patch's vertices can carry them: on the far patches the bumps fell
+      // between the vertices and came out as stripes down every hillside. By distance,
+      // not by patch: neighbours of different detail must agree along their edge.)
+      float crowns = 0.72 + 0.14 * (1.0 - smoothstep(160.0, 380.0, length(rel))) * (sin(6.2831853 * (5.0 * vDetailUv.x + 3.0 * vDetailUv.y)) + sin(6.2831853 * (-4.0 * vDetailUv.x + 7.0 * vDetailUv.y)));
       vShell = k * smoothstep(0.5, 5.0, tall);
       rel += up * (tall * crowns * k);
       vRel = rel;
     }
   }
-  if (uSea.x > 0.5 && uWave.y > 0.5 && aI2.z < 2.5) {
-    // Open water rises and falls with its waves (the long ones, where the mesh is fine
-    // enough to carry them; none at the shore, where the water is shallow).
+  // (asked only by vertices that can need it: near the sea's level and near the traveller
+  // for the tide, in the finest patches for the waves)
+  float far = length(rel);
+  if (uSea.x > 0.5 && aI2.z < 20.0 && ((uTide.x < 0.0 && pv.w - uSea.y < 6.0 && far < 1000.0) || (uWave.y > 0.5 && aI2.z < 2.5))) {
     float wa = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 0.0).a;
-    // (by distance, not by patch: neighbours of different detail must agree along their edge)
-    float deep = clamp((wa - 1.15) / 1.5, 0.0, 1.0) * (1.0 - smoothstep(160.0, 420.0, length(rel)));
-    deep *= 1.0 - 0.88 * smoothstep(2.0, 6.0, pv.w - uSea.y);          // (lakes and rivers: small waves)
-    if (deep > 0.0) rel += up * (wave(vDetailUv, uWave.z, vec2(dot(uWind.xyz, vTanU), dot(uWind.xyz, vTanV)), uWave.x, ${LIFTED}).z * deep);
+    float inland = smoothstep(2.0, 6.0, pv.w - uSea.y);
+    // The tide: the sea stands uTide.x metres under the level its shore is mapped at. Its
+    // surface comes down to that; where the water was shallower, the bed it leaves bare
+    // is drawn at its own depth: the beach slopes down to the water's new edge. The sea
+    // only, not lakes and rivers; and near the traveller only (by distance, not by patch:
+    // neighbours of different detail must agree along their edge).
+    float mapped = max(wa - 1.0, 0.0), drop = min(mapped, -uTide.x * (1.0 - inland));
+    rel -= up * (drop * (1.0 - smoothstep(400.0, 1000.0, far)));
+    if (uWave.y > 0.5 && aI2.z < 2.5) {
+      // Open water rises and falls with its waves (the long ones, where the mesh is fine
+      // enough to carry them; none at the shore, where the water is shallow).
+      float deep = clamp((mapped - drop - 0.15) / 1.5, 0.0, 1.0) * (1.0 - smoothstep(160.0, 420.0, far));
+      deep *= 1.0 - 0.8 * inland;          // (lakes and rivers: small waves)
+      if (deep > 0.0) rel += up * (wave(vDetailUv, uWave.z, vec2(dot(uWind.xyz, vTanU), dot(uWind.xyz, vTanV)), uWave.x, ${LIFTED}).z * deep);
+    }
     vRel = rel;
   }
   vChunk = vec4(aI2.w, aI3.x, aI2.z, 0.0);
@@ -197,6 +217,8 @@ flat in vec3 vTanU;
 flat in vec3 vTanV;
 flat in vec4 vChunk;           // x = layer, y = parent's layer (-1: none), z = extent in tiles of DETAIL_TILE metres
 flat in vec2 vParentOff;       // this chunk's corner inside the parent (0 or 0.5)
+uniform vec2 uTide;          // x: the sea's level against the level its shore is mapped at (m, 0 or below)
+uniform float uPlain;        // 1: the ground in one flat tone (the benchmark's cost test: its shading apart from its triangles)
 layout(location = 0) out vec4 fragColor;
 
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
@@ -211,6 +233,7 @@ float coverLevel(float c) {
 ${ALBEDO_RANGE_GLSL}
 
 void main() {
+  if (uPlain > 0.5) { fragColor = vec4(vec3(0.05), 1.0); return; }
   vec3 uTanU = vTanU, uTanV = vTanV;
   vec4 nt = texture(tNormal, vec3((vGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), vChunk.x));
   float shadow = texture(tShadow, vec3((vGrid * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1), vChunk.x)).r;
@@ -289,6 +312,7 @@ void main() {
   // --- the world's real large-scale brightness and colour: maria, rays, dark sands
   float canopyTall = 0.0;        // how tall the trees stand here (m; from the land-cover picture)
   float canopyShade = 0.0;       // how much of the sky a closed canopy hides from the ground here
+  float woodAir = 0.0;           // how much this is forest (its floor, or its canopy far off): for the air of a wood
   vec3 mapTint = vec3(1.0);
   float mapW = 0.0;
   if (uAlbedoMap.w > 0.0) {
@@ -388,6 +412,7 @@ void main() {
   // as a whole (far off) the surface is its canopy: leaves, uneven, darker between crowns
   if (canopyTall > 0.3) {
     float wooded = smoothstep(0.5, 5.0, canopyTall) * flatW;
+    woodAir = max(vShell, smoothstep(5.0, 14.0, canopyTall) * flatW);
     {
       // open country is grass in patches; under a closed canopy it is litter and shade
       vec3 g1 = texture(tDetail, vDetailUv * 0.5).rgb, g2 = texture(tDetail, vDetailUv * 4.0).rgb;
@@ -410,6 +435,9 @@ void main() {
       vec3 c1 = texture(tDetail, vDetailUv * 5.0).rgb - 0.5, c2 = texture(tDetail, vDetailUv * 1.0).rgb - 0.5;
       float nearC = 1.0 - smoothstep(0.03, 0.5, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
       N = normalize(N + (uTanU * (c1.r + 0.7 * c2.r) + uTanV * (c1.g + 0.7 * c2.g)) * (1.6 * vShell * nearC));
+      // (a canopy seen from the side shows the sides of its crowns: lit with the Sun behind
+      // the eye, dark against it, as the trees drawn one by one are; from straight above, its top)
+      N = normalize(N + (V - up * dot(V, up)) * (1.1 * vShell));
       vec3 leaves = vec3(0.040, 0.078, 0.028) * mix(vec3(1.0), mapTint, 0.6) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
       // (in their season, in patches: the trees that turn among those that do not)
       leaves = mix(leaves, mix(vec3(0.17, 0.10, 0.02), vec3(0.13, 0.035, 0.015), smoothstep(-0.1, 0.25, c1.r)) * (0.8 + 0.6 * (c2.b + 0.5)), uLitter * 0.85 * smoothstep(-0.12, 0.1, c2.r + 0.5 * c1.g));
@@ -437,6 +465,25 @@ void main() {
     albedo *= mix(vec3(1.0), mix(vec3(0.85, 0.90, 0.85), vec3(1.15, 1.11, 1.0), lay), uPaint.x * (1.0 - farW) * flatW * smoothstep(60.0, 400.0, length(vRel)));
   }
 
+  // --- the tide, and the wash of the waves up the shore. The map's shore is the highest
+  // tide; the sea stands uTide.x under it (the Moon's and the Sun's pull, worked out for
+  // the place and the hour: App.updateTide), and every wave runs a little way up the
+  // beach and back. Sand the water has left is dark and wet. The sea only.
+  // (the beach: the strip of ground that stands a step above high water is sand, pale and dry)
+  if (uSea.x > 0.5 && waterDepth <= 0.0) { float hb = vHeight - uSea.y; if (hb < 0.9 && hb > -0.5) albedo = mix(albedo, vec3(0.40, 0.34, 0.24), (1.0 - smoothstep(0.3, 0.9, hb)) * flatW); }
+  if (uSea.x > 0.5 && waterDepth > 0.0) {
+    float seaK = 1.0 - smoothstep(2.0, 6.0, vHeight - uSea.y);
+    if (seaK > 0.0) {
+      float left = waterDepth + uTide.x * seaK;
+      float ph = texture(tDetail, vDetailUv * 0.37).b;
+      // (only at the water's edge: a hand's depth in a calm, knee-deep in a storm)
+      left += (0.07 + 0.16 * uWave.x) * sin(uWave.z * 0.85 + 12.566 * ph) * seaK * (1.0 - smoothstep(0.0, 1.0, abs(left)));
+      float bared = (1.0 - smoothstep(0.0, 0.03, left)) * smoothstep(0.0, 0.05, waterDepth);
+      waterDepth = max(left, 0.0);
+      if (bared > 0.0) { albedo = mix(albedo, vec3(0.21, 0.175, 0.12), bared); ao = mix(ao, 1.0, bared); N = normalize(mix(N, up, 0.7 * bared)); }
+    }
+  }
+
   // --- water: dark, moving, shining; its colour by how deep it is
   float water = uSea.x > 0.5 ? smoothstep(0.02, 0.22, waterDepth) : 0.0;
   float foam = 0.0, waveRough = 0.0;
@@ -450,7 +497,7 @@ void main() {
     float mpp = fw * float(DETAIL_TILE);
     int nw = ${WAVE_STEPS.map(([n, len]) => `mpp < ${(len / 5).toFixed(2)} ? ${n} : `).reverse().join('')}0;
     float inland = smoothstep(2.0, 6.0, vHeight - uSea.y);                  // lakes and rivers: small waves
-    vec3 wv = wave(vDetailUv, uWave.z, wind2, uWave.x * shoal * (1.0 - 0.88 * inland), nw);
+    vec3 wv = wave(vDetailUv, uWave.z, wind2, uWave.x * shoal * (1.0 - 0.8 * inland), nw);
     waveRough = uWave.x * 0.5 * smoothstep(0.02, 0.3, fw);
     vec2 drift = uWave.z * vec2(0.011, 0.006);
     vec3 r1 = texture(tDetail, vDetailUv * 3.0 + drift).rgb - 0.5, r2 = texture(tDetail, vDetailUv * 13.0 - drift * 2.3).rgb - 0.5;
@@ -466,6 +513,10 @@ void main() {
     float band = smoothstep(0.62, 0.97, sin(6.2831853 * (waterDepth / (0.45 + 0.5 * uWave.x) + lace * 0.9) + uWave.z * 1.1)) * inshore * smoothstep(0.25, 0.55, lace + 0.35 * inshore);
     float edge = 1.0 - smoothstep(0.0, 0.10 + 0.08 * lace, waterDepth);
     foam = clamp(max(max(edge, band) * (1.0 - 0.85 * inland), crest), 0.0, 1.0) * water * near;
+    // (far off, where no single crest is seen: the share of the sea that is white in this
+    // wind, in streaks; a gale's sea is grey-white to the horizon, not a blue sheet)
+    float white = clamp(3.84e-6 * pow(max(uWind.w, 0.0), 3.41), 0.0, 0.45) * (1.0 - inland);
+    if (white > 0.004) foam = max(foam, white * smoothstep(0.3, 0.7, texture(tDetail, vDetailUv * 1.3 - drift * 2.0).b + 0.3 * white) * water * (1.0 - 0.7 * near));
     // colour: light goes down to the bed and comes back, red lost first; what is left of
     // it shows the bed (pale sand), the rest is the water's own blue
     vec3 through = exp(-vec3(0.42, 0.07, 0.035) * (waterDepth * 2.3));
@@ -517,6 +568,7 @@ void main() {
     col += directSun(planetPos) * shadow * (gl * (1.0 - farW) * a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0));
     if (wetK > 0.0) { vec3 Rw = reflect(-V, N); Rw = normalize(Rw + up * max(0.0, 0.05 - dot(Rw, up))); col += wetK * flatW * 0.5 * pow(1.0 - max(dot(N, V), 0.0), 4.0) * skyLight(Rw, up) / PI; }
   }
+  if (woodAir > 0.0) col = forestAir(col, vRel, up, woodAir);
   col = aerialPerspective(col, vRel, albedo);      // the haze above depends on how bright the ground is
   fragColor = vec4(col * uExposure, 1.0);
 }`;
@@ -533,6 +585,7 @@ export function makeTerrainShared(world, textures) {
     uCover: { value: new THREE.Vector4() },
     // w: the cover pattern (d0.a + 0.3 d1.a) is about normal; logistic scale = its spread / 1.702
     uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
+    uPlain: { value: 0 }, uTide: { value: new THREE.Vector2(0, 0) },
     uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) },
     tRingColour: { value: textures.white }, uRingColour: { value: new THREE.Vector4(0, 0, 1, 0) },
     tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoShift: { value: 0 }, uAlbedoSteep: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },

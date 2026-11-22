@@ -253,7 +253,7 @@ export class Terrain {
 
     // Telephoto needs detail further away; fewer chunks are in view, so the budget holds.
     const zoom = Math.min(6, Math.tan(CONFIG.DEFAULT_FOV * Math.PI / 360) / Math.tan(rig.fov * Math.PI / 360));
-    const hx = Math.min(1, Math.max(0, (Math.log10(Math.max(1, rig.agl)) - Math.log10(CONFIG.SPACE_BOOST_ALT * 0.1)))), space = 1 + (CONFIG.SPLIT_SPACE_BOOST - 1) * hx * hx * (3 - 2 * hx);
+    const hx = Math.min(1, Math.max(0, Math.log(Math.max(1, rig.agl) / CONFIG.SPACE_BOOST_FROM) / Math.log(CONFIG.SPACE_BOOST_ALT / CONFIG.SPACE_BOOST_FROM))), space = 1 + (CONFIG.SPLIT_SPACE_BOOST - 1) * hx * hx;
     this.splitIn = CONFIG.SPLIT_FACTOR * this.lodScale * Math.max(1, zoom, space);
     this.splitOut = CONFIG.SPLIT_FACTOR_OFFSCREEN;
 

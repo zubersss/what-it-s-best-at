@@ -92,7 +92,9 @@ export default {
     sandBelow: -20000, sandFade: 1500,
     ripples: { wavelength: 1, strength: 0 },
     detailStrength: 0.25,
-    sea: { level: 0, color: [0.008, 0.030, 0.070], roughness: 0.10, ripples: 0.07 },
+    // tide: what pulls the sea, and how high each would raise an ocean covering the whole
+    // world (m); real shores make about three times as much of it (gain). App.updateTide.
+    sea: { level: 0, color: [0.008, 0.030, 0.070], roughness: 0.10, ripples: 0.07, tide: { by: [['moon', 0.36], ['sun', 0.16]], gain: 3 } },
     rocks: { count: 300, radius: 110, size: [0.3, 2.6], albedo: [0.22, 0.19, 0.165] },
   },
 
@@ -140,7 +142,7 @@ export default {
   // dense: how solid; change: how fast its shapes turn over; fair: fields of small heaps
   // where the day's map shows no cloud; clear: the cloud is thin this near the eye (m).
   clouds: { map: 'data/earth_clouds_4096.jpg', lon0: -180, altitude: 4500, cover: 0.45, shadow: 0.85,
-    volume: { base: 1400, thick: 3600, reach: 16000, above: 30000, scale: 4200, dense: 3.4, change: 0.006, fair: 0.44, clear: 120 } },
+    volume: { base: 1400, thick: 3600, reach: 16000, above: 30000, scale: 4200, dense: 3.4, change: 0.009, fair: 0.44, clear: 120 } },
 
   sky: { stars: { url: 'data/stars_bsc5.f32' } },
 

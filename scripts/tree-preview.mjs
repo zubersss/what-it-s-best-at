@@ -24,7 +24,7 @@ function draw(geo, img, W, ox, oy) {
   for (let t = 0; t < n; t++) {
     const o = t * 9, a = proj(P[o], P[o + 1], P[o + 2]), b = proj(P[o + 3], P[o + 4], P[o + 5]), c = proj(P[o + 6], P[o + 7], P[o + 8]);
     const leaf = L[t * 3], card = U[t * 6] >= 0, nls = [0, 1, 2].map((k) => N[o + k * 3] * sun[0] + N[o + k * 3 + 1] * sun[1] + N[o + k * 3 + 2] * sun[2]);
-    const flat = leaf < 0.5 ? [0.42, 0.33, 0.27] : leaf > 1.5 ? [0.3, 0.52, 0.18] : [0.18, 0.4, 0.15];
+    const flat = leaf < 0.5 ? [0.42, 0.33, 0.27] : leaf > 1.5 ? [0.3, 0.52, 0.18] : leaf > 1.1 ? [0.085, 0.19, 0.075] : [0.18, 0.4, 0.15];     // (1.25: the dark inside of a fir's tier)
     const x0 = Math.max(0, Math.floor(Math.min(a[0], b[0], c[0]))), x1 = Math.min(CW - 1, Math.ceil(Math.max(a[0], b[0], c[0])));
     const y0 = Math.max(0, Math.floor(Math.min(a[1], b[1], c[1]))), y1 = Math.min(CH - 1, Math.ceil(Math.max(a[1], b[1], c[1])));
     const den = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
@@ -39,7 +39,7 @@ function draw(geo, img, W, ox, oy) {
         // (a card: cut out of the picture; lit smoothly, as the game does)
         const a = sampleAtlas(ATLAS, u * U[t * 6] + v * U[t * 6 + 2] + w * U[t * 6 + 4], u * U[t * 6 + 1] + v * U[t * 6 + 3] + w * U[t * 6 + 5]);
         if (a[0] < 0.42) continue;
-        col = a[2] > 0.5 ? [0.36, 0.28, 0.23] : [0.2, 0.4, 0.17].map((c) => c * (0.6 + 0.5 * a[1]));
+        col = a[2] > 0.5 ? [0.36, 0.28, 0.23] : [0.2, 0.4, 0.17].map((c) => c * (0.6 + 0.5 * a[1]) * (leaf > 3.1 && leaf < 3.5 ? 0.5 : 1));     // (3.25: a crown's dark heart)
       }
       const lit = card ? 0.5 + 0.6 * Math.min(1, Math.max(0, (nl + 0.25) / 0.9)) : nl > 0.12 ? 1 : 0.5;
       zb[i] = z;

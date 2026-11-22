@@ -95,6 +95,9 @@ async function coverOf(m, W, out) {
   const classOf = look(pal.cover), heightOf = look(pal.canopy);
   const paint = m.cover.colours ? (m.cover.paint ?? 0) : 0;
   const cls = new Uint8Array(W * W), tall = new Uint8Array(W * W), closed = new Uint8Array(W * W);        // class, canopy height (0.25 m), how closed (0..255)
+  // (the paint is laid on softly: with each pixel drawn toward its own class's colour, the
+  // land seen from the air was a mosaic of 600 m blocks. pa: red, green, blue, weight.)
+  const pa = paint ? new Float32Array(W * W * 4) : null;
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const c = ct[j * n + i].data, hd = ht ? ht[j * n + i].data : null;
     for (let y = 0; y < TILE; y++) for (let x = 0, q = y * TILE * 4, o = (j * TILE + y) * W + i * TILE; x < TILE; x++, q += 4, o++) {
@@ -110,8 +113,17 @@ async function coverOf(m, W, out) {
       out[o * 4 + 3] = Math.min(255, Math.round(h * dens * 5));
       // (the painted look: the land's colour drawn toward its class's own, m.cover.paint of the way)
       const pc = paint && m.cover.colours[k];
-      if (pc) { const q4 = o * 4; out[q4] += (pc[0] - out[q4]) * paint; out[q4 + 1] += (pc[1] - out[q4 + 1]) * paint; out[q4 + 2] += (pc[2] - out[q4 + 2]) * paint; }
+      if (pc) { const q4 = o * 4; pa[q4] = pc[0]; pa[q4 + 1] = pc[1]; pa[q4 + 2] = pc[2]; pa[q4 + 3] = 1; }
     }
+  }
+  if (pa) {
+    // two passes of 1-2-1 each way: a class's edge fades over some three pixels
+    const tmp = new Float32Array(W * W * 4);
+    for (let pass = 0; pass < 2; pass++) {
+      for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) { const o = (y * W + x) * 4, l = (y * W + Math.max(0, x - 1)) * 4, r = (y * W + Math.min(W - 1, x + 1)) * 4; for (let c = 0; c < 4; c++) tmp[o + c] = 0.25 * pa[l + c] + 0.5 * pa[o + c] + 0.25 * pa[r + c]; }
+      for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) { const o = (y * W + x) * 4, u = (Math.max(0, y - 1) * W + x) * 4, d = (Math.min(W - 1, y + 1) * W + x) * 4; for (let c = 0; c < 4; c++) pa[o + c] = 0.25 * tmp[u + c] + 0.5 * tmp[o + c] + 0.25 * tmp[d + c]; }
+    }
+    for (let o = 0; o < W * W; o++) { const q4 = o * 4, w = pa[q4 + 3]; if (w > 0.004) { const k = paint * w; out[q4] += (pa[q4] / w - out[q4]) * k; out[q4 + 1] += (pa[q4 + 1] / w - out[q4 + 1]) * k; out[q4 + 2] += (pa[q4 + 2] / w - out[q4 + 2]) * k; } }
   }
   return { cls, tall, closed };
 }

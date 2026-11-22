@@ -84,6 +84,10 @@ const GRASS_VERT = /* glsl */`
     float dist = length(rel2);
     // (out to nothing at the edge of the box; thinner where the map has less grass, tuft by tuft)
     float keep = step(h.y, g.g * 1.15) * (1.0 - smoothstep(0.36 * BOX, 0.48 * BOX, dist));
+    // (no tuft here: out of the picture altogether. Left in, a blade of no height is a
+    // sliver lying on the ground that still lands on a pixel now and then: a sprinkle of
+    // dark specks on water, sand and rock, wherever there is no grass.)
+    if (keep <= 0.0) { vRel = vec3(0.0); vAlb = vec4(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
     // (stretches of taller and shorter, greener and drier grass, some metres across)
     float lie = sin(at.x * 0.13 + 2.0 * sin(at.y * 0.071)) * sin(at.y * 0.11 + 1.7 + 1.5 * sin(at.x * 0.053));
     float tall = (0.24 + 0.34 * h2.x) * (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) * (0.85 + 0.3 * lie) * keep;
@@ -209,7 +213,7 @@ export class Grass {
     this.fraction = 1; this.time = 0;
   }
 
-  setWorld(world) { this.def = world.life?.grass || null; this.has = false; this.mesh.visible = false; }
+  setWorld(world) { this.def = world.life?.grass || null; this.has = false; this.mesh.visible = false; this.seaLevel = world.surface.sea ? (world.surface.sea.level ?? 0) : null; }
 
   // The governor: draw this share of the tufts.
   setFraction(f) { this.fraction = f; for (const fl of this.fields) fl.geo.instanceCount = Math.round(fl.all * Math.min(1, f)); }
@@ -223,7 +227,10 @@ export class Grass {
     const hs = this.terrain.hs, A = this.anchor, e = this._e, n = this._n, d = this._d, x = i * CELL, y = j * CELL;
     d[0] = A.x + e[0] * x + n[0] * y; d[1] = A.y + e[1] * x + n[1] * y; d[2] = A.z + e[2] * x + n[2] * y;
     const l = Math.hypot(d[0], d[1], d[2]); d[0] /= l; d[1] /= l; d[2] /= l;
-    const h = hs.height(d[0], d[1], d[2], 2.5), wet = hs.waterDepth > 0, slope = hs.baseSlope, cover = hs.coverAt ? hs.coverAt(d[0], d[1], d[2]) : -1;
+    // (wet: in water, or no higher than the sea's level, as the rocks ask: radar elevation has
+    // the sea at exactly zero near land, with no depth to tell it by, and tufts and flowers
+    // stood on the water off every low shore)
+    const h = hs.height(d[0], d[1], d[2], 2.5), wet = hs.waterDepth > 0 || (this.seaLevel != null && h <= this.seaLevel + 0.3), slope = hs.baseSlope, cover = hs.coverAt ? hs.coverAt(d[0], d[1], d[2]) : -1;
     const cls = cover < 0 ? 0 : cover & 255, closed = cover < 0 ? 0 : (cover >> 16) / 255;
     // (none in water or on rock faces, thin under a closed canopy)
     let amount = wet ? 0 : (AMOUNT[cls] || 0) * (slope > 0.75 ? 0 : slope > 0.4 ? 1 - (slope - 0.4) / 0.35 : 1) * (1 - 0.4 * closed);

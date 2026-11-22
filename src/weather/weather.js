@@ -20,6 +20,7 @@ export class Weather {
     this.def = null; this.maps = {}; this.storms = []; this.epoch = 0;
     this.wind = new THREE.Vector3(1, 0, 0); this.windSpeed = 5;
     this.rain = 0; this.snow = 0; this.wet = 0; this.sunShade = 1; this.skyShade = 1; this.top = 0; this.cover = 0; this.temp = 15;
+    this.squall = 0; this.storminess = 0; this.veil = 0;
     this.flash = null;                       // { dir: Vector3 (from the camera, unit), dist (m), power, age (s), ground (bool) }
     this.flashLight = new THREE.Vector3(); this.nextFlash = 3; this.thunder = [];         // thunder on its way: { at (s), power, dist }
     this.storm = null;                       // the nearest named storm: { name, dist (m) }
@@ -30,7 +31,7 @@ export class Weather {
   setWorld(world) {
     this.epoch++;
     this.def = world.weather || null; this.maps = {}; this.storms = []; this.radius = world.radius; this.world = world;
-    this.rain = this.snow = this.wet = 0; this.sunShade = this.skyShade = 1; this.flash = null; this.thunder.length = 0; this.flashLight.set(0, 0, 0);
+    this.rain = this.snow = this.wet = 0; this.squall = this.storminess = this.veil = 0; this.sunShade = this.skyShade = 1; this.flash = null; this.thunder.length = 0; this.flashLight.set(0, 0, 0);
     this.shadow = world.clouds?.shadow ?? 0.6;                 // (how dark this world's cloud shadow is: the ground's own number)
     if (!this.def || typeof document === 'undefined') return;
     const epoch = this.epoch, base = import.meta.env.BASE_URL;
@@ -84,14 +85,22 @@ export class Weather {
   // sunE: the Sun's irradiance in the game's units (a stroke is measured against it).
   update(rig, dt, sunDir, day = 180, sunE = 1) {
     this.time += dt;
-    if (!this.def) { this.windSpeed = 0; return; }
+    if (!this.def) { this.windSpeed = 0; this.veil = 0; return; }
     const p = rig.pos, len = p.length(), lat = Math.asin(p.z / len) / RAD, lon = Math.atan2(p.y, p.x) / RAD, alt = len - this.radius;
     localFrame([p.x, p.y, p.z], this._e, this._n, this._u);
     // --- wind (with gusts of its own)
     const w = this.windAt(lat, lon, this._w || (this._w = [0, 0]));
     // (pictures are still: no gusts, no showers passing, everything at its settled value)
     const still = !!this.quiet; if (still) dt = 1e3;
-    const gust = still ? 1 : 1 + 0.18 * Math.sin(this.time * 0.37) * Math.sin(this.time * 0.11 + 1.3) + 0.08 * Math.sin(this.time * 1.9);
+    // Squalls: hard weather comes in bursts. A band of the storm passes every minute or so:
+    // the rain doubles, the wind rises with it, the cloud comes down darker, and then it
+    // eases. (How hard the day's map says it rains here decides how much of this there is:
+    // a drizzle has none.)
+    const rate0 = this.rainAt(lat, lon), hard = Math.min(1, Math.max(0, (rate0 - 1.5) / 9));
+    const burst = (period, phase) => { const x = 0.5 + 0.5 * Math.sin(this.time * 6.2831853 / period + phase); return x * x * x; };
+    const squall = still ? 0.35 * hard : hard * Math.min(1, 0.75 * burst(64, lon * 7) + 0.55 * burst(151, lat * 5 + 2));
+    this.squall = squall;
+    const gust = still ? 1 : 1 + 0.18 * Math.sin(this.time * 0.37) * Math.sin(this.time * 0.11 + 1.3) + 0.08 * Math.sin(this.time * 1.9) + 0.4 * squall;
     const sp = Math.hypot(w[0], w[1]) * gust;
     this.windSpeed += (sp - this.windSpeed) * Math.min(1, dt * 0.8);
     const il = 1 / Math.max(1e-3, Math.hypot(w[0], w[1]));
@@ -106,14 +115,21 @@ export class Weather {
     } else { const a = this.time * 2.4, r = 8000 + 42000 * ((this.time * 0.37) % 1), t2 = this.topAt(lat + Math.cos(a) * r / 111200, lon + Math.sin(a) * r / (111200 * Math.max(0.2, Math.cos(lat * RAD))));
       this.topNear = Math.max(top, t2, (this.topNear || 0) - 150 * dt); }
     const under = alt < Math.max(top, 2500) ? 1 : 0;           // (above the cloud it does not rain)
-    // (the map is the day's mean; a shower comes and goes round it)
-    const now = rate * under * (still ? 1 : 0.7 + 0.5 * Math.sin(this.time * 0.05 + lon) * Math.sin(this.time * 0.023 + lat));
+    // (the map is the day's mean; a shower comes and goes round it, and a squall doubles it)
+    const now = rate * under * (still ? 1 + 0.6 * squall : 0.6 + 0.35 * Math.sin(this.time * 0.05 + lon) * Math.sin(this.time * 0.023 + lat) + 1.5 * squall);
+    // How much of a storm this is (0: none, 1: the eye wall of a hurricane): by the rain,
+    // the wind and how deep the cloud stands. The clouds, the sea and the lightning take it.
+    const st = Math.min(1, Math.max(rate / 14, (this.windSpeed - 13) / 30, (top - 7500) / 7000, 0)) * under;
+    this.storminess = this.storminess == null || still ? st : this.storminess + (st - this.storminess) * Math.min(1, dt * 0.4);
     // (colder with height as far as the air goes on cooling, 11 km; with latitude; with the season)
     this.temp = 28 - 0.0065 * Math.min(alt, 11000) - 0.5 * Math.max(0, Math.abs(lat) - 18) - 9 * Math.cos((day - 15) / 365.25 * 2 * Math.PI + (lat < 0 ? Math.PI : 0)) * Math.min(1, Math.abs(lat) / 45);
     const cold = Math.min(1, Math.max(0, (1.5 - this.temp) / 3));
     this.rain += (now * (1 - cold) - this.rain) * Math.min(1, dt * 0.5);
     this.snow += (now * cold - this.snow) * Math.min(1, dt * 0.5);
     this.wet += ((this.rain > 0.15 ? 1 : 0) - this.wet) * Math.min(1, dt * (this.rain > 0.15 ? 0.08 + 0.05 * this.rain : 0.01));
+    // (what falls hides what is far: a share of the view a metre; snow hides twice as well)
+    // (moderate rain, 6 mm an hour: one sees some 6 km; a cloudburst of 50: one)
+    this.veil = Math.min(0.0045, 0.00014 * Math.pow(this.rain + 2 * this.snow, 0.85));
     if (still) this.topNear = 0;                             // (looked for afresh below, the same every frame)
     // --- shade: the cloud between the traveller and the Sun, and over the sky
     let shade = 1, sky = 1;
@@ -126,7 +142,7 @@ export class Weather {
       // the trees must stand in the light the ground under them is in)
       const k = (x, a, b) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
       shade = 1 - this.shadow * k(c2, 0.2, 0.7);
-      sky = 1 - 0.6 * k(cover, 0.35, 0.8) * Math.min(1, 0.55 + rate * 0.15);
+      sky = (1 - 0.6 * k(cover, 0.35, 0.8) * Math.min(1, 0.55 + rate * 0.15)) * (1 - 0.3 * squall);       // (darker as a squall passes)
     }
     this.sunShade += (shade - this.sunShade) * Math.min(1, dt * 1.5);
     this.skyShade += (sky - this.skyShade) * Math.min(1, dt * 1.5);
@@ -145,7 +161,7 @@ export class Weather {
       this.flash = { dir: v.divideScalar(d3), dist: d3, power: 1, age: 0.02, ground: true, east: 2000, north: 2200, seed: 0.3 };
     } else if (this.quiet) { this.flash = null; }
     else if (this.nextFlash <= 0) {
-      this.nextFlash = 2 + Math.random() * 6;
+      this.nextFlash = (2 + Math.random() * 6) * (1 - 0.6 * squall);       // (more of it in a squall)
       // look round for the hardest rain within 40 km: that is where it strikes
       let best = 0, bl = 0, bo = 0;
       for (let k = 0; k < 10; k++) {

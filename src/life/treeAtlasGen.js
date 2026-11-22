@@ -191,8 +191,9 @@ export function addImpostors(A, geos) {
         const qx = x + 0.5, qy = y + 0.5, u = ((b[1] - c[1]) * (qx - c[0]) + (c[0] - b[0]) * (qy - c[1])) / den, w = ((c[1] - a[1]) * (qx - c[0]) + (a[0] - c[0]) * (qy - c[1])) / den, r = 1 - u - w;
         if (u < 0 || w < 0 || r < 0) continue;
         const z = u * a[2] + w * b[2] + r * c[2], i = y * W + x; if (z <= zb[i]) continue;
-        let tn = leaf < 0.5 ? 0.8 : 0.85, wd = leaf < 0.5 ? 1 : 0;
-        if (card) { const s = sampleAtlas(A, u * ua[0] + w * ub[0] + r * uc[0], u * ua[1] + w * ub[1] + r * uc[1]); if (s[0] < 0.42) continue; tn = s[1]; wd = s[2] > 0.5 ? 1 : 0; }
+        // (the dark inside of a crown, 1.25 and 3.25 in treeGeometry.js, is dark in the picture too)
+        let tn = leaf < 0.5 ? 0.8 : leaf > 1.1 && leaf < 1.5 ? 0.3 : 0.85, wd = leaf < 0.5 ? 1 : 0;
+        if (card) { const s = sampleAtlas(A, u * ua[0] + w * ub[0] + r * uc[0], u * ua[1] + w * ub[1] + r * uc[1]); if (s[0] < 0.42) continue; tn = s[1] * (leaf > 3.1 && leaf < 3.5 ? 0.4 : 1); wd = s[2] > 0.5 ? 1 : 0; }
         // (what is nearer the eye a little lighter: the tree keeps some depth when it is flat)
         zb[i] = z; cov[i] = 1; tone[i] = tn * (0.82 + 0.18 * Math.min(1, Math.max(0, z / 0.3 * 0.5 + 0.5))); wood[i] = wd;
       }

@@ -31,7 +31,7 @@ export function makeSkyDome() {
       ${ATMO_LUT_ACCESS}
       ${SKYVIEW_ACCESS}
       uniform mat3 uSkyFrame; uniform vec3 uSunLocal; uniform vec3 uSunIrradiance; uniform float uExposure; uniform float uSkyFade;
-      uniform vec3 uCamPlanetPos; uniform vec3 uSunDir; uniform vec4 uQuality;
+      uniform vec3 uCamPlanetPos; uniform vec3 uSunDir; uniform vec4 uQuality; uniform vec4 uWeather;
       in vec3 vDir; out vec4 outColor;
       void main() {
         vec3 rd = normalize(vDir);
@@ -54,6 +54,16 @@ export function makeSkyDome() {
               L += (Ls + Lm * phaseHG3(dot(rd, uSunDir), uMieG)) * (1.0 - uSkyFade);
             }
           }
+        }
+        // Rain between the eye and the sky hides it as it hides the land (rainVeil in the
+        // lighting chunk; uWeather.w a share a metre): through some 1 500 m of it overhead,
+        // through tens of kilometres toward the horizon, the sky is the rain's own grey.
+        // (A bright dawn sky showed through every gap in the cloud at the horizon, in the
+        // eye wall of a hurricane.)
+        if (uWeather.w > 0.0 && uSkyFade > 0.0) {
+          float se = dot(rd, normalize(uCamPlanetPos));
+          vec3 veil = skyRadianceLocal(vec3(0.0, 0.0, 1.0), uSunLocal, uMieG) * (0.7 * uWeather.y);
+          L = mix(veil, L, exp(-uWeather.w * min(1500.0 / max(se, 0.03), 40000.0)));
         }
         outColor = vec4(min(L * uSunIrradiance * uExposure, vec3(60000.0)), 0.0);
       }`,
