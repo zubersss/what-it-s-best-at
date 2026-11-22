@@ -22,7 +22,7 @@ owner's reply or phone results), `done`.
 | 8 | Things to do | done |
 | 9 | Earth's surface | done |
 | 10 | A living Earth (owner, with the fourth phone results): the whole planet in real detail, seas, lakes and rivers, real forests, clouds to fly through, weather | done |
-| 11 | The painted look (owner: a new art direction for the whole game, Earth and its forests first) | fourth delivery sent (Earth: trees rebuilt from their skeletons, grass and flowers, a full sky of clouds that keep their place, the land from the air, ground loaded ahead; 57 fps on the phone at the third); the other worlds to follow |
+| 11 | The painted look (owner: a new art direction for the whole game, Earth and its forests first) | fifth delivery sent (Earth: trees as cut-out foliage on a skeleton, far trees as silhouettes, grass and flowers, a full sky of clouds that keep their place, the land from the air, ground loaded ahead; 57 fps on the phone at the third); the other worlds to follow |
 
 ## 1. Phone link and measurement
 

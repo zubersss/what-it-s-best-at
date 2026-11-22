@@ -386,15 +386,23 @@ as before.
   traveller (written by `life/grass.js`).
 - **Tree shapes** (`life/treeGeometry.js`; `scripts/tree-preview.mjs` draws them all):
   eight shapes, each built three times over with other proportions (`VARIANTS`), each at
-  three distances: close (within 34 m), near (80 m), far. One builder a shape is called at
-  the three qualities with the same random numbers for the skeleton and others for the
-  leaves, so the three are the same tree. Pieces: `trunk` and `limb` (wood), `frond` (a
-  fir's bough), `spray` (a pine's needles), `cluster` (a ball of single leaves round a
-  dark heart), `lump` and `skirt` (the masses of the far meshes). `aLeaf`: 0 wood, 1 a
-  mass, 1.25 a dark heart, 2 a single leaf or needle (these flutter). Normals are flat
-  and lean outward from the middle of their bunch; a leaf seen from its under side is
-  darker. `life/leaves.js` sheds leaves in their season, in a gale (from every tree) and
-  when the traveller passes trees fast.
+  three distances: close (within 42 m), near (115 m), far. Trunk and limbs are tubes; the
+  foliage is flat cards, each showing a spray cut out of **the trees' picture**
+  (`public/data/tree_atlas.png`, drawn by rule in `life/treeAtlasGen.js`, laid out in
+  `life/treeAtlasLayout.js`, written by `scripts/make-tree-atlas.mjs`: three bytes a
+  pixel, cover, tone, wood). `aUv` says where in the picture (-1: a plain face); `aLeaf`:
+  0 wood, 1 and 2 plain leaves (a palm's fronds), 3 a card of foliage, 4 a whole tree's
+  card. A card's normals are not its own: every corner is given the direction from the
+  crown's middle and from its bunch's middle, so the crown is lit as one round mass. The
+  far mesh is the tree's own silhouette on two crossed cards (the picture holds every
+  shape and variant seen whole, rasterised from the near mesh) and a rosette lying in the
+  crown: six triangles. The fragment shader cuts a card out before anything else
+  (`discard` under 0.42 cover, less far off, where averaging thins needles), takes each
+  needle's and leaf's tone from the picture, and adds light through the foliage when the
+  view is toward the Sun; the shadow pass cuts the same way. After changing a spray or a
+  shape, run `make-tree-atlas` again (the whole trees are drawn from the meshes).
+  `life/leaves.js` sheds leaves in their season, in a gale (from every tree) and when
+  the traveller passes trees fast.
 
 ## Ground ready ahead of the traveller
 

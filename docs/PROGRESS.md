@@ -6,7 +6,84 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-*Handoff written at the fourth delivery of milestone 11 (the painted look).*
+### HANDOFF: the trees' fifth pass — delivered; read this before anything else
+
+*Written 2026-11-22 at the owner's request ("write a handoff so the next session knows
+exactly what you're doing"). The fifth pass is merged and live; this block says what it
+is, what is weak, and what to do next.*
+
+**What the owner said** (twice, the second time word for word the same): *"Make them look
+even better, the trees still don't look anywhere near the reference. I want an almost
+perfect replication of the reference."* The references are the nine pictures of the
+stylised landscape game (not in the repository; described under "Milestone 11 plan").
+What their trees are, looked at again: finely cut foliage (needle sprays, leafy twigs,
+each needle and leaf drawn), on a skeleton of trunk and limbs that can be seen; a crown
+shaded smoothly as one round mass, dark toward the trunk and the under side, light
+toward the Sun, glowing where the Sun is behind it; and far trees as flat dark
+silhouettes in layers, each lighter and bluer with distance. Low-polygon lumps and loose
+triangles (the fourth delivery, live as build 9d6e42e) are a different style altogether:
+no tuning of them gets there.
+
+**What was built:**
+- `src/life/treeAtlasLayout.js`: where things are in the trees' picture (2048 x 1024:
+  twelve sprays of 256 on the left, 8 shapes x 3 variants of whole trees on the right).
+- `src/life/treeAtlasGen.js`: draws that picture by rule, in plain JavaScript (runs in
+  Node, no canvas, no outside artwork): `fir` (a hanging bough from the side), `firTop`
+  (a bough from above), `burst` (a pine's needles), `leafy` (twigs of leaves, by leaf
+  size and shape), `tuft`, `rosette` (a crown from straight above), and `addImpostors`
+  (every shape seen whole, rasterised from its own near mesh with the sprays cut out).
+  Three bytes a pixel: cover (the cut-out), tone (each needle and leaf lighter or
+  darker), wood.
+- `scripts/make-tree-atlas.mjs` writes it to `public/data/tree_atlas.png` (run it again
+  after changing a spray or a tree shape; `--look file.png` writes a picture for the
+  eye). `scripts/lib/png.mjs`: a PNG writer.
+- `src/life/treeGeometry.js`, rewritten: trunk and limbs as tubes; foliage as cards
+  (`plate`, `card`, `bunch`) with texture coordinates `aUv` (-1 on plain faces); `aLeaf`
+  3 = a card of foliage, 4 = a whole tree's card; normals smooth over the whole crown
+  (from the crown's middle `s.mid` and the bunch's middle), so a tree is lit as one round
+  mass whatever way its cards face. Far mesh = `whole()`: two crossed cards of the
+  tree's silhouette and a rosette lying in its crown: 6 triangles.
+- `src/life/trees.js`: loads the picture (`tTreeAtlas`, mip maps, uploaded with
+  `initTexture`; no tree is drawn until it has come); fragment shader cuts cards out
+  first (`discard` under 0.42 cover, lower far off so trees do not thin), takes each
+  needle's tone from the picture, adds light through the foliage when one looks toward
+  the Sun; the shadow pass cuts the same way. `CLOSE_M` 42, `NEAR_M` 115.
+- `scripts/tree-preview.mjs` draws every shape at its three distances with the cut-outs
+  applied, without a browser, in two seconds: **use it for every change to a shape**.
+- Triangles a tree are now 150 to 420 close, 100 to 260 near, 6 far (they were up to
+  2 200, 800, 380): much less geometry, more cut-out pixels. Not measured on the phone.
+
+**Delivered** (the fifth painted delivery): all of the above, merged and live. Tested:
+build check, `npm run smoke` (16 checks, every shader within the phone's limits),
+pictures in the game of the spruce forest, the hardwood forest, the forest from the air
+and over the tree tops to the horizon, the opening view; the tree sheets. A closed
+forest's trees are 166 000 triangles (they were 620 000 at the fourth delivery).
+Reference pictures: `docs/shots/earth_forest_spruce.png`, `_hardwood`, `_air`, `_tops`,
+`trees_sheet_1.png`, `_2.png`.
+
+**Asked of the owner:** how the trees look now against the references, and an **Earth
+benchmark in Smooth** (cut-out foliage is new cost on the phone: many cards over each
+other, each cut by a `discard`; nothing of it is measured).
+
+**What to do next, in order:**
+1. With a benchmark: read it first. If forests are slow, the cards are the suspect:
+   fewer cards in a bunch (`bunches(... n ...)` in `treeGeometry.js`), `CLOSE_M` and
+   `NEAR_M` down (`trees.js`), the governor's `tree-leaves` and `trees-far` steps.
+2. With "still not like the reference": put the owner's nine pictures beside ours and
+   name the difference before changing anything. What is known to be weak:
+   - the hardwood canopy seen from under is evenly bright (the references' grove has deep
+     shade among the leaves and bright flecks);
+   - leaves very near the camera are soft (the sprays are 256 pixels: a larger picture,
+     or a second, finer one for the close mesh);
+   - far trees are their near mesh's silhouette with its light baked flat: the
+     references' far forest is flat dark shapes in layers, each lighter and bluer with
+     distance (the air does some of this; the trees' own tone could do more);
+   - conifers could be darker and bluer, with the trunk nearly black against them;
+   - only the fir, the pine, the hardwood and the aspen were seen in the game; the
+     tropical tree, the acacia, the bush and the palm only in the preview;
+   - winter: cards shrink to the trunk, and the far silhouette keeps its leaves;
+   - the stability test was not run on the cut-outs (they may shimmer in motion).
+3. Then the rest of milestone 11 (see below).
 
 - **The goal** (owner, 2026-11-20): the best possible product a Samsung Galaxy S23 Ultra
   runs without lag (`CLAUDE.md`, "The one goal"). Helpers: workflows only for the most
