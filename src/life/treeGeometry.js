@@ -201,12 +201,12 @@ export function makeTreeGeometries() {
   make(2, 37, (v) => [SPRAYS.roseL, [0.33, 0.4, 0.28][v], [0.68, 0.6, 0.76][v], 0.68], (s, R, L, v, q) => {
     const wide = [1, 1.2, 0.84][v], tall = [1, 0.9, 1.1][v], split = [0.38, 0.32, 0.44][v], M = [4, 4, 3][v], sides = q === 2 ? 6 : 4;
     s.mid = split + 0.28 * tall;
-    s.trunk([[0, 0, 0], [0.012, split * 0.55, 0.004], [0.006, split, 0]], 0.015, 0.011, sides);
+    s.trunk([[0, 0, 0], [0.012, split * 0.55, 0.004], [0.006, split, 0]], 0.0105, 0.008, sides);
     const list = [], top = [0.006, split, 0];
     for (let i = 0; i < M; i++) {
       // a limb out and up, with a bend in it; two twigs from its end; a bunch on each and one hanging under the bend
       const a = i / M * TAU + R() * 0.7, d = (0.12 + 0.04 * R()) * wide, bend = [Math.cos(a) * d * 0.55, split + 0.07 * tall, Math.sin(a) * d * 0.55], e1 = [Math.cos(a) * d * 1.25, split + (0.2 + 0.05 * R()) * tall, Math.sin(a) * d * 1.25];
-      s.limb([top[0], top[1] - 0.03, top[2]], bend, 0.01, 0.007, 4); s.limb(bend, e1, 0.007, 0.004, 4);
+      s.limb([top[0], top[1] - 0.03, top[2]], bend, 0.0075, 0.0055, 4); s.limb(bend, e1, 0.0055, 0.003, 4);
       list.push([Math.cos(a) * d * 1.9, split + (0.1 + 0.05 * R()) * tall, Math.sin(a) * d * 1.9, (0.13 + 0.03 * R()) * wide]);
       for (const da of [-0.6, 0.6]) {
         const b = a + da + (R() - 0.5) * 0.3, d2 = (0.1 + 0.05 * R()) * wide, e2 = [e1[0] + Math.cos(b) * d2, e1[1] + (0.09 + 0.08 * R()) * tall, e1[2] + Math.sin(b) * d2];
@@ -215,7 +215,7 @@ export function makeTreeGeometries() {
       }
     }
     list.push([0.01, split + 0.3 * tall, 0, 0.16 * wide], [0.03, split + 0.52 * tall, -0.02, 0.14 * wide], [-0.05, split + 0.43 * tall, 0.06, 0.14 * wide], [0.07, split + 0.42 * tall, -0.07, 0.13 * wide]);
-    s.limb(top, [0.02, split + 0.4 * tall, 0], 0.009, 0.003, 4);
+    s.limb(top, [0.02, split + 0.4 * tall, 0], 0.007, 0.003, 4);
     bunches(s, L, list, 7, [SPRAYS.leaf, SPRAYS.leaf2]);
   });
 
