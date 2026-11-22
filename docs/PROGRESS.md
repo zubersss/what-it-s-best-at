@@ -465,6 +465,75 @@ of the tropical, acacia and palm shapes in the game (only in the preview). Cloud
 from below toward the Sun they are one cream tone; the far shell is flatter and dimmer
 than the volume it continues. Nothing here was measured on the phone.
 
+## The owner's eighth phone results (build f300e6f) and the seventh painted delivery: Earth from space to landing
+
+**The numbers** (the three-minute benchmark, Mars and the Moon, Smooth): 55.2 fps, 1 % low
+15.8, 7.0 % of frames late; Mars 54.5, flight 55.9, the Moon 55.1; **resolution 1.16 MP on
+average, at the floor (0.96) at most stops**; the page's own work 5.9 ms (the figure 2.5);
+frames two refreshes long (92.9 %) or four (6.2 %). By stop the late frames run from 0 %
+(Moon dusk) to 18.5 % (Mars ship) **at the same one million pixels**.
+
+**The cost test** (Mars ledge, 2.07 MP; times to a pixel read back, about 2.4 times a
+frame in play): everything on 44.3 ms, every saving on 40.9, at 1.00 MP 40.5, at native
+57.5. Parts left out: the shadow maps 1.7, **the ground's shading 18.7**, the ground and
+all on it 30.4, the sky 2.1, the last pass at the picture's size -0.7 (nothing: that
+change of the sixth delivery bought nothing), nothing drawn 17.9.
+
+**What it says.**
+1. **The levers buy almost nothing.** Half the pixels: 9 % of a frame. Every saving: 8 %.
+   Yet the phone sat at one million pixels with savings on through whole benchmarks, and
+   the owner's word for the picture was "unrendered".
+2. **Why it sat there.** One frame in fifteen is late at every stop, at the floor as
+   anywhere: late frames of the phone's own (its GPU clocks itself down to the load; the
+   browser; the rest of the system). The governor stepped down for them, cured nothing,
+   and needed three seconds without one late frame to step up: with four late frames a
+   second it never could. The simulation with such a phone: the old governor stays at
+   0.96 MP with 23 savings on for all 150 seconds.
+3. **The ground's shader is the largest thing the GPU does** (18.7 of 44 ms on Mars, where
+   none of Earth's features run): the next place to cut, and it is cut by the triangle as
+   much as by the pixel (the whole frame is hardly cheaper at half the pixels).
+
+**The governor, rewritten where it decides** (`src/perf/governor.js`; `npm run govsim`):
+- `bg`: the share of late frames the device has whatever is drawn. Learned only from
+  evidence: at the resolution's floor, or from a trial that cured nothing. Up to it (plus
+  3 %) late frames neither bring quality down nor stop it from coming back.
+- **A step down is a trial.** Some frames late, two steps taken, about as many late as
+  before: what was given up comes back (`_putBack`), and such lateness is left alone for
+  30 s, then 60, up to 240. Everything given up and the frames as long as before: the
+  same. The savings alone can come back while the resolution stays.
+- A few late frames above `bg` for six seconds start a trial of their own (too few to
+  trip the 24-frame window); a step up followed by one within twelve seconds is taken back.
+- The floor is 1.6 MP (it was 1.0); savings come back five at a time; levels remembered
+  before this are left behind (`_key`); the benchmark prints `bg` and how often quality
+  was put back.
+- Four new cases in the simulation, each seen to fail with the old governor.
+- `?debug=floor`: pictures at the floor (every saving on, Smooth's share of patches).
+
+**What the owner said** (with the results): *"I still think it looks horrible ...
+specifically in space before I've landed on Earth: it looks horrible and unrendered and
+it has no height or depth, the clouds are just an image I fly through, and before I land
+I see just a green plot of land, not any trees or canyons or rivers. Restart if you have
+to, but make that aspect a lot better."*
+
+**Reproduced** (`debug=floor`, from 20 000 km down; pictures under `docs/shots/approach/`):
+- From 20 000 km the home world is a pale blue ball with one white smudge; from Mars the
+  same Earth (a sky body, `sky/bodies.js`) is a deep blue globe half covered in cloud.
+  At the hand-over the Earth one was flying toward turns into the pale ball.
+- Why pale: the painted look's low air (five times a clear day's haze, to 4 km) is looked
+  through whole from above. Why no cloud: far off the shell showed the heaps' mean cover
+  (half of a cover curve that starts at 0.47 of the map), not the day's map.
+- From 400 km: forests are flat teal blocks (the far canopy's one green, mixed toward
+  the sky's blue by the wood's air), no relief (the governor had it off), no cloud.
+
+**Plan** (in this order; each seen in pictures at the floor and at full quality):
+1. From space: the haze thinned from above (`uHaze`), the day's whole cloud map with its
+   shading on the shell, forests in the picture's own colour. *(built, see below)*
+2. Clouds with height: shadows on the ground that stay on, the shell lit by its relief,
+   layers one flies through.
+3. On the way down: relief that stays on, the land's own colours, rivers that can be
+   seen from the air, trees that can be seen well before landing.
+4. Deliver, and ask for an Earth benchmark.
+
 ## The owner's seventh phone results (build ef3201a) and the sixth painted delivery
 
 **The numbers** (Earth benchmark, Smooth): **53.7 fps** on average (56.8 at the sixth),
