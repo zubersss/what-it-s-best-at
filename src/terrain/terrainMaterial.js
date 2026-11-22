@@ -557,14 +557,16 @@ void main() {
   // brightness the real Sun gives it; nothing changes while the Sun is low, or near by.
   if (uAirRelief > 0.0) {
     float su = dot(up, uSunDir);
-    float kr = uAirRelief * smoothstep(1500.0, 9000.0, dist) * smoothstep(0.574, 0.75, su) * (1.0 - water);
+    // (less of it where a texel of the ground's maps is a kilometre: from orbit whole ranges
+    // went blue-black, stains on the map and not relief)
+    float kr = uAirRelief * smoothstep(1500.0, 9000.0, dist) * smoothstep(0.574, 0.75, su) * (1.0 - water) * mix(1.0, 0.4, farW);
     if (kr > 0.0) {
       vec3 Lh = uSunDir - up * su; float lh = length(Lh);
       vec3 Lr = normalize((lh > 1e-3 ? Lh / lh : uTanU) * 0.819 + up * 0.574);
       // (the slope's share of that light against level ground's, 1 on the level; times what
       // the real Sun gives level ground)
       float nlr = dot(N, Lr);
-      float slopeL = clamp(mix(max(nlr, 0.0) / 0.574, paintLit(nlr) / paintLit(0.574), paint), 0.25, 1.75);
+      float slopeL = clamp(mix(max(nlr, 0.0) / 0.574, paintLit(nlr) / paintLit(0.574), paint), 0.4, 1.6);
       diffuse = mix(diffuse, mix(max(su, 0.0) * 0.3183099, paintLit(su), paint) * slopeL, kr);
     }
   }
