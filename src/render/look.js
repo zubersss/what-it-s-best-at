@@ -33,11 +33,11 @@ export class Look {
     // (the Sun's beams: only with the Sun up and low air to shine through)
     if (post) post.shafts = this.def ? (this.def.shafts ?? 0) * Math.min(1, Math.max(0, (sunDeg + 2) / 6)) * Math.min(1, Math.max(0, 1 - (altitude - 8000) / 8000)) : 0;
     const d = this.def;
-    // The look's thick low air, seen from above: all of it up to 6 km, down to `spaceHaze`
-    // of it (0.45) from 60 km up. (Looking down from 10 km and more one looks through the
-    // whole of it: the land lay under a milky veil, and from orbit the globe was a pale
-    // ball beside the Earth one sees from Mars.)
-    { const hx = Math.min(1, Math.max(0, Math.log10(Math.max(1, altitude) / 6000))); G.uHaze.value = d ? 1 - (1 - (d.spaceHaze ?? 0.45)) * hx * hx * (3 - 2 * hx) : 1; }
+    // The look's thick low air, seen from above: all of it up to 2.5 km, down to `spaceHaze`
+    // of it (0.45) from 25 km up. (Looking down from some kilometres up one looks through
+    // the whole of it, on a slant: from 10 km the land lay under a blue-grey veil, and from
+    // orbit the globe was a pale ball beside the Earth one sees from Mars.)
+    { const hx = Math.min(1, Math.max(0, Math.log10(Math.max(1, altitude) / 2500))); G.uHaze.value = d ? 1 - (1 - (d.spaceHaze ?? 0.45)) * hx * hx * (3 - 2 * hx) : 1; }
     if (!d) { this.apply(null, 0); return; }
     const x = Math.min(1, Math.max(0, (Math.log10(Math.max(1, altitude)) - 4.6) / 1.0)), near = 1 - (1 - 0.33) * x * x * (3 - 2 * x);
     const g = d.grade || {};
