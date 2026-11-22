@@ -95,7 +95,8 @@ void main() {
       // life/treeBlock.js: all of them up to a slope of 0.5, none from 0.95; the canopy
       // used to end at 39 degrees where trees stand to 43, and they stood on bare ground.)
       vec4 nv = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), clamp(log2(187.0 / max(aI2.z, 1.0)), 1.0, 3.0));
-      k *= smoothstep(0.725, 0.894, dot(normalize(nv.xyz), up)) * (1.0 - step(1.02, textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 1.0).a));
+      // (a little short of the trees' 43 degrees: the canyon's walls must not go green again)
+      k *= smoothstep(0.76, 0.885, dot(normalize(nv.xyz), up)) * (1.0 - step(1.02, textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 1.0).a));
       // (crowns: a whole number of them across the detail tile, so patches agree; only near
       // enough that a patch's vertices can carry them: on the far patches the bumps fell
       // between the vertices and came out as stripes down every hillside. By distance,
