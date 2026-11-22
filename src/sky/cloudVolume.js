@@ -163,7 +163,7 @@ void main() {
     float sunward = clamp(0.5 + (d - dl) * 2.2 + (y - 0.42) * 1.1, 0.0, 1.0);
     // (only a cover that is nearly whole stands between the Sun and what is under it: among
     // scattered heaps the light comes down between them)
-    float above = 0.012 * (1.0 - y) * uLayer.y * mc.y * smoothstep(0.55, 0.95, c) * 0.35 / max(mu0, 0.25);
+    float above = 0.012 * (1.0 - y) * uLayer.y * mc.y * smoothstep(0.74, 0.97, c) * 0.35 / max(mu0, 0.25);
     // (a small cloud's shade is light: the Sun's light goes round inside it; a storm's is not)
     // (two tones with a clean line between them, the shade a light one: a poster's cloud)
     float lit = mix(0.64, 1.0, smoothstep(0.4, 0.56, sunward)) * min(exp(-above) + 0.18 * exp(-0.22 * above), 1.0);
