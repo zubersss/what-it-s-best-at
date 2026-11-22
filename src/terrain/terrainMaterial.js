@@ -583,7 +583,10 @@ void main() {
     float shade = smoothstep(0.2, 0.7, cd);
     // (and every heap the layer shows casts its own: a cloud with its shadow beside it on
     // the land stands above the land; without, the clouds were a picture laid over it)
-    if (uCloudHeap.w > 0.5) { float cc; shade = max(shade, 0.85 * smoothstep(0.06, 0.42, cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudWind, 0.0, cc))); }
+    // (only what the layer shows: the day's map has faint cloud where the layer draws none,
+    // and its shade lay on the land as dark stains with nothing above them. Far off, where
+    // the heaps cannot be told apart, the mean shade of the field.)
+    if (uCloudHeap.w > 0.5) { float cc, hp = cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudWind, 0.0, cc); shade = mix(0.85 * smoothstep(0.06, 0.42, hp), 0.5 * cc, farW); }
     shadow *= 1.0 - uCloud.x * shade;
   }
   shadow *= nearShadow(vRel, N);

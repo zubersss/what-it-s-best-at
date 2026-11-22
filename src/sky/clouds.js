@@ -117,7 +117,11 @@ void main() {
     float m1 = textureGrad(tCloudMap, vec2(atan(ps.y, ps.x) * 0.15915494 + uCloud.z, acos(clamp(ps.z, -1.0, 1.0)) * 0.31830989), gx, gy).r;
     // (thin cloud shows only from very far, where the whole globe is in view: nearer, the
     // map's faint parts were grey veils of fog lying over the land)
-    alpha = mix(alpha, mix(smoothstep(0.2, 0.55, m), smoothstep(0.04, 0.9, m), smoothstep(2500.0, 9000.0, px * uCloud.y)), far);
+    // Between the two (heaps too small to see one by one, the globe not yet whole in view) a
+    // field of heaps is a white veil as thick as the share of sky it covers: the same cover
+    // the heaps are cut from, so no cloud appears from far that is not there from near.
+    // (With the map's own faint parts shown, grey sheets of fog lay over half the land.)
+    alpha = mix(alpha, mix(0.55 * smoothstep(lo - 0.08, lo + 0.34, m), smoothstep(0.04, 0.9, m), smoothstep(2500.0, 9000.0, px * uCloud.y)), far);
     relief = mix(relief, clamp(1.0 + 1.3 * (m - m1), 0.55, 1.25), far);
   }
   if (uNearFade > 0.0) alpha *= smoothstep(0.7 * uNearFade, uNearFade, dist);
