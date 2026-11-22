@@ -47,16 +47,18 @@ export const FEATURE_STEPS = [
   // (no step for the waves that lift the water: on the phone it saved nothing that could be
   // measured, at sea in a hurricane (seventh results), and a sea that lies flat is not a sea)
   { id: 'cloud-steps', label: 'coarser clouds near you', apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.steps = off ? 22 : 36; } },
-  { id: 'cloud-volume', label: 'clouds with depth (they stay as a layer)', apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.enabled = !off; } },
-  // (the layer itself is never switched off: a hurricane with a clear sky is not one, and the
-  // layer is one texture on the sky)
-  { id: 'clouds', label: "the clouds' shadows on the ground", apply: (app, off) => { if (app.clouds) app.clouds.shadows = !off; } },
   { id: 'terrain-1', label: 'terrain detail (fewer patches)', apply: (app, off) => { app.terrainBudget(off ? 0.8 : 1, 'terrain-1'); } },
   { id: 'bloom', label: 'glow around bright things', apply: (app, off) => { app.post.bloomEnabled = !off; } },
   { id: 'terrain-2', label: 'terrain detail (fewer patches again)', apply: (app, off) => { app.terrainBudget(off ? 0.64 : 1, 'terrain-2'); } },
-  { id: 'far-relief', label: 'relief shading of far ground', apply: (app, off) => { app.quality.w = off ? 0 : 1; } },
   { id: 'cloak', label: 'robe and hair simulated more loosely', apply: (app, off) => { app.hero.robe.halfRate = off; } },
   { id: 'air-shadow', label: 'terrain shadows in the haze', apply: (app, off) => { app.atmosphere.airEnabled = !off; } },
+  // (the last to go: what gives the land and the sky their depth seen from the air. With these
+  // off a traveller coming down from space saw a flat map under a flat picture of clouds.)
+  // (the layer itself is never switched off: a hurricane with a clear sky is not one, and the
+  // layer is one texture on the sky)
+  { id: 'clouds', label: "the clouds' shadows on the ground", apply: (app, off) => { if (app.clouds) app.clouds.shadows = !off; } },
+  { id: 'far-relief', label: 'relief shading of far ground', apply: (app, off) => { app.quality.w = off ? 0 : 1; } },
+  { id: 'cloud-volume', label: 'clouds with depth (they stay as a layer)', apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.enabled = !off; } },
 ];
 
 const RES_STEP = 0.88;          // each resolution step keeps 88 % of the pixels (about 6 % per side)

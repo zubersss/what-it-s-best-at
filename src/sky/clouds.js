@@ -62,6 +62,7 @@ void main() {
   float lo = 1.0 - uCloud.x;
   float cover = smoothstep(lo - 0.08, lo + 0.34, dens);
   float far = 0.0;               // how far off this is: 1 where a cloud's heaps are smaller than a pixel
+  float relief = 1.0;            // the Sun on a heap's own shape: over 1 on its sunward side, under 1 in its own shade
   if (uVol.x > 0.0) {
     // With a volume near the traveller, this shell is the same clouds seen from far off: the
     // same cover (the day's map, and fair-weather fields where it is clear), carved by the
@@ -76,6 +77,14 @@ void main() {
     float small = smoothstep(500.0, 1800.0, px * uVol.z);
     cover = mix(smoothstep(0.0, 0.45, dv) * 0.75, c * 0.5, small);
     far = small;
+    // A heap seen from above has a lit side and a side in its own shade: the same cloud a
+    // few hundred metres toward the Sun says which this is (as the volume does near the
+    // traveller). Flat white, the layer was a picture laid over the land.
+    if (small < 1.0) {
+      float n1 = texture(tCloudNoise, normalize(up + uSunDir * (450.0 / uVol.z)) * (uVol.z * uVol.x) + uVolWind).r;
+      float dv1 = clamp((n1 - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
+      relief = clamp(1.0 + 1.25 * (dv - dv1), 0.6, 1.24);
+    }
   }
   // seen at a slant the layer is longer to look through
   float mu = max(abs(dot(V, up)), 0.12);
@@ -85,12 +94,11 @@ void main() {
   // the globe seen from another world wears it (sky/bodies.js): all of its cloud, thin and
   // thick, every mass lit on its sunward side and in its own shade on the other. (It was the
   // heaps' mean cover: from orbit the Earth had hardly a cloud, and what it had was flat.)
-  float relief = 1.0;
   if (far > 0.0) {
     vec3 ps = normalize(up + uSunDir * 0.0035);
     float m1 = textureGrad(tCloudMap, vec2(atan(ps.y, ps.x) * 0.15915494 + uCloud.z, acos(clamp(ps.z, -1.0, 1.0)) * 0.31830989), gx, gy).r;
     alpha = mix(alpha, smoothstep(0.04, 0.9, m), far);
-    relief = mix(1.0, clamp(1.0 + 1.3 * (m - m1), 0.55, 1.25), far);
+    relief = mix(relief, clamp(1.0 + 1.3 * (m - m1), 0.55, 1.25), far);
   }
   if (uNearFade > 0.0) alpha *= smoothstep(0.7 * uNearFade, uNearFade, dist);
   if (alpha < 0.004) discard;
