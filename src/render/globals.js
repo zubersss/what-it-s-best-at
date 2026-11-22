@@ -32,6 +32,11 @@ export const G = {
   // physical picture), y how much stronger the light of the sky is on things (coloured
   // shade), z how much cleaner the colours of surfaces are, w how flat a faceted rock face is lit.
   uPaint: { value: new THREE.Vector4(0, 1, 1, 0) },
+  // How much of the air's haze lies over what is seen (1: all of it). A world whose look has
+  // thick low air (Earth's painted haze) is seen through less of it from high above: the
+  // haze is for the layers of a landscape, and from orbit it was a milky veil over the
+  // whole globe (render/look.js sets it by the camera's height).
+  uHaze: { value: 1 },
   // How the world's ground scatters sunlight: 0 = matte dust under air, 1 = airless regolith.
   uPhotometry: { value: 0 },
   // The world's albedo map at the camera, relative to its mean (1 when there is no map):

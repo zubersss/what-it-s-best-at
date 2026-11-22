@@ -441,8 +441,10 @@ void main() {
       vec3 leaves = vec3(0.040, 0.078, 0.028) * mix(vec3(1.0), mapTint, 0.6) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
       // (in their season, in patches: the trees that turn among those that do not)
       leaves = mix(leaves, mix(vec3(0.17, 0.10, 0.02), vec3(0.13, 0.035, 0.015), smoothstep(-0.1, 0.25, c1.r)) * (0.8 + 0.6 * (c2.b + 0.5)), uLitter * 0.85 * smoothstep(-0.12, 0.1, c2.r + 0.5 * c1.g));
-      albedo = mix(albedo, leaves, vShell);
-      ao *= mix(1.0, 0.72 + 0.5 * clamp(c1.b + c2.b, -0.4, 0.5), vShell);
+      // (not from so far off that a texel of the ground's maps is hundreds of metres: there
+      // the forest is what the picture from space shows, not one flat green laid over it)
+      albedo = mix(albedo, leaves, vShell * (1.0 - farW));
+      ao *= mix(1.0, 0.72 + 0.5 * clamp(c1.b + c2.b, -0.4, 0.5), vShell * (1.0 - farW));
     }
   }
 

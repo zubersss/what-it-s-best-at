@@ -61,6 +61,7 @@ void main() {
   float dens = m * (0.25 + 1.7 * d) + (d - 0.45) * 0.2 * smoothstep(0.1, 0.4, m);
   float lo = 1.0 - uCloud.x;
   float cover = smoothstep(lo - 0.08, lo + 0.34, dens);
+  float far = 0.0;               // how far off this is: 1 where a cloud's heaps are smaller than a pixel
   if (uVol.x > 0.0) {
     // With a volume near the traveller, this shell is the same clouds seen from far off: the
     // same cover (the day's map, and fair-weather fields where it is clear), carved by the
@@ -74,11 +75,23 @@ void main() {
     float dv = clamp((n - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
     float small = smoothstep(500.0, 1800.0, px * uVol.z);
     cover = mix(smoothstep(0.0, 0.45, dv) * 0.75, c * 0.5, small);
+    far = small;
   }
   // seen at a slant the layer is longer to look through
   float mu = max(abs(dot(V, up)), 0.12);
   float alpha = 1.0 - exp(-cover * (0.4 + cover) * 1.7 / mu);
   if (uPaint.x > 0.0) alpha = mix(alpha, smoothstep(0.16, 0.5, cover) * 0.96, uPaint.x);
+  // From far off (a cloud's heaps smaller than a pixel) the layer is the day's map itself, as
+  // the globe seen from another world wears it (sky/bodies.js): all of its cloud, thin and
+  // thick, every mass lit on its sunward side and in its own shade on the other. (It was the
+  // heaps' mean cover: from orbit the Earth had hardly a cloud, and what it had was flat.)
+  float relief = 1.0;
+  if (far > 0.0) {
+    vec3 ps = normalize(up + uSunDir * 0.0035);
+    float m1 = textureGrad(tCloudMap, vec2(atan(ps.y, ps.x) * 0.15915494 + uCloud.z, acos(clamp(ps.z, -1.0, 1.0)) * 0.31830989), gx, gy).r;
+    alpha = mix(alpha, smoothstep(0.04, 0.9, m), far);
+    relief = mix(1.0, clamp(1.0 + 1.3 * (m - m1), 0.55, 1.25), far);
+  }
   if (uNearFade > 0.0) alpha *= smoothstep(0.7 * uNearFade, uNearFade, dist);
   if (alpha < 0.004) discard;
   // light: the Sun through the air to this height, more of it at the cloud's sunward edge
@@ -90,7 +103,8 @@ void main() {
   // (matched to the volume near the traveller, whose sunlit faces are white)
   vec3 col = vec3(0.86) * (sun * (uVol.x > 0.0 ? 0.8 : 0.42) + skyLight(uCloud.w > 0.5 ? -up : up, up) * 0.9 + skyLight(up, up) * 0.25) / PI;
   // (... in two tones: its body, and its thick middle a step darker)
-  if (uPaint.x > 0.0) col *= mix(1.0, mix(1.0, 0.8, smoothstep(0.55, 0.7, cover)), uPaint.x);
+  if (uPaint.x > 0.0) col *= mix(1.0, mix(1.0, 0.8, smoothstep(0.55, 0.7, cover)), uPaint.x * (1.0 - far));
+  col *= relief;
   col = aerialPerspective(col, vRel);
   fragColor = vec4(col * uExposure * alpha, alpha);
 }`;
