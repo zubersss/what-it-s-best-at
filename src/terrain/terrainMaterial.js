@@ -218,6 +218,7 @@ flat in vec3 vTanV;
 flat in vec4 vChunk;           // x = layer, y = parent's layer (-1: none), z = extent in tiles of DETAIL_TILE metres
 flat in vec2 vParentOff;       // this chunk's corner inside the parent (0 or 0.5)
 uniform vec2 uTide;          // x: the sea's level against the level its shore is mapped at (m, 0 or below)
+uniform float uAirRelief;    // the relief light of far ground (a world's look.reliefLight; 0: none)
 uniform float uPlain;        // 1: the ground in one flat tone (the benchmark's cost test: its shading apart from its triangles)
 layout(location = 0) out vec4 fragColor;
 
@@ -441,10 +442,12 @@ void main() {
       vec3 leaves = vec3(0.040, 0.078, 0.028) * mix(vec3(1.0), mapTint, 0.6) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
       // (in their season, in patches: the trees that turn among those that do not)
       leaves = mix(leaves, mix(vec3(0.17, 0.10, 0.02), vec3(0.13, 0.035, 0.015), smoothstep(-0.1, 0.25, c1.r)) * (0.8 + 0.6 * (c2.b + 0.5)), uLitter * 0.85 * smoothstep(-0.12, 0.1, c2.r + 0.5 * c1.g));
-      // (not from so far off that a texel of the ground's maps is hundreds of metres: there
-      // the forest is what the picture from space shows, not one flat green laid over it)
-      albedo = mix(albedo, leaves, vShell * (1.0 - farW));
-      ao *= mix(1.0, 0.72 + 0.5 * clamp(c1.b + c2.b, -0.4, 0.5), vShell * (1.0 - farW));
+      // (not from so far off that a texel of the ground's maps is a hundred metres: there the
+      // forest is what the picture from space shows, not one flat green laid over it in
+      // blocks: the canopy's map has pixels a kilometre wide)
+      float ownC = 1.0 - smoothstep(25.0, 160.0, chunkTexel);
+      albedo = mix(albedo, leaves, vShell * ownC);
+      ao *= mix(1.0, 0.72 + 0.5 * clamp(c1.b + c2.b, -0.4, 0.5), vShell * ownC);
     }
   }
 
@@ -547,6 +550,24 @@ void main() {
   // globe keeps its round shading)
   float paint = uPaint.x * (1.0 - farW);
   if (paint > 0.0) { diffuse = mix(diffuse, paintLit(dot(N, uSunDir)), paint); albedo = mix(albedo, paintColour(albedo), 1.0 - water); }
+  // The relief light: far ground is lit as a relief map is drawn, by a Sun no higher than
+  // 35 degrees (from the real Sun's side), so that a canyon or a range has its lit and its
+  // shaded slopes at any hour. Under a high Sun every slope is in the light, and from the
+  // air the land lay as flat as a carpet: no height, no depth. Level ground keeps the
+  // brightness the real Sun gives it; nothing changes while the Sun is low, or near by.
+  if (uAirRelief > 0.0) {
+    float su = dot(up, uSunDir);
+    float kr = uAirRelief * smoothstep(1500.0, 9000.0, dist) * smoothstep(0.574, 0.75, su) * (1.0 - water);
+    if (kr > 0.0) {
+      vec3 Lh = uSunDir - up * su; float lh = length(Lh);
+      vec3 Lr = normalize((lh > 1e-3 ? Lh / lh : uTanU) * 0.819 + up * 0.574);
+      // (the slope's share of that light against level ground's, 1 on the level; times what
+      // the real Sun gives level ground)
+      float nlr = dot(N, Lr);
+      float slopeL = clamp(mix(max(nlr, 0.0) / 0.574, paintLit(nlr) / paintLit(0.574), paint), 0.25, 1.75);
+      diffuse = mix(diffuse, mix(max(su, 0.0) * 0.3183099, paintLit(su), paint) * slopeL, kr);
+    }
+  }
   vec3 direct = directSun(planetPos) * shadow * diffuse;
   vec3 ambient = (skyLight(N, up) * ao + planetShine(N)) * contactSky(vRel, N) / PI;
   if (canopyShade > 0.0) ambient = mix(ambient, dot(ambient, vec3(0.3, 0.55, 0.15)) * mix(vec3(0.85, 1.1, 0.5), vec3(1.25, 0.95, 0.45), uLitter), 0.85 * canopyShade);
@@ -587,7 +608,7 @@ export function makeTerrainShared(world, textures) {
     uCover: { value: new THREE.Vector4() },
     // w: the cover pattern (d0.a + 0.3 d1.a) is about normal; logistic scale = its spread / 1.702
     uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
-    uPlain: { value: 0 }, uTide: { value: new THREE.Vector2(0, 0) },
+    uPlain: { value: 0 }, uTide: { value: new THREE.Vector2(0, 0) }, uAirRelief: { value: 0 },
     uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) },
     tRingColour: { value: textures.white }, uRingColour: { value: new THREE.Vector4(0, 0, 1, 0) },
     tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoShift: { value: 0 }, uAlbedoSteep: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
@@ -638,6 +659,7 @@ export function setTerrainSurface(shared, world) {
   shared.uSea.value.set(s.sea ? 1 : 0, s.sea?.level ?? 0, s.sea?.roughness ?? 0.1, s.sea?.ripples ?? 0.05);
   shared.uSeaColor.value.set(...(s.sea?.color || [0.01, 0.03, 0.07]));
   shared.uFarRoughness.value = s.farRoughness ?? shared.uRoughness.value;
+  shared.uAirRelief.value = world.look?.reliefLight ?? 0;
   shared.uDetailStrength.value = s.detailStrength ?? 0.5;
   shared.uPhotometry.value = s.photometry === 'lunar' ? 1 : 0;
   shared.uAlbedoMap.value.w = 0;          // until the world's map has loaded (Terrain.loadAlbedoMap)

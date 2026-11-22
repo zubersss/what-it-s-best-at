@@ -118,7 +118,9 @@ export default {
   // The painted look (render/look.js): light in two tones, shade lit by the sky's colour,
   // clean colours, and a grade for each time of day.
   look: {
-    paint: 1, shade: 1.35, colour: 0.7, facets: 0.6, shafts: 1,
+    // reliefLight: far ground (some kilometres off and from the air) is lit as a relief map
+    // is drawn, by a Sun no higher than 35 degrees: see the ground shader, uAirRelief.
+    paint: 1, shade: 1.35, colour: 0.7, facets: 0.6, shafts: 1, reliefLight: 1,
     grade: {
       day: { sat: 1.18, contrast: 1.06, tint: 1, shade: [0.84, 1.02, 1.04], light: [1.05, 1.0, 0.93] },
       low: { sat: 1.3, contrast: 1.08, tint: 1, shade: [0.95, 0.86, 1.02], light: [1.12, 0.98, 0.8] },
