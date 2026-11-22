@@ -179,6 +179,7 @@ npm run transfer       # GO trips flown without a browser: arrival, time against
 npm run target         # the target list, marker and a GO trip in the real game (headless)
 npm run worlds         # every world opens at its start with ground drawn and no errors (headless, about an hour; -- --only io,titan)
 npm run lakes          # Earth's lakes and rivers against the real ones, without a browser (15 s; -- --list, -- utah vermont)
+npm run shadowturns    # the shadow tiles drawn in turns: a held tile must draw the same picture as a fresh one after a walk (headless, Moon)
 node scripts/play-profile.mjs [--world earth] [--at "21.7,284.7,40"] [--floor] [--seconds 120] [--shot out.png]   # the real game in play mode at a place: the page's work by part, the governor's level, patches built (--floor: every saving on)
 node scripts/tree-preview.mjs [--out dir] [--variant 1] [--only 0,2] [--below]   # every tree shape at its three distances, drawn without a browser in seconds (PNG sheets)
 node scripts/make-tree-atlas.mjs [--look file.png]   # the trees' picture (public/data/tree_atlas.png): run again after changing a spray or a tree shape
@@ -541,5 +542,16 @@ finished benchmark leaves its text in `window.__benchResult`.
   the tuning. The owner's trees are finely cut foliage on a skeleton, shaded as one mass;
   three deliveries polished low-polygon lumps before the trees were rebuilt as cut-out
   cards. When a look is asked for by pictures, name what the pictures are made of first.
+- What is paid every frame whatever is on screen shows in no saving of the cost test:
+  with every saving on, a phone frame still took 49 of 58 ms, and with nothing drawn 28.
+  The last pass wrote the screen's 4.45 million pixels whatever the picture's size, the
+  shadow maps were drawn whole every frame, and the ground was shaded under everything
+  that hides it. To find such a cost, leave whole parts out (`PARTS_OUT` in the
+  benchmark), down to a frame with nothing in it.
+- A test that moves the camera must check that the camera moved: on foot the rig puts it
+  back behind the character, and the shadow-turns test passed with no pixel different.
+- Foliage made of cards alone is a lace one sees straight through, and a forest of it a
+  green noise. A crown needs a dark inside (a heart of crossed cards in every bunch, a
+  skirt under every tier of a fir): then it is a mass with a cut edge.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.
