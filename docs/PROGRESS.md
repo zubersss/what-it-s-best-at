@@ -19,6 +19,11 @@ painted delivery" below; this is the short of it.*
 - **The owner asked for**: speed; far things that look good; the ground loaded when high
   in the sky; waves and tide; much denser rain; clouds that change like a real storm;
   trees closer to the references. All seven have something in this delivery.
+- **Tested** on the build that was merged: the build check, `npm run smoke` (every check;
+  every shader within the phone's limits), `npm run shadowturns`, `npm run govsim`,
+  `npm run lakes`; pictures of the hurricane, the beach, the open sea, the forest from
+  inside and from above, the opening view, from 12 and 40 km, and the Moon with the canvas
+  made smaller. **Not run**: the stability test, the full reference set.
 - **Asked of the owner**: an **Earth benchmark in Smooth**. Its cost test now leaves
   whole parts out against fresh baselines: read "the shadow maps", "the ground's
   shading", "the last pass at the picture's size" and "nothing drawn" first.
