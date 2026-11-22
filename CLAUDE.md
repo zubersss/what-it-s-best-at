@@ -556,5 +556,12 @@ finished benchmark leaves its text in `window.__benchResult`.
 - Two ends of one thing wrapped into a box each by itself come apart at the box's edge:
   one rain streak in twelve was a line drawn right across the box (the scratches that
   were taken for the rain). Wrap one end, and work the other out from it.
+- The terrain's near plane is 0.15 of the height over the ground: anything drawn with that
+  camera close to the eye (rain, spray, sparks) is there on foot and cut away in flight.
+  The rain was "too thin" for two deliveries for this alone. It gets a slice of its own
+  from the eye to that plane, as the character has.
+- Something meant to be seen against the scene must be lit by something the scene is not:
+  rain lit by a set share of the Sun's light came out exactly as bright as the overcast
+  behind it. A drop shows the sky: it is lit by `skyLight`, above the veil's grey.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

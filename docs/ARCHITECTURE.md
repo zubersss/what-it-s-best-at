@@ -684,6 +684,8 @@ ring: it is not asked for.
   turned to the eye, a few millimetres wide and never under a pixel and a half; a third
   of them in a small box round the eye, lit by the sky they fall from (`skyLight`: over
   the veil's grey and the ground's under an overcast, dark at night, lit by lightning).
+  Rain nearer than the terrain's near plane (0.15 of the height: metres, in flight) is
+  drawn again in a slice of its own from the eye to that plane, without the depth test.
   The sky dome takes the same veil (through 1 500 m of rain overhead, tens of kilometres
   toward the horizon). In a storm the cloud's base is darker and lighter in great patches
   that go by with the wind (`uStorm` in the cloud volume).
