@@ -330,7 +330,13 @@ export class CloudVolume {
     // the whole sky sank when one flew out over a canyon).
     const altNow = rig.pos.length() - this.radius;
     this.lift = this.groundAt ? this.groundAt(rig.pos) : 0;
-    const base = (v.base ?? 1500) + this.lift, thick = Math.max(v.thick ?? 3000, Math.min(13000, (weather?.topNear || 0)) - base);
+    // A storm's cloud (weather.storminess, and the squalls that pass through it): the base
+    // comes down ragged, the cloud is thicker and darker, it runs with the wind at the
+    // wind's own speed and turns over many times faster. In settled weather none of this.
+    const storm = weather?.storminess || 0, squall = weather?.squall || 0;
+    this.stormNow = this.stormNow == null ? storm : this.stormNow + (storm - this.stormNow) * 0.02;
+    const sN = this.stormNow;
+    const base = (v.base ?? 1500) + this.lift - 450 * sN, thick = Math.max(v.thick ?? 3000, Math.min(13000, (weather?.topNear || 0)) - base);
     this.thickNow = this.thickNow ? this.thickNow + (thick - this.thickNow) * 0.05 : thick;
     u.uTops.value.x = base; u.uTops.value.y = Math.min(1, (v.thick ?? 3000) / this.thickNow);
     const fl = weather?.flash;
@@ -354,7 +360,7 @@ export class CloudVolume {
     const z = u.uSliceZ.value; for (let k = 0; k < SLICES; k++) z[k] = SLICE_Z[k]; z[SLICES] = this.reach;
     // (no ray meets the layer nearer than the traveller's distance below its base or above its top)
     const alt = altNow; this.below = alt < base; this.minDist = alt < base ? base - alt : alt > base + this.thickNow ? alt - base - this.thickNow : 0;
-    u.uDense.value = v.dense ?? 1; u.uFair.value.set(v.fair ?? 0, v.clear ?? 120); u.uFieldK.value = this.radius / (v.scale ?? 5200) * 0.11;
+    u.uDense.value = (v.dense ?? 1) * (1 + 0.45 * sN + 0.35 * squall); u.uFair.value.set(v.fair ?? 0, v.clear ?? 120); u.uFieldK.value = this.radius / (v.scale ?? 5200) * 0.11;
     this.base = base;
     u.tCloudMap.value = layer.texture;
     u.uCloud.value.set(this.def.cover ?? 0.8, this.def.lon0 === -180 ? 0.5 : 0, 1 / (v.scale ?? 5200), this.reach);
@@ -365,10 +371,12 @@ export class CloudVolume {
     // of all the time that has passed)
     const w = wind?.value, dtw = this.lastTime == null || time < this.lastTime ? 0 : Math.min(0.2, time - this.lastTime);
     this.lastTime = time;
-    if (w) this.drift.addScaledVector(w, dtw * Math.min(20, w.w) / (v.scale ?? 5200));
+    // (in a storm: the wind's own speed, up to 55 m/s: the scud races overhead)
+    if (w) this.drift.addScaledVector(w, dtw * Math.min(20 + 35 * sN, w.w) / (v.scale ?? 5200));
     // (... and they change as they go: the noise rises slowly through the layer's shape, so a
-    // mass is not the same mass a minute later)
-    this.drift.z += dtw * (v.change ?? 0.006);
+    // mass is not the same mass a minute later; in a storm it boils: up to nine times as fast,
+    // and faster again while a squall passes)
+    this.drift.z += dtw * (v.change ?? 0.006) * (1 + 8 * sN + 4 * squall);
     for (const c of ['x', 'y', 'z']) this.drift[c] -= Math.floor(this.drift[c]);          // (the noise repeats every unit)
     u.uCloudWind.value.copy(this.drift);
     this.quad.material = this.march;

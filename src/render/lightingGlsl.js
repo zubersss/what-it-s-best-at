@@ -27,7 +27,8 @@ uniform sampler2D tFroxelC;         //                      transmittance
 uniform vec2 uFroxelRange;          // x: exponent of the slice distribution, y: far limit (km)
 uniform vec2 uLutScaleInv;          // x: 1 / scale of the irradiance LUT, y: 1 / scale of the froxels
 uniform mat3 uSkyFrame;             // planet-fixed -> local sky frame
-uniform vec4 uWeather;              // x: the Sun through the cloud overhead (1: clear), y: sky light left under it, z: how wet the ground is
+uniform vec4 uWeather;              // x: the Sun through the cloud overhead (1: clear), y: sky light left under it, z: how wet the ground is,
+                                    // w: rain in the air (how much of the view a metre of it hides; 0: dry)
 uniform vec3 uFlash;                // lightning's light from the whole sky
 uniform vec3 uShineDir;             // toward the brightest sky body
 uniform vec3 uShineE;               // its irradiance at the ground (planetshine)
@@ -208,11 +209,19 @@ vec3 hazeOverGround(vec3 color, vec3 rel, vec3 rho) {
   vec3 hazed = color * T + (Ls + Lm * phaseHG3(cosT, uMieG)) * (uLutScaleInv.y * uSunIrradiance);
   return mix(hazed, marched, useMarch);
 }
+// Rain (or snow) falling in the air between the eye and a thing: a grey veil that thickens
+// with distance, as bright as the sky above lights it (uWeather.w: how much of the view a
+// metre of it takes; 0 in dry air). In a downpour the far shore is gone within a kilometre.
+vec3 rainVeil(vec3 color, vec3 rel) {
+  if (uWeather.w <= 0.0) return color;
+  vec3 up = normalize(uCamPlanetPos + rel);
+  return mix(color, skyLight(up, up) * (0.7 / PI), 1.0 - exp(-length(rel) * uWeather.w));
+}
 // Small things (rocks, the lander, the character): the haze of mean ground.
-vec3 aerialPerspective(vec3 color, vec3 rel) { return hazeOverGround(color, rel, vec3(1.0)); }
+vec3 aerialPerspective(vec3 color, vec3 rel) { return rainVeil(hazeOverGround(color, rel, vec3(1.0)), rel); }
 // The ground itself, with its own albedo.
 vec3 aerialPerspective(vec3 color, vec3 rel, vec3 albedo) {
-  return hazeOverGround(color, rel, clamp(albedo / max(uGroundAlbedo, vec3(1e-4)), 0.0, 2.5));
+  return rainVeil(hazeOverGround(color, rel, clamp(albedo / max(uGroundAlbedo, vec3(1e-4)), 0.0, 2.5)), rel);
 }
 
 ${NEAR_SHADOW_PARS}

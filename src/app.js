@@ -169,21 +169,26 @@ export class App {
     // drawn ground asked for the same place right after: see rig.groundAt in init.)
     const pos = new THREE.Vector3();
     return (d) => {
-      const h = hs.height(d[0], d[1], d[2], walkWL), depth = hs.waterDepth;
+      const h = hs.height(d[0], d[1], d[2], walkWL), mapped = hs.waterDepth;
+      if (mapped <= 0) { this.depthAsked = 0; this._sink = 0; this._under = 0; return h; }
+      // (the tide: the sea stands under the level its shore is mapped at, and where it was
+      // shallower than that the bed is bare; lakes and rivers have none. As the ground
+      // shader has it.)
+      const up = h - (world.surface.sea.level ?? 0);
+      const inland = up <= 2 ? 0 : up >= 6 ? 1 : ((up - 2) / 4) * ((up - 2) / 4) * (3 - 2 * (up - 2) / 4);
+      const drop = Math.min(mapped, -(this.tide || 0) * (1 - inland)), depth = mapped - drop;
       this.depthAsked = depth;
-      if (depth <= 0) { this._sink = 0; this._under = 0; return h; }
       let sink = Math.min(depth, SWIM_DEPTH);
       this._under = sink;              // (how far under the still water's surface the walker's ground is: the camera's floor is the surface with its waves, which is that ground plus this)
       if (depth > 0.15) {
         // (the same share of the waves as the vertex shader lifts the water by: none at the
         // shore, a little on lakes and rivers)
-        const u = this.terrain.shared.uWind.value, w = this.terrain.shared.uWave.value, up = h - (world.surface.sea.level ?? 0);
-        const inland = up <= 2 ? 0 : up >= 6 ? 1 : ((up - 2) / 4) * ((up - 2) / 4) * (3 - 2 * (up - 2) / 4);
+        const u = this.terrain.shared.uWind.value, w = this.terrain.shared.uWave.value;
         pos.set(d[0], d[1], d[2]).multiplyScalar(world.radius + h);
-        sink -= waveHeightAt(pos, world.radius, w.z, u, u.w) * Math.min(1, (depth - 0.15) / 1.5) * (1 - 0.88 * inland) * w.y;
+        sink -= waveHeightAt(pos, world.radius, w.z, u, u.w) * Math.min(1, (depth - 0.15) / 1.5) * (1 - 0.8 * inland) * w.y;
       }
-      this._sink = sink;
-      return h - sink;
+      this._sink = sink + drop;
+      return h - sink - drop;
     };
   }
 
@@ -904,6 +909,32 @@ export class App {
     return b ? out.set(b.pos[0], b.pos[1], b.pos[2]) : null;
   }
 
+  // The tide where the traveller is: the sea's level against the highest tide (metres, 0 or
+  // below; the mapped shore is the highest tide's). The world file names the bodies that
+  // pull and how high each would raise an ocean that covered the whole world (sea.tide.by:
+  // [id, metres]: on Earth the Moon 0.36, the Sun 0.16). High water under such a body and
+  // on the far side of the world from it, low water where it stands on the horizon: so
+  // twice a day, an hour later each day as the Moon goes round; spring tides when the
+  // Moon and the Sun pull along one line, neaps when they pull across each other. A real
+  // shore makes more of it than an open ocean would (sea.tide.gain).
+  updateTide(dt) {
+    const t = this.world.surface.sea?.tide, u = this.terrain.shared.uTide.value;
+    if (!t) { u.x = 0; this.tide = 0; this.tideText = ''; return; }
+    const p = this.rig.pos, pl = p.length(), b = this._tideB || (this._tideB = new THREE.Vector3());
+    let h = 0, top = 0;
+    for (const [id, m] of t.by) {
+      top += m;
+      if (!this.bodyPosition(id, b)) continue;
+      const c = (b.x * p.x + b.y * p.y + b.z * p.z) / (b.length() * pl);
+      h += m * (1.5 * c * c - 0.5);
+    }
+    const level = (h - top) * (t.gain ?? 1), was = this.tide;
+    // (rising or falling: by the clock's own pace, which may run fast or backwards)
+    if (was != null && dt > 0 && level !== was) this.tideTrend = (this.tideTrend || 0) * 0.9 + 0.1 * Math.sign(level - was);
+    this.tide = level; u.x = level;
+    this.tideText = `${(-level).toFixed(1)} m under high water, ${Math.abs(this.tideTrend || 0) < 0.05 ? 'slack' : this.tideTrend > 0 ? 'rising' : 'falling'}`;
+  }
+
   // Keeps the traveller where it was relative to body `carry.id` over the step the
   // ephemeris just made: M0 the home axes before it, b0 the body's place before it. The
   // home axes turned by R = M1 * M0^T meanwhile; position and every vector kept in those
@@ -1109,7 +1140,7 @@ export class App {
       wx.update(rig, dt, G.uSunDir.value, day, sunE);
       const speed = wx.def ? Math.max(1.5, wx.windSpeed) : (this.world.surface.sea?.wind ?? 6);
       if (wx.def) sh.uWind.value.set(wx.wind.x, wx.wind.y, wx.wind.z, speed); else sh.uWind.value.set(e[0], e[1], e[2], speed);
-      G.uWeather.value.set(wx.def ? wx.sunShade : 1, wx.def ? wx.skyShade : 1, wx.def ? wx.wet : 0, 0);
+      G.uWeather.value.set(wx.def ? wx.sunShade : 1, wx.def ? wx.skyShade : 1, wx.def ? wx.wet : 0, wx.def && this.rain.enabled ? wx.veil : 0);
       G.uFlash.value.copy(wx.flashLight);
       this.rain.update(wx, rig, (now / 1000) % 14400);
       this.bolt.update(wx, rig.agl, sunE);
@@ -1127,7 +1158,12 @@ export class App {
       sh.uWave.value.set(waveScale(speed), this.wavesLift === false ? 0 : 1, this.shotMode ? 3.0 : (now / 1000) % 14400);
       // how deep the water is where the figure stands (0 on land): the rig slows in it
       // (under the flying figure too: no dust is raised from water)
-      if (this.world.surface.sea) { const f = rig.onFoot ? rig.feet : rig.pos, l = f.length(); this.terrain.hs.height(f.x / l, f.y / l, f.z / l, 1); rig.water = this.terrain.hs.waterDepth; } else rig.water = 0;
+      this.updateTide(dt);
+      if (this.world.surface.sea) {
+        const f = rig.onFoot ? rig.feet : rig.pos, l = f.length(), h = this.terrain.hs.height(f.x / l, f.y / l, f.z / l, 1), up = h - (this.world.surface.sea.level ?? 0);
+        // (what the tide has left of it; lakes and rivers keep theirs)
+        rig.water = Math.max(0, this.terrain.hs.waterDepth + (up < 4 ? this.tide || 0 : 0));
+      } else rig.water = 0;
     }
 
     prof.mark(0);
@@ -1581,7 +1617,7 @@ export class App {
       gpuBytes: this.gpuBytes, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries,
       exposure: post.exposure, sunEl: sun.elevation, sunAz: sun.azimuth,
       lat: ll.lat, lon: ll.lon, alt: rig.altitude, agl: rig.agl, heading: rig.heading, pitch: rig.pitch, fov: rig.fov,
-      speed: fmtSpeed(rig.velocity.length()), nearest: `${this.nearestName} ${fmtDistance(this.nearestClear)}`, target,
+      speed: fmtSpeed(rig.velocity.length()), nearest: `${this.nearestName} ${fmtDistance(this.nearestClear)}`, target, tide: this.tideText || '',
       hover: rig.hover, pull: rig.pull.length(), onFoot: rig.mode === 'hero' && rig.onFoot, airborne: rig.airborne,
       savings: this.governor.featureLevel, building: this.terrain.staleData + this.terrain.readyRefresh.length, built: this.terrain.built,
       work: this.scriptMs || 0, parts: Profile.text(this.profile.avg, 0.3),

@@ -43,6 +43,7 @@ uniform vec3 uShell;         // the forest raised as a whole: from x to y metres
 out float vShell;            // how much of the canopy stands here (0: none, the ground is the ground)
 uniform vec4 uWind;          // xyz: where the wind blows to (unit, planet axes), w: its speed (m/s)
 uniform vec3 uWave;          // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
+uniform vec2 uTide;          // x: the sea's level against the level its shore is mapped at (m, 0 or below: the map is the highest tide)
 ${WAVE_GLSL}
 out vec2 vGrid;
 out float vMorph;            // 0 = this chunk's own shape and shading, 1 = its parent's
@@ -93,14 +94,23 @@ void main() {
       vRel = rel;
     }
   }
-  if (uSea.x > 0.5 && uWave.y > 0.5 && aI2.z < 2.5) {
-    // Open water rises and falls with its waves (the long ones, where the mesh is fine
-    // enough to carry them; none at the shore, where the water is shallow).
+  if (uSea.x > 0.5 && aI2.z < 20.0 && (uTide.x < 0.0 || (uWave.y > 0.5 && aI2.z < 2.5))) {
     float wa = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 0.0).a;
-    // (by distance, not by patch: neighbours of different detail must agree along their edge)
-    float deep = clamp((wa - 1.15) / 1.5, 0.0, 1.0) * (1.0 - smoothstep(160.0, 420.0, length(rel)));
-    deep *= 1.0 - 0.88 * smoothstep(2.0, 6.0, pv.w - uSea.y);          // (lakes and rivers: small waves)
-    if (deep > 0.0) rel += up * (wave(vDetailUv, uWave.z, vec2(dot(uWind.xyz, vTanU), dot(uWind.xyz, vTanV)), uWave.x, ${LIFTED}).z * deep);
+    float inland = smoothstep(2.0, 6.0, pv.w - uSea.y), far = length(rel);
+    // The tide: the sea stands uTide.x metres under the level its shore is mapped at. Its
+    // surface comes down to that; where the water was shallower, the bed it leaves bare
+    // is drawn at its own depth: the beach slopes down to the water's new edge. The sea
+    // only, not lakes and rivers; and near the traveller only (by distance, not by patch:
+    // neighbours of different detail must agree along their edge).
+    float mapped = max(wa - 1.0, 0.0), drop = min(mapped, -uTide.x * (1.0 - inland));
+    rel -= up * (drop * (1.0 - smoothstep(400.0, 1000.0, far)));
+    if (uWave.y > 0.5 && aI2.z < 2.5) {
+      // Open water rises and falls with its waves (the long ones, where the mesh is fine
+      // enough to carry them; none at the shore, where the water is shallow).
+      float deep = clamp((mapped - drop - 0.15) / 1.5, 0.0, 1.0) * (1.0 - smoothstep(160.0, 420.0, far));
+      deep *= 1.0 - 0.8 * inland;          // (lakes and rivers: small waves)
+      if (deep > 0.0) rel += up * (wave(vDetailUv, uWave.z, vec2(dot(uWind.xyz, vTanU), dot(uWind.xyz, vTanV)), uWave.x, ${LIFTED}).z * deep);
+    }
     vRel = rel;
   }
   vChunk = vec4(aI2.w, aI3.x, aI2.z, 0.0);
@@ -197,6 +207,7 @@ flat in vec3 vTanU;
 flat in vec3 vTanV;
 flat in vec4 vChunk;           // x = layer, y = parent's layer (-1: none), z = extent in tiles of DETAIL_TILE metres
 flat in vec2 vParentOff;       // this chunk's corner inside the parent (0 or 0.5)
+uniform vec2 uTide;          // x: the sea's level against the level its shore is mapped at (m, 0 or below)
 uniform float uPlain;        // 1: the ground in one flat tone (the benchmark's cost test: its shading apart from its triangles)
 layout(location = 0) out vec4 fragColor;
 
@@ -439,6 +450,23 @@ void main() {
     albedo *= mix(vec3(1.0), mix(vec3(0.85, 0.90, 0.85), vec3(1.15, 1.11, 1.0), lay), uPaint.x * (1.0 - farW) * flatW * smoothstep(60.0, 400.0, length(vRel)));
   }
 
+  // --- the tide, and the wash of the waves up the shore. The map's shore is the highest
+  // tide; the sea stands uTide.x under it (the Moon's and the Sun's pull, worked out for
+  // the place and the hour: App.updateTide), and every wave runs a little way up the
+  // beach and back. Sand the water has left is dark and wet. The sea only.
+  if (uSea.x > 0.5 && waterDepth > 0.0) {
+    float seaK = 1.0 - smoothstep(2.0, 6.0, vHeight - uSea.y);
+    if (seaK > 0.0) {
+      float left = waterDepth + uTide.x * seaK;
+      float ph = texture(tDetail, vDetailUv * 0.37).b;
+      // (only at the water's edge: a hand's depth in a calm, knee-deep in a storm)
+      left += (0.07 + 0.16 * uWave.x) * sin(uWave.z * 0.85 + 12.566 * ph) * seaK * (1.0 - smoothstep(0.0, 1.0, abs(left)));
+      float bared = (1.0 - smoothstep(0.0, 0.03, left)) * smoothstep(0.0, 0.05, waterDepth);
+      waterDepth = max(left, 0.0);
+      if (bared > 0.0) { albedo = mix(albedo, vec3(0.16, 0.14, 0.105), bared); ao = mix(ao, 1.0, bared); N = normalize(mix(N, up, 0.7 * bared)); }
+    }
+  }
+
   // --- water: dark, moving, shining; its colour by how deep it is
   float water = uSea.x > 0.5 ? smoothstep(0.02, 0.22, waterDepth) : 0.0;
   float foam = 0.0, waveRough = 0.0;
@@ -452,7 +480,7 @@ void main() {
     float mpp = fw * float(DETAIL_TILE);
     int nw = ${WAVE_STEPS.map(([n, len]) => `mpp < ${(len / 5).toFixed(2)} ? ${n} : `).reverse().join('')}0;
     float inland = smoothstep(2.0, 6.0, vHeight - uSea.y);                  // lakes and rivers: small waves
-    vec3 wv = wave(vDetailUv, uWave.z, wind2, uWave.x * shoal * (1.0 - 0.88 * inland), nw);
+    vec3 wv = wave(vDetailUv, uWave.z, wind2, uWave.x * shoal * (1.0 - 0.8 * inland), nw);
     waveRough = uWave.x * 0.5 * smoothstep(0.02, 0.3, fw);
     vec2 drift = uWave.z * vec2(0.011, 0.006);
     vec3 r1 = texture(tDetail, vDetailUv * 3.0 + drift).rgb - 0.5, r2 = texture(tDetail, vDetailUv * 13.0 - drift * 2.3).rgb - 0.5;
@@ -535,7 +563,7 @@ export function makeTerrainShared(world, textures) {
     uCover: { value: new THREE.Vector4() },
     // w: the cover pattern (d0.a + 0.3 d1.a) is about normal; logistic scale = its spread / 1.702
     uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
-    uPlain: { value: 0 },
+    uPlain: { value: 0 }, uTide: { value: new THREE.Vector2(0, 0) },
     uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) },
     tRingColour: { value: textures.white }, uRingColour: { value: new THREE.Vector4(0, 0, 1, 0) },
     tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoShift: { value: 0 }, uAlbedoSteep: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },

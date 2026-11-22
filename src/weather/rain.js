@@ -4,7 +4,9 @@
 // kept per drop. How many are drawn follows how hard it falls.
 import * as THREE from 'three';
 
-const COUNT = 1400, BOX = 26, TALL = 22;
+// (5 600 streaks in a downpour: with 1 400 the heaviest rain there is was a thin drizzle of
+// lines. Two vertices each: nothing to a GPU, and they cover few pixels.)
+const COUNT = 5600, BOX = 26, TALL = 22;
 
 export class Rain {
   constructor(shared) {
@@ -31,7 +33,7 @@ export class Rain {
         out float vA;
         void main() {
           float snow = uKind.x, speed = uFall.z * (0.8 + 0.4 * aSeed.z);
-          float ago = position.x * mix(0.035, 0.04, snow), t = uFall.w + aSeed.w * 40.0 - ago;      // (the streak's other end: a moment earlier)
+          float ago = position.x * mix(0.055, 0.04, snow), t = uFall.w + aSeed.w * 40.0 - ago;      // (the streak's other end: a moment earlier)
           // (how far the wind has carried the air is added up on the CPU, uBlown: the wind
           // gusts, and its speed times all the time that has passed threw the rain about)
           vec2 drift = uBlown - uFall.xy * ago + vec2(sin(t * 1.7 + aSeed.x * 9.0), cos(t * 1.3 + aSeed.y * 7.0)) * (0.5 * snow);
@@ -49,7 +51,7 @@ export class Rain {
         void main() {
           // (drops are lit by the grey sky they fall from, and by lightning)
           vec3 light = uSunIrradiance * (0.035 + 0.05 * uWeather.x) * uWeather.y + uFlash * 0.4;
-          float a = vA * mix(0.22, 0.6, uKind.x);
+          float a = vA * mix(0.26, 0.6, uKind.x);
           fragColor = vec4(light * mix(0.5, 0.9, uKind.x) * a * uExposure, a);
         }`,
     });

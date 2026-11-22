@@ -11,9 +11,13 @@ export const CONFIG = {
   SPLIT_FACTOR_OFFSCREEN: 0.3,
   // From high up only a few dozen patches are in view, far below the patch cap, and a
   // phone's screen has several pixels per patch texel: patches split this many times sooner
-  // above SPACE_BOOST_ALT (blended in from a tenth of it).
+  // above SPACE_BOOST_ALT (blended in from SPACE_BOOST_FROM).
+  // (From 1.2 km up, in full by 12 km: it once began at 30 km and was whole at 300, and the
+  // ground looked "not loaded" from a few kilometres up: seven screen pixels to a texel of
+  // the ground's own maps on the phone, with three quarters of the patch pool unused.)
   SPLIT_SPACE_BOOST: 2.2,
-  SPACE_BOOST_ALT: 300000,
+  SPACE_BOOST_FROM: 1200,
+  SPACE_BOOST_ALT: 12000,
   MIN_FOOT_GRAVITY: 1.0,    // m/s^2: on foot, gravity never counts for less (tiny moons; see cameraRig.js)
   MORPH_START: 0.72,        // fraction of the merge distance where geomorphing starts
   WORKERS: 3,
