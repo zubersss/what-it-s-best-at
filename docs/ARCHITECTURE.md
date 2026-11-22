@@ -530,6 +530,10 @@ ring: it is not asked for.
   own `minFlow` up: the great rivers from far, every brook from near.
 - Inland water has small waves and little foam (the shader knows it by its height above
   the sea).
+- **Far off, in wind**, where no single crest is seen, the share of the sea that is white
+  in that wind (Monahan's rule, at most 45 %) is laid on in streaks: a gale's sea is
+  grey-white to the horizon. **The beach**: ground less than a step above the sea's level
+  is pale dry sand.
 - **The tide** (`sea.tide: { by: [[body, metres], ...], gain }`, `App.updateTide`): each
   body named raises the sea by `metres x (1.5 cos^2 - 0.5)` of the angle between it and the
   traveller's zenith (the equilibrium tide: two bulges a day, springs and neaps as the Moon
@@ -678,8 +682,11 @@ ring: it is not asked for.
   the veil growing with the rate (visibility a few hundred metres in a cloudburst).
   `rain.js` draws 5 600 streaks (the governor's `rain` step: half of them), each a strip
   turned to the eye, a few millimetres wide and never under a pixel and a half; a third
-  of them in a small box round the eye. In a storm the cloud's base is darker and lighter
-  in great patches that go by with the wind (`uStorm` in the cloud volume).
+  of them in a small box round the eye, lit by the sky they fall from (`skyLight`: over
+  the veil's grey and the ground's under an overcast, dark at night, lit by lightning).
+  The sky dome takes the same veil (through 1 500 m of rain overhead, tens of kilometres
+  toward the horizon). In a storm the cloud's base is darker and lighter in great patches
+  that go by with the wind (`uStorm` in the cloud volume).
 
 ## Sky bodies
 

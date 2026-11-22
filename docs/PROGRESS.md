@@ -520,11 +520,14 @@ closer to the references.
 - **Tide**: the sea falls and rises twice a day by the Moon's and the Sun's real places
   (springs and neaps), up to about 3 m on Earth; the beach it leaves is drawn as wet
   sand at its own depth, with a wash at the water's edge; the character wades by it.
-  Waves: the smallest waves are half again as tall (`waveScale` at least 0.45).
+  Waves: the smallest waves are half again as tall (`waveScale` at least 0.45), they
+  lift the water at every governor level, and in wind the far sea is streaked white to
+  the horizon. A strip of dry sand stands above high water.
 - **Rain** four times as dense (5 600 streaks), each a strip with a width of its own
   (they were one-pixel lines: on the phone the heaviest rain was a few scratches, and a
   bug drew one streak in twelve right across the box), a third of them close round the
-  eye; and rain hides what is far (`rainVeil`).
+  eye, lit by the sky it falls from (lit by a share of the Sun's light it was as bright
+  as the scene behind it: unseen); and rain hides what is far (`rainVeil`), the sky too.
 - **Storms come in squalls**: bursts of rain and wind every minute or two, a darker
   sky, lightning sooner; in a storm the clouds are denser, drift up to 55 m/s and
   change shape up to thirteen times as fast.
