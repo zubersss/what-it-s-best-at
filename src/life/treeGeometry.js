@@ -192,7 +192,7 @@ export function makeTreeGeometries() {
   make(23, (s, R, L, v, q) => {
     const lean = [0.012, 0.05, -0.04][v], low = [0.46, 0.54, 0.38][v], N = [11, 9, 12][v];
     const tr = (y) => [lean * (y < 0.5 ? y * 1.6 : 0.8 + (y - 0.5) * 0.9) + 0.012 * Math.sin(y * 7), y, 0.01 * Math.sin(y * 5 + 1)];
-    s.trunk([tr(0), tr(0.3), tr(0.62), tr(0.93)], 0.021, 0.005, [3, 5, 6][q]);
+    s.trunk([tr(0), tr(0.3), tr(0.62), tr(0.93)], 0.016, 0.004, [3, 5, 6][q]);
     for (let k = 0; k < N; k++) {
       const t = k / (N - 1), y = low + (0.9 - low) * t, a = k * 2.4 + R(), len = (0.15 + 0.15 * (1 - t)) * (0.7 + 0.5 * R()), up = 0.25 + 0.35 * R(), big = 0.115 * (0.85 + 0.4 * R());
       if ((q === 1 && k % 4 === 3) || (q === 0 && k % 2 === 1)) continue;
@@ -224,21 +224,21 @@ export function makeTreeGeometries() {
   // wide and low, tall.
   make(37, (s, R, L, v, q) => {
     const wide = [1, 1.2, 0.84][v], tall = [1, 0.9, 1.1][v], split = [0.38, 0.32, 0.44][v], M = [4, 4, 3][v], sides = [3, 5, 6][q];
-    s.trunk([[0, 0, 0], [0.012, split * 0.55, 0.004], [0.006, split, 0]], 0.023, 0.015, sides);
+    s.trunk([[0, 0, 0], [0.012, split * 0.55, 0.004], [0.006, split, 0]], 0.015, 0.011, sides);
     const list = [], top = [0.006, split, 0];
     for (let i = 0; i < M; i++) {
       // a limb out and up, with a bend in it; two twigs from its end; a bunch on each and one hanging under the bend
       const a = i / M * TAU + R() * 0.7, d = (0.12 + 0.04 * R()) * wide, bend = [Math.cos(a) * d * 0.55, split + 0.07 * tall, Math.sin(a) * d * 0.55], e1 = [Math.cos(a) * d * 1.25, split + (0.2 + 0.05 * R()) * tall, Math.sin(a) * d * 1.25];
-      if (q) { s.limb([top[0], top[1] - 0.03, top[2]], bend, 0.014, 0.01, 4); s.limb(bend, e1, 0.01, 0.006, 4); } else s.limb([top[0], top[1] - 0.03, top[2]], e1, 0.013, 0.006, 3);
+      if (q) { s.limb([top[0], top[1] - 0.03, top[2]], bend, 0.01, 0.007, 4); s.limb(bend, e1, 0.007, 0.004, 4); } else s.limb([top[0], top[1] - 0.03, top[2]], e1, 0.009, 0.004, 3);
       list.push([Math.cos(a) * d * 1.9, split + (0.1 + 0.05 * R()) * tall, Math.sin(a) * d * 1.9, (0.13 + 0.03 * R()) * wide, 0.095 + 0.02 * R()]);
       for (const da of [-0.6, 0.6]) {
         const b = a + da + (R() - 0.5) * 0.3, d2 = (0.1 + 0.05 * R()) * wide, e2 = [e1[0] + Math.cos(b) * d2, e1[1] + (0.09 + 0.08 * R()) * tall, e1[2] + Math.sin(b) * d2];
-        if (q) s.limb(e1, e2, 0.006, 0.003, 3);
+        if (q) s.limb(e1, e2, 0.004, 0.002, 3);
         list.push([e2[0], e2[1] + 0.02, e2[2], (0.135 + 0.04 * R()) * wide, 0.1 + 0.03 * R()]);
       }
     }
     list.push([0.01, split + 0.3 * tall, 0, 0.16 * wide, 0.11], [0.03, split + 0.52 * tall, -0.02, 0.14 * wide, 0.1], [-0.05, split + 0.43 * tall, 0.06, 0.14 * wide, 0.1], [0.07, split + 0.42 * tall, -0.07, 0.13 * wide, 0.095]);
-    if (q) s.limb(top, [0.02, split + 0.4 * tall, 0], 0.012, 0.004, 4);
+    if (q) s.limb(top, [0.02, split + 0.4 * tall, 0], 0.009, 0.003, 4);
     bunches(s, L, list, 54, 0.058, 0.46, false);
   });
 
@@ -246,7 +246,7 @@ export function makeTreeGeometries() {
   // wide crown of big-leaved bunches on spreading limbs (kapok, dipterocarp, gum)
   make(41, (s, R, L, v, q) => {
     const top = [0.7, 0.62, 0.76][v], wide = [1, 1.15, 0.9][v];
-    s.trunk([[0, 0, 0], [0, 0.07, 0], [0.006, top * 0.6, 0], [0, top, 0]], 0.036, 0.012, [3, 5, 6][q]);
+    s.trunk([[0, 0, 0], [0, 0.07, 0], [0.006, top * 0.6, 0], [0, top, 0]], 0.028, 0.01, [3, 5, 6][q]);
     const list = [[0, top + 0.17, 0, 0.19 * wide, 0.085]];
     for (let k = 0; k < 6; k++) {
       const a = k / 6 * TAU + R(), d = (0.19 + 0.09 * R()) * wide, e = [Math.cos(a) * d, top + 0.07 + 0.08 * R(), Math.sin(a) * d];
@@ -260,7 +260,7 @@ export function makeTreeGeometries() {
   // small-leaved bunches over them (acacia, stone pine, koa)
   make(53, (s, R, L, v, q) => {
     const fork = [0.42, 0.34, 0.5][v], flat = [0.82, 0.74, 0.86][v];
-    s.trunk([[0, 0, 0], [0.02, fork * 0.6, 0.01], [0.012, fork, 0]], 0.024, 0.015, [3, 5, 6][q]);
+    s.trunk([[0, 0, 0], [0.02, fork * 0.6, 0.01], [0.012, fork, 0]], 0.017, 0.011, [3, 5, 6][q]);
     const list = [[0, flat + 0.015, 0, 0.17, 0.04]];
     for (let i = 0; i < 3; i++) {
       const a = i / 3 * TAU + R(), d = 0.15 + 0.05 * R(), e1 = [Math.cos(a) * d, fork + (flat - fork) * 0.7, Math.sin(a) * d];
