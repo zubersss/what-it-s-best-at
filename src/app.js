@@ -1332,6 +1332,15 @@ export class App {
     if (vol) this.cloudVolume.lay(near, far, rig);
     prof.mark(9);
     if (this.rain.mesh.visible || this.bolt.mesh.visible || this.rainbow.mesh.visible) renderer.render(this.weatherScene, rig.camera);
+    // The rain nearer than the terrain's near plane (a few metres up that plane is past the
+    // eye's own rain, and from 60 m in a hurricane not a streak was seen): drawn again in
+    // a slice of its own, from the eye to that plane. Nothing else stands in that slice but
+    // the character, which is drawn after it.
+    if (this.rain.mesh.visible && near > 1.0) {
+      rig.finalize(aspect, 0.2, near * 1.02);
+      this.rain.material.depthTest = false; renderer.render(this.rain.mesh, rig.camera); this.rain.material.depthTest = true;
+      rig.finalize(aspect, near, far);
+    }
     if (this.hero.group.visible) {
       // Near the ground the hero shares the terrain's depth buffer (rocks can hide it);
       // higher up the terrain's near plane has moved past it, so it gets its own slice.
