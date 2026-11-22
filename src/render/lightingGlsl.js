@@ -218,6 +218,13 @@ vec3 rainVeil(vec3 color, vec3 rel) {
   return mix(color, skyLight(up, up) * (0.7 / PI), 1.0 - exp(-length(rel) * uWeather.w));
 }
 // Small things (rocks, the lander, the character): the haze of mean ground.
+// The air of a wood: a forest breathes a blue haze of its own, and row behind row of trees
+// stands paler in it (the painted look's layers of distance, inside a forest and over one).
+// amount: how much forest this is (1: a tree). Trees, the ground under them and the far
+// canopy all ask here, so that they agree.
+vec3 forestAir(vec3 color, vec3 rel, vec3 up, float amount) {
+  return mix(color, skyLight(up, up) * (0.3 / PI), uPaint.x * 0.38 * amount * (1.0 - exp(-length(rel) / 150.0)));
+}
 vec3 aerialPerspective(vec3 color, vec3 rel) { return rainVeil(hazeOverGround(color, rel, vec3(1.0)), rel); }
 // The ground itself, with its own albedo.
 vec3 aerialPerspective(vec3 color, vec3 rel, vec3 albedo) {

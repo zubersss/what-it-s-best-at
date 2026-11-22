@@ -44,7 +44,7 @@ vec3 treePosition(out vec3 foot, out float leaf) {
   float swing = sin(uSeason.z * (1.6 + iB.z) + iB.z * 40.0 + p.y * 3.0) * 0.5 + 0.5 * sin(uSeason.z * 3.7 + iB.z * 17.0 + p.x * 9.0);
   float bend = aSway * iA.w * (0.004 * uTreeWind.w * gust + 0.0025 * uTreeWind.w * swing);
   // (out to nothing at the edge of the trees' radius, so none pops in)
-  float fade = 1.0 - smoothstep(uTreeRadius * 0.82, uTreeRadius, length(foot));
+  float fade = 1.0 - smoothstep(uTreeRadius * 0.86, uTreeRadius, length(foot));
   leaf = aLeaf;
   // (single leaves flutter, each in its own time, harder the harder it blows)
   vec3 flutter = vec3(0.0);
@@ -99,6 +99,12 @@ export class Trees {
           return mix(mix(mix(leafHash(i), leafHash(i + vec3(1, 0, 0)), f.x), mix(leafHash(i + vec3(0, 1, 0)), leafHash(i + vec3(1, 1, 0)), f.x), f.y),
                      mix(mix(leafHash(i + vec3(0, 0, 1)), leafHash(i + vec3(1, 0, 1)), f.x), mix(leafHash(i + vec3(0, 1, 1)), leafHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
         }
+        // (the painted look's leaf: a cleaner green of the tree's own kind, warm for broad
+        // leaves, a cold blue-green for firs and spruces, told by the colour the species has)
+        vec3 paintLeaf(vec3 c) {
+          vec3 hue = mix(vec3(0.62, 1.0, 0.36), vec3(0.36, 1.0, 0.62), smoothstep(-0.2, 0.2, (c.b - c.r) / max(c.g, 1e-4)));
+          return mix(c, dot(c, vec3(0.2, 0.7, 0.1)) * hue, 0.45);
+        }
         void main() {
           // A card: cut out of the picture first of all (most of a card is nothing). Far off the
           // cut is taken lower: averaged down, needles and leaves cover less of a pixel, and a
@@ -124,7 +130,7 @@ export class Trees {
           // (the painted look: a crown's faces that look up are its light tone, those that look
           // down its dark one; a pale trunk has its dark scars, as aspen and birch do)
           if (uPaint.x > 0.0 && vLeaf > 0.5 && !card) {
-            leafC = mix(leafC, dot(leafC, vec3(0.2, 0.7, 0.1)) * vec3(0.62, 1.0, 0.36), 0.45) * mix(0.64, 1.15, smoothstep(-0.45, 0.55, dot(N, up)));
+            leafC = paintLeaf(leafC) * mix(0.64, 1.15, smoothstep(-0.45, 0.55, dot(N, up)));
             // (a crown is bunches of leaves, drawn as patches of three tones with clean edges;
             // not from far off, where a patch is smaller than a pixel)
             float c = leafCells(vTreeM * 2.6) * 0.65 + leafCells(vTreeM * 6.1 + 3.3) * 0.35, near = 1.0 - smoothstep(60.0, 140.0, length(vRel));
@@ -133,14 +139,22 @@ export class Trees {
           // (single leaves: each lighter or darker than its neighbours)
           leafC *= 1.0 - 0.36 * under;
           if (vLeaf > 1.5) leafC *= 0.94 + 0.44 * smoothstep(0.35, 0.65, leafCells(vTreeM * 4.7 + 1.9));
-          else if (vLeaf > 1.1) leafC *= 0.74;          // (the heart of a crown seen near: darker than the leaves round it)
+          else if (vLeaf > 1.1) leafC *= 0.46;          // (the heart of a mass of foliage: the dark inside, see Shape.heart in treeGeometry.js)
           // (a card's foliage: cleaner green, lighter where the crown looks up; and each needle
           // and leaf its own tone, from the picture)
           if (card) {
-            if (uPaint.x > 0.0) leafC = mix(leafC, dot(leafC, vec3(0.2, 0.7, 0.1)) * vec3(0.62, 1.0, 0.36), 0.45) * mix(0.5, 1.12, smoothstep(-0.5, 0.6, dot(N, up)));
+            if (uPaint.x > 0.0) leafC = paintLeaf(leafC) * mix(0.5, 1.12, smoothstep(-0.5, 0.6, dot(N, up)));
             leafC *= 0.46 + 0.6 * cut.g;
           }
+          // (the heart of a bunch: the dark inside of the crown, see Shape.heart in treeGeometry.js)
+          bool heart = (vLeaf > 3.1 && vLeaf < 3.5) || (vLeaf > 1.1 && vLeaf < 1.5);
+          if (vLeaf > 3.1 && vLeaf < 3.5) leafC *= 0.5;
           vec3 albedo = wood ? vTrunkC * 0.6 : leafC;
+          // (bark near by: furrows running up the trunk, wandering a little)
+          if (wood && !card) {
+            float dW = length(vRel);
+            if (dW < 60.0) { vec2 q = vTreeM.xz - vOwn.x * 37.0; float a = atan(q.y, q.x); albedo *= 1.0 - 0.38 * smoothstep(0.5, 0.8, abs(fract(a * 1.7507 + 0.32 * sin(vTreeM.y * 1.3 + a * 2.0)) - 0.5) * 2.0) * (1.0 - smoothstep(25.0, 60.0, dW)); }
+          }
           if (uPaint.x > 0.0 && wood && dot(vTrunkC, vec3(0.333)) > 0.4) albedo *= 1.0 - 0.75 * step(0.8, fract(vY * 31.0 + vOwn.x * 9.0)) * step(0.35, fract(vY * 7.7 + vOwn.x * 3.0));
           // (the shadow is asked for a little outside the crown: on a mass of a few faces the
           // shadow map would draw the faces)
@@ -150,7 +164,7 @@ export class Trees {
           float nl = dot(N, uSunDir), lit = !wood ? max(nl * 0.7 + 0.3, 0.0) : max(nl, 0.0);
           if (uPaint.x > 0.0) { lit = mix(lit, paintLit(!wood ? nl * 0.75 + 0.25 : nl) * PI, uPaint.x); albedo = paintColour(albedo); leafC = paintColour(leafC); }
           // (and seen against the Sun, foliage glows: the light comes through needles and leaves)
-          float through = wood ? 0.0 : max(-nl, 0.0) * 0.28 + (card ? 0.4 * pow(max(dot(-V, uSunDir), 0.0), 4.0) : 0.0);
+          float through = wood || heart ? 0.0 : max(-nl, 0.0) * 0.28 + (card ? 0.4 * pow(max(dot(-V, uSunDir), 0.0), 4.0) : 0.0);
           // inside and under a crown less sky is seen
           float open = !wood ? mix(0.5, 1.0, smoothstep(-0.6, 0.8, dot(N, up))) : mix(0.22, 0.6, smoothstep(0.0, 0.5, vY));
           // (the painted look: the shaded side of a crown is its dark tone, not a bright one lit by the sky)
@@ -159,7 +173,7 @@ export class Trees {
           // come down through the leaves above it, green from the passage)
           vec3 glow = !wood ? leafC * directSun(planetPos) * (0.07 * smoothstep(0.0, 0.25, dot(up, uSunDir))) * vec3(0.9, 1.2, 0.5) : vec3(0.0);
           vec3 col = (albedo * (sun * lit + skyLight(N, up) * open + planetShine(N)) + leafC * sun * through * vec3(1.1, 1.25, 0.6) + glow) / PI;
-          col = aerialPerspective(col, vRel);
+          col = aerialPerspective(forestAir(col, vRel, up, 1.0), vRel);
           fragColor = vec4(col * uExposure, 1.0);
         }`,
     });

@@ -94,9 +94,12 @@ void main() {
       vRel = rel;
     }
   }
-  if (uSea.x > 0.5 && aI2.z < 20.0 && (uTide.x < 0.0 || (uWave.y > 0.5 && aI2.z < 2.5))) {
+  // (asked only by vertices that can need it: near the sea's level and near the traveller
+  // for the tide, in the finest patches for the waves)
+  float far = length(rel);
+  if (uSea.x > 0.5 && aI2.z < 20.0 && ((uTide.x < 0.0 && pv.w - uSea.y < 6.0 && far < 1000.0) || (uWave.y > 0.5 && aI2.z < 2.5))) {
     float wa = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 0.0).a;
-    float inland = smoothstep(2.0, 6.0, pv.w - uSea.y), far = length(rel);
+    float inland = smoothstep(2.0, 6.0, pv.w - uSea.y);
     // The tide: the sea stands uTide.x metres under the level its shore is mapped at. Its
     // surface comes down to that; where the water was shallower, the bed it leaves bare
     // is drawn at its own depth: the beach slopes down to the water's new edge. The sea
@@ -302,6 +305,7 @@ void main() {
   // --- the world's real large-scale brightness and colour: maria, rays, dark sands
   float canopyTall = 0.0;        // how tall the trees stand here (m; from the land-cover picture)
   float canopyShade = 0.0;       // how much of the sky a closed canopy hides from the ground here
+  float woodAir = 0.0;           // how much this is forest (its floor, or its canopy far off): for the air of a wood
   vec3 mapTint = vec3(1.0);
   float mapW = 0.0;
   if (uAlbedoMap.w > 0.0) {
@@ -401,6 +405,7 @@ void main() {
   // as a whole (far off) the surface is its canopy: leaves, uneven, darker between crowns
   if (canopyTall > 0.3) {
     float wooded = smoothstep(0.5, 5.0, canopyTall) * flatW;
+    woodAir = max(vShell, smoothstep(5.0, 14.0, canopyTall) * flatW);
     {
       // open country is grass in patches; under a closed canopy it is litter and shade
       vec3 g1 = texture(tDetail, vDetailUv * 0.5).rgb, g2 = texture(tDetail, vDetailUv * 4.0).rgb;
@@ -423,6 +428,9 @@ void main() {
       vec3 c1 = texture(tDetail, vDetailUv * 5.0).rgb - 0.5, c2 = texture(tDetail, vDetailUv * 1.0).rgb - 0.5;
       float nearC = 1.0 - smoothstep(0.03, 0.5, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
       N = normalize(N + (uTanU * (c1.r + 0.7 * c2.r) + uTanV * (c1.g + 0.7 * c2.g)) * (1.6 * vShell * nearC));
+      // (a canopy seen from the side shows the sides of its crowns: lit with the Sun behind
+      // the eye, dark against it, as the trees drawn one by one are; from straight above, its top)
+      N = normalize(N + (V - up * dot(V, up)) * (1.1 * vShell));
       vec3 leaves = vec3(0.040, 0.078, 0.028) * mix(vec3(1.0), mapTint, 0.6) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
       // (in their season, in patches: the trees that turn among those that do not)
       leaves = mix(leaves, mix(vec3(0.17, 0.10, 0.02), vec3(0.13, 0.035, 0.015), smoothstep(-0.1, 0.25, c1.r)) * (0.8 + 0.6 * (c2.b + 0.5)), uLitter * 0.85 * smoothstep(-0.12, 0.1, c2.r + 0.5 * c1.g));
@@ -547,6 +555,7 @@ void main() {
     col += directSun(planetPos) * shadow * (gl * (1.0 - farW) * a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0));
     if (wetK > 0.0) { vec3 Rw = reflect(-V, N); Rw = normalize(Rw + up * max(0.0, 0.05 - dot(Rw, up))); col += wetK * flatW * 0.5 * pow(1.0 - max(dot(N, V), 0.0), 4.0) * skyLight(Rw, up) / PI; }
   }
+  if (woodAir > 0.0) col = forestAir(col, vRel, up, woodAir);
   col = aerialPerspective(col, vRel, albedo);      // the haze above depends on how bright the ground is
   fragColor = vec4(col * uExposure, 1.0);
 }`;
