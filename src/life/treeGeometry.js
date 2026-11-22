@@ -154,14 +154,14 @@ export function makeTreeGeometries() {
   // trunk, its spray hanging; a few lie flat in every tier for whoever looks from above or
   // below. Variants: fuller, sparser, taller-crowned.
   make(0, 11, (v) => [SPRAYS.roseN, [0.2, 0.17, 0.22][v], 0.3, 0.5], (s, R, L, v, q) => {
-    const tiers = [15, 13, 17][v], wide = [1, 0.84, 1.1][v], foot = [0.14, 0.23, 0.1][v], nV = q === 2 ? 7 : 4, nH = q === 2 ? 3 : 1;
+    const tiers = [13, 11, 15][v], wide = [1, 0.84, 1.1][v], foot = [0.14, 0.23, 0.1][v], nV = q === 2 ? 7 : 5, nH = q === 2 ? 3 : 1;
     s.mid = 0.5;
     s.trunk([[0, 0, 0], [0.004, 0.5, 0.003], [0, 0.97, 0]], 0.016, 0.003, q === 2 ? 6 : 4);
     for (let k = 0; k < tiers; k++) {
       const t = k / (tiers - 1), y = foot + (0.93 - foot) * Math.pow(t, 0.9), rr = (0.24 * Math.pow(1 - t, 0.8) + 0.03) * (0.78 + 0.4 * R()) * wide, turn = R() * TAU, c = [0, y - rr * 0.4, 0];
       for (let j = 0; j < nV; j++) {
         const a = turn + (j + 0.5 * (L() - 0.5)) / nV * TAU, len = rr * (0.85 + 0.35 * L()), ax = norm([Math.cos(a), -0.18 - 0.2 * L(), Math.sin(a)]), d = -ax[1], ay = norm([-d * ax[0], -1 - d * ax[1], -d * ax[2]]);
-        s.card([Math.cos(a) * 0.006, y, Math.sin(a) * 0.006], ax, ay, len, len * 0.86, SPRAYS.fir, c, 0.2);
+        s.card([Math.cos(a) * 0.006, y, Math.sin(a) * 0.006], ax, ay, len, len * 0.66, SPRAYS.fir, c, 0.2);
       }
       for (let j = 0; j < nH; j++) {
         const a = turn + 0.6 + (j + 0.4 * (L() - 0.5)) / nH * TAU, len = rr * (0.85 + 0.3 * L());
@@ -264,7 +264,7 @@ export function makeTreeGeometries() {
       list.push([Math.cos(a) * d, y, Math.sin(a) * d, 0.17 + 0.07 * R()]);
     }
     list.push([0.04, 0.68 + 0.05 * v, -0.03, 0.16]);
-    bunches(s, L, list, 7, [SPRAYS.tuft, SPRAYS.firTop], 1, -0.2);
+    bunches(s, L, list, 8, [SPRAYS.tuft], 1, -0.2);
   });
 
   // 6 palm: a thin leaning trunk and a crown of fronds, each a bent blade with leaflets down
@@ -296,14 +296,13 @@ export function makeTreeGeometries() {
     s.trunk([tr(0), tr(0.35), tr(0.7), tr(0.97)], 0.012, 0.003, q === 2 ? 6 : 4);
     for (let k = 0; k < N; k++) {
       const t = k / (N - 1), y = low + (0.9 - low) * t, a = k * 2.3 + R() * 0.8, len = (0.07 + 0.16 * Math.sin(3.1416 * Math.pow(t, 0.7))) * (0.65 + 0.6 * R());
-      if (q === 1 && k % 3 === 2) continue;
       const root = tr(y), dir = norm([Math.cos(a), 0.7, Math.sin(a)]), end = [root[0] + dir[0] * len, y + dir[1] * len, root[2] + dir[2] * len], c = [root[0], y + len * 0.3, root[2]];
       s.limb(root, end, 0.004, 0.0015, 3);
       // (two twigs of leaves along the branch, crossed, and one hanging from its end)
       const e1 = norm(cross(dir, [0, 1, 0])), e2 = cross(dir, e1), L2 = len * 1.5 + 0.05;
       s.card([root[0] + dir[0] * len * 0.2, y + dir[1] * len * 0.2, root[2] + dir[2] * len * 0.2], dir, e1, L2, L2 * 0.85, SPRAYS.aspen, c);
-      if (q === 2) s.card([root[0] + dir[0] * len * 0.35, y + dir[1] * len * 0.35, root[2] + dir[2] * len * 0.35], dir, e2, L2 * 0.9, L2 * 0.8, SPRAYS.aspen, c);
-      s.card(end, norm([Math.cos(a) * 0.7, -0.5, Math.sin(a) * 0.7]), e1, L2 * 0.7, L2 * 0.6, SPRAYS.aspen, c);
+      s.card([root[0] + dir[0] * len * 0.35, y + dir[1] * len * 0.35, root[2] + dir[2] * len * 0.35], dir, e2, L2 * 0.9, L2 * 0.8, SPRAYS.aspen, c);
+      if (q === 2) s.card(end, norm([Math.cos(a) * 0.7, -0.5, Math.sin(a) * 0.7]), e1, L2 * 0.7, L2 * 0.6, SPRAYS.aspen, c);
     }
     const top = tr(0.97);
     s.bunch(top[0], top[1] - 0.02, top[2], 0.07, q === 2 ? 5 : 3, [SPRAYS.aspen], L, 1, 0);
