@@ -6,7 +6,39 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-### HANDOFF: the trees' fifth pass — delivered; read this before anything else
+### The sixth painted delivery (speed, far things, water, storms, trees): read this first
+
+*2026-11-22, after the owner's seventh phone results (Earth benchmark of build ef3201a)
+and a list. The whole of it is under "The owner's seventh phone results and the sixth
+painted delivery" below; this is the short of it.*
+
+- **The phone said**: Earth 48.3 fps at the floor resolution with every saving on; nearly
+  half a frame paid with nothing drawn at all. Three things were found and changed (the
+  last pass at the picture's size, the shadow tiles drawn in turns and trees casting as
+  simpler meshes, the ground drawn last). **None of it is measured on the phone.**
+- **The owner asked for**: speed; far things that look good; the ground loaded when high
+  in the sky; waves and tide; much denser rain; clouds that change like a real storm;
+  trees closer to the references. All seven have something in this delivery.
+- **Asked of the owner**: an **Earth benchmark in Smooth**. Its cost test now leaves
+  whole parts out against fresh baselines: read "the shadow maps", "the ground's
+  shading", "the last pass at the picture's size" and "nothing drawn" first.
+- **What to do next, in order:**
+  1. With the benchmark: if Earth holds 60 at more than the floor resolution, the cure
+     held; give the phone back what the governor took (it steps up by itself). If late
+     frames come in a rhythm of four, it is the wide shadow tile's turn (see the seventh
+     results). If "the ground's shading" is the largest part left, cut the ground's
+     shader: compile Earth's blocks out of the other worlds', and look for what can be
+     done per vertex.
+  2. With a complaint about a look: reproduce it in a picture, fix, show before and after.
+  3. Known to be weak (not done): the far forest is still a raised, flat-shaded canopy
+     with no tree shapes on its skyline (a ring of whole-tree cards beyond the trees
+     would give them; it is fill the phone must first have room for); the tide's beach is
+     a narrow band on steep shores; the storm's clouds were seen in still pictures only
+     (how they move and turn over was not seen); rain was not seen in motion; the cut-out
+     trees and the shadow turns were not run through the stability test; winter trees.
+  4. Then the rest of milestone 11 (the list under the fifth pass below still holds).
+
+### The trees' fifth pass (the delivery before; kept for what it says of the trees)
 
 *Written 2026-11-22 at the owner's request ("write a handoff so the next session knows
 exactly what you're doing"). The fifth pass is merged and live; this block says what it
