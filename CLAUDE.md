@@ -230,7 +230,9 @@ frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last foo
 `debug=contactx4` (the rocks' contact-darkening spheres four times larger, to see the effect),
 `debug=flash` (a stroke of lightning held at its brightest, on worlds with weather),
 `debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
-`nofarrough`, `noboost`) for before/after pictures.
+`nofarrough`, `noboost`) for before/after pictures, `debug=floor` (every saving of the
+governor on and Smooth's share of the patches: what a phone that has given everything up
+draws).
 
 Keys: `WASD` move, mouse look (click to capture), `Shift` super speed on foot / boost in
 flight, left `Ctrl` (hold) slow, for precise moves (flight ×0.12, on foot ×0.3, free-fly
@@ -569,5 +571,20 @@ finished benchmark leaves its text in `window.__benchResult`.
   (`gl_Position = vec4(2.0, 2.0, 2.0, 1.0)`). To find what draws a thing nobody can
   name, take the parts out of their scenes one at a time and count
   (the scratch script of 2026-11-22 did it in one browser session; guessing took three pictures).
+- A governor that needs a run without one late frame to step up never steps up on a
+  device with late frames of its own: the phone had one in fifteen at every stop, at one
+  million pixels as at two, and sat at the floor with every saving on for whole
+  benchmarks ("unrendered", the owner said). A lever is pulled as a trial: if the late
+  frames stay, it is put back. And the cost test said beforehand that the levers bought a
+  tenth of a frame between them: read what a lever buys before trusting it with the picture.
+- The phone's picture is whatever the governor has left of it. Before judging or tuning a
+  look, take the pictures a traveller on the phone would see: `?debug=floor` for the
+  worst case, and the whole way in (from 20 000 km down to landing), not only the
+  bookmarks on the ground. The home world from space was a pale ball with no clouds beside
+  the Earth one sees from Mars, and nobody had looked.
+- A look made for the ground (thick low air, light in two tones) is wrong from above: the
+  haze is looked through whole, and at midday the two tones put every slope in the light.
+  Anything of a look that depends on how far off or how high one is needs its own numbers
+  there (`uHaze`, the relief light).
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

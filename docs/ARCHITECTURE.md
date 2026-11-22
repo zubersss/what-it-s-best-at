@@ -944,7 +944,8 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   never resampled by the browser. `MAX_NATIVE_PIXELS` (8.3 M) is only a guard for
   monitors above 4K.
 - **Resolution levels**: level k renders `native × 0.88^k` pixels; the lowest level is
-  the one closest to 1 M pixels (or native, if the canvas is smaller than that).
+  the one closest to 1.6 M pixels (or native, if the canvas is smaller than that). (It
+  was 1 M: on the test phone the last 0.6 M bought a twentieth of a frame.)
 - **Slow work is told from slow pixels.** The app passes the page's own time for the frame
   (`scriptMs`: from the start of `frame()` to the governor's update). When frames are late
   and that time fills more than 0.6 of the interval, resolution is left alone and the
@@ -970,18 +971,40 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   12. `cloak`: robe and hair simulated with half the solver passes (the id is from the cloak it replaced);
   13. `air-shadow`: terrain shadows in the haze off.
 
-  Steps up run in reverse. Every new feature that costs frame time adds its step here.
+  (That list is of milestone 4; the file has more now. The last three to go are the clouds'
+  shadows, the relief of far ground and the clouds with depth: what gives land and sky
+  their depth from the air.) Steps up run in reverse, five at a time. Every new feature
+  that costs frame time adds its step here.
 - **Measuring**: the display's refresh interval is estimated continuously from the
   spacing of animation-frame callbacks (20th percentile of the last 60, never slower than
   57 Hz). The frame interval is the mode's target rounded to a whole number of refreshes.
   A frame is *late* when it takes more than 1.2 × its interval (`LATE`). Lateness is
   judged against the target interval, never against the measured refresh: when every
   frame is slow the refresh reads too long and would excuse them.
-- **Deciding**: over the last 24 frames, step down when more than 20 % of the ordinary
-  frames are late, or more than 60 % of all frames (two steps at once above 60 %). Frames
+- **Deciding**: over the last 24 frames, step down when more than 20 % (+ `bg`) of the
+  ordinary frames are late, or more than 30 % (+ `bg`) of all frames (in strides when
+  most are). Frames
   in which new terrain was uploaded are "soft": lateness there is usually not the
   resolution's fault. Frames after a bookmark jump, a world switch, a resize or a return
   from the background are ignored.
+- **Late frames of the device's own** (`bg`). A phone has late frames that nothing drawn
+  causes (one in fifteen at every stop of the eighth benchmark, at one million pixels as
+  at two). `lateEMA` is the share of ordinary frames late over the last three seconds or
+  so; `bg` is the part of it the device has whatever is drawn. `bg` is learned only from
+  evidence: at the resolution's floor (nothing lower to try), or from a trial that cured
+  nothing; it follows `lateEMA` down at once. Up to `bg` + 3 % a late frame does not reset
+  the clean run; the window's threshold for stepping down is 20 % + `bg`.
+- **A step down is a trial** (`_dip`). When some frames are late (under 60 %), two steps
+  have been taken and about as many are late as before (over 0.7 of the first share),
+  fewer pixels are not the cure: `_putBack` restores the resolution and the savings the
+  trial began with, and such lateness moves nothing for 30 s (then 60, up to 240;
+  `immune`). When everything has been given up and the frames are as long as they were
+  (the window's mean over 0.85 of the first), the same. When only the savings did nothing
+  (frames as long with all of them on as when the first went), the savings come back and
+  the resolution stays (`featImmune`). A few late frames over `bg` + 4 % for six seconds
+  start a trial of their own (one step, two seconds to see what it did); a step up
+  followed by one within twelve seconds is taken back instead. Arriving at another place
+  ends all of it. The benchmark prints `bg` and how often quality was put back.
 - **Stepping up** needs a clean run of `holdUp` seconds (3 s to start) and, where the
   browser exposes GPU timer queries, GPU time under 72 % of the interval. If a step up
   has to be taken back within 4 s, `holdUp` doubles (up to 60 s); it halves again each
@@ -991,7 +1014,11 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   screen, remembered in `localStorage`. Both modes start at native. Switching to Sharp
   jumps to native with every feature on and lets the governor come down; switching to
   Smooth keeps the current level and comes down from there if it has to.
-- `?scale=` and screenshot mode fix the scale and switch all of this off.
+- `?scale=` and screenshot mode fix the scale and switch all of this off. `?debug=floor`
+  (with a picture) switches every saving on and takes Smooth's share of the patches: what
+  a device that has given everything up draws.
+- A place's remembered level is kept under `<mode>:<place>:2`; levels remembered before
+  the eighth results (the floor, everywhere) are not read.
 
 ## Benchmark (`src/perf/benchmark.js`)
 
