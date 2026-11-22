@@ -270,7 +270,7 @@ export class App {
     this.nearScene.add(this.terrain.group, this.rocks.mesh, this.clouds.mesh);
     this.nearShadow.addCaster(this.rocks.mesh, this.rocks.depthMaterial, null, () => this.rocks.nearCount);
     // Trees (worlds that have them): drawn with the ground, and they cast shadows
-    this.trees = new Trees(world, this.terrain);
+    this.trees = new Trees(world, this.terrain); this.trees.renderer = renderer;
     for (const set of this.trees.sets.flat(2)) {
       this.nearScene.add(set.mesh);
       this.nearShadow.addCaster(set.mesh, this.trees.depthMaterial, () => set.mesh.visible && (set.lod <= 1 || this.trees.shadowsFar));
