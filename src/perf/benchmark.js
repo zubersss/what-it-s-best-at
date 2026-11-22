@@ -266,6 +266,7 @@ const WARM = 5, TAKE = 16, HELD = 2.07e6;
 const PARTS_OUT = [
   ['grass', (app, out) => app.grass?.setFraction(out ? 0 : 1)],
   ['trees', (app, out) => app.trees?.setFraction(out ? 0.02 : 1)],
+  ['the far trees', (app, out) => app.groves?.setFraction(out ? 0 : 1)],
   ['the figure', (app, out) => { app.heroScene.visible = !out; app.dustScene.visible = !out; }],
   // (the shadows of trees, rocks and the figure: drawn into their own maps before the picture)
   ['the shadow maps', (app, out) => { app.nearShadow.off = out; }],

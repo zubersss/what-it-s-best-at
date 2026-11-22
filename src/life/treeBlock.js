@@ -15,22 +15,25 @@ export const TREE_FLOATS = 8;          // x, y, z (m from the block's origin, pl
 
 // (the block's width in longitude: the same for every block of a one-degree band of latitude)
 // (a whole number of blocks round the world: the lattice meets itself at longitude 0)
-export function blockLon(bi) { const band = Math.floor(bi * BLOCK_DEG) + 0.5; return 360 / Math.max(1, Math.round(360 / (BLOCK_DEG / Math.max(0.05, Math.cos(band * Math.PI / 180))))); }
+// (deg: the block's height in degrees; the far trees' blocks are ten times a tree block's)
+export function blockLon(bi, deg = BLOCK_DEG) { const band = Math.floor(bi * deg) + 0.5; return 360 / Math.max(1, Math.round(360 / (deg / Math.max(0.05, Math.cos(band * Math.PI / 180))))); }
 
 // hs: the world's height source (with setCover given); radius; bi, bj: the block; spacing (m).
 // Returns { origin: [x, y, z] (planet-centred, m), count, trees: Float32Array }.
-export function treeBlock(hs, bi, bj, spacing = 7) {
-  const R = hs.radius, rad = Math.PI / 180, dLon = blockLon(bi), lat0 = bi * BLOCK_DEG, lon0 = bj * dLon;
-  const K = Math.max(2, Math.round(111.2 / spacing)), out = new Float32Array(K * K * TREE_FLOATS);
+// deg, salt: the far trees (life/groves.js) ask for larger blocks with fewer sites, on a
+// lattice of their own: BLOCK_DEG and the trees' own numbers when left out.
+export function treeBlock(hs, bi, bj, spacing = 7, deg = BLOCK_DEG, salt = 4409) {
+  const R = hs.radius, rad = Math.PI / 180, dLon = blockLon(bi, deg), lat0 = bi * deg, lon0 = bj * dLon;
+  const K = Math.max(2, Math.round(111.2 * (deg / 0.001) / spacing)), out = new Float32Array(K * K * TREE_FLOATS);
   const dirOf = (lat, lon, d) => { const cl = Math.cos(lat * rad); d[0] = cl * Math.cos(lon * rad); d[1] = cl * Math.sin(lon * rad); d[2] = Math.sin(lat * rad); };
   const d = [0, 0, 0], o = [0, 0, 0];
-  dirOf(lat0 + BLOCK_DEG / 2, lon0 + dLon / 2, o);
+  dirOf(lat0 + deg / 2, lon0 + dLon / 2, o);
   const h0 = hs.height(o[0], o[1], o[2], 30), origin = [o[0] * (R + h0), o[1] * (R + h0), o[2] * (R + h0)];
   let n = 0;
   for (let j = 0; j < K; j++) for (let i = 0; i < K; i++) {
-    const h1 = hash3(bi * 131 + i, bj * 137 + j, 17, 4409), h2 = hash3(bi * 131 + i, bj * 137 + j, 29, 4409);
+    const h1 = hash3(bi * 131 + i, bj * 137 + j, 17, salt), h2 = hash3(bi * 131 + i, bj * 137 + j, 29, salt);
     const u1 = (h1 & 0xffff) / 65536, u2 = (h1 >>> 16) / 65536, u3 = (h2 & 0xffff) / 65536, u4 = (h2 >>> 16) / 65536;
-    const lat = lat0 + (j + 0.15 + 0.7 * u1) / K * BLOCK_DEG, lon = lon0 + (i + 0.15 + 0.7 * u2) / K * dLon;
+    const lat = lat0 + (j + 0.15 + 0.7 * u1) / K * deg, lon = lon0 + (i + 0.15 + 0.7 * u2) / K * dLon;
     dirOf(lat, lon, d);
     const cover = hs.coverAt(d[0], d[1], d[2]);
     if (cover < 0) continue;
