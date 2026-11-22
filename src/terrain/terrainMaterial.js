@@ -229,6 +229,23 @@ uniform float uPlain;        // 1: the ground in one flat tone (the benchmark's 
 layout(location = 0) out vec4 fragColor;
 
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+// A forest seen from above is crowns: domes side by side, each lit on its sunward side,
+// dark in the gaps between. cells: crowns across the 64 m detail tile (a whole number: each
+// patch knows its tile only modulo one). Returns xy: the surface's tilt (outward from the
+// middle of the nearest crown, along the tile's two axes); z: how high in the crown (0 in a
+// gap, 1 on its top); w: a number of the crown's own.
+vec4 crowns(vec2 uv, float cells) {
+  vec2 p = uv * cells, b = floor(p - 0.5);
+  vec4 best = vec4(0.0, 0.0, 0.0, 0.5); float hb = -1e3;
+  for (int j = 0; j < 2; j++) for (int i = 0; i < 2; i++) {
+    vec2 c = b + vec2(float(i), float(j)), w = mod(c, cells);
+    vec3 h = fract(sin(vec3(dot(w, vec2(127.1, 311.7)), dot(w, vec2(269.5, 183.3)), dot(w, vec2(419.2, 371.9)))) * 43758.5453);
+    vec2 d = p - (c + 0.5 + (h.xy - 0.5) * 0.5);
+    float r = 0.42 + 0.2 * h.z, hgt = 1.0 - dot(d, d) / (r * r);
+    if (hgt > hb) { hb = hgt; best = vec4(d / (r * r), max(hgt, 0.0), h.z); }
+  }
+  return best;
+}
 
 // Pattern level below which a share c of the ground lies (the pattern is roughly normal
 // around 0.5 with the spread uCoverPattern.w; logistic fit of its distribution).
@@ -452,6 +469,25 @@ void main() {
       // forest is what the picture from space shows, not one flat green laid over it in
       // blocks: the canopy's map has pixels a kilometre wide)
       float ownC = 1.0 - smoothstep(25.0, 160.0, chunkTexel);
+      // Crowns, 8 m apart, and the stands they grow in, 21 m: where one is larger than a
+      // pixel or so it is a dome with its own light and shade and its own green, and the
+      // gaps between are dark. (Without them the far forest was one even green from the
+      // air: "a green plot of land", the owner said, and no trees.)
+      {
+        float fwC = fwidth(vDetailUv.x) + fwidth(vDetailUv.y);
+        // (a crown fades out between five pixels and one and a half: 0.25 / fwC pixels across)
+        float kc = (1.0 - smoothstep(0.05, 0.16, fwC)) * vShell * ownC, kg = (1.0 - smoothstep(0.14, 0.42, fwC)) * vShell * ownC;
+        if (kg > 0.0) {
+          vec4 cg = crowns(vDetailUv + 0.37, 3.0);
+          N = normalize(N + (uTanU * cg.x + uTanV * cg.y) * (0.3 * kg));
+          leaves *= mix(1.0, (0.78 + 0.32 * smoothstep(0.0, 0.6, cg.z)) * (0.9 + 0.2 * cg.w), kg);
+        }
+        if (kc > 0.0) {
+          vec4 cr = crowns(vDetailUv, 8.0);
+          N = normalize(N + (uTanU * cr.x + uTanV * cr.y) * (0.5 * kc));
+          leaves *= mix(1.0, (0.5 + 0.62 * smoothstep(0.0, 0.5, cr.z)) * (0.84 + 0.32 * cr.w), kc);
+        }
+      }
       albedo = mix(albedo, leaves, vShell * ownC);
       ao *= mix(1.0, 0.72 + 0.5 * clamp(c1.b + c2.b, -0.4, 0.5), vShell * ownC);
     }

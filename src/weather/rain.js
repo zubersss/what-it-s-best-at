@@ -99,7 +99,9 @@ export class Rain {
   update(weather, rig, time, pix) {
     if (pix) this.uniforms.uPix.value = pix;
     const u = this.uniforms, fall = weather.rain + weather.snow, snow = fall > 0 ? weather.snow / fall : 0;
-    const want = this.enabled && rig.agl < 3000 ? Math.min(1, fall / 6) : 0;
+    // (nothing under a tenth of a millimetre an hour: with the square root below, a rate
+    // that reads "0.0" drew four hundred streaks in dry weather)
+    const want = this.enabled && rig.agl < 3000 && fall > 0.1 ? Math.min(1, fall / 6) : 0;
     this.amount += (want - this.amount) * 0.08;
     const n = Math.round(COUNT * Math.sqrt(this.amount) * (this.share ?? 1));          // (share: the governor's thinner rain)
     this.geo.setDrawRange(0, n * 6); this.mesh.visible = n > 0;
