@@ -96,12 +96,55 @@ run('Phone-like: 10 s of slow work per frame that nothing cures', { vsyncMs: 8.3
 }
 // A place seen before starts from what it held.
 {
-  const known = { 'smooth:mars': 7 };
+  const known = { 'smooth:mars:2': 7, 'smooth:moon': 12 };          // (the second: a level remembered under the old name, which must not be taken)
   const app = { renderer: { getContext: () => stubGl } }, g = new Governor(app, 'smooth');
   g.remember(known, () => {}); g.place = 'mars'; g.setNative(NATIVE);
   console.log(`\nA place seen before: starts at ${(g.pixels / 1e6).toFixed(2)} MP`);
   if (g.resLevel !== 7) { console.log('FAILED: the remembered level was not taken'); process.exitCode = 1; }
   g.arrive('moon');
-  if (g.resLevel !== 5) { console.log('FAILED: a new place in Smooth should start 5 steps down'); process.exitCode = 1; }
+  if (g.resLevel !== 5) { console.log('FAILED: a new place in Smooth should start 5 steps down (and a level remembered under the old name must not be taken)'); process.exitCode = 1; }
+}
+// The test phone, eighth results (build f300e6f): one frame in fifteen came late at every
+// stop, at one million pixels with every saving on as at two million, and the governor sat
+// at its floor for whole benchmarks, because one late frame in three seconds kept it from
+// ever stepping up. Late frames of the device's own must neither bring quality down nor
+// keep it down: from the floor it must climb to what the GPU holds (here 3 MP and more).
+{
+  let k = 0;
+  const g = run('Phone, eighth results: one frame in fifteen late whatever is drawn (must climb from the floor)', { vsyncMs: 8.403, mode: 'smooth', native: NATIVE, seconds: 150, work: () => 6,
+    cost: (p) => 6 + 3.0 * p / 1e6 + (++k % 15 === 0 ? 14 : 0),
+    events: (t, gg) => { if (t < 0.02 && gg.featureLevel === 0) { gg.resLevel = gg.maxResLevel; gg._applyScale(); gg.toFloor(); } } });
+  if (g.featureLevel !== 0 || g.pixels < 2.6e6) { console.log(`FAILED: stayed down among late frames of the device's own (${(g.pixels / 1e6).toFixed(2)} MP, ${g.featureLevel} savings on)`); process.exitCode = 1; }
+}
+// ... and a view's own trouble (a third of the frames late for 25 s, whatever is drawn):
+// a short trial of fewer pixels, then the picture back as it was, not the floor.
+{
+  let k = 0, low = 0, lowT = 0;
+  const g = run('Phone: a third of the frames late for 25 s that nothing drawn cures (a short trial, then back)', { vsyncMs: 8.403, mode: 'smooth', native: NATIVE, seconds: 90, work: () => 6,
+    cost: (p, t) => 5 + 2.4 * p / 1e6 + (t > 30 && t < 55 && ++k % 3 === 0 ? 16 : 0),
+    events: (t, gg) => { if (t > 30 && t < 55) { if (gg.pixels < 1.9e6 || gg.featureLevel > 0) lowT += 0.0084; low = Math.max(low, gg.featureLevel); } } });
+  if (lowT > 8) { console.log(`FAILED: ${lowT.toFixed(0)} s near the floor for late frames that fewer pixels do not cure`); process.exitCode = 1; }
+  if (g.pixels < 3.4e6) { console.log(`FAILED: did not come back (${(g.pixels / 1e6).toFixed(2)} MP)`); process.exitCode = 1; }
+}
+// Every frame late whatever is drawn (a GPU busy with something no lever touches): at the
+// floor with every saving on the frames are as long as before. Then all of it comes back.
+{
+  const g = run('Every frame late whatever is drawn (everything comes back)', { vsyncMs: 8.403, mode: 'smooth', native: NATIVE, seconds: 60, work: () => 6, cost: (p, t) => (t > 10 ? 27 : 5 + 2.4 * p / 1e6) });
+  if (g.featureLevel !== 0 || g.resLevel >= g.maxResLevel) { console.log(`FAILED: left at the floor for nothing (${(g.pixels / 1e6).toFixed(2)} MP, ${g.featureLevel} savings on)`); process.exitCode = 1; }
+}
+// A few late frames that ARE the pixels' (a frame's cost wanders by 4 ms: at 2.35 MP one
+// frame in six is late, at 2.07 MP none): too few at a time to trip the window, and they
+// must not be taken for the device's own. A trial step cures them and stays; steps back
+// up fail and are tried less and less often.
+{
+  let seed = 12345, lateAfter = 0, framesAfter = 0, last = 0;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const g = run('A few late frames that fewer pixels do cure (must settle where they stop, without hunting)', { vsyncMs: 8.403, mode: 'smooth', native: NATIVE, seconds: 240, work: () => 6,
+    cost: (p) => 6 + 3.2 * p / 1e6 + 4 * rnd(),
+    events: (t, gg) => { if (t > 120 && gg.time !== last) { last = gg.time; } } });
+  if (g.pixels > 2.4e6 || g.pixels < 1.7e6) { console.log(`FAILED: settled at ${(g.pixels / 1e6).toFixed(2)} MP (2.07 holds, 2.35 does not)`); process.exitCode = 1; }
+  if (g.featureLevel !== 0) { console.log('FAILED: savings on for late frames that a resolution step cures'); process.exitCode = 1; }
+  const tail = g.log.filter((l) => l.t > 120).length;
+  if (tail > 12) { console.log(`FAILED: still hunting after two minutes (${tail} steps in the last two)`); process.exitCode = 1; }
 }
 run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native: 1920 * 1080, seconds: 40, cost: (p) => 2 + 1.5 * p / 1e6 });

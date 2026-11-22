@@ -1,8 +1,13 @@
 // The governor: finds the best image quality that holds a steady frame rate.
 //
 // Policy (fixed by the owner, see CLAUDE.md):
-//   - The resolution ceiling is the canvas's native pixel size; the floor is about one
-//     million pixels. Resolution is lowered first.
+//   - The resolution ceiling is the canvas's native pixel size; the floor is about 1.6
+//     million pixels (it was one million: on the test phone the last 0.6 bought a
+//     twentieth of a frame and cost the picture its sharpness). Resolution is lowered first.
+//   - A step down is a trial. Late frames that fewer pixels and fewer features do not
+//     cure are not theirs to cure: what was given up is put back, and that lateness moves
+//     nothing for a while (see `_dip`, `immune`). A device's own steady trickle of late
+//     frames (`bg`) neither brings quality down nor keeps it from coming back.
 //   - Only when resolution is at its floor are features stepped down, in the fixed order
 //     below, cheapest visual loss first. Step-ups happen in the reverse order.
 //   - Steps up need sustained headroom, and a step up that had to be taken back makes the
@@ -54,7 +59,10 @@ export const FEATURE_STEPS = [
 ];
 
 const RES_STEP = 0.88;          // each resolution step keeps 88 % of the pixels (about 6 % per side)
-const MIN_PIXELS = 1.0e6;
+// (Eighth phone results, build f300e6f: a frame at 1.00 MP took 40.5 ms in the cost test, at
+// 2.07 MP 44.3, at native 57.5: under two megapixels the picture's size is hardly what a
+// frame costs, and one million pixels on a 4.45 million pixel screen is a blur.)
+const MIN_PIXELS = 1.6e6;
 const START_SMOOTH = 5;         // Smooth at a place never seen starts this many steps down (53 % of the pixels)
 const WINDOW = 24;              // frames looked at for "are we missing the target"
 const GOOD_AFTER = 20;           // seconds without a step down that make a resolution level "known good"
@@ -119,8 +127,20 @@ export class Governor {
     this.streamLevel = 0;         // 0: terrain arrives at full pace; 1, 2: more slowly (see update)
     this.loadLevel = 0;           // index into LOAD: the terrain patch factor taken when pixels are not what is slow
     this.loadHold = 15; this.sinceLoadUp = 1e9; this.loadUpFailed = false; this.leverClean = 0; this._hold = false;
+    this.lateEMA = 0; this.lateFast = 0;       // the share of frames late over the last three seconds or so, and over the last one (frames that took in no terrain)
+    this.bg = 0;                  // the late frames this device has whatever is drawn (learned at the floor, or from a trial that cured nothing)
+    this.overTime = 0;            // seconds with more late frames than that, above the floor
+    this._dip = null;             // steps down on trial: { res, feat, m0, dt0, n, dtF, probe } (where it began, how late it was, steps since)
+    this.immune = 0; this.immuneFor = 30;      // until `immune` (s) lateness that giving quality up did not cure moves nothing
+    this.featImmune = 0; this._immuneAll = false;      // (the same for the savings alone; _immuneAll: even when most frames are late)
+    this._dts = new Float32Array(WINDOW);      // the window's frame lengths (ms)
     this._setInterval();
   }
+
+  // The name a place's remembered level is kept under. (":2": the levels remembered before
+  // the eighth phone results were the floor everywhere, learned by a governor that could
+  // not climb; they are left behind.)
+  _key(place, mode = this.mode) { return `${mode}:${place}:2`; }
 
   setNative(pixels) {
     this.nativePixels = pixels;
@@ -139,7 +159,7 @@ export class Governor {
   arrive(place) {
     this.place = place;
     if (this.fixed != null || !this._started) return;
-    const k = this.known?.[`${this.mode}:${place}`];
+    const k = this.known?.[this._key(place)];
     // (a place never seen: Smooth starts at about half the pixels and climbs, which costs
     // a few seconds of a softer picture; starting high costs seconds of half-rate frames)
     const level = Number.isFinite(k) ? k : this.mode === 'smooth' ? START_SMOOTH : 0;
@@ -147,6 +167,7 @@ export class Governor {
     this._applyScale();
     this.holdUp = 3; this.cooldown = 1.0; this.cleanTime = 0; this._filled = 0; this.lastUpFailed = false; this._probeFrames = -1;
     this.goodLevel = null; this.sinceDown = 0; this._learned = null;
+    this._dip = null; this.immune = this.featImmune = 0; this.immuneFor = 30;
     this._note(`${place}: starting at ${(this.pixels / 1e6).toFixed(2)} MP`);
   }
 
@@ -169,9 +190,10 @@ export class Governor {
     // A new target: forget what was learned and look again from where we are.
     this.holdUp = 3; this.cooldown = 1.0; this.cleanTime = 0; this._filled = 0; this.lastUpFailed = false; this._probeFrames = -1;
     this.goodLevel = null; this.sinceDown = 0; this.loadHold = 15; this.loadUpFailed = false; this.leverClean = 0;
+    this._dip = null; this.immune = this.featImmune = 0; this.immuneFor = 30; this.lateEMA = 0;
     {
       // (the new mode's own memory of this place, if it has one)
-      const k = this.fixed == null && this.place ? this.known?.[`${mode}:${this.place}`] : null;
+      const k = this.fixed == null && this.place ? this.known?.[this._key(this.place, mode)] : null;
       if (Number.isFinite(k)) { this.resLevel = Math.max(0, Math.min(this.maxResLevel, Math.round(k))); this._applyScale(); }
       this._learned = null;
     }
@@ -271,14 +293,28 @@ export class Governor {
     // ... and it is what this place is remembered by.
     // (not while a step up is still on trial: one that is taken back must not be remembered)
     if (this.place && this.known && this.sinceDown > GOOD_AFTER && this.sinceUp > 8 && this._probeFrames < 0 && this._learned !== this.resLevel) {
-      this._learned = this.resLevel; this.known[`${this.mode}:${this.place}`] = this.resLevel; this.onLearn?.();
+      this._learned = this.resLevel; this.known[this._key(this.place)] = this.resLevel; this.onLearn?.();
     }
     // Late is judged against the interval itself, not the measured refresh: if every
     // frame is slow the refresh estimate is too long, and must not excuse them.
     const late = dtMs > this.interval * LATE, soft = kind === FRAME.SOFT;
+    this._dts[this._ri] = Math.min(dtMs, 250);
     this._ring[this._ri] = (late ? 1 : 0) | (soft ? 2 : 0); this._ri = (this._ri + 1) % WINDOW; this._filled = Math.min(WINDOW, this._filled + 1);
+    // The share of frames late lately, frame by frame (over some three seconds, and over one),
+    // and `bg`: the share this device has whatever is drawn. A phone has late frames of its
+    // own that nothing here causes (the eighth results: one in fifteen at every stop, at
+    // any size of picture). `bg` is only ever learned from evidence: at the resolution's
+    // floor, where nothing lower is left to try, or from a trial of steps down that cured
+    // nothing (_putBack); and it follows the share down at once. Up to it, plus a little, a
+    // late frame is weather: it does not stop quality from coming back.
+    if (!soft) { const l = late ? 1 : 0; this.lateEMA += (l - this.lateEMA) / 200; this.lateFast += (l - this.lateFast) / 60; }
+    if (this.resLevel >= this.maxResLevel) this.bg = Math.min(0.12, this.bg + dt * 0.02);
+    this.bg = Math.min(this.bg, this.lateEMA);
+    const tol = this.bg + 0.03;
+    // (more late frames than that, for six seconds, above the floor: a trial is due, see below)
+    if (this.lateEMA > tol + 0.01 && this.resLevel < this.maxResLevel && this._filled >= WINDOW) this.overTime += dt; else this.overTime = 0;
     // (leverClean: the same clock for the two terrain levers, which a resolution step up does not reset)
-    if (late && !soft) this.cleanTime = this.leverClean = 0; else if (!late) { this.cleanTime += dt; this.leverClean += dt; }
+    if (late && !soft) { if (this.lateEMA > tol) this.cleanTime = this.leverClean = 0; } else if (!late) { this.cleanTime += dt; this.leverClean += dt; }
     // Just stepped up? Watch the next frames closely: if most of the first eight are late
     // the step does not hold, and it is taken back at once (a fifth of a second of
     // stutter instead of a full second).
@@ -303,10 +339,15 @@ export class Governor {
     // (A third of all frames late is too many whatever their kind. The bar for frames with
     // terrain arriving used to be 0.6: on the test phone half the frames at two stops then
     // came late for 24 seconds, every one of them "soft", and nothing was done.)
-    if (hardFraction > 0.2 || allFraction > 0.3) {
+    const trigger = hardFraction > 0.2 + this.bg || allFraction > 0.3 + this.bg;
+    // A trial is also due when late frames have stayed over what this device has of its own
+    // for six seconds (too few at a time to trip the window): one step, two seconds to see
+    // what it did, and so on (see `futile`).
+    const probe = !trigger && this.time >= this.immune && (this.overTime > 6 || (this._dip && this._dip.probe));
+    if (trigger || probe) {
       // Missing the target. If we only just stepped up, that step was a mistake: take it
       // back and wait longer before trying again.
-      const tookBack = this.sinceUp < 4;
+      const tookBack = this.sinceUp < (trigger ? 4 : 12) && !this._dip;
       // Late only while terrain is arriving (the late frames are the "soft" ones): the
       // picture is not what is slow. Terrain is let in more slowly instead (it sharpens a
       // little later); only if that is already at its slowest does quality give way.
@@ -314,7 +355,7 @@ export class Governor {
       // arriving in most frames there is nothing to compare, and then pixels are the
       // likelier cause and the cheaper mistake: on the test phone nine seconds of half-rate
       // frames at a new place went on terrain levers that cured nothing.)
-      const streaming = this.app.terrainPace && plainLate >= 0 && plainLate <= 0.1 && softLate > 0.3;
+      const streaming = trigger && this.app.terrainPace && plainLate >= 0 && plainLate <= 0.1 && softLate > 0.3;
       // The page's own work over the window: more than 0.6 of the interval is slow work.
       // (judged on the late frames themselves, and only when it can make a frame late by
       // itself: 0.9 of the interval. Above the whole interval pixels cannot cure anything.)
@@ -323,7 +364,8 @@ export class Governor {
       this.scriptMs = sm / WINDOW;
       const lateScript = nl ? sl / nl : 0, work = lateScript > this.interval * 0.9;
       this._hold = lateScript > this.interval;
-      if (tookBack) { this.holdUp = Math.min(60, this.holdUp * 2); this.lastUpFailed = true; this._takeBack(); }
+      let cool = 0.7;
+      if (tookBack) { this.holdUp = Math.min(60, this.holdUp * 2); this.lastUpFailed = true; this._takeBack(); this.overTime = 0; }
       else if (streaming && this.streamLevel < 2) { this.streamLevel++; this.app.terrainPace(this.streamLevel); this._note(`terrain let in more slowly (${this.streamLevel})`); this.sinceStep = 0; }
       // (still late with terrain at its slowest pace: the arriving ground is the work that
       // is slow, so patches go before pixels)
@@ -331,12 +373,44 @@ export class Governor {
         // (a screen shows a frame in whole refreshes: one that misses is twice as long
         // however little it missed by, so the share of late frames says how far over the
         // frame is only roughly. Most of them late: come down in strides.)
-        const f = Math.max(hardFraction, allFraction);
-        this._down(f > 0.8 ? 4 : f > 0.6 ? 3 : f > 0.4 ? 2 : 1, work || streaming);
+        const f = Math.max(hardFraction, allFraction), d = this._dip;
+        // (how late: the window's share when it tripped, else the share over the last second)
+        const m = trigger ? f : this.lateFast;
+        let mean = 0; for (let i = 0; i < WINDOW; i++) mean += this._dts[i]; mean /= WINDOW;
+        const atFloor = this.resLevel >= this.maxResLevel && this.featureLevel >= FEATURE_STEPS.length;
+        // Giving quality up is a trial. Some frames late (not most), two steps taken, and
+        // about as many late as before: pixels are not why. Or everything given up and the
+        // frames as long as they were. Then what was given up comes back, and for a while
+        // (longer each time it happens at a place) such lateness is left alone: a blurred
+        // picture with the same late frames is the worse of the two.
+        // (On the test phone every stop had its late frames at one million pixels with
+        // every saving on, and it sat there for whole benchmarks.)
+        const futile = d && ((d.m0 < 0.6 && d.n >= 2 && m > 0.7 * d.m0) || (atFloor && d.n >= 2 && mean > 0.85 * d.dt0));
+        // (and the savings alone, when the resolution's steps did help: with every one of
+        // them on and the frames as long as when the first was switched on, they come back
+        // and the resolution stays where it holds)
+        const featFutile = d && !futile && atFloor && d.dtF != null && mean > 0.85 * d.dtF;
+        if (futile) { this._putBack(d, true); if (d.m0 < 0.6) this.bg = Math.max(this.bg, Math.min(0.12, 0.9 * Math.min(m, this.lateEMA))); }
+        else if (featFutile) this._putBack(d, false);
+        // (a trial that began for a few late frames, and a step that cut them: it is over)
+        else if (d && d.probe && m <= 0.7 * d.m0) { this._dip = null; this.overTime = 0; }
+        else if (this.time < this.immune && (f < 0.6 || this._immuneAll)) { /* tried here a moment ago, and it cured nothing */ }
+        else if (atFloor) { /* nothing left to give up */ }
+        else if (this.time < this.featImmune && this.resLevel >= this.maxResLevel) { /* the savings were tried a moment ago, for nothing */ }
+        else {
+          if (!d) this._dip = { res: this.resLevel, feat: this.featureLevel, m0: m, dt0: mean, n: 0, dtF: null, probe: !trigger };
+          // (how long the frames are when the first saving is about to go)
+          if (this._dip.dtF == null && this.resLevel >= this.maxResLevel) this._dip.dtF = mean;
+          this._dip.n++;
+          this._down(f > 0.8 ? 4 : f > 0.6 ? 3 : f > 0.4 ? 2 : 1, work || streaming);
+          if (!trigger) cool = 2.0;        // (two seconds to see what the step did to a few late frames)
+        }
       }
-      this.cooldown = 0.7; this._filled = 0; this.cleanTime = this.leverClean = 0;
+      this.cooldown = cool; this._filled = 0; this.cleanTime = this.leverClean = 0;
       return;
     }
+    // (a trial of steps down that has had three quiet seconds is over: it cured what it was for)
+    if (this._dip && this.sinceDown > 3) this._dip = null;
     // The patches given up for the work per frame come back after fifteen clean seconds.
     if (this.loadLevel > 0 && this.leverClean > this.loadHold) {
       if (!this.loadUpFailed) this.loadHold = Math.max(15, this.loadHold * 0.5);
@@ -388,6 +462,18 @@ export class Governor {
     }
   }
 
+  // A trial of steps down that cured nothing: the features and the resolution it began
+  // with come back, and lateness of that kind is left alone for a while.
+  // all: the resolution too (nothing helped); else only the savings (the resolution's steps did).
+  _putBack(d, all) {
+    while (this.featureLevel > d.feat) FEATURE_STEPS[--this.featureLevel].apply(this.app, false);
+    if (all && this.resLevel > d.res) { this.resLevel = d.res; this._applyScale(); }
+    this._note(all ? `back to ${(this.pixels / 1e6).toFixed(2)} MP${d.feat === 0 ? ', everything on' : ''}: giving quality up did not cure the late frames` : 'every saving off again: they did not cure the late frames');
+    if (all) { this.immune = this.time + this.immuneFor; this._immuneAll = this.resLevel < this.maxResLevel && d.m0 >= 0.6; } else this.featImmune = this.time + this.immuneFor;
+    this.immuneFor = Math.min(240, this.immuneFor * 2);
+    this._dip = null; this.sinceStep = 0; this.sinceUp = 1e9; this._probeFrames = -1; this.goodLevel = null; this._upFrom = null; this._upFeat = 0;
+  }
+
   // Undoes the last step up (which may have been a jump of several levels back to a
   // level that used to hold): it does not hold any more.
   _takeBack() {
@@ -404,10 +490,10 @@ export class Governor {
 
   _up() {
     if (this.featureLevel > 0) {
-      // (three at a time: after a passing dip, a burst of ground arriving, the way back up
+      // (five at a time: after a passing dip, a burst of ground arriving, the way back up
       // through twenty savings one by one took two minutes of a picture with nothing in it)
       let n = 0;
-      for (; n < 3 && this.featureLevel > 0; n++) { const f = FEATURE_STEPS[--this.featureLevel]; f.apply(this.app, false); this._note(`back on: ${f.label}`); }
+      for (; n < 5 && this.featureLevel > 0; n++) { const f = FEATURE_STEPS[--this.featureLevel]; f.apply(this.app, false); this._note(`back on: ${f.label}`); }
       this._upFeat = n; this._upFrom = null;
     } else if (this.resLevel > 0) {
       this._upFeat = 0;

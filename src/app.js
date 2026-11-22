@@ -323,6 +323,9 @@ export class App {
     for (const m of this.hero.casters) this.nearShadow.addCaster(m, this.hero.depthMaterial, () => this.hero.group.visible);
     await this.terrain.workers.ready;
 
+    // ?debug=floor: every saving the governor has, and Smooth's share of the patches: what a
+    // phone that has given everything up draws (for pictures of exactly that).
+    if (params.debug.includes('floor')) { this.governor.toFloor(); this.terrainBudget(MODES.smooth.patches ?? 1, 'mode'); }
     this.applyBookmark(params.shot || 'ledge');
     this.pendingAim = params.aim || null;
     if (params.timeOffsetHours != null) this.timeOffsetHours = params.timeOffsetHours;

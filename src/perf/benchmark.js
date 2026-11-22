@@ -224,6 +224,9 @@ export class Benchmark {
       }
     }
     L.push(`quality steps: ${steps.length} (resolution down ${down}, up ${up}; features off ${off}, back on ${on}) · ended at ${g.summary}`);
+    // (what the governor has taken for the device's own share of late frames, and how often
+    // it put quality back after steps down that cured nothing)
+    L.push(`late frames taken as the device's own: ${(100 * (g.bg || 0)).toFixed(1)} % · quality put back after steps that cured nothing: ${steps.filter((x) => /did not cure/.test(x.text)).length} times`);
     for (const s of steps.slice(0, 30)) L.push(`  ${s.t}s ${s.text}`);
     if (steps.length > 30) L.push(`  … ${steps.length - 30} more`);
     // Hitches: how many per cause, then the worst ones in the order they happened.
