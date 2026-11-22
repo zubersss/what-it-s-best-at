@@ -76,14 +76,18 @@ merged, not live**):
    (wood is told apart by the picture's third byte); the leaves that fall (`leaves.js`)
    are untouched; the palm keeps plain faces.
 
-**State at the last update of this block:** step 2 half done. The first game picture (the
-spruce forest, `t1`) works: no shader errors, needled boughs and fine foliage, light
-through it; all the trees of a closed forest are 166 000 triangles (they were 620 000).
-Seen there and changed since (not yet pictured): the glow against the Sun was too strong
-and yellow (0.5 to 0.26), crowns darker toward their under side. Fir tiers were given
-gaps, the aspen's near mesh filled, the bush made of tufts (in the preview only). Still
-to look at: the opening view, the hardwood forest, the forest from the air (far
-silhouettes), then step 3.
+**State at the last update of this block:** steps 1 and 2 done, step 3 under way. Seen in
+the game (`t1`): the spruce forest (needled boughs, light through them), the hardwood
+forest (a canopy of leaf shapes on limbs), the forest from the air (tree shapes near, the
+far forest a dark layer: what the references have), the opening view. No shader errors;
+a closed forest's trees are 166 000 triangles (they were 620 000). Changed since and
+being pictured as `t2` (`dist_t2`: over the tree tops `...&heading=75&pitch=-8&fov=60&alt=40`,
+the hardwood forest, the spruce forest): a gentler glow against the Sun, crowns darker
+beneath, fir tiers with gaps, fuller near aspens, slimmer hardwood trunks (they were
+0.9 m through). `docs/ASSETS.md` and `docs/ARCHITECTURE.md` are written. **Left**: look at
+`t2`; the hardwood canopy is too evenly bright (wants deep shade under the leaves, as
+the references' aspen grove has); then step 4 (build check, smoke, reference pictures,
+tree sheets, merge, checkpoint, ask for a benchmark).
 
 
 *Handoff written at the fourth delivery of milestone 11 (the painted look).*

@@ -152,3 +152,12 @@ published game) are a direction, not an asset: they are not in the repository, n
 is traced or sampled from them, and no texture, model, palette file or interface element
 of that game is used.
 
+## The trees' picture (`public/data/tree_atlas.png`)
+
+Made here, by rule, with no outside artwork: `node scripts/make-tree-atlas.mjs` runs
+`src/life/treeAtlasGen.js`, which draws sprays of foliage (needled boughs, bursts of
+needles, twigs of leaves) and every tree shape seen whole from its own mesh. Nothing in
+it is copied or traced from the owner's reference pictures or from any other source; the
+references set the manner (finely cut foliage on a skeleton, crowns shaded as one mass,
+far trees as silhouettes), not the drawings. Ours to use without condition.
+
