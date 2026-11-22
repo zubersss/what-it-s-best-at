@@ -82,7 +82,11 @@ void main() {
   // (how far off this is: 1 where a cloud's heaps are smaller than a pixel. Whether or not
   // there is a volume near the traveller: with the governor's last saving on there is
   // none, and from space the Earth then had no cloud at all.)
-  float far = smoothstep(500.0, 1800.0, px * uCloud.y);
+  // (by the pixel's width across the line of sight, not its length along it: seen at a low
+  // angle a heap is still as wide as it was. By the longer of the two, every cloud a few
+  // hundred kilometres off from 100 km up was a grey veil, with the crisp shadows of its
+  // heaps on the ground under it.)
+  float far = smoothstep(500.0, 1800.0, 2.0 * min(length(ux), length(uy)) * uCloud.y);
   float relief = 1.0;            // the Sun on a heap's own shape: over 1 on its sunward side, under 1 in its own shade
   if (uVol.x > 0.0) {
     // With a volume near the traveller, this shell is the same clouds seen from far off: the
