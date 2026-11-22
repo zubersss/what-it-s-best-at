@@ -10,6 +10,8 @@
 // across it.) A third of them fall in a small box round the eye: the rain one sees drop
 // by drop is the rain within a few metres; what is farther is the veil (lightingGlsl).
 import * as THREE from 'three';
+import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
+import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 
 const COUNT = 5600, BOX = 26, TALL = 22, NEAR = 0.36;      // NEAR: the small box's size against the large one's
 
@@ -28,6 +30,7 @@ export class Rain {
     geo.setDrawRange(0, 0);
     this.geo = geo;
     this.uniforms = {
+      ...lightingUniforms(),
       uExposure: shared.uExposure, uSunIrradiance: shared.uSunIrradiance, uWeather: shared.uWeather, uFlash: shared.uFlash,
       uRainEast: { value: new THREE.Vector3(1, 0, 0) }, uRainNorth: { value: new THREE.Vector3(0, 1, 0) }, uRainUp: { value: new THREE.Vector3(0, 0, 1) },
       uFall: { value: new THREE.Vector4(0, 0, 9, 0) },         // xy: the wind's push east and north (m/s), z: how fast it falls (m/s), w: time (s)
@@ -36,7 +39,7 @@ export class Rain {
       uPix: { value: 0.001 },                                  // the angle of one pixel of the picture (radians)
     };
     this.material = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3, uniforms: this.uniforms, transparent: true, depthWrite: false, depthTest: true, side: THREE.DoubleSide,
+      glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: this.uniforms, transparent: true, depthWrite: false, depthTest: true, side: THREE.DoubleSide,
       blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
       vertexShader: /* glsl */`
         in vec4 aSeed;
@@ -69,16 +72,20 @@ export class Rain {
                     position.x);
           gl_Position = projectionMatrix * vec4(at, 1.0);
         }`,
-      fragmentShader: /* glsl */`
-        uniform float uExposure; uniform vec3 uSunIrradiance, uFlash, uKind; uniform vec4 uWeather;
+      fragmentShader: /* glsl */`${LIGHTING_PARS}
+        uniform vec3 uKind, uRainUp;
         in vec2 vA;
         layout(location = 0) out vec4 fragColor;
         void main() {
-          // (drops are lit by the grey sky they fall from, and by lightning)
-          vec3 light = uSunIrradiance * (0.035 + 0.05 * uWeather.x) * uWeather.y + uFlash * 0.4;
+          // A drop is a lens full of the sky: it shows as bright as the sky it falls from,
+          // well over the grey that rain lays on what is far (rainVeil) and over the ground
+          // under an overcast, and it goes dark with the sky at night; lightning lights it
+          // (skyLight carries the flash). (Lit by a set share of the Sun's light it came out
+          // as bright as the scene behind it: rain that could not be seen.)
+          vec3 light = skyLight(uRainUp, uRainUp) * (mix(1.5, 1.9, uKind.x) / PI);
           // (bright at the drop, fading along the smear behind it)
-          float a = vA.x * mix(0.5, 0.7, uKind.x) * (1.0 - 0.7 * vA.y);
-          fragColor = vec4(light * mix(0.62, 0.9, uKind.x) * a * uExposure, a);
+          float a = vA.x * mix(0.55, 0.7, uKind.x) * (1.0 - 0.7 * vA.y);
+          fragColor = vec4(light * a * uExposure, a);
         }`,
     });
     this.mesh = new THREE.Mesh(geo, this.material);
