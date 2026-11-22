@@ -209,7 +209,7 @@ export class Grass {
     this.fraction = 1; this.time = 0;
   }
 
-  setWorld(world) { this.def = world.life?.grass || null; this.has = false; this.mesh.visible = false; }
+  setWorld(world) { this.def = world.life?.grass || null; this.has = false; this.mesh.visible = false; this.seaLevel = world.surface.sea ? (world.surface.sea.level ?? 0) : null; }
 
   // The governor: draw this share of the tufts.
   setFraction(f) { this.fraction = f; for (const fl of this.fields) fl.geo.instanceCount = Math.round(fl.all * Math.min(1, f)); }
@@ -223,7 +223,10 @@ export class Grass {
     const hs = this.terrain.hs, A = this.anchor, e = this._e, n = this._n, d = this._d, x = i * CELL, y = j * CELL;
     d[0] = A.x + e[0] * x + n[0] * y; d[1] = A.y + e[1] * x + n[1] * y; d[2] = A.z + e[2] * x + n[2] * y;
     const l = Math.hypot(d[0], d[1], d[2]); d[0] /= l; d[1] /= l; d[2] /= l;
-    const h = hs.height(d[0], d[1], d[2], 2.5), wet = hs.waterDepth > 0, slope = hs.baseSlope, cover = hs.coverAt ? hs.coverAt(d[0], d[1], d[2]) : -1;
+    // (wet: in water, or no higher than the sea's level, as the rocks ask: radar elevation has
+    // the sea at exactly zero near land, with no depth to tell it by, and tufts and flowers
+    // stood on the water off every low shore)
+    const h = hs.height(d[0], d[1], d[2], 2.5), wet = hs.waterDepth > 0 || (this.seaLevel != null && h <= this.seaLevel + 0.3), slope = hs.baseSlope, cover = hs.coverAt ? hs.coverAt(d[0], d[1], d[2]) : -1;
     const cls = cover < 0 ? 0 : cover & 255, closed = cover < 0 ? 0 : (cover >> 16) / 255;
     // (none in water or on rock faces, thin under a closed canopy)
     let amount = wet ? 0 : (AMOUNT[cls] || 0) * (slope > 0.75 ? 0 : slope > 0.4 ? 1 - (slope - 0.4) / 0.35 : 1) * (1 - 0.4 * closed);
