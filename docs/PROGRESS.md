@@ -525,6 +525,27 @@ to, but make that aspect a lot better."*
 - From 400 km: forests are flat teal blocks (the far canopy's one green, mixed toward
   the sky's blue by the wood's air), no relief (the governor had it off), no cloud.
 
+**Built** (the seventh painted delivery; each thing seen in pictures, the working numbers
+in `docs/ARCHITECTURE.md`):
+- **From space**: `uHaze` (the look's haze from above: all of it to 2.5 km, 0.45 of it
+  from 25 km); the cloud layer from far is the day's whole map with its own relief, as
+  the far globe wears it (it showed nothing at all with the cloud volume off, and half a
+  stingy cover with it on); the land's colour ring is coarser and wider with height
+  (`zooms`); the far forest keeps the picture's own colour.
+- **Height and depth**: the relief light (far ground lit for its slopes by a Sun no
+  higher than 35 degrees); every heap of cloud has a lit side, a shaded side and a clean
+  edge, and casts its own shadow on the ground (`HEAP_GLSL`: one rule for the layer and
+  the ground); clouds' shadows, far relief and the cloud volume are the last three savings.
+- **Before landing**: the far trees (`life/groves.js`: a ring of tree shapes to 2 km in
+  one draw); the far canopy has crowns and stands (`crowns()`), and follows the trees'
+  rule for slopes.
+- Small things found on the way: rain streaks in dry weather (a rate that read 0.0 drew
+  four hundred); square holes in the canopy on steep hillsides.
+
+**Tried and taken back**: the far clouds as the map's faint parts too (grey sheets of fog
+over half the land from 100 km); the relief light at full strength from orbit (whole
+ranges blue-black); the canopy's slope judged over a whole small patch (square holes).
+
 **Plan** (in this order; each seen in pictures at the floor and at full quality):
 1. From space: the haze thinned from above (`uHaze`), the day's whole cloud map with its
    shading on the shell, forests in the picture's own colour. *(built, see below)*

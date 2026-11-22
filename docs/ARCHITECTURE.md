@@ -620,6 +620,15 @@ ring: it is not asked for.
   nothing, and their crowns stand out of it. From higher than the nearer trees are drawn
   (1 500 m) they begin at the eye: they are the trees a traveller sees coming down.
   Governor step `far-trees` (half of them); the cost test leaves them out as a part.
+- **The canopy's crowns** (`crowns()` in the ground shader): the raised forest is shaded as
+  domes side by side, 8 m apart (and the stands they grow in, 21 m): each tilts the
+  surface outward from its middle, is lighter on top and dark in the gaps, and has a green
+  of its own; a jittered lattice with a whole number of cells across the detail tile. They
+  fade out as a crown nears a pixel and a half. With the relief light this is what makes
+  a forest a forest from the air, where it was one even green.
+- The canopy stands on slopes up to about 28 degrees and is gone by 40 (the trees' own
+  rule is 27 to 43: `treeBlock.js`), judged over some tens of metres and never over a
+  whole patch at once.
 - **Beyond the trees** the canopy is up to its height where the last trees stand (0.62 to
   0.98 of the radius; the trees shrink away from 0.86), and its normal leans toward the
   eye by how far from overhead one looks: the canopy shows the sides of its crowns, lit
@@ -912,12 +921,20 @@ exposure alone decides whether they are visible.
   on the ground is one extra texture read in the terrain shader (`tClouds`, `uCloud`):
   the cloud where the sunbeam to that ground crossed the layer. The near pass's far
   plane reaches the layer's horizon. Governor step `clouds` (one of the last three).
-  **From far off** (where a cloud's heaps are smaller than a pixel: 500 to 1 800 m a pixel
-  on the shell, `far`) the layer is the day's map itself, as the globe seen from another
-  world wears it: `smoothstep(0.04, 0.9, map)`, every mass lit on its sunward side and in
-  its own shade on the other (the same map a little way toward the Sun). Nearer, each
-  heap has a lit and a shaded side from the volume's own noise a few hundred metres
-  toward the Sun (`relief`). Neither depends on the cloud volume being on.
+  **A heap** is one rule (`HEAP_GLSL`, `cloudHeap`): the cover the day's map gives a place
+  (and fair-weather fields where it gives none), carved by the cloud volume's noise at
+  the height where its masses are widest. The layer draws it with a clean edge, a lit side
+  and a side in its own shade (the same heap a few hundred metres toward the Sun,
+  `relief`); **the ground is shaded by the same heap** where the sunbeam to it crosses the
+  layer (`uCloudHeap`, `uCloudVol`, `uCloudWind`, `tCloudNoise` in the ground shader, the
+  fifteenth of its sixteen textures): every cloud has its shadow beside it on the land,
+  and nothing is shaded where no cloud is drawn.
+  **From far off** (`far`: where a heap is under a pixel wide, 500 to 1 800 m a pixel
+  across the line of sight) a field of heaps is a white veil as thick as the share of sky
+  it covers (0.55 of the cover), and the ground takes the field's mean shade; from farther
+  still (2.5 to 9 km a pixel: the whole globe in view) the layer is the day's map itself
+  as the globe seen from another world wears it, `smoothstep(0.04, 0.9, map)`, lit by its
+  own relief. None of this depends on the cloud volume being on.
 - The albedo map can start at longitude -180 (`albedoMap.lon0: -180`, Earth's globe
   maps) and steep rock can take less of its tint (`steep`): snow does not lie on cliffs.
 
