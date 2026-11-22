@@ -76,8 +76,14 @@ merged, not live**):
    (wood is told apart by the picture's third byte); the leaves that fall (`leaves.js`)
    are untouched; the palm keeps plain faces.
 
-**State at the last update of this block:** step 2, first game pictures rendering; nothing
-of the fifth pass has been seen in the game yet.
+**State at the last update of this block:** step 2 half done. The first game picture (the
+spruce forest, `t1`) works: no shader errors, needled boughs and fine foliage, light
+through it; all the trees of a closed forest are 166 000 triangles (they were 620 000).
+Seen there and changed since (not yet pictured): the glow against the Sun was too strong
+and yellow (0.5 to 0.26), crowns darker toward their under side. Fir tiers were given
+gaps, the aspen's near mesh filled, the bush made of tufts (in the preview only). Still
+to look at: the opening view, the hardwood forest, the forest from the air (far
+silhouettes), then step 3.
 
 
 *Handoff written at the fourth delivery of milestone 11 (the painted look).*

@@ -137,8 +137,8 @@ export class Trees {
           // (a card's foliage: cleaner green, lighter where the crown looks up; and each needle
           // and leaf its own tone, from the picture)
           if (card) {
-            if (uPaint.x > 0.0) leafC = mix(leafC, dot(leafC, vec3(0.2, 0.7, 0.1)) * vec3(0.62, 1.0, 0.36), 0.45) * mix(0.7, 1.15, smoothstep(-0.5, 0.6, dot(N, up)));
-            leafC *= 0.5 + 0.62 * cut.g;
+            if (uPaint.x > 0.0) leafC = mix(leafC, dot(leafC, vec3(0.2, 0.7, 0.1)) * vec3(0.62, 1.0, 0.36), 0.45) * mix(0.5, 1.12, smoothstep(-0.5, 0.6, dot(N, up)));
+            leafC *= 0.46 + 0.6 * cut.g;
           }
           vec3 albedo = wood ? vTrunkC * 0.6 : leafC;
           if (uPaint.x > 0.0 && wood && dot(vTrunkC, vec3(0.333)) > 0.4) albedo *= 1.0 - 0.75 * step(0.8, fract(vY * 31.0 + vOwn.x * 9.0)) * step(0.35, fract(vY * 7.7 + vOwn.x * 3.0));
@@ -150,7 +150,7 @@ export class Trees {
           float nl = dot(N, uSunDir), lit = !wood ? max(nl * 0.7 + 0.3, 0.0) : max(nl, 0.0);
           if (uPaint.x > 0.0) { lit = mix(lit, paintLit(!wood ? nl * 0.75 + 0.25 : nl) * PI, uPaint.x); albedo = paintColour(albedo); leafC = paintColour(leafC); }
           // (and seen against the Sun, foliage glows: the light comes through needles and leaves)
-          float through = wood ? 0.0 : max(-nl, 0.0) * 0.28 + (card ? 0.5 * pow(max(dot(-V, uSunDir), 0.0), 3.0) : 0.0);
+          float through = wood ? 0.0 : max(-nl, 0.0) * 0.28 + (card ? 0.26 * pow(max(dot(-V, uSunDir), 0.0), 4.0) : 0.0);
           // inside and under a crown less sky is seen
           float open = !wood ? mix(0.5, 1.0, smoothstep(-0.6, 0.8, dot(N, up))) : mix(0.22, 0.6, smoothstep(0.0, 0.5, vY));
           // (the painted look: the shaded side of a crown is its dark tone, not a bright one lit by the sky)
