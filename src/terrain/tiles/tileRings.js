@@ -37,7 +37,8 @@ export class TileRings {
     (t.elevation?.rings || []).forEach((r, slot) => this.rings.push({ key: 'elevation' + slot, kind: 'elevation', slot, url: t.elevation.url, zoom: r.zoom, below: r.below ?? 1e12,
       // (rivers and lakes worked out from the elevation, if the world asks for them)
       hydrology: t.hydrology ? { rain: new URL(t.hydrology.rain, base).href, water: t.hydrology.water ? new URL(t.hydrology.water, base).href : null, minFlow: r.minFlow ?? 1 } : null }));
-    for (const [name, p] of Object.entries(t.pictures || {})) this.rings.push({ key: 'picture:' + name, kind: 'picture', name, url: p.url, zoom: p.zoom, below: p.below ?? 1e12,
+    // (zooms: a picture may be asked for coarser and wider the higher the traveller is, see update)
+    for (const [name, p] of Object.entries(t.pictures || {})) this.rings.push({ key: 'picture:' + name, kind: 'picture', name, url: p.url, zoom: p.zoom, below: p.below ?? 1e12, zooms: p.zooms || null,
       cover: p.cover ? { ...p.cover, palette: new URL(p.cover.palette, base).href } : null });
     for (const r of this.rings) { r.tx = null; r.ty = null; r.have = false; r.id = 0; r.retryAt = 0; r.fails = 0; }
   }
@@ -74,6 +75,21 @@ export class TileRings {
     const inside = (r, n, x, y, m) => { if (r.tx == null) return false; let dx = x * n - r.tx; dx -= n * Math.floor(dx / n); return dx >= m && dx <= N - m && y * n - r.ty >= m && y * n - r.ty <= N - m; };
     for (const r of this.rings) {
       if (r.id || now < r.retryAt) continue;
+      if (r.zooms) {
+        // A picture with `zooms: [[zoom, up to this height (m)], ...]` (finest first): the same
+        // four tiles a side, coarser and so wider the higher the traveller is. From 400 km up
+        // the land's colour was sharp in one patch 600 km wide under the traveller and a
+        // blur (the globe's own map, ten kilometres a pixel) everywhere else in view.
+        // (The zoom in use is kept until the height is a seventh past its range: no going
+        // back and forth at a boundary. A trip's destination is asked for at the finest.)
+        let z = r.zooms[r.zooms.length - 1][0];
+        for (const [zz, top] of r.zooms) if (altitude <= top) { z = zz; break; }
+        if (end) z = r.zooms[0][0];
+        if (z !== r.zoom) {
+          const cur = r.zooms.findIndex((q) => q[0] === r.zoom), lo = cur > 0 ? r.zooms[cur - 1][1] : 0, hi = cur >= 0 ? r.zooms[cur][1] : 0;
+          if (end || cur < 0 || altitude < lo * 0.87 || altitude > hi * 1.15) { r.zoom = z; r.tx = null; r.ty = null; }
+        }
+      }
       const n = 2 ** r.zoom;
       const fx = ((lon / (2 * Math.PI) + 0.5) % 1 + 1) % 1 * n, fy = (1 - mercY / Math.PI) / 2 * n;
       if (end && n >= N) {

@@ -44,6 +44,10 @@ export default {
       // seen from space (the map the globe's glint uses).
       hydrology: { rain: 'data/earth_rain_720.u8', water: 'data/earth_water_2048.jpg' },
       pictures: { colour: { url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg', zoom: 8, below: 2.0e6,
+        // (coarser and wider from higher up: 600 m a pixel over 600 km below 125 km, to 10 km a
+        // pixel over 10 000 km below 2 000 km: what is in view from a height is about as wide
+        // as five times that height)
+        zooms: [[8, 1.25e5], [7, 2.5e5], [6, 5.0e5], [5, 1.0e6], [4, 2.0e6]],
         // What grows there: the land-cover class of every 500 m (MODIS, the IGBP legend) and
         // how tall its canopy stands (GEDI's laser from the space station), both from NASA
         // GIBS as coloured tiles; the palette file says what each colour means.
