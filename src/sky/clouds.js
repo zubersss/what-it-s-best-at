@@ -68,7 +68,7 @@ void main() {
     // its outline when the traveller comes near and the volume takes it over. (Not where
     // a mass is smaller than a pixel: there, its mean.)
     float c = smoothstep(lo - 0.08, lo + 0.34, m);
-    if (uFair > 0.0) c = max(c, uFair * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, texture(tCloudNoise, up * uVol.y + 0.31).r) / 0.55);
+    if (uFair > 0.0) c = max(c, min(0.7, uFair * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, texture(tCloudNoise, up * uVol.y + 0.31).r) / 0.55));
     vec3 qv = up * (uVol.z * uVol.x) + uVolWind;
     float n = texture(tCloudNoise, qv).r + (texture(tCloudNoise, qv * 5.3 + 0.37).g - 0.5) * 0.26 * (1.0 - smoothstep(150.0, 600.0, px * uVol.z));
     float dv = clamp((n - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);

@@ -72,7 +72,8 @@ vec2 mapCover(vec3 up) {
     // never saw them)
     // (placed by the world's own radius: the field must not shift when the layer's height does)
     float field = texture(tCloudNoise, up * uFieldK + 0.31).r;
-    c = max(c, uFair.x * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, field) / 0.55);
+    // (never a whole cover: fair weather has sky between its heaps)
+    c = max(c, min(0.7, uFair.x * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, field) / 0.55));
   }
   return vec2(c, top);
 }
