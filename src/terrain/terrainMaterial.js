@@ -85,9 +85,11 @@ void main() {
       float k = smoothstep(uShell.x, uShell.y, length(rel)) * smoothstep(2.0, 4.0, pv.w - uSea.y * uSea.x + 4.0 * (1.0 - uSea.x));
       // (no forest on rock faces: the land-cover map's pixels are 600 m wide and know
       // nothing of a cliff inside them; and none on water)
-      // (the slope over some tens of metres, a coarse level of the normal map: a small steep
-      // spot on a wooded hillside is not a cliff, and each one was a pit in the canopy)
-      vec4 nv = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 3.0);
+      // (the slope over about a hundred metres, whatever the patch's size, from a coarse
+      // level of the normal map: a small steep spot on a wooded hillside is not a cliff, and
+      // each one was a pit in the canopy. Patches of different detail then ask about the same
+      // stretch of ground along their shared edge; what difference is left their skirts hide.)
+      vec4 nv = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), clamp(log2(187.0 / max(aI2.z, 1.0)), 1.0, 5.0));
       k *= smoothstep(0.78, 0.92, dot(normalize(nv.xyz), up)) * (1.0 - step(1.02, textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 1.0).a));
       // (crowns: a whole number of them across the detail tile, so patches agree; only near
       // enough that a patch's vertices can carry them: on the far patches the bumps fell
