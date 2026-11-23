@@ -62,11 +62,50 @@ fixed, plus the worker's own arrays for the tiles held (9 floats a tree).
 
 ## What was tried and taken back
 
-- *(filled in as the pictures are judged)*
+- **A tile filled by its nearest corner.** The first version asked each tile for the trees a
+  traveller at the tile's *nearest corner* would see. A tile 889 m across spans a twentyfold
+  range of `keep`, so it handed the GPU four times the trees it drew: **81 556 instances for
+  18 879 standing**. Now every tree is tested at fill time by its own distance, and a tile
+  holds half as many again as stand (which covers the traveller coming a tenth nearer before
+  it is filled again).
+- **The air of a wood at its full strength all the way out.** `forestAir` mixes a tree
+  toward a desaturated sky light, saturating by some 300 m; carried to five kilometres it
+  made every far tree a **blue-grey speck on warm ground**. It now fades out between 700 m
+  and 2.2 km, where the air itself (`aerialPerspective`) does that work.
+- **A cut-out threshold of its own.** The far forest discarded a card's pixel below 0.3 of
+  cover while `trees.js` lowers its threshold with the mip level (0.42 near, 0.16 far):
+  the same tree was thinner just outside the near radius than just inside it. It now uses
+  the near trees' own rule.
+- **Colours packed over 0 to 1.** Leaves and bark are dark (0.03 to 0.14): a byte over 0..1
+  moved a far tree's green by up to 6 % from the near tree's. Packed over 0..0.75 instead.
+- **The near trees asking for blocks they cannot draw.** Above 240 m over the ground no tree
+  can be within 240 m of the eye, yet `trees.js` went on asking the workers for the blocks
+  under the traveller (and so held the far forest's own jobs back, since the ground and the
+  near trees come first). It now stops at its own radius.
 
 ## Known problems
 
-- *(filled in as the pictures are judged)*
+- **Not measured on a phone.** The whole of this is reasoned and judged in pictures taken
+  with software WebGL. What a tree card costs there says nothing. Ask for a Haven benchmark.
+- The far forest draws **up to 32 instanced meshes** (9 + 9 + 9 + 5 by level at worst, a
+  fixed pool of 40). They share one program and one material's worth of uniforms except for
+  where each tile stands, so the per-draw cost is four vec3 uniforms; still, 32 draws is 32
+  draws, and the cost test will say.
+- The tiles hand the GPU about **1.5 times** the trees that stand (the margin that keeps a
+  tile from being filled again at every step). The vertex shader throws the rest out at its
+  first four instructions.
+- A tile's place in its row is worked out from the **first row's** longitude count. Rows in
+  different one-degree bands of latitude hold different numbers of blocks, so within a few
+  kilometres of longitude 0 **at a band boundary** a tile may be reckoned one place out. No
+  tree is drawn twice or lost (a block belongs to exactly one tile by its own index); the
+  selection is what can be out, and only there.
+- A tile costs a worker 18 to 60 ms, and a new place wants some 32 of them: about a second
+  of worker time, taken only when the ground and the near trees have nothing waiting, three
+  jobs at a time.
+- Far trees do not sway in the wind (the near ones do). At 240 m a 20 m tree leans less than
+  half a degree in a gale, so nothing shows at the line; it is still a difference.
+- Nothing is drawn beyond 5.6 km. Trees are still a few pixels at that distance on the
+  phone; from there out the canopy the ground shader raises carries the forest.
 
 ## Tests
 
