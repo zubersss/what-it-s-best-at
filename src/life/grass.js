@@ -120,6 +120,7 @@ const PRELUDE = /* glsl */`
   uniform vec4 uGrassWind;           // the wind: xyz where it blows (planet axes), w its speed (m/s)
   uniform vec2 uGrassLie;            // the anchor on the plane counted from the grass's origin, modulo PERIOD (m)
   uniform vec2 uLatOrigin;           // ... and in this lattice's cells, modulo 4096
+  uniform float uGrassView;          // the picture's height (pixels), halved
   uniform vec4 uGrassKeep;           // how much is kept by the height of the traveller: x blades, y clumps; z the governor's share of the clumps, w how much wider they are for it
   uniform vec4 uGrassTone;           // x: how dry the grass round the traveller is in the mean (the ground under it is painted with this)
   ${GRASS_GLSL}
@@ -279,25 +280,40 @@ const CLUMP_VERT = /* glsl */`
     float keep = step(h.y, g.g * 1.15) * keepOf(ring, h2.x);
     if (keep <= 0.0) OUT_OF_PICTURE
     float lie = lieAt(at), base = groundUp(g, at);
-    float tall = TALL * (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) * (0.85 + 0.3 * lie) * (0.8 + 0.4 * h2.y) * keep;
-    float wide = WIDE * (0.75 + 0.5 * h.x) * uGrassKeep.w * keep;
-    vec3 foot = uGrassEast * rel2.x + uGrassNorth * rel2.y + uGrassUp * base;
+    // (the lie of the ground under the clump, from the table)
+    vec2 fc = floor((at + uTab.xy) / uTab.z);
+    float h00 = texelFetch(tTable, ivec2(mod(fc, uTab.w)), 0).r;
+    vec2 dh = (vec2(texelFetch(tTable, ivec2(mod(fc + vec2(1.0, 0.0), uTab.w)), 0).r, texelFetch(tTable, ivec2(mod(fc + vec2(0.0, 1.0), uTab.w)), 0).r) - h00) / uTab.z;
+    vec3 nrm = normalize(uGrassUp - uGrassEast * dh.x - uGrassNorth * dh.y);
+    vec3 foot = uGrassEast * rel2.x + uGrassNorth * rel2.y + uGrassUp * base, toCam = normalize(-foot);
+    // How squarely the ground is looked at here: from above, or a hillside that faces the
+    // eye at a level gaze (judged by the world's up alone, such a hillside was hatched with
+    // level dashes in rows). The more squarely, the lower a clump stands and the more it is
+    // the ground's own colour with a tufted edge.
+    float rise = clamp(max(dot(toCam, uGrassUp), dot(toCam, nrm)), 0.0, 1.0);
+    float tall = TALL * (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) * (0.85 + 0.3 * lie) * (0.8 + 0.4 * h2.y) * keep * (1.0 - 0.45 * smoothstep(0.15, 0.6, rise));
+    float wide = WIDE * (0.45 + 1.1 * h.x * h.x) * uGrassKeep.w * keep;
     // (behind the camera or far off the side of the picture: nothing to draw)
     vec4 cc = projectionMatrix * viewMatrix * vec4(foot + uGrassUp * (0.5 * tall), 1.0);
     float m = wide + tall;
+    // (smaller than a pixel and a half on the screen: not drawn, where it was a one-pixel dash)
+    if (tall * abs(projectionMatrix[1][1]) * uGrassView < 1.5 * cc.w) OUT_OF_PICTURE
     if (cc.w < -m || abs(cc.x) > cc.w + m * (1.0 + projectionMatrix[0][0]) || abs(cc.y) > cc.w + m * (1.0 + abs(projectionMatrix[1][1]))) OUT_OF_PICTURE
-    vec3 toCam = normalize(-foot), flat3 = toCam - uGrassUp * dot(toCam, uGrassUp);
+    vec3 flat3 = toCam - uGrassUp * dot(toCam, uGrassUp);
     float fl = length(flat3); flat3 = fl > 1e-4 ? flat3 / fl : uGrassNorth;
     // (turned a little its own way: cards all square to the eye were a hatching of level strokes from above)
     float yaw = (h2.y - 0.5) * 1.3;
     vec3 side = cross(uGrassUp, flat3) * cos(yaw) + flat3 * sin(yaw);
-    float rise = clamp(dot(toCam, uGrassUp), 0.0, 1.0);
+    // (and rolled a little its own way where the ground is looked at squarely: no two dashes level)
+    float roll = (h.x - 0.5) * 1.4 * smoothstep(0.1, 0.5, rise);
+    side = side * cos(roll) + uGrassUp * sin(roll);
     vec3 cup = normalize(uGrassUp + flat3 * rise * 2.0);
     vec3 w = windAt(foot, h.x);
     float y = aCorner.y;
     vRel = foot + side * (aCorner.x * 0.5 * wide) + cup * (y * tall) + (uGrassEast * w.x + uGrassNorth * w.y) * (tall * 1.4 * y * y);
     vUv = vec3((aCorner.x * 0.5 + 0.5) * wide / (4.0 * tall / ${(PIC_W / PIC_H / 4).toFixed(3)}) + h2.x * 7.0, y, aCorner.x);
     float dry = dryHere(g.b) + (h.x - 0.5) * 0.16 - mix(0.10, 0.2, smoothstep(30.0, 120.0, dist)) * lie, shade = (0.85 + 0.3 * h2.y) * (0.92 + 0.12 * lie) * (0.94 + 0.12 * w.z);
+    shade = mix(shade, 1.0, 0.8 * smoothstep(0.05, 0.35, rise));
     vFoot = grassColour(dry, 0.0) * shade; vTip = grassColour(dry, 1.0) * shade;
     // (flowers: the drift this clump stands in says what kind and how many clumps carry some)
     float fk = tableNearest(tTable, uTab, at).a, kind = floor(fk + 0.001);
@@ -306,10 +322,7 @@ const CLUMP_VERT = /* glsl */`
     // (the lie of the ground under the clump, from the table: far off a clump takes the
     // light of the slope it stands on, as the ground between the clumps does. Lit as level
     // ground, a hillside turned from the Sun was bright scales on a dark slope.)
-    vec2 fc = floor((at + uTab.xy) / uTab.z);
-    float h00 = texelFetch(tTable, ivec2(mod(fc, uTab.w)), 0).r;
-    vec2 dh = (vec2(texelFetch(tTable, ivec2(mod(fc + vec2(1.0, 0.0), uTab.w)), 0).r, texelFetch(tTable, ivec2(mod(fc + vec2(0.0, 1.0), uTab.w)), 0).r) - h00) / uTab.z;
-    vSlope = vec4(normalize(uGrassUp - uGrassEast * dh.x - uGrassNorth * dh.y), smoothstep(12.0, 45.0, dist));
+    vSlope = vec4(nrm, smoothstep(12.0, 45.0, dist));
     // (looked down on, or far off, a clump is the ground's own grass colour with a tufted
     // edge: its dark foot showing from above was a field of dark specks that ended in an arc)
     // (the clouds' shadow where the clump stands, by the ground's own rule: with the shade at
@@ -409,7 +422,7 @@ export class Grass {
       ...lightingUniforms(),
       uGrassCam: { value: new THREE.Vector3() }, uGrassCurve: { value: new THREE.Vector2() }, uGrassLie: { value: new THREE.Vector2() },
       uGrassEast: { value: new THREE.Vector3(1, 0, 0) }, uGrassNorth: { value: new THREE.Vector3(0, 1, 0) }, uGrassUp: { value: new THREE.Vector3(0, 0, 1) },
-      uGrassWind: wind, uGrassWave: this.waveU, uGrassKeep: { value: new THREE.Vector4(1, 1, 1, 1) }, uGrassTone: terrain.shared.uGrassTone,
+      uGrassWind: wind, uGrassWave: this.waveU, uGrassKeep: { value: new THREE.Vector4(1, 1, 1, 1) }, uGrassView: { value: 500 }, uGrassTone: terrain.shared.uGrassTone,
     };
     this.clumpTex = makeClumpPicture();
     // The land's own shadow on the ground round the traveller (a mountain between a place
@@ -486,8 +499,10 @@ export class Grass {
     // stood on the water off every low shore)
     const h = hs.height(d[0], d[1], d[2], Math.max(2.5, cell * 0.5)), wet = hs.waterDepth > 0 || (this.seaLevel != null && h <= this.seaLevel + 0.3), slope = hs.baseSlope, cover = hs.coverAt ? hs.coverAt(d[0], d[1], d[2]) : -1;
     const cls = cover < 0 ? 0 : cover & 255, closed = cover < 0 ? 0 : (cover >> 16) / 255;
-    // (none in water or on rock faces, thin under a closed canopy)
-    const amount = wet ? 0 : (AMOUNT[cls] || 0) * (slope > 0.75 ? 0 : slope > 0.4 ? 1 - (slope - 0.4) / 0.35 : 1) * (1 - 0.4 * closed);
+    // (none in water; on slopes by the ground's own rule for where its soil ends and with it its
+    // grass paint (terrainMaterial.js, flatW: the world's dustMax to screeMin): by another rule,
+    // clumps stood on unpainted ground on every steeper hillside; thin under a closed canopy)
+    const amount = wet ? 0 : (AMOUNT[cls] || 0) * (1 - smoothstep(this.terrain.shared.uSlopes.value.x, this.terrain.shared.uSlopes.value.y, slope)) * (1 - 0.4 * closed);
     const D = T.data;
     D[o] = h; D[o + 1] = amount; D[o + 2] = DRY[cls] ?? 0.5;
     // the flowers: the kinds of this land, in drifts (grassRules.js: the far ground has the same)
@@ -606,6 +621,7 @@ export class Grass {
       const wx = (w.x - u[0] * wu) * k, wy = (w.y - u[1] * wu) * k, wz = (w.z - u[2] * wu) * k;
       this.waveU.value.set(wx, wy, wz, mod(wx * dx + wy * dy + wz * dz + this.phase, Math.PI * 2));
     }
+    S.uGrassView.value = 0.5 * renderer.getDrawingBufferSize(this._size || (this._size = new THREE.Vector2())).y;
     S.uGrassKeep.value.set(kb, kc, this.midShare, 1 / Math.sqrt(Math.max(0.25, this.midShare)));
     for (const f of this.fields) f.mesh.visible = kb > 0;
     for (const f of this.clumps) f.mesh.visible = kc > 0 && this.midShare > 0;

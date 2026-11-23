@@ -18,13 +18,13 @@
     "visited": 282,
     "wanted": 0,
     "lodScale": 1,
-    "avgBuildMs": 43.3,
-    "exposure": 24.42,
+    "avgBuildMs": 43.8,
+    "exposure": 23.49,
     "surface": [
       0.97,
-      0.435
+      0.421
     ],
-    "frame": 160,
+    "frame": 159,
     "wait": ""
   }
 }
