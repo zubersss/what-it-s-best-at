@@ -245,8 +245,8 @@ vec4 crowns(vec2 uv, float cells) {
   for (int j = 0; j < 2; j++) for (int i = 0; i < 2; i++) {
     vec2 c = b + vec2(float(i), float(j)), w = mod(c, cells);
     vec3 h = fract(sin(vec3(dot(w, vec2(127.1, 311.7)), dot(w, vec2(269.5, 183.3)), dot(w, vec2(419.2, 371.9)))) * 43758.5453);
-    vec2 d = p - (c + 0.5 + (h.xy - 0.5) * 0.5);
-    float r = 0.42 + 0.2 * h.z, hgt = 1.0 - dot(d, d) / (r * r);
+    vec2 d = p - (c + 0.5 + (h.xy - 0.5) * 0.62);
+    float r = 0.36 + 0.28 * h.z, hgt = 1.0 - dot(d, d) / (r * r);
     if (hgt > hb) { hb = hgt; best = vec4(d / (r * r), max(hgt, 0.0), h.z); }
   }
   return best;
@@ -485,13 +485,15 @@ void main() {
         float kc = (1.0 - smoothstep(0.05, 0.16, fwC)) * vShell * ownC, kg = (1.0 - smoothstep(0.14, 0.42, fwC)) * vShell * ownC;
         if (kg > 0.0) {
           vec4 cg = crowns(vDetailUv + 0.37, 3.0);
-          N = normalize(N + (uTanU * cg.x + uTanV * cg.y) * (0.3 * kg));
-          leaves *= mix(1.0, (0.78 + 0.32 * smoothstep(0.0, 0.6, cg.z)) * (0.9 + 0.2 * cg.w), kg);
+          N = normalize(N + (uTanU * cg.x + uTanV * cg.y) * (0.4 * kg));
+          leaves *= mix(1.0, (0.7 + 0.42 * smoothstep(0.0, 0.6, cg.z)) * (0.84 + 0.32 * cg.w), kg);
         }
         if (kc > 0.0) {
           vec4 cr = crowns(vDetailUv, 8.0);
-          N = normalize(N + (uTanU * cr.x + uTanV * cr.y) * (0.5 * kc));
-          leaves *= mix(1.0, (0.5 + 0.62 * smoothstep(0.0, 0.5, cr.z)) * (0.84 + 0.32 * cr.w), kc);
+          // (strongly: at a phone's pixel a crown is a few pixels, and a faint one was a net
+          // laid over the forest, not trees)
+          N = normalize(N + (uTanU * cr.x + uTanV * cr.y) * (0.8 * kc));
+          leaves *= mix(1.0, (0.4 + 0.78 * smoothstep(0.0, 0.5, cr.z)) * (0.76 + 0.48 * cr.w), kc);
         }
       }
       albedo = mix(albedo, leaves, vShell * ownC);
