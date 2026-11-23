@@ -79,6 +79,47 @@ as you want or need. This is a big ask and I need it to work really well."*
   combination (opening view, from 130 m, the steppe, the wall view, the opening view
   with every saving on), Earth's opening view again, the whole test set, the docs, the
   merge to `main` and the checkpoint with a Haven benchmark asked for.
+- **19:00, where it stands** (read this if the session was cut off): all three branches
+  are merged here as they push (head d67cf73 and later). Not yet delivered. What happened
+  since 15:00:
+  - *The dark patch in the opening view* was the shadow of the pine 6 m beside the start,
+    falling across the whole foreground (the Sun is behind the traveller there and 19
+    degrees up: any tree between the Sun and the view lays 45 m of shadow into it). The
+    sketch tool (`scripts/tree-shadows-at.mjs`) had looked only 12 m ahead and said "none".
+    The start is moved 66 m (lat -48.54992, lon 49.05567): no tree shadow in the ground in
+    view to 50 m, and the sketch shows more of the valley. To be confirmed in a picture
+    (`scratchpad/mp7`, frozen build m7).
+  - *Three independent code reviews* (one reviewer per part, reading cold, no browser;
+    their reports are `docs/briefs/far-forest-review.md`, `far-grass-review.md`,
+    `far-rocks-review.md`): 24 findings, among them things no standing picture can show:
+    the whole grass field sliding 0.8 m sideways every 200 m of flight on Haven and the
+    wind's waves flicking at the same moments (both fixed and merged: 721088b); far trees
+    missing in east-west strips where a tile straddles a latitude band (26 % of the ground
+    in reach at the north wood, by the reviewer's model); trees at the 240 m line drawn by
+    nobody for 15 m of travel; the far forest never asked for again with the clock fast;
+    the walker standing in the air beside rocks; far rocks without shadows when the page
+    opens on another world; flight speed dipping over a tor. Each helper has its list, in
+    order, and messages when the first fixes are pushed ("AB pushed" came from the grass;
+    "T1 pushed" and "R1 pushed" are awaited), "DONE2"/"TDONE"/"RDONE" at the end.
+  - The grass helper's last round took the ruled stripes off the far ground (gusts in
+    patches now) and the rims off the flower drifts.
+  - A tool from the grass helper's scratch scripts: `scripts/parts-out.mjs` (one view with
+    one part out at a time). **Not yet run in its new form.**
+  - **Still to do here**: merge the helpers' fixes as they arrive and read each diff; when
+    all three are done, freeze the build and take the final pictures (opening view with
+    `--timeout 3000`, `alt=1600&pitch=-20`, the steppe at
+    `lat=-54.4271&lon=39.2697&t=5&heading=120` on the ground and from 120 m, the steep
+    place `lat=-48.80660&lon=47.22265&t=3&alt=2053&heading=135&pitch=-14`, the wall, the
+    opening view with `debug=floor`, Earth's opening view with `--timeout 600`), with the
+    befores from `docs/shots/far-forest`, `far-grass`, `far-rocks`; the tests (build check,
+    smoke on Mars, `smoke.mjs --haven`, shadowturns, govsim, lakes, far-trees-test, rocks,
+    grass-anchor-replay, one stability move over Haven); the docs; the pull request
+    (`scratchpad/pr_body9.md` is a draft); the checkpoint with a Haven benchmark asked for.
+  - **Known and left for a later delivery** (write into the checkpoint's known problems):
+    the ground's grass colour, share and flower kinds within about a kilometre are those of
+    the 500 m round the traveller (`uGrassTone`), not of the place: the cure is the place's
+    own share and dryness in a map the ground's shader already reads (it is full at 16
+    textures).
 - **If the helpers cannot be reached or their work is not good enough**: the briefs are
   the plan; do them here, trees first.
 
