@@ -1340,8 +1340,8 @@ export class App {
     const vol = this.cloudVolume.ready(rig.pos, this.clouds);
     this.clouds.uniforms.uNearFade.value = vol ? this.cloudVolume.reach : 0;
     if (vol) this.cloudVolume.render(post, rig, this.terrain.shared.uWave.value.z, this.clouds, this.terrain.shared.uWind, this.weather);
-    // (the clouds' shadow on trees: a small map of it, before the main picture is begun)
-    this.treeShade.render(renderer, rig, G.uSunDir.value, this.farForest.shown || this.trees.reach > 0);
+    // (the clouds' shadow on trees and on the grass's far clumps: a small map of it, before the main picture is begun)
+    this.treeShade.render(renderer, rig, G.uSunDir.value, this.farForest.shown || this.trees.reach > 0 || this.grass.keepClumps > 0);
     prof.mark(9);
     // 6. Scene into the HDR target: far pass, clear depth, near pass, then the hero.
     post.beginScene();
