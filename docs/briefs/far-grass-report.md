@@ -168,6 +168,19 @@ picture; the arc is no longer something I can point to in it.
   100 m are under that size and gone; on the phone (1 440 px) they are drawn four to five
   times farther, and that was not looked at** (`--dsf 3.5` would show it).
 
+- **Clumps looked at squarely** (after DONE4): a clump seen squarely (the same measure) from
+  beyond about 60 m is not drawn: they go one by one, by chance, over a band of the measure
+  (0.22 to 0.5) and of distance (40 to 90 m); what remains squarely seen takes the ground's
+  own light. Pictures at a phone's pixel density (`fov=21.4`), the old opening place's
+  hillside: `haven_ledge_hill_tele_before.png` (thin slashes at every angle on the slope)
+  and `haven_ledge_hill_tele_after.png` (none on the sunlit slope; a few gold ones left in
+  the shaded corner at the upper right). `haven_ledge_steppe_level_after.png` (eye height:
+  the field is all there), `haven_ledge_steppe_a30_after.png`, and the eye-height opening
+  view on the build with the owning branch's slope rule merged in
+  (`haven_ledge_ledge_after.png`: a dense gold meadow on the steep foreground).
+  My slope rule of DONE4 had the direction wrong (it thinned the grass to where the paint
+  was); the owning session turned it round (`GRASS_GROUND.slope`).
+
 C to H went in as one commit, not one each. They build; the one picture taken on them is
 `haven_ledge_steppe_a30_after.png`.
 
