@@ -213,7 +213,7 @@ export class FarForest {
     const mesh = new THREE.Mesh(geo, material);
     // The vertices are worked out from the tile's own uniform, not from this matrix; the
     // mesh is put where the tile stands all the same, so that three can cull it against the
-    // view and sort the tiles front to back as it does everything else.
+    // view. (The order they are drawn in is set each frame, nearest first.)
     mesh.visible = false;
     mesh.renderOrder = 5;                   // after the ground: the canopy hides the lower part of a far tree for nothing
     this.mesh.add(mesh);
@@ -237,7 +237,7 @@ export class FarForest {
 
   get triangles() { return this.count * 6; }
   // True while tiles that are wanted have not arrived (screenshots wait for them).
-  get busy() { return !!this.def && this.shown && (this.asked > 0 || this.missing > 0); }
+  get busy() { return !!this.def && this.shown && (this.asked > 0 || this.missing > 0 || this.unfilled > 0); }
 
   _free(tile) {
     const s = tile.slot;
@@ -273,10 +273,11 @@ export class FarForest {
     // would be drawn (keep(d) > the band's lowest rank).
     const want = [], sunNow = this.shared.uSunDir.value, now = performance.now();
     this.missing = 0;
-    for (const w of wantedTiles(lat, lon, R, full, radius)) {
+    const high = 0.7 * Math.max(0, rig.agl);
+    for (const w of wantedTiles(lat, lon, R, full, radius, Math.max(0, rig.agl))) {
       let tile = this.tiles.get(w.key);
       if (!tile) { tile = { key: w.key, level: w.level, ti: w.ti, tj: w.tj, blocks: w.blocks, side: w.side, state: 0, fillEye: null, slot: null, data: null, count: 0, shown: 0, stale: false, asking: false }; this.tiles.set(w.key, tile); }
-      tile.used = this.frame; tile.near = w.near; tile.mid = w.mid;
+      tile.used = this.frame; tile.near = w.near; tile.mid = w.mid; tile.far3 = Math.hypot(w.near, high);
       // (the land's shadow on its trees was worked out for where the Sun then stood)
       // (not more than once in two seconds a tile: with the clock run fast the Sun moves that
       // far every few frames, and the workers would do nothing else)
@@ -302,25 +303,34 @@ export class FarForest {
     }
 
     // which tiles get a place in the pool: the nearest first
-    const take = want.filter((b) => b.state === 1).slice(0, POOL);
+    // (a tile with no tree in it takes no place)
+    const take = want.filter((b) => b.state === 1 && b.have > 0).slice(0, POOL);
     const keptTiles = new Set(take);
     for (const s of this.pool) if (s.tile && !keptTiles.has(s.tile)) this._free(s.tile);
-    let drawn = 0, given = 0;
+    // At most two tiles are filled in a frame, the nearest first: tiles filled while the
+    // traveller stood all came due together (15 to 20 of them every 45 m, some 8 ms of the
+    // page's work and 3 MB of buffers in one frame). The margin a tile holds covers the wait.
+    let drawn = 0, given = 0, fills = 0, i = 0; this.unfilled = 0;
     for (const tile of take) {
       if (!tile.slot) {
         const s = this.pool.find((q) => !q.tile);
         if (!s) continue;
-        s.tile = tile; tile.slot = s; tile.fillEye = null;
+        s.tile = tile; tile.slot = s; tile.fillEye = null; tile.count = 0;
       }
       // Filled again when the traveller has come a tenth of the way nearer to it: the trees
       // it holds are half as many again as stand in the picture, which covers that much
       // closing (and the nearest tiles are the cheapest to fill).
       const s = tile.slot;
-      if (!tile.fillEye || tile.fillEye.distanceToSquared(p) > (0.1 * Math.max(tile.near, full)) ** 2) this._fill(tile, s0.subVectors(tile.origin, p), p);
+      if (!tile.fillEye || tile.fillEye.distanceToSquared(p) > (0.1 * Math.max(tile.far3, full)) ** 2) {
+        if (fills < 2) { fills++; this._fill(tile, s0.subVectors(tile.origin, p), p); } else if (!tile.fillEye) this.unfilled++;
+      }
+      // (drawn nearest first: each tile has a material of its own, and three would order
+      // them by material before depth)
+      s.mesh.renderOrder = 5 + (i++) / 64;
       s.material.uniforms.uTileRel.value.subVectors(tile.origin, p);
       s.mesh.position.copy(s.material.uniforms.uTileRel.value);
       // (the tile is drawn when a tree of its band could be; the view culls it by its bounds)
-      const vis = tile.count > 0 && tile.near <= levelReach(tile.level, full, radius);
+      const vis = tile.count > 0 && tile.far3 <= levelReach(tile.level, full, radius);
       s.mesh.visible = vis;
       if (vis) { drawn += tile.shown; given += tile.count; }
     }

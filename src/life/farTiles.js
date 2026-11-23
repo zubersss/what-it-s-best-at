@@ -24,7 +24,10 @@ export const LEAD = 1.1;
 
 // lat, lon (degrees, lon 0..360), R (m), full, radius (m). Returns the tiles, each
 // { key, level, ti, tj, blocks, side (m), near (m along the ground to its nearest ground), mid }.
-export function wantedTiles(lat, lon, R, full, radius) {
+// (0.7 of the height: the ground under a tile may stand higher than under the traveller)
+// agl: the traveller's height over the ground (m): from high up the nearest tiles of the
+// thick bands cannot show a tree, and are neither worked out nor given a place.
+export function wantedTiles(lat, lon, R, full, radius, agl = 0) {
   const DEG = blockDeg(R), M = R * Math.PI / 180, rad = Math.PI / 180, BLOCK_M = DEG * M;
   const out = [], seen = new Set();
   for (let L = 0; L < LEVELS; L++) {
@@ -46,7 +49,7 @@ export function wantedTiles(lat, lon, R, full, radius) {
         // (a row gives the tile the blocks whose west edge is in its span: a block of slack)
         const dx = dl * mLon, nearX = Math.max(0, Math.abs(dx) - (e - w) / 2 * mLon - BLOCK_M);
         const near = Math.hypot(nearX, nearY);
-        if (near > reach * LEAD) continue;
+        if (Math.hypot(near, 0.7 * agl) > reach * LEAD) continue;
         seen.add(key);
         out.push({ key, level: L, ti, tj, blocks, side, near, mid: Math.hypot(dx, dy * M) });
       }

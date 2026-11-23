@@ -224,6 +224,12 @@ the shadow maps those trees had no shadow of the land on them, ever. Both are do
    tiles are asked for a tenth before that. 36 to 39 tiles are wanted at the places tested
    (54 beside the seam at longitude 0, where tiles are short); the pool of 40 takes the
    nearest, and those left out are the ones that cannot show a tree yet.
+6. **Refills in bursts, height, draw order: true by the code, fixed.** At most two tiles are
+   filled in a frame, nearest first (screenshot mode waits for a tile's first fill); the
+   distance a tile is wanted, shown and refilled by counts 0.7 of the height over the
+   ground, so from 2 km up the thick bands' tiles are neither worked out nor held; a tile
+   with no tree in it takes no place in the pool; and the tiles are drawn nearest first by
+   an order set each frame (each has a material of its own, which three sorts by first).
 
 ## Tests
 
