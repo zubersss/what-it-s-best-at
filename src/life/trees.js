@@ -293,12 +293,14 @@ export class Trees {
     const def = this.def, t = this.terrain;
     if (!def) return;
     const R = this.world.radius, radius = (def.radius ?? 240) * this.fraction;
-    // Above the radius itself no tree can be within it of the eye (the cut is a sphere round
-    // the eye, and the far forest draws everything outside it): blocks are not even asked
-    // for up there. `reach`: how far these trees reach from the eye, 0 when none are drawn —
-    // the far forest and the raised canopy both start where this ends.
-    const show = rig.agl < Math.min(def.below ?? 1500, radius) && !!t.coverSerial;
-    this.reach = show ? radius : 0;
+    // The trees are cut at a sphere round the eye, and the far forest draws everything
+    // outside it. Blocks are asked for from well above the height at which the first tree
+    // can come inside that sphere (on the way down they are there in time), and `reach` —
+    // how far these trees reach from the eye, 0 when none are drawn; the far forest and
+    // the raised canopy both start where it ends — goes no farther than the blocks that
+    // are in: where a block has not come, its trees stay the far forest's to draw.
+    const show = rig.agl < Math.min(def.below ?? 1500, radius * 1.6) && !!t.coverSerial;
+    if (!show) this.reach = 0;
     for (const s of this.sets.flat(2)) s.mesh.visible = show && s.count > 0 && this.atlasReady;
     const p = rig.pos, len = p.length(), lat = Math.asin(p.z / len) * 180 / Math.PI, lon = ((Math.atan2(p.y, p.x) * 180 / Math.PI) + 360) % 360;
     {
@@ -319,7 +321,7 @@ export class Trees {
     // (a block is 111 m on any world: so many degrees on this one, so many metres a degree)
     const DEG = blockDeg(this.world.radius), M = this.world.radius * Math.PI / 180;
     const bi0 = Math.floor(lat / DEG), nb = Math.ceil((radius + REBUILD_M + 5) / 111.2);
-    let want = null, wantD = 1e9, sunWant = null, sunD = 1e9; const sunNow = this.shared.uSunDir.value, now = performance.now(), sweep = now - (this.sweepAt || 0) > 1000;
+    let noTrees = 1e9, want = null, wantD = 1e9, sunWant = null, sunD = 1e9; const sunNow = this.shared.uSunDir.value, now = performance.now(), sweep = now - (this.sweepAt || 0) > 1000;
     this.sunStale = 0;
     for (let bi = bi0 - nb; bi <= bi0 + nb; bi++) {
       const dLon = blockLon(bi, DEG), count = Math.round(360 / dLon), bj0 = Math.floor(lon / dLon);
@@ -344,9 +346,11 @@ export class Trees {
           }
         }
         this.missing++;
+        if (!b || b.state !== 1) noTrees = Math.min(noTrees, d);
         if (d < wantD) { wantD = d; want = [bi, bj, key]; }
       }
     }
+    this.reach = Math.max(0, Math.min(radius, noTrees - 80));
     if (!want) want = sunWant;
     // (the lists are made again once, when a sweep for the Sun is all in)
     if (this.sunDirty && this.sunStale === 0 && this.asked <= 0) { this.sunDirty = false; this.dirty = true; }
@@ -373,7 +377,7 @@ export class Trees {
     // per frame: where the anchor is from the camera, the season, the wind's clock
     const u = this.shared;
     u.uAnchorRel.value.subVectors(this.anchor, p);
-    u.uTreeRadius.value = radius;
+    u.uTreeRadius.value = this.reach;
   }
 
   // The instance lists, from the blocks that are in: near trees to the near meshes, the

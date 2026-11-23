@@ -215,6 +215,15 @@ the shadow maps those trees had no shadow of the land on them, ever. Both are do
    lists are made again once when a sweep is in, not at every reply. A far tile is asked
    for again for the Sun at most every two seconds. (And the count of jobs out no longer
    goes negative after a change of world: the review's small leftover.)
+5. **Nothing asked for ahead of the line: true by the code, fixed; not seen in a picture.**
+   Near side: blocks are asked for from 1.6 times the radius above the ground (384 m), and
+   the near trees' reach (which is also where the far forest and the canopy begin) goes no
+   farther than the blocks that are in, so a block that has not come leaves its trees to
+   the far forest instead of to nobody. Far side: a level is drawn out to where its lowest
+   rank begins to grow (`full / sqrt(0.85 lo)`, a twelfth farther than before) and its
+   tiles are asked for a tenth before that. 36 to 39 tiles are wanted at the places tested
+   (54 beside the seam at longitude 0, where tiles are short); the pool of 40 takes the
+   nearest, and those left out are the ones that cannot show a tree yet.
 
 ## Tests
 
