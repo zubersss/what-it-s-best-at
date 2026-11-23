@@ -349,8 +349,9 @@ finished benchmark leaves its text in `window.__benchResult`.
 - Phones allow 16 textures per shader; the test browser allows 32 and 4096 uniform
   vectors. A shader over a phone's limit draws nothing there and works in every headless
   test (the whole ground vanished on the phone at 17). `scripts/lib/glLimits.mjs` checks
-  every program in `npm run smoke` and in screenshot runs; the terrain shader is at 14
-  (plus 2 read by its vertex shader).
+  every program in `npm run smoke` and in screenshot runs. The terrain's fragment
+  shader is full, at 16 of 16 (its vertex shader reads 4 more, which a phone counts
+  apart): a new map there must take the place of one.
 - three uploads a changed texture at the draw call that first uses it, in the middle of
   the render pass, and with `generateMipmaps` has the GPU build the mips there. A phone's
   tile-based GPU must write the half-drawn picture out and read it back for that: every

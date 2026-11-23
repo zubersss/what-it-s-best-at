@@ -344,9 +344,12 @@ illuminate anything. Everything goes through `src/render/lightingGlsl.js`.
 
 **Texture budget per shader.** Phones allow 16 textures in one fragment shader (the test
 browser allows 32), and a shader over that draws nothing on the phone, with no error in any
-headless test. The terrain's shader is the fullest: 15 (strata, detail, colour and slope
-maps; the chunk's normal and shadow maps and its parent's two; the sky-light texture, three
-aerial-perspective maps, two atmosphere tables and the near shadow map). The two sky-light tables share one texture
+headless test. The terrain's shader is full: 16 of 16 (strata and detail; the world's
+colour and slope maps and the colour ring of streamed tiles; the chunks' normal and shadow
+layers; the sky-light texture, three aerial-perspective maps, two atmosphere tables, the
+near shadow map; the day's cloud map and the cloud noise, for the heaps' shadows). Its
+vertex shader reads four more (vertices, morph, normals, the ring), which count apart. A
+new map in the ground's shader must take the place of one. The two sky-light tables share one texture
 (`tIrradiance`: octahedral map, circumsolar row, and the level-ground sky light against the
 Sun's height in row IRR+1, each pass drawing only its rows). `scripts/lib/glLimits.mjs`
 checks every linked program against the OpenGL ES 3.0 minimums in `npm run smoke` and in
