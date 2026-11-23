@@ -156,4 +156,20 @@ fixed, plus the worker's own arrays for the tiles held (9 floats a tree).
   no bias by height). **Seen to fail**: with rank taken partly from the site's column it
   reports the bias and the share; with a band quietly dropping one site in eight it reports
   that the bands are no longer every tree.
-- `npm run stability -- --only haven_treeline` and `--streaming`: *(filled in below)*
+- `npm run stability -- --only haven_treeline` and `--streaming` (strips in
+  `docs/shots/far-forest/stability/`): walking at a wood, 0.4 m a frame, three stations
+  40 m apart. Whole picture, settled: **59 %, 36 %, 39 % of pixels changed, 11.9 %, 8.2 %,
+  9.0 % flicker**; streaming: 75 %, 72 %, 76 % changed, 3.6 %, 6.6 %, 1.2 % flicker. Those
+  numbers are the grass and the trees near by in the wind (the clock runs between settled
+  frames), not the far forest: **the same walk on the branch as it was found gives 59 %,
+  36 %, 39 % and 11.9 %, 8.1 %, 8.9 %**, and band by band down the picture the two builds
+  agree to half a point (the top eighth at the second station: 0.2 % changed in both). In
+  the strips the far wood on the skyline changes only along its outlines, and nothing
+  appears or goes at the line where the near trees take over. What this test cannot do is
+  tell a small pop in the near wood from the wind there: it would need the clock stopped.
+  (The move was first written at 1.2 m a frame with the figure in view: the grass at one's
+  feet filled the picture with honest motion, 67 to 83 %, and it said nothing.)
+- The join at a phone's pixel density: `haven_ledge_join_phone_after.png` (a quarter of
+  the phone's frame through a lens half as wide, 1540 x 721, which is the phone's pixels
+  per degree; the whole 3080 x 1442 frame did not finish in 70 minutes on this machine).
+  The wood runs from 100 m to a kilometre and no line shows at 240 m.
