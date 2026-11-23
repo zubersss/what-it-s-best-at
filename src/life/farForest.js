@@ -92,11 +92,11 @@ export class FarForest {
     this.vertexShader = /* glsl */`
       in vec4 iA;            // xyz: the tree's foot from the tile's origin (m, planet axes), w: its height (m)
       in vec4 iB;            // x: crown width, y: turn (radians), z: which picture (shape x variants + variant), w: a number of its own
-      in vec4 iC;            // x: its rank, y: leaf colour packed, z: trunk colour packed, w: 1 or 2 if it drops its leaves
+      in vec4 iC;            // x: its rank, y: leaf colour packed, z: trunk colour packed, w: 4 x (1 or 2 if it drops its leaves) + 3 x how much of the Sun the land leaves it
       uniform vec3 uTileRel, uTileEast, uTileNorth, uTileUp;
       uniform vec4 uRectTree[CELLS], uRectRose[CELLS], uRoseGeo[CELLS];
       uniform vec4 uFar;
-      out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out vec2 vUv; out vec2 vOwn;
+      out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out vec2 vUv; out vec2 vOwn; out float vShade;
       vec3 unpack(float p) { float r = floor(p / 65536.0), g = floor((p - r * 65536.0) / 256.0); return vec3(r, g, p - r * 65536.0 - g * 256.0) * (${COLOUR_TOP.toFixed(3)} / 255.0); }
       void main() {
         vec3 foot = uTileRel + iA.xyz;
@@ -106,7 +106,7 @@ export class FarForest {
         float keep = min(1.0, uFar.x * uFar.x / max(d * d, 1.0)) * uFar.w;
         float grow = smoothstep(iC.x * 0.85, iC.x + 1e-5, keep) * (1.0 - smoothstep(uFar.y * 0.86, uFar.y, d));
         // (inside the trees one walks among nothing here is drawn: they are the same trees)
-        if (grow <= 0.0 || d < uFar.z) { vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vUv = vec2(0.0); vOwn = vec2(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+        if (grow <= 0.0 || d < uFar.z) { vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vUv = vec2(0.0); vOwn = vec2(0.0); vShade = 0.0; gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
         // (the thinned ones stand a little wider, so a wood keeps its cover)
         float wide = iB.x * clamp(pow(max(keep, 1e-3), -0.25), 1.0, 1.5);
         int cell = int(iB.z + 0.5);
@@ -126,7 +126,7 @@ export class FarForest {
         l *= iA.w * grow;
         vRel = foot + uTileEast * (l.x * c - l.z * s) + uTileUp * l.y + uTileNorth * (l.x * s + l.z * c);
         vN = normalize(uTileEast * (nl.x * c - nl.z * s) + uTileUp * nl.y + uTileNorth * (nl.x * s + nl.z * c));
-        vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); vOwn = vec2(iB.w, iC.w);
+        vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); float fall = floor(iC.w * 0.25 + 1e-3); vOwn = vec2(iB.w, fall); vShade = clamp((iC.w - fall * 4.0) / 3.0, 0.0, 1.0);
         vUv = vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
         gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
       }`;
@@ -136,7 +136,7 @@ export class FarForest {
     this.fragmentShader = /* glsl */`${LIGHTING_PARS}
       uniform sampler2D tTreeAtlas;        // r cover, g tone, b wood (life/treeAtlasGen.js)
       uniform vec3 uSeason;                // x: how far the leaves have turned, y: how bare, z: time
-      in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in vec2 vUv; in vec2 vOwn;
+      in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in vec2 vUv; in vec2 vOwn; in float vShade;
       layout(location = 0) out vec4 fragColor;
       ${PAINT_LEAF}
       void main() {
@@ -169,7 +169,7 @@ export class FarForest {
         // (seen against the Sun, foliage glows: the light comes through needles and leaves)
         float through = wood ? 0.0 : max(-nl, 0.0) * 0.28 + 0.4 * pow(max(dot(-V, uSunDir), 0.0), 4.0);
         float open = (wood ? 0.45 : mix(0.5, 1.0, smoothstep(-0.6, 0.8, dot(N, up)))) * (uPaint.x > 0.0 && !wood ? 0.8 : 1.0);
-        vec3 sun = directSun(planetPos);
+        vec3 sun = directSun(planetPos) * vShade;          // (the land's own shadow, from the worker)
         // (in the shade of the wood a crown is never black: light has come down through the
         // leaves above it, green from the passage)
         vec3 glow = wood ? vec3(0.0) : leafC * sun * (0.07 * smoothstep(0.0, 0.25, dot(up, uSunDir))) * vec3(0.9, 1.2, 0.5);
@@ -270,7 +270,7 @@ export class FarForest {
     // Which tiles are wanted: for each level, those near enough that some tree of its band
     // would be drawn (keep(d) > the band's lowest rank).
     const DEG = blockDeg(R), M = R * Math.PI / 180, cosLat = Math.cos(lat * Math.PI / 180);
-    const want = [];
+    const want = [], sunNow = this.shared.uSunDir.value;
     this.missing = 0;
     for (let L = 0; L < LEVELS; L++) {
       const [lo] = band(L), blocks = BASE_BLOCKS * 2 ** L, side = blocks * DEG * M;
@@ -288,6 +288,8 @@ export class FarForest {
           let tile = this.tiles.get(key);
           if (!tile) { tile = { key, level: L, ti, tj, blocks, side, state: 0, fillEye: null, slot: null, data: null, count: 0, shown: 0, stale: false, asking: false }; this.tiles.set(key, tile); }
           tile.used = this.frame; tile.near = near; tile.mid = Math.hypot(dx, dy);
+          // (the land's shadow on its trees was worked out for where the Sun then stood)
+          if (tile.state === 1 && !tile.stale && tile.sun.dot(sunNow) < 0.99966) tile.stale = true;
           if (tile.state !== 1 || tile.stale) this.missing++;
           want.push(tile);
         }
@@ -343,15 +345,15 @@ export class FarForest {
 
   // Asks a worker for a tile's trees. False when no worker took it.
   _ask(tile) {
-    const t = this.terrain, def = this.def, [lo, hi] = band(tile.level), epoch = t.epoch, serialAt = this.serial;
-    const job = t.workers.run({ type: 'treeTile', ti: tile.ti, tj: tile.tj, blocks: tile.blocks, spacing: def.spacing ?? this.trees.def?.spacing ?? 7, lo, hi });
+    const t = this.terrain, def = this.def, [lo, hi] = band(tile.level), epoch = t.epoch, serialAt = this.serial, sun = this.shared.uSunDir.value.clone();
+    const job = t.workers.run({ type: 'treeTile', ti: tile.ti, tj: tile.tj, blocks: tile.blocks, spacing: def.spacing ?? this.trees.def?.spacing ?? 7, lo, hi, sun: [sun.x, sun.y, sun.z], sunHalf: 0.00465 });
     if (!job) return false;
     tile.asking = true; this.asked++;
     job.then((res) => {
       this.asked--; tile.asking = false;
       if (epoch !== t.epoch) return;                       // another world by now
       tile.origin = new THREE.Vector3(...res.origin);
-      tile.data = new Float32Array(res.trees); tile.have = res.count; tile.state = 1;
+      tile.data = new Float32Array(res.trees); tile.vis = new Float32Array(res.vis); tile.sun = sun; tile.have = res.count; tile.state = 1;
       tile.stale = serialAt !== this.serial; tile.fillEye = null;
       this.lastMs = res.ms ?? 0;
     }).catch((e) => { this.asked--; tile.asking = false; if (tile.state === 0) this.tiles.delete(tile.key); console.error(e); });
@@ -384,7 +386,7 @@ export class FarForest {
         const sp = SPECIES[T[q + 6]], own = T[q + 7];
         iA[n * 4] = x; iA[n * 4 + 1] = y; iA[n * 4 + 2] = z; iA[n * 4 + 3] = T[q + 3];
         iB[n * 4] = T[q + 4]; iB[n * 4 + 1] = T[q + 5]; iB[n * 4 + 2] = sp.arch * VARIANTS + Math.min(VARIANTS - 1, Math.floor(((own * 7.31) % 1) * VARIANTS)); iB[n * 4 + 3] = own;
-        iC[n * 4] = rank; iC[n * 4 + 1] = pack(sp.leaf); iC[n * 4 + 2] = pack(sp.trunk); iC[n * 4 + 3] = sp.fall;
+        iC[n * 4] = rank; iC[n * 4 + 1] = pack(sp.leaf); iC[n * 4 + 2] = pack(sp.trunk); iC[n * 4 + 3] = sp.fall * 4 + 3 * tile.vis[k];
         const r2 = x * x + y * y + z * z + T[q + 3] * T[q + 3];
         if (r2 > bound2) bound2 = r2;
         n++;
