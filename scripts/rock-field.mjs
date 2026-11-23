@@ -78,7 +78,7 @@ if (flag('check')) {
       const x = b.origin[0] + b.off[i * 4], y = b.origin[1] + b.off[i * 4 + 1], z = b.origin[2] + b.off[i * 4 + 2], r = Math.hypot(x, y, z);
       const h = hs.height(x / r, y / r, z / r, L.wl ?? 2);
       if (hs.waterDepth > 0) { fail(`level ${li} tile ${bi},${bj}: rock ${i} stands in water`); break; }
-      if (r - R > h + 0.01 || r - R < h - 0.45 * s) { fail(`level ${li} tile ${bi},${bj}: rock ${i} (${s.toFixed(1)} m) is ${(r - R - h).toFixed(2)} m from the ground`); break; }
+      if (r - R > h + 0.3 * s || r - R < h - 0.05 * s) { fail(`level ${li} tile ${bi},${bj}: rock ${i} (${s.toFixed(1)} m) is ${(r - R - h).toFixed(2)} m from the ground`); break; }
     }
   }
   console.log(`${list.length} tiles, ${rocks} rocks; a tile takes ${(total / list.length).toFixed(0)} ms, the slowest ${worst.toFixed(0)} ms`);

@@ -179,7 +179,7 @@ export class FarRocks {
           float sn = dot(uSunDir, n);
           if (show * sun <= 0.003 || sn < 0.05) { vRel = vec3(0.0); vDisc = vec2(0.0); vSh = vec4(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
           // on the ground under the rock's middle; t: the way the shadow falls along the ground
-          vec3 base = c + up * size * (0.12 + 0.08 * min(1.0, length(g)));
+          vec3 base = c - up * aScale.z * (0.2 - 0.08 * min(1.0, length(g)));          // (the ground under its middle: rockBlock.js stands it this far over it)
           vec3 st = uSunDir - n * sn; float sl = length(st);
           vec3 t = sl > 1e-4 ? -st / sl : east, b = cross(n, t);
           float r = 0.56 * max(aScale.x, aScale.y), tall = 0.6 * aScale.z, len = min(tall * sl / sn, 5.0 * tall);
