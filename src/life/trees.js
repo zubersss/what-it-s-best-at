@@ -9,7 +9,7 @@
 // the ground: no trees drawn from higher) }) and its tiles give a land-cover picture.
 import * as THREE from 'three';
 import { G } from '../render/globals.js';
-import { HEAP_GLSL } from '../sky/clouds.js';
+import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
@@ -30,33 +30,6 @@ vec3 paintLeaf(vec3 c) {
   vec3 hue = mix(vec3(0.62, 1.0, 0.36), vec3(0.36, 1.0, 0.62), smoothstep(-0.2, 0.2, (c.b - c.r) / max(c.g, 1e-4)));
   return mix(c, dot(c, vec3(0.2, 0.7, 0.1)) * hue, 0.45);
 }`;
-
-// The clouds' shadow on a tree, by the ground's own rule and from the ground's own numbers
-// (terrainMaterial.js, its light): the cloud between the crown and the Sun, once per tree
-// in the vertex shader (a heap is hundreds of metres across). The trees one walks among and
-// the far forest both read it here; the uniforms are the ground's own objects, so a saving
-// that takes the shadow off the ground takes it off the trees.
-export const CLOUD_SHADE_VERT = /* glsl */`
-uniform vec3 uCamPlanetPos, uSunDir;
-uniform sampler2D tClouds;
-precision highp sampler3D;
-uniform sampler3D tCloudNoise;
-uniform vec4 uCloud, uCloudHeap;
-uniform vec3 uCloudVol, uCloudWind;
-${HEAP_GLSL}
-float cloudShade(vec3 planetPos) {
-  float r = length(planetPos);
-  if (uCloud.x <= 0.0 || r >= uCloud.y) return 1.0;
-  vec3 uc = normalize(planetPos + uSunDir * ((uCloud.y - r) / max(dot(planetPos / r, uSunDir), 0.08)));
-  float cd = textureLod(tClouds, vec2(atan(uc.y, uc.x) * 0.15915494 + uCloud.z, acos(clamp(uc.z, -1.0, 1.0)) * 0.31830989), 0.0).r;
-  float shade = smoothstep(0.2, 0.7, cd);
-  if (uCloudHeap.w > 0.5) { float cc, hp = cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudWind, 0.0, cc); shade = 0.85 * smoothstep(0.06, 0.42, hp); }
-  return 1.0 - uCloud.x * shade;
-}`;
-export const cloudShadeUniforms = (terrain) => ({
-  tClouds: terrain.shared.tClouds, uCloud: terrain.shared.uCloud, tCloudNoise: terrain.shared.tCloudNoise,
-  uCloudHeap: terrain.shared.uCloudHeap, uCloudVol: terrain.shared.uCloudVol, uCloudWind: terrain.shared.uCloudWind,
-});
 
 const TREE_VERT = /* glsl */`
 in vec4 iA;            // xyz: the tree's foot from the anchor (m, planet axes), w: its height (m)
@@ -104,7 +77,7 @@ export class Trees {
     this.terrain = terrain;
     this.geos = makeTreeGeometries();
     this.shared = {
-      ...lightingUniforms(), ...cloudShadeUniforms(terrain),
+      ...lightingUniforms(), ...TREE_SHADE_UNIFORMS,
       uAnchorRel: { value: new THREE.Vector3() }, uTreeEast: { value: new THREE.Vector3(1, 0, 0) }, uTreeNorth: { value: new THREE.Vector3(0, 1, 0) }, uTreeUp: { value: new THREE.Vector3(0, 0, 1) },
       uTreeWind: terrain.shared.uWind, uSeason: { value: new THREE.Vector3() }, uTreeRadius: { value: 240 },
       tTreeAtlas: { value: null },
@@ -122,7 +95,7 @@ export class Trees {
       vertexShader: /* glsl */`${TREE_VERT}
         in vec3 iC; in vec4 iD;          // (iD.w: how much of the Sun the land leaves this tree, from the worker)
         out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out float vLeaf; out float vY; out vec2 vOwn; out vec3 vTreeM; out vec2 vUv; out float vCloud;
-        ${CLOUD_SHADE_VERT}
+        ${TREE_SHADE_VERT}
         void main() {
           vec3 foot; float leaf;
           vec3 rel = treePosition(foot, leaf);
@@ -130,7 +103,7 @@ export class Trees {
           if (treeCull) { vCloud = 1.0; vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vLeaf = 0.0; vY = 0.0; vOwn = vec2(0.0); vTreeM = vec3(0.0); vUv = vec2(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
           vTreeM = vec3(position.x * iB.x, position.y, position.z * iB.x) * iA.w + iB.z * 37.0;        // metres in the tree's own frame (for the pattern of its leaves)
           vRel = rel; vN = treeNormal(); vLeaf = leaf; vY = position.y; vLeafC = iC; vTrunkC = iD.rgb; vOwn = vec2(iB.z, iB.w); vUv = aUv;
-          vCloud = cloudShade(uCamPlanetPos + foot + uTreeUp * (iA.w * 0.7)) * iD.w;
+          vCloud = cloudShade(foot + uTreeUp * (iA.w * 0.7)) * iD.w;          // (the clouds' shadow, from the map of it: life/treeShade.js)
           gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
         }`,
       fragmentShader: /* glsl */`${LIGHTING_PARS}
@@ -292,7 +265,7 @@ export class Trees {
     this.frame++; this.missing = 0; this.sunStale = 0;
     const def = this.def, t = this.terrain;
     if (!def) return;
-    const R = this.world.radius, radius = (def.radius ?? 240) * this.fraction;
+    const R = this.world.radius, radius = def.radius ?? 240;
     // The trees are cut at a sphere round the eye, and the far forest draws everything
     // outside it. Blocks are asked for from well above the height at which the first tree
     // can come inside that sphere (on the way down they are there in time), and `reach` —
@@ -301,7 +274,8 @@ export class Trees {
     // are in: where a block has not come, its trees stay the far forest's to draw.
     const show = rig.agl < Math.min(def.below ?? 1500, radius * 1.6) && !!t.coverSerial;
     if (!show) this.reach = 0;
-    for (const s of this.sets.flat(2)) s.mesh.visible = show && s.count > 0 && this.atlasReady;
+    // (hidden: the cost test takes the near trees out without moving the line the far forest begins at)
+    for (const s of this.sets.flat(2)) s.mesh.visible = show && !this.hidden && s.count > 0 && this.atlasReady;
     const p = rig.pos, len = p.length(), lat = Math.asin(p.z / len) * 180 / Math.PI, lon = ((Math.atan2(p.y, p.x) * 180 / Math.PI) + 360) % 360;
     {
       // The year in the leaves (worked out whether or not trees are drawn: the far forest
@@ -390,7 +364,7 @@ export class Trees {
     u.uTreeEast.value.set(...this._e); u.uTreeNorth.value.set(...this._n); u.uTreeUp.value.set(...this._u);
     for (const s of this.sets.flat(2)) s.count = 0;
     const r2 = (radius + REBUILD_M + 5) ** 2,          // (the list must hold every tree that can come within the radius before it is made again: the cut at the radius is by distance from the eye, and the far forest draws nothing inside it)
-       near2 = NEAR_M * NEAR_M, close2 = CLOSE_M * CLOSE_M * (this.closeOn === false ? 0 : 1);
+       near2 = (NEAR_M * this.fraction) ** 2, close2 = (CLOSE_M * this.fraction) ** 2 * (this.closeOn === false ? 0 : 1);
     let nearest = 1e9, names = new Map(), falling = 0, near = 0;
     for (const b of this.blocks.values()) {
       if (b.state !== 1 || !b.count) continue;
@@ -411,7 +385,7 @@ export class Trees {
     }
     let count = 0, tris = 0;
     for (const s of this.sets.flat(2)) {
-      s.geo.instanceCount = s.count; s.mesh.visible = s.count > 0 && this.atlasReady;
+      s.geo.instanceCount = s.count; s.mesh.visible = s.count > 0 && this.atlasReady && !this.hidden;
       if (s.castGeo) s.castGeo.instanceCount = s.count;
       if (s.count) { for (const a of [s.iA, s.iB, s.iC, s.iD]) { a.clearUpdateRanges?.(); a.addUpdateRange?.(0, s.count * a.itemSize); a.needsUpdate = true; } }
       count += s.count; tris += s.count * s.tris;
@@ -420,6 +394,8 @@ export class Trees {
     this.names = [...names.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map((e) => e[0]).join(', ');
   }
 
-  // Governor: draw the trees to a shorter distance (1: all the way).
+  // Governor: the trees' full shapes to a shorter distance (1: all the way); beyond it a
+  // tree is its three cards. The radius stays: shortening it only handed the same cards
+  // to the far forest and brought the line between the two nearer.
   setFraction(f) { if (f !== this.fraction) { this.fraction = f; this.dirty = true; } }
 }

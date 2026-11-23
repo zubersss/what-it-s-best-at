@@ -152,8 +152,9 @@ trees on dark ground in the view that was named (`alt=1535&pitch=-12`) were not 
 cloud at all. They were the **trees one walks among, inside the mountain's shadow**: beyond
 the shadow maps those trees had no shadow of the land on them, ever. Both are done.
 
-- **The clouds' shadow** is one piece of vertex shader, `CLOUD_SHADE_VERT` in
-  `src/life/trees.js`, read by the near trees and by the far forest: the ground's own rule
+- **The clouds' shadow** (first as one piece of vertex shader, `CLOUD_SHADE_VERT`; since
+  the review's eighth finding a small map, `src/life/treeShade.js`) is read by the near
+  trees and by the far forest: the ground's own rule
   (`cloudHeap` from `HEAP_GLSL`, the day's map, `uCloud.x` times the shade), once per tree
   at two thirds of its height. Its uniforms are the ground's own objects
   (`cloudShadeUniforms(terrain)`), so nothing was added to `src/app.js`, and a saving that
@@ -235,6 +236,18 @@ the shadow maps those trees had no shadow of the land on them, ever. Both are do
    the rule checked against the near meshes' normals in Node: 0.016 degrees apart at worst,
    over all 18 corners of every shape and variant; the far forest's own rule had been up to
    26 degrees off), and far trees have the moon's light (`planetShine`) as near ones do.
+8. **The governor's step, the cost test, the cloud shade per vertex: true, changed.**
+   `trees-far` no longer shortens the near trees' radius (that handed the same cards to
+   the far forest and moved the join nearer): it now brings the full shapes in to two
+   thirds of their distance (76 m and 28 m), beyond which a tree is its three cards. The
+   cost test's `trees` row hides the near meshes and leaves the line where it is. The
+   clouds' shadow is no longer worked out on every vertex of every tree: a map of it
+   (`src/life/treeShade.js`, 256 x 256 over 14 km, one small pass before the main picture,
+   the ground's rule and numbers) is read once per vertex by near and far trees, one
+   texture read where there were up to four. A tree off the map's plane looks it up where
+   the Sun's ray through its crown meets the plane. **Behaviour changes for the checkpoint:**
+   the `trees-far` step now does something else; `src/app.js` has three lines for the map.
+   None of this is measured on a phone.
 
 ## Tests
 

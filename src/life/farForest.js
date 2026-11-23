@@ -39,7 +39,8 @@ import { SPECIES } from './cover.js';
 import { TREE_FLOATS } from './treeBlock.js';
 import { BASE_BLOCKS, BAND, LEVELS, band, levelReach, wantedTiles } from './farTiles.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
-import { PAINT_LEAF, CLOUD_SHADE_VERT, cloudShadeUniforms } from './trees.js';
+import { PAINT_LEAF } from './trees.js';
+import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
 
 // Trees one tile may hand the GPU (a fixed pool). A band of ranks of levels 0 to 2 has at
 // most 64 blocks x 256 sites x 3/4 = 12 288 sites, and a traveller in the thick of a wood
@@ -84,7 +85,7 @@ export class FarForest {
       ...lightingUniforms(),
       tTreeAtlas: trees.shared.tTreeAtlas,
       uSeason: trees.shared.uSeason,
-      ...cloudShadeUniforms(terrain),
+      ...TREE_SHADE_UNIFORMS,
       uRectTree: { value: rectTree }, uRectRose: { value: rectRose }, uRoseGeo: { value: roseGeo }, uCellMid: { value: cellMid },
       // x: full density out to here (m), y: none beyond here (m), z: none nearer than here
       // (where the trees one walks among end), w: the share of them drawn (the governor)
@@ -98,7 +99,7 @@ export class FarForest {
       uniform vec4 uRectTree[CELLS], uRectRose[CELLS], uRoseGeo[CELLS];
       uniform float uCellMid[CELLS];
       uniform vec4 uFar;
-      ${CLOUD_SHADE_VERT}
+      ${TREE_SHADE_VERT}
       out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out vec2 vUv; out vec2 vOwn; out float vShade;
       vec3 unpack(float p) { float r = floor(p / 65536.0), g = floor((p - r * 65536.0) / 256.0); return vec3(r, g, p - r * 65536.0 - g * 256.0) * (${COLOUR_TOP.toFixed(3)} / 255.0); }
       void main() {
@@ -137,7 +138,7 @@ export class FarForest {
         l *= iA.w * grow;
         vRel = foot + uTileEast * (l.x * c - l.z * s) + uTileUp * l.y + uTileNorth * (l.x * s + l.z * c);
         vN = normalize(uTileEast * (nl.x * c - nl.z * s) + uTileUp * nl.y + uTileNorth * (nl.x * s + nl.z * c));
-        vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); float fall = floor(iC.w * 0.25 + 1e-3); vOwn = vec2(iB.w, fall); vShade = clamp((iC.w - fall * 4.0) / 3.0, 0.0, 1.0) * cloudShade(uCamPlanetPos + foot + uTileUp * (iA.w * 0.7));
+        vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); float fall = floor(iC.w * 0.25 + 1e-3); vOwn = vec2(iB.w, fall); vShade = clamp((iC.w - fall * 4.0) / 3.0, 0.0, 1.0) * cloudShade(foot + uTileUp * (iA.w * 0.7));
         vUv = vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
         gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
       }`;
