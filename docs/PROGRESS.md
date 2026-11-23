@@ -29,6 +29,15 @@ All of it is under "The owner's eighth phone results and the seventh painted del
   the heaps and the crowns in the ground's shader on Earth, the far trees; and more
   pixels, since the floor is higher). Read first the line "late frames taken as the
   device's own" and how often quality was put back.
+- **The owner asked** (a question, "for now", while this was being finished): would a
+  smaller world, built differently from the start, give more depth on the way in
+  (mountains, plateaus, the curve)? **Answered**: no restart; what hid the depth was the
+  floor, the haze and clouds without shadows. A smaller planet would show peaks against
+  the curve but gives up real places at real size (the canyon a slot, the maps no longer
+  fitting). **Offered, not built**: relief two or three times taller seen from high up,
+  easing to true height on the way down (the ground's vertices carry their height:
+  a factor by the eye's height in the vertex shader; the baked shadows would not follow).
+  Do nothing on this unless the owner asks.
 - **What to do next, in order:**
   1. With the benchmark: if the governor now holds well above 1.6 MP with everything on,
      the diagnosis was right. If Earth is slow in earnest (late frames that fewer pixels
@@ -629,8 +638,8 @@ All four are built.
 
 **Tests of this delivery** (on the build that was merged, served frozen): the build check
 (with the scripts' imports); `npm run smoke` (16 checks; 22 shaders, the ground's the
-fullest at 16 of a phone's 16 textures, none failing); `npm run shadowturns` (STILL RUNNING
-when this was written: put its result here);
+fullest at 16 of a phone's 16 textures, none failing); `npm run shadowturns` (and no
+WebGL error in its log any more);
 `npm run govsim` (the four new cases among them); `npm run lakes`; the stability test's
 Earth move over the forest from 370 m (`--only earth_forest_flight`: changed 5.3 %,
 flicker 0.24 %: crowns and tree outlines moving with the camera, nothing popping).
