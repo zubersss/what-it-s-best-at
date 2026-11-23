@@ -709,7 +709,8 @@ as Earth is; what differs is where the maps come from.
     shadow baker (`baker.visibility`) on a 20 x 20 grid over the tile at crown height and
     each tree carries what it reads off between the grid's points (in `iC.w`, with its
     autumn); a tile is asked for again when the Sun has moved a degree and a half. The
-    near trees get the same from their block's job (`landShadow` in the worker, `iD.w`).
+    near trees get theirs from their block's job, tree by tree (`landShadow` in the worker,
+    `iD.w`): a grid over a block on a rim put the cliff's shade on the trees above it.
   - **The clouds' shadow** on near and far trees is the ground's rule, once per tree in the
     vertex shader (`CLOUD_SHADE_VERT` in `trees.js`), fed by the ground's own uniform
     objects: one rule, and a saving on the ground is a saving on the trees.

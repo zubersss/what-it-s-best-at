@@ -163,11 +163,17 @@ the shadow maps those trees had no shadow of the land on them, ever. Both are do
   cloud noise once or twice), nothing per pixel. **Not measured on a phone.**
 - **The land's shadow on the near trees.** The worker's job for a block of near trees now
   does what the far forest's tile job does (one function, `landShadow` in
-  `src/terrain/chunkWorker.js`): a 4 x 4 grid of shadow rays over the 111 m block, read off
-  per tree, carried in the fourth number of `iD`. A block is asked for again when the Sun
+  `src/terrain/chunkWorker.js`): one shadow ray per tree, from two thirds of its height,
+  carried in the fourth number of `iD`. A block is asked for again when the Sun
   has moved a degree and a half, as the far tiles are. Under the shadow maps a near tree is
   now shaded twice by the same hill, which changes nothing dark to dark; at the soft edge
   of a mountain's shadow near trees are a little darker than before.
+  **Tried and taken back:** a 4 x 4 grid over the block, as the far tiles have. On the
+  opening ledge it read the shade under the cliff into the trees standing on the rim in
+  the Sun (their crowns a fifth darker in the opening view); tree by tree they are as
+  bright as they were. The far tiles keep their grid (20 x 20 over 889 m and up): the same
+  bleed is there on far rims, softer and far off. A block's job now casts one ray per
+  tree, some 200 in a wooded block; its time was not measured here.
 - Pictures: `haven_ledge_cloud1535_before/_after.png` (the near trees at the bottom, lit in
   the shadow before, dark with their ground after), `cloud1535_floor_after` (every saving
   on), `cloud1900_before/_after` (far trees in the shadow on the right). The before
@@ -177,6 +183,20 @@ the shadow maps those trees had no shadow of the land on them, ever. Both are do
   cloud's edge a tree is all in or all out; and the clouds in these views cast little on
   the wooded slopes, so the clouds' part is right by construction (one rule, the ground's
   numbers) more than it is shown.
+
+## After the independent review (`far-forest-review.md`), finding by finding
+
+1. **Strips with no far trees (serious): true, fixed.** The reviewer was right. With the
+   tiles' blocks taken by index, the new check in `scripts/far-trees-test.mjs` (the game's
+   own selection, now in `src/life/farTiles.js`, against every block of trees within each
+   level's reach) fails: at the north wood 15 of 168 blocks at level 0 and **231 of 755 at
+   level 1** are in no wanted tile; at the opening place 95 of 3 150 at level 2 and 307 of
+   7 736 at level 3. A tile is now its rows of blocks and a span of longitude (that of its
+   first row's blocks), and each row gives it the blocks whose west edge lies in the span
+   (`tileSpan`, `tileRow`, `tileOf` in `treeBlock.js`); where a tile stands is worked out
+   from that span, wrapped at longitude 0, with a block of slack. The check passes at seven
+   places, among them both sides of the seam at longitude 0 and a band boundary, and a
+   level-1 tile lying over two bands holds its blocks' trees where they stand.
 
 ## Tests
 
