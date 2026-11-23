@@ -31,6 +31,7 @@ import * as THREE from 'three';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
+import { CLOUD_SHADE_VERT, cloudShadeUniforms } from './trees.js';
 import { AMOUNT, DRY, floraAt, flowersAt, FLOWERS_GLSL, GRASS_GLSL, WAVE_K } from './grassRules.js';
 
 const SNAP = 40;                 // the anchor moves in steps of this (m)
@@ -130,7 +131,13 @@ const PRELUDE = /* glsl */`
   vec4 tableAt(sampler2D t, vec4 info, vec2 at) {
     vec2 f = (at + info.xy) / info.z, i = floor(f), w = f - i;
     ivec2 a = ivec2(mod(i, info.w)), b = ivec2(mod(i + 1.0, info.w));
-    return mix(mix(texelFetch(t, a, 0), texelFetch(t, ivec2(b.x, a.y), 0), w.x), mix(texelFetch(t, ivec2(a.x, b.y), 0), texelFetch(t, b, 0), w.x), w.y);
+    vec4 t00 = texelFetch(t, a, 0), t10 = texelFetch(t, ivec2(b.x, a.y), 0), t01 = texelFetch(t, ivec2(a.x, b.y), 0), t11 = texelFetch(t, b, 0);
+    vec4 g = mix(mix(t00, t10, w.x), mix(t01, t11, w.x), w.y);
+    // (the height from the entries that have grass: one without may hold another place's
+    // height until it is worked out, and pulled the tufts beside it into the air)
+    vec4 k = vec4((1.0 - w.x) * (1.0 - w.y), w.x * (1.0 - w.y), (1.0 - w.x) * w.y, w.x * w.y) * (step(0.001, vec4(t00.g, t10.g, t01.g, t11.g)) + 0.001);
+    g.r = dot(k, vec4(t00.r, t10.r, t01.r, t11.r)) / (k.x + k.y + k.z + k.w);
+    return g;
   }
   vec4 tableNearest(sampler2D t, vec4 info, vec2 at) { return texelFetch(t, ivec2(mod(floor((at + info.xy) / info.z + 0.5), info.w)), 0); }
   // the ground's height at a place, measured up from the camera (g: its table entry)
@@ -254,6 +261,9 @@ const CLUMP_VERT = /* glsl */`
   uniform sampler2D tTable; uniform vec4 uTab;
   ${PRELUDE}
   ${FLOWERS_GLSL}
+  ${CLOUD_SHADE_VERT}
+  uniform vec4 uWeather;
+  out float vCloud;                  // the cloud between this clump and the Sun (1: none)
   out vec3 vUv;                      // the picture (u, v), and how far across the card (-1..1)
   out vec3 vFoot, vTip; out vec4 vFlower; out vec4 vSlope; out float vEven;
   void main() {
@@ -300,6 +310,10 @@ const CLUMP_VERT = /* glsl */`
     vSlope = vec4(normalize(uGrassUp - uGrassEast * dh.x - uGrassNorth * dh.y), smoothstep(12.0, 45.0, dist));
     // (looked down on, or far off, a clump is the ground's own grass colour with a tufted
     // edge: its dark foot showing from above was a field of dark specks that ended in an arc)
+    // (the clouds' shadow where the clump stands, by the ground's own rule: with the shade at
+    // the traveller for every clump, stepping under a cloud dimmed half a kilometre of grass
+    // on sunlit ground. Close by it is the traveller's, as the blades have it.)
+    vCloud = mix(uWeather.x, cloudShade(uCamPlanetPos + foot), smoothstep(30.0, 120.0, dist));
     vEven = 0.9 * max(smoothstep(0.05, 0.35, rise), smoothstep(120.0, 420.0, dist));
     vAlb = vec4(0.0, 0.0, 0.0, 1.0);
     gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
@@ -308,18 +322,18 @@ const CLUMP_VERT = /* glsl */`
 const FRAG = /* glsl */`${LIGHTING_PARS}
   in vec3 vRel; in vec4 vAlb;
   layout(location = 0) out vec4 fragColor;
-  vec3 grassLit(vec3 alb, float skyShare, vec4 slope) {
+  vec3 grassLit(vec3 alb, float skyShare, vec4 slope, float cloud) {
     vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos);
     // (a field is lit as the ground it stands on: by the Sun's height over it, in the shade of whatever stands near)
     float nl = dot(up, uSunDir), lit = uPaint.x > 0.0 ? paintLit(nl * 0.7 + 0.3) * PI : max(nl, 0.0);
     // (slope: the ground's own lie and how much of its light the grass takes)
     if (slope.w > 0.0) { float ns = dot(slope.xyz, uSunDir); lit = mix(lit, uPaint.x > 0.0 ? paintLit(ns) * PI : max(ns, 0.0), slope.w); }
-    vec3 col = alb * (directSun(planetPos) * nearShadow(vRel + up * 0.15, up) * lit + skyLight(up, up) * skyShare) / PI;
+    vec3 col = alb * (directSun(planetPos) * cloud * nearShadow(vRel + up * 0.15, up) * lit + skyLight(up, up) * skyShare) / PI;
     return aerialPerspective(col, vRel);
   }
   #ifdef CLUMP
   uniform sampler2D tClump;
-  in vec3 vUv; in vec3 vFoot, vTip; in vec4 vFlower; in vec4 vSlope; in float vEven;
+  in vec3 vUv; in vec3 vFoot, vTip; in vec4 vFlower; in vec4 vSlope; in float vEven; in float vCloud;
   void main() {
     vec4 p = texture(tClump, vUv.xy);
     // (the card's ends rounded off; and the cut kept as sharp far off as near, where the
@@ -332,10 +346,10 @@ const FRAG = /* glsl */`${LIGHTING_PARS}
     float tone = mix(p.g, 0.62, vEven);
     vec3 alb = mix(vFoot, vTip, tone);
     alb = mix(alb, vFlower.rgb, p.b * vFlower.a);
-    fragColor = vec4(grassLit(alb, 0.55 + 0.45 * tone, vSlope) * uExposure, 1.0);
+    fragColor = vec4(grassLit(alb, 0.55 + 0.45 * tone, vSlope, vCloud) * uExposure, 1.0);
   }
   #else
-  void main() { fragColor = vec4(grassLit(vAlb.rgb, vAlb.a, vec4(0.0)) * uExposure, 1.0); }
+  void main() { fragColor = vec4(grassLit(vAlb.rgb, vAlb.a, vec4(0.0), 1.0) * uExposure, 1.0); }
   #endif`;
 
 // --- the ground tables
@@ -349,6 +363,7 @@ class Table {
     this.tex.minFilter = this.tex.magFilter = THREE.NearestFilter; this.tex.needsUpdate = true;
     this.info = { value: new THREE.Vector4(0, 0, cell, n) };      // the shader's: the origin modulo the table's span, cell, places a side
     this.pending = n * n; this.key = ''; this.changed = false;
+    this.flora = new Uint8Array(n * n);                           // each entry's flora (the far ground's flowers are the table's majority)
     // (rows and columns from the camera's outward: the nearest are worked out first)
     const half = n >> 1; this.order = [0]; for (let k = 1; k < half; k++) this.order.push(k, -k); this.order.push(-half);
   }
@@ -392,6 +407,7 @@ export class Grass {
       uGrassWind: wind, uGrassWave: this.waveU, uGrassKeep: { value: new THREE.Vector4(1, 1, 1, 1) }, uGrassTone: terrain.shared.uGrassTone,
     };
     this.clumpTex = makeClumpPicture();
+    this._seen = new Float64Array(32);
     // a field: one tuft (or flower, or clump) of triangles, drawn once for every place of its lattice
     const field = (f, geo, vertexShader, own, defines, tris) => {
       geo.instanceCount = f.grid * f.grid;
@@ -416,8 +432,8 @@ export class Grass {
       g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(12), 3));       // (three wants one; the shader does not read it)
       g.setIndex([0, 1, 2, 0, 2, 3]);
       const t = this.tables[f.table];
-      return field(f, g, CLUMP_VERT, { tTable: { value: t.tex }, uTab: t.info, tClump: { value: this.clumpTex } },
-        { CLUMP: 1, IN0: f.in[0].toFixed(2), IN1: f.in[1].toFixed(2), OUT0: f.out[0].toFixed(2), OUT1: f.out[1].toFixed(2), TALL: f.tall.toFixed(3) }, 2);
+      return field(f, g, CLUMP_VERT, { tTable: { value: t.tex }, uTab: t.info, tClump: { value: this.clumpTex }, ...cloudShadeUniforms(this.terrain) },
+        { CLUMP: 1, OWN_CLOUD_SHADOW: 1, IN0: f.in[0].toFixed(2), IN1: f.in[1].toFixed(2), OUT0: f.out[0].toFixed(2), OUT1: f.out[1].toFixed(2), TALL: f.tall.toFixed(3) }, 2);
     };
     this.fields = [tuft(NEAR), tuft(FAR), flower(FLOWERS)];
     this.clumps = CLUMPS.map((f) => clump({ ...f, wide: f.wide }));
@@ -442,7 +458,7 @@ export class Grass {
   // True while the ground tables round the traveller are still being filled in (pictures wait for them).
   get busy() {
     if (!this.mesh.visible) return false;
-    const T = this.tables; return (this.keepBlades > 0 && T.near.pending > 0) || T.mid.pending > 0 || (this.keepClumps > 0 && T.far.pending > 0);
+    const T = this.tables; return (this.keepBlades > 0 && T.near.pending > 0) || ((this.keepClumps > 0 || !this._tone) && T.mid.pending > 0) || (this.keepClumps > 0 && T.far.pending > 0);
   }
 
   // What the ground is like at place (i, j) (absolute cells of `cell` metres) into entry o of a table.
@@ -463,7 +479,7 @@ export class Grass {
     // the flowers: the kinds of this land, in drifts (grassRules.js: the far ground has the same)
     const R = hs.radius + h, flora = floraAt(cls, Math.abs(Math.asin(d[2])) * 57.29578, h, amount);
     D[o + 3] = flora ? flowersAt(d[0] * R, d[1] * R, d[2] * R, flora) : 0;
-    if (flora) { this._floraSeen[flora] = (this._floraSeen[flora] || 0) + amount; }
+    T.flora[o >> 2] = flora;
   }
 
   // A new anchor where the traveller is: start afresh (far from the old one, or the first time) ...
@@ -476,6 +492,7 @@ export class Grass {
     this.has = true; this.anchorR = p.length() - agl; this.anchor.copy(p).multiplyScalar(this.anchorR / p.length()); this.origin = [0, 0];
     localFrame([p.x, p.y, p.z], this._e, this._n, this._u);
     for (const k in this.tables) this.tables[k].reset();
+    this._tone = null;
   }
   // ... or move it by whole steps along its own plane, its axes carried over: nothing drawn changes.
   _anchorStep(se, sn, groundR) {
@@ -547,11 +564,12 @@ export class Grass {
     const serial = t.coverSerial * 100000 + t.ringSerial;
     // (while maps are still arriving, what is there is kept a moment longer)
     if (serial !== this.serial && (!t.tiles.busy || this.gen === 0)) { this.serial = serial; this.gen++; }
-    this._floraSeen = this._floraSeen || {};
     let budget = this.eager ? 1e9 : 300;
     for (const k of ['near', 'mid', 'far']) {
       const T = this.tables[k];
-      if (k === 'near' ? kb <= 0 : k === 'far' ? kc <= 0 : false) continue;
+      // (above the clumps' height the middle table only feeds the ground's mean colour: the
+      // last one is held, and the table filled only if there is none yet)
+      if (k === 'near' ? kb <= 0 : k === 'far' ? kc <= 0 : kc <= 0 && !!this._tone) continue;
       const ci = Math.round((ce + this.origin[0]) / T.cell), cj = Math.round((cn + this.origin[1]) / T.cell);
       budget = T.fill(ci, cj, this.gen, Math.max(budget, k === 'near' && T.pending > 0 ? 200 : 0), (i, j, o, cell) => this._sample(T, i, j, o, cell));
       if (T.changed) { T.changed = false; T.tex.needsUpdate = true; renderer.initTexture(T.tex); if (k === 'mid') this._toneDirty = true; }
@@ -561,17 +579,24 @@ export class Grass {
     // (its mean dryness and how much of it there is), and the flowers that grow most here.
     if (this._toneDirty) {
       this._toneDirty = false;
-      let am = 0, dry = 0; const D = this.tables.mid.data;
-      for (let o = 0; o < D.length; o += 4) { am += D[o + 1]; dry += D[o + 1] * D[o + 2]; }
-      let fl = 0, best = 0; for (const f in this._floraSeen) if (this._floraSeen[f] > best) { best = this._floraSeen[f]; fl = +f; }
-      this._floraSeen = {};
-      if (best > 0) this._flora = fl;
+      let am = 0, dry = 0; const D = this.tables.mid.data, F = this.tables.mid.flora, seen = this._seen.fill(0);
+      for (let o = 0; o < D.length; o += 4) { am += D[o + 1]; dry += D[o + 1] * D[o + 2]; seen[F[o >> 2]] += D[o + 1]; }
+      // (the flowers the far ground wears: the whole table's majority, and changed only when
+      // another flora clearly leads. Tallied from the rows that had just come in, they hung
+      // on which way the traveller last walked.)
+      let fl = 0, best = 0; for (let f = 1; f < seen.length; f++) if (seen[f] > best) { best = seen[f]; fl = f; }
+      if (best > 0 && fl !== this._flora && best > 1.25 * (seen[this._flora || 0] || 0)) this._flora = fl;
+      if (!this._flora && best > 0) this._flora = fl;
       this._tone = [am / (D.length / 4), am > 0 ? dry / am : 0.5];
     }
     const [am, dry] = this._tone || [0, 0.5], on = this.tables.mid.pending > this.tables.mid.n * this.tables.mid.n * 0.5 && !(kc <= 0 && this._tone) ? 0 : 1;
     this._toneK = this.eager ? on : (this._toneK ?? 0) + (on - (this._toneK ?? 0)) * Math.min(1, dt * 1.5);
     // (x: how dry, y: how much of the ground is grass, z: the flowers, w: how strongly)
-    tone.set(dry, Math.min(1, am * 1.25), this._flora || 0, this._toneK * kg * Math.min(1, this.fraction * 2));
+    // (the ground's flower dusting needs places to centimetres in the shader's 32-bit numbers:
+    // on a world so large that their step at the surface is coarser than 0.1 m it is blocks that
+    // crawl, and the ground gets none; and none while the governor has the middle grass thinned)
+    const groundFlora = t.hs.radius * 1.2e-7 > 0.1 || this.midShare < 1 ? 0 : this._flora || 0;
+    tone.set(dry, Math.min(1, am * 1.25), groundFlora, this._toneK * kg * Math.min(1, this.fraction * 2));
     this.mesh.visible = true;
   }
 }

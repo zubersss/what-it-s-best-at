@@ -114,6 +114,40 @@ broken by the fine specks, and the pale kinds tint the ground least; the last cl
 over 320 to 545 m (was 360 to 520). Problems 1 and 3 below are much fainter in that
 picture; the arc is no longer something I can point to in it.
 
+## The review's list (A to H), one line each
+
+- **A** done: the waves' phase grows by K.S when the anchor steps (wrong sign and scale before).
+- **B** done: the anchor lies on the ground's sphere under the traveller, steps every 60 m,
+  and "far from it" is measured along the ground. `node scripts/grass-anchor-replay.mjs`
+  (R 250 km): anchor on the ground 0.000 m off at 34 / 200 / 520 m out; 500 m over it
+  0.07 / 0.40 / 1.04 m off; 1000 m over it 0.14 / 0.80 / 2.07 m off and the field 0.80 m
+  aside at each 200 m step.
+- **C1** done for the clumps: the clouds' shadow where each clump stands (the trees'
+  `CLOUD_SHADE_VERT`), eased from the traveller's own shade between 30 and 120 m. The
+  blades (to 34 m) keep the shade at the traveller: within that reach it is the same cloud.
+- **C2** not done: the land's own shadow on clumps (a ridge's shadow at a low Sun) needs a
+  worker job and a place in the tables; not attempted in the time. Far clumps take their
+  own slope's light, which covers a slope turned from the Sun but not a shadow cast on a
+  meadow from a ridge: there the clumps are sunlit on dark ground inside 545 m.
+- **D** done: each middle-table entry keeps its flora; the ground wears the whole table's
+  majority, changed only when another leads by a quarter.
+- **E** done as the stopgap asked: no grass paint where the ground's own colour is brighter
+  than 0.42 to 0.56 (linear luminance: snow, pale sand). The real cure (the place's own
+  share and dryness from a map the shader reads) is not done.
+- **F** done as the stopgap asked: on a world whose radius makes a 32-bit float's step at
+  the surface coarser than 0.1 m (over about 840 km: Earth) the ground gets no flower
+  dusting; blades and clumps keep their flowers. The real cure (scales as multiples of one
+  length, an origin snapped in integers) is not done.
+- **G** done: a table's height is blended from the entries that have grass.
+- **H1** done: no flowers and no gusts on the ground beyond 900 m (both fade to nothing
+  from 600 m); with `grass-mid` on the ground has no flower dusting.
+- **H2** done as "hold": above the clumps' height the middle table is not filled and the
+  last mean colour is held (filled once if there is none). Held over a long high flight it
+  is the mean of where one climbed.
+
+C to H went in as one commit, not one each. They build; the one picture taken on them is
+`haven_ledge_steppe_a30_after.png`.
+
 ## Pictures (`docs/shots/far-grass/`, `_before` and `_after`)
 
 All 660 x 309 at `--dsf 1`, files `haven_<bookmark>_<name>_before|after.png`. "Steppe" is
