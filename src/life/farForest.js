@@ -156,6 +156,13 @@ export class FarForest {
         vec3 leafC = mix(vLeafC * (0.5 + 0.22 * fract(vOwn.x * 13.7)), autumn * 0.6, turn);
         if (uPaint.x > 0.0) leafC = paintLeaf(leafC) * mix(0.5, 1.12, smoothstep(-0.5, 0.6, dot(N, up)));
         leafC *= 0.46 + 0.6 * cut.g;
+        // Far off a tree is a dark shape on the ground behind it, never bluer than that
+        // ground: the cold blue-green a fir has near by (paintLeaf) and the blue of the sky's
+        // light on a dark leaf made every far tree a teal speck on warm land. From the line
+        // where the near trees end (nothing changes there) out to a kilometre and more its
+        // green goes over to a dark warm olive, and less of the sky's blue is counted.
+        float dFar = length(vRel), farW = smoothstep(300.0, 1300.0, dFar);
+        leafC = mix(leafC, dot(leafC, vec3(0.3, 0.6, 0.1)) * vec3(0.86, 1.0, 0.40), 0.75 * farW);
         vec3 albedo = wood ? vTrunkC * 0.6 : leafC;
         float nl = dot(N, uSunDir), lit = wood ? max(nl, 0.0) : max(nl * 0.7 + 0.3, 0.0);
         if (uPaint.x > 0.0) { lit = mix(lit, paintLit(wood ? nl : nl * 0.75 + 0.25) * PI, uPaint.x); albedo = paintColour(albedo); leafC = paintColour(leafC); }
@@ -166,11 +173,12 @@ export class FarForest {
         // (in the shade of the wood a crown is never black: light has come down through the
         // leaves above it, green from the passage)
         vec3 glow = wood ? vec3(0.0) : leafC * sun * (0.07 * smoothstep(0.0, 0.25, dot(up, uSunDir))) * vec3(0.9, 1.2, 0.5);
-        vec3 col = (albedo * (sun * lit + skyLight(N, up) * open) + leafC * sun * through * vec3(1.1, 1.25, 0.6) + glow) / PI;
+        vec3 sky = skyLight(N, up); sky = mix(sky, vec3(dot(sky, vec3(0.3, 0.55, 0.15))) * vec3(1.06, 1.0, 0.86), 0.7 * farW);
+        vec3 col = (albedo * (sun * lit + sky * open) + leafC * sun * through * vec3(1.1, 1.25, 0.6) + glow) / PI;
         // The air of a wood is row behind row of trees seen through one another: it belongs
         // to the near forest, and past a kilometre the air itself does that work. Carried all
         // the way out it made the far trees blue-grey specks on warm ground.
-        col = aerialPerspective(forestAir(col, vRel, up, 1.0 - smoothstep(700.0, 2200.0, length(vRel))), vRel);
+        col = aerialPerspective(forestAir(col, vRel, up, 1.0 - smoothstep(300.0, 1000.0, dFar)), vRel);
         fragColor = vec4(col * uExposure, 1.0);
       }`;
     this.defines = { ...atmosphereDefines(), CELLS: this.cells };
