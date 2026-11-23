@@ -674,9 +674,10 @@ as Earth is; what differs is where the maps come from.
     distance costs about the same number of tiles and of trees. Four levels: 889 m to
     7.1 km, ranks 1 down to 1/64. Each tile is one instanced mesh from a **fixed pool**
     (40 tiles, 6 144 trees each), filled when it arrives and again, from the same data,
-    when the traveller has come close enough to want more of it (hysteresis: it is filled
-    with 1.35 times what the nearest corner needs). Nothing is worked out per tree per
-    frame. The mesh is put where its tile stands so that three culls it against the view
+    when the traveller has come a tenth of the way nearer to it. A fill tests **each tree
+    by its own distance** and keeps half as many again as stand (by the tile's nearest
+    corner instead, a tile 889 m across handed the GPU four times the trees it drew).
+    Nothing is worked out per tree per frame. The mesh is put where its tile stands so that three culls it against the view
     and sorts the tiles front to back; the vertices themselves come from the tile's own
     uniform, camera-relative.
   - **The join.** Inside the near trees' radius nothing of the far forest is drawn, and
