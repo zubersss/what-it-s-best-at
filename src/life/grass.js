@@ -57,7 +57,7 @@ const PIC_W = 256, PIC_H = 64;
 // (0 at the foot), B the flower heads on some blades' tips. Mip levels made here (not on
 // the GPU in the middle of a frame), the tone and flowers weighted by what covers.
 function rngOf(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-function makeClumpPicture() {
+export function makeClumpPicture() {
   const SS = 4, W = PIC_W * SS, H = PIC_H * SS, cov = new Float32Array(W * H), tone = new Float32Array(W * H), fl = new Float32Array(W * H);
   const R = rngOf(4242);
   const blade = (x0, len, lean, w0, flower) => {
@@ -72,7 +72,7 @@ function makeClumpPicture() {
       }
     }
     if (flower) {
-      const cx = x0 + lean, cy = len * H, r = 2.1 * SS;
+      const cx = x0 + lean, cy = len * H, r = 3.0 * SS;
       for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
         if (y < 0 || y >= H) continue;
         const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy); if (d > r) continue;
@@ -82,7 +82,7 @@ function makeClumpPicture() {
   };
   // (a mat of short blades at the foot, then the tall ones, some with a flower head)
   for (let k = 0; k < 150; k++) blade(R() * W, 0.18 + 0.3 * R(), (R() - 0.5) * 0.5 * H * 0.3, 2.6 + 1.4 * R(), false);
-  for (let k = 0; k < 80; k++) { const len = 0.5 + 0.48 * R(); blade(R() * W, len, (R() - 0.5) * 2 * len * H * 0.38, 2.4 + 1.2 * R(), k % 3 === 0 && len > 0.62); }
+  for (let k = 0; k < 80; k++) { const len = 0.5 + 0.48 * R(); blade(R() * W, len, (R() - 0.5) * 2 * len * H * 0.38, 2.4 + 1.2 * R(), k % 2 === 0 && len > 0.58); }
   // down to the picture's own size, then the mip levels
   const levels = [];
   let w = PIC_W, h = PIC_H, c0 = new Float32Array(w * h), t0 = new Float32Array(w * h), f0 = new Float32Array(w * h);
@@ -303,7 +303,7 @@ const FRAG = /* glsl */`${LIGHTING_PARS}
     vec4 p = texture(tClump, vUv.xy);
     // (the card's ends rounded off; and the cut kept as sharp far off as near, where the
     // picture's coarser levels hold less cover per texel)
-    float e = abs(vUv.z) / (1.0 - 0.45 * vUv.y), cov = p.r * (1.0 - smoothstep(0.55, 1.0, e));
+    float e = abs(vUv.z) / (1.0 - 0.45 * vUv.y), cov = p.r * (1.0 - smoothstep(0.55, 1.0, e)) * (1.0 - p.b * (1.0 - vFlower.a));
     vec2 tp = vUv.xy * vec2(${PIC_W}.0, ${PIC_H}.0);
     float lod = 0.5 * log2(max(dot(dFdx(tp), dFdx(tp)), dot(dFdy(tp), dFdy(tp))));
     cov *= 1.0 + 0.28 * clamp(lod, 0.0, 5.0);
