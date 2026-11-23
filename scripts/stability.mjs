@@ -49,7 +49,7 @@ const MOVES = [
   { id: 'haven_flight', world: 'haven', shot: 'ledge', query: 'alt=9000&pitch=-16&t=2', step: { fwd: 6 }, stride: 300, slow: true },
   // (Haven on foot through the opening meadow: the blades, the clumps beyond them and the
   // ground's own grass, where each field gives way to the next, as the traveller walks)
-  { id: 'haven_meadow_walk', world: 'haven', shot: 'ledge', query: 't=5&pitch=-3', step: { fwd: 0.055 }, stride: 160, slow: true },
+  { id: 'haven_meadow_walk', world: 'haven', shot: 'ledge', query: 'lat=-54.4271&lon=39.2697&heading=120&t=5&pitch=-3', step: { fwd: 0.055 }, stride: 160, slow: true },
   // (Haven on foot, walking at a wood: the far forest's trees grow in as they are come at,
   // and the line where the trees one walks among take over from them must not show)
   { id: 'haven_treeline', world: 'haven', shot: 'ledge', query: 'lat=-27.114&lon=51.987&heading=0&pitch=-3&hero=1', step: { fwd: 1.2 }, stride: 200, slow: true },
