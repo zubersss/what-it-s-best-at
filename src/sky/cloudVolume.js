@@ -35,6 +35,7 @@ import * as THREE from 'three';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { G } from '../render/globals.js';
+import { FAIR_GLSL } from './clouds.js';
 
 const VERT = /* glsl */`
 out vec2 vUv;
@@ -60,6 +61,7 @@ uniform vec3 uTops;            // x the base's altitude (m), y the tops' usual s
 uniform vec4 uBolt;            // lightning inside the cloud: xyz where (from the camera, m), w how bright
 in vec2 vUv;
 layout(location = 0) out vec4 fragColor;
+${FAIR_GLSL}
 
 // x: the cover at a place (0..1); y: how far up the layer its tops reach there (0..1)
 vec2 mapCover(vec3 up) {
@@ -67,15 +69,9 @@ vec2 mapCover(vec3 up) {
   float m = textureLod(tCloudMap, uv, 0.0).r, lo = 1.0 - uCloud.x, top = uTops.y;
   if (uTops.z > 0.5) { float km = textureLod(tCloudTop, uv, 0.0).r * 15.94; if (km > 0.4) top = clamp((km * 1000.0 - uTops.x) / uLayer.y, 0.15, 1.0); }
   float c = smoothstep(lo - 0.08, lo + 0.34, m);
-  if (uFair.x > 0.0) {
-    // fair-weather cloud: where the day's map shows none there are still fields of small
-    // heaps, with clear stretches between the fields (the map's pixels are 10 km: it
-    // never saw them)
-    // (placed by the world's own radius: the field must not shift when the layer's height does)
-    float field = texture(tCloudNoise, up * uFieldK + 0.31).r;
-    // (never a whole cover: fair weather has sky between its heaps)
-    c = max(c, min(0.5, uFair.x * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, field) / 0.55));
-  }
+  // fair-weather cloud where the day's map shows none (the rule is the shell's: clouds.js)
+  // (placed by the world's own radius: the field must not shift when the layer's height does)
+  if (uFair.x > 0.0) c = max(c, fairCover(tCloudNoise, up, uFieldK, uFair.x, m));
   return vec2(c, top);
 }
 // How much cloud is at a place: c = the map's cover there (0..1), y = height in the layer (0..1).

@@ -19,10 +19,25 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 //   has none; vol: x 1 / the noise's scale, y the fair-weather field's scale, z the radius at
 //   which the volume's masses are widest; wind: where the noise has drifted to; fine: how
 //   much of the smaller lobes (0: none; 1: all). c: the cover there (0..1). Returns 0..1.
-export const HEAP_GLSL = /* glsl */`
+// Fair-weather cloud, where the day's map shows none (its pixels are 10 km: it never saw
+// them): fields of small heaps with clear stretches between, and the fields themselves in
+// clusters some tens of kilometres across with clear country between them. One rule, for
+// the volume (cloudVolume.js), this shell and the ground's shadows. (Without the clusters,
+// seen from high up one even field lay over the whole land: the same few heaps in rows
+// to the horizon, since the noise they are cut from repeats every few kilometres.)
+//   noise: the cloud volume's noise; up: the direction from the world's centre; k: the
+//   world's radius in units of the field; fair: its cover; m: the day's map there.
+//   Never a whole cover: fair weather has sky between its heaps.
+export const FAIR_GLSL = /* glsl */`
+float fairCover(highp sampler3D noise, vec3 up, float k, float fair, float m) {
+  float field = texture(noise, up * k + 0.31).r, cluster = texture(noise, up * (k * 0.2) + 0.83).g;
+  return min(0.5, fair * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, field) * smoothstep(0.40, 0.56, cluster) * (1.3 / 0.55));
+}`;
+
+export const HEAP_GLSL = FAIR_GLSL + /* glsl */`
 float cloudHeap(highp sampler3D noise, vec3 up, float m, float lo, float fair, vec3 vol, vec3 wind, float fine, out float c) {
   c = smoothstep(lo - 0.08, lo + 0.34, m);
-  if (fair > 0.0) c = max(c, min(0.5, fair * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, texture(noise, up * vol.y + 0.31).r) / 0.55));
+  if (fair > 0.0) c = max(c, fairCover(noise, up, vol.y, fair, m));
   vec3 qv = up * (vol.z * vol.x) + wind;
   float n = texture(noise, qv).r;
   if (fine > 0.0) n += (texture(noise, qv * 5.3 + 0.37).g - 0.5) * 0.26 * fine;
