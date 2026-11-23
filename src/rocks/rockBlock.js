@@ -13,7 +13,8 @@
 // Sizes come in levels (`surface.rocks.far.levels` in the world file): each level has its
 // own tiles (larger tiles for larger rocks, which are seen from farther) and its own
 // lattice of sites; a site holds a rock with the chance the field gives it. Within a tile
-// the rocks are handed back largest first, so that whoever draws them can draw the
+// the rocks are handed back in the order of how far each is seen from (largest first, the
+// ones under trees after the ones in the open), so that whoever draws them can draw the
 // first so-many and have the ones that can be seen from where they stand.
 //
 // (Plain arithmetic, no DOM, no three: it runs in the terrain workers and in Node.)
@@ -33,22 +34,28 @@ const ss = (a, b, x) => { const t = (x - a) / (b - a); return t <= 0 ? 0 : t >= 
 //            tile's side), density (the share of the sites that hold a rock where the ground
 //            is all rock), cap (the most a tile holds: the largest are kept), wl (the
 //            fineness of the ground they are stood on, m), forest (how much closed forest
-//            takes away: the largest stand out of the trees)
+//            takes away: the largest stand out of the trees), shadow (false: no shadow
+//            patches for the level: its rocks are seen little farther than the shadow map reaches)
+//   share    [lo, hi] (m): rocks up to lo are seen from SMALL_SHARE of their reach, from hi on from all of it
 // A level's tile is about as wide as its largest rock is seen from far, so every level
 // needs the same few tiles round the traveller, and a view holds three or four of each:
 // the draw calls are counted in tiles.
 export const ROCKS_FAR_DEFAULTS = {
   reach: 420, below: 12000,
   levels: [
-    { size: [1.4, 3.4], tile: 0.012, sites: 128, density: 0.42, cap: 3072, wl: 2, forest: 0.6 },
-    { size: [3.4, 8], tile: 0.03, sites: 128, density: 0.5, cap: 4096, wl: 6, forest: 0.4 },
-    { size: [8, 20], tile: 0.075, sites: 128, density: 0.6, cap: 4096, wl: 10, forest: 0.15 },
+    { size: [1.4, 3.4], tile: 0.012, sites: 128, density: 0.55, cap: 3072, wl: 2, forest: 0.6 },
+    { size: [3.4, 8], tile: 0.03, sites: 128, density: 0.42, cap: 4096, wl: 6, forest: 0.4 },
+    { size: [8, 20], tile: 0.075, sites: 128, density: 0.42, cap: 4096, wl: 10, forest: 0.15 },
+    // (the talus near the eye: the small blocks of a rock slope, seen from 200 to 480 m.
+    // Last in the list, so that the levels before it keep their numbers and their rocks.)
+    { size: [0.6, 1.4], tile: 0.004, sites: 128, density: 0.4, cap: 3072, wl: 1, forest: 0.9, shadow: false },
   ],
+  share: [3.4, 8],
 };
 export function rocksFarDef(world) {
   const f = world?.surface?.rocks?.far;
   if (!f) return null;
-  return { ...ROCKS_FAR_DEFAULTS, ...f, levels: (f.levels || ROCKS_FAR_DEFAULTS.levels).map((l, i) => ({ ...(ROCKS_FAR_DEFAULTS.levels[i] || ROCKS_FAR_DEFAULTS.levels[2]), clear: f.clear || [], ...l })) };
+  return { ...ROCKS_FAR_DEFAULTS, ...f, levels: (f.levels || ROCKS_FAR_DEFAULTS.levels).map((l, i) => ({ ...(ROCKS_FAR_DEFAULTS.levels[i] || ROCKS_FAR_DEFAULTS.levels[2]), clear: f.clear || [], reach: f.reach ?? ROCKS_FAR_DEFAULTS.reach, ...l })) };
 }
 
 // A tile's height in degrees on a world of radius R (nominal: on Earth), and its width in
@@ -72,6 +79,13 @@ export function rockiness(S, conv, closed, cls, near, over, forest = 0.82) {
   return k > 1 ? 1 : k;
 }
 
+// From how far a rock is seen: `reach` metres for every metre of the size it is seen as,
+// times a share for the small ones (they are a few pixels there, and most of the count):
+// SMALL_SHARE up to the size `lo`, all of it from the size `hi` (the vertex shader's rule:
+// farRocks.js, uFar.z; the governor lowers `small`).
+export const SMALL_SHARE = 0.82;
+export function shareOf(sz, small, lo, hi) { if (sz >= hi) return 1; if (sz <= lo) return small; const t = (sz - lo) / (hi - lo); return small + (1 - small) * t * t * (3 - 2 * t); }
+
 // The cluster noise at a place (planet-centred metres): fields some hundred metres across,
 // broken into groups of some tens, with bare ground between. Roughly normal about 0 with a spread of 0.23.
 export function clusterNoise(px, py, pz) {
@@ -80,7 +94,8 @@ export function clusterNoise(px, py, pz) {
 // The chance a site holds a rock (before the level's own density): c: clusterNoise there,
 // k: rockiness there. Open ground keeps the noise's highest few per cent (erratics, here
 // and there a field of them); rock ground nearly all of it.
-const OPEN_THR = 0.33, ROCK_THR = -0.03, THR_SOFT = 0.14;
+const CANOPY_SEEN = 180;      // metres a rock under a closed canopy is seen from (it grows in over the last fifth)
+const OPEN_THR = 0.33, ROCK_THR = -0.12, THR_SOFT = 0.14;
 export function rockField(c, k) { const thr = OPEN_THR + (ROCK_THR - OPEN_THR) * k; return ss(thr, thr + THR_SOFT, c) * (0.45 + 0.55 * k); }
 
 // (the ground's slope east and north, -2..2, in a byte: the shader lays the rock's shadow on that ground)
@@ -104,8 +119,10 @@ function qFromZ(n, o) {
 // the origin in planet axes, and the rock's size), quat 4n, scale 3n, shape Uint8Array 4n
 // (the numbers its fracture planes are made from), misc Uint8Array 4n (sunlight on it:
 // 255 until asked; its tone in seven bits, and 128 more with snow on it; the ground's
-// slope there toward the east and toward the north, 127.5 + 63.75 x metres per metre), bound [x, y, z, r] (a sphere round them all,
-// from the origin) }, the largest rock first.
+// slope there toward the east and toward the north, 127.5 + 63.75 x metres per metre), seen
+// Uint8Array n (the share of its size it is seen as from afar: 255 in the open, less under
+// trees), bound [x, y, z, r] (a sphere round them all, from the origin) }, the rock seen
+// from farthest first (size x seen / 255).
 export function rockBlock(hs, L, li, bi, bj) {
   const R = hs.radius, deg = tileDeg(R, L.tile), dLon = tileLon(bi, deg), lat0 = bi * deg, lon0 = bj * dLon, K = L.sites ?? 128;
   const salt = 6007 + li * 131, s0 = L.size[0], sr = L.size[1] / L.size[0], wl = L.wl ?? 2;
@@ -163,25 +180,29 @@ export function rockBlock(hs, L, li, bi, bj) {
     const sx = 0.8 + 0.5 * ((h4 >>> 8) & 0xff) / 255, sy = 0.7 + 0.5 * ((h4 >>> 16) & 0xff) / 255, sz = 0.5 + 0.4 * (h4 >>> 24) / 255 + 0.35 * big * u1;
     // sunk a little, and more on a slope: its downhill edge must not hang in the air
     const sink = size * (0.12 + Math.min(0.3, 0.3 * S)), r = R + h - sink;
-    found.push({ size, x: d[0] * r - origin[0], y: d[1] * r - origin[1], z: d[2] * r - origin[2], q: [q1[0], q1[1], q1[2], q1[3]], sx: size * sx, sy: size * sy, sz: size * sz,
+    // from how far it is seen, as a size (`seen`, a share of its own in a byte): under a
+    // closed canopy a rock cannot be seen from outside the wood, so there it is drawn to
+    // 150 m or so, and only the few that stand above the trees from afar
+    const under = ss(0.35, 0.7, closed), sq = Math.max(1, Math.round(255 * Math.max(1 - under * (1 - ss(9, 16, size)), Math.min(1, CANOPY_SEEN / ((L.reach || 420) * size)))));
+    found.push({ size, sq, e: size * sq / 255, x: d[0] * r - origin[0], y: d[1] * r - origin[1], z: d[2] * r - origin[2], q: [q1[0], q1[1], q1[2], q1[3]], sx: size * sx, sy: size * sy, sz: size * sz,
       shape: hash3(bi * 131 + i, bj * 137 + j, 71, salt), tone: (h4 & 0x7f) + (cls === 15 ? 128 : 0), gE: slopeByte(gE), gN: slopeByte(gN) });
   }
-  found.sort((p, q) => q.size - p.size);
+  found.sort((p, q) => q.e - p.e || q.size - p.size);
   const n = Math.min(found.length, L.cap ?? 512);
-  const off = new Float32Array(n * 4), quat = new Float32Array(n * 4), scale = new Float32Array(n * 3), shape = new Uint8Array(n * 4), misc = new Uint8Array(n * 4);
+  const off = new Float32Array(n * 4), quat = new Float32Array(n * 4), scale = new Float32Array(n * 3), shape = new Uint8Array(n * 4), misc = new Uint8Array(n * 4), seen = new Uint8Array(n);
   let bx = 0, by = 0, bz = 0, br = 0;
   for (let i = 0; i < n; i++) { bx += found[i].x; by += found[i].y; bz += found[i].z; }
   if (n) { bx /= n; by /= n; bz /= n; }
   for (let i = 0; i < n; i++) {
     const f = found[i];
     off[i * 4] = f.x; off[i * 4 + 1] = f.y; off[i * 4 + 2] = f.z; off[i * 4 + 3] = f.size;
-    quat.set(f.q, i * 4);
+    quat.set(f.q, i * 4); seen[i] = f.sq;
     scale[i * 3] = f.sx; scale[i * 3 + 1] = f.sy; scale[i * 3 + 2] = f.sz;
     shape[i * 4] = f.shape & 0xff; shape[i * 4 + 1] = (f.shape >>> 8) & 0xff; shape[i * 4 + 2] = (f.shape >>> 16) & 0xff; shape[i * 4 + 3] = f.shape >>> 24;
     misc[i * 4] = 255; misc[i * 4 + 1] = f.tone; misc[i * 4 + 2] = f.gE; misc[i * 4 + 3] = f.gN;
     br = Math.max(br, Math.hypot(f.x - bx, f.y - by, f.z - bz) + 1.5 * f.size);
   }
-  return { origin, count: n, off, quat, scale, shape, misc, bound: [bx, by, bz, br] };
+  return { origin, count: n, off, quat, scale, shape, misc, seen, bound: [bx, by, bz, br] };
 }
 
 // Sunlight on the rocks of a tile (the land's own shadow: a rock under a mountain's shade

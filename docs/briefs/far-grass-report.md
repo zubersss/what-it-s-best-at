@@ -76,7 +76,8 @@ the ones left 1.4 times wider. Nothing removes the grass; `debug=floor` is still
   `grass` block; it gets the clumps and the ground's grass too; not looked at there).
 - `uGrassTone` means something else now (x mean dryness, y share of ground that is grass,
   z flora, w strength); only the grass and the ground read it.
-- The ground's grass colour reaches 2.5 km instead of 900 m.
+- The ground's grass colour reaches 2.5 km instead of 900 m, and stays up to 1.5 km over the ground (it used to go at 90 m).
+- Blades take 70 % of their green-to-gold from the mean of the grass round the traveller (they took their own place's).
 - Near blades a tenth denser; flowers on stems placed by exactly the rule they had (the
   opening brow keeps its yellow flowers).
 - The grass no longer changes all at once every 250 m of travel.
@@ -94,19 +95,111 @@ the ones left 1.4 times wider. Nothing removes the grass; `debug=floor` is still
   from 120 m. Now specks a metre across near, broken patches some metres across farther,
   the mean only where a patch is smaller than a pixel.
 - **Clumps lit as level ground** (as the blades are): on a hillside turned from a low Sun,
-  bright scales on a dark slope. Far clumps now take the light of their slope.
+  bright scales on a dark slope. Clumps from 12-45 m on take the light of their slope.
+- **Grass coloured by its own place's dryness alone**: tied 70 % to the mean the ground
+  is painted with, so a clump wears what the ground under it wears.
+- **The ground's grass colour switched off with the clumps** above 220 m: the land went
+  beige at once. It now stays to 1.5 km up and fades by 3 km.
 - The brief's place for the aerial views (over the opening ledge) looks at forest, as did
   "eastshore". The grass pictures are from open steppe found by a search
   (`lat=-54.4271&lon=39.2697&heading=120`, ground at 1 461 m): names `steppe_*`.
 
+## Last round (after the first DONE)
+
+On the view from 120 m (`haven_ledge_steppe_a120_after.png`, retaken on this build):
+the wind's waves on the far ground are now a few bent gusts with gaps (strength and bend
+by one slow noise 240 m across, a hint only beyond 600 m) instead of even parallel
+stripes; a flower drift from above is thickest in its middle with nothing at its edge,
+broken by the fine specks, and the pale kinds tint the ground least; the last clumps fade
+over 320 to 545 m (was 360 to 520). Problems 1 and 3 below are much fainter in that
+picture; the arc is no longer something I can point to in it.
+
 ## Pictures (`docs/shots/far-grass/`, `_before` and `_after`)
 
-PICTURES
+All 660 x 309 at `--dsf 1`, files `haven_<bookmark>_<name>_before|after.png`. "Steppe" is
+the open grassland at `lat=-54.4271&lon=39.2697&heading=120`, midday (`t=5`).
+
+| name | view | before | after |
+|---|---|---|---|
+| `ledge` | the opening view | yes | yes (build of 15:52; the dark patch ahead is the near pine's shadow, there without any grass code: `haven_ledge_ledge_owner_419c0ce_no_grass.png`, and gone with the trees' shadows out: `haven_ledge_ledge_no_tree_shadows.png`) |
+| `sun` | toward the low Sun, a slope in shade | yes | yes (15:52 build) |
+| `dusk` | dusk | yes | yes (14:36 build) |
+| `noon_level` | opening place, midday, level | yes | not taken |
+| `noon_down` | opening place, midday, down the slope | yes | yes (14:23 build) |
+| `a15` | 15 m over the opening place | yes | not taken (it looks into forest) |
+| `a60` | 60 m over it | yes | yes (first build, before the merge) |
+| `a250` | 250 m over it | yes | yes (head) |
+| `steppe_level` | steppe, eye level | yes | yes (14:36 build) |
+| `steppe_a30` | steppe from 30 m | yes | yes (15:52 build) |
+| `steppe_a120` | steppe from 120 m | yes | yes (head) |
+| `steppe_tele` | steppe at a phone's pixel density (`fov=21.4`) | not taken | yes (13:00 build) |
+| `steppe_low` | steppe, low Sun, toward it | not taken | yes (13:00 build) |
+| `steppe_floor` | steppe from 30 m, `debug=floor` | not taken | yes (13:00 build) |
+
+Not taken at all: the opening place at phone density and with `debug=floor` (forest fills
+those views; the steppe ones stand in), and the steppe from 300 m. The pictures marked
+with an older build predate the later colour and light changes (clumps lit by their
+slope, grass tied to the ground's mix, tone from above); none of those changes what an
+eye-level midday view shows much, but they are not retakes.
+
+Draw calls and triangles handed to the GPU (before the vertex shader throws out what is
+not in view), from the pictures' `haven_stats_*.json`:
+
+| view | before | after |
+|---|---|---|
+| opening brow (`ledge`) | 111 calls, 953 000 | 135 calls, 1 450 000 (with the far forest and far rocks of the merged branch) |
+| steppe, eye level | 31 calls, 836 000 | 39 calls, 1 170 000 |
+| steppe from 30 m | 29 calls, 819 000 | 37 calls, 1 152 000 |
+| steppe from 120 m | 24 calls, 376 000 | 32 calls, 676 000 |
+| steppe from 30 m, `debug=floor` | not taken | 26 calls, 671 000 |
+| 250 m over the opening place | 49 calls, 395 000 | 46 calls, 610 000 (no clumps drawn: the far forest's) |
+
+The grass's own share of the difference is 6 draw calls and about 330 000 triangles on
+the steppe (257 000 clump triangles and the denser near lattices).
 
 ## Stability
 
-STABILITY
+`node scripts/stability.mjs --dist --only haven_meadow_walk` (new move: a walk on the steppe,
+5.5 cm a step, three stations 8.8 m apart; build of 15:52), settled frames:
+
+| station | changed | flicker | largest change |
+|---|---|---|---|
+| 0 | 25.56 % | 6.54 % | 130 / 255 |
+| 1 | 26.75 % | 7.13 % | 127 / 255 |
+| 2 | 25.50 % | 5.93 % | 103 / 255 |
+
+Strips: `docs/shots/stability/haven_meadow_walk_0..2.png`. Looking at them: no ring, no pop
+and no line where one field gives way to the next; the middle and far grass shimmers a
+little (grey in the difference picture); nearly all of the change and the flicker is in
+the nearest blades and flowers (thin blades without anti-aliasing, flowers that shift
+whole pixels per step). **Whether the near field was as restless before is not known**:
+the same walk on the old build was not run (it was queued and dropped for time). Not run
+either: `--streaming`, and every other move.
 
 ## Known problems
 
-PROBLEMS
+Most visible first.
+
+1. **From about 100 m up the clump field still ends in a faint arc** some 500 m out
+   (`haven_ledge_steppe_a120_after.png`, middle of the picture): inside it the ground is
+   finely speckled, outside smooth. Evening the clumps' tone from above made it fainter,
+   not gone. Next thing to try: fade the clumps out by how steeply they are looked down on,
+   not only by distance.
+2. **Toward a low Sun on a slope in shade** the blades of the nearest 30 m are bright gold
+   on dark ground, as they were before; the clumps beyond now take the slope's light, so
+   the change from bright to dark is a soft band 12 to 45 m out
+   (`haven_sun_sun_after.png`). The blades would need the slope's light too.
+3. **The flowers on the far ground from the air** are dusting and broken patches, but a
+   drift of orange or white some 10 m across still reads as a blotch from 100 m.
+4. **Nothing is measured on the phone.** 128 400 more instances in the vertex shader and
+   cut-out cards over each other toward the horizon: ask for a benchmark. `grass-mid`
+   halves them; if that is not enough the 0.8 m lattice is the one to coarsen.
+5. **The walk test's near-field flicker** (above) has no baseline.
+6. **Earth** gets all of this through its own `grass` block and was not looked at.
+7. The ground's grass colour is the mean of the grass within 250 m of the traveller
+   (`uGrassTone`), one value for the whole view: green meadows and gold steppe in one
+   view both wear the mean. Blades and clumps follow it for 70 %.
+8. Above 220 m the tables of the ground are still filled (for that mean) at 300 places a
+   frame; in fast flight they lag and the mean is of ground a little behind.
+9. `scripts/_partsout.mjs` and `_partsout2.mjs` are scratch scripts (how the dark patch
+   on the opening brow was traced to the trees' shadow); keep or delete.
