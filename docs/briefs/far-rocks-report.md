@@ -104,7 +104,11 @@ Work in a worker: a tile's rule 30 ms on average (63 at worst), its sunlight up 
 again every 20 m walked. Memory: 19 MB of instance buffers in the pool (58 tiles), and
 the tiles in use kept whole on the CPU beside them.
 
-Stability: STABILITY
+Stability (`haven_rocks_walk`, walking toward the boulder field at the steep place, three
+settled frames one step apart at two stations, the build of 02e6bbe): changed 0.49 % and
+0.47 % of the picture, flicker 0.029 % and 0.005 %. One of the frames was taken after
+its wait ran out ("not ready in time", the script could not say what for). The streaming
+kind and `haven_rocks_flight` were not run.
 
 **Not measured: anything on the phone.** The cost of the vertex work, of the shadow
 patches (a blended pass over the ground) and of the fillings is unknown there. The cost

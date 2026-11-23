@@ -162,5 +162,21 @@
     "changed": 25.5,
     "flicker": 5.93,
     "worst": 103
+  },
+  {
+    "move": "haven_rocks_walk",
+    "pass": "settled",
+    "station": 0,
+    "changed": 0.49,
+    "flicker": 0.029,
+    "worst": 141
+  },
+  {
+    "move": "haven_rocks_walk",
+    "pass": "settled",
+    "station": 1,
+    "changed": 0.47,
+    "flicker": 0.005,
+    "worst": 135
   }
 ]
