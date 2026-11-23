@@ -515,8 +515,11 @@ void main() {
     if (gw > 0.0) {
       vec3 gc = grassColour(uGrassTone.x, 0.62) * (0.82 + 0.36 * d1.g);
       // (the waves: paler where they bow the grass; gone where a wave is narrower than a pixel or two)
-      float arg = dot(vRel, uGrassWave.xyz) + uGrassWave.w;
-      gc *= 1.0 + 0.07 * sin(arg + 5.0 * (d1.g - 0.5)) * (1.0 - smoothstep(0.7, 1.8, fwidth(arg)));
+      // (the wind over far grass: a few broad gusts with gaps between them, their lines bent,
+      // and only a hint beyond 600 m. Everywhere and all alike, the waves ruled the land with stripes.)
+      float gustN = flNoise(planetPos / 240.0 + vec3(3.0, 11.0, 5.0));
+      float arg = dot(vRel, uGrassWave.xyz) + uGrassWave.w + 9.0 * gustN;
+      gc *= 1.0 + 0.07 * sin(arg + 5.0 * (d1.g - 0.5)) * (1.0 - smoothstep(0.7, 1.8, fwidth(arg))) * smoothstep(0.52, 0.72, gustN) * (1.0 - 0.85 * smoothstep(250.0, 600.0, dG));
       // (the drifts of flowers, where the clumps and blades have them)
       vec2 fw = flowersAt(planetPos, int(uGrassTone.z + 0.5));
       // (a tint, never a patch: its edge broken by the ground's own grain, less of it for
@@ -525,11 +528,14 @@ void main() {
         // (a dusting: specks a metre or so across, thicker toward the drift's heart; their
         // mean where a speck is smaller than a pixel)
         vec3 fwP = fwidth(planetPos);
-        float speck = smoothstep(0.45, 0.8, flNoise(planetPos / 1.3) * (0.55 + 0.65 * fw.y));
         float fpx = max(fwP.x, max(fwP.y, fwP.z));
         // (from farther: broken patches some metres across, then the drift's mean; nothing with a hard edge)
-        float broken = 0.55 * fw.y * smoothstep(0.32, 0.7, flNoise(planetPos / 4.5 + vec3(7.0, 0.0, 3.0)));
-        float fk = mix(mix(speck, broken, smoothstep(0.35, 1.3, fpx)), 0.2 * fw.y, smoothstep(1.6, 5.0, fpx)) * (fw.x < 1.5 ? 0.7 : 1.0);
+        // (thickest in a drift's middle and nothing at its edge, the edge broken by the fine specks: no rim)
+        float fn1 = flNoise(planetPos / 1.3), dens = fw.y * smoothstep(0.0, 0.5, fw.y);
+        float broken = 0.8 * dens * smoothstep(0.32, 0.7, flNoise(planetPos / 4.5 + vec3(7.0, 0.0, 3.0))) * smoothstep(0.25, 0.75, fn1);
+        float speck = smoothstep(0.45, 0.8, fn1 * (0.55 + 0.65 * fw.y));
+        // (pale flowers least: a white patch from the air is snow or stone)
+        float fk = mix(mix(speck, broken, smoothstep(0.35, 1.3, fpx)), 0.2 * dens, smoothstep(1.6, 5.0, fpx)) * (fw.x < 1.5 ? 0.4 : 1.0);
         fk *= (1.0 - 0.6 * clamp(dot(V, up), 0.0, 1.0)) * (1.0 - 0.75 * smoothstep(150.0, 900.0, dG));
         gc = mix(gc, petalColour(fw.x, 0.5), fk * GRASS_FLOWER_SHARE);
       }

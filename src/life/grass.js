@@ -34,7 +34,7 @@ import { localFrame } from '../core/ephemeris.js';
 import { AMOUNT, DRY, floraAt, flowersAt, FLOWERS_GLSL, GRASS_GLSL, WAVE_K } from './grassRules.js';
 
 const SNAP = 40;                 // the anchor moves in steps of this (m)
-const RENEW = 200;               // ... when the traveller is this far from it
+const RENEW = 60;                // ... when the traveller is this far from it
 const PERIOD = 2560;             // the stretches of taller and drier grass repeat after this (m; a multiple of SNAP)
 // The ground tables: places a side, metres between them.
 const TABLES = { near: { n: 64, cell: 1.25 }, mid: { n: 128, cell: 4 }, far: { n: 128, cell: 10 } };
@@ -48,7 +48,7 @@ const FLOWERS = { grid: 108, spacing: 0.4, seed: 91, out: [15.5, 20.5] };
 export const CLUMPS = [
   { grid: 200, spacing: 0.8, table: 'mid', in: [13, 30], out: [50, 74], tall: 0.5, wide: 1.3, seed: 11 },
   { grid: 200, spacing: 2.0, table: 'mid', in: [50, 74], out: [135, 188], tall: 0.62, wide: 3.0, seed: 23 },
-  { grid: 220, spacing: 5.0, table: 'far', in: [135, 188], out: [360, 520], tall: 0.85, wide: 6.6, seed: 47 },
+  { grid: 220, spacing: 5.0, table: 'far', in: [135, 188], out: [320, 545], tall: 0.85, wide: 6.6, seed: 47 },
 ];
 // The clumps' picture: blades side by side, repeating across (a card shows as much of it as it is wide).
 const PIC_W = 256, PIC_H = 64;
@@ -467,13 +467,18 @@ export class Grass {
   }
 
   // A new anchor where the traveller is: start afresh (far from the old one, or the first time) ...
-  _anchorAfresh(p) {
-    this.has = true; this.anchor.copy(p); this.anchorR = p.length(); this.origin = [0, 0];
+  // The anchor lies on the ground's own sphere under the traveller, never at the traveller's
+  // height: places are worked out along lines from the world's centre through the plane and
+  // drawn at plain metres on it, and with the plane D metres over the ground a tuft x metres
+  // out stood on ground x.D/R from where its height was taken (on a world 250 km in radius
+  // and from 1 km up: 2 m at the far clumps, and the whole field 0.8 m aside at every step).
+  _anchorAfresh(p, agl) {
+    this.has = true; this.anchorR = p.length() - agl; this.anchor.copy(p).multiplyScalar(this.anchorR / p.length()); this.origin = [0, 0];
     localFrame([p.x, p.y, p.z], this._e, this._n, this._u);
     for (const k in this.tables) this.tables[k].reset();
   }
   // ... or move it by whole steps along its own plane, its axes carried over: nothing drawn changes.
-  _anchorStep(se, sn) {
+  _anchorStep(se, sn, groundR) {
     const A = this.anchor, e = this._e, n = this._n, u = this._u;
     A.set(A.x + e[0] * se + n[0] * sn, A.y + e[1] * se + n[1] * sn, A.z + e[2] * se + n[2] * sn);
     // (the plane's axes turned to the new place by the least turn)
@@ -481,8 +486,8 @@ export class Grass {
     let k = e[0] * u[0] + e[1] * u[1] + e[2] * u[2]; e[0] -= u[0] * k; e[1] -= u[1] * k; e[2] -= u[2] * k;
     k = Math.hypot(e[0], e[1], e[2]); e[0] /= k; e[1] /= k; e[2] /= k;
     n[0] = u[1] * e[2] - u[2] * e[1]; n[1] = u[2] * e[0] - u[0] * e[2]; n[2] = u[0] * e[1] - u[1] * e[0];
-    // (and the anchor back onto the sphere it was on)
-    A.multiplyScalar(this.anchorR / l);
+    // (and the anchor onto the sphere of the ground under the traveller now)
+    this.anchorR = groundR; A.multiplyScalar(this.anchorR / l);
     this.origin[0] += se; this.origin[1] += sn;
   }
 
@@ -499,7 +504,9 @@ export class Grass {
     if (!show) { this.mesh.visible = false; tone.w = 0; this._toneK = 0; return; }
     const p = rig.pos, w = t.shared.uWind.value;
     // The anchor: afresh the first time, or far from the old one; else moved by whole steps.
-    if (!this.has || this.anchor.distanceToSquared(p) > 2000 * 2000) this._anchorAfresh(p);
+    // (far: measured along the ground, the traveller's height does not count)
+    if (this.has) { const A = this.anchor, pl = p.length(), c = (p.x * A.x + p.y * A.y + p.z * A.z) / (pl * A.length()); if (c < Math.cos(2000 / pl)) this.has = false; }
+    if (!this.has) this._anchorAfresh(p, agl);
     {
       const A = this.anchor, e = this._e, n = this._n, dx = p.x - A.x, dy = p.y - A.y, dz = p.z - A.z;
       const ce = dx * e[0] + dy * e[1] + dz * e[2], cn = dx * n[0] + dy * n[1] + dz * n[2];
@@ -507,8 +514,9 @@ export class Grass {
         const se = Math.round(ce / SNAP) * SNAP, sn = Math.round(cn / SNAP) * SNAP;
         // (the wind's waves pivot on the anchor: carried over so that they do not move)
         const kx = w.x * e[0] + w.y * e[1] + w.z * e[2], ky = w.x * n[0] + w.y * n[1] + w.z * n[2];
-        this.phase -= WAVE_K * (kx * se + ky * sn);
-        this._anchorStep(se, sn);
+        // (the wave at a place is K.(place - anchor) + phase: the anchor moved by S, the phase grows by K.S)
+        this.phase += WAVE_K / (Math.hypot(w.x, w.y, w.z) || 1) * (kx * se + ky * sn);
+        this._anchorStep(se, sn, p.length() - agl);
       }
     }
     const A = this.anchor, e = this._e, n = this._n, u = this._u;
