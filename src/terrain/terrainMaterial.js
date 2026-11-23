@@ -511,17 +511,22 @@ void main() {
   // same grass (life/grassRules.js: one rule for both): its colour, the wind's waves
   // running over it, drifts of flowers; far off it gives way to the map's own colour
   if (uGrassTone.a > 0.0) {
-    float dG = length(vRel), gw = uGrassTone.a * uGrassTone.y * flatW * (1.0 - vShell) * (1.0 - smoothstep(6.0, 16.0, canopyTall)) * (1.0 - smoothstep(GRASS_FAR0, GRASS_FAR1, dG));
+    float dG = length(vRel), gw = uGrassTone.a * uGrassTone.y * flatW * (1.0 - vShell) * (1.0 - smoothstep(6.0, 16.0, canopyTall)) * (1.0 - smoothstep(GRASS_FAR0, GRASS_FAR1, dG))
+        // (a stopgap: ground whose own colour is far too pale to be grass, snow or pale sand, is not painted)
+        * (1.0 - smoothstep(0.42, 0.56, dot(albedo, vec3(0.2126, 0.7152, 0.0722))));
     if (gw > 0.0) {
       vec3 gc = grassColour(uGrassTone.x, 0.62) * (0.82 + 0.36 * d1.g);
       // (the waves: paler where they bow the grass; gone where a wave is narrower than a pixel or two)
       // (the wind over far grass: a few broad gusts with gaps between them, their lines bent,
       // and only a hint beyond 600 m. Everywhere and all alike, the waves ruled the land with stripes.)
-      float gustN = flNoise(planetPos / 240.0 + vec3(3.0, 11.0, 5.0));
-      float arg = dot(vRel, uGrassWave.xyz) + uGrassWave.w + 9.0 * gustN;
-      gc *= 1.0 + 0.07 * sin(arg + 5.0 * (d1.g - 0.5)) * (1.0 - smoothstep(0.7, 1.8, fwidth(arg))) * smoothstep(0.52, 0.72, gustN) * (1.0 - 0.85 * smoothstep(250.0, 600.0, dG));
+      if (dG < 900.0) {
+        float gustN = flNoise(planetPos / 240.0 + vec3(3.0, 11.0, 5.0));
+        float arg = dot(vRel, uGrassWave.xyz) + uGrassWave.w + 9.0 * gustN;
+        gc *= 1.0 + 0.07 * sin(arg + 5.0 * (d1.g - 0.5)) * (1.0 - smoothstep(0.7, 1.8, fwidth(arg))) * smoothstep(0.52, 0.72, gustN) * (1.0 - 0.85 * smoothstep(250.0, 600.0, dG)) * (1.0 - smoothstep(600.0, 900.0, dG));
+      }
       // (the drifts of flowers, where the clumps and blades have them)
-      vec2 fw = flowersAt(planetPos, int(uGrassTone.z + 0.5));
+      // (none beyond 900 m: their share of the colour there was a fiftieth, their cost the same as near)
+      vec2 fw = dG < 900.0 ? flowersAt(planetPos, int(uGrassTone.z + 0.5)) : vec2(0.0);
       // (a tint, never a patch: its edge broken by the ground's own grain, less of it for
       // the pale kinds, from higher up and far off, where colour piles up along the skyline)
       if (fw.y > 0.0) {
@@ -536,7 +541,7 @@ void main() {
         float speck = smoothstep(0.45, 0.8, fn1 * (0.55 + 0.65 * fw.y));
         // (pale flowers least: a white patch from the air is snow or stone)
         float fk = mix(mix(speck, broken, smoothstep(0.35, 1.3, fpx)), 0.2 * dens, smoothstep(1.6, 5.0, fpx)) * (fw.x < 1.5 ? 0.4 : 1.0);
-        fk *= (1.0 - 0.6 * clamp(dot(V, up), 0.0, 1.0)) * (1.0 - 0.75 * smoothstep(150.0, 900.0, dG));
+        fk *= (1.0 - 0.6 * clamp(dot(V, up), 0.0, 1.0)) * (1.0 - 0.75 * smoothstep(150.0, 600.0, dG)) * (1.0 - smoothstep(600.0, 900.0, dG));
         gc = mix(gc, petalColour(fw.x, 0.5), fk * GRASS_FLOWER_SHARE);
       }
       albedo = mix(albedo, gc, gw);
