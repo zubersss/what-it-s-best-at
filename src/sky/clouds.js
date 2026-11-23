@@ -156,8 +156,10 @@ void main() {
   // (... and as white without the volume, in the painted look: with the governor's last
   // saving on, the same clouds were grey)
   vec3 col = vec3(0.86) * (sun * (uVol.x > 0.0 ? 0.8 : mix(0.42, 0.8, uPaint.x)) + skyLight(uCloud.w > 0.5 ? -up : up, up) * 0.9 + skyLight(up, up) * 0.25) / PI;
-  // (... in two tones: its body, and its thick middle a step darker)
-  if (uPaint.x > 0.0) col *= mix(1.0, mix(1.0, 0.8, smoothstep(0.55, 0.7, cover)), uPaint.x * (1.0 - far));
+  // (... in two tones: its body, and its thick middle a step darker. From below only: seen
+  // from above the thick middle of a heap is its sunlit top, and with it darkened a field
+  // of heaps from 30 km was grey flakes with pale rims.)
+  if (uPaint.x > 0.0) col *= mix(1.0, mix(1.0, 0.8, smoothstep(0.55, 0.7, cover)), uPaint.x * (1.0 - far) * uCloud.w);
   col *= relief;
   col = aerialPerspective(col, vRel);
   fragColor = vec4(col * uExposure * alpha, alpha);
