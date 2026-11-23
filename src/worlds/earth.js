@@ -140,10 +140,10 @@ export default {
   // Trees: where the land-cover map says forest, woodland or savanna, of the species the
   // region really grows (life/cover.js), as tall as the canopy was measured.
   // Grass: tufts of blades round the traveller where the land-cover map has grass (life/grass.js).
-  // far: beyond those, one tree shape in every few out to two kilometres, rising out of
-  // the forest the ground raises as a whole (life/groves.js): what a traveller coming
+  // far: beyond those, the same trees thinned with distance out to some kilometres, rising
+  // out of the forest the ground raises as a whole (life/farForest.js): what a traveller coming
   // down sees of the trees before landing.
-  life: { trees: { radius: 240, spacing: 7, below: 1500, far: { radius: 2000, spacing: 30, below: 5000 } }, grass: { below: 90 } },
+  life: { trees: { radius: 240, spacing: 7, below: 1500, far: { full: 450, radius: 5600, below: 6000 } }, grass: { below: 90 } },
 
   // Clouds of one real day (the globe's own cloud map) as a layer overhead (see sky/clouds.js).
   // Near the traveller the layer is a volume to fly through: its base at 1 400 m, its

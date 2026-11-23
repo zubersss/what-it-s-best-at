@@ -27,6 +27,42 @@ as you want or need. This is a big ask and I need it to work really well."*
   their brief. The owning session reviews their pictures, merges the branches into
   `ccr-aa39490a-qiw63x`, resolves what both touched (`app.js`, `governor.js`, world
   files), runs the tests on the merged build, and delivers.
+- **The helpers** (started 2026-11-23 09:40 UTC; they are sessions of the same account,
+  reached with the session tools `get_session`, `list_events`, `send_message`): trees:
+  `session_01XG1DZ585vPB1kCXuxRvUFx`, branch `ccr-aa39490a-far-forest`; grass:
+  `session_01XG1DZ6vKJWJCvxUHNSpiWP`, branch `ccr-aa39490a-far-grass`. Each is to send a
+  message when a first version with pictures is pushed and when done. To look at their
+  work: `git fetch origin <branch>`, then their pictures under `docs/shots/far-forest/`
+  and `docs/shots/far-grass/` and their report beside the brief.
+- **A third helper, for rock** (started 2026-11-23 about 11:40 UTC): "a mile's worth of
+  stuff" in the owner's pictures is boulders as much as trees: brief
+  `docs/briefs/far-rocks.md`, branch `ccr-aa39490a-far-rocks`. Beyond 110 m there was not
+  one stone on the world.
+- **Seen so far** (11:35): trees: from 130 m up the whole hillside is single trees to the
+  ridge, tree shapes at 2 to 3 km in a telephoto view, closed forest a canopy of crowns;
+  grass: on a steppe the line 30 m off is gone and the meadow runs to the horizon;
+  corrections sent (far trees no bluer than the ground behind them; far flower drifts
+  tint, not paint). Found here meanwhile: the fine rock beds drew a wood grain over far
+  mountain sides (now only on real cliffs).
+- **Done here meanwhile** (the owning session; each to be seen in a picture before it is
+  called done): the level streaks on far mountain sides ("a wood's grain"). Two guesses
+  were wrong first (the rock beds: now only on real cliffs, which did cure stripes under
+  the canopy; the snow's edge: now larger patches with bare ribs on steep ground, maps
+  made again, new `albedoMap.mean`; neither changed the streaks). The cause: the ground
+  shader's "stretches of lighter and darker ground" of the painted look repeat 14 000
+  times round the globe, 2.9 km a repeat on Earth and **112 m on Haven**: one more thing
+  that assumed Earth's size. Now by the world's radius (right, but it did not change the
+  streaks either: that pattern is on level ground only). **Third finding, the one**: the
+  bench layer (`terrace`): the maker's mountain flanks stand at one slope (its cap, 0.72)
+  for long stretches, so benches "only on steep ground" were on every flank, treads in
+  dust colour and risers in rock colour. The layer is off Haven's ground altogether (the
+  opening place did not move: 1 475 m). Lesson: three guesses, each "fixed" and pushed
+  before a picture said so; the picture should have come first each time, and the
+  cheapest test was to switch the suspect off in one build. **Still assuming Earth's size**:
+  `weather/weather.js` and `rainbow.js` (111 200 m a degree throughout): to be put right
+  when Haven gets weather (delivery 3). **Seen in the colour map and not
+  fixed**: a few valleys are straight trenches with rock walls (the maker's valley floors
+  along flow lines that run in eight directions): for the water delivery.
 - **If the helpers cannot be reached or their work is not good enough**: the briefs are
   the plan; do them here, trees first.
 

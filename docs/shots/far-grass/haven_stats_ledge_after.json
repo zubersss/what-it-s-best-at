@@ -1,0 +1,29 @@
+{
+  "ledge": {
+    "weather": "",
+    "trees": "735 (28k triangles): lodgepole pine, Swiss stone pine, Engelmann spruce",
+    "farTrees": 2472,
+    "water": "z2: 105 rivers, 499 m3/s (no inflow); z5: 38 rivers, 122 m3/s; z8: 15 rivers, 87 m3/s",
+    "stale": 0,
+    "tilesBusy": false,
+    "refreshQ": 0,
+    "rings": 3,
+    "tileFails": 0,
+    "busyW": 1,
+    "calls": 114,
+    "triangles": 1220205,
+    "chunks": 128,
+    "loaded": 334,
+    "visited": 334,
+    "wanted": 0,
+    "lodScale": 1,
+    "avgBuildMs": 43.6,
+    "exposure": 6.91,
+    "surface": [
+      0.736,
+      0.41
+    ],
+    "frame": 143,
+    "wait": ""
+  }
+}
