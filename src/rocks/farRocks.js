@@ -29,7 +29,7 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { HEAP_GLSL } from '../sky/clouds.js';
 import { CONFIG } from '../config.js';
 import { ROCK_SHAPE_GLSL, rockGeometry } from './rocks.js';
-import { rocksFarDef, tileDeg, tileLon, rockTop, SMALL_SHARE, shareOf } from './rockBlock.js';
+import { rocksFarDef, tileDeg, tileLon, rockTop, SMALL_SHARE, shareOf, ROCKS_FAR_DEFAULTS } from './rockBlock.js';
 
 const POOL = [14, 14, 14, 16];            // tiles held at once, by level (fixed: memory cannot creep)
 const VIS_TURN = 0.9998;              // the land's shadow on the rocks is asked again when the Sun has moved 1.1 degrees
@@ -218,8 +218,10 @@ export class FarRocks {
   // The pool: every tile's buffers and its two meshes, made once.
   _makePool() {
     if (this.slots.length) return;
-    for (let li = 0; li < this.def.levels.length; li++) {
-      const cap = this.def.levels[li].cap ?? 512;
+    // (sized by the defaults, not by the world that happens to come first: a world's own
+    // levels may hold fewer rocks a tile, never more: setWorld)
+    for (let li = 0; li < ROCKS_FAR_DEFAULTS.levels.length; li++) {
+      const cap = ROCKS_FAR_DEFAULTS.levels[li].cap;
       for (let k = 0; k < (POOL[li] ?? 48); k++) {
         const fl = (n) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(cap * n), n); a.setUsage(THREE.DynamicDrawUsage); return a; };
         const by = () => { const a = new THREE.InstancedBufferAttribute(new Uint8Array(cap * 4), 4, true); a.setUsage(THREE.DynamicDrawUsage); return a; };
@@ -241,6 +243,7 @@ export class FarRocks {
         this.slots.push({ li, cap, at, mesh, shade, tile: null, shadowN: 0 });
       }
     }
+    this.castersNew = true;
   }
 
   setWorld(world) {
@@ -250,6 +253,9 @@ export class FarRocks {
     this.group.visible = !!this.def;
     if (!this.def) return;
     this._makePool();
+    // (the pool is what it is: a world's levels fit it, or are cut to it, with a word)
+    if (this.def.levels.length > ROCKS_FAR_DEFAULTS.levels.length) { console.error(`far rocks: "${world.id}" asks for ${this.def.levels.length} levels, the pool has ${ROCKS_FAR_DEFAULTS.levels.length}: the rest are left out`); this.def.levels.length = ROCKS_FAR_DEFAULTS.levels.length; }
+    this.def.levels.forEach((L, li) => { const cap = ROCKS_FAR_DEFAULTS.levels[li].cap; if ((L.cap ?? cap) > cap) console.error(`far rocks: "${world.id}" level ${li} asks for ${L.cap} rocks a tile, the pool holds ${cap}`); L.cap = Math.min(L.cap ?? cap, cap); });
     const s = world.surface, r = s.rocks, u = this.uniforms;
     u.uRockAlbedo.value.set(...(this.def.albedo || s.rock)); u.uDustAlbedo.value.set(...s.dust); u.uRoughness.value = s.roughness ?? 0.5; u.uDustCap.value = r.dustCap ?? 0.55;
     this.uFar.value.x = this.def.reach;
@@ -263,7 +269,10 @@ export class FarRocks {
 
   // The near shadow map draws the blocks near the eye: every slot's mesh is a
   // caster, on while its tile has rocks within the map's reach (app.js adds them).
-  get casters() { return this.slots.map((s) => ({ mesh: s.mesh, on: () => s.shadowN > 0 && !!s.tile })); }
+  // The pool is made at the first world that has far rocks: whoever takes the casters
+  // asks again after every setWorld (`castersNew` is true once, when there are new ones).
+  // (Asked once at start-up only, a page opened on Mars had no rock shadows on Haven.)
+  get casters() { this.castersNew = false; return this.slots.map((s) => ({ mesh: s.mesh, on: () => s.shadowN > 0 && !!s.tile })); }
 
   // Every frame. rig: the camera rig; sun: the Sun's direction (planet axes); sunHalf: its half angle.
   update(rig, sun, sunHalf) {

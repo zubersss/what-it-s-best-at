@@ -287,7 +287,7 @@ export class App {
     this.nearShadow.addCaster(this.rocks.mesh, this.rocks.depthMaterial, null, () => this.rocks.nearCount);
     // (boulders and outcrops as far as they can be seen: the land's own, in tiles)
     this.farRocks = new FarRocks(world, this.terrain); this.nearScene.add(this.farRocks.group);
-    for (const c of this.farRocks.casters) this.nearShadow.addCaster(c.mesh, this.farRocks.depthMaterial, c.on);
+    this.addRockCasters();
     this.farRocks.off = params.debug.includes('farrocksoff');      // ?debug=farrocksoff: none of them, for before/after pictures
     // Trees (worlds that have them): drawn with the ground, and they cast shadows
     this.trees = new Trees(world, this.terrain); this.trees.renderer = renderer;
@@ -625,6 +625,10 @@ export class App {
   // --- start screen, modes, benchmark -------------------------------------------------
 
   // True when the drawn ground under the character (or the camera) is the detailed one.
+  // The far rocks near the eye cast into the near shadow map. Their pool is made at the
+  // first world that has them, which need not be the one the page opened on.
+  addRockCasters() { if (this.farRocks.castersNew) for (const c of this.farRocks.casters) this.nearShadow.addCaster(c.mesh, this.farRocks.depthMaterial, c.on); }
+
   groundSettled() {
     if (this.terrain.idle) return true;
     const r = this.rig, p = r.onFoot ? r.feet : r.pos, l = p.length(), d = [p.x / l, p.y / l, p.z / l];
@@ -1100,7 +1104,7 @@ export class App {
       this.terrain.setWorld(w, data.rasters, data.hs);
       this.clouds.setWorld(w); this.cloudVolume.setWorld(w); this.cloudVolume.setGround(data.rasters[0]);
       this.rocks.setWorld(w, data.hs);
-      this.farRocks.setWorld(w);
+      this.farRocks.setWorld(w); this.addRockCasters();
       this.trees.setWorld(w); this.farForest.setWorld(w); this.weather.setWorld(w); this.look.setWorld(w); this.grass.setWorld(w);
       this.dust.setWorld(w);
       this.placeLander(w, data.hs);
