@@ -107,4 +107,10 @@ export const WAVE_K = 0.35;
 // The ground's own grass: where it gives way to the map's colour (m from the eye), and how
 // much of a drift's ground takes the flowers' colour at most (a tint: a meadow of daisies
 // from above is grass with a dusting, not a white patch).
-export const GRASS_GROUND = { far: [600, 2500], flowers: 0.5 };
+// `slope`: grass grows on ground up to the first slope (metres per metre) and none by the
+// second: ONE rule for where the blades and clumps stand (life/grass.js, the tables' amount)
+// and for where the ground wears the grass's colour (terrainMaterial.js). (The paint went
+// by the ground's own soil-to-scree numbers once, 0.36 to 0.55 on Haven, and the tufts by
+// 0.4 to 0.75: tufts on unpainted hillsides; then both by the ground's, and a steep meadow
+// that had been a field of grass was bare ground with a tuft here and there.)
+export const GRASS_GROUND = { far: [600, 2500], flowers: 0.5, slope: [0.45, 0.75] };
