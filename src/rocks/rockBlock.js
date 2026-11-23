@@ -32,7 +32,7 @@ const ss = (a, b, x) => { const t = (x - a) / (b - a); return t <= 0 ? 0 : t >= 
 //   levels   size [from, to] (m: the same measure as the near rocks' `size`), tile (degrees
 //            of latitude on Earth: 0.012 is 1.3 km on a world of any radius), sites (along a
 //            tile's side), density (the share of the sites that hold a rock where the ground
-//            is all rock), cap (the most a tile holds: the largest are kept), wl (the
+//            is all rock), wl (the
 //            fineness of the ground they are stood on, m), forest (how much closed forest
 //            takes away: the largest stand out of the trees), shadow (false: no shadow
 //            patches for the level: its rocks are seen little farther than the shadow map reaches)
@@ -44,16 +44,21 @@ const ss = (a, b, x) => { const t = (x - a) / (b - a); return t <= 0 ? 0 : t >= 
 export const ROCKS_FAR_DEFAULTS = {
   reach: 420, below: 12000,
   levels: [
-    { size: [1.4, 3.4], tile: 0.012, sites: 128, density: 0.46, cap: 3072, wl: 2, forest: 0.6 },
-    { size: [3.4, 8], tile: 0.03, sites: 128, density: 0.36, cap: 4096, wl: 6, forest: 0.4 },
-    { size: [8, 20], tile: 0.075, sites: 128, density: 0.36, cap: 4096, wl: 10, forest: 0.15 },
+    { size: [1.4, 3.4], tile: 0.012, sites: 128, density: 0.38, wl: 2, forest: 0.6 },
+    { size: [3.4, 8], tile: 0.03, sites: 128, density: 0.3, wl: 6, forest: 0.4 },
+    { size: [8, 20], tile: 0.075, sites: 128, density: 0.36, wl: 10, forest: 0.15 },
     // (the talus near the eye: the blocks of a rock slope, many, and seen from 310 m at
     // most whatever their size: the budget of a view is spent where the traveller stands.
     // Last in the list, so that the levels before it keep their numbers and their rocks.)
-    { size: [0.7, 2.6], tile: 0.004, sites: 128, density: 0.33, cap: 3072, wl: 1, forest: 0.9, shadow: false, seenTo: 310 },
+    { size: [0.7, 2.6], tile: 0.004, sites: 128, density: 0.33, wl: 1, forest: 0.9, shadow: false, seenTo: 310 },
   ],
   share: [3.4, 8],
 };
+// The most rocks a tile of a level can hold: every site that the density lets hold one.
+// The pool's buffers are this large, so no tile is ever cut. (A smaller cap once dropped
+// each full tile's smallest rocks, a different share in each: on the rockiest ground the
+// count stepped by 40 % along the straight edges of the tiles.)
+export function tileCap(L) { const K = L.sites ?? 128; return Math.ceil(K * K * L.density); }
 export function rocksFarDef(world) {
   const f = world?.surface?.rocks?.far;
   if (!f) return null;
@@ -200,7 +205,7 @@ export function rockBlock(hs, L, li, bi, bj) {
       shape: hash3(bi * 131 + i, bj * 137 + j, 71, salt), tone: (h4 & 0x7f) + (cls === 15 ? 128 : 0), gE: slopeByte(gE), gN: slopeByte(gN) });
   }
   found.sort((p, q) => q.e - p.e || q.size - p.size);
-  const n = Math.min(found.length, L.cap ?? 512);
+  const n = Math.min(found.length, L.cap ?? Infinity);           // (cap: only a world whose levels ask for more than the pool holds: farRocks.js says so)
   const off = new Float32Array(n * 4), quat = new Float32Array(n * 4), scale = new Float32Array(n * 3), shape = new Uint8Array(n * 4), misc = new Uint8Array(n * 4), seen = new Uint8Array(n);
   let bx = 0, by = 0, bz = 0, br = 0;
   for (let i = 0; i < n; i++) { bx += found[i].x; by += found[i].y; bz += found[i].z; }

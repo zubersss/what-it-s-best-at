@@ -29,7 +29,7 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { HEAP_GLSL } from '../sky/clouds.js';
 import { CONFIG } from '../config.js';
 import { ROCK_SHAPE_GLSL, rockGeometry } from './rocks.js';
-import { rocksFarDef, tileDeg, tileLon, rockTop, SMALL_SHARE, shareOf, ROCKS_FAR_DEFAULTS } from './rockBlock.js';
+import { rocksFarDef, tileDeg, tileLon, rockTop, SMALL_SHARE, shareOf, ROCKS_FAR_DEFAULTS, tileCap } from './rockBlock.js';
 
 const POOL = [14, 14, 14, 16];            // tiles held at once, by level (fixed: memory cannot creep)
 const CASTERS = 1024;                 // the most rocks drawn into the near shadow map
@@ -241,7 +241,7 @@ export class FarRocks {
     // (sized by the defaults, not by the world that happens to come first: a world's own
     // levels may hold fewer rocks a tile, never more: setWorld)
     for (let li = 0; li < ROCKS_FAR_DEFAULTS.levels.length; li++) {
-      const cap = ROCKS_FAR_DEFAULTS.levels[li].cap;
+      const cap = tileCap(ROCKS_FAR_DEFAULTS.levels[li]);
       for (let k = 0; k < (POOL[li] ?? 48); k++) {
         const fl = (n) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(cap * n), n); a.setUsage(THREE.DynamicDrawUsage); return a; };
         const by = () => { const a = new THREE.InstancedBufferAttribute(new Uint8Array(cap * 4), 4, true); a.setUsage(THREE.DynamicDrawUsage); return a; };
@@ -276,7 +276,7 @@ export class FarRocks {
     this._makePool();
     // (the pool is what it is: a world's levels fit it, or are cut to it, with a word)
     if (this.def.levels.length > ROCKS_FAR_DEFAULTS.levels.length) { console.error(`far rocks: "${world.id}" asks for ${this.def.levels.length} levels, the pool has ${ROCKS_FAR_DEFAULTS.levels.length}: the rest are left out`); this.def.levels.length = ROCKS_FAR_DEFAULTS.levels.length; }
-    this.def.levels.forEach((L, li) => { const cap = ROCKS_FAR_DEFAULTS.levels[li].cap; if ((L.cap ?? cap) > cap) console.error(`far rocks: "${world.id}" level ${li} asks for ${L.cap} rocks a tile, the pool holds ${cap}`); L.cap = Math.min(L.cap ?? cap, cap); });
+    this.def.levels.forEach((L, li) => { const cap = tileCap(ROCKS_FAR_DEFAULTS.levels[li]), want = tileCap(L); if (want > cap) console.error(`far rocks: "${world.id}" level ${li} can hold ${want} rocks a tile, the pool holds ${cap}: its fullest tiles are cut`); L.cap = cap; });
     const s = world.surface, r = s.rocks, u = this.uniforms;
     u.uRockAlbedo.value.set(...(this.def.albedo || s.rock)); u.uDustAlbedo.value.set(...s.dust); u.uRoughness.value = s.roughness ?? 0.5; u.uDustCap.value = r.dustCap ?? 0.55;
     this.uFar.value.x = this.def.reach;
