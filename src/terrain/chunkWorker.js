@@ -27,7 +27,7 @@ self.onmessage = (ev) => {
     } else if (m.type === 'rocks') {
       // (the far rocks of one tile, with the land's shadow on each: rocks/farRocks.js)
       const b = rockBlock(hs, m.level, m.li, m.bi, m.bj), vis = rockVis(baker, b.origin, b.off, b.count, m.sun, m.sunHalf);
-      self.postMessage({ type: 'rocks', id: m.id, origin: b.origin, count: b.count, bound: b.bound, off: b.off.buffer, quat: b.quat.buffer, scale: b.scale.buffer, shape: b.shape.buffer, misc: b.misc.buffer, vis: vis.buffer }, [b.off.buffer, b.quat.buffer, b.scale.buffer, b.shape.buffer, b.misc.buffer, vis.buffer]);
+      self.postMessage({ type: 'rocks', id: m.id, origin: b.origin, count: b.count, bound: b.bound, off: b.off.buffer, quat: b.quat.buffer, scale: b.scale.buffer, shape: b.shape.buffer, misc: b.misc.buffer, seen: b.seen.buffer, vis: vis.buffer }, [b.off.buffer, b.quat.buffer, b.scale.buffer, b.shape.buffer, b.misc.buffer, b.seen.buffer, vis.buffer]);
     } else if (m.type === 'rockvis') {
       const vis = rockVis(baker, m.origin, m.off, m.count, m.sun, m.sunHalf);
       self.postMessage({ type: 'rockvis', id: m.id, vis: vis.buffer }, [vis.buffer]);

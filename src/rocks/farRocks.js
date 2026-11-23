@@ -29,10 +29,9 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { HEAP_GLSL } from '../sky/clouds.js';
 import { CONFIG } from '../config.js';
 import { ROCK_SHAPE_GLSL, rockGeometry } from './rocks.js';
-import { rocksFarDef, tileDeg, tileLon, rockTop } from './rockBlock.js';
+import { rocksFarDef, tileDeg, tileLon, rockTop, SMALL_SHARE, shareOf } from './rockBlock.js';
 
 const POOL = [14, 14, 14];            // tiles held at once, by level (fixed: memory cannot creep)
-const SMALL_SHARE = 0.82;             // a rock of the smallest level is seen from this share of `reach` (it is a few pixels there; and they are most of the count)
 const VIS_TURN = 0.9998;              // the land's shadow on the rocks is asked again when the Sun has moved 1.1 degrees
 const COLLIDE_FROM = 1;               // levels from this one on carry a walker (rocks of 3.4 m and more)
 
@@ -41,20 +40,18 @@ in vec4 aOff;            // xyz: the rock's middle from the tile's origin (m, pl
 in vec4 aQuat; in vec3 aScale;
 in vec4 aShape;          // four numbers of its own (its fracture planes)
 in vec4 aMisc;           // x: sunlight on it (the land's shadow), y: its tone (and over a half: snow on it), zw: the ground's slope there, east and north
-in vec4 aTint;           // rgb: the land's colour at its place over the world's mean (the albedo map's tint, a fifth of it)
+in vec4 aTint;           // rgb: the land's colour at its place over the world's mean (the albedo map's tint, a fifth of it); a: the share of its size it is seen as from afar (less under trees)
 uniform vec4 uFar;       // x: metres a rock is seen from per metre of its size, z: the share of x left to small rocks (the governor), w: where the near shadow map ends (m)
 uniform vec2 uShareSize; // the size up to which a rock is small, and from which it has all its reach (m)
 ${ROCK_SHAPE_GLSL}
 // A rock's place and size; false when this mesh does not draw it.
 bool rockPlace(out vec3 centre, out float grow) {
   centre = (modelMatrix * vec4(aOff.xyz, 1.0)).xyz;
-  float key = length(centre) / aOff.w, reach = uFar.x * mix(uFar.z, 1.0, smoothstep(uShareSize.x, uShareSize.y, aOff.w));
+  float seen = aOff.w * aTint.a, key = length(centre) / seen, reach = uFar.x * mix(uFar.z, 1.0, smoothstep(uShareSize.x, uShareSize.y, seen));
   grow = 1.0 - smoothstep(0.78, 1.0, key / reach);
   return grow > 0.0;
 }`;
 
-// The share of `reach` a rock of a size has (as the vertex shader has it: uFar.z).
-function shareOf(sz, small, lo, hi) { if (sz >= hi) return 1; if (sz <= lo) return small; const t = (sz - lo) / (hi - lo); return small + (1 - small) * t * t * (3 - 2 * t); }
 
 // Sunlight on a rock (vertex shader): the land's shadow from the worker, and the cloud that
 // stands between it and the Sun, as the ground has it (terrainMaterial.js).
@@ -165,13 +162,13 @@ export class FarRocks {
       // (no slope-scaled depth offset: seen at a low angle that is metres, and the patch was drawn over the rock itself)
       polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -4,
       vertexShader: /* glsl */`
-        in vec4 aOff; in vec4 aQuat; in vec3 aScale; in vec4 aMisc;
+        in vec4 aOff; in vec4 aQuat; in vec3 aScale; in vec4 aMisc; in vec4 aTint;
         uniform vec4 uFar; uniform vec2 uShareSize;
         ${SUN_VERT}
         out vec3 vRel; out vec2 vDisc; flat out vec4 vSh;          // vSh: xyz the ground's normal, w how dark
         void main() {
           vec3 c = (modelMatrix * vec4(aOff.xyz, 1.0)).xyz;
-          float d = length(c), size = aOff.w, key = d / size, reach = uFar.x * mix(uFar.z, 1.0, smoothstep(uShareSize.x, uShareSize.y, size));
+          float d = length(c), size = aOff.w, seen = size * aTint.a, key = d / seen, reach = uFar.x * mix(uFar.z, 1.0, smoothstep(uShareSize.x, uShareSize.y, seen));
           // (not for a rock that is a pixel or two: its shadow would be less)
           float show = (1.0 - smoothstep(0.5, 0.72, key / reach));
           vec3 planetPos = uCamPlanetPos + c, up = normalize(planetPos);
@@ -236,7 +233,7 @@ export class FarRocks {
         this.group.add(mesh);
         const sg = new THREE.InstancedBufferGeometry();
         sg.setAttribute('position', this.discPos); sg.setIndex(this.discIdx);
-        for (const name of ['aOff', 'aQuat', 'aScale', 'aMisc']) sg.setAttribute(name, at[name]);
+        for (const name of ['aOff', 'aQuat', 'aScale', 'aMisc', 'aTint']) sg.setAttribute(name, at[name]);
         sg.instanceCount = 0; sg.boundingSphere = new THREE.Sphere();
         const shade = new THREE.Mesh(sg, this.shadowMaterial);
         shade.visible = false; shade.renderOrder = 2;            // after the ground it lies on
@@ -354,6 +351,34 @@ export class FarRocks {
     this.count = count; this.triangles = tris; this.countAll = all; this.calls = calls;
   }
 
+  // What is drawn in a camera's view, counted rock by rock by the vertex shader's own rule
+  // (for the read-outs: screenshots and scripts ask, the game never does). The camera is at
+  // the middle of things, as the meshes are placed.
+  tally(camera) {
+    const o = { rocks: 0, shadows: 0, triangles: 0, calls: 0, all: 0, handed: 0, tiles: 0 };
+    if (!this.def || !this.group.visible) return o;
+    const fr = this._frustum || (this._frustum = new THREE.Frustum()), pm = this._pm || (this._pm = new THREE.Matrix4()), v = this._tv || (this._tv = new THREE.Vector3());
+    camera.updateMatrixWorld(); pm.copy(camera.matrixWorld).setPosition(0, 0, 0).invert().premultiply(camera.projectionMatrix); fr.setFromProjectionMatrix(pm);
+    const reach = this.def.reach, small = this.uFar.value.z, lo = this.shareLo, hi = this.shareHi;
+    for (const s of this.slots) {
+      const b = s.tile; if (!b || !s.mesh.visible) continue;
+      const off = s.at.aOff.array, c = s.mesh.position, n = s.mesh.geometry.instanceCount, nSh = s.shade.visible ? s.shade.geometry.instanceCount : 0;
+      let rocks = 0, shadows = 0;
+      o.tiles++; o.handed += n;
+      for (let i = 0; i < n; i++) {
+        v.set(c.x + off[i * 4], c.y + off[i * 4 + 1], c.z + off[i * 4 + 2]);
+        const k = v.length() / (b.sizes[i] * reach * shareOf(b.sizes[i], small, lo, hi));
+        if (k >= 1) continue;
+        o.all++;
+        if (!fr.containsPoint(v)) continue;
+        rocks++; if (i < nSh && k < 0.72) shadows++;
+      }
+      o.rocks += rocks; o.shadows += shadows; o.calls += (rocks ? 1 : 0) + (shadows ? 1 : 0);
+    }
+    o.triangles = o.rocks * this.tris + o.shadows * 8;
+    return o;
+  }
+
   // Asks the workers for the tiles most wanted (update() made the list). app.js calls this
   // before the ground takes the workers for the frame as well: while the ground has patches
   // to build one tile of rocks is on its way at a time, so that a traveller on the move is
@@ -389,7 +414,9 @@ export class FarRocks {
       b.origin = new THREE.Vector3(res.origin[0], res.origin[1], res.origin[2]); b.bound = res.bound;
       b.center = new THREE.Vector3(res.origin[0] + res.bound[0], res.origin[1] + res.bound[1], res.origin[2] + res.bound[2]); b.radius = res.bound[3]; b.box = null;
       const off = new Float32Array(res.off), n = res.count;
-      b.sizes = new Float32Array(n); for (let i = 0; i < n; i++) b.sizes[i] = off[i * 4 + 3];
+      // (the size each is seen as from afar, as the shader has it: the order they come in)
+      const seen = new Uint8Array(res.seen), ta = slot.at.aTint.array;
+      b.sizes = new Float32Array(n); for (let i = 0; i < n; i++) { b.sizes[i] = off[i * 4 + 3] * seen[i] / 255; ta[i * 4 + 3] = seen[i]; }
       const put = (a, src) => { a.array.set(src); a.clearUpdateRanges(); a.addUpdateRange(0, n * a.itemSize); a.needsUpdate = true; };
       put(slot.at.aOff, off); put(slot.at.aQuat, new Float32Array(res.quat)); put(slot.at.aScale, new Float32Array(res.scale)); put(slot.at.aShape, new Uint8Array(res.shape));
       const misc = new Uint8Array(res.misc), vis = new Uint8Array(res.vis);

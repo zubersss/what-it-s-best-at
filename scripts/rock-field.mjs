@@ -4,10 +4,14 @@
 // (src/rocks/rockBlock.js: fields under steep ground, clusters, erratics, none in water)
 // before any picture in the game, and for the numbers: rocks a tile, the time a tile takes.
 //
-//   node scripts/rock-field.mjs [--world haven] [--lat .. --lon ..] [--span 3000] [--out rock-field.png] [--check]
+//   node scripts/rock-field.mjs [--world haven] [--lat .. --lon ..] [--span 3000] [--out rock-field.png] [--check] [--count [--up 100] [--small 0.82]]
+//
+// --count: no picture; the rocks drawn from the place (--up metres over its ground), by the
+// drawing's own rule: all round, and in the fullest 100 degrees of the compass (what a
+// phone's view takes in, at most). The budget is 6 000 rocks in a view.
 //
 // --check: no picture; the rule's own promises, each of which fails the run if broken:
-// the same tile twice gives the same rocks, none stands in water, the largest come first,
+// the same tile twice gives the same rocks, none stands in water, the ones seen from farthest come first,
 // every rock is inside its tile's bound, steep open ground holds many times the rocks of
 // level open ground, and a tile takes no longer than a worker can spare.
 // (The land cover is made here as the game makes it; rivers and lakes come with the map
@@ -15,7 +19,7 @@
 import fs from 'node:fs';
 import { loadWorld } from './lib/loadWorld.mjs';
 import { png } from './lib/png.mjs';
-import { rockBlock, rocksFarDef, tileDeg, tileLon, rockVis, rockTop } from '../src/rocks/rockBlock.js';
+import { rockBlock, rocksFarDef, tileDeg, tileLon, rockVis, rockTop, SMALL_SHARE, shareOf } from '../src/rocks/rockBlock.js';
 import { MadeWorld } from '../src/terrain/tiles/madeTiles.js';
 import { ShadowBaker } from '../src/terrain/shadowBake.js';
 import { CONFIG } from '../src/config.js';
@@ -50,6 +54,12 @@ function tilesOver(span) {
   return out;
 }
 
+// (the tiles of the smallest level round this square and round the world file's two places)
+function both2() {
+  const out = tilesOver(Math.min(SPAN, 2500)).filter((t) => t[1] < 2), L = def.levels[0], deg = tileDeg(R, L.tile);
+  for (const at of [...Object.values(def.check || {}), [st.lat, st.lon]]) { const bi = Math.floor(at[0] / deg), dLon = tileLon(bi, deg), bj = Math.floor(at[1] / dLon); for (let k = -1; k <= 1; k++) out.push([L, 0, bi + k, bj]); }
+  return out;
+}
 if (flag('check')) {
   let bad = 0; const fail = (s) => { console.log('FAILED: ' + s); bad++; };
   const list = tilesOver(Math.min(SPAN, 2500));
@@ -61,7 +71,8 @@ if (flag('check')) {
     if (b.count > (L.cap ?? 512)) fail(`level ${li} tile ${bi},${bj}: ${b.count} rocks, over its cap`);
     for (let i = 0; i < b.count; i++) {
       const s = b.off[i * 4 + 3];
-      if (i && s > b.off[i * 4 - 1]) { fail(`level ${li} tile ${bi},${bj}: rock ${i} is larger than the one before it`); break; }
+      if (i && s * b.seen[i] > b.off[i * 4 - 1] * b.seen[i - 1] + 1e-3) { fail(`level ${li} tile ${bi},${bj}: rock ${i} is seen from farther than the one before it`); break; }
+      if (b.seen[i] < 1) { fail(`level ${li} tile ${bi},${bj}: rock ${i} is seen from nowhere`); break; }
       if (s < L.size[0] - 1e-3 || s > L.size[1] + 1e-3) { fail(`level ${li} tile ${bi},${bj}: a rock of ${s.toFixed(2)} m, outside the level's sizes`); break; }
       if (Math.hypot(b.off[i * 4] - b.bound[0], b.off[i * 4 + 1] - b.bound[1], b.off[i * 4 + 2] - b.bound[2]) > b.bound[3]) { fail(`level ${li} tile ${bi},${bj}: rock ${i} lies outside the tile's bound`); break; }
       const x = b.origin[0] + b.off[i * 4], y = b.origin[1] + b.off[i * 4 + 1], z = b.origin[2] + b.off[i * 4 + 2], r = Math.hypot(x, y, z);
@@ -117,8 +128,48 @@ if (flag('check')) {
     if (b.count && (low < 0.1 || high > 1.2)) fail('a rock\'s top is not where its shape puts it (0.1 to 1.2 of its size over its middle)');
     if (stray) fail(`${stray} rocks carry a walker two sizes away from their middle`);
   }
+  // under a closed canopy a rock is seen from near by only, unless it stands over the trees
+  {
+    let under = 0, far = 0, open = 0;
+    for (const [L, li, bi, bj] of both2()) { const b = rockBlock(hs, L, li, bi, bj); for (let i = 0; i < b.count; i++) {
+      const sz = b.off[i * 4 + 3], x = b.origin[0] + b.off[i * 4], y = b.origin[1] + b.off[i * 4 + 1], z = b.origin[2] + b.off[i * 4 + 2], r = Math.hypot(x, y, z), cov = hs.coverAt(x / r, y / r, z / r), closed = cov < 0 ? 0 : (cov >> 16) / 255;
+      if (closed < 0.7) { open++; continue; }
+      under++; if (sz < 9 && sz * b.seen[i] / 255 * def.reach > 200) far++;
+    } }
+    console.log(`${open} rocks in the open or among scattered trees, ${under} under a closed canopy`);
+    if (far) fail(`${far} rocks under 9 m under a closed canopy are seen from more than 200 m`);
+    if (!under || !open) console.log('FAILED: (no rocks under trees, or none in the open: that comparison was not made)'), bad++;
+  }
   console.log(bad ? `${bad} check(s) failed` : 'all checks passed');
   process.exit(bad ? 1 : 0);
+}
+
+if (flag('count')) {
+  const d0 = dirOf(lat0, lon0), up = +opt('up', 2), r0 = R + hs.height(d0[0], d0[1], d0[2], 4) + up, eye = d0.map((v) => v * r0);
+  const small = +opt('small', SMALL_SHARE), lo = def.levels[0].size[1], hi = (def.levels[1] || def.levels[0]).size[1];
+  const east = [-Math.sin(lon0 * RAD), Math.cos(lon0 * RAD), 0], north = [-Math.sin(lat0 * RAD) * Math.cos(lon0 * RAD), -Math.sin(lat0 * RAD) * Math.sin(lon0 * RAD), Math.cos(lat0 * RAD)];
+  const bins = new Float64Array(36), by = def.levels.map(() => [0, 0, 0]), near = [0, 0];
+  def.levels.forEach((L, li) => {
+    const deg = tileDeg(R, L.tile), T = deg * mLat, radius = def.reach * L.size[1] + 0.72 * T, nb = Math.ceil(radius / T), bi0 = Math.floor(lat0 / deg);
+    for (let bi = bi0 - nb; bi <= bi0 + nb; bi++) {
+      const dLon = tileLon(bi, deg), bj0 = Math.floor(lon0 / dLon), nbj = Math.ceil(radius / (dLon * mLon));
+      for (let bj = bj0 - nbj; bj <= bj0 + nbj; bj++) {
+        if (Math.hypot(((bi + 0.5) * deg - lat0) * mLat, ((bj + 0.5) * dLon - lon0) * mLon) > radius) continue;
+        const b = rockBlock(hs, L, li, bi, bj); by[li][0]++; by[li][1] += b.count;
+        for (let i = 0; i < b.count; i++) {
+          const x = b.origin[0] + b.off[i * 4] - eye[0], y = b.origin[1] + b.off[i * 4 + 1] - eye[1], z = b.origin[2] + b.off[i * 4 + 2] - eye[2], d = Math.hypot(x, y, z), e = b.off[i * 4 + 3] * b.seen[i] / 255;
+          if (d >= e * def.reach * shareOf(e, small, lo, hi)) continue;
+          by[li][2]++; if (d < 150) near[0]++; if (b.seen[i] < 255) near[1]++;
+          bins[Math.floor(((Math.atan2(x * east[0] + y * east[1] + z * east[2], x * north[0] + y * north[1] + z * north[2]) / RAD + 360) % 360) / 10)]++;
+        }
+      }
+    }
+  });
+  let most = 0, at = 0; for (let k = 0; k < 36; k++) { let n = 0; for (let j = 0; j < 10; j++) n += bins[(k + j) % 36]; if (n > most) { most = n; at = k * 10; } }
+  const all = by.reduce((s, v) => s + v[2], 0);
+  console.log(`from lat ${lat0} lon ${lon0}, ${up} m up: ${all} rocks drawn all round (${near[0]} within 150 m, ${near[1]} of them under trees); the fullest 100 degrees (from bearing ${at}): ${most}`);
+  def.levels.forEach((L, li) => console.log(`  level ${li} (${L.size[0]}-${L.size[1]} m): ${by[li][2]} drawn of ${by[li][1]} in ${by[li][0]} tiles`));
+  process.exit(0);
 }
 
 // the picture: the land's shading, then the rocks

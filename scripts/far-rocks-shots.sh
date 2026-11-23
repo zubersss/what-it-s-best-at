@@ -18,7 +18,7 @@ declare -A Q=(
   [ledge_phone]="fov=21.4"          # (the opening view at a phone's density: 309 px across 21.4 degrees is 1 440 px across 60)
   [floor]="$STEEP&alt=2053&heading=135&pitch=-14&debug=floor"
 )
-ORDER=(ledge_phone wall steep_ground steppe_ground ledge steep_air100 steep_air400 tele floor steppe_air30)
+ORDER=(steep_air100 steep_air400 ledge_phone wall steep_ground steppe_ground ledge tele floor steppe_air30)
 [ $# -gt 0 ] && ORDER=("$@")
 fail=0
 for v in "${ORDER[@]}"; do
