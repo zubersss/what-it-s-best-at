@@ -9,6 +9,7 @@
 // the ground: no trees drawn from higher) }) and its tiles give a land-cover picture.
 import * as THREE from 'three';
 import { G } from '../render/globals.js';
+import { HEAP_GLSL } from '../sky/clouds.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
@@ -29,6 +30,33 @@ vec3 paintLeaf(vec3 c) {
   vec3 hue = mix(vec3(0.62, 1.0, 0.36), vec3(0.36, 1.0, 0.62), smoothstep(-0.2, 0.2, (c.b - c.r) / max(c.g, 1e-4)));
   return mix(c, dot(c, vec3(0.2, 0.7, 0.1)) * hue, 0.45);
 }`;
+
+// The clouds' shadow on a tree, by the ground's own rule and from the ground's own numbers
+// (terrainMaterial.js, its light): the cloud between the crown and the Sun, once per tree
+// in the vertex shader (a heap is hundreds of metres across). The trees one walks among and
+// the far forest both read it here; the uniforms are the ground's own objects, so a saving
+// that takes the shadow off the ground takes it off the trees.
+export const CLOUD_SHADE_VERT = /* glsl */`
+uniform vec3 uCamPlanetPos, uSunDir;
+uniform sampler2D tClouds;
+precision highp sampler3D;
+uniform sampler3D tCloudNoise;
+uniform vec4 uCloud, uCloudHeap;
+uniform vec3 uCloudVol, uCloudWind;
+${HEAP_GLSL}
+float cloudShade(vec3 planetPos) {
+  float r = length(planetPos);
+  if (uCloud.x <= 0.0 || r >= uCloud.y) return 1.0;
+  vec3 uc = normalize(planetPos + uSunDir * ((uCloud.y - r) / max(dot(planetPos / r, uSunDir), 0.08)));
+  float cd = textureLod(tClouds, vec2(atan(uc.y, uc.x) * 0.15915494 + uCloud.z, acos(clamp(uc.z, -1.0, 1.0)) * 0.31830989), 0.0).r;
+  float shade = smoothstep(0.2, 0.7, cd);
+  if (uCloudHeap.w > 0.5) { float cc, hp = cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudWind, 0.0, cc); shade = 0.85 * smoothstep(0.06, 0.42, hp); }
+  return 1.0 - uCloud.x * shade;
+}`;
+export const cloudShadeUniforms = (terrain) => ({
+  tClouds: terrain.shared.tClouds, uCloud: terrain.shared.uCloud, tCloudNoise: terrain.shared.tCloudNoise,
+  uCloudHeap: terrain.shared.uCloudHeap, uCloudVol: terrain.shared.uCloudVol, uCloudWind: terrain.shared.uCloudWind,
+});
 
 const TREE_VERT = /* glsl */`
 in vec4 iA;            // xyz: the tree's foot from the anchor (m, planet axes), w: its height (m)
@@ -76,7 +104,7 @@ export class Trees {
     this.terrain = terrain;
     this.geos = makeTreeGeometries();
     this.shared = {
-      ...lightingUniforms(),
+      ...lightingUniforms(), ...cloudShadeUniforms(terrain),
       uAnchorRel: { value: new THREE.Vector3() }, uTreeEast: { value: new THREE.Vector3(1, 0, 0) }, uTreeNorth: { value: new THREE.Vector3(0, 1, 0) }, uTreeUp: { value: new THREE.Vector3(0, 0, 1) },
       uTreeWind: terrain.shared.uWind, uSeason: { value: new THREE.Vector3() }, uTreeRadius: { value: 240 },
       tTreeAtlas: { value: null },
@@ -93,20 +121,22 @@ export class Trees {
       glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: this.shared, side: THREE.DoubleSide,
       vertexShader: /* glsl */`${TREE_VERT}
         in vec3 iC; in vec3 iD;
-        out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out float vLeaf; out float vY; out vec2 vOwn; out vec3 vTreeM; out vec2 vUv;
+        out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out float vLeaf; out float vY; out vec2 vOwn; out vec3 vTreeM; out vec2 vUv; out float vCloud;
+        ${CLOUD_SHADE_VERT}
         void main() {
           vec3 foot; float leaf;
           vec3 rel = treePosition(foot, leaf);
           // (beyond the radius the far forest draws this tree: out of the picture here)
-          if (treeCull) { vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vLeaf = 0.0; vY = 0.0; vOwn = vec2(0.0); vTreeM = vec3(0.0); vUv = vec2(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+          if (treeCull) { vCloud = 1.0; vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vLeaf = 0.0; vY = 0.0; vOwn = vec2(0.0); vTreeM = vec3(0.0); vUv = vec2(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
           vTreeM = vec3(position.x * iB.x, position.y, position.z * iB.x) * iA.w + iB.z * 37.0;        // metres in the tree's own frame (for the pattern of its leaves)
           vRel = rel; vN = treeNormal(); vLeaf = leaf; vY = position.y; vLeafC = iC; vTrunkC = iD; vOwn = vec2(iB.z, iB.w); vUv = aUv;
+          vCloud = cloudShade(uCamPlanetPos + foot + uTreeUp * (iA.w * 0.7));
           gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
         }`,
       fragmentShader: /* glsl */`${LIGHTING_PARS}
         uniform vec3 uSeason;
         uniform sampler2D tTreeAtlas;        // sprays of foliage and whole trees, as cut-outs: r cover, g tone, b wood (life/treeAtlasGen.js)
-        in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in float vLeaf; in float vY; in vec2 vOwn; in vec3 vTreeM; in vec2 vUv;
+        in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in float vLeaf; in float vY; in vec2 vOwn; in vec3 vTreeM; in vec2 vUv; in float vCloud;
         layout(location = 0) out vec4 fragColor;
         float leafHash(vec3 p) { p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
         // bunches of leaves: cells about 40 cm across, each a tone of its own
@@ -171,7 +201,7 @@ export class Trees {
           if (uPaint.x > 0.0 && wood && dot(vTrunkC, vec3(0.333)) > 0.4) albedo *= 1.0 - 0.75 * step(0.8, fract(vY * 31.0 + vOwn.x * 9.0)) * step(0.35, fract(vY * 7.7 + vOwn.x * 3.0));
           // (the shadow is asked for a little outside the crown: on a mass of a few faces the
           // shadow map would draw the faces)
-          float shadow = nearShadow(vRel + N * (wood ? 0.05 : 0.45), N);
+          float shadow = nearShadow(vRel + N * (wood ? 0.05 : 0.45), N) * vCloud;
           vec3 sun = directSun(planetPos) * shadow;
           // a crown is not a wall: light wraps round it, and some comes through from behind
           float nl = dot(N, uSunDir), lit = !wood ? max(nl * 0.7 + 0.3, 0.0) : max(nl, 0.0);

@@ -31,7 +31,6 @@
 // none from higher) }`; how many levels, how large a tile and how many trees one may hold
 // are the same on every world (the constants below).
 import * as THREE from 'three';
-import { HEAP_GLSL } from '../sky/clouds.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
@@ -39,7 +38,7 @@ import { VARIANTS } from './treeGeometry.js';
 import { SPECIES } from './cover.js';
 import { TREE_FLOATS, blockLon, blockDeg } from './treeBlock.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
-import { PAINT_LEAF } from './trees.js';
+import { PAINT_LEAF, CLOUD_SHADE_VERT, cloudShadeUniforms } from './trees.js';
 
 const BASE_BLOCKS = 8;        // level 0: 8 x 8 tree blocks (889 m); level L: that doubled L times
 const BAND = 4;               // each level's band of ranks is this much thinner than the one before
@@ -85,9 +84,7 @@ export class FarForest {
       ...lightingUniforms(),
       tTreeAtlas: trees.shared.tTreeAtlas,
       uSeason: trees.shared.uSeason,
-      // (the ground's own uniform objects: what the ground is shaded by, these trees are)
-      tClouds: terrain.shared.tClouds, uCloud: terrain.shared.uCloud, tCloudNoise: terrain.shared.tCloudNoise,
-      uCloudHeap: terrain.shared.uCloudHeap, uCloudVol: terrain.shared.uCloudVol, uCloudWind: terrain.shared.uCloudWind,
+      ...cloudShadeUniforms(terrain),
       uRectTree: { value: rectTree }, uRectRose: { value: rectRose }, uRoseGeo: { value: roseGeo },
       // x: full density out to here (m), y: none beyond here (m), z: none nearer than here
       // (where the trees one walks among end), w: the share of them drawn (the governor)
@@ -100,24 +97,7 @@ export class FarForest {
       uniform vec3 uTileRel, uTileEast, uTileNorth, uTileUp;
       uniform vec4 uRectTree[CELLS], uRectRose[CELLS], uRoseGeo[CELLS];
       uniform vec4 uFar;
-      // The clouds' shadow, by the ground's own rule and from the ground's own numbers
-      // (terrainMaterial.js, its light): the cloud between a tree's crown and the Sun.
-      uniform vec3 uCamPlanetPos, uSunDir;
-      uniform sampler2D tClouds;
-      precision highp sampler3D;
-      uniform sampler3D tCloudNoise;
-      uniform vec4 uCloud, uCloudHeap;
-      uniform vec3 uCloudVol, uCloudWind;
-      ${HEAP_GLSL}
-      float cloudShade(vec3 planetPos) {
-        float r = length(planetPos);
-        if (uCloud.x <= 0.0 || r >= uCloud.y) return 1.0;
-        vec3 uc = normalize(planetPos + uSunDir * ((uCloud.y - r) / max(dot(planetPos / r, uSunDir), 0.08)));
-        float cd = textureLod(tClouds, vec2(atan(uc.y, uc.x) * 0.15915494 + uCloud.z, acos(clamp(uc.z, -1.0, 1.0)) * 0.31830989), 0.0).r;
-        float shade = smoothstep(0.2, 0.7, cd);
-        if (uCloudHeap.w > 0.5) { float cc, hp = cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudWind, 0.0, cc); shade = 0.85 * smoothstep(0.06, 0.42, hp); }
-        return 1.0 - uCloud.x * shade;
-      }
+      ${CLOUD_SHADE_VERT}
       out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out vec2 vUv; out vec2 vOwn; out float vShade;
       vec3 unpack(float p) { float r = floor(p / 65536.0), g = floor((p - r * 65536.0) / 256.0); return vec3(r, g, p - r * 65536.0 - g * 256.0) * (${COLOUR_TOP.toFixed(3)} / 255.0); }
       void main() {
