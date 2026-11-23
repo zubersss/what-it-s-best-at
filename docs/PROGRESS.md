@@ -6,7 +6,31 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-### Milestone 12, a small living world: delivery 1 sent (read this first)
+### In hand: trees and grass as far as one can see (read this first)
+
+*2026-11-23, an hour after delivery 1 went out. The owner, having flown Haven: "I need you
+to make it so I can see at least a mile in the ground worth of stuff. I want the trees and
+the grass rendered in further than I can see. Do everything you can ... use as many agents
+as you want or need. This is a big ask and I need it to work really well."*
+
+- **Found**: grass blades end 36 m from the traveller (`grass.js`: boxes of 26 and 72 m);
+  every tree is drawn to 240 m, then one in eighteen on another lattice to 2 km
+  (`groves.js`), then none.
+- **Plan**: (1) trees: one lattice, the same trees near and far, in tiles worked out at a
+  `keep` share by rank, thinned per tree in the shader by distance, to about 5 km;
+  (2) grass: a middle field of clump cards to 300 m and more, no line at any join, flowers
+  as far as their colour shows, a grass surface on the far ground; (3) each with governor
+  steps; (4) a Haven benchmark asked for with it.
+- **Who does what**: two helper sessions on machines of their own (pictures are what is
+  slow here), each with a brief in the repository: `docs/briefs/far-forest.md` and
+  `docs/briefs/far-grass.md`; they push to branches of their own and write a report beside
+  their brief. The owning session reviews their pictures, merges the branches into
+  `ccr-aa39490a-qiw63x`, resolves what both touched (`app.js`, `governor.js`, world
+  files), runs the tests on the merged build, and delivers.
+- **If the helpers cannot be reached or their work is not good enough**: the briefs are
+  the plan; do them here, trees first.
+
+### Milestone 12, a small living world: delivery 1 sent
 
 *2026-11-23. Merged as pull request #33; the phone link shows build 9f98744 (this line was
 written after the merge and is on the session branch until the next delivery carries
