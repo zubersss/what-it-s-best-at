@@ -40,9 +40,9 @@ const ss = (a, b, x) => { const t = (x - a) / (b - a); return t <= 0 ? 0 : t >= 
 export const ROCKS_FAR_DEFAULTS = {
   reach: 420, below: 12000,
   levels: [
-    { size: [1.4, 3.4], tile: 0.012, sites: 128, density: 0.42, cap: 3072, wl: 2, forest: 0.82 },
-    { size: [3.4, 8], tile: 0.03, sites: 128, density: 0.5, cap: 4096, wl: 6, forest: 0.6 },
-    { size: [8, 20], tile: 0.075, sites: 128, density: 0.6, cap: 4096, wl: 10, forest: 0.3 },
+    { size: [1.4, 3.4], tile: 0.012, sites: 128, density: 0.42, cap: 3072, wl: 2, forest: 0.6 },
+    { size: [3.4, 8], tile: 0.03, sites: 128, density: 0.5, cap: 4096, wl: 6, forest: 0.4 },
+    { size: [8, 20], tile: 0.075, sites: 128, density: 0.6, cap: 4096, wl: 10, forest: 0.15 },
   ],
 };
 export function rocksFarDef(world) {
@@ -63,7 +63,7 @@ export function tileLon(bi, deg) { const band = Math.floor(bi * deg) + 0.5; retu
 // land-cover class; near: metres from a river's or a lake's edge; over: 0 well below the
 // tree line, 1 at it and above.
 export function rockiness(S, conv, closed, cls, near, over, forest = 0.82) {
-  const steep = ss(0.24, 0.52, S) * (1 - 0.45 * ss(1.1, 1.9, S));           // talus and broken slopes; less on the faces themselves
+  const steep = ss(0.08, 0.46, S) * (1 - 0.45 * ss(1.1, 1.9, S));           // talus and broken slopes; less on the faces themselves
   const brow = 0.7 * ss(0.25, 1.1, conv) * ss(0.06, 0.2, S);                // crests, brows of benches, knolls
   const shore = near < 14 ? 0.45 * (1 - near / 14) : 0;                     // boulders along the water
   let k = Math.max(steep, brow, shore) + 0.15 * over + (cls === 7 || cls === 16 ? 0.12 : 0);
@@ -80,7 +80,7 @@ export function clusterNoise(px, py, pz) {
 // The chance a site holds a rock (before the level's own density): c: clusterNoise there,
 // k: rockiness there. Open ground keeps the noise's highest few per cent (erratics, here
 // and there a field of them); rock ground nearly all of it.
-const OPEN_THR = 0.37, ROCK_THR = -0.03, THR_SOFT = 0.14;
+const OPEN_THR = 0.33, ROCK_THR = -0.03, THR_SOFT = 0.14;
 export function rockField(c, k) { const thr = OPEN_THR + (ROCK_THR - OPEN_THR) * k; return ss(thr, thr + THR_SOFT, c) * (0.45 + 0.55 * k); }
 
 // (the ground's slope east and north, -2..2, in a byte: the shader lays the rock's shadow on that ground)
