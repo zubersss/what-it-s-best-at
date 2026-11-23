@@ -108,7 +108,7 @@ export default {
   // species by number; upTo: how far up toward the tree line).
   life: {
     trees: { radius: 240, spacing: 7, below: 1500, far: { radius: 2000, spacing: 30, below: 5000 }, line: { base: 3548, perDeg: 38.7, from: 0 } },
-    grass: { below: 90 },
+    grass: { below: 90, mid: 220 },
     flora: [
       { near: true, upTo: 0.6, mix: [[6, 2], [5, 2], [0, 1]] },                    // by water: cottonwood, aspen
       { classes: [7, 10, 16, 12], mix: [[2, 2], [1, 2], [9, 2], [0, 1]] },          // open dry country: juniper, pinyon, sage

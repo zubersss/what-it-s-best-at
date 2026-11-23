@@ -286,7 +286,7 @@ export class App {
     }
     // (the far trees: a wider ring of tree shapes that rise out of the raised forest)
     this.groves = new Groves(this.trees, this.terrain); this.nearScene.add(this.groves.mesh);
-    this.grass = new Grass(this.terrain, this.terrain.shared.uWind); this.grass.setWorld(world);
+    this.grass = new Grass(this.terrain, this.terrain.shared.uWind); this.grass.setWorld(world); this.grass.eager = this.shotMode;
     this.nearScene.add(this.grass.mesh);
     this.leaves = new Leaves(this.trees);
     this.nearScene.add(this.leaves.mesh);
