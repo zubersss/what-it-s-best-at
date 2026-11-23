@@ -13,13 +13,29 @@ last delivered, what the owner was asked for and exactly what to do next.
 
 ## What this game is
 
-A browser game where you fly a robed, long-haired character (the owner's own design:
-`docs/PROGRESS.md`, "The owner's character") through our real solar system:
-walk on worlds, lift off, reach orbit, cross to other bodies and land. Inspired by No
-Man's Sky, but every place is real: fifteen worlds to land on (Mars, the Moon, Phobos,
-Deimos, Mercury, Venus, Ceres, Io, Europa, Enceladus, Titan, Triton, Pluto, Charon),
-every other planet and large moon in the sky at its true place for the date. Keep
-everything that works.
+**Since 2026-11-23 (the owner's words, with five reference pictures of a stylised
+landscape game): "simply flying somewhere beautiful ... a living world with its own
+physics and water and rain and leaves that change color with the season and fall down
+with the wind and pile up, water that goes down stream and piles where it can't go
+further like real life lakes and rivers and oceans with waves that have tide ... 5 of the
+most beautiful [biomes] on earth including this one."** The owner does not care for real
+sizes, real maps or the explorer's side of things, and allowed a full restart ("whatever
+gets my idea across").
+
+So the game is: you fly a robed, long-haired character (the owner's own design:
+`docs/PROGRESS.md`, "The owner's character") over **a small made-up world** (`haven`,
+milestone 12 in `docs/ROADMAP.md`): small enough that the horizon bends from a few
+kilometres up and mountains stand on its edge from space, its land shaped by rule to be
+beautiful (peaks, stepped plateaus, canyons, valleys, a sea), its water following the
+land, alive with weather and seasons, in five biomes. It was not a restart: the engine,
+the flight, the character, the look, clouds, weather, trees, grass, water and the phone
+tests all carried over; what is new is the world.
+
+The game before this (and still there, on the start screen, nothing deleted): the real
+solar system, fifteen real worlds to land on (Mars, the Moon, Phobos, Deimos, Mercury,
+Venus, Ceres, Io, Europa, Enceladus, Titan, Triton, Pluto, Charon, and Earth in real
+detail), every other planet and large moon in the sky at its true place for the date.
+They are no longer where the work goes. Keep everything that works.
 
 ## Ownership
 
@@ -63,10 +79,13 @@ they have served it well; they are no longer rules.
   "mission-camera realism"). The principles are the landscape poster's: few colours, each
   time of day a pair of them (the light's and the shade's); shade that is coloured, never
   black; the far ground lost in the air layer by layer; trees, rocks and grass as bold
-  shapes known by their outline; a big soft Sun. **The places stay real**: elevation,
-  land cover, species, weather, the true sky for the date. Only how they are drawn
-  changes. The principles are taken, never that game's artwork, palettes picture for
-  picture, places or interface; the reference pictures are not in the repository.
+  shapes known by their outline; a big soft Sun. (On the real worlds the places stay
+  real: elevation, land cover, species, weather, the true sky; on the made world the
+  land is ours to shape.) **The principles are taken, never that game's artwork, palettes
+  picture for picture, places or interface; the reference pictures are not in the
+  repository.** The owner asks for the look "as close as possible": that is the feel
+  (few colours, layered distance, bold shapes, faceted rock, cut-out trees), with our own
+  places, colours and shapes, never a copy of that game.
   A world is drawn this way when its file has a `look` block (`src/render/look.js`);
   Earth is the first, the others follow one at a time and keep the physical picture
   (the Sun as the one light, HDR, auto-exposure, a filmic tone map) until then. That

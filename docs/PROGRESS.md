@@ -6,7 +6,28 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-### The seventh painted delivery (Earth from space to landing; the governor): read this first
+### Milestone 12, a small living world: the owner's new direction (read this first)
+
+*2026-11-23, after the seventh painted delivery was sent. The owner asked three
+questions in a row and then gave the direction; the words are in `CLAUDE.md`, "What this
+game is", and the plan in `docs/ROADMAP.md`, "12. A small living world".*
+
+- **Asked**: would a smaller world give more depth on the way in; "what if I don't care
+  for the real sized maps or any of the things to do with it being a explorer"; then,
+  with five reference pictures (the stylised landscape game again; not in the
+  repository): "simply flying somewhere beautiful ... a living world ... 5 of the most
+  beautiful [biomes] on earth including this one ... tell me what it would take ... idc
+  if you have to do a full restart".
+- **Answered**: no restart (the engine carries over; the world is what is rebuilt); the
+  eight deliveries of the roadmap; where "as close as possible" stops. The owner had
+  said yes to building; delivery 1 was begun the same hour.
+- **Still to hear from the owner**: whether the four proposed biomes are the ones wanted.
+- **The seventh painted delivery's benchmark** (Earth, Smooth) was asked for and has not
+  come. If it comes, tune the governor from it first: it says whether the governor's
+  new rules hold on the phone, which the new world needs as much as Earth did.
+- **Delivery 1's plan** is under "Milestone 12, delivery 1: the plan" below.
+
+### The seventh painted delivery (Earth from space to landing; the governor)
 
 *2026-11-23, after the owner's eighth phone results (the three-minute benchmark of build
 f300e6f) and the words "it looks horrible and unrendered ... in space before I've landed".
@@ -518,6 +539,44 @@ close fir's blades are large flat faces when the camera is among the boughs; no 
 of the tropical, acacia and palm shapes in the game (only in the preview). Clouds: seen
 from below toward the Sun they are one cream tone; the far shell is flatter and dimmer
 than the volume it continues. Nothing here was measured on the phone.
+
+## Milestone 12, delivery 1: the plan
+
+**What is to be delivered**: a small made-up world, `haven`, flyable from space to its
+ground, with depth all the way in: the curve, mountains on the limb, plateaus, canyons, a
+sea, rivers and lakes that follow the land, and the first biome (mountain pine forest).
+
+**Decisions** (Claude's; the reasons in a line each):
+- **Size: 250 km in radius.** The horizon is 0.9 km off at eye level, 22 km from 1 km
+  up, and dips 22 degrees from 20 km up; a 4 km peak is a degree tall on the limb from
+  100 km. Smaller (100 km) and nothing is far enough off for ridge behind ridge from the
+  ground; larger and the curve needs height again.
+- **Not a restart.** The made world is "an Earth whose maps are made up": the same tile
+  rings, hydrology, land cover, trees, grass, clouds and weather, fed by a maker instead
+  of map services. So everything Earth learned (lakes, rivers, canopy, far trees, the
+  governor's steps) serves it from the first day.
+- **Baked large shapes, ruled small ones.** `scripts/make-world.mjs` makes the whole
+  planet's elevation offline at some 380 m a cell, with real drainage (valleys cut by
+  the water that would run there, hollows that fill), and its colour, slope, rain, water
+  and cloud maps; they ship in `public/data/`. Finer ground is made where the traveller
+  is, by rule, in the tile worker (a `made` source beside the map services): the baked
+  map with deterministic detail down to the ring's cell, the hydrology on top.
+- **Its own body in the sky**: on Earth's orbit, half a year from Earth (the same Sun,
+  the same air numbers hold), with a small moon for the tide. Nothing real is replaced.
+- **Lakes from the flood** on the made world (its hollows are real hollows; on Earth they
+  are read from level stretches of the elevation).
+
+**Order of work**: (1) the maker and its maps, judged in top-down relief and CPU
+sketches; (2) the world file, the sky body, the made tiles; a first picture from the
+game; (3) the start site, chosen by script for ridge behind ridge over water; (4) the
+approach in pictures, full and with every saving on; the air and the look tuned to the
+small size (`ledge`, `sun`, `dusk` after any air number changes); (5) tests, a
+benchmark route, the checkpoint.
+
+**Risks**: land made blind (a probe and a sketch before every picture); the poles (the
+tile rings are Mercator: the made land keeps to the middle latitudes, the caps are sea
+and ice); things tuned to a huge planet (flight speed by height, the air's thickness
+against the radius, cloud heights, the hand-over distances).
 
 ## The owner's eighth phone results (build f300e6f) and the seventh painted delivery: Earth from space to landing
 

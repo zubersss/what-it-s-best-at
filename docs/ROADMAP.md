@@ -23,6 +23,7 @@ owner's reply or phone results), `done`.
 | 9 | Earth's surface | done |
 | 10 | A living Earth (owner, with the fourth phone results): the whole planet in real detail, seas, lakes and rivers, real forests, clouds to fly through, weather | done |
 | 11 | The painted look (owner: a new art direction for the whole game, Earth and its forests first) | seventh delivery sent (Earth from space to landing: the globe with its clouds, relief and cloud shadows from the air, a canopy of crowns and far trees; and a governor that no longer sinks to its floor). Before it: sixth delivery (Earth: trees as cut-out foliage on a skeleton with dark hearts, far trees as silhouettes, grass and flowers, a full sky of clouds that keep their place, the land from the air, ground loaded ahead and from high up, a tide, rain in strips, squalls; 57 fps on the phone at the third, 54 at the fifth with Earth at 48: the sixth is the answer to that and is not measured yet); the other worlds to follow |
+| 12 | **A small living world** (owner, 2026-11-23: "simply flying somewhere beautiful ... a living world": a made-up planet small enough to show its curve and its mountains from the air, water that follows the land, seasons, five biomes, in the look of the owner's reference pictures) | in progress: delivery 1 (the planet and its first biome) |
 
 ## 1. Phone link and measurement
 
@@ -190,3 +191,31 @@ the data stay real; how they are drawn changes.
 2. The forest: tree shapes that are known by their outline, grass, cut rocks.
 3. Sky, clouds and water in the same hand; then the other worlds, one by one.
 
+
+## 12. A small living world
+
+The owner's direction since 2026-11-23 (`CLAUDE.md`, "What this game is"). One world,
+`haven`, made by rule; the real solar system stays as it is and is no longer where the
+work goes. Each delivery is something to fly and judge on the phone, and each asks for
+a benchmark when it adds cost.
+
+1. **The planet.** A small world (250 km in radius): the horizon bends from a few
+   kilometres up, mountains stand on its edge from space. Peaks, stepped plateaus,
+   canyons, valleys and a sea, shaped by rule and baked into maps
+   (`scripts/make-world.mjs`); rivers and lakes worked out from the land (the hydrology
+   Earth uses); the first biome: mountain pine forest, the one in the owner's pictures.
+   Flyable from space to the ground.
+2. **The look on the ground**: big faceted rock, ridge behind ridge with trees on the
+   skyline, mist over water, light shafts, a colour pair for each time of day.
+3. **Living water**: rivers with a current, rapids and falls, lakes, a tidal sea, rain
+   that swells streams and leaves puddles.
+4. **Seasons**: a year of its own; leaves turn, fall with the wind and gather on the
+   ground; snow comes and goes.
+5. to 8. **Four more biomes**, one a delivery. Proposed to the owner (who may swap any):
+   red-rock canyon desert; a broadleaf valley of lakes; tropical islands with a lagoon;
+   high snow peaks with fjords.
+
+Where "as close as possible" stops, as told to the owner: water follows the land and
+moves convincingly but is not a simulation of every drop; places are made by rule, with
+a few composed by hand in each biome; the look takes the pictures' principles, never
+that game's artwork.
