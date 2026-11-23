@@ -625,7 +625,8 @@ as Earth is; what differs is where the maps come from.
 - **`trees.js`**: keeps the blocks within `radius` (240 m) of the traveller, asks for the
   nearest missing one when a worker is idle, and builds instance lists: one mesh per
   shape and distance (near mesh under 110 m, far mesh beyond; `treeGeometry.js`), all
-  measured from an anchor at the traveller (rebuilt every 25 m of travel). One material:
+  measured from an anchor at the traveller (rebuilt every 25 m of travel; beyond the radius
+  a tree is thrown out of the picture, the far forest's to draw). One material:
   the shared lighting, light wrapped round and through crowns, shadows asked for a
   little outside the crown; wind (lean and swing by height and distance from the trunk);
   the seasons (leaves turn, then draw in to the branches, by the date and hemisphere,
@@ -652,17 +653,43 @@ as Earth is; what differs is where the maps come from.
 - **The air of a wood** (`forestAir` in the lighting chunk): trees, the forest's floor and
   the far canopy are mixed toward the sky's light by distance (to 38 % by some hundreds of
   metres): row behind row of trees paler, and the far forest lighter than the near.
-- **The far trees** (`groves.js`, `life.trees.far: { radius, spacing, below }`): beyond the
-  trees one walks among, one tree shape in every few out to 2 km, each the picture of a
-  whole tree on two crossed quads with a rosette in its crown (what a far mesh is), in
-  **one instanced draw** (the shape is a number of the instance's own; where each picture
-  is in the atlas is read off the far meshes). Placed by `treeBlock` itself on blocks of
-  0.01 degrees with a site every 30 m (job `trees` with `deg` and `salt`), so the same
-  land cover, slopes, water and tree line decide. They grow in where the nearer trees
-  end and are drawn after the ground: the raised canopy hides their lower part for
-  nothing, and their crowns stand out of it. From higher than the nearer trees are drawn
-  (1 500 m) they begin at the eye: they are the trees a traveller sees coming down.
-  Governor step `far-trees` (half of them); the cost test leaves them out as a part.
+- **The far forest** (`farForest.js`, `life.trees.far: { full, radius, below }`): beyond the
+  trees one walks among, **the same trees**, at the same places, thinned with distance, out
+  to `radius` (5.6 km on Haven and Earth). Each is the picture of a whole tree on two
+  crossed quads with a rosette in its crown (what a far mesh is; the shape is a number of
+  the instance's own and where each picture is in the atlas is read off the far meshes).
+  - **Rank.** Every tree site has one (`treeBlock.js`, `siteRank`): a hash of the site
+    alone, 0..1, of nothing else — not of the chance its class gives it, its species or its
+    shape. A **band** of ranks can therefore be asked for on its own, and a thinner band is
+    a subset of a thicker one, at the very same places.
+  - **How many stand at a distance.** `keep(d) = (full / d)^2`, capped at 1: full density
+    out to `full` (450 m), then thinner and thinner. A tree is drawn when its rank is under
+    `keep` at its own distance from the eye, and **grows in** from nothing as that distance
+    closes, so none pops. The thinned ones stand up to 1.5 times wider (`keep^-0.25`), so a
+    wood keeps its cover; beyond that the canopy the ground shader raises carries it.
+  - **Tiles.** `treeTile` works out a square of tree blocks in one worker job (`treeTile`
+    in the terrain workers), one band of ranks of it. Level 0 asks for the thickest band
+    (a quarter of the sites and up) over 8 x 8 blocks (889 m); each level after it asks for
+    a quarter of that band over twice the side, and is drawn twice as far out, so every
+    distance costs about the same number of tiles and of trees. Four levels: 889 m to
+    7.1 km, ranks 1 down to 1/64. Each tile is one instanced mesh from a **fixed pool**
+    (40 tiles, 6 144 trees each), filled when it arrives and again, from the same data,
+    when the traveller has come close enough to want more of it (hysteresis: it is filled
+    with 1.35 times what the nearest corner needs). Nothing is worked out per tree per
+    frame. The mesh is put where its tile stands so that three culls it against the view
+    and sorts the tiles front to back; the vertices themselves come from the tile's own
+    uniform, camera-relative.
+  - **The join.** Inside the near trees' radius nothing of the far forest is drawn, and
+    beyond it `trees.js` draws nothing: a clean cut by distance from the eye in both
+    shaders, on the same tree, with the same picture, size, turn, season and colours (the
+    far forest's fragment shader is the card path of the near trees' own, and leaf and bark
+    colours are packed over their real range so the two cannot differ at the line).
+  - Drawn after the ground: the raised canopy hides a far tree's lower part for nothing and
+    its crown stands out of it. Governor step `far-trees`: it **thins** them (the widening
+    goes with it, so a wood is still a wood) and shortens their reach, never removes them.
+    The cost test leaves them out as a part. `window.__stats.farTrees` says how many stand
+    in the picture and how many instances the tiles hand the GPU (some are thrown out in
+    the vertex shader as too thin for their distance).
 - **The canopy's crowns** (`crowns()` in the ground shader): the raised forest is shaded as
   domes side by side, 8 m apart (and the stands they grow in, 21 m): each tilts the
   surface outward from its middle, is lighter on top and dark in the gaps, and has a green
@@ -680,7 +707,7 @@ as Earth is; what differs is where the maps come from.
   eye by how far from overhead one looks: the canopy shows the sides of its crowns, lit
   with the Sun behind the eye and dark against it, as the trees drawn one by one are.
 - Governor steps: `leaves`, `tree-shadows` (the far meshes stop casting), `trees-far`
-  (two thirds of the radius).
+  (two thirds of the radius), `far-trees` (the far forest thinned).
 
 ## Clouds with depth (`src/sky/cloudVolume.js`)
 

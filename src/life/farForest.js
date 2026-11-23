@@ -43,7 +43,14 @@ const BAND = 4;               // each level's band of ranks is this much thinner
 const LEVELS = 4;             // 1, 1/4, 1/16, 1/64 of the sites: the last band is everything below
 const CAP = 6144;             // trees drawn from one tile (a fixed pool; the thickest band of a close tile)
 const POOL = 40;              // tiles drawn at once
-const MARGIN = 1.7;           // a tile is filled with rather more trees than are wanted now, so that coming nearer does not refill it at once
+const MARGIN = 1.35;           // a tile is filled with rather more trees than are wanted now, so that coming nearer does not refill it at once
+
+// Three bytes of colour in one number a float can hold exactly (the shader takes it apart).
+// Leaves and bark are dark (0.03 to 0.6 of the light that falls on them): the byte covers
+// that range, not 0 to 1, so that a far tree's green is the near one's to within a part in
+// three hundred and the two cannot differ at the line where they meet.
+const COLOUR_TOP = 0.75;
+function pack(c) { const b = (v) => Math.round(Math.min(1, Math.max(0, v / COLOUR_TOP)) * 255); return b(c[0]) * 65536 + b(c[1]) * 256 + b(c[2]); }
 
 // The band of ranks a level holds: [lo, hi).
 function band(level) { return [level >= LEVELS - 1 ? 0 : BAND ** -(level + 1), BAND ** -level]; }
@@ -88,7 +95,7 @@ export class FarForest {
       uniform vec4 uRectTree[CELLS], uRectRose[CELLS], uRoseGeo[CELLS];
       uniform vec4 uFar;
       out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out vec2 vUv; out vec2 vOwn;
-      vec3 unpack(float p) { float r = floor(p / 65536.0), g = floor((p - r * 65536.0) / 256.0); return vec3(r, g, p - r * 65536.0 - g * 256.0) / 255.0; }
+      vec3 unpack(float p) { float r = floor(p / 65536.0), g = floor((p - r * 65536.0) / 256.0); return vec3(r, g, p - r * 65536.0 - g * 256.0) * (${COLOUR_TOP.toFixed(3)} / 255.0); }
       void main() {
         vec3 foot = uTileRel + iA.xyz;
         float d = length(foot);
@@ -163,7 +170,7 @@ export class FarForest {
     this.asked = 0; this.frame = 0; this.serial = -1; this.missing = 0; this.lastMs = 0;
     this.fraction = 1; this.count = 0; this.drawn = 0;
     this._e = [0, 0, 0]; this._n = [0, 0, 0]; this._u = [0, 0, 0];
-    this._p = new THREE.Vector3();
+    this._p = new THREE.Vector3(); this._rel = new THREE.Vector3();
     this.setWorld(trees.world);
   }
 
@@ -205,7 +212,7 @@ export class FarForest {
   // never takes a wood away (a wood must still be a wood at the floor).
   setFraction(f) { this.fraction = f; }
 
-  get triangles() { return this.drawn * 6; }
+  get triangles() { return this.count * 6; }
   // True while tiles that are wanted have not arrived (screenshots wait for them).
   get busy() { return !!this.def && this.shown && (this.asked > 0 || this.missing > 0); }
 
@@ -223,7 +230,7 @@ export class FarForest {
     this.shown = shown;
     if (!shown) {
       for (const s of this.pool) s.mesh.visible = false;
-      this.drawn = 0; this.missing = 0;
+      this.count = 0; this.held = 0; this.missing = 0;
       return;
     }
     // The governor thins the trees and shortens their reach; the look of a wood is kept by
@@ -232,7 +239,7 @@ export class FarForest {
     // (they begin where the trees one walks among end; from higher than those are drawn, at the eye)
     const nearShown = tr.def && rig.agl < (tr.def.below ?? 1500), inner = nearShown ? (tr.def.radius ?? 240) * tr.fraction : 0;
     this.shared.uFar.value.set(full, radius, inner, this.fraction);
-    const p = this._p.copy(rig.pos), R = this.world.radius;
+    const p = this._p.copy(rig.pos), R = this.world.radius, s0 = this._rel;
     const len = p.length(), lat = Math.asin(p.z / len) * 180 / Math.PI, lon = ((Math.atan2(p.y, p.x) * 180 / Math.PI) + 360) % 360;
     // new land cover or new elevation: every tile is worked out again (the ones that stand
     // stay until their new trees come)
@@ -267,18 +274,24 @@ export class FarForest {
     }
     want.sort((a, b) => a.near - b.near);
 
-    // ask a worker for the nearest tile that has none of its trees yet, when the ground and
-    // the trees near by have nothing waiting
-    if (this.asked < 1 && t.workers.idle && !t.tiles.busy && t.wanted.length === 0 && !(tr.missing > 0)) {
-      const tile = want.find((b) => !b.asking && (b.state !== 1 || b.stale));
-      if (tile) this._ask(tile);
+    // Ask the workers for the nearest tiles that have none of their trees yet, when the
+    // ground and the trees near by have nothing waiting. One worker is always left free for
+    // the ground, and the tiles are asked for nearest first.
+    if (!t.tiles.busy && t.wanted.length === 0 && !(tr.missing > 0)) {
+      const room = Math.min(3, t.workers.idle - 1) - this.asked;
+      for (let i = 0, got = 0; got < room && i < want.length; i++) {
+        const tile = want[i];
+        if (tile.asking || (tile.state === 1 && !tile.stale)) continue;
+        if (!this._ask(tile)) break;
+        got++;
+      }
     }
 
     // which tiles get a place in the pool: the nearest first
     const take = want.filter((b) => b.state === 1).slice(0, POOL);
-    const held = new Set(take);
-    for (const s of this.pool) if (s.tile && !held.has(s.tile)) this._free(s.tile);
-    let drawn = 0;
+    const keptTiles = new Set(take);
+    for (const s of this.pool) if (s.tile && !keptTiles.has(s.tile)) this._free(s.tile);
+    let drawn = 0, given = 0;
     for (const tile of take) {
       if (!tile.slot) {
         const s = this.pool.find((q) => !q.tile);
@@ -289,24 +302,27 @@ export class FarForest {
       // see (whatever the governor is thinning them to: stepping back up must not refill),
       // and some to spare, so that coming nearer does not fill it again at once.
       const need = Math.min(1, full * full / Math.max(tile.near * tile.near, 1));
-      if (tile.fillKeep < need || tile.fillKeep > need * MARGIN * 4) this._fill(tile, Math.min(1, need * MARGIN));
       const s = tile.slot;
+      if (tile.fillKeep < need || tile.fillKeep > need * MARGIN * 4) this._fill(tile, Math.min(1, need * MARGIN), s0.subVectors(tile.origin, p));
       s.material.uniforms.uTileRel.value.subVectors(tile.origin, p);
       s.mesh.position.copy(s.material.uniforms.uTileRel.value);
       // (the tile is drawn when a tree of its band could be; the view culls it by its bounds)
       const vis = tile.count > 0 && tile.near <= Math.min(radius, band(tile.level)[0] > 0 ? full / Math.sqrt(band(tile.level)[0]) : radius);
       s.mesh.visible = vis;
-      if (vis) drawn += tile.count;
+      if (vis) { drawn += tile.shown; given += tile.count; }
     }
-    this.drawn = drawn; this.count = drawn;
+    // (count: the trees standing in the picture. held: the instances the tiles hand the
+    // GPU, some of which the vertex shader throws out as too thin for their distance.)
+    this.count = drawn; this.held = given;
     // tiles left far behind are let go
     if (this.frame % 240 === 0) for (const [k, b] of this.tiles) if (this.frame - b.used > 600 && !b.asking) { this._free(b); this.tiles.delete(k); }
   }
 
+  // Asks a worker for a tile's trees. False when no worker took it.
   _ask(tile) {
     const t = this.terrain, def = this.def, [lo, hi] = band(tile.level), epoch = t.epoch, serialAt = this.serial;
     const job = t.workers.run({ type: 'treeTile', ti: tile.ti, tj: tile.tj, blocks: tile.blocks, spacing: def.spacing ?? this.trees.def?.spacing ?? 7, lo, hi });
-    if (!job) return;
+    if (!job) return false;
     tile.asking = true; this.asked++;
     job.then((res) => {
       this.asked--; tile.asking = false;
@@ -316,12 +332,13 @@ export class FarForest {
       tile.stale = serialAt !== this.serial; tile.fillKeep = -1;
       this.lastMs = res.ms ?? 0;
     }).catch((e) => { this.asked--; tile.asking = false; if (tile.state === 0) this.tiles.delete(tile.key); console.error(e); });
+    return true;
   }
 
   // Fill a tile's buffers from the trees the worker gave it: those whose rank is under
   // `keep`. The buffers are written here and not touched again until the traveller has
   // come close enough to want more.
-  _fill(tile, keep) {
+  _fill(tile, keep, eyeRel = null) {
     const s = tile.slot, T = tile.data, iA = s.iA.array, iB = s.iB.array, iC = s.iC.array;
     localFrame([tile.origin.x, tile.origin.y, tile.origin.z], this._e, this._n, this._u);
     const u = s.material.uniforms;
@@ -347,13 +364,23 @@ export class FarForest {
     // (what was asked for, not what fitted: a tile already full must not be filled again
     // every frame)
     tile.count = n; tile.fillKeep = keep; tile.capped = cut < keep;
+    // How many of them stand in the picture as it is now (the vertex shader throws out the
+    // rest, each by its own distance): for the read-out, worked out only when a tile is filled.
+    if (eyeRel) {
+      const full = this.shared.uFar.value.x, inner = this.shared.uFar.value.z, far = this.shared.uFar.value.y;
+      let shown = 0;
+      for (let k = 0; k < n; k++) {
+        const x = iA[k * 4] + eyeRel.x, y = iA[k * 4 + 1] + eyeRel.y, z = iA[k * 4 + 2] + eyeRel.z, d2 = x * x + y * y + z * z;
+        if (d2 < inner * inner || d2 > far * far) continue;
+        if (iC[k * 4] < Math.min(1, full * full / Math.max(d2, 1))) shown++;
+      }
+      tile.shown = shown;
+    } else tile.shown = n;
     s.geo.instanceCount = n;
     s.geo.boundingSphere.center.set(0, 0, 0); s.geo.boundingSphere.radius = Math.sqrt(far2) + 20;
     for (const a of [s.iA, s.iB, s.iC]) { a.clearUpdateRanges?.(); a.addUpdateRange?.(0, Math.max(1, n) * 4); a.needsUpdate = true; }
   }
 }
 
-// Three bytes of colour in one number a float can hold exactly (the shader takes it apart).
-function pack(c) { return Math.round(Math.min(1, Math.max(0, c[0])) * 255) * 65536 + Math.round(Math.min(1, Math.max(0, c[1])) * 255) * 256 + Math.round(Math.min(1, Math.max(0, c[2])) * 255); }
 
 export { BASE_BLOCKS, BAND, LEVELS, band, CAP };
