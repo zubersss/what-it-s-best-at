@@ -384,26 +384,46 @@ as before.
   tufts, cut lumps; their crowns carry a pattern of leaf bunches in three tones
   (`leafCells`, in the tree's own metres). Rocks are lit by their faces. Clouds are two
   octaves of puff with a clean edge and two tones.
-- **Grass and flowers** (`life/grass.js`): three lattices fixed to the ground that wrap
-  round the camera: grass close by (120 x 120 tufts 0.22 m apart, eight blades), grass
-  farther out (144 x 144 at 0.5 m, seven blades), flowers (96 x 96 at 0.45 m: a stem,
-  five petals, a middle). A tuft is its lattice number and a hash, nothing is kept per
-  tuft; instances are drawn in a scrambled order, so the governor's share is a count of
-  instances. The ground under them is a 64 x 64 table at 1.25 m kept on the CPU, also
-  wrapping (only the rows that come in ahead are worked out, 200 places a frame), sent as
-  a float texture between frames: height, how much grass, how dry, and the flowers there
-  (whole part: which of seven kinds; fraction: how many). Land cover decides the grass
-  (`AMOUNT`, `DRY` by IGBP class) and, with latitude and height, the kinds of flower
-  (`FLORA`); noise over the world's own coordinates makes patches of one kind some 40 m
-  across and drifts within them.
+- **Grass and flowers** (`life/grass.js`, rules in `life/grassRules.js`): grass has no end.
+  Three kinds of thing carry it, each giving way to the next over a stretch of distance:
+  - *blades* on three lattices fixed to the ground that wrap round the camera: grass close
+    by (128 x 128 tufts 0.2 m apart, eight blades, to 12 m), grass farther out (144 x 144 at
+    0.5 m, seven blades, to 34 m), flowers (108 x 108 at 0.4 m: a stem, five petals, a
+    middle, to 20 m);
+  - *clumps* (`CLUMPS`): three more lattices of cards of two triangles (200 x 200 at 0.8 m
+    from 13-30 m to 50-74 m; 200 x 200 at 2 m to 135-188 m; 220 x 220 at 5 m to 360-520 m),
+    each card a cut-out of many blades from a picture made at start-up (`makeClumpPicture`:
+    cover, tone, flower heads; mip maps made on the CPU). A card faces the eye with a turn
+    of its own, leans back when looked down on, and grows from nothing where its field
+    comes in (`keepOf`). Far clumps take the light of the slope they stand on (from the
+    table's heights), near ones the light of level ground as the blades do;
+  - *the ground's own grass* (`terrainMaterial.js`, the block at `uGrassTone`): gentle
+    ground takes the grass's colour to 600 m and fades to the map's by 2.5 km, with the
+    wind's waves running over it (`uGrassWave`, the same waves the blades bow to) and the
+    flowers' drifts as a dusting (the same rule, in GLSL: no texture read).
+  A tuft or clump is its lattice number and a hash, nothing is kept per tuft; instances
+  are drawn in a scrambled order, so a share is a count. The ground under them is three
+  tables kept on the CPU that wrap (64 x 64 at 1.25 m, 128 x 128 at 4 m, 128 x 128 at
+  10 m; nearest places first, 300 a frame, all at once in screenshot mode), float textures
+  sent between frames: height, how much grass, how dry, and the flowers there (whole part:
+  which of seven kinds; fraction: how many). Everything stands on a plane (the anchor)
+  that steps 40 m at a time when the traveller is 200 m from it, its axes carried along;
+  every spacing divides 40 m, so no tuft, table entry or pattern changes at a step, and
+  the shaders take off the world's curve (0.7 m at 600 m on Haven). `grassRules.js` holds
+  what the grass and the ground must agree on, once: `AMOUNT`, `DRY`, `FLORA` by land
+  cover, `flowersAt` in JavaScript and the same in GLSL, the grass's colour, the waves.
+  `uGrassTone`: x mean dryness, y the share of the ground round the traveller that is
+  grass, z the flora, w strength. By height the blades go between 45 and 90 m over the
+  ground and the clumps between 121 and 220 m (`grass.below`, `grass.mid` in a world's
+  file). Governor: `grass-mid` halves the clumps and widens the ones left; `grass`
+  thins the blades.
 - **The land from the air** (painted look): the tile worker draws each pixel of the colour
   ring part of the way to a clean colour of its land-cover class (`cover.paint`,
   `cover.colours` in the world file; classes not listed keep the satellite's colour).
   The ground shader adds stretches of lighter and darker ground with clean edges (two
   looks at the detail texture's fourth channel at 2.9 km and 780 m repeats, by the
-  direction's longitude and latitude: whole repeats round the globe), and out to 900 m
-  blends gentle ground toward `uGrassTone`, the mean colour of the grass drawn round the
-  traveller (written by `life/grass.js`).
+  direction's longitude and latitude: whole repeats round the globe), and lays the
+  grass's own colour on gentle ground (see "Grass and flowers").
 - **Tree shapes** (`life/treeGeometry.js`; `scripts/tree-preview.mjs` draws them all):
   eight shapes, each built three times over with other proportions (`VARIANTS`), each at
   three distances: close (within 42 m), near (115 m), far. Trunk and limbs are tubes; the
