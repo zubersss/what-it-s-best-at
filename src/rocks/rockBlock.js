@@ -36,6 +36,7 @@ const ss = (a, b, x) => { const t = (x - a) / (b - a); return t <= 0 ? 0 : t >= 
 //            fineness of the ground they are stood on, m), forest (how much closed forest
 //            takes away: the largest stand out of the trees), shadow (false: no shadow
 //            patches for the level: its rocks are seen little farther than the shadow map reaches)
+//            seenTo (metres: no rock of the level is seen from farther, whatever its size)
 //   share    [lo, hi] (m): rocks up to lo are seen from SMALL_SHARE of their reach, from hi on from all of it
 // A level's tile is about as wide as its largest rock is seen from far, so every level
 // needs the same few tiles round the traveller, and a view holds three or four of each:
@@ -46,9 +47,10 @@ export const ROCKS_FAR_DEFAULTS = {
     { size: [1.4, 3.4], tile: 0.012, sites: 128, density: 0.46, cap: 3072, wl: 2, forest: 0.6 },
     { size: [3.4, 8], tile: 0.03, sites: 128, density: 0.36, cap: 4096, wl: 6, forest: 0.4 },
     { size: [8, 20], tile: 0.075, sites: 128, density: 0.36, cap: 4096, wl: 10, forest: 0.15 },
-    // (the talus near the eye: the small blocks of a rock slope, seen from 200 to 480 m.
+    // (the talus near the eye: the blocks of a rock slope, many, and seen from 310 m at
+    // most whatever their size: the budget of a view is spent where the traveller stands.
     // Last in the list, so that the levels before it keep their numbers and their rocks.)
-    { size: [0.6, 1.4], tile: 0.004, sites: 128, density: 0.33, cap: 3072, wl: 1, forest: 0.9, shadow: false },
+    { size: [0.7, 2.6], tile: 0.004, sites: 128, density: 0.33, cap: 3072, wl: 1, forest: 0.9, shadow: false, seenTo: 310 },
   ],
   share: [3.4, 8],
 };
@@ -185,7 +187,10 @@ export function rockBlock(hs, L, li, bi, bj) {
     // from how far it is seen, as a size (`seen`, a share of its own in a byte): under a
     // closed canopy a rock cannot be seen from outside the wood, so there it is drawn to
     // 150 m or so, and only the few that stand above the trees from afar
-    const under = ss(0.35, 0.7, closed), sq = Math.max(1, Math.round(255 * Math.max(1 - under * (1 - ss(9, 16, size)), Math.min(1, CANOPY_SEEN / ((L.reach || 420) * size)))));
+    const under = ss(0.35, 0.7, closed), reach = L.reach || 420;
+    let share = Math.max(1 - under * (1 - ss(9, 16, size)), Math.min(1, CANOPY_SEEN / (reach * size)));
+    if (L.seenTo) share = Math.min(share, L.seenTo / (reach * SMALL_SHARE * size));
+    const sq = Math.max(1, Math.round(255 * share));
     found.push({ size, sq, e: size * sq / 255, x: d[0] * r - origin[0], y: d[1] * r - origin[1], z: d[2] * r - origin[2], q: [q1[0], q1[1], q1[2], q1[3]], sx: size * sx, sy: size * sy, sz: size * sz,
       shape: hash3(bi * 131 + i, bj * 137 + j, 71, salt), tone: (h4 & 0x7f) + (cls === 15 ? 128 : 0), gE: slopeByte(gE), gN: slopeByte(gN) });
   }
