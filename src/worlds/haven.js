@@ -145,7 +145,7 @@ export default {
     // ground: scripts/find-overlook.mjs, then a sketch by scripts/peek.mjs; then moved 66 m to
     // where no tree stands between the low Sun and the view: the pine beside the first spot
     // laid its shadow across the whole foreground: scripts/tree-shadows-at.mjs --search 75)
-    start: { lat: -48.54992, lon: 49.05567, eye: 1.7, heading: 235, pitch: -2 },
+    start: { lat: -48.54992, lon: 49.05567, eye: 1.7, heading: 222, pitch: -2 },
     ship: { east: -30, north: -45, heading: 30 },
     // (coverFrom, globe: the small globe from space is held where its colours show: see post.js)
     exposure: { key: 0.18, min: 0.5, max: 2.0e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, coverFrom: 0.0006, globe: 0.3 },
@@ -155,7 +155,7 @@ export default {
       { name: 'from the air', lat: -48.54992, lon: 49.05567, alt: 5000, heading: 235, pitch: -14 },
     ],
     bookmarks: {
-      ledge: { label: 'The first morning', heading: 235, pitch: -2, fov: 60 },
+      ledge: { label: 'The first morning', heading: 222, pitch: -2, fov: 60 },
       sun: { label: 'The Sun coming up', heading: 64, pitch: 12, fov: 40 },
       wall: { label: 'The range across the valley', heading: 250, pitch: 3, fov: 26 },
       ship: { label: 'The lander', east: -20, north: -12, heading: 230, pitch: 3, fov: 50 },
