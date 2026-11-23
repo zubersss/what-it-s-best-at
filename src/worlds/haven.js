@@ -79,7 +79,7 @@ export default {
     // (the stones underfoot stop at 1.4 m: from there up a rock is the land's own, `far`, the same
     // block at the same place from kilometres off to arm's length; with both making 2 m
     // rocks there were doubled ones, and near ones that shrank away as one walked off)
-    rocks: { count: 300, radius: 110, size: [0.3, 1.4], albedo: [0.24, 0.17, 0.12], far: { albedo: [0.25, 0.2, 0.145], clear: [[-48.56367, 49.04424, 60]], check: { steep: [-48.8066, 47.22265], level: [-54.4271, 39.2697] } } },
+    rocks: { count: 300, radius: 110, size: [0.3, 0.7], albedo: [0.24, 0.17, 0.12], far: { albedo: [0.25, 0.2, 0.145], clear: [[-48.56367, 49.04424, 60]], check: { steep: [-48.8066, 47.22265], level: [-54.4271, 39.2697] } } },
   },
 
   // Air like Earth's in what it does to light (the same Sun, the same blue), standing

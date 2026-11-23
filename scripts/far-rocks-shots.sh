@@ -20,7 +20,7 @@ declare -A Q=(
   [steep_join]="$STEEP&heading=135&pitch=-6"     # (standing in the field: near stones and far blocks in one view)
   [floor]="$STEEP&alt=2053&heading=135&pitch=-14&debug=floor"
 )
-ORDER=(steep_air100 steep_air400 ledge_phone wall steep_ground steppe_ground ledge tele floor steppe_air30 ledge_north steep_join)
+ORDER=(steep_ground steep_air100 steep_join steep_air400 ledge_north ledge_phone wall steppe_ground ledge tele floor steppe_air30)
 [ $# -gt 0 ] && ORDER=("$@")
 fail=0
 for v in "${ORDER[@]}"; do

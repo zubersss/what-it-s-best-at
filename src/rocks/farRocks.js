@@ -31,9 +31,9 @@ import { CONFIG } from '../config.js';
 import { ROCK_SHAPE_GLSL, rockGeometry } from './rocks.js';
 import { rocksFarDef, tileDeg, tileLon, rockTop, SMALL_SHARE, shareOf } from './rockBlock.js';
 
-const POOL = [14, 14, 14];            // tiles held at once, by level (fixed: memory cannot creep)
+const POOL = [14, 14, 14, 16];            // tiles held at once, by level (fixed: memory cannot creep)
 const VIS_TURN = 0.9998;              // the land's shadow on the rocks is asked again when the Sun has moved 1.1 degrees
-const COLLIDE_FROM = 1;               // levels from this one on carry a walker (rocks of 3.4 m and more)
+const COLLIDE_FROM = 3.4;             // levels whose rocks are this large and more carry a walker (m)
 
 const VERT = /* glsl */`
 in vec4 aOff;            // xyz: the rock's middle from the tile's origin (m, planet axes), w: its size (m)
@@ -253,7 +253,7 @@ export class FarRocks {
     const s = world.surface, r = s.rocks, u = this.uniforms;
     u.uRockAlbedo.value.set(...(this.def.albedo || s.rock)); u.uDustAlbedo.value.set(...s.dust); u.uRoughness.value = s.roughness ?? 0.5; u.uDustCap.value = r.dustCap ?? 0.55;
     this.uFar.value.x = this.def.reach;
-    this.shareLo = this.def.levels[0].size[1]; this.shareHi = (this.def.levels[1] || this.def.levels[0]).size[1] + 1e-3; this.uShareSize.value.set(this.shareLo, this.shareHi);
+    this.shareLo = this.def.share[0]; this.shareHi = this.def.share[1] + 1e-3; this.uShareSize.value.set(this.shareLo, this.shareHi);
   }
 
   // The governor: the share of their distance the small rocks keep (the large ones keep all of it).
@@ -342,7 +342,7 @@ export class FarRocks {
       s.shadowN = dmin < shadowR ? nLo : 0;
       // (their shadows on the ground: of the rocks seen from under 0.72 of their reach)
       let nSh = 0;
-      if (this.shadows && nLo) { let a = 0, z = nLo; while (a < z) { const m = (a + z) >> 1; if (sizes[m] * smallK(sizes[m]) * 0.72 > dmin) a = m + 1; else z = m; } nSh = a; }
+      if (this.shadows && nLo && this.def.levels[s.li].shadow !== false) { let a = 0, z = nLo; while (a < z) { const m = (a + z) >> 1; if (sizes[m] * smallK(sizes[m]) * 0.72 > dmin) a = m + 1; else z = m; } nSh = a; }
       s.shade.visible = nSh > 0; s.shade.geometry.instanceCount = nSh;
       all += nLo;
       sp.center.set(c.x + b.bound[0], c.y + b.bound[1], c.z + b.bound[2]); sp.radius = b.bound[3];
@@ -425,7 +425,7 @@ export class FarRocks {
       this._tint(slot, b);
       for (const m of [slot.mesh, slot.shade]) { m.geometry.boundingSphere.center.set(res.bound[0], res.bound[1], res.bound[2]); m.geometry.boundingSphere.radius = res.bound[3]; }
       // (kept for whoever walks among them: the larger levels only)
-      b.solid = li >= COLLIDE_FROM ? { off, quat: slot.at.aQuat.array, scale: slot.at.aScale.array, shape: slot.at.aShape.array } : null;
+      b.solid = this.def.levels[li].size[0] >= COLLIDE_FROM - 1e-6 ? { off, quat: slot.at.aQuat.array, scale: slot.at.aScale.array, shape: slot.at.aShape.array } : null;
     }, (e) => {
       // (a tile that cannot be worked out is asked twice more and then left empty, with a word:
       // asked for ever, it would keep every screenshot waiting and say nothing)

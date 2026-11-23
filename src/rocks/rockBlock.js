@@ -34,17 +34,23 @@ const ss = (a, b, x) => { const t = (x - a) / (b - a); return t <= 0 ? 0 : t >= 
 //            tile's side), density (the share of the sites that hold a rock where the ground
 //            is all rock), cap (the most a tile holds: the largest are kept), wl (the
 //            fineness of the ground they are stood on, m), forest (how much closed forest
-//            takes away: the largest stand out of the trees)
+//            takes away: the largest stand out of the trees), shadow (false: no shadow
+//            patches for the level: its rocks are seen little farther than the shadow map reaches)
+//   share    [lo, hi] (m): rocks up to lo are seen from SMALL_SHARE of their reach, from hi on from all of it
 // A level's tile is about as wide as its largest rock is seen from far, so every level
 // needs the same few tiles round the traveller, and a view holds three or four of each:
 // the draw calls are counted in tiles.
 export const ROCKS_FAR_DEFAULTS = {
   reach: 420, below: 12000,
   levels: [
-    { size: [1.4, 3.4], tile: 0.012, sites: 128, density: 0.42, cap: 3072, wl: 2, forest: 0.6 },
+    { size: [1.4, 3.4], tile: 0.012, sites: 128, density: 0.55, cap: 3072, wl: 2, forest: 0.6 },
     { size: [3.4, 8], tile: 0.03, sites: 128, density: 0.5, cap: 4096, wl: 6, forest: 0.4 },
     { size: [8, 20], tile: 0.075, sites: 128, density: 0.6, cap: 4096, wl: 10, forest: 0.15 },
+    // (the talus near the eye: the small blocks of a rock slope, seen from 200 to 480 m.
+    // Last in the list, so that the levels before it keep their numbers and their rocks.)
+    { size: [0.6, 1.4], tile: 0.004, sites: 128, density: 0.4, cap: 3072, wl: 1, forest: 0.9, shadow: false },
   ],
+  share: [3.4, 8],
 };
 export function rocksFarDef(world) {
   const f = world?.surface?.rocks?.far;
