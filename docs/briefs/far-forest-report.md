@@ -249,6 +249,25 @@ the shadow maps those trees had no shadow of the land on them, ever. Both are do
    the `trees-far` step now does something else; `src/app.js` has three lines for the map.
    None of this is measured on a phone.
 
+### The proofs asked for after T1 to T8 (one line each)
+
+- **T2 (cap):** check 6 of `scripts/far-trees-test.mjs`; with `CAP` at 6 144 it fails (north
+  wood 9 464 and 11 425 wanted, golden shore 7 709, 6 455, 7 209), with 12 288 it passes.
+- **T3 (the 240 m line):** check 7a, on the real trees round the north wood: after 25 m of
+  travel, 16 ways, 0 of 56 424 trees inside the radius are outside the near list; with the
+  list 10 m past the radius, as it was, **1 798** were drawn by nobody. The rule is read
+  from `trees.js` (`nearListReach`), and the check fails if the old rule would have passed.
+- **T4 (the clock run fast):** `node scripts/far-forest-clock.mjs` runs the two real update
+  loops frame by frame against workers that answer three frames later, the Sun going round
+  at 3600 x. This code: first sweep in after 2.0 s, then 302 far tiles asked for again in
+  18 s (17 a second), 538 near blocks, the near lists made again 0.9 times a second. The
+  code before T4 (`--src` a copy of d2bc994): "the first sweep never finished", exit 1.
+- **T5 (asked ahead):** check 7b: with each of 121 blocks in turn not yet come, 0 of its
+  trees lie inside the near trees' reach (`nearReach`); with the reach always the full
+  radius, as it was, 3 515 did. Check 7c: levels are drawn to 976, 1 952, 3 905 m, where
+  their lowest ranks begin to grow (`GROW`, which the shader now takes from `farTiles.js`),
+  not 900, 1 800, 3 600, and asked for 10 % before.
+
 ## Tests
 
 - `node scripts/far-trees-test.mjs` (3 s, no browser): a tile holds exactly the trees of its

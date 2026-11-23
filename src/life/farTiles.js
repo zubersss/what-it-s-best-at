@@ -14,11 +14,14 @@ export const LEVELS = 4;             // 1, 1/4, 1/16, 1/64 of the sites: the las
 // The band of ranks a level holds: [lo, hi).
 export function band(level) { return [level >= LEVELS - 1 ? 0 : BAND ** -(level + 1), BAND ** -level]; }
 
+// A tree of rank r begins to grow in where keep(d) passes GROW x r, and is full size where
+// keep(d) = r (the far forest's vertex shader takes the number from here).
+export const GROW = 0.85;
 // How far from the eye a level's trees are drawn (m). A tree of rank r begins to grow in
 // where keep(d) passes 0.85 r (the vertex shader's smoothstep), which for the band's lowest
 // rank is a twelfth farther out than where keep(d) = lo: cut at that nearer line, the
 // lowest ranks of a band came in already full size.
-export function levelReach(level, full, radius) { const lo = band(level)[0]; return Math.min(radius, lo > 0 ? full / Math.sqrt(0.85 * lo) : radius); }
+export function levelReach(level, full, radius) { const lo = band(level)[0]; return Math.min(radius, lo > 0 ? full / Math.sqrt(GROW * lo) : radius); }
 // Tiles are asked for this much before they can show a tree (the worker needs the time).
 export const LEAD = 1.1;
 

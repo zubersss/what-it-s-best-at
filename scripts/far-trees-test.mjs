@@ -16,7 +16,8 @@
 import { loadWorld } from './lib/loadWorld.mjs';
 import { setMadeCover } from './lib/madeCover.mjs';
 import { treeBlock, treeTile, blockDeg, blockLon, TREE_FLOATS, siteRank, tileSpan, tileRow, tileOf } from '../src/life/treeBlock.js';
-import { wantedTiles, levelReach } from '../src/life/farTiles.js';
+import { wantedTiles, levelReach, GROW, LEAD } from '../src/life/farTiles.js';
+import { REBUILD_M, nearListReach, nearReach } from '../src/life/trees.js';
 import { band, LEVELS, BASE_BLOCKS, CAP, MARGIN } from '../src/life/farForest.js';
 
 const PLACES = [
@@ -185,6 +186,57 @@ for (const [name, lat, lon] of PLACES.slice(1)) {
     check(n <= CAP, `${name}, level ${L}: the tile under the traveller wants ${n} trees in a buffer of ${CAP}`);
   }
   console.log(`${name}: trees wanted in the buffer of the tile underfoot, ${line.join(', ')} (it holds ${CAP})`);
+}
+
+// 7. The line at the near trees' radius, on the real trees round a place. Both shaders cut
+// by distance from the EYE: the near trees draw inside the radius, the far forest outside.
+//   a. The near trees' list is made round the place it was made at and made again after
+//      REBUILD_M of travel: every tree within the radius of the eye, wherever the eye has
+//      got to by then, must be in the list (or nobody draws it).
+//   b. A block of near trees that has not come must have none of its trees inside the near
+//      trees' reach (nearReach: no farther than the blocks that are in), or nobody draws
+//      them: the far forest draws only outside that reach.
+//   c. A far tree of a level's lowest rank begins to grow where keep(d) passes GROW x rank:
+//      the level must be drawn (levelReach) at least that far, and asked for before (LEAD).
+{
+  const [name, lat, lon] = PLACES[1], RADIUS_NEAR = world.life?.trees?.radius ?? 240;
+  setMadeCover(hs, world, lat, lon);
+  const rad = Math.PI / 180, at = (la, lo, up) => { const c = Math.cos(la * rad), u = [c * Math.cos(lo * rad), c * Math.sin(lo * rad), Math.sin(la * rad)], r = world.radius + hs.height(u[0], u[1], u[2], 30) + up; return [u[0] * r, u[1] * r, u[2] * r]; };
+  const A = at(lat, lon, 1.7), bi0 = Math.floor(lat / DEG), nb = 5, blocksNear = [];
+  for (let bi = bi0 - nb; bi <= bi0 + nb; bi++) { const dLon = blockLon(bi, DEG), bj0 = Math.floor(lon / dLon); for (let bj = bj0 - nb; bj <= bj0 + nb; bj++) {
+    const b = treeBlock(hs, bi, bj, 7), mid = at((bi + 0.5) * DEG, (bj + 0.5) * dLon, 0), pos = [];
+    for (let k = 0, q = 0; k < b.count; k++, q += TREE_FLOATS) pos.push([b.origin[0] + b.trees[q], b.origin[1] + b.trees[q + 1], b.origin[2] + b.trees[q + 2]]);
+    blocksNear.push({ mid, pos });
+  } }
+  const all = blocksNear.flatMap((b) => b.pos);
+  // a. eyes REBUILD_M from where the list was made, sixteen ways (along the ground, near enough)
+  const e = [-A[1], A[0], 0], el = Math.hypot(...e), E = e.map((x) => x / el), al = Math.hypot(...A), N = [A[1] * E[2] - A[2] * E[1], A[2] * E[0] - A[0] * E[2], A[0] * E[1] - A[1] * E[0]].map((x) => x / al);
+  let nobody = 0, nobodyOld = 0, inside = 0;
+  for (let k = 0; k < 16; k++) {
+    const c = Math.cos(k * Math.PI / 8) * REBUILD_M, s = Math.sin(k * Math.PI / 8) * REBUILD_M, eye = [A[0] + E[0] * c + N[0] * s, A[1] + E[1] * c + N[1] * s, A[2] + E[2] * c + N[2] * s];
+    for (const p of all) { if (apart(p, eye) >= RADIUS_NEAR) continue; inside++; const d = apart(p, A); if (d > nearListReach(RADIUS_NEAR)) nobody++; if (d > RADIUS_NEAR + 10) nobodyOld++; }
+  }
+  console.log(`${name}: after ${REBUILD_M} m of travel, of ${inside} trees inside the near radius (16 ways) ${nobody} are not in the near list (a list 10 m past the radius, as it was: ${nobodyOld})`);
+  check(inside > 1000 && nobody === 0, `${name}: ${nobody} trees inside the near trees' radius are in nobody's list after ${REBUILD_M} m of travel`);
+  check(nobodyOld > 0, `${name}: the check of the near list cannot fail (a list 10 m past the radius lost no tree)`);
+  // b. each block in turn has not come
+  let lost = 0, lostOld = 0, shortest = 1e9;
+  for (const b of blocksNear) {
+    const d = apart(b.mid, A), reach = nearReach(RADIUS_NEAR, d);
+    for (const p of b.pos) { const dp = apart(p, A); if (dp < reach) lost++; if (dp < RADIUS_NEAR) lostOld++; }
+    if (b.pos.length) shortest = Math.min(shortest, reach);
+  }
+  console.log(`${name}: with each of ${blocksNear.length} blocks in turn not yet come, ${lost} of its trees lie inside the near trees' reach (with the reach always the full radius, as it was: ${lostOld}); the shortest reach ${shortest.toFixed(0)} m`);
+  check(lost === 0, `${name}: ${lost} trees of a block that has not come lie inside the near trees' reach, where the far forest draws nothing`);
+  check(lostOld > 0, `${name}: the check of the reach cannot fail`);
+  // c.
+  for (let L = 0; L < LEVELS - 1; L++) {
+    const [lo] = band(L), begins = Math.min(RADIUS, FULL / Math.sqrt(GROW * lo));
+    check(levelReach(L, FULL, RADIUS) >= begins - 1e-6, `level ${L}: its lowest rank begins to grow at ${begins.toFixed(0)} m, and the level is drawn to ${levelReach(L, FULL, RADIUS).toFixed(0)} m only`);
+    check(Math.min(RADIUS, FULL / Math.sqrt(lo)) < begins || begins === RADIUS, `level ${L}: the check of the level's reach cannot fail`);
+  }
+  check(LEAD > 1.05, 'far tiles are asked for before they can show a tree');
+  console.log(`levels drawn to ${[0, 1, 2, 3].map((L) => levelReach(L, FULL, RADIUS).toFixed(0)).join(', ')} m (their lowest ranks begin to grow there; cut where keep = the rank, as it was: ${[0, 1, 2].map((L) => (FULL / Math.sqrt(band(L)[0])).toFixed(0)).join(', ')} m), asked for ${((LEAD - 1) * 100).toFixed(0)} % before`);
 }
 
 // rank itself: a site's own number, spread evenly

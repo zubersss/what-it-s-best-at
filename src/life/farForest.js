@@ -37,7 +37,7 @@ import { localFrame } from '../core/ephemeris.js';
 import { VARIANTS } from './treeGeometry.js';
 import { SPECIES } from './cover.js';
 import { TREE_FLOATS } from './treeBlock.js';
-import { BASE_BLOCKS, BAND, LEVELS, band, levelReach, wantedTiles } from './farTiles.js';
+import { BASE_BLOCKS, BAND, LEVELS, band, levelReach, wantedTiles, GROW } from './farTiles.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
 import { PAINT_LEAF } from './trees.js';
 import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
@@ -108,7 +108,7 @@ export class FarForest {
         // how many of the sites here carry a tree at this distance, and whether this one is
         // among them: it grows in as the traveller comes nearer, and never pops
         float keep = min(1.0, uFar.x * uFar.x / max(d * d, 1.0)) * uFar.w;
-        float grow = smoothstep(iC.x * 0.85, iC.x + 1e-5, keep) * (1.0 - smoothstep(uFar.y * 0.86, uFar.y, d));
+        float grow = smoothstep(iC.x * ${GROW.toFixed(3)}, iC.x + 1e-5, keep) * (1.0 - smoothstep(uFar.y * 0.86, uFar.y, d));
         // (inside the trees one walks among nothing here is drawn: they are the same trees)
         if (grow <= 0.0 || d < uFar.z) { vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vUv = vec2(0.0); vOwn = vec2(0.0); vShade = 0.0; gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
         // (the thinned ones stand a little wider, so a wood keeps its cover)

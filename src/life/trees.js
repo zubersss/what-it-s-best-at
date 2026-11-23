@@ -20,7 +20,17 @@ import { blockDeg, TREE_FLOATS, blockLon } from './treeBlock.js';
 
 const CLOSE_CAP = 192, NEAR_CAP = 768, FAR_CAP = 4096;       // instances of one shape: close, near and far mesh
 const CLOSE_M = 42, NEAR_M = 115;             // trees nearer than these get the close mesh (every leaf), the near mesh
-const REBUILD_M = 25;                        // the instance lists are made again when the traveller has moved this far
+export const REBUILD_M = 25;                 // the instance lists are made again when the traveller has moved this far
+// How far from where a list was made its trees reach: every tree that can come within the
+// radius of the eye before the list is made again (the cut at the radius is by distance
+// from the eye, and the far forest draws nothing inside it).
+export const nearListReach = (radius) => radius + REBUILD_M + 5;
+// How far from the eye the near trees are drawn, given how far off the middle of the
+// nearest block is whose trees have not come (a block's corner is 79 m from its middle):
+// no farther than the blocks that are in. The far forest begins there.
+export const nearReach = (radius, noTrees) => Math.max(0, Math.min(radius, noTrees - 80));
+// Blocks are asked for from this many radii over the ground (trees can be drawn from one).
+export const ASK_ABOVE = 1.6;
 
 // The painted look's leaf: a cleaner green of the tree's own kind, warm for broad leaves, a
 // cold blue-green for firs and spruces, told by the colour the species has. (The far trees
@@ -272,7 +282,7 @@ export class Trees {
     // how far these trees reach from the eye, 0 when none are drawn; the far forest and
     // the raised canopy both start where it ends — goes no farther than the blocks that
     // are in: where a block has not come, its trees stay the far forest's to draw.
-    const show = rig.agl < Math.min(def.below ?? 1500, radius * 1.6) && !!t.coverSerial;
+    const show = rig.agl < Math.min(def.below ?? 1500, radius * ASK_ABOVE) && !!t.coverSerial;
     if (!show) this.reach = 0;
     // (hidden: the cost test takes the near trees out without moving the line the far forest begins at)
     for (const s of this.sets.flat(2)) s.mesh.visible = show && !this.hidden && s.count > 0 && this.atlasReady;
@@ -294,7 +304,7 @@ export class Trees {
     if (serial !== this.serial) { this.serial = serial; for (const b of this.blocks.values()) b.stale = true; }
     // (a block is 111 m on any world: so many degrees on this one, so many metres a degree)
     const DEG = blockDeg(this.world.radius), M = this.world.radius * Math.PI / 180;
-    const bi0 = Math.floor(lat / DEG), nb = Math.ceil((radius + REBUILD_M + 5) / 111.2);
+    const bi0 = Math.floor(lat / DEG), nb = Math.ceil(nearListReach(radius) / 111.2);
     let noTrees = 1e9, want = null, wantD = 1e9, sunWant = null, sunD = 1e9; const sunNow = this.shared.uSunDir.value, now = performance.now(), sweep = now - (this.sweepAt || 0) > 1000;
     this.sunStale = 0;
     for (let bi = bi0 - nb; bi <= bi0 + nb; bi++) {
@@ -302,7 +312,7 @@ export class Trees {
       for (let bu = bj0 - nb; bu <= bj0 + nb; bu++) {
         // (the block's middle, in metres from the traveller along the ground)
         const dy = ((bi + 0.5) * DEG - lat) * M, dx = ((bu + 0.5) * dLon - lon) * M * Math.cos(lat * Math.PI / 180), d = Math.hypot(dx, dy);
-        if (d > radius + 80 + REBUILD_M + 5) continue;
+        if (d > nearListReach(radius) + 80) continue;
         const bj = ((bu % count) + count) % count;          // (the lattice goes once round the world and meets itself)
         const key = bi + ':' + bj, b = this.blocks.get(key);
         if (b) {
@@ -324,7 +334,7 @@ export class Trees {
         if (d < wantD) { wantD = d; want = [bi, bj, key]; }
       }
     }
-    this.reach = Math.max(0, Math.min(radius, noTrees - 80));
+    this.reach = nearReach(radius, noTrees);
     if (!want) want = sunWant;
     // (the lists are made again once, when a sweep for the Sun is all in)
     if (this.sunDirty && this.sunStale === 0 && this.asked <= 0) { this.sunDirty = false; this.dirty = true; }
@@ -363,7 +373,7 @@ export class Trees {
     const u = this.shared;
     u.uTreeEast.value.set(...this._e); u.uTreeNorth.value.set(...this._n); u.uTreeUp.value.set(...this._u);
     for (const s of this.sets.flat(2)) s.count = 0;
-    const r2 = (radius + REBUILD_M + 5) ** 2,          // (the list must hold every tree that can come within the radius before it is made again: the cut at the radius is by distance from the eye, and the far forest draws nothing inside it)
+    const r2 = nearListReach(radius) ** 2,
        near2 = (NEAR_M * this.fraction) ** 2, close2 = (CLOSE_M * this.fraction) ** 2 * (this.closeOn === false ? 0 : 1);
     let nearest = 1e9, names = new Map(), falling = 0, near = 0;
     for (const b of this.blocks.values()) {
