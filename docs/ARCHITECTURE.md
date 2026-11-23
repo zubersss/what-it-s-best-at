@@ -626,7 +626,10 @@ ring: it is not asked for.
 - **The canopy's crowns** (`crowns()` in the ground shader): the raised forest is shaded as
   domes side by side, 8 m apart (and the stands they grow in, 21 m): each tilts the
   surface outward from its middle, is lighter on top and dark in the gaps, and has a green
-  of its own; a jittered lattice with a whole number of cells across the detail tile. They
+  of its own; a jittered lattice with a whole number of cells across the detail tile, and
+  different in every tile of a block 16 tiles a side (`DETAIL_PERIOD`: a patch's tile
+  coordinates are kept modulo 16 tiles, 1 km; with the same 64 crowns in every tile the
+  forest was a cloth woven in squares from the air). They
   fade out as a crown nears a pixel and a half. With the relief light this is what makes
   a forest a forest from the air, where it was one even green.
 - The canopy stands on slopes up to about 28 degrees and is gone by 40 (the trees' own
@@ -669,9 +672,17 @@ ring: it is not asked for.
   level set by the cover; the top of the layer at each place stands higher the further
   the noise is over that level (a dome over each heap's middle). The cover is of one
   level: the sky seen from below is the union of all of them and much fuller.
-- `volume.fair`: fair-weather cloud. Where the day's map shows no cloud the cover is still
-  `fair` times a slow field (the cloud noise at a 47 km repeat), so there are fields of
-  small heaps and clear stretches; the shell has the same rule with its own puffs.
+- `volume.fair`: fair-weather cloud (`FAIR_GLSL`, `fairCover`, in `sky/clouds.js`: one
+  rule for the volume, the shell and the ground's shadows). Where the day's map shows no
+  cloud the cover is still `fair` times a slow field (the cloud noise at a 38 km repeat:
+  fields of small heaps and clear stretches) times a slower one (its cells at a 190 km
+  repeat: the fields stand in clusters some tens of kilometres across with clear country
+  between). The heaps' noise repeats every `scale` (4.2 km): without the clusters one
+  even field was the same few heaps in rows to the horizon, seen from 30 km.
+  `node scripts/cloud-field.mjs` draws the field from above in a second.
+- `CloudVolume.place` works out where the base stands every frame, drawn or not: the shell
+  shows the volume's heaps (and the ground their shadows) from any height, on the first
+  way in from space and with the governor's last saving on.
 - The Sun on the cloud is a painter's, not the physical sum: `sunward` (less cloud 280 m
   toward the Sun than here, and height in the cloud) picks between a light shade (0.45)
   and full light; only a cover that is nearly whole darkens what is under it (storms).
@@ -930,7 +941,7 @@ exposure alone decides whether they are visible.
   and a side in its own shade (the same heap a few hundred metres toward the Sun,
   `relief`); **the ground is shaded by the same heap** where the sunbeam to it crosses the
   layer (`uCloudHeap`, `uCloudVol`, `uCloudWind`, `tCloudNoise` in the ground shader, the
-  fifteenth of its sixteen textures): every cloud has its shadow beside it on the land,
+  sixteenth of its sixteen textures): every cloud has its shadow beside it on the land,
   and nothing is shaded where no cloud is drawn.
   **From far off** (`far`: where a pixel is 1.5 to 5 km wide across the line of sight, and
   a heap no more than a pixel or two) a field of heaps is a white veil as thick as the share of sky
