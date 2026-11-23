@@ -470,10 +470,11 @@ void main() {
       vec3 leaves = vec3(0.040, 0.078, 0.028) * mix(vec3(1.0), mapTint, 0.6) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
       // (in their season, in patches: the trees that turn among those that do not)
       leaves = mix(leaves, mix(vec3(0.17, 0.10, 0.02), vec3(0.13, 0.035, 0.015), smoothstep(-0.1, 0.25, c1.r)) * (0.8 + 0.6 * (c2.b + 0.5)), uLitter * 0.85 * smoothstep(-0.12, 0.1, c2.r + 0.5 * c1.g));
-      // (not from so far off that a texel of the ground's maps is a hundred metres: there the
-      // forest is what the picture from space shows, not one flat green laid over it in
-      // blocks: the canopy's map has pixels a kilometre wide)
-      float ownC = 1.0 - smoothstep(25.0, 160.0, chunkTexel);
+      // (not from far off: there the forest is what the picture from space shows, not one
+      // flat green laid over it in blocks: the canopy's map has pixels a kilometre wide)
+      // (by distance, not by the patch's texel: a patch a step finer than its neighbours was
+      // a square of darker green in the land, seen from 30 km)
+      float ownC = 1.0 - smoothstep(3000.0, 19000.0, dist);
       // Crowns, 8 m apart, and the stands they grow in, 21 m: where one is larger than a
       // pixel or so it is a dome with its own light and shade and its own green, and the
       // gaps between are dark. (Without them the far forest was one even green from the
