@@ -14,7 +14,7 @@ import { Governor, MODES, FRAME } from './perf/governor.js';
 import { Benchmark } from './perf/benchmark.js';
 import { waveHeightAt, waveScale } from './water/waves.js';
 import { Trees } from './life/trees.js';
-import { Groves } from './life/groves.js';
+import { FarForest } from './life/farForest.js';
 import { Leaves } from './life/leaves.js';
 import { CloudVolume } from './sky/cloudVolume.js';
 import { Weather } from './weather/weather.js';
@@ -284,8 +284,9 @@ export class App {
       this.nearScene.add(set.mesh);
       this.nearShadow.addCaster(set.cast, this.trees.depthMaterial, () => set.mesh.visible && (set.lod <= 1 || this.trees.shadowsFar));
     }
-    // (the far trees: a wider ring of tree shapes that rise out of the raised forest)
-    this.groves = new Groves(this.trees, this.terrain); this.nearScene.add(this.groves.mesh);
+    // (the far forest: the same trees as those near by, thinned with distance, out to some
+    // kilometres; they rise out of the forest the ground shader raises as a whole)
+    this.farForest = new FarForest(this.trees, this.terrain); this.nearScene.add(this.farForest.mesh);
     this.grass = new Grass(this.terrain, this.terrain.shared.uWind); this.grass.setWorld(world);
     this.nearScene.add(this.grass.mesh);
     this.leaves = new Leaves(this.trees);
@@ -1086,7 +1087,7 @@ export class App {
       this.terrain.setWorld(w, data.rasters, data.hs);
       this.clouds.setWorld(w); this.cloudVolume.setWorld(w); this.cloudVolume.setGround(data.rasters[0]);
       this.rocks.setWorld(w, data.hs);
-      this.trees.setWorld(w); this.groves.setWorld(w); this.weather.setWorld(w); this.look.setWorld(w); this.grass.setWorld(w);
+      this.trees.setWorld(w); this.farForest.setWorld(w); this.weather.setWorld(w); this.look.setWorld(w); this.grass.setWorld(w);
       this.dust.setWorld(w);
       this.placeLander(w, data.hs);
       this.bodies.setWorld(w);
@@ -1225,9 +1226,9 @@ export class App {
     {
       const d = this.clock, day = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000;
       this.trees.update(rig, day, this.terrain.shared.uWave.value.z);
-      this.groves.update(rig);
+      this.farForest.update(rig);
       // (beyond the trees the forest is raised as a whole; from high up, all of it)
-      const tr = this.trees, drawn = tr.def && rig.agl < (tr.def.below ?? 1500), r = (tr.def?.radius ?? 240) * tr.fraction;
+      const tr = this.trees, drawn = tr.reach > 0, r = tr.reach;
       // (it is up to its height where the last trees stand: from above, the ground showed
       // brown in a ring between the trees and the canopy)
       this.terrain.shared.uShell.value.set(drawn ? r * 0.62 : 0, drawn ? r * 0.98 : 1, tr.def ? 1 : 0);
@@ -1405,9 +1406,9 @@ export class App {
     }
 
     if (this.shotMode) {
-      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.trees.busy && !this.groves.busy && !this.grass.busy && !this.cloudVolume.busy && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && !this.clouds.loading && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
+      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.trees.busy && !this.farForest.busy && !this.grass.busy && !this.cloudVolume.busy && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && !this.clouds.loading && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
       window.__shotReady = ready;
-      window.__stats = { weather: this.weather.def ? `wind ${this.weather.windSpeed.toFixed(0)} m/s, rain ${this.weather.rain.toFixed(1)} mm/h, snow ${this.weather.snow.toFixed(1)}, ${this.weather.temp.toFixed(0)} C, sun ${this.weather.sunShade.toFixed(2)}, sky ${this.weather.skyShade.toFixed(2)}, top ${Math.round(this.weather.top)} m` : '', trees: `${this.trees.count} (${Math.round(this.trees.triangles / 1000)}k triangles)${this.trees.names ? ': ' + this.trees.names : ''}`, farTrees: this.groves.count, water: this.terrain.tiles.rings.map((r) => r.info ? `z${r.zoom}: ${r.info.rivers} rivers, ${Math.round(r.info.flow)} m3/s${r.info.inflow ? '' : ' (no inflow)'}` : null).filter(Boolean).join('; '), stale: this.terrain.staleData, tilesBusy: this.terrain.tiles.busy, refreshQ: this.terrain.readyRefresh.length, rings: this.terrain.ringSerial, tileFails: this.terrain.tiles.failures, busyW: this.terrain.workers.busy, calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.clouds.loading ? 'clouds' : ''}` };
+      window.__stats = { weather: this.weather.def ? `wind ${this.weather.windSpeed.toFixed(0)} m/s, rain ${this.weather.rain.toFixed(1)} mm/h, snow ${this.weather.snow.toFixed(1)}, ${this.weather.temp.toFixed(0)} C, sun ${this.weather.sunShade.toFixed(2)}, sky ${this.weather.skyShade.toFixed(2)}, top ${Math.round(this.weather.top)} m` : '', trees: `${this.trees.count} (${Math.round(this.trees.triangles / 1000)}k triangles)${this.trees.names ? ': ' + this.trees.names : ''}`, farTrees: `${this.farForest.count} standing (${this.farForest.held} handed to the GPU)`, water: this.terrain.tiles.rings.map((r) => r.info ? `z${r.zoom}: ${r.info.rivers} rivers, ${Math.round(r.info.flow)} m3/s${r.info.inflow ? '' : ' (no inflow)'}` : null).filter(Boolean).join('; '), stale: this.terrain.staleData, tilesBusy: this.terrain.tiles.busy, refreshQ: this.terrain.readyRefresh.length, rings: this.terrain.ringSerial, tileFails: this.terrain.tiles.failures, busyW: this.terrain.workers.busy, calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.clouds.loading ? 'clouds' : ''}` };
     }
   }
 

@@ -107,7 +107,11 @@ export default {
   // rule's own tree line); flora: what grows, the first entry that fits (life/cover.js:
   // species by number; upTo: how far up toward the tree line).
   life: {
-    trees: { radius: 240, spacing: 7, below: 1500, far: { radius: 2000, spacing: 30, below: 5000 }, line: { base: 3548, perDeg: 38.7, from: 0 } },
+    trees: { radius: 240, spacing: 7, below: 1500,
+      // The far forest (life/farForest.js): the same trees as those within `radius`, at the
+      // same places, out to `radius` of their own. `full`: full density out to here, then
+      // thinner as (full / distance)^2, the thinned ones standing a little wider.
+      far: { full: 450, radius: 5600, below: 6000 }, line: { base: 3548, perDeg: 38.7, from: 0 } },
     grass: { below: 90 },
     flora: [
       { near: true, upTo: 0.6, mix: [[6, 2], [5, 2], [0, 1]] },                    // by water: cottonwood, aspen

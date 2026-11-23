@@ -23,7 +23,7 @@ const REBUILD_M = 25;                        // the instance lists are made agai
 
 // The painted look's leaf: a cleaner green of the tree's own kind, warm for broad leaves, a
 // cold blue-green for firs and spruces, told by the colour the species has. (The far trees
-// of life/groves.js take it from here: the two must be one green.)
+// of life/farForest.js take it from here: the two must be one green.)
 export const PAINT_LEAF = /* glsl */`
 vec3 paintLeaf(vec3 c) {
   vec3 hue = mix(vec3(0.62, 1.0, 0.36), vec3(0.36, 1.0, 0.62), smoothstep(-0.2, 0.2, (c.b - c.r) / max(c.g, 1e-4)));
@@ -39,6 +39,7 @@ uniform vec3 uAnchorRel, uTreeEast, uTreeNorth, uTreeUp;
 uniform vec4 uTreeWind;      // xyz: where the wind blows to (unit), w: its speed (m/s)
 uniform vec3 uSeason;        // x: how far the leaves have turned, y: how bare the branches are, z: time (s)
 uniform float uTreeRadius;
+bool treeCull;                // set by treePosition: this tree is the far forest's to draw
 vec3 treePosition(out vec3 foot, out float leaf) {
   foot = uAnchorRel + iA.xyz;
   float c = cos(iB.y), s = sin(iB.y);
@@ -52,8 +53,12 @@ vec3 treePosition(out vec3 foot, out float leaf) {
   float gust = 0.6 + 0.4 * sin(uSeason.z * 0.7 + dot(iA.xyz, uTreeWind.xyz) * 0.05 + iB.z * 6.28);
   float swing = sin(uSeason.z * (1.6 + iB.z) + iB.z * 40.0 + p.y * 3.0) * 0.5 + 0.5 * sin(uSeason.z * 3.7 + iB.z * 17.0 + p.x * 9.0);
   float bend = aSway * iA.w * (0.004 * uTreeWind.w * gust + 0.0025 * uTreeWind.w * swing);
-  // (out to nothing at the edge of the trees' radius, so none pops in)
-  float fade = 1.0 - smoothstep(uTreeRadius * 0.86, uTreeRadius, length(foot));
+  // The far forest (life/farForest.js) draws the very same trees beyond this radius, with
+  // the same picture at the same size: the two are cut against each other by distance from
+  // the eye, and a tree is drawn by exactly one of them. (They used to shrink away over the
+  // last 14 % of the radius, from when nothing stood beyond it.)
+  treeCull = length(foot) > uTreeRadius;
+  float fade = 1.0;
   leaf = aLeaf;
   // (single leaves flutter, each in its own time, harder the harder it blows)
   vec3 flutter = vec3(0.0);
@@ -92,6 +97,8 @@ export class Trees {
         void main() {
           vec3 foot; float leaf;
           vec3 rel = treePosition(foot, leaf);
+          // (beyond the radius the far forest draws this tree: out of the picture here)
+          if (treeCull) { vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vLeaf = 0.0; vY = 0.0; vOwn = vec2(0.0); vTreeM = vec3(0.0); vUv = vec2(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
           vTreeM = vec3(position.x * iB.x, position.y, position.z * iB.x) * iA.w + iB.z * 37.0;        // metres in the tree's own frame (for the pattern of its leaves)
           vRel = rel; vN = treeNormal(); vLeaf = leaf; vY = position.y; vLeafC = iC; vTrunkC = iD; vOwn = vec2(iB.z, iB.w); vUv = aUv;
           gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
@@ -188,7 +195,8 @@ export class Trees {
       vertexShader: /* glsl */`${TREE_VERT}
         out float vLeaf; out vec2 vUv; out float vBare;
         void main() {
-          vec3 foot; float leaf; gl_Position = projectionMatrix * viewMatrix * vec4(treePosition(foot, leaf), 1.0); vLeaf = leaf; vUv = aUv;
+          vec3 foot; float leaf; vec3 rel = treePosition(foot, leaf);
+          gl_Position = treeCull ? vec4(2.0, 2.0, 2.0, 1.0) : projectionMatrix * viewMatrix * vec4(rel, 1.0); vLeaf = leaf; vUv = aUv;
           // (a whole tree's card keeps its leaves in winter: its shadow then is thinned instead)
           vBare = aLeaf > 3.5 ? min(iB.w, 1.0) * uSeason.y : 0.0;
         }`,
@@ -232,7 +240,7 @@ export class Trees {
     this.blocks = new Map();                 // 'bi:bj' -> { state: 0 asked, 1 ready, origin, trees, count, used }
     this.asked = 0; this.frame = 0; this.serial = -1;
     this.anchor = new THREE.Vector3(); this.builtAt = new THREE.Vector3(1e12, 0, 0); this.dirty = false;
-    this.fraction = 1; this.shadowsFar = true; this.count = 0; this.triangles = 0;
+    this.fraction = 1; this.shadowsFar = true; this.count = 0; this.triangles = 0; this.reach = 0;
     this.names = '';                          // the species standing nearest, for anyone who asks
     this._e = [0, 0, 0]; this._n = [0, 0, 0]; this._u = [0, 0, 0];
     this.setWorld(world);
@@ -243,7 +251,7 @@ export class Trees {
     this.blocks.clear(); this.asked = 0; this.dirty = true; this.serial = -1;
     this.shared.uSeason.value.set(0, 0, 0);
     for (const s of this.sets.flat(2)) { s.count = 0; s.geo.instanceCount = 0; if (s.castGeo) s.castGeo.instanceCount = 0; s.mesh.visible = false; }
-    this.count = 0; this.triangles = 0; this.names = ''; this.falling = 0;
+    this.count = 0; this.triangles = 0; this.names = ''; this.falling = 0; this.reach = 0;
   }
 
   // True while blocks that are wanted have not arrived (screenshots wait for them).
@@ -255,7 +263,12 @@ export class Trees {
     const def = this.def, t = this.terrain;
     if (!def) return;
     const R = this.world.radius, radius = (def.radius ?? 240) * this.fraction;
-    const show = rig.agl < (def.below ?? 1500) && !!t.coverSerial;
+    // Above the radius itself no tree can be within it of the eye (the cut is a sphere round
+    // the eye, and the far forest draws everything outside it): blocks are not even asked
+    // for up there. `reach`: how far these trees reach from the eye, 0 when none are drawn —
+    // the far forest and the raised canopy both start where this ends.
+    const show = rig.agl < Math.min(def.below ?? 1500, radius) && !!t.coverSerial;
+    this.reach = show ? radius : 0;
     for (const s of this.sets.flat(2)) s.mesh.visible = show && s.count > 0 && this.atlasReady;
     const p = rig.pos, len = p.length(), lat = Math.asin(p.z / len) * 180 / Math.PI, lon = ((Math.atan2(p.y, p.x) * 180 / Math.PI) + 360) % 360;
     {
