@@ -104,6 +104,16 @@ the ones left 1.4 times wider. Nothing removes the grass; `debug=floor` is still
   "eastshore". The grass pictures are from open steppe found by a search
   (`lat=-54.4271&lon=39.2697&heading=120`, ground at 1 461 m): names `steppe_*`.
 
+## Last round (after the first DONE)
+
+On the view from 120 m (`haven_ledge_steppe_a120_after.png`, retaken on this build):
+the wind's waves on the far ground are now a few bent gusts with gaps (strength and bend
+by one slow noise 240 m across, a hint only beyond 600 m) instead of even parallel
+stripes; a flower drift from above is thickest in its middle with nothing at its edge,
+broken by the fine specks, and the pale kinds tint the ground least; the last clumps fade
+over 320 to 545 m (was 360 to 520). Problems 1 and 3 below are much fainter in that
+picture; the arc is no longer something I can point to in it.
+
 ## Pictures (`docs/shots/far-grass/`, `_before` and `_after`)
 
 All 660 x 309 at `--dsf 1`, files `haven_<bookmark>_<name>_before|after.png`. "Steppe" is
