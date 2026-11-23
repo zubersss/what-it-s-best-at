@@ -36,6 +36,7 @@ import { localFrame } from '../core/ephemeris.js';
 import { VARIANTS } from './treeGeometry.js';
 import { SPECIES } from './cover.js';
 import { TREE_FLOATS, blockLon, blockDeg } from './treeBlock.js';
+import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
 import { PAINT_LEAF } from './trees.js';
 
 const BASE_BLOCKS = 8;        // level 0: 8 x 8 tree blocks (889 m); level L: that doubled L times
@@ -139,7 +140,13 @@ export class FarForest {
       ${PAINT_LEAF}
       void main() {
         vec3 cut = texture(tTreeAtlas, vUv).rgb;
-        if (cut.r < 0.3) discard;
+        // The cut-out, taken exactly as the near trees take it (trees.js): lower the farther
+        // off, because averaged down a tree's needles and leaves cover less of a pixel and a
+        // tree would thin to nothing. A threshold of its own here made the trees just outside
+        // the near radius thinner than the same trees just inside it.
+        vec2 px = vUv * vec2(${ATLAS_W}.0, ${ATLAS_H}.0);
+        float lod = 0.5 * log2(max(max(dot(dFdx(px), dFdx(px)), dot(dFdy(px), dFdy(px))), 1.0));
+        if (cut.r < mix(0.42, 0.16, clamp(lod / 3.0, 0.0, 1.0))) discard;
         bool wood = cut.b > 0.5;
         vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel), N = normalize(vN);
         // leaves in their season: green, then this tree's own gold, orange or red
@@ -212,8 +219,10 @@ export class FarForest {
   }
 
   // The governor: this share of the far trees. It thins them and shortens their reach; it
-  // never takes a wood away (a wood must still be a wood at the floor).
-  setFraction(f) { this.fraction = f; }
+  // never takes a wood away (a wood must still be a wood at the floor). The tiles are
+  // filled again at the new share, so that a thinned forest costs the GPU less and not
+  // merely looks thinner.
+  setFraction(f) { if (f !== this.fraction) { this.fraction = f; for (const b of this.tiles.values()) b.fillEye = null; } }
 
   get triangles() { return this.count * 6; }
   // True while tiles that are wanted have not arrived (screenshots wait for them).
@@ -350,7 +359,7 @@ export class FarForest {
     localFrame([tile.origin.x, tile.origin.y, tile.origin.z], this._e, this._n, this._u);
     const u = s.material.uniforms;
     u.uTileEast.value.set(...this._e); u.uTileNorth.value.set(...this._n); u.uTileUp.value.set(...this._u);
-    const full2 = this.shared.uFar.value.x ** 2, inner2 = this.shared.uFar.value.z ** 2, far2 = this.shared.uFar.value.y ** 2;
+    const uf = this.shared.uFar.value, full2 = uf.x ** 2, inner2 = uf.z ** 2, far2 = uf.y ** 2, thin = uf.w;
     const ex = eyeRel.x, ey = eyeRel.y, ez = eyeRel.z;
     let n = 0, bound2 = 0, shown = 0, margin = MARGIN;
     for (let pass = 0; pass < 4; pass++) {
@@ -358,7 +367,7 @@ export class FarForest {
       for (let k = 0, q = 0; k < tile.have; k++, q += TREE_FLOATS) {
         const x = T[q], y = T[q + 1], z = T[q + 2], rank = T[q + 8];
         const dx = x + ex, dy = y + ey, dz = z + ez, d2 = dx * dx + dy * dy + dz * dz;
-        const keep = Math.min(1, full2 / Math.max(d2, 1));
+        const keep = Math.min(1, full2 / Math.max(d2, 1)) * thin;
         if (rank >= margin * keep) continue;
         if (n >= CAP) break;
         // (how many of them the vertex shader will draw, for the read-out)
