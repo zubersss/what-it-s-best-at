@@ -108,4 +108,4 @@ export const GRASS_GLSL = /* glsl */`
 export const WAVE_K = 0.35;
 // The ground's own grass: where it gives way to the map's colour (m from the eye), and how
 // much of a drift of flowers is flowers seen from afar (as much as on the clumps' picture).
-export const GRASS_GROUND = { far: [600, 2500], flowers: 0.15 };
+export const GRASS_GROUND = { far: [600, 2500], flowers: 0.07 };

@@ -270,9 +270,11 @@ const CLUMP_VERT = /* glsl */`
     if (cc.w < -m || abs(cc.x) > cc.w + m * (1.0 + projectionMatrix[0][0]) || abs(cc.y) > cc.w + m * (1.0 + abs(projectionMatrix[1][1]))) OUT_OF_PICTURE
     vec3 toCam = normalize(-foot), flat3 = toCam - uGrassUp * dot(toCam, uGrassUp);
     float fl = length(flat3); flat3 = fl > 1e-4 ? flat3 / fl : uGrassNorth;
-    vec3 side = cross(uGrassUp, flat3);
+    // (turned a little its own way: cards all square to the eye were a hatching of level strokes from above)
+    float yaw = (h2.y - 0.5) * 1.3;
+    vec3 side = cross(uGrassUp, flat3) * cos(yaw) + flat3 * sin(yaw);
     float rise = clamp(dot(toCam, uGrassUp), 0.0, 1.0);
-    vec3 cup = normalize(uGrassUp + flat3 * rise * 1.4);
+    vec3 cup = normalize(uGrassUp + flat3 * rise * 2.0);
     vec3 w = windAt(foot, h.x);
     float y = aCorner.y;
     vRel = foot + side * (aCorner.x * 0.5 * wide) + cup * (y * tall) + (uGrassEast * w.x + uGrassNorth * w.y) * (tall * 1.4 * y * y);
@@ -281,7 +283,7 @@ const CLUMP_VERT = /* glsl */`
     vFoot = grassColour(dry, 0.0) * shade; vTip = grassColour(dry, 1.0) * shade;
     // (flowers: the drift this clump stands in says what kind and how many clumps carry some)
     float fk = tableNearest(tTable, uTab, at).a, kind = floor(fk + 0.001);
-    vFlower = vec4(petalColour(kind, h.y), step(0.5, kind) * step(hash2(cell + 5.1).x, fract(fk + 0.001) * 1.1));
+    vFlower = vec4(petalColour(kind, h.y), step(0.5, kind) * step(hash2(cell + 5.1).x, fract(fk + 0.001) * 0.6));
     vAlb = vec4(0.0, 0.0, 0.0, 1.0);
     gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
   }`;
