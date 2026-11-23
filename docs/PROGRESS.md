@@ -44,6 +44,13 @@ as you want or need. This is a big ask and I need it to work really well."*
   corrections sent (far trees no bluer than the ground behind them; far flower drifts
   tint, not paint). Found here meanwhile: the fine rock beds drew a wood grain over far
   mountain sides (now only on real cliffs).
+- **Done here meanwhile** (the owning session; each to be seen in a picture before it is
+  called done): the level streaks on far mountain sides were the snow's edge (a band
+  650 m of height wide broken by fine noise): the snow rule in `madeLand.js` now has
+  larger patches and bare ribs on steep ground, and the maps were made again (new
+  `albedoMap.mean`); rock beds only on real cliffs. **Seen in the colour map and not
+  fixed**: a few valleys are straight trenches with rock walls (the maker's valley floors
+  along flow lines that run in eight directions): for the water delivery.
 - **If the helpers cannot be reached or their work is not good enough**: the briefs are
   the plan; do them here, trees first.
 

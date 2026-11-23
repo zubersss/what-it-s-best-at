@@ -64,7 +64,7 @@ export default {
     reliefMap: { url: 'data/haven_slopes_4096.jpg', strength: 2.0, latFade: [84, 89] },
     // Its colours from the air, made by the same rule as the mosaics round the traveller
     // (scripts/make-world-maps.mjs prints `mean`: the land's mean, in linear light).
-    albedoMap: { url: 'data/haven_day_4096.jpg', encoding: 'srgb', mean: [0.1377, 0.1357, 0.0657], strength: 1.0, chroma: 1.0, range: [0.2, 4.5], steep: 0.35 },
+    albedoMap: { url: 'data/haven_day_4096.jpg', encoding: 'srgb', mean: [0.1299, 0.1272, 0.0560], strength: 1.0, chroma: 1.0, range: [0.2, 4.5], steep: 0.35 },
     meanAlbedo: [0.14, 0.12, 0.07],
     dust: [0.19, 0.17, 0.115],         // dry soil, warm
     sand: [0.32, 0.27, 0.18],
