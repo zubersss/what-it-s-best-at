@@ -64,7 +64,7 @@ export class FarForest {
     this.trees = trees; this.terrain = terrain;
     // Where each shape's pictures are, read off its far mesh (treeGeometry.js, `whole`): the
     // first two quads show the whole tree, the third the rosette in its crown.
-    const shapes = trees.geos.length, rectTree = [], rectRose = [], roseGeo = [];
+    const shapes = trees.geos.length, rectTree = [], rectRose = [], roseGeo = [], cellMid = [];
     for (let a = 0; a < shapes; a++) for (let v = 0; v < VARIANTS; v++) {
       const g = trees.geos[a][v][2], P = g.attributes.position.array, U = g.attributes.aUv.array;
       const box = (from, to) => { let u0 = 1, v0 = 1, u1 = 0, v1 = 0; for (let i = from; i < to; i++) { u0 = Math.min(u0, U[i * 2]); u1 = Math.max(u1, U[i * 2]); v0 = Math.min(v0, U[i * 2 + 1]); v1 = Math.max(v1, U[i * 2 + 1]); } return new THREE.Vector4(u0, v0, u1, v1); };
@@ -72,7 +72,7 @@ export class FarForest {
       let r = 0; for (let i = 12; i < 18; i++) r = Math.max(r, Math.abs(P[i * 3]));
       // (x: the rosette's half width and y: its height, in tree heights; z, w: the tree card's)
       let hw = 0, tall = 0; for (let i = 0; i < 6; i++) { hw = Math.max(hw, Math.hypot(P[i * 3], P[i * 3 + 2])); tall = Math.max(tall, P[i * 3 + 1]); }
-      roseGeo.push(new THREE.Vector4(r, P[12 * 3 + 1], hw, tall));
+      roseGeo.push(new THREE.Vector4(r, P[12 * 3 + 1], hw, tall)); cellMid.push(g.userData.mid ?? 0.6);
     }
     this.cells = shapes * VARIANTS;
     // three quads: position = (which: 0, 1 the crossed pictures of the whole tree, 2 the rosette; u; v)
@@ -85,7 +85,7 @@ export class FarForest {
       tTreeAtlas: trees.shared.tTreeAtlas,
       uSeason: trees.shared.uSeason,
       ...cloudShadeUniforms(terrain),
-      uRectTree: { value: rectTree }, uRectRose: { value: rectRose }, uRoseGeo: { value: roseGeo },
+      uRectTree: { value: rectTree }, uRectRose: { value: rectRose }, uRoseGeo: { value: roseGeo }, uCellMid: { value: cellMid },
       // x: full density out to here (m), y: none beyond here (m), z: none nearer than here
       // (where the trees one walks among end), w: the share of them drawn (the governor)
       uFar: { value: new THREE.Vector4(450, 5600, 240, 1) },
@@ -96,6 +96,7 @@ export class FarForest {
       in vec4 iC;            // x: its rank, y: leaf colour packed, z: trunk colour packed, w: 4 x (1 or 2 if it drops its leaves) + 3 x how much of the Sun the land leaves it
       uniform vec3 uTileRel, uTileEast, uTileNorth, uTileUp;
       uniform vec4 uRectTree[CELLS], uRectRose[CELLS], uRoseGeo[CELLS];
+      uniform float uCellMid[CELLS];
       uniform vec4 uFar;
       ${CLOUD_SHADE_VERT}
       out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out vec2 vUv; out vec2 vOwn; out float vShade;
@@ -113,17 +114,25 @@ export class FarForest {
         float wide = iB.x * clamp(pow(max(keep, 1e-3), -0.25), 1.0, 1.5);
         int cell = int(iB.z + 0.5);
         vec4 g = uRoseGeo[cell], rect;
-        vec3 l;
+        vec3 l, na;                                  // (na: outward from the middle of its mass, in the mesh's own measure)
+        float mid = uCellMid[cell];
         if (position.x < 1.5) {
           // one of the two crossed pictures of the whole tree (its foot at the bottom middle)
           float a = position.x * 1.5707963, x = (position.y - 0.5) * 2.0 * g.z * wide;
+          float x0 = (position.y - 0.5) * 2.0 * g.z;
           l = vec3(cos(a) * x, (1.0 - position.z) * g.w, sin(a) * x); rect = uRectTree[cell];
+          na = vec3(cos(a) * x0, l.y - mid, sin(a) * x0);
         } else {
           // the rosette lying in its crown, for whoever looks down on it
           l = vec3((position.y - 0.5) * 2.0 * g.x * wide, g.y, (0.5 - position.z) * 2.0 * g.x * wide); rect = uRectRose[cell];
+          na = vec3(l.x / wide, g.x, l.z / wide);
         }
-        // (lit as one round mass: outward from the middle of the crown, and upward)
-        vec3 nl = normalize(vec3(l.x, (l.y - 0.6) * 0.8 + 0.3, l.z) + vec3(0.0, 1e-3, 0.0));
+        // Lit as one round mass, by the very rule the near trees' cards are (treeGeometry.js,
+        // build): outward from the middle of its mass and from the crown's own middle height,
+        // and upward. (A rule of its own here, with one middle height for every shape, lit the
+        // same tree up to 26 degrees differently on the two sides of the line.)
+        vec3 nb = vec3(na.x, (l.y - mid) * 0.8, na.z);
+        vec3 nl = normalize(normalize(na + vec3(0.0, 1e-4, 0.0)) * 0.45 + normalize(nb + vec3(0.0, 1e-4, 0.0)) * 0.8 + vec3(0.0, 0.3, 0.0));
         float c = cos(iB.y), s = sin(iB.y);
         l *= iA.w * grow;
         vRel = foot + uTileEast * (l.x * c - l.z * s) + uTileUp * l.y + uTileNorth * (l.x * s + l.z * c);
@@ -176,7 +185,7 @@ export class FarForest {
         // leaves above it, green from the passage)
         vec3 glow = wood ? vec3(0.0) : leafC * sun * (0.07 * smoothstep(0.0, 0.25, dot(up, uSunDir))) * vec3(0.9, 1.2, 0.5);
         vec3 sky = skyLight(N, up); sky = mix(sky, vec3(dot(sky, vec3(0.3, 0.55, 0.15))) * vec3(1.06, 1.0, 0.86), 0.7 * farW);
-        vec3 col = (albedo * (sun * lit + sky * open) + leafC * sun * through * vec3(1.1, 1.25, 0.6) + glow) / PI;
+        vec3 col = (albedo * (sun * lit + sky * open + planetShine(N)) + leafC * sun * through * vec3(1.1, 1.25, 0.6) + glow) / PI;
         // The air of a wood is row behind row of trees seen through one another: it belongs
         // to the near forest, and past a kilometre the air itself does that work. Carried all
         // the way out it made the far trees blue-grey specks on warm ground.

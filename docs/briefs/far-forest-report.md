@@ -230,6 +230,11 @@ the shadow maps those trees had no shadow of the land on them, ever. Both are do
    ground, so from 2 km up the thick bands' tiles are neither worked out nor held; a tile
    with no tree in it takes no place in the pool; and the tiles are drawn nearest first by
    an order set each frame (each has a material of its own, which three sorts by first).
+7. **The same tree lit differently across the join: true, fixed.** The far cards now take
+   their normals by the near cards' own rule with each shape's own middle height (a copy of
+   the rule checked against the near meshes' normals in Node: 0.016 degrees apart at worst,
+   over all 18 corners of every shape and variant; the far forest's own rule had been up to
+   26 degrees off), and far trees have the moon's light (`planetShine`) as near ones do.
 
 ## Tests
 
