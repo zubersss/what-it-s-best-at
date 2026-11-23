@@ -206,6 +206,8 @@ node scripts/make-world.mjs [--width 4096] [--seed 7] [--preview dir] [--only-pr
 node scripts/make-world-maps.mjs   # ... and from that its colour, slope, water and cloud maps (needs Python's PIL for the JPEGs); prints the albedo map's mean for the world file
 node scripts/find-haven-site.mjs [--open] [--lat 28,52]   # places on Haven to begin at: level ground over low ground and water, high ground near by
 node scripts/find-overlook.mjs --world haven --lat .. --lon .. --heading .. [--below 1500]   # the very spot: level underfoot, the ground falling away in front, mountains on the far skyline (then look with peek.mjs)
+node scripts/far-trees-test.mjs     # the far forest's trees are the near trees: a thinned tile is a subset of the full one, at the same places (no browser)
+npm run rocks                      # the rule that places boulders: steep against level, clusters, sizes, a walker's footing (no browser); node scripts/rock-field.mjs draws the field from above
 node scripts/cloud-field.mjs [--span 150] [--lat .. --lon ..] [--out file.png]   # the fair-weather cloud field from straight above, without a browser in seconds: rows, clusters, how much of the sky
 node scripts/rock-field.mjs [--lat .. --lon ..] [--span 3000] [--out file.png] [--check]   # where the far rocks lie, from straight above, without a browser in seconds; --check: the rule's promises (fails if one is broken)
 node scripts/far-rocks-probe.mjs --distdir <build> --query "lat=..&lon=..&alt=.." [--seconds 300] [--out file.png] [--eval "..."]   # the far rocks in the real game: tiles arriving, what is drawn counted rock by rock, shader limits
@@ -629,6 +631,25 @@ finished benchmark leaves its text in `window.__benchResult`.
   second try): keep them few, take the views from the air first (three minutes each),
   and give them `--timeout 1500`. A part hidden by `visible = false` from a test script
   is shown again by the app on the next frame: take it out of its scene instead.
+- Helpers on machines of their own (other sessions of this account, started with
+  `create_session` on a branch of their own, a brief in `docs/briefs/`): three of them
+  built the far forest, the far grass and the far rocks in an afternoon, where pictures
+  at one browser a machine would have taken days here. What made it work: the brief in
+  the repository, not in a message (what is wrong today with numbers, the design, the
+  rules that bite, the pictures to hand back, a report beside the brief); a first
+  working version with one before/after pair asked for early; corrections sent as short
+  notes about a named picture; their branches merged here as soon as they build, and the
+  others asked to merge this branch into theirs, so every later picture is of the
+  combination. What went wrong: a brief's view inside a cloud and views of a meadow that
+  was a wood (try the views before writing them into a brief); and reading a helper's
+  transcript with `list_events` floods this session's context even at a small limit:
+  ask the helper, or read its branch.
+- A layer "only where it is steep" is everywhere on land whose slopes are all alike: the
+  maker leaves mountain flanks at one slope (its cap) for long stretches, and benches of
+  rock meant for cliffs drew level streaks over every mountain side. Three causes were
+  guessed, "fixed" and pushed before a picture said which (the snow's edge, a ground
+  pattern sized for Earth, the benches). Switch the suspect off in one build and look,
+  before changing anything for good.
 - A script nobody runs breaks without a sound: a helper file rewritten under new names
   left the flicker check, the sketch and the relief probe unable to start for three
   deliveries (and the notes said the flicker check had been run). `scripts/check-scripts.mjs`

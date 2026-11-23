@@ -69,6 +69,16 @@ as you want or need. This is a big ask and I need it to work really well."*
   every saving on. It still owes the stability move and a look at the join at 240 m. The
   grass and rock helpers were asked to merge this branch into theirs and take their
   remaining pictures on the combination. The bench layer is confirmed gone in a picture.
+- **15:00**: all three helpers' branches are merged here (merge 2f206c4): far forest,
+  far grass, far rocks. The build check, `far-trees-test`, `npm run rocks`, `govsim` and
+  `lakes` pass on it; the Haven benchmark test passed on the build with the far forest
+  alone. Still owed by the helpers: trees: the stability numbers; grass: the low-Sun view
+  after its clump-light change (clumps were gold dashes on a slope in shade), the
+  opening view's foreground, its stability walk, its report's numbers; rocks: after
+  pictures on the combination, stability, report. Owed here: pictures of the full
+  combination (opening view, from 130 m, the steppe, the wall view, the opening view
+  with every saving on), Earth's opening view again, the whole test set, the docs, the
+  merge to `main` and the checkpoint with a Haven benchmark asked for.
 - **If the helpers cannot be reached or their work is not good enough**: the briefs are
   the plan; do them here, trees first.
 
