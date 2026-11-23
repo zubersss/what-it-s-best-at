@@ -58,7 +58,7 @@ export const ROCKS_FAR_DEFAULTS = {
 // The pool's buffers are this large, so no tile is ever cut. (A smaller cap once dropped
 // each full tile's smallest rocks, a different share in each: on the rockiest ground the
 // count stepped by 40 % along the straight edges of the tiles.)
-export function tileCap(L) { const K = L.sites ?? 128; return Math.ceil(K * K * L.density); }
+export function tileCap(L) { const K = L.sites ?? 128; return Math.ceil(K * K * L.density * 1.03) + 64; }      // (and a little: the sites that may hold one are that many on average)
 export function rocksFarDef(world) {
   const f = world?.surface?.rocks?.far;
   if (!f) return null;
@@ -224,17 +224,18 @@ export function rockBlock(hs, L, li, bi, bj) {
 
 // Sunlight on the rocks of a tile (the land's own shadow: a rock under a mountain's shade
 // is in shade). baker: the worker's ShadowBaker; origin, off, count: the tile as rockBlock
-// gave it. A ray for every rock where they are few; where they are many, rays on a grid
-// across the tile and each rock reads between them (a tile of small rocks is 1.3 km wide:
-// the grid's cells are 67 m). Returns Uint8Array n (0 shade .. 255 sun).
-const VIS_GRID = 21, VIS_EACH = 400;
+// gave it. A ray for each of the first thousand (the rocks seen from farthest: all of a
+// tile of large ones); for the small ones after them, rays on a grid across the tile and
+// each rock reads between them. Returns Uint8Array n (0 shade .. 255 sun).
+const VIS_GRID = 21, VIS_EACH = 1000;
 export function rockVis(baker, origin, off, count, sun, sunHalf) {
   const out = new Uint8Array(count), R = baker.hs.radius;
   const one = (x, y, z, lift) => { const r = Math.sqrt(x * x + y * y + z * z); return baker.visibility(x / r, y / r, z / r, r - R + lift, sun[0], sun[1], sun[2], 4, sunHalf); };
-  if (count <= VIS_EACH) {
-    for (let i = 0; i < count; i++) out[i] = Math.round(255 * one(origin[0] + off[i * 4], origin[1] + off[i * 4 + 1], origin[2] + off[i * 4 + 2], 0.6 * off[i * 4 + 3]));
-    return out;
-  }
+  // (a ray of its own for the first thousand: they are the ones seen from farthest, and
+  // read off the grid one in ten of them stood on the wrong side of a hill's shadow)
+  const each = Math.min(count, VIS_EACH);
+  for (let i = 0; i < each; i++) out[i] = Math.round(255 * one(origin[0] + off[i * 4], origin[1] + off[i * 4 + 1], origin[2] + off[i * 4 + 2], 0.6 * off[i * 4 + 3]));
+  if (count <= VIS_EACH) return out;
   // a frame across the tile: two axes on the ground through the origin, wide enough for every rock
   const ol = Math.hypot(origin[0], origin[1], origin[2]), u = [origin[0] / ol, origin[1] / ol, origin[2] / ol];
   let ax = [-u[1], u[0], 0]; const al = Math.hypot(ax[0], ax[1]) || 1; ax = al < 1e-6 ? [1, 0, 0] : [ax[0] / al, ax[1] / al, 0];
@@ -248,7 +249,7 @@ export function rockVis(baker, origin, off, count, sun, sunHalf) {
     const h = hs.height(x / r, y / r, z / r, 8);
     grid[j * G + i] = baker.visibility(x / r, y / r, z / r, h + 1.2, sun[0], sun[1], sun[2], 8, sunHalf);
   }
-  for (let i = 0; i < count; i++) {
+  for (let i = each; i < count; i++) {
     const a = (off[i * 4] * ax[0] + off[i * 4 + 1] * ax[1] + off[i * 4 + 2] * ax[2] - lo0) / w0 * (G - 1), b = (off[i * 4] * ay[0] + off[i * 4 + 1] * ay[1] + off[i * 4 + 2] * ay[2] - lo1) / w1 * (G - 1);
     const i0 = Math.min(G - 2, Math.max(0, Math.floor(a))), j0 = Math.min(G - 2, Math.max(0, Math.floor(b))), fa = Math.min(1, Math.max(0, a - i0)), fb = Math.min(1, Math.max(0, b - j0));
     const v = (grid[j0 * G + i0] * (1 - fa) + grid[j0 * G + i0 + 1] * fa) * (1 - fb) + (grid[(j0 + 1) * G + i0] * (1 - fa) + grid[(j0 + 1) * G + i0 + 1] * fa) * fb;
