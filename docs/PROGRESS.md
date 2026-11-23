@@ -45,10 +45,15 @@ as you want or need. This is a big ask and I need it to work really well."*
   tint, not paint). Found here meanwhile: the fine rock beds drew a wood grain over far
   mountain sides (now only on real cliffs).
 - **Done here meanwhile** (the owning session; each to be seen in a picture before it is
-  called done): the level streaks on far mountain sides were the snow's edge (a band
-  650 m of height wide broken by fine noise): the snow rule in `madeLand.js` now has
-  larger patches and bare ribs on steep ground, and the maps were made again (new
-  `albedoMap.mean`); rock beds only on real cliffs. **Seen in the colour map and not
+  called done): the level streaks on far mountain sides ("a wood's grain"). Two guesses
+  were wrong first (the rock beds: now only on real cliffs, which did cure stripes under
+  the canopy; the snow's edge: now larger patches with bare ribs on steep ground, maps
+  made again, new `albedoMap.mean`; neither changed the streaks). The cause: the ground
+  shader's "stretches of lighter and darker ground" of the painted look repeat 14 000
+  times round the globe, 2.9 km a repeat on Earth and **112 m on Haven**: one more thing
+  that assumed Earth's size. Now by the world's radius. **Still assuming Earth's size**:
+  `weather/weather.js` and `rainbow.js` (111 200 m a degree throughout): to be put right
+  when Haven gets weather (delivery 3). **Seen in the colour map and not
   fixed**: a few valleys are straight trenches with rock walls (the maker's valley floors
   along flow lines that run in eight directions): for the water delivery.
 - **If the helpers cannot be reached or their work is not good enough**: the briefs are
