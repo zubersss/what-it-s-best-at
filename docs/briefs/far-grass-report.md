@@ -125,10 +125,19 @@ picture; the arc is no longer something I can point to in it.
 - **C1** done for the clumps: the clouds' shadow where each clump stands (the trees'
   `CLOUD_SHADE_VERT`), eased from the traveller's own shade between 30 and 120 m. The
   blades (to 34 m) keep the shade at the traveller: within that reach it is the same cloud.
-- **C2** not done: the land's own shadow on clumps (a ridge's shadow at a low Sun) needs a
-  worker job and a place in the tables; not attempted in the time. Far clumps take their
-  own slope's light, which covers a slope turned from the Sun but not a shadow cast on a
-  meadow from a ridge: there the clumps are sunlit on dark ground inside 545 m.
+- **C2** done, weakly proven: one table of the land's cast shadow round the traveller for
+  the clumps (36 x 36 places 40 m apart, one byte each, linear), from ONE `points` job of
+  the shadow baker when the traveller has gone 120 m from its middle, the Sun has turned
+  1.5 degrees or maps arrived; reply checked against `terrain.epoch` and the anchor; counted
+  in `busy` only until the first one is in; sunlit until then; eased in between 30 and
+  120 m. Its 1 296 heights are worked out on the page when it is asked (some 3 to 4 ms,
+  once per 120 m of travel: not measured). Pictures: `haven_ledge_ridge_n_before.png` and
+  `haven_ledge_ridge_old_after.png` (the old opening place, 60 m up, looking north at the
+  opening hour: a hillside in a ridge's shadow). The pair differs only by a few hundred
+  clumps along the shadow's edge that were gold in the shade and are dark now (2 % of the
+  pixels): on this hillside the clumps were dark already, from their own slope's light. I
+  did not find a level meadow in a cast shadow to show the strong case. 40 m cells: a
+  shadow's edge on the clumps is soft and up to 40 m off the ground's.
 - **D** done: each middle-table entry keeps its flora; the ground wears the whole table's
   majority, changed only when another leads by a quarter.
 - **E** done as the stopgap asked: no grass paint where the ground's own colour is brighter
