@@ -578,6 +578,36 @@ tile rings are Mercator: the made land keeps to the middle latitudes, the caps a
 and ice); things tuned to a huge planet (flight speed by height, the air's thickness
 against the radius, cloud heights, the hand-over distances).
 
+## Milestone 12, delivery 1: what was built
+
+- **The maker** (`scripts/make-world.mjs`, `make-world-maps.mjs`; how it works is in
+  `docs/ARCHITECTURE.md`, "A made world"): seed 7 gives 43 % land in several continents
+  and islands, ranges to 4 314 m, tablelands, 150 lakes (the largest 2 100 km2, the
+  deepest 840 m), mean land height 930 m. Tuned at half size in nine seconds a try, by
+  shaded-relief previews; the solve counts drained land in cells of that size so the
+  result is the same at full size (it was not at first: finer cells, lower mountains).
+- **In the game**: `src/worlds/haven.js`, the sky bodies `haven` and `mira`, the made
+  mosaics (`tiles/madeTiles.js`, `madeLand.js`), water-only rings, the hydrology with
+  the world's lakes given. First run: 105 rivers from the whole-world ring, 38 and 15
+  from the finer ones; 3 500 trees and 6 600 far trees at a wooded place.
+- **The opening place**: found in three steps (see the lessons in `CLAUDE.md`): a coarse
+  search (`find-haven-site.mjs`), the very spot (`find-overlook.mjs`), a sketch
+  (`peek.mjs`). The far south of the middle continent, 1 470 m up, a range across the view.
+- **Numbers set for the small world**: air standing lower (Rayleigh 4.5 km, the look's
+  haze 2 km, as thick by the metre as Earth's; top 60 km); cloud base 1 200 m over the
+  country; tree line 3 550 m at the equator, less 39 m a degree; snow from 2.7 km at 40
+  degrees; rings at zooms 2, 5 and 8 (1.5 km, 192 m and 24 m a pixel); pictures from zoom
+  7 (48 m) to 2 by height; `maxLevel` 14 (24 m patches).
+- **Tried and taken back**: beds of rock 120 m thick on every slope (contour lines from
+  the air); the haze half again as thick as Earth's by the metre (the lowland from 12 km
+  one grey-green); two opening places (a flat coastal plain that the score took for a
+  drop of 1 100 m: it was the sea's bed; then a meadow shut in by trees).
+- **Known to be weak** (to be looked at before the checkpoint and said to the owner if
+  still so): the first load fetches the elevation (17 MB) twice by address (once for the
+  ground, once in the tile worker: the browser's cache should serve the second); the
+  land's colours are one biome everywhere; no weather block yet (no rain, no storms: the
+  third delivery); the caps are open sea; nothing is measured on the phone.
+
 ## The owner's eighth phone results (build f300e6f) and the seventh painted delivery: Earth from space to landing
 
 **The numbers** (the three-minute benchmark, Mars and the Moon, Smooth): 55.2 fps, 1 % low

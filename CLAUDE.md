@@ -201,6 +201,10 @@ npm run lakes          # Earth's lakes and rivers against the real ones, without
 npm run shadowturns    # the shadow tiles drawn in turns: a held tile must draw the same picture as a fresh one after a walk (headless, Moon)
 node scripts/play-profile.mjs [--world earth] [--at "21.7,284.7,40"] [--floor] [--seconds 120] [--shot out.png]   # the real game in play mode at a place: the page's work by part, the governor's level, patches built (--floor: every saving on)
 node scripts/tree-preview.mjs [--out dir] [--variant 1] [--only 0,2] [--below]   # every tree shape at its three distances, drawn without a browser in seconds (PNG sheets)
+node scripts/make-world.mjs [--width 4096] [--seed 7] [--preview dir] [--only-preview]   # makes the small world's land (Haven): elevation with drainage, lakes, rain (a minute; --width 2048 --only-preview: nine seconds, with pictures to judge it by)
+node scripts/make-world-maps.mjs   # ... and from that its colour, slope, water and cloud maps (needs Python's PIL for the JPEGs); prints the albedo map's mean for the world file
+node scripts/find-haven-site.mjs [--open] [--lat 28,52]   # places on Haven to begin at: level ground over low ground and water, high ground near by
+node scripts/find-overlook.mjs --world haven --lat .. --lon .. --heading .. [--below 1500]   # the very spot: level underfoot, the ground falling away in front, mountains on the far skyline (then look with peek.mjs)
 node scripts/cloud-field.mjs [--span 150] [--lat .. --lon ..] [--out file.png]   # the fair-weather cloud field from straight above, without a browser in seconds: rows, clusters, how much of the sky
 node scripts/make-tree-atlas.mjs [--look file.png]   # the trees' picture (public/data/tree_atlas.png): run again after changing a spray or a tree shape
 node scripts/check-ephemeris.mjs   # every orbit and spin against JPL Horizons (no network; fails beyond a tolerance)
@@ -232,7 +236,7 @@ batches in the background, never pipe them through `tail` (it hides all output u
 end), and take final sets from `dist/` so source edits cannot disturb them.
 
 URL parameters: `world=<id>` (any world of `src/worlds/index.js`; without it, the one chosen
-on the start screen last time), `shot=ledge|sun|wall|ship|dusk`, on Mars also `canyon`
+on the start screen last time, or `haven`; in screenshot mode `mars`), `shot=ledge|sun|wall|ship|dusk`, on Mars also `canyon`
 (a sixth view of the opening site, used for the from-orbit and character reference
 pictures), and the world's landmarks (`olympus`, `gale` on Mars; `tycho`, `taurus` on the
 Moon) (fixed camera bookmark, deterministic screenshot mode, skips the start screen),
@@ -607,6 +611,20 @@ finished benchmark leaves its text in `window.__benchResult`.
   haze is looked through whole, and at midday the two tones put every slope in the light.
   Anything of a look that depends on how far off or how high one is needs its own numbers
   there (`uHaze`, the relief light).
+- A made world showed what had quietly assumed Earth's size: tree blocks measured in
+  degrees (0.001 degrees is 111 m on Earth and 4 m on a world 250 km in radius), a tile
+  worker's metres per pixel, a tree line and species by Earth's continents, an exposure
+  rule for "a planet seen whole" that a small globe never met (it burned out white).
+  Anything in degrees or in "share of the frame" is a guess about the world's size.
+- A place chosen from a coarse map by a score is judged again from the ground: "falls
+  1 100 m toward the east" was the sea's bed (a flat coastal plain), and an "open" cell
+  of the 383 m map was a wood. Score the land, not the bed; then find the very spot with
+  the height function (`find-overlook.mjs`) and sketch it (`peek.mjs`) before any picture.
+- Ground-level pictures of a wooded place take this machine seven seconds a frame (some
+  twenty minutes a picture, and the capture itself may time out once and succeed on the
+  second try): keep them few, take the views from the air first (three minutes each),
+  and give them `--timeout 1500`. A part hidden by `visible = false` from a test script
+  is shown again by the app on the next frame: take it out of its scene instead.
 - A script nobody runs breaks without a sound: a helper file rewritten under new names
   left the flicker check, the sketch and the relief probe unable to start for three
   deliveries (and the notes said the flicker check had been run). `scripts/check-scripts.mjs`
