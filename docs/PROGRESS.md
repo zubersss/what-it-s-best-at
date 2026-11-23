@@ -629,6 +629,20 @@ against the radius, cloud heights, the hand-over distances).
   land's colours are one biome everywhere; no weather block yet (no rain, no storms: the
   third delivery); the caps are open sea; nothing is measured on the phone.
 
+**Tests of delivery 1** (on the build that was merged, served frozen): the build check;
+`npm run smoke` (opened on Mars now: the start screen, modes and read-out are the same on
+any world, and Haven's wooded ground takes this machine seven seconds a frame; 16 checks,
+the ground's shader at 16 of 16 textures); `node scripts/smoke.mjs --haven` (the Haven
+benchmark end to end: its lap, the flight to the Moon, the cost test at the opening
+place, in the forest and from the air); `npm run shadowturns`; `npm run govsim`;
+`npm run lakes` (Earth's hydrology, with the made world's option in the code);
+`node scripts/check-ephemeris.mjs` (made bodies left alone); the stability test's move
+over Haven from 9 km (`--only haven_flight`: changed 0.55 %, flicker 0.02 %: the nearest
+cloud's edges). Pictures: Haven's opening view, sunrise, evening; 1, 9, 60, 300 and
+3 000 km; 9 and 60 km with every saving on; Earth's opening view (as it was). **Not
+run**: the full reference set, the other stability moves, `flight`, `foot`, `transfer`,
+`worlds`. **Nothing is measured on the phone.**
+
 ## The owner's eighth phone results (build f300e6f) and the seventh painted delivery: Earth from space to landing
 
 **The numbers** (the three-minute benchmark, Mars and the Moon, Smooth): 55.2 fps, 1 % low
