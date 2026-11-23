@@ -656,5 +656,20 @@ finished benchmark leaves its text in `window.__benchResult`.
   deliveries (and the notes said the flicker check had been run). `scripts/check-scripts.mjs`
   (in the build check) reads every import of every script; after changing a file under
   `scripts/lib/`, start each script that uses it once.
+- Pictures from a standing camera cannot show what goes wrong in motion, and a helper's
+  pictures are all of that kind. Three reviewers reading the far-view code cold (one part
+  each, no browser, findings backed by small replays in Node) found in twenty minutes what
+  a day of pictures had not: the whole grass field sliding 0.8 m sideways every 200 m of
+  flight, far trees missing in strips, trees at a hand-over line drawn by nobody for 15 m
+  of travel, a walker standing in the air beside rocks. Have work that others built
+  reviewed this way before it ships, hand each builder its list, and ask for a test that
+  fails before the fix.
+- A small world also shows every term in x times D over R that Earth hides: a plane 1 km
+  over the ground was 0.03 m of error on Earth and 0.8 m on Haven (the grass's anchor);
+  and a lattice whose cell width changes by latitude band (`blockLon`) cannot be indexed
+  by column across two bands (on Haven a band is 4 km: every large tile straddled one).
+- A sketch tool's answer is only as wide as its question: "no tree shades the ground 1 to
+  12 m ahead" was true, and the pine's shadow lay 15 to 50 m ahead, across the whole
+  opening view. When a tool and a picture disagree, find what the tool did not ask.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

@@ -15,6 +15,7 @@ import { Benchmark } from './perf/benchmark.js';
 import { waveHeightAt, waveScale } from './water/waves.js';
 import { Trees } from './life/trees.js';
 import { FarForest } from './life/farForest.js';
+import { TreeShade } from './life/treeShade.js';
 import { Leaves } from './life/leaves.js';
 import { CloudVolume } from './sky/cloudVolume.js';
 import { Weather } from './weather/weather.js';
@@ -297,6 +298,7 @@ export class App {
     // (the far forest: the same trees as those near by, thinned with distance, out to some
     // kilometres; they rise out of the forest the ground shader raises as a whole)
     this.farForest = new FarForest(this.trees, this.terrain); this.nearScene.add(this.farForest.mesh);
+    this.treeShade = new TreeShade(this.terrain);
     this.grass = new Grass(this.terrain, this.terrain.shared.uWind); this.grass.setWorld(world); this.grass.eager = this.shotMode;
     this.nearScene.add(this.grass.mesh);
     this.leaves = new Leaves(this.trees);
@@ -1338,6 +1340,8 @@ export class App {
     const vol = this.cloudVolume.ready(rig.pos, this.clouds);
     this.clouds.uniforms.uNearFade.value = vol ? this.cloudVolume.reach : 0;
     if (vol) this.cloudVolume.render(post, rig, this.terrain.shared.uWave.value.z, this.clouds, this.terrain.shared.uWind, this.weather);
+    // (the clouds' shadow on trees and on the grass's far clumps: a small map of it, before the main picture is begun)
+    this.treeShade.render(renderer, rig, G.uSunDir.value, this.farForest.shown || this.trees.reach > 0 || this.grass.keepClumps > 0);
     prof.mark(9);
     // 6. Scene into the HDR target: far pass, clear depth, near pass, then the hero.
     post.beginScene();

@@ -31,7 +31,7 @@ import * as THREE from 'three';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
-import { CLOUD_SHADE_VERT, cloudShadeUniforms } from './trees.js';
+import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
 import { AMOUNT, DRY, floraAt, flowersAt, FLOWERS_GLSL, GRASS_GLSL, WAVE_K } from './grassRules.js';
 
 const SHADE_N = 36, SHADE_CELL = 40, SHADE_MOVE = 120;   // the land's shadow for the clumps: places a side, metres between them, how far the traveller goes before it is asked again
@@ -262,9 +262,9 @@ const CLUMP_VERT = /* glsl */`
   uniform sampler2D tTable; uniform vec4 uTab;
   ${PRELUDE}
   ${FLOWERS_GLSL}
-  ${CLOUD_SHADE_VERT}
+  ${TREE_SHADE_VERT}
   uniform vec4 uWeather;
-  uniform sampler2D tShade; uniform vec4 uShade;   // the land's own shadow round the traveller: xy its middle from the anchor (m), z 1 / its span, w 1 when there is one
+  uniform sampler2D tLandShade; uniform vec4 uLandShade;   // the land's own shadow round the traveller: xy its middle from the anchor (m), z 1 / its span, w 1 when there is one
   out float vCloud;                  // the cloud between this clump and the Sun (1: none)
   out vec3 vUv;                      // the picture (u, v), and how far across the card (-1..1)
   out vec3 vFoot, vTip; out vec4 vFlower; out vec4 vSlope; out float vEven;
@@ -315,10 +315,10 @@ const CLUMP_VERT = /* glsl */`
     // (the clouds' shadow where the clump stands, by the ground's own rule: with the shade at
     // the traveller for every clump, stepping under a cloud dimmed half a kilometre of grass
     // on sunlit ground. Close by it is the traveller's, as the blades have it.)
-    vCloud = mix(uWeather.x, cloudShade(uCamPlanetPos + foot), smoothstep(30.0, 120.0, dist));
+    vCloud = mix(uWeather.x, cloudShade(foot), smoothstep(30.0, 120.0, dist));       // (from the map of it: life/treeShade.js)
     // (and the land's: a ridge between the clump and the Sun. Beyond the shadow maps the
     // clumps of a meadow in a ridge's shadow stood sunlit on dark ground.)
-    vCloud *= mix(1.0, texture(tShade, (at - uShade.xy) * uShade.z + 0.5).r, uShade.w * smoothstep(30.0, 120.0, dist));
+    vCloud *= mix(1.0, texture(tLandShade, (at - uLandShade.xy) * uLandShade.z + 0.5).r, uLandShade.w * smoothstep(30.0, 120.0, dist));
     vEven = 0.9 * max(smoothstep(0.05, 0.35, rise), smoothstep(120.0, 420.0, dist));
     vAlb = vec4(0.0, 0.0, 0.0, 1.0);
     gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
@@ -446,7 +446,7 @@ export class Grass {
       g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(12), 3));       // (three wants one; the shader does not read it)
       g.setIndex([0, 1, 2, 0, 2, 3]);
       const t = this.tables[f.table];
-      return field(f, g, CLUMP_VERT, { tTable: { value: t.tex }, uTab: t.info, tClump: { value: this.clumpTex }, ...cloudShadeUniforms(this.terrain), tShade: { value: this.shadeTex }, uShade: this.shadeU },
+      return field(f, g, CLUMP_VERT, { tTable: { value: t.tex }, uTab: t.info, tClump: { value: this.clumpTex }, ...TREE_SHADE_UNIFORMS, tLandShade: { value: this.shadeTex }, uLandShade: this.shadeU },
         { CLUMP: 1, OWN_CLOUD_SHADOW: 1, IN0: f.in[0].toFixed(2), IN1: f.in[1].toFixed(2), OUT0: f.out[0].toFixed(2), OUT1: f.out[1].toFixed(2), TALL: f.tall.toFixed(3) }, 2);
     };
     this.fields = [tuft(NEAR), tuft(FAR), flower(FLOWERS)];

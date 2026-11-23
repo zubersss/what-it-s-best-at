@@ -75,7 +75,7 @@ bare mountain: `air1900_tele14` is the same lens pitched down onto the wood. The
 place is 248 degrees of longitude from the opening place and so in another time of day:
 `t=-5` puts it just before dawn, which shows the shadow fix below better than noon would.
 
-Memory: the pool is 40 tiles x 6 144 instances x 48 bytes = **11 MB** of instance buffers,
+Memory: the pool is 40 tiles x 12 288 instances x 48 bytes = **23.6 MB** of instance buffers (11.8 before the review's second finding),
 fixed, plus the worker's own arrays for the tiles held (9 floats a tree).
 
 ## What was tried and taken back
@@ -152,8 +152,9 @@ trees on dark ground in the view that was named (`alt=1535&pitch=-12`) were not 
 cloud at all. They were the **trees one walks among, inside the mountain's shadow**: beyond
 the shadow maps those trees had no shadow of the land on them, ever. Both are done.
 
-- **The clouds' shadow** is one piece of vertex shader, `CLOUD_SHADE_VERT` in
-  `src/life/trees.js`, read by the near trees and by the far forest: the ground's own rule
+- **The clouds' shadow** (first as one piece of vertex shader, `CLOUD_SHADE_VERT`; since
+  the review's eighth finding a small map, `src/life/treeShade.js`) is read by the near
+  trees and by the far forest: the ground's own rule
   (`cloudHeap` from `HEAP_GLSL`, the day's map, `uCloud.x` times the shade), once per tree
   at two thirds of its height. Its uniforms are the ground's own objects
   (`cloudShadeUniforms(terrain)`), so nothing was added to `src/app.js`, and a saving that
@@ -197,6 +198,56 @@ the shadow maps those trees had no shadow of the land on them, ever. Both are do
    from that span, wrapped at longitude 0, with a block of slack. The check passes at seven
    places, among them both sides of the seam at longitude 0 and a band boundary, and a
    level-1 tile lying over two bands holds its blocks' trees where they stand.
+2. **The cap of 6 144: true, fixed.** A new check (the tile under a traveller in the thick
+   of a wood must fit its buffer with its margin) failed: the north wood wants 9 464 trees
+   at level 0 and **11 425 at level 1**, the golden shore 7 709, 6 455 and 7 209 (level 3).
+   `CAP` is now 12 288 (the most sites a band of levels 0 to 2 can have), and on overflow
+   the margin goes to 1.2 and then 1.0, never under the trees that stand. The pool is now
+   40 x 12 288 x 48 bytes = **23.6 MB** of instance buffers (it was 11.8).
+3. **Trees at the 240 m line drawn by nobody: true by the code, fixed; not seen in a
+   picture.** The near list held trees to 10 m past the radius and was made again every
+   25 m, while both shaders cut at 240 m from the eye. The list now reaches the radius plus
+   the 25 m and 5 more, and blocks are asked for that much farther out. The stability move
+   never walks 10 m from a rebuild, so it could not have shown it and does not prove the fix.
+4. **The clock run fast: true by the code, fixed; not run in a browser.** Blocks of near
+   trees whose shadow was worked out for an older Sun counted as missing, and the far
+   forest asks for nothing while near trees are missing. They are now a count of their own:
+   asked for after everything that has no trees yet, one sweep a second at most, and the
+   lists are made again once when a sweep is in, not at every reply. A far tile is asked
+   for again for the Sun at most every two seconds. (And the count of jobs out no longer
+   goes negative after a change of world: the review's small leftover.)
+5. **Nothing asked for ahead of the line: true by the code, fixed; not seen in a picture.**
+   Near side: blocks are asked for from 1.6 times the radius above the ground (384 m), and
+   the near trees' reach (which is also where the far forest and the canopy begin) goes no
+   farther than the blocks that are in, so a block that has not come leaves its trees to
+   the far forest instead of to nobody. Far side: a level is drawn out to where its lowest
+   rank begins to grow (`full / sqrt(0.85 lo)`, a twelfth farther than before) and its
+   tiles are asked for a tenth before that. 36 to 39 tiles are wanted at the places tested
+   (54 beside the seam at longitude 0, where tiles are short); the pool of 40 takes the
+   nearest, and those left out are the ones that cannot show a tree yet.
+6. **Refills in bursts, height, draw order: true by the code, fixed.** At most two tiles are
+   filled in a frame, nearest first (screenshot mode waits for a tile's first fill); the
+   distance a tile is wanted, shown and refilled by counts 0.7 of the height over the
+   ground, so from 2 km up the thick bands' tiles are neither worked out nor held; a tile
+   with no tree in it takes no place in the pool; and the tiles are drawn nearest first by
+   an order set each frame (each has a material of its own, which three sorts by first).
+7. **The same tree lit differently across the join: true, fixed.** The far cards now take
+   their normals by the near cards' own rule with each shape's own middle height (a copy of
+   the rule checked against the near meshes' normals in Node: 0.016 degrees apart at worst,
+   over all 18 corners of every shape and variant; the far forest's own rule had been up to
+   26 degrees off), and far trees have the moon's light (`planetShine`) as near ones do.
+8. **The governor's step, the cost test, the cloud shade per vertex: true, changed.**
+   `trees-far` no longer shortens the near trees' radius (that handed the same cards to
+   the far forest and moved the join nearer): it now brings the full shapes in to two
+   thirds of their distance (76 m and 28 m), beyond which a tree is its three cards. The
+   cost test's `trees` row hides the near meshes and leaves the line where it is. The
+   clouds' shadow is no longer worked out on every vertex of every tree: a map of it
+   (`src/life/treeShade.js`, 256 x 256 over 14 km, one small pass before the main picture,
+   the ground's rule and numbers) is read once per vertex by near and far trees, one
+   texture read where there were up to four. A tree off the map's plane looks it up where
+   the Sun's ray through its crown meets the plane. **Behaviour changes for the checkpoint:**
+   the `trees-far` step now does something else; `src/app.js` has three lines for the map.
+   None of this is measured on a phone.
 
 ## Tests
 
