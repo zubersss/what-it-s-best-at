@@ -32,7 +32,7 @@ const ss = (a, b, x) => { const t = (x - a) / (b - a); return t <= 0 ? 0 : t >= 
 //   levels   size [from, to] (m: the same measure as the near rocks' `size`), tile (degrees
 //            of latitude on Earth: 0.012 is 1.3 km on a world of any radius), sites (along a
 //            tile's side), density (the share of the sites that hold a rock where the ground
-//            is all rock), cap (the most a tile holds: the largest are kept), wl (the
+//            is all rock), wl (the
 //            fineness of the ground they are stood on, m), forest (how much closed forest
 //            takes away: the largest stand out of the trees), shadow (false: no shadow
 //            patches for the level: its rocks are seen little farther than the shadow map reaches)
@@ -44,16 +44,21 @@ const ss = (a, b, x) => { const t = (x - a) / (b - a); return t <= 0 ? 0 : t >= 
 export const ROCKS_FAR_DEFAULTS = {
   reach: 420, below: 12000,
   levels: [
-    { size: [1.4, 3.4], tile: 0.012, sites: 128, density: 0.46, cap: 3072, wl: 2, forest: 0.6 },
-    { size: [3.4, 8], tile: 0.03, sites: 128, density: 0.36, cap: 4096, wl: 6, forest: 0.4 },
-    { size: [8, 20], tile: 0.075, sites: 128, density: 0.36, cap: 4096, wl: 10, forest: 0.15 },
+    { size: [1.4, 3.4], tile: 0.012, sites: 128, density: 0.38, wl: 2, forest: 0.6 },
+    { size: [3.4, 8], tile: 0.03, sites: 128, density: 0.3, wl: 6, forest: 0.4 },
+    { size: [8, 20], tile: 0.075, sites: 128, density: 0.36, wl: 10, forest: 0.15 },
     // (the talus near the eye: the blocks of a rock slope, many, and seen from 310 m at
     // most whatever their size: the budget of a view is spent where the traveller stands.
     // Last in the list, so that the levels before it keep their numbers and their rocks.)
-    { size: [0.7, 2.6], tile: 0.004, sites: 128, density: 0.33, cap: 3072, wl: 1, forest: 0.9, shadow: false, seenTo: 310 },
+    { size: [0.7, 2.6], tile: 0.004, sites: 128, density: 0.33, wl: 1, forest: 0.9, shadow: false, seenTo: 310 },
   ],
   share: [3.4, 8],
 };
+// The most rocks a tile of a level can hold: every site that the density lets hold one.
+// The pool's buffers are this large, so no tile is ever cut. (A smaller cap once dropped
+// each full tile's smallest rocks, a different share in each: on the rockiest ground the
+// count stepped by 40 % along the straight edges of the tiles.)
+export function tileCap(L) { const K = L.sites ?? 128; return Math.ceil(K * K * L.density * 1.03) + 64; }      // (and a little: the sites that may hold one are that many on average)
 export function rocksFarDef(world) {
   const f = world?.surface?.rocks?.far;
   if (!f) return null;
@@ -200,7 +205,7 @@ export function rockBlock(hs, L, li, bi, bj) {
       shape: hash3(bi * 131 + i, bj * 137 + j, 71, salt), tone: (h4 & 0x7f) + (cls === 15 ? 128 : 0), gE: slopeByte(gE), gN: slopeByte(gN) });
   }
   found.sort((p, q) => q.e - p.e || q.size - p.size);
-  const n = Math.min(found.length, L.cap ?? 512);
+  const n = Math.min(found.length, L.cap ?? Infinity);           // (cap: only a world whose levels ask for more than the pool holds: farRocks.js says so)
   const off = new Float32Array(n * 4), quat = new Float32Array(n * 4), scale = new Float32Array(n * 3), shape = new Uint8Array(n * 4), misc = new Uint8Array(n * 4), seen = new Uint8Array(n);
   let bx = 0, by = 0, bz = 0, br = 0;
   for (let i = 0; i < n; i++) { bx += found[i].x; by += found[i].y; bz += found[i].z; }
@@ -219,17 +224,18 @@ export function rockBlock(hs, L, li, bi, bj) {
 
 // Sunlight on the rocks of a tile (the land's own shadow: a rock under a mountain's shade
 // is in shade). baker: the worker's ShadowBaker; origin, off, count: the tile as rockBlock
-// gave it. A ray for every rock where they are few; where they are many, rays on a grid
-// across the tile and each rock reads between them (a tile of small rocks is 1.3 km wide:
-// the grid's cells are 67 m). Returns Uint8Array n (0 shade .. 255 sun).
-const VIS_GRID = 21, VIS_EACH = 400;
+// gave it. A ray for each of the first thousand (the rocks seen from farthest: all of a
+// tile of large ones); for the small ones after them, rays on a grid across the tile and
+// each rock reads between them. Returns Uint8Array n (0 shade .. 255 sun).
+const VIS_GRID = 21, VIS_EACH = 1000;
 export function rockVis(baker, origin, off, count, sun, sunHalf) {
   const out = new Uint8Array(count), R = baker.hs.radius;
   const one = (x, y, z, lift) => { const r = Math.sqrt(x * x + y * y + z * z); return baker.visibility(x / r, y / r, z / r, r - R + lift, sun[0], sun[1], sun[2], 4, sunHalf); };
-  if (count <= VIS_EACH) {
-    for (let i = 0; i < count; i++) out[i] = Math.round(255 * one(origin[0] + off[i * 4], origin[1] + off[i * 4 + 1], origin[2] + off[i * 4 + 2], 0.6 * off[i * 4 + 3]));
-    return out;
-  }
+  // (a ray of its own for the first thousand: they are the ones seen from farthest, and
+  // read off the grid one in ten of them stood on the wrong side of a hill's shadow)
+  const each = Math.min(count, VIS_EACH);
+  for (let i = 0; i < each; i++) out[i] = Math.round(255 * one(origin[0] + off[i * 4], origin[1] + off[i * 4 + 1], origin[2] + off[i * 4 + 2], 0.6 * off[i * 4 + 3]));
+  if (count <= VIS_EACH) return out;
   // a frame across the tile: two axes on the ground through the origin, wide enough for every rock
   const ol = Math.hypot(origin[0], origin[1], origin[2]), u = [origin[0] / ol, origin[1] / ol, origin[2] / ol];
   let ax = [-u[1], u[0], 0]; const al = Math.hypot(ax[0], ax[1]) || 1; ax = al < 1e-6 ? [1, 0, 0] : [ax[0] / al, ax[1] / al, 0];
@@ -243,7 +249,7 @@ export function rockVis(baker, origin, off, count, sun, sunHalf) {
     const h = hs.height(x / r, y / r, z / r, 8);
     grid[j * G + i] = baker.visibility(x / r, y / r, z / r, h + 1.2, sun[0], sun[1], sun[2], 8, sunHalf);
   }
-  for (let i = 0; i < count; i++) {
+  for (let i = each; i < count; i++) {
     const a = (off[i * 4] * ax[0] + off[i * 4 + 1] * ax[1] + off[i * 4 + 2] * ax[2] - lo0) / w0 * (G - 1), b = (off[i * 4] * ay[0] + off[i * 4 + 1] * ay[1] + off[i * 4 + 2] * ay[2] - lo1) / w1 * (G - 1);
     const i0 = Math.min(G - 2, Math.max(0, Math.floor(a))), j0 = Math.min(G - 2, Math.max(0, Math.floor(b))), fa = Math.min(1, Math.max(0, a - i0)), fb = Math.min(1, Math.max(0, b - j0));
     const v = (grid[j0 * G + i0] * (1 - fa) + grid[j0 * G + i0 + 1] * fa) * (1 - fb) + (grid[(j0 + 1) * G + i0] * (1 - fa) + grid[(j0 + 1) * G + i0 + 1] * fa) * fb;

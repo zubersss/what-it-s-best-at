@@ -626,9 +626,9 @@ export class App {
   // --- start screen, modes, benchmark -------------------------------------------------
 
   // True when the drawn ground under the character (or the camera) is the detailed one.
-  // The far rocks near the eye cast into the near shadow map. Their pool is made at the
-  // first world that has them, which need not be the one the page opened on.
-  addRockCasters() { if (this.farRocks.castersNew) for (const c of this.farRocks.casters) this.nearShadow.addCaster(c.mesh, this.farRocks.depthMaterial, c.on); }
+  // The far rocks near the eye cast into the near shadow map: one small mesh of their own,
+  // there from the start whatever world the page opened on.
+  addRockCasters() { if (!this._rockCasters) { this._rockCasters = true; for (const c of this.farRocks.casters) this.nearShadow.addCaster(c.mesh, this.farRocks.depthMaterial, c.on, c.fine); } }
 
   groundSettled() {
     if (this.terrain.idle) return true;

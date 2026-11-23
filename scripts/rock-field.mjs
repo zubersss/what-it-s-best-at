@@ -19,7 +19,7 @@
 import fs from 'node:fs';
 import { loadWorld } from './lib/loadWorld.mjs';
 import { png } from './lib/png.mjs';
-import { rockBlock, rocksFarDef, tileDeg, tileLon, rockVis, rockTop, SMALL_SHARE, shareOf } from '../src/rocks/rockBlock.js';
+import { rockBlock, rocksFarDef, tileDeg, tileLon, rockVis, rockTop, SMALL_SHARE, shareOf, tileCap } from '../src/rocks/rockBlock.js';
 import { MadeWorld } from '../src/terrain/tiles/madeTiles.js';
 import { ShadowBaker } from '../src/terrain/shadowBake.js';
 import { CONFIG } from '../src/config.js';
@@ -68,7 +68,7 @@ if (flag('check')) {
     const t0 = performance.now(), b = rockBlock(hs, L, li, bi, bj), ms = performance.now() - t0; worst = Math.max(worst, ms); total += ms; rocks += b.count;
     const again = rockBlock(hs, L, li, bi, bj);
     if (again.count !== b.count || again.off.some((v, i) => v !== b.off[i])) fail(`level ${li} tile ${bi},${bj}: asked twice, two answers`);
-    if (b.count > (L.cap ?? 512)) fail(`level ${li} tile ${bi},${bj}: ${b.count} rocks, over its cap`);
+    if (b.count > tileCap(L)) fail(`level ${li} tile ${bi},${bj}: ${b.count} rocks, more than a tile's buffers hold (${tileCap(L)}): it would be cut`);
     for (let i = 0; i < b.count; i++) {
       const s = b.off[i * 4 + 3];
       if (i && s * b.seen[i] > b.off[i * 4 - 1] * b.seen[i - 1] + 1e-3) { fail(`level ${li} tile ${bi},${bj}: rock ${i} is seen from farther than the one before it`); break; }
@@ -247,5 +247,5 @@ for (const [L, li, bi, bj] of tilesOver(SPAN)) {
 const out = opt('out', 'rock-field.png');
 fs.writeFileSync(out, png(W, W, px));
 console.log(`${out}: ${SPAN} m across at lat ${lat0} lon ${lon0}, ${mpp.toFixed(1)} m a pixel`);
-def.levels.forEach((L, li) => console.log(`  level ${li} (${L.size[0]}-${L.size[1]} m, tiles of ${(tileDeg(R, L.tile) * mLat).toFixed(0)} m): ${counts[li]} rocks in ${tilesN[li]} tiles, the fullest ${most[li]} of ${L.cap}`));
+def.levels.forEach((L, li) => console.log(`  level ${li} (${L.size[0]}-${L.size[1]} m, tiles of ${(tileDeg(R, L.tile) * mLat).toFixed(0)} m): ${counts[li]} rocks in ${tilesN[li]} tiles, the fullest ${most[li]} of ${tileCap(L)}`));
 console.log(`  a tile takes ${(ms / n).toFixed(0)} ms`);
