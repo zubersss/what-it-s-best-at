@@ -293,7 +293,7 @@ const CLUMP_VERT = /* glsl */`
     vec2 fc = floor((at + uTab.xy) / uTab.z);
     float h00 = texelFetch(tTable, ivec2(mod(fc, uTab.w)), 0).r;
     vec2 dh = (vec2(texelFetch(tTable, ivec2(mod(fc + vec2(1.0, 0.0), uTab.w)), 0).r, texelFetch(tTable, ivec2(mod(fc + vec2(0.0, 1.0), uTab.w)), 0).r) - h00) / uTab.z;
-    vSlope = vec4(normalize(uGrassUp - uGrassEast * dh.x - uGrassNorth * dh.y), smoothstep(18.0, 80.0, dist));
+    vSlope = vec4(normalize(uGrassUp - uGrassEast * dh.x - uGrassNorth * dh.y), smoothstep(12.0, 45.0, dist));
     vAlb = vec4(0.0, 0.0, 0.0, 1.0);
     gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
   }`;
