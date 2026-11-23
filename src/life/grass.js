@@ -251,7 +251,7 @@ const CLUMP_VERT = /* glsl */`
   ${PRELUDE}
   ${FLOWERS_GLSL}
   out vec3 vUv;                      // the picture (u, v), and how far across the card (-1..1)
-  out vec3 vFoot, vTip; out vec4 vFlower;
+  out vec3 vFoot, vTip; out vec4 vFlower; out vec4 vSlope;
   void main() {
     vec2 cell, rc = latticeCell(cell), h = hash2(cell), h2 = hash2(cell + 17.31);
     vec2 rel2 = rc + (h - 0.5) * 0.98 * SPACING, at = rel2 + uGrassCam.xy;
@@ -287,6 +287,13 @@ const CLUMP_VERT = /* glsl */`
     float fk = tableNearest(tTable, uTab, at).a, kind = floor(fk + 0.001);
     // (fewer heads show from above and far off: grass with a dusting, and no band of colour along the skyline)
     vFlower = vec4(petalColour(kind, h.y), step(0.5, kind) * step(hash2(cell + 5.1).x, fract(fk + 0.001) * 0.6) * (1.0 - 0.5 * rise) * (1.0 - 0.7 * smoothstep(60.0, 400.0, dist)));
+    // (the lie of the ground under the clump, from the table: far off a clump takes the
+    // light of the slope it stands on, as the ground between the clumps does. Lit as level
+    // ground, a hillside turned from the Sun was bright scales on a dark slope.)
+    vec2 fc = floor((at + uTab.xy) / uTab.z);
+    float h00 = texelFetch(tTable, ivec2(mod(fc, uTab.w)), 0).r;
+    vec2 dh = (vec2(texelFetch(tTable, ivec2(mod(fc + vec2(1.0, 0.0), uTab.w)), 0).r, texelFetch(tTable, ivec2(mod(fc + vec2(0.0, 1.0), uTab.w)), 0).r) - h00) / uTab.z;
+    vSlope = vec4(normalize(uGrassUp - uGrassEast * dh.x - uGrassNorth * dh.y), smoothstep(18.0, 80.0, dist));
     vAlb = vec4(0.0, 0.0, 0.0, 1.0);
     gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
   }`;
@@ -294,16 +301,18 @@ const CLUMP_VERT = /* glsl */`
 const FRAG = /* glsl */`${LIGHTING_PARS}
   in vec3 vRel; in vec4 vAlb;
   layout(location = 0) out vec4 fragColor;
-  vec3 grassLit(vec3 alb, float skyShare) {
+  vec3 grassLit(vec3 alb, float skyShare, vec4 slope) {
     vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos);
     // (a field is lit as the ground it stands on: by the Sun's height over it, in the shade of whatever stands near)
     float nl = dot(up, uSunDir), lit = uPaint.x > 0.0 ? paintLit(nl * 0.7 + 0.3) * PI : max(nl, 0.0);
+    // (slope: the ground's own lie and how much of its light the grass takes)
+    if (slope.w > 0.0) { float ns = dot(slope.xyz, uSunDir); lit = mix(lit, uPaint.x > 0.0 ? paintLit(ns) * PI : max(ns, 0.0), slope.w); }
     vec3 col = alb * (directSun(planetPos) * nearShadow(vRel + up * 0.15, up) * lit + skyLight(up, up) * skyShare) / PI;
     return aerialPerspective(col, vRel);
   }
   #ifdef CLUMP
   uniform sampler2D tClump;
-  in vec3 vUv; in vec3 vFoot, vTip; in vec4 vFlower;
+  in vec3 vUv; in vec3 vFoot, vTip; in vec4 vFlower; in vec4 vSlope;
   void main() {
     vec4 p = texture(tClump, vUv.xy);
     // (the card's ends rounded off; and the cut kept as sharp far off as near, where the
@@ -315,10 +324,10 @@ const FRAG = /* glsl */`${LIGHTING_PARS}
     if (cov < 0.5) discard;
     vec3 alb = mix(vFoot, vTip, p.g);
     alb = mix(alb, vFlower.rgb, p.b * vFlower.a);
-    fragColor = vec4(grassLit(alb, 0.55 + 0.45 * p.g) * uExposure, 1.0);
+    fragColor = vec4(grassLit(alb, 0.55 + 0.45 * p.g, vSlope) * uExposure, 1.0);
   }
   #else
-  void main() { fragColor = vec4(grassLit(vAlb.rgb, vAlb.a) * uExposure, 1.0); }
+  void main() { fragColor = vec4(grassLit(vAlb.rgb, vAlb.a, vec4(0.0)) * uExposure, 1.0); }
   #endif`;
 
 // --- the ground tables
