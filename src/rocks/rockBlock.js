@@ -170,9 +170,9 @@ export function rockBlock(hs, L, li, bi, bj) {
     const size = s0 * Math.pow(sr, Math.pow(u4, 1.9 - 0.7 * k));
     const h = wl < WLS ? hs.height(d[0], d[1], d[2], wl) : hc;
     if (hs.waterDepth > 0) continue;
-    // turned any way round, leaning half with the slope, tilted a little of its own
+    // turned any way round, lying on the slope (most of the way: a block on a hillside sits on the hill), tilted a little of its own
     const h3 = hash3(bi * 131 + i, bj * 137 + j, 43, salt), h4 = hash3(bi * 131 + i, bj * 137 + j, 61, salt);
-    const lean = 0.55, gl = Math.sqrt(1 + (gE * lean) * (gE * lean) + (gN * lean) * (gN * lean));
+    const lean = 0.8, gl = Math.sqrt(1 + (gE * lean) * (gE * lean) + (gN * lean) * (gN * lean));
     g[0] = (d[0] - (e[0] * gE + nn[0] * gN) * lean) / gl; g[1] = (d[1] - (e[1] * gE + nn[1] * gN) * lean) / gl; g[2] = (d[2] - (e[2] * gE + nn[2] * gN) * lean) / gl;
     qFromZ(g, q1);
     const yaw = (h3 & 0xffff) / 65536 * Math.PI, tx = (((h3 >>> 16) & 0xff) / 255 - 0.5) * 0.45, ty = ((h3 >>> 24) / 255 - 0.5) * 0.45;
@@ -182,8 +182,11 @@ export function rockBlock(hs, L, li, bi, bj) {
     // its proportions: the large ones stand taller (outcrops, tors), the small lie flat
     const big = ss(6, 13, size);
     const sx = 0.8 + 0.5 * ((h4 >>> 8) & 0xff) / 255, sy = 0.7 + 0.5 * ((h4 >>> 16) & 0xff) / 255, sz = 0.5 + 0.4 * (h4 >>> 24) / 255 + 0.35 * big * u1;
-    // sunk a little, and more on a slope: its downhill edge must not hang in the air
-    const sink = size * (0.12 + Math.min(0.3, 0.3 * S)), r = R + h - sink;
+    // sunk a little, and a little more on a slope. (Sunk by 0.3 of its size and more on a
+    // steep slope, as it was to keep its downhill edge out of the air, a block was a slab
+    // level with the hillside: the steep ground the rule fills was the ground that looked bare.
+    // It lies on the slope instead.)
+    const sink = size * (0.12 + 0.08 * Math.min(1, S)), r = R + h - sink;
     // from how far it is seen, as a size (`seen`, a share of its own in a byte): under a
     // closed canopy a rock cannot be seen from outside the wood, so there it is drawn to
     // 150 m or so, and only the few that stand above the trees from afar
