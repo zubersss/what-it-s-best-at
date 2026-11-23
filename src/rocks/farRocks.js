@@ -77,6 +77,7 @@ export class FarRocks {
     this.terrain = terrain;
     this.group = new THREE.Group();
     this.base = rockGeometry(0); this.tris = this.base.index.count / 3;
+    this.lump = { pos: this.base.attributes.position.array, idx: this.base.index.array };      // (the block's own faces, for whoever stands on one: riseAt)
     const sh = terrain.shared;
     this.uFar = { value: new THREE.Vector4(420, 0, 1, CONFIG.NEAR_SHADOW_RADIUS) }; this.uShareSize = { value: new THREE.Vector2(3.4, 8) };
     this.uniforms = {
@@ -456,9 +457,7 @@ export class FarRocks {
 
   // How far a large rock stands over the ground at a place: d: the unit direction from the
   // world's centre, r: the ground's distance from the centre there (m). The block as it is
-  // drawn, near enough: its fracture planes (ROCK_SHAPE_GLSL, in JavaScript: change one,
-  // change the other) and a sphere a little inside the lump they are cut from, so that
-  // feet sink a hand into a corner and never hang over one. 0 where there is none.
+  // drawn: its own twenty faces (rockTop). 0 where there is none.
   riseAt(d, r) {
     if (!this.def || !this.slots.length) return 0;
     const px = d[0] * r, py = d[1] * r, pz = d[2] * r;
@@ -472,7 +471,7 @@ export class FarRocks {
       for (let i = 0; i < b.count; i++) {
         const x = ox - off[i * 4], y = oy - off[i * 4 + 1], z = oz - off[i * 4 + 2], size = off[i * 4 + 3], lim = 1.6 * size;
         if (x * x + y * y + z * z > lim * lim) continue;
-        const t = rockTop(x, y, z, d, quat, scale, shape, i);
+        const t = rockTop(x, y, z, d, quat, scale, shape, i, this.lump);
         if (t > best) best = t;
       }
     }

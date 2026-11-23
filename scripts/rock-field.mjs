@@ -113,20 +113,66 @@ if (flag('check')) {
       if (mean(hi) < 0.95 || mean(lo) > 0.05) fail('the sunlight on a tile is wrong (should be 1 with the Sun overhead, 0 with it underfoot)');
     }
   }
-  // what a walker stands on: over a rock's middle its top is some way up, a few sizes off there is none
+  // What a walker stands on is the block that is drawn: rockTop against the twenty faces
+  // built here again as the vertex shader builds them (ROCK_SHAPE_GLSL), asked on a grid
+  // over each rock. Wherever rockTop lifts the walker a face must be there, at that height.
   {
-    const [L, li, bi, bj] = list.find((t) => t[1] === 2) || list[0], b = rockBlock(hs, L, li, bi, bj);
-    let low = 1e9, high = 0, stray = 0;
-    for (let i = 0; i < b.count; i++) {
-      const x = b.origin[0] + b.off[i * 4], y = b.origin[1] + b.off[i * 4 + 1], z = b.origin[2] + b.off[i * 4 + 2], r = Math.hypot(x, y, z), up = [x / r, y / r, z / r], s = b.off[i * 4 + 3];
-      const top = rockTop(0, 0, 0, up, b.quat, b.scale, b.shape, i) / s; low = Math.min(low, top); high = Math.max(high, top);
-      // (two sizes to one side, on the level of its middle)
-      const e = [-up[1], up[0], 0], el = Math.hypot(e[0], e[1]) || 1;
-      if (rockTop(e[0] / el * 2 * s, e[1] / el * 2 * s, 0, up, b.quat, b.scale, b.shape, i) > 0) stray++;
+    const { rockGeometry } = await import('../src/rocks/rocks.js'), g = rockGeometry(0), lump = { pos: g.attributes.position.array, idx: g.index.array };
+    const fr = (v) => v - Math.floor(v), TAU = 6.2831853;
+    const faces = (b, i) => {                       // the block's faces in planet axes, from its middle
+      const sh = [0, 1, 2, 3].map((k) => b.shape[i * 4 + k] / 255), sides = 4 + Math.floor(sh[3] * 2.999), q = b.quat.subarray(i * 4, i * 4 + 4), sc = b.scale.subarray(i * 3, i * 3 + 3), V = [];
+      for (let k = 0; k < 12; k++) {
+        const p = [lump.pos[k * 3], lump.pos[k * 3 + 1], lump.pos[k * 3 + 2]]; let r = Math.hypot(...p); const d = p.map((v) => v / r);
+        for (let f = 0; f <= sides; f++) {
+          let n, h;
+          if (f < sides) { const a = sh[0] * TAU + f * TAU / sides + (fr(sh[1] * 7.13 + f * 0.618034) - 0.5) * 0.9, z = (fr(sh[2] * 5.71 + f * 0.381966) - 0.45) * 0.55, sn = Math.sqrt(1 - z * z); n = [Math.cos(a) * sn, Math.sin(a) * sn, z]; h = 0.5 + 0.32 * fr(sh[1] * 3.31 + f * 0.754878); }
+          else { const z = 0.6 + 0.37 * sh[1], sn = Math.sqrt(1 - z * z), a = sh[2] * TAU; n = [Math.cos(a) * sn, Math.sin(a) * sn, z]; h = 0.35 + 0.35 * sh[0]; }
+          const c = d[0] * n[0] + d[1] * n[1] + d[2] * n[2]; if (c > 1e-3 && r * c > h) r = h / c;
+        }
+        const v = [d[0] * r * sc[0], d[1] * r * sc[1], d[2] * r * sc[2]];
+        // qrot: v + 2 q.xyz x (q.xyz x v + q.w v)
+        const cx = q[1] * v[2] - q[2] * v[1] + q[3] * v[0], cy = q[2] * v[0] - q[0] * v[2] + q[3] * v[1], cz = q[0] * v[1] - q[1] * v[0] + q[3] * v[2];
+        V.push([v[0] + 2 * (q[1] * cz - q[2] * cy), v[1] + 2 * (q[2] * cx - q[0] * cz), v[2] + 2 * (q[0] * cy - q[1] * cx)]);
+      }
+      return V;
+    };
+    // the highest point of the faces on the vertical through P (plain solving, no shared code with rockTop)
+    const highest = (V, P, up) => {
+      let best = null;
+      for (let t = 0; t < 60; t += 3) {
+        const A = V[lump.idx[t]], B = V[lump.idx[t + 1]], C = V[lump.idx[t + 2]];
+        // P + s up = A + a (B - A) + c (C - A): three equations, Cramer's rule
+        const m = [[B[0] - A[0], C[0] - A[0], -up[0]], [B[1] - A[1], C[1] - A[1], -up[1]], [B[2] - A[2], C[2] - A[2], -up[2]]], r = [P[0] - A[0], P[1] - A[1], P[2] - A[2]];
+        const det3 = (x) => x[0][0] * (x[1][1] * x[2][2] - x[1][2] * x[2][1]) - x[0][1] * (x[1][0] * x[2][2] - x[1][2] * x[2][0]) + x[0][2] * (x[1][0] * x[2][1] - x[1][1] * x[2][0]);
+        const D = det3(m); if (Math.abs(D) < 1e-12) continue;
+        const col = (k) => m.map((row, ri) => row.map((v, ci) => ci === k ? r[ri] : v));
+        const a = det3(col(0)) / D, c = det3(col(1)) / D, sv = det3(col(2)) / D;
+        if (a < -1e-9 || c < -1e-9 || a + c > 1 + 1e-9) continue;
+        if (best == null || sv > best) best = sv;
+      }
+      return best;
+    };
+    let asked = 0, lifted = 0, noRock = 0, worst = 0, rocksN = 0;
+    for (const [L, li, bi, bj] of list) {
+      if (L.size[0] < 3.4 - 1e-6) continue;
+      const b = rockBlock(hs, L, li, bi, bj);
+      for (let i = 0; i < b.count && rocksN < 300; i += Math.max(1, Math.floor(b.count / 150))) {
+        rocksN++;
+        const x = b.origin[0] + b.off[i * 4], y = b.origin[1] + b.off[i * 4 + 1], z = b.origin[2] + b.off[i * 4 + 2], r = Math.hypot(x, y, z), up = [x / r, y / r, z / r], s = b.off[i * 4 + 3];
+        const e = [-up[1], up[0], 0], el = Math.hypot(e[0], e[1]) || 1; e[0] /= el; e[1] /= el; const n = [up[1] * e[2] - up[2] * e[1], up[2] * e[0] - up[0] * e[2], up[0] * e[1] - up[1] * e[0]];
+        const V = faces(b, i);
+        for (let gy = -6; gy <= 6; gy++) for (let gx = -6; gx <= 6; gx++) {
+          // (a place 2 sizes under the rock's middle: under all of it)
+          const P = [0, 1, 2].map((k) => (e[k] * gx + n[k] * gy) * s * 0.25 - up[k] * 2 * s);
+          const t = rockTop(P[0], P[1], P[2], up, b.quat, b.scale, b.shape, i, lump), h = highest(V, P, up); asked++;
+          if (t > 0) { lifted++; if (h == null) noRock++; else worst = Math.max(worst, Math.abs(t - h)); } else if (h != null && h > 1e-6) worst = Math.max(worst, h);
+        }
+      }
     }
-    console.log(`a walker on ${b.count} large rocks: their tops stand ${low.toFixed(2)} to ${high.toFixed(2)} of their size over their middles`);
-    if (b.count && (low < 0.1 || high > 1.2)) fail('a rock\'s top is not where its shape puts it (0.1 to 1.2 of its size over its middle)');
-    if (stray) fail(`${stray} rocks carry a walker two sizes away from their middle`);
+    console.log(`a walker on ${rocksN} large rocks, ${asked} places: lifted at ${lifted}; with no face of the block under him at ${noRock}; farthest from the face ${worst.toFixed(3)} m`);
+    if (!lifted) fail('no place over a large rock lifts a walker (the comparison was not made)');
+    if (noRock) fail(`${noRock} places lift a walker where no face of the drawn block is`);
+    if (worst > 0.01) fail(`a walker stands ${worst.toFixed(2)} m from the face of the block under him`);
   }
   // under a closed canopy a rock is seen from near by only, unless it stands over the trees
   {

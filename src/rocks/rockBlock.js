@@ -252,42 +252,61 @@ export function rockVis(baker, origin, off, count, sun, sunHalf) {
   return out;
 }
 
-// For whoever walks among the large ones (farRocks.js, riseAt): the block as it is drawn,
-// near enough: its fracture planes (ROCK_SHAPE_GLSL in rocks.js, in JavaScript: change one,
-// change the other) and a sphere a little inside the lump they are cut from.
+// For whoever walks among the large ones (farRocks.js, riseAt): the block as it is drawn.
+// The far rocks draw the lump at its coarsest (12 vertices, 20 flat faces: rockGeometry(0)
+// in rocks.js), its vertices pulled in to the fracture planes by the vertex shader
+// (ROCK_SHAPE_GLSL in rocks.js, here in JavaScript: change one, change the other). A walker
+// stands on those twenty faces and on nothing else. (He stood on a sphere cut by the planes
+// before: larger than the block, so a third of the places that lifted him had no rock
+// under them, and on the big ones his feet were half a metre to three metres over it.)
+//
 // The highest point of rock i on the vertical through a place: (x, y, z): the place from
-// the rock's middle (m, planet axes); up: the vertical there. Metres over the place, or 0.
-const LUMP = 0.86, TAU = 6.2831853;
+// the rock's middle (m, planet axes); up: the vertical there; lump: { pos (the 12 vertices,
+// 3 each), idx (the 20 faces, 3 each) }. Metres over the place, or 0.
+const TAU = 6.2831853;
 const fr = (v) => v - Math.floor(v);
-export function rockTop(x, y, z, up, quat, scale, shape, i) {
-  // into the rock's own axes (the turn undone), in units of its size along each
+export function rockTop(x, y, z, up, quat, scale, shape, i, lump) {
+  // into the rock's own axes (the turn undone); the block is built there at its true size
   const qx = -quat[i * 4], qy = -quat[i * 4 + 1], qz = -quat[i * 4 + 2], qw = quat[i * 4 + 3];
   const rot = (vx, vy, vz, o) => {
     const tx = qy * vz - qz * vy + qw * vx, ty = qz * vx - qx * vz + qw * vy, tz = qx * vy - qy * vx + qw * vz;
     o[0] = vx + 2 * (qy * tz - qz * ty); o[1] = vy + 2 * (qz * tx - qx * tz); o[2] = vz + 2 * (qx * ty - qy * tx);
   };
-  const p = _p, u = _u;
+  const p = _p, u = _u, V = _v;
   rot(x, y, z, p); rot(up[0], up[1], up[2], u);
   const sx = scale[i * 3], sy = scale[i * 3 + 1], sz = scale[i * 3 + 2];
-  p[0] /= sx; p[1] /= sy; p[2] /= sz; u[0] /= sx; u[1] /= sy; u[2] /= sz;
-  // the line p + t u inside the lump's sphere ...
-  const a = u[0] * u[0] + u[1] * u[1] + u[2] * u[2], bq = p[0] * u[0] + p[1] * u[1] + p[2] * u[2], c = p[0] * p[0] + p[1] * p[1] + p[2] * p[2] - LUMP * LUMP, disc = bq * bq - a * c;
-  if (disc <= 0) return 0;
-  let t0 = (-bq - Math.sqrt(disc)) / a, t1 = (-bq + Math.sqrt(disc)) / a;
-  // ... and under every fracture plane
+  // the fracture planes
   const s0 = shape[i * 4] / 255, s1 = shape[i * 4 + 1] / 255, s2 = shape[i * 4 + 2] / 255, s3 = shape[i * 4 + 3] / 255;
-  const az = s0 * TAU, sides = 4 + Math.floor(s3 * 2.999);
+  const az = s0 * TAU, sides = 4 + Math.floor(s3 * 2.999), P = _pl;
   for (let f = 0; f <= sides; f++) {
     let nz, ang, h;
     if (f < sides) { ang = az + f * TAU / sides + (fr(s1 * 7.13 + f * 0.618034) - 0.5) * 0.9; nz = (fr(s2 * 5.71 + f * 0.381966) - 0.45) * 0.55; h = 0.5 + 0.32 * fr(s1 * 3.31 + f * 0.754878); }
     else { ang = s2 * TAU; nz = 0.6 + 0.37 * s1; h = 0.35 + 0.35 * s0; }
-    const sn = Math.sqrt(Math.max(0, 1 - nz * nz)), nx = Math.cos(ang) * sn, ny = Math.sin(ang) * sn;
-    const dp = p[0] * nx + p[1] * ny + p[2] * nz - h, du = u[0] * nx + u[1] * ny + u[2] * nz;
-    if (Math.abs(du) < 1e-9) { if (dp > 0) return 0; continue; }
-    const t = -dp / du;
-    if (du > 0) { if (t < t1) t1 = t; } else if (t > t0) t0 = t;
-    if (t0 >= t1) return 0;
+    const sn = Math.sqrt(Math.max(0, 1 - nz * nz));
+    P[f * 4] = Math.cos(ang) * sn; P[f * 4 + 1] = Math.sin(ang) * sn; P[f * 4 + 2] = nz; P[f * 4 + 3] = h;
   }
-  return t1 > 0 ? t1 : 0;
+  // its vertices, as the vertex shader moves them
+  const nv = lump.pos.length / 3;
+  for (let k = 0; k < nv; k++) {
+    const vx = lump.pos[k * 3], vy = lump.pos[k * 3 + 1], vz = lump.pos[k * 3 + 2];
+    let r = Math.sqrt(vx * vx + vy * vy + vz * vz); const dx = vx / r, dy = vy / r, dz = vz / r;
+    for (let f = 0; f <= sides; f++) { const c = dx * P[f * 4] + dy * P[f * 4 + 1] + dz * P[f * 4 + 2]; if (c > 1e-3 && r * c > P[f * 4 + 3]) r = P[f * 4 + 3] / c; }
+    V[k * 3] = dx * r * sx; V[k * 3 + 1] = dy * r * sy; V[k * 3 + 2] = dz * r * sz;
+  }
+  // the vertical's highest crossing of its faces
+  let best = 0; const idx = lump.idx;
+  for (let t = 0; t < idx.length; t += 3) {
+    const a = idx[t] * 3, b = idx[t + 1] * 3, c = idx[t + 2] * 3;
+    const e1x = V[b] - V[a], e1y = V[b + 1] - V[a + 1], e1z = V[b + 2] - V[a + 2], e2x = V[c] - V[a], e2y = V[c + 1] - V[a + 1], e2z = V[c + 2] - V[a + 2];
+    const hx = u[1] * e2z - u[2] * e2y, hy = u[2] * e2x - u[0] * e2z, hz = u[0] * e2y - u[1] * e2x, det = e1x * hx + e1y * hy + e1z * hz;
+    if (det > -1e-12 && det < 1e-12) continue;
+    const inv = 1 / det, tx = p[0] - V[a], ty = p[1] - V[a + 1], tz = p[2] - V[a + 2], bu = (tx * hx + ty * hy + tz * hz) * inv;
+    if (bu < 0 || bu > 1) continue;
+    const qx2 = ty * e1z - tz * e1y, qy2 = tz * e1x - tx * e1z, qz2 = tx * e1y - ty * e1x, bv = (u[0] * qx2 + u[1] * qy2 + u[2] * qz2) * inv;
+    if (bv < 0 || bu + bv > 1) continue;
+    const dist = (e2x * qx2 + e2y * qy2 + e2z * qz2) * inv;
+    if (dist > best) best = dist;
+  }
+  return best;
 }
-const _p = [0, 0, 0], _u = [0, 0, 0];
+const _p = [0, 0, 0], _u = [0, 0, 0], _v = new Float64Array(64 * 3), _pl = new Float64Array(7 * 4);
