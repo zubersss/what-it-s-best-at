@@ -21,7 +21,7 @@ declare -A Q=(
   [steep_ground_phone]="$STEEP&heading=80&pitch=2&fov=21.4"   # (the ground view at a phone's density)
   [floor]="$STEEP&alt=2053&heading=135&pitch=-14&debug=floor"
 )
-ORDER=(steep_ground steep_join steep_air100 steep_ground_phone steep_air400 ledge_north ledge_phone wall steppe_ground ledge tele floor steppe_air30)
+ORDER=(steep_join steep_ground steep_air100 steep_ground_phone steep_air400 ledge_north ledge_phone wall steppe_ground ledge tele floor steppe_air30)
 [ $# -gt 0 ] && ORDER=("$@")
 fail=0
 for v in "${ORDER[@]}"; do
