@@ -265,7 +265,8 @@ self.onmessage = async (ev) => {
           }
         }
       }
-      const cell = (m.radius ? 2 * Math.PI * m.radius : 40075016) / (TILE * rows) * Math.cos(Math.atan(Math.sinh(Math.PI * (1 - 2 * (ty + n / 2) / rows))));
+      // (Earth's own circumference: the map services are Earth's; a made world has its own branch above)
+      const cell = 40075016 / (TILE * rows) * Math.cos(Math.atan(Math.sinh(Math.PI * (1 - 2 * (ty + n / 2) / rows))));
       despike(out, W, cell);
       seaBed(out, W, cell);
       const water = m.hydrology ? await waters(m, out, W, cell) : null;

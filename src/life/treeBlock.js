@@ -14,7 +14,8 @@ export const BLOCK_DEG = 0.001;
 // A block is 111 m on any world: its height in degrees on one of radius R (BLOCK_DEG is
 // Earth's; on a world 250 km in radius 0.001 degrees would be four metres).
 const EARTH_R = 6371000;
-export function blockDeg(R, deg = BLOCK_DEG) { return deg * EARTH_R / R; }
+// (on Earth exactly the number it always was: its trees stand where they stood)
+export function blockDeg(R, deg = BLOCK_DEG) { return R === EARTH_R ? deg : deg * EARTH_R / R; }
 export const TREE_FLOATS = 8;          // x, y, z (m from the block's origin, planet axes), height, crown width, turn, species, a number of its own
 
 // (the block's width in longitude: the same for every block of a one-degree band of latitude)
