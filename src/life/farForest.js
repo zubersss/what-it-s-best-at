@@ -31,6 +31,7 @@
 // none from higher) }`; how many levels, how large a tile and how many trees one may hold
 // are the same on every world (the constants below).
 import * as THREE from 'three';
+import { HEAP_GLSL } from '../sky/clouds.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
@@ -84,6 +85,9 @@ export class FarForest {
       ...lightingUniforms(),
       tTreeAtlas: trees.shared.tTreeAtlas,
       uSeason: trees.shared.uSeason,
+      // (the ground's own uniform objects: what the ground is shaded by, these trees are)
+      tClouds: terrain.shared.tClouds, uCloud: terrain.shared.uCloud, tCloudNoise: terrain.shared.tCloudNoise,
+      uCloudHeap: terrain.shared.uCloudHeap, uCloudVol: terrain.shared.uCloudVol, uCloudWind: terrain.shared.uCloudWind,
       uRectTree: { value: rectTree }, uRectRose: { value: rectRose }, uRoseGeo: { value: roseGeo },
       // x: full density out to here (m), y: none beyond here (m), z: none nearer than here
       // (where the trees one walks among end), w: the share of them drawn (the governor)
@@ -96,6 +100,24 @@ export class FarForest {
       uniform vec3 uTileRel, uTileEast, uTileNorth, uTileUp;
       uniform vec4 uRectTree[CELLS], uRectRose[CELLS], uRoseGeo[CELLS];
       uniform vec4 uFar;
+      // The clouds' shadow, by the ground's own rule and from the ground's own numbers
+      // (terrainMaterial.js, its light): the cloud between a tree's crown and the Sun.
+      uniform vec3 uCamPlanetPos, uSunDir;
+      uniform sampler2D tClouds;
+      precision highp sampler3D;
+      uniform sampler3D tCloudNoise;
+      uniform vec4 uCloud, uCloudHeap;
+      uniform vec3 uCloudVol, uCloudWind;
+      ${HEAP_GLSL}
+      float cloudShade(vec3 planetPos) {
+        float r = length(planetPos);
+        if (uCloud.x <= 0.0 || r >= uCloud.y) return 1.0;
+        vec3 uc = normalize(planetPos + uSunDir * ((uCloud.y - r) / max(dot(planetPos / r, uSunDir), 0.08)));
+        float cd = textureLod(tClouds, vec2(atan(uc.y, uc.x) * 0.15915494 + uCloud.z, acos(clamp(uc.z, -1.0, 1.0)) * 0.31830989), 0.0).r;
+        float shade = smoothstep(0.2, 0.7, cd);
+        if (uCloudHeap.w > 0.5) { float cc, hp = cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudWind, 0.0, cc); shade = 0.85 * smoothstep(0.06, 0.42, hp); }
+        return 1.0 - uCloud.x * shade;
+      }
       out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out vec2 vUv; out vec2 vOwn; out float vShade;
       vec3 unpack(float p) { float r = floor(p / 65536.0), g = floor((p - r * 65536.0) / 256.0); return vec3(r, g, p - r * 65536.0 - g * 256.0) * (${COLOUR_TOP.toFixed(3)} / 255.0); }
       void main() {
@@ -126,7 +148,7 @@ export class FarForest {
         l *= iA.w * grow;
         vRel = foot + uTileEast * (l.x * c - l.z * s) + uTileUp * l.y + uTileNorth * (l.x * s + l.z * c);
         vN = normalize(uTileEast * (nl.x * c - nl.z * s) + uTileUp * nl.y + uTileNorth * (nl.x * s + nl.z * c));
-        vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); float fall = floor(iC.w * 0.25 + 1e-3); vOwn = vec2(iB.w, fall); vShade = clamp((iC.w - fall * 4.0) / 3.0, 0.0, 1.0);
+        vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); float fall = floor(iC.w * 0.25 + 1e-3); vOwn = vec2(iB.w, fall); vShade = clamp((iC.w - fall * 4.0) / 3.0, 0.0, 1.0) * cloudShade(uCamPlanetPos + foot + uTileUp * (iA.w * 0.7));
         vUv = vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
         gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
       }`;
