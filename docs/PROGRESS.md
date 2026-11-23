@@ -625,6 +625,22 @@ ranges blue-black); the canopy's slope judged over a whole small patch (square h
    seen from the air, trees that can be seen well before landing.
 4. Deliver, and ask for an Earth benchmark.
 
+All four are built.
+
+**Tests of this delivery** (on the build that was merged, served frozen): the build check
+(with the scripts' imports); `npm run smoke` (16 checks; 22 shaders, the ground's the
+fullest at 16 of a phone's 16 textures, none failing); `npm run shadowturns` (STILL RUNNING
+when this was written: put its result here);
+`npm run govsim` (the four new cases among them); `npm run lakes`; the stability test's
+Earth move over the forest from 370 m (`--only earth_forest_flight`: changed 5.3 %,
+flicker 0.24 %: crowns and tree outlines moving with the camera, nothing popping).
+Pictures from the merged build: 20 000, 2 000, 400, 100, 30, 12 km, among the clouds at
+5 km, the forest from 700 and 370 m, the opening view, and 100 and 30 km with every
+saving on. **Not run**: the full reference set, the stability test's other moves, the
+streaming stability run, `flight`, `foot`, `transfer`, `worlds` (nothing in them was
+touched, but the ground's shader and the tile coordinates serve every world: the smoke
+test's Mars and Moon are what stands for them). **Nothing is measured on the phone.**
+
 ## The owner's seventh phone results (build ef3201a) and the sixth painted delivery
 
 **The numbers** (Earth benchmark, Smooth): **53.7 fps** on average (56.8 at the sixth),
