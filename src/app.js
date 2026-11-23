@@ -1228,7 +1228,7 @@ export class App {
       this.trees.update(rig, day, this.terrain.shared.uWave.value.z);
       this.farForest.update(rig);
       // (beyond the trees the forest is raised as a whole; from high up, all of it)
-      const tr = this.trees, drawn = tr.def && rig.agl < (tr.def.below ?? 1500), r = (tr.def?.radius ?? 240) * tr.fraction;
+      const tr = this.trees, drawn = tr.reach > 0, r = tr.reach;
       // (it is up to its height where the last trees stand: from above, the ground showed
       // brown in a ring between the trees and the canopy)
       this.terrain.shared.uShell.value.set(drawn ? r * 0.62 : 0, drawn ? r * 0.98 : 1, tr.def ? 1 : 0);

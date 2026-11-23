@@ -240,7 +240,7 @@ export class Trees {
     this.blocks = new Map();                 // 'bi:bj' -> { state: 0 asked, 1 ready, origin, trees, count, used }
     this.asked = 0; this.frame = 0; this.serial = -1;
     this.anchor = new THREE.Vector3(); this.builtAt = new THREE.Vector3(1e12, 0, 0); this.dirty = false;
-    this.fraction = 1; this.shadowsFar = true; this.count = 0; this.triangles = 0;
+    this.fraction = 1; this.shadowsFar = true; this.count = 0; this.triangles = 0; this.reach = 0;
     this.names = '';                          // the species standing nearest, for anyone who asks
     this._e = [0, 0, 0]; this._n = [0, 0, 0]; this._u = [0, 0, 0];
     this.setWorld(world);
@@ -251,7 +251,7 @@ export class Trees {
     this.blocks.clear(); this.asked = 0; this.dirty = true; this.serial = -1;
     this.shared.uSeason.value.set(0, 0, 0);
     for (const s of this.sets.flat(2)) { s.count = 0; s.geo.instanceCount = 0; if (s.castGeo) s.castGeo.instanceCount = 0; s.mesh.visible = false; }
-    this.count = 0; this.triangles = 0; this.names = ''; this.falling = 0;
+    this.count = 0; this.triangles = 0; this.names = ''; this.falling = 0; this.reach = 0;
   }
 
   // True while blocks that are wanted have not arrived (screenshots wait for them).
@@ -263,7 +263,12 @@ export class Trees {
     const def = this.def, t = this.terrain;
     if (!def) return;
     const R = this.world.radius, radius = (def.radius ?? 240) * this.fraction;
-    const show = rig.agl < (def.below ?? 1500) && !!t.coverSerial;
+    // Above the radius itself no tree can be within it of the eye (the cut is a sphere round
+    // the eye, and the far forest draws everything outside it): blocks are not even asked
+    // for up there. `reach`: how far these trees reach from the eye, 0 when none are drawn —
+    // the far forest and the raised canopy both start where this ends.
+    const show = rig.agl < Math.min(def.below ?? 1500, radius) && !!t.coverSerial;
+    this.reach = show ? radius : 0;
     for (const s of this.sets.flat(2)) s.mesh.visible = show && s.count > 0 && this.atlasReady;
     const p = rig.pos, len = p.length(), lat = Math.asin(p.z / len) * 180 / Math.PI, lon = ((Math.atan2(p.y, p.x) * 180 / Math.PI) + 360) % 360;
     {
