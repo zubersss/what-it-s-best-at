@@ -49,7 +49,10 @@ export default {
       // Layered rock: beds stand as small cliffs and benches where the ground is steep. (Only
       // the fine ones, and only on steep ground: with beds 120 m thick as well, every hillside
       // seen from the air was drawn in contour lines.)
-      { op: 'terrace', seed: 9, thickness: 24, cliff: 0.18, rise: 0.76, strength: 0.45, slopeMask: [0.3, 0.55], jitter: 0.4, warpAmp: 5, warpWavelength: 260 },
+      // (... and only where it is steep enough to be a cliff: on ordinary mountain sides the
+      // beds drew fine level lines over the whole slope, a wood grain seen from a few
+      // kilometres, and stripes under the forest's canopy from the air)
+      { op: 'terrace', seed: 9, thickness: 28, cliff: 0.2, rise: 0.76, strength: 0.4, slopeMask: [0.52, 0.8], jitter: 0.45, warpAmp: 6, warpWavelength: 260 },
       // The sea: nothing lies below sea level (this layer stays last).
       { op: 'sea', level: 0 },
     ],
@@ -67,7 +70,7 @@ export default {
     sand: [0.32, 0.27, 0.18],
     scree: [0.20, 0.165, 0.125],
     rock: [0.19, 0.15, 0.105],         // warm rock (ochre, not red)
-    strata: { period: 260, contrast: 0.16, finePeriod: 30, fine: 0.1, flat: 0.05, colors: [[0.95, 0.80, 0.60], [0.74, 0.58, 0.44], [0.92, 0.84, 0.68], [0.62, 0.52, 0.44], [0.86, 0.68, 0.48]] },
+    strata: { period: 260, contrast: 0.1, finePeriod: 30, fine: 0.03, flat: 0, colors: [[0.95, 0.80, 0.60], [0.74, 0.58, 0.44], [0.92, 0.84, 0.68], [0.62, 0.52, 0.44], [0.86, 0.68, 0.48]] },
     slopes: { dustMax: 0.36, screeMin: 0.55, screeMax: 0.8, rockMin: 1.0 },
     sandBelow: -20000, sandFade: 1500,
     ripples: { wavelength: 1, strength: 0 },
