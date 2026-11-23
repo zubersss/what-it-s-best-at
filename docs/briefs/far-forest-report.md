@@ -203,6 +203,11 @@ the shadow maps those trees had no shadow of the land on them, ever. Both are do
    `CAP` is now 12 288 (the most sites a band of levels 0 to 2 can have), and on overflow
    the margin goes to 1.2 and then 1.0, never under the trees that stand. The pool is now
    40 x 12 288 x 48 bytes = **23.6 MB** of instance buffers (it was 11.8).
+3. **Trees at the 240 m line drawn by nobody: true by the code, fixed; not seen in a
+   picture.** The near list held trees to 10 m past the radius and was made again every
+   25 m, while both shaders cut at 240 m from the eye. The list now reaches the radius plus
+   the 25 m and 5 more, and blocks are asked for that much farther out. The stability move
+   never walks 10 m from a rebuild, so it could not have shown it and does not prove the fix.
 
 ## Tests
 

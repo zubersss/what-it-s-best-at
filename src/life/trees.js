@@ -318,14 +318,14 @@ export class Trees {
     if (serial !== this.serial) { this.serial = serial; for (const b of this.blocks.values()) b.stale = true; }
     // (a block is 111 m on any world: so many degrees on this one, so many metres a degree)
     const DEG = blockDeg(this.world.radius), M = this.world.radius * Math.PI / 180;
-    const bi0 = Math.floor(lat / DEG), nb = Math.ceil(radius / 111.2);
+    const bi0 = Math.floor(lat / DEG), nb = Math.ceil((radius + REBUILD_M + 5) / 111.2);
     let want = null, wantD = 1e9; const sunNow = this.shared.uSunDir.value;
     for (let bi = bi0 - nb; bi <= bi0 + nb; bi++) {
       const dLon = blockLon(bi, DEG), count = Math.round(360 / dLon), bj0 = Math.floor(lon / dLon);
       for (let bu = bj0 - nb; bu <= bj0 + nb; bu++) {
         // (the block's middle, in metres from the traveller along the ground)
         const dy = ((bi + 0.5) * DEG - lat) * M, dx = ((bu + 0.5) * dLon - lon) * M * Math.cos(lat * Math.PI / 180), d = Math.hypot(dx, dy);
-        if (d > radius + 80) continue;
+        if (d > radius + 80 + REBUILD_M + 5) continue;
         const bj = ((bu % count) + count) % count;          // (the lattice goes once round the world and meets itself)
         const key = bi + ':' + bj, b = this.blocks.get(key);
         // (the land's shadow on its trees was worked out for a Sun that has moved on: again)
@@ -367,7 +367,8 @@ export class Trees {
     const u = this.shared;
     u.uTreeEast.value.set(...this._e); u.uTreeNorth.value.set(...this._n); u.uTreeUp.value.set(...this._u);
     for (const s of this.sets.flat(2)) s.count = 0;
-    const r2 = (radius + 10) * (radius + 10), near2 = NEAR_M * NEAR_M, close2 = CLOSE_M * CLOSE_M * (this.closeOn === false ? 0 : 1);
+    const r2 = (radius + REBUILD_M + 5) ** 2,          // (the list must hold every tree that can come within the radius before it is made again: the cut at the radius is by distance from the eye, and the far forest draws nothing inside it)
+       near2 = NEAR_M * NEAR_M, close2 = CLOSE_M * CLOSE_M * (this.closeOn === false ? 0 : 1);
     let nearest = 1e9, names = new Map(), falling = 0, near = 0;
     for (const b of this.blocks.values()) {
       if (b.state !== 1 || !b.count) continue;
