@@ -119,7 +119,11 @@ const PRELUDE = /* glsl */`
   uniform vec2 uGrassLie;            // the anchor on the plane counted from the grass's origin, modulo PERIOD (m)
   uniform vec2 uLatOrigin;           // ... and in this lattice's cells, modulo 4096
   uniform vec4 uGrassKeep;           // how much is kept by the height of the traveller: x blades, y clumps; z the governor's share of the clumps, w how much wider they are for it
+  uniform vec4 uGrassTone;           // x: how dry the grass round the traveller is in the mean (the ground under it is painted with this)
   ${GRASS_GLSL}
+  // how dry a tuft is: mostly what the ground under it is painted as, a little its own place's
+  // (by its own place's alone, a green stretch of blades stood on golden ground: a dark smear)
+  float dryHere(float own) { return mix(own, uGrassTone.x, 0.7); }
   out vec3 vRel; out vec4 vAlb;      // the surface's colour, and how much of the sky's light it has
   vec2 hash2(vec2 p) { vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); q += dot(q, q.yzx + 33.33); return fract((q.xx + q.yz) * q.zy); }
   // a ground table at a place of the plane (at, m from the anchor): the four entries round it, blended
@@ -189,7 +193,7 @@ const GRASS_VERT = /* glsl */`
     vRel = uGrassEast * p2.x + uGrassNorth * p2.y + uGrassUp * up;
     // green grass and dry grass, each darker at the foot (the blades shade each other
     // there); paler where the wind's wave bows them
-    vAlb = vec4(grassColour(g.b + (h.x - 0.5) * 0.16 - 0.22 * lie, y) * (0.85 + 0.3 * h.x) * (0.92 + 0.12 * lie) * (0.94 + 0.12 * w.z), 0.55 + 0.45 * y);
+    vAlb = vec4(grassColour(dryHere(g.b) + (h.x - 0.5) * 0.16 - 0.10 * lie, y) * (0.85 + 0.3 * h.x) * (0.92 + 0.12 * lie) * (0.94 + 0.12 * w.z), 0.55 + 0.45 * y);
     gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
   }`;
 
@@ -251,7 +255,7 @@ const CLUMP_VERT = /* glsl */`
   ${PRELUDE}
   ${FLOWERS_GLSL}
   out vec3 vUv;                      // the picture (u, v), and how far across the card (-1..1)
-  out vec3 vFoot, vTip; out vec4 vFlower; out vec4 vSlope;
+  out vec3 vFoot, vTip; out vec4 vFlower; out vec4 vSlope; out float vEven;
   void main() {
     vec2 cell, rc = latticeCell(cell), h = hash2(cell), h2 = hash2(cell + 17.31);
     vec2 rel2 = rc + (h - 0.5) * 0.98 * SPACING, at = rel2 + uGrassCam.xy;
@@ -281,7 +285,7 @@ const CLUMP_VERT = /* glsl */`
     float y = aCorner.y;
     vRel = foot + side * (aCorner.x * 0.5 * wide) + cup * (y * tall) + (uGrassEast * w.x + uGrassNorth * w.y) * (tall * 1.4 * y * y);
     vUv = vec3((aCorner.x * 0.5 + 0.5) * wide / (4.0 * tall / ${(PIC_W / PIC_H / 4).toFixed(3)}) + h2.x * 7.0, y, aCorner.x);
-    float dry = g.b + (h.x - 0.5) * 0.16 - 0.22 * lie, shade = (0.85 + 0.3 * h2.y) * (0.92 + 0.12 * lie) * (0.94 + 0.12 * w.z);
+    float dry = dryHere(g.b) + (h.x - 0.5) * 0.16 - mix(0.10, 0.2, smoothstep(30.0, 120.0, dist)) * lie, shade = (0.85 + 0.3 * h2.y) * (0.92 + 0.12 * lie) * (0.94 + 0.12 * w.z);
     vFoot = grassColour(dry, 0.0) * shade; vTip = grassColour(dry, 1.0) * shade;
     // (flowers: the drift this clump stands in says what kind and how many clumps carry some)
     float fk = tableNearest(tTable, uTab, at).a, kind = floor(fk + 0.001);
@@ -294,6 +298,9 @@ const CLUMP_VERT = /* glsl */`
     float h00 = texelFetch(tTable, ivec2(mod(fc, uTab.w)), 0).r;
     vec2 dh = (vec2(texelFetch(tTable, ivec2(mod(fc + vec2(1.0, 0.0), uTab.w)), 0).r, texelFetch(tTable, ivec2(mod(fc + vec2(0.0, 1.0), uTab.w)), 0).r) - h00) / uTab.z;
     vSlope = vec4(normalize(uGrassUp - uGrassEast * dh.x - uGrassNorth * dh.y), smoothstep(12.0, 45.0, dist));
+    // (looked down on, or far off, a clump is the ground's own grass colour with a tufted
+    // edge: its dark foot showing from above was a field of dark specks that ended in an arc)
+    vEven = 0.85 * max(rise, smoothstep(120.0, 420.0, dist));
     vAlb = vec4(0.0, 0.0, 0.0, 1.0);
     gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
   }`;
@@ -312,7 +319,7 @@ const FRAG = /* glsl */`${LIGHTING_PARS}
   }
   #ifdef CLUMP
   uniform sampler2D tClump;
-  in vec3 vUv; in vec3 vFoot, vTip; in vec4 vFlower; in vec4 vSlope;
+  in vec3 vUv; in vec3 vFoot, vTip; in vec4 vFlower; in vec4 vSlope; in float vEven;
   void main() {
     vec4 p = texture(tClump, vUv.xy);
     // (the card's ends rounded off; and the cut kept as sharp far off as near, where the
@@ -322,9 +329,10 @@ const FRAG = /* glsl */`${LIGHTING_PARS}
     float lod = 0.5 * log2(max(dot(dFdx(tp), dFdx(tp)), dot(dFdy(tp), dFdy(tp))));
     cov *= 1.0 + 0.28 * clamp(lod, 0.0, 5.0);
     if (cov < 0.5) discard;
-    vec3 alb = mix(vFoot, vTip, p.g);
+    float tone = mix(p.g, 0.62, vEven);
+    vec3 alb = mix(vFoot, vTip, tone);
     alb = mix(alb, vFlower.rgb, p.b * vFlower.a);
-    fragColor = vec4(grassLit(alb, 0.55 + 0.45 * p.g, vSlope) * uExposure, 1.0);
+    fragColor = vec4(grassLit(alb, 0.55 + 0.45 * tone, vSlope) * uExposure, 1.0);
   }
   #else
   void main() { fragColor = vec4(grassLit(vAlb.rgb, vAlb.a, vec4(0.0)) * uExposure, 1.0); }
@@ -381,7 +389,7 @@ export class Grass {
       ...lightingUniforms(),
       uGrassCam: { value: new THREE.Vector3() }, uGrassCurve: { value: new THREE.Vector2() }, uGrassLie: { value: new THREE.Vector2() },
       uGrassEast: { value: new THREE.Vector3(1, 0, 0) }, uGrassNorth: { value: new THREE.Vector3(0, 1, 0) }, uGrassUp: { value: new THREE.Vector3(0, 0, 1) },
-      uGrassWind: wind, uGrassWave: this.waveU, uGrassKeep: { value: new THREE.Vector4(1, 1, 1, 1) },
+      uGrassWind: wind, uGrassWave: this.waveU, uGrassKeep: { value: new THREE.Vector4(1, 1, 1, 1) }, uGrassTone: terrain.shared.uGrassTone,
     };
     this.clumpTex = makeClumpPicture();
     // a field: one tuft (or flower, or clump) of triangles, drawn once for every place of its lattice
