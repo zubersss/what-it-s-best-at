@@ -52,24 +52,44 @@ Level 3's tile (64 x 64 blocks, 7.1 km) is the dearest at 35 to 50 ms, because t
 a million sites are hashed even though 1/64 of them are kept.
 
 In the picture (from `window.__stats`, 660 x 309 at `--dsf 1`; "before" is the branch as it
-was found, with `groves.js`):
+was found, with `groves.js`; "handed over" is the instances the tiles give the GPU, of
+which the vertex shader throws out those too thin for their distance):
 
-| view | far trees | triangles in the frame | draw calls |
-| --- | --- | --- | --- |
-| the opening view, before | 6 278 | 953 000 | 111 |
-| the opening view, after | *(below)* | | |
-| 130 m up over it, before | 2 472 | 363 000 | 26 |
-| 130 m up over it, after | 18 879 standing | 727 000 | 47 |
+| view (`docs/shots/far-forest/haven_ledge_<name>_before/_after.png`) | far trees before | standing after | handed over | triangles before → after | draw calls before → after |
+| --- | --- | --- | --- | --- | --- |
+| the opening view, on the ground (no name) | 6 278 | 28 060 | 46 465 | 953 000 → 1 160 000 | 111 → 132 |
+| `air1600_p6`, `air1600_p20` (130 m up) | 2 472 | 27 316 | 45 152 | 429 000 → 654 000 | 61 → 82 |
+| `air1900_p6`, `air1900_p20` (430 m up) | 2 472 | 22 649 | 39 489 | 363 000 → 586 000 | 26 → 47 |
+| `air1900_tele14` (the same, fov 21.4, pitched onto the wooded slope) | 5 477 | 22 649 | 39 489 | 488 000 → 668 000 | 23 → 41 |
+| `air2500_p6`, `air2500_p20` (1 030 m up) | 2 254 | 15 186 | 28 702 | 306 000 → 456 000 | 27 → 40 |
+| `forest150` (closed forest, the north wood, 150 m up) | 11 804 | 43 384 | 63 151 | 467 000 → 718 000 | 52 → 70 |
+| `park150` (open parkland, 150 m up, before dawn) | 5 673 | 16 134 | 26 862 | 363 000 → 478 000 | 32 → 49 |
+| `airfloor` (430 m up with every saving on) | | 8 983 | 18 013 | 450 000 | 29 |
 
-(The "after" air view above was taken before the tiles were filled tree by tree; it handed
-the GPU 81 556 instances for those 18 879. With the fill as it now stands that number is
-about 1.5 times the standing count.)
+So: **15 000 to 43 000 far trees standing, 90 000 to 260 000 triangles of them, in 14 to 21
+draw calls** more than before, at these places. Closed forest is the dearest view.
+
+The brief's `alt=3000` views are inside a cloud here (the base stands at about 2 670 m over
+this country): `alt=2500` stands in for them. Its telephoto view from the air looked at the
+bare mountain: `air1900_tele14` is the same lens pitched down onto the wood. The parkland
+place is 248 degrees of longitude from the opening place and so in another time of day:
+`t=-5` puts it just before dawn, which shows the shadow fix below better than noon would.
 
 Memory: the pool is 40 tiles x 6 144 instances x 48 bytes = **11 MB** of instance buffers,
 fixed, plus the worker's own arrays for the tiles held (9 floats a tree).
 
 ## What was tried and taken back
 
+- **Far trees with no shadow of the land on them.** They are beyond every shadow map, and
+  (as the old far trees did) stood sunlit on hillsides in shade and glowed orange on dark
+  ground before dawn (`park150_before`). The tile job now asks the shadow baker on a
+  20 x 20 grid over the tile, at crown height, and each tree carries how much of the Sun the
+  land leaves it; a tile is worked out again when the Sun has moved a degree and a half.
+- **The far green.** First the species' own green all the way out: teal specks on warm
+  ground (the cold blue-green a fir has near by, lit by the sky's blue). Now from 300 m to
+  1.3 km a far tree's green goes over to a dark warm olive and its share of the sky's light
+  loses most of its blue: a dark shape on the ground behind it, never bluer than that ground.
+  Nothing changes at the line where the near trees end.
 - **A tile filled by its nearest corner.** The first version asked each tile for the trees a
   traveller at the tile's *nearest corner* would see. A tile 889 m across spans a twentyfold
   range of `keep`, so it handed the GPU four times the trees it drew: **81 556 instances for
@@ -112,6 +132,18 @@ fixed, plus the worker's own arrays for the tiles held (9 floats a tree).
   jobs at a time.
 - Far trees do not sway in the wind (the near ones do). At 240 m a 20 m tree leans less than
   half a degree in a gale, so nothing shows at the line; it is still a difference.
+- **Cloud shadow** on far trees is the camera's own (`uWeather.x`), as for the near trees:
+  a far wood under another cloud is not darkened by it, while the ground under it is.
+- The land's shadow on far trees is read off a grid 45 m apart on the nearest tiles and
+  370 m apart on the farthest: the edge of a mountain's shadow on a far wood is soft.
+- At a mile the trees are thinned to a tenth; over closed forest they stand on the canopy
+  the ground shader raises, which still has its own colour (bluer and darker than the
+  trees in sunlight). `forest150_after` shows the two together; they agree better than
+  they did, not perfectly. Making the canopy's green and the far trees' green one rule is
+  work in the ground shader, which the grass helper is in.
+- With the clock run fast the Sun moves a degree and a half every few seconds and every tile
+  is asked for again each time (one worker job each, nearest first); the trees that stand
+  stay until their new ones come.
 - Nothing is drawn beyond 5.6 km. Trees are still a few pixels at that distance on the
   phone; from there out the canopy the ground shader raises carries the forest.
 
