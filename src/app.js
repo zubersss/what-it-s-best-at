@@ -1318,6 +1318,7 @@ export class App {
     // (clouds: near the traveller the layer is a volume. Its small picture is marched now,
     // before the main picture is begun, and laid over the ground further down: nothing
     // interrupts the main picture, see sky/cloudVolume.js)
+    this.cloudVolume.place(rig.pos);
     const cloudFar = this.clouds.update(rig.pos, world.radius, this.cloudVolume);
     const vol = this.cloudVolume.ready(rig.pos, this.clouds);
     this.clouds.uniforms.uNearFade.value = vol ? this.cloudVolume.reach : 0;

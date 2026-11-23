@@ -322,6 +322,19 @@ export class CloudVolume {
   }
   get reach() { return this.def?.volume?.reach ?? 16000; }
 
+  // Where the clouds' base stands over the traveller's country, every frame, whether or not
+  // the volume is drawn: the shell (clouds.js) shows the volume's heaps from far off, and
+  // the ground their shadows, by this. (It was known only once the volume had been drawn,
+  // under 30 km: on the way in from space for the first time, and with the governor's last
+  // saving on, the layer was the flat picture of the day's map, with no heaps and no
+  // fair-weather fields, and it changed to them on the way through 30 km.)
+  place(cam) {
+    const v = this.def?.volume;
+    if (!v) { this.base = null; return; }
+    this.lift = this.groundAt ? this.groundAt(cam) : 0;
+    this.base = (v.base ?? 1500) + this.lift;
+  }
+
   // Step 1: the small picture, before the main one is begun. post: the Post (for the view's
   // size); rig: the camera rig; time (s); layer: the cloud shell; wind: the terrain's wind uniform.
   render(post, rig, time, layer, wind, weather) {
@@ -333,7 +346,7 @@ export class CloudVolume {
     // the traveller happens to stand (it once followed the ground under the traveller, and
     // the whole sky sank when one flew out over a canyon).
     const altNow = rig.pos.length() - this.radius;
-    this.lift = this.groundAt ? this.groundAt(rig.pos) : 0;
+    this.place(rig.pos);
     // A storm's cloud (weather.storminess, and the squalls that pass through it): the cloud
     // is thicker and darker, it runs with the wind at the wind's own speed and turns over
     // many times faster. In settled weather none of this. (Its base stays where it is: a
@@ -342,7 +355,7 @@ export class CloudVolume {
     const storm = weather?.storminess || 0, squall = weather?.squall || 0;
     this.stormNow = this.stormNow == null || this.lastTime == null || time < this.lastTime ? storm : this.stormNow + (storm - this.stormNow) * Math.min(1, 1.2 * Math.min(0.2, time - this.lastTime));
     const sN = this.stormNow;
-    const base = (v.base ?? 1500) + this.lift, thick = Math.max(v.thick ?? 3000, Math.min(13000, (weather?.topNear || 0)) - base);
+    const base = this.base, thick = Math.max(v.thick ?? 3000, Math.min(13000, (weather?.topNear || 0)) - base);
     this.thickNow = this.thickNow ? this.thickNow + (thick - this.thickNow) * 0.05 : thick;
     u.uTops.value.x = base; u.uTops.value.y = Math.min(1, (v.thick ?? 3000) / this.thickNow);
     const fl = weather?.flash;
@@ -368,7 +381,6 @@ export class CloudVolume {
     const alt = altNow; this.below = alt < base; this.minDist = alt < base ? base - alt : alt > base + this.thickNow ? alt - base - this.thickNow : 0;
     u.uStorm.value = Math.min(1, sN + 0.4 * squall);
     u.uDense.value = (v.dense ?? 1) * (1 + 0.45 * sN + 0.35 * squall); u.uFair.value.set(v.fair ?? 0, v.clear ?? 120); u.uFieldK.value = this.radius / (v.scale ?? 5200) * 0.11;
-    this.base = base;
     u.tCloudMap.value = layer.texture;
     u.uCloud.value.set(this.def.cover ?? 0.8, this.def.lon0 === -180 ? 0.5 : 0, 1 / (v.scale ?? 5200), this.reach);
     // (the governor's step count is for the whole ray: shared out among the slices)
