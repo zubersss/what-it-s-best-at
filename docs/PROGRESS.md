@@ -34,6 +34,16 @@ as you want or need. This is a big ask and I need it to work really well."*
   message when a first version with pictures is pushed and when done. To look at their
   work: `git fetch origin <branch>`, then their pictures under `docs/shots/far-forest/`
   and `docs/shots/far-grass/` and their report beside the brief.
+- **A third helper, for rock** (started 2026-11-23 about 11:40 UTC): "a mile's worth of
+  stuff" in the owner's pictures is boulders as much as trees: brief
+  `docs/briefs/far-rocks.md`, branch `ccr-aa39490a-far-rocks`. Beyond 110 m there was not
+  one stone on the world.
+- **Seen so far** (11:35): trees: from 130 m up the whole hillside is single trees to the
+  ridge, tree shapes at 2 to 3 km in a telephoto view, closed forest a canopy of crowns;
+  grass: on a steppe the line 30 m off is gone and the meadow runs to the horizon;
+  corrections sent (far trees no bluer than the ground behind them; far flower drifts
+  tint, not paint). Found here meanwhile: the fine rock beds drew a wood grain over far
+  mountain sides (now only on real cliffs).
 - **If the helpers cannot be reached or their work is not good enough**: the briefs are
   the plan; do them here, trees first.
 
