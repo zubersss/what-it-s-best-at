@@ -9,10 +9,20 @@ let hs = null, builder = null, baker = null;
 
 // Whether the land's own shadow lies on each tree of a block or a tile (a mountain between
 // it and the Sun): asked on a grid of G x G points over it, at crown height, and read off
-// between the points. Trees beyond the shadow maps stood sunlit on hillsides in shade.
+// between the points (G 0: asked tree by tree). Trees beyond the shadow maps stood sunlit on hillsides in shade.
 function landShadow(b, sun, sunHalf, G) {
   const vis = new Float32Array(b.count);
   if (!sun || !b.count) { vis.fill(1); return vis; }
+  if (!G) {
+    // (tree by tree, for the trees one walks among: a grid over a block on a rim read the
+    // shadow under the cliff into the trees that stand on top of it, in the Sun)
+    const o = b.origin, T = b.trees;
+    for (let k = 0, q = 0; k < b.count; k++, q += TREE_FLOATS) {
+      const px = o[0] + T[q], py = o[1] + T[q + 1], pz = o[2] + T[q + 2], l = Math.hypot(px, py, pz);
+      vis[k] = baker.visibility(px / l, py / l, pz / l, hs.height(px / l, py / l, pz / l, 10) + Math.max(6, 0.7 * T[q + 3]), sun[0], sun[1], sun[2], 10, sunHalf);
+    }
+    return vis;
+  }
     const o = b.origin, ol = Math.hypot(o[0], o[1], o[2]), u = [o[0] / ol, o[1] / ol, o[2] / ol];
     let e = [-u[1], u[0], 0]; const el = Math.hypot(e[0], e[1]) || 1; e = [e[0] / el, e[1] / el, 0];
     const n = [u[1] * e[2] - u[2] * e[1], u[2] * e[0] - u[0] * e[2], u[0] * e[1] - u[1] * e[0]];
@@ -49,7 +59,7 @@ self.onmessage = (ev) => {
     } else if (m.type === 'cover') {
       hs.setCover(m.cover ? { ...m.cover, cls: new Uint8Array(m.cover.cls), tall: new Uint8Array(m.cover.tall), closed: new Uint8Array(m.cover.closed) } : null);
     } else if (m.type === 'trees') {
-      const b = treeBlock(hs, m.bi, m.bj, m.spacing, m.deg, m.salt), vis = landShadow(b, m.sun, m.sunHalf, 4);
+      const b = treeBlock(hs, m.bi, m.bj, m.spacing, m.deg, m.salt), vis = landShadow(b, m.sun, m.sunHalf, 0);
       self.postMessage({ type: 'trees', id: m.id, origin: b.origin, count: b.count, trees: b.trees.buffer, vis: vis.buffer }, [b.trees.buffer, vis.buffer]);
     } else if (m.type === 'rocks') {
       // (the far rocks of one tile, with the land's shadow on each: rocks/farRocks.js)
