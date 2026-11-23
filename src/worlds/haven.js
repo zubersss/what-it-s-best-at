@@ -74,7 +74,9 @@ export default {
     detailStrength: 0.25,
     // tide: its moon and the Sun (App.updateTide; metres an ocean over the whole world would rise, and a shore's gain)
     sea: { level: 0, color: [0.008, 0.030, 0.070], roughness: 0.10, ripples: 0.07, tide: { by: [['mira', 0.40], ['sun', 0.16]], gain: 3 } },
-    rocks: { count: 300, radius: 110, size: [0.3, 3.2], albedo: [0.24, 0.17, 0.12] },
+    // (far: boulders and outcrops as far as they can be seen, rocks/farRocks.js; the numbers'
+    // meaning and the defaults: rocks/rockBlock.js)
+    rocks: { count: 300, radius: 110, size: [0.3, 3.2], albedo: [0.24, 0.17, 0.12], far: { clear: [[-48.56367, 49.04424, 60]] } },
   },
 
   // Air like Earth's in what it does to light (the same Sun, the same blue), standing

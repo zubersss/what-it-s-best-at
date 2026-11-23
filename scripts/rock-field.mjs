@@ -1,0 +1,135 @@
+// Where the far rocks lie, seen from straight above, without a browser in seconds: the
+// tiles of every level over a square of country, each rock a dot of its size over the
+// land's shading (steep ground dark, forest green, water blue). For judging the rule
+// (src/rocks/rockBlock.js: fields under steep ground, clusters, erratics, none in water)
+// before any picture in the game, and for the numbers: rocks a tile, the time a tile takes.
+//
+//   node scripts/rock-field.mjs [--world haven] [--lat .. --lon ..] [--span 3000] [--out rock-field.png] [--check]
+//
+// --check: no picture; the rule's own promises, each of which fails the run if broken:
+// the same tile twice gives the same rocks, none stands in water, the largest come first,
+// every rock is inside its tile's bound, steep open ground holds many times the rocks of
+// level open ground, and a tile takes no longer than a worker can spare.
+// (The land cover is made here as the game makes it; rivers and lakes come with the map
+// rings in the game and are not known here: a rock in a river is the game's to refuse.)
+import fs from 'node:fs';
+import { loadWorld } from './lib/loadWorld.mjs';
+import { png } from './lib/png.mjs';
+import { rockBlock, rocksFarDef, tileDeg, tileLon, rockVis } from '../src/rocks/rockBlock.js';
+import { MadeWorld } from '../src/terrain/tiles/madeTiles.js';
+import { ShadowBaker } from '../src/terrain/shadowBake.js';
+import { CONFIG } from '../src/config.js';
+
+const opt = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
+const flag = (k) => process.argv.includes('--' + k);
+const { world, hs, rasters } = await loadWorld(opt('world', 'haven'));
+const def = rocksFarDef(world);
+if (!def) { console.log(`"${world.id}" has no far rocks (surface.rocks.far in its file)`); process.exit(1); }
+const R = world.radius, RAD = Math.PI / 180, st = world.scene.start, lat0 = +opt('lat', st.lat), lon0 = +opt('lon', st.lon);
+const SPAN = +opt('span', 3000), W = 768;
+
+// the land cover round the place, as the tile worker makes it (a made world only)
+if (world.terrain.tiles?.made) {
+  const rainFile = world.terrain.tiles.hydrology?.rain, rain = rainFile ? new Uint8Array(fs.readFileSync(new URL('../public/' + rainFile, import.meta.url))) : null;
+  const made = new MadeWorld({ radius: R, dem: rasters[0], lakes: null, rain, land: world.terrain.tiles.made.land, seed: world.terrain.tiles.made.seed });
+  const zoom = 7, n = 2 ** zoom, tiles = 4;
+  const fx = ((lon0 + 180) % 360) / 360 * n, fy = (1 - Math.log(Math.tan(lat0 * RAD) + 1 / Math.cos(lat0 * RAD)) / Math.PI) / 2 * n;
+  const tx = Math.round(fx - tiles / 2), ty = Math.round(fy - tiles / 2), pic = made.picture(zoom, tx, ty, tiles);
+  hs.setCover({ ...pic.cover, width: tiles * 256, zoom, tx, ty });
+}
+
+const dirOf = (lat, lon) => { const cl = Math.cos(lat * RAD); return [cl * Math.cos(lon * RAD), cl * Math.sin(lon * RAD), Math.sin(lat * RAD)]; };
+const mLat = R * RAD, mLon = R * RAD * Math.cos(lat0 * RAD);
+// every tile of every level that touches the square
+function tilesOver(span) {
+  const out = [];
+  def.levels.forEach((L, li) => {
+    const deg = tileDeg(R, L.tile), i0 = Math.floor((lat0 - span / 2 / mLat) / deg), i1 = Math.floor((lat0 + span / 2 / mLat) / deg);
+    for (let bi = i0; bi <= i1; bi++) { const dLon = tileLon(bi, deg), j0 = Math.floor((lon0 - span / 2 / mLon) / dLon), j1 = Math.floor((lon0 + span / 2 / mLon) / dLon); for (let bj = j0; bj <= j1; bj++) out.push([L, li, bi, bj]); }
+  });
+  return out;
+}
+
+if (flag('check')) {
+  let bad = 0; const fail = (s) => { console.log('FAILED: ' + s); bad++; };
+  const list = tilesOver(Math.min(SPAN, 2500));
+  let worst = 0, total = 0, rocks = 0;
+  for (const [L, li, bi, bj] of list) {
+    const t0 = performance.now(), b = rockBlock(hs, L, li, bi, bj), ms = performance.now() - t0; worst = Math.max(worst, ms); total += ms; rocks += b.count;
+    const again = rockBlock(hs, L, li, bi, bj);
+    if (again.count !== b.count || again.off.some((v, i) => v !== b.off[i])) fail(`level ${li} tile ${bi},${bj}: asked twice, two answers`);
+    if (b.count > (L.cap ?? 512)) fail(`level ${li} tile ${bi},${bj}: ${b.count} rocks, over its cap`);
+    for (let i = 0; i < b.count; i++) {
+      const s = b.off[i * 4 + 3];
+      if (i && s > b.off[i * 4 - 1]) { fail(`level ${li} tile ${bi},${bj}: rock ${i} is larger than the one before it`); break; }
+      if (s < L.size[0] - 1e-3 || s > L.size[1] + 1e-3) { fail(`level ${li} tile ${bi},${bj}: a rock of ${s.toFixed(2)} m, outside the level's sizes`); break; }
+      if (Math.hypot(b.off[i * 4] - b.bound[0], b.off[i * 4 + 1] - b.bound[1], b.off[i * 4 + 2] - b.bound[2]) > b.bound[3]) { fail(`level ${li} tile ${bi},${bj}: rock ${i} lies outside the tile's bound`); break; }
+      const x = b.origin[0] + b.off[i * 4], y = b.origin[1] + b.off[i * 4 + 1], z = b.origin[2] + b.off[i * 4 + 2], r = Math.hypot(x, y, z);
+      const h = hs.height(x / r, y / r, z / r, L.wl ?? 2);
+      if (hs.waterDepth > 0) { fail(`level ${li} tile ${bi},${bj}: rock ${i} stands in water`); break; }
+      if (r - R > h + 0.01 || r - R < h - 0.45 * s) { fail(`level ${li} tile ${bi},${bj}: rock ${i} (${s.toFixed(1)} m) is ${(r - R - h).toFixed(2)} m from the ground`); break; }
+    }
+  }
+  console.log(`${list.length} tiles, ${rocks} rocks; a tile takes ${(total / list.length).toFixed(0)} ms, the slowest ${worst.toFixed(0)} ms`);
+  if (worst > 400) fail(`a tile took ${worst.toFixed(0)} ms: more than a worker can spare (400 ms)`);
+  // steep open ground against level open ground: the share of the sites taken on each
+  {
+    const L = def.levels[0], deg = tileDeg(R, L.tile);
+    let steepN = 0, steepA = 0, flatN = 0, flatA = 0;
+    for (const [L2, li, bi, bj] of list) {
+      if (li !== 0) continue;
+      const b = rockBlock(hs, L2, li, bi, bj), dLon = tileLon(bi, deg), d = dirOf((bi + 0.5) * deg, (bj + 0.5) * dLon);
+      let S = 0; for (let k = 0; k < 9; k++) { const dd = dirOf((bi + (k % 3 + 0.5) / 3) * deg, (bj + (Math.floor(k / 3) + 0.5) / 3) * dLon); hs.height(dd[0], dd[1], dd[2], 60); const e = 30 / R, a = hs.height(dd[0], dd[1], dd[2] + e, 60), c = hs.height(dd[0], dd[1], dd[2] - e, 60), f = hs.height(dd[0] + e, dd[1], dd[2], 60), g = hs.height(dd[0] - e, dd[1], dd[2], 60); S += Math.hypot(a - c, f - g) / 60 / 9; }
+      const cov = hs.coverAt(d[0], d[1], d[2]), closed = cov < 0 ? 0 : (cov >> 16) / 255;
+      if (closed > 0.3) continue;
+      if (S > 0.45) { steepN += b.count; steepA++; } else if (S < 0.12) { flatN += b.count; flatA++; }
+    }
+    console.log(`open ground: ${steepA} steep tiles with ${(steepN / Math.max(1, steepA)).toFixed(0)} rocks each, ${flatA} level tiles with ${(flatN / Math.max(1, flatA)).toFixed(0)} each`);
+    if (steepA && flatA && steepN / steepA < 4 * (flatN / flatA)) fail('steep open ground holds fewer than four times the rocks of level open ground');
+    if (!steepA || !flatA) console.log('(no steep or no level open tiles in this square: that comparison was not made; try another --lat --lon)');
+  }
+  // the land's shadow on a tile: in full sun from overhead, in shade with the Sun under the ground
+  {
+    const baker = new ShadowBaker(hs, CONFIG, world), [L, li, bi, bj] = list.find((t) => t[1] === 0 && rockBlock(hs, t[0], t[1], t[2], t[3]).count > 120) || list[0], b = rockBlock(hs, L, li, bi, bj);
+    if (b.count) {
+      const ol = Math.hypot(...b.origin), up = b.origin.map((v) => v / ol), t0 = performance.now(), hi = rockVis(baker, b.origin, b.off, b.count, up, 0.0046), ms = performance.now() - t0, lo = rockVis(baker, b.origin, b.off, b.count, up.map((v) => -v), 0.0046);
+      const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length / 255;
+      console.log(`sunlight on a tile of ${b.count}: ${ms.toFixed(0)} ms; Sun overhead ${mean(hi).toFixed(2)}, Sun underfoot ${mean(lo).toFixed(2)}`);
+      if (mean(hi) < 0.95 || mean(lo) > 0.05) fail('the sunlight on a tile is wrong (should be 1 with the Sun overhead, 0 with it underfoot)');
+    }
+  }
+  console.log(bad ? `${bad} check(s) failed` : 'all checks passed');
+  process.exit(bad ? 1 : 0);
+}
+
+// the picture: the land's shading, then the rocks
+const px = new Uint8Array(W * W * 3), mpp = SPAN / W;
+for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
+  const e = (x + 0.5 - W / 2) * mpp, n = (W / 2 - y - 0.5) * mpp, lat = lat0 + n / mLat, lon = lon0 + e / mLon, d = dirOf(lat, lon);
+  const h = hs.height(d[0], d[1], d[2], mpp * 2), wet = hs.waterDepth > 0, d2 = dirOf(lat + mpp / mLat, lon), d3 = dirOf(lat, lon + mpp / mLon);
+  const gn = (hs.height(d2[0], d2[1], d2[2], mpp * 2) - h) / mpp, ge = (hs.height(d3[0], d3[1], d3[2], mpp * 2) - h) / mpp, S = Math.hypot(gn, ge);
+  const cov = hs.coverAt(d[0], d[1], d[2]), closed = cov < 0 ? 0 : (cov >> 16) / 255, cls = cov < 0 ? 0 : cov & 255;
+  const light = Math.max(0.25, Math.min(1.2, 0.75 + 0.9 * (ge - gn) * 0.7)) * (1 - 0.35 * Math.min(1, S));
+  let c = cls === 15 ? [235, 238, 245] : [200 - 120 * closed, 185 - 60 * closed, 140 - 90 * closed];
+  if (wet || cls === 17) c = [70, 120, 190];
+  const q = (y * W + x) * 3; px[q] = Math.min(255, c[0] * light); px[q + 1] = Math.min(255, c[1] * light); px[q + 2] = Math.min(255, c[2] * light);
+}
+const counts = def.levels.map(() => 0), tilesN = def.levels.map(() => 0), most = def.levels.map(() => 0); let ms = 0, n = 0;
+const COL = [[40, 20, 10], [150, 20, 20], [130, 0, 150]];
+for (const [L, li, bi, bj] of tilesOver(SPAN)) {
+  const t0 = performance.now(), b = rockBlock(hs, L, li, bi, bj); ms += performance.now() - t0; n++;
+  counts[li] += b.count; tilesN[li]++; most[li] = Math.max(most[li], b.count);
+  for (let i = 0; i < b.count; i++) {
+    const x = b.origin[0] + b.off[i * 4], y = b.origin[1] + b.off[i * 4 + 1], z = b.origin[2] + b.off[i * 4 + 2], r = Math.hypot(x, y, z);
+    const lat = Math.asin(z / r) / RAD, lon = ((Math.atan2(y, x) / RAD) + 360) % 360, cx = ((lon - lon0 + 540) % 360 - 180) * mLon / mpp + W / 2, cy = W / 2 - (lat - lat0) * mLat / mpp, rad = Math.max(0.6, 0.65 * b.off[i * 4 + 3] / mpp);
+    for (let yy = Math.floor(cy - rad); yy <= Math.ceil(cy + rad); yy++) for (let xx = Math.floor(cx - rad); xx <= Math.ceil(cx + rad); xx++) {
+      if (xx < 0 || yy < 0 || xx >= W || yy >= W || Math.hypot(xx + 0.5 - cx, yy + 0.5 - cy) > rad + 0.3) continue;
+      const q = (yy * W + xx) * 3; px[q] = COL[li % 3][0]; px[q + 1] = COL[li % 3][1]; px[q + 2] = COL[li % 3][2];
+    }
+  }
+}
+const out = opt('out', 'rock-field.png');
+fs.writeFileSync(out, png(W, W, px));
+console.log(`${out}: ${SPAN} m across at lat ${lat0} lon ${lon0}, ${mpp.toFixed(1)} m a pixel`);
+def.levels.forEach((L, li) => console.log(`  level ${li} (${L.size[0]}-${L.size[1]} m, tiles of ${(tileDeg(R, L.tile) * mLat).toFixed(0)} m): ${counts[li]} rocks in ${tilesN[li]} tiles, the fullest ${most[li]} of ${L.cap}`));
+console.log(`  a tile takes ${(ms / n).toFixed(0)} ms`);
