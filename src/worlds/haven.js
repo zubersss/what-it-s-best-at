@@ -46,9 +46,10 @@ export default {
       { op: 'fbm', seed: 3, maxWavelength: 60000, minWavelength: 0.8, roughness: 0.82, amp: 26, belowDem: 2.2, slopeGain: [0.04, 0.4, 0.15, 1.0], hetero: 0.5 },
       // Gullies and spurs on the mountain sides and canyon walls.
       { op: 'ridged', seed: 5, maxWavelength: 1400, minWavelength: 20, roughness: 0.9, amp: 260, slopeMask: [0.12, 0.4], warp: 0.3, belowDem: 4 },
-      // Layered rock: beds stand as cliffs and benches wherever the ground is steep.
-      { op: 'terrace', seed: 7, thickness: 120, cliff: 0.24, rise: 0.7, strength: 0.6, slopeMask: [0.16, 0.36], jitter: 0.35, warpAmp: 25, warpWavelength: 2200 },
-      { op: 'terrace', seed: 9, thickness: 20, cliff: 0.18, rise: 0.76, strength: 0.5, slopeMask: [0.2, 0.42], jitter: 0.4, warpAmp: 4, warpWavelength: 260 },
+      // Layered rock: beds stand as small cliffs and benches where the ground is steep. (Only
+      // the fine ones, and only on steep ground: with beds 120 m thick as well, every hillside
+      // seen from the air was drawn in contour lines.)
+      { op: 'terrace', seed: 9, thickness: 24, cliff: 0.18, rise: 0.76, strength: 0.45, slopeMask: [0.3, 0.55], jitter: 0.4, warpAmp: 5, warpWavelength: 260 },
       // The sea: nothing lies below sea level (this layer stays last).
       { op: 'sea', level: 0 },
     ],
@@ -66,7 +67,7 @@ export default {
     sand: [0.32, 0.27, 0.18],
     scree: [0.20, 0.165, 0.125],
     rock: [0.19, 0.15, 0.105],         // warm rock (ochre, not red)
-    strata: { period: 260, contrast: 0.3, finePeriod: 30, fine: 0.14, flat: 0.1, colors: [[0.95, 0.80, 0.60], [0.74, 0.58, 0.44], [0.92, 0.84, 0.68], [0.62, 0.52, 0.44], [0.86, 0.68, 0.48]] },
+    strata: { period: 260, contrast: 0.16, finePeriod: 30, fine: 0.1, flat: 0.05, colors: [[0.95, 0.80, 0.60], [0.74, 0.58, 0.44], [0.92, 0.84, 0.68], [0.62, 0.52, 0.44], [0.86, 0.68, 0.48]] },
     slopes: { dustMax: 0.36, screeMin: 0.55, screeMax: 0.8, rockMin: 1.0 },
     sandBelow: -20000, sandFade: 1500,
     ripples: { wavelength: 1, strength: 0 },
@@ -84,7 +85,10 @@ export default {
     occluderAltitude: 0,
     rayleigh: { scattering: [10.3e-6, 24.0e-6, 58.9e-6], scaleHeight: 4500 },
     // haze: the low air of the painted look (see Earth's file)
-    dust: { scattering: [0.45e-4, 0.78e-4, 1.28e-4], absorption: [0.1e-6, 0.1e-6, 0.1e-6], phaseG: [0.5, 0.48, 0.45], scaleHeight: 2400 },
+    // (as thick by the metre as Earth's, so a ridge ten kilometres off is as blue as there; standing
+    // lower, so that from the air the land keeps its colours. Half again as thick, the lowland
+    // from 12 km was one grey-green.)
+    dust: { scattering: [0.3e-4, 0.52e-4, 0.85e-4], absorption: [0.1e-6, 0.1e-6, 0.1e-6], phaseG: [0.5, 0.48, 0.45], scaleHeight: 2000 },
     absorber: { absorption: [1.0e-6, 3.0e-6, 0.14e-6], centerAltitude: 15000, halfWidth: 9000 },
   },
 
@@ -124,7 +128,7 @@ export default {
   sky: { stars: { url: 'data/stars_bsc5.f32' } },
 
   scene: {
-    dateUTC: '2024-09-22T16:15:00Z',   // an equinox, an hour and a half after sunrise at the opening place
+    dateUTC: '2024-09-22T17:00:00Z',   // an equinox, two hours after sunrise at the opening place: the Sun 19 degrees up in the north-east
     // Open ground 1 400 m up in the far south of the middle continent: the land falls a
     // kilometre to a lake in the south-east, and peaks stand 1 800 m higher round it, with
     // snow on them (scripts/find-haven-site.mjs --open --lat 28,52).
