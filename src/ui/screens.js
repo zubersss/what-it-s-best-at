@@ -29,7 +29,7 @@ export class StartScreen {
     for (const w of worlds) { const o = el('option', { value: w.id }, w.name); if (w.id === world) o.selected = true; pick.append(o); }
     where.append(pick);
     pick.addEventListener('change', () => {
-      try { localStorage.setItem('sse.world', pick.value); } catch { /* storage blocked: the address carries it */ }
+      try { localStorage.setItem('sse.world.2', pick.value); } catch { /* storage blocked: the address carries it */ }
       const u = new URL(location.href); u.searchParams.set('world', pick.value); location.href = u.toString();
     });
     this.modeBtn = el('button', { class: 'mode' });

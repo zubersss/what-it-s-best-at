@@ -89,7 +89,7 @@ const verdict = (id, value, wanted, widened) => {
 // ---- orbits -----------------------------------------------------------------------------
 const ids = Object.keys(data.bodies).filter((id) => !only || only.includes(id));
 for (const id of ids) if (!SOLAR_SYSTEM[id]) { console.log(`${id}: in the check data but not in the catalogue`); failed++; }
-for (const id of Object.keys(SOLAR_SYSTEM)) if (id !== 'sun' && !data.bodies[id] && (!only || only.includes(id))) { console.log(`${id}: in the catalogue but not in the check data (run scripts/fit-orbits.py)`); failed++; }
+for (const id of Object.keys(SOLAR_SYSTEM)) if (id !== 'sun' && !SOLAR_SYSTEM[id].made && !data.bodies[id] && (!only || only.includes(id))) { console.log(`${id}: in the catalogue but not in the check data (run scripts/fit-orbits.py)`); failed++; }
 
 console.log(`Orbits against JPL Horizons, ${data.jd.length} dates in 1950..2100 (direction and distance from the parent's centre)`);
 console.log('body       parent    largest deg   rms deg   distance %   largest 1990-2060   asked   verdict');

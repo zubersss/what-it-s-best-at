@@ -11,7 +11,8 @@ function stored(key) { try { return localStorage.getItem(key); } catch { return 
 
 export const PARAMS = {
   // (the world chosen on the start screen last time, unless the address or a screenshot says otherwise)
-  world: q.get('world') || (!q.get('shot') && stored('sse.world')) || 'mars',
+  // (sse.world.2: the choices remembered before the made world was the game are let go)
+  world: q.get('world') || (!q.get('shot') && stored('sse.world.2')) || (q.get('shot') ? 'mars' : 'haven'),
   shot: q.get('shot') || null,          // bookmark name; also switches to deterministic "screenshot mode"
   timeOffsetHours: num('t', null),
   hud: q.has('hud') ? q.get('hud') !== '0' : null,

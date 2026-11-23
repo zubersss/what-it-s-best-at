@@ -34,12 +34,20 @@ export class TileRings {
       this.worker.onerror = (e) => { console.warn('tile worker failed', e.message); };
     }
     const base = typeof document !== 'undefined' ? document.baseURI : '';
+    this.worker.postMessage({ type: 'reset' });
+    // A made world (terrain.tiles.made: its lakes, its land rule): the worker makes its
+    // mosaics by rule from the world's own bundled elevation instead of asking a service.
+    const md = t.made ? { key: world.id, radius: world.radius, seed: t.made.seed ?? 0, land: t.made.land || null,
+      dem: { ...world.terrain.dems[0], url: new URL(world.terrain.dems[0].url, base).href },
+      lakes: t.made.lakes ? new URL(t.made.lakes, base).href : null, levels: t.made.levels ? new URL(t.made.levels, base).href : null,
+      rain: t.hydrology?.rain ? new URL(t.hydrology.rain, base).href : null } : null;
+    this.made = md;
     (t.elevation?.rings || []).forEach((r, slot) => this.rings.push({ key: 'elevation' + slot, kind: 'elevation', slot, url: t.elevation.url, zoom: r.zoom, below: r.below ?? 1e12,
       // (rivers and lakes worked out from the elevation, if the world asks for them)
       hydrology: t.hydrology ? { rain: new URL(t.hydrology.rain, base).href, water: t.hydrology.water ? new URL(t.hydrology.water, base).href : null, minFlow: r.minFlow ?? 1 } : null }));
     // (zooms: a picture may be asked for coarser and wider the higher the traveller is, see update)
     for (const [name, p] of Object.entries(t.pictures || {})) this.rings.push({ key: 'picture:' + name, kind: 'picture', name, url: p.url, zoom: p.zoom, below: p.below ?? 1e12, zooms: p.zooms || null,
-      cover: p.cover ? { ...p.cover, palette: new URL(p.cover.palette, base).href } : null });
+      cover: p.cover && p.cover.palette ? { ...p.cover, palette: new URL(p.cover.palette, base).href } : null });
     for (const r of this.rings) { r.tx = null; r.ty = null; r.have = false; r.id = 0; r.retryAt = 0; r.fails = 0; }
   }
 
@@ -99,7 +107,7 @@ export class TileRings {
           if (!inside(r, n, end[0], end[1], 0.75)) {
             const tx = Math.round(end[0] * n - N / 2), ty = Math.max(0, Math.min(n - N, Math.round(end[1] * n - N / 2)));
             r.fresh = false; r.id = this.nextId++; r.wantTx = tx; r.wantTy = ty;
-            this.worker.postMessage({ type: 'want', id: r.id, key: r.key, url: r.url, kind: r.kind, zoom: r.zoom, tx, ty, n: N, ext: this.ext, hydrology: r.hydrology, cover: r.cover });
+            this.worker.postMessage({ type: 'want', id: r.id, key: r.key, url: r.url, kind: r.kind, zoom: r.zoom, tx, ty, n: N, ext: this.ext, hydrology: r.hydrology, cover: r.cover, made: this.made, radius: this.world.radius });
           }
           continue;          // (it waits there for the traveller)
         }
@@ -127,7 +135,7 @@ export class TileRings {
       if (n < N) continue;
       if (r.have && r.tx === tx && r.ty === ty) continue;          // (the look ahead asks for what is already here: the traveller is too fast for this ring to lead it)
       r.id = this.nextId++; r.wantTx = tx; r.wantTy = ty;
-      this.worker.postMessage({ type: 'want', id: r.id, key: r.key, url: r.url, kind: r.kind, zoom: r.zoom, tx, ty, n: N, ext: this.ext, hydrology: r.hydrology, cover: r.cover });
+      this.worker.postMessage({ type: 'want', id: r.id, key: r.key, url: r.url, kind: r.kind, zoom: r.zoom, tx, ty, n: N, ext: this.ext, hydrology: r.hydrology, cover: r.cover, made: this.made, radius: this.world.radius });
     }
   }
 
@@ -153,7 +161,7 @@ export class TileRings {
         if (inflow) r.redone = false;
         else if (w && !r.redone && this.rings.some((q) => q !== r && el(q) && q.zoom < r.zoom)) { r.redone = true; r.tx = null; }
       }
-      this._give(r, { data: new Int16Array(m.buffer), width: W, height: W, zoom: m.zoom, tx: m.tx, ty: m.ty,
+      this._give(r, { data: new Int16Array(m.buffer), width: W, height: W, zoom: m.zoom, tx: m.tx, ty: m.ty, waterOnly: !!m.waterOnly,
         water: w ? { segs: new Float32Array(w.segs), gridStart: new Int32Array(w.gridStart), gridItems: new Int32Array(w.gridItems), lake: w.lake ? new Uint16Array(w.lake) : null } : null });
     }
     else this._give(r, { data: new Uint8Array(m.buffer), mips: m.mips.map((b) => new Uint8Array(b)), width: W, zoom: m.zoom, tx: m.tx, ty: m.ty,

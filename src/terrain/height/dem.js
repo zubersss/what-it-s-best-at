@@ -87,8 +87,10 @@ export class DemSet {
     const lat0 = latOf(raster.ty), lat1 = latOf(raster.ty + raster.height / 256), mid = (lat0 + lat1) / 2;
     let max = -1e9; const d = raster.data; for (let i = 0; i < d.length; i++) if (d[i] > max) max = d[i];
     const reachDeg = (this._reach || 150000) / (this.radius * Math.PI / 180);
+    // (waterOnly: a made world's ring. Its ground is the world's own maps and layers at any
+    // fineness; the ring brings the rivers and the lakes' levels and nothing else.)
     this.rings[slot] = {
-      ...raster, k, lat0, lat1, water: raster.water || null,
+      ...raster, k, lat0, lat1, water: raster.water || null, waterOnly: !!raster.waterOnly,
       lon0: raster.tx / n * 360 - 180, lon1: (raster.tx + raster.width / 256) / n * 360 - 180,       // (tile column 0 starts at longitude -180; a ring may cross longitude 0 or 180)
       my0: Math.PI * (1 - 2 * raster.ty / n),
       feather: raster.feather || 40,                                    // pixels
@@ -134,6 +136,19 @@ export class DemSet {
     return wgt;
   }
 
+  // The water of a ring that brings water only, at a place inside it (well inside: the
+  // outermost pixels are left to the coarser ring, as a blended ring's feathered edge is).
+  _ringWater(r, lon, lat) {
+    if (lat >= r.lat0 || lat <= r.lat1) return;
+    let l = lon - r.lon0; l -= 360 * Math.floor(l / 360);
+    const x = l / RAD2DEG * r.k - 0.5, w = r.width, hgt = r.height;
+    if (x < 20 || x > w - 21) return;
+    const phi = lat / RAD2DEG, sp = Math.sin(phi);
+    const y = (r.my0 - 0.5 * Math.log((1 + sp) / (1 - sp))) * r.k - 0.5;
+    if (y < 20 || y > hgt - 21) return;
+    this._water(r, x + 0.5, y + 0.5, Math.max(0.02, Math.cos(phi)));
+  }
+
   _bicubic(r, lon, lat) {
     const x = (lon - r.lon0) * r.ppdX - 0.5, y = (r.lat0 - lat) * r.ppdY - 0.5;
     const ix = Math.floor(x), iy = Math.floor(y);
@@ -177,6 +192,7 @@ export class DemSet {
     for (let i = this.rings.length - 1; i >= 0 && acc > 0; i--) {
       const r = this.rings[i];
       if (!r) continue;
+      if (r.waterOnly) { if (r.water && !this._wet) this._ringWater(r, lon, lat); continue; }
       const w = this._ring(r, lon, lat);
       if (w <= 0) continue;
       const a = acc * w;

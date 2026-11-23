@@ -38,6 +38,7 @@ export function createHeightSource(world, rasters = []) {
 
   const hs = {
     radius,
+    life: world.life || null,   // (what grows: the trees' own rules, read where trees are placed)
     baseSlope: 0,
     waterDepth: 0,              // after height(): how deep the water is there (m; 0 on land)
     height(x, y, z, minWL) {
