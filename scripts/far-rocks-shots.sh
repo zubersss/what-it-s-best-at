@@ -15,9 +15,10 @@ declare -A Q=(
   [steppe_air30]="$STEPPE&alt=1491&pitch=-8"
   [steppe_ground]="$STEPPE"
   [tele]="$STEEP&alt=2053&heading=62&pitch=-3&fov=14"
+  [ledge_phone]="fov=21.4"          # (the opening view at a phone's density: 309 px across 21.4 degrees is 1 440 px across 60)
   [floor]="$STEEP&alt=2053&heading=135&pitch=-14&debug=floor"
 )
-ORDER=(steep_air400 steep_air100 tele floor steppe_air30 ledge wall steep_ground steppe_ground)
+ORDER=(wall ledge_phone steep_ground steppe_ground ledge steep_air100 steep_air400 tele floor steppe_air30)
 [ $# -gt 0 ] && ORDER=("$@")
 fail=0
 for v in "${ORDER[@]}"; do

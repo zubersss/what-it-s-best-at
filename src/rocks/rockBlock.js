@@ -22,8 +22,6 @@ import { hash3, noise3 } from '../terrain/height/noise.js';
 const EARTH_R = 6371000, RAD = Math.PI / 180;
 const ss = (a, b, x) => { const t = (x - a) / (b - a); return t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t); };
 
-export const ROCK_SITES = 56;          // sites along a tile's side, on every level
-
 // The defaults of a world's `surface.rocks.far` (a world gives only what it changes).
 //   reach    metres a rock is seen from, for every metre of its size
 //   below    metres over the ground: none are drawn from higher
@@ -31,16 +29,20 @@ export const ROCK_SITES = 56;          // sites along a tile's side, on every le
 //   clear    [[latitude, longitude, metres], ...]: no rock within these places
 //   check    { steep: [latitude, longitude], level: [...] }: two places for scripts/rock-field.mjs --check
 //   levels   size [from, to] (m: the same measure as the near rocks' `size`), tile (degrees
-//            of latitude on Earth: 0.003 is 333 m on a world of any radius), density (the
-//            share of the sites that hold a rock where the ground is all rock), cap (the
-//            most a tile holds: the largest are kept), wl (the fineness of the ground they
-//            are stood on, m)
+//            of latitude on Earth: 0.012 is 1.3 km on a world of any radius), sites (along a
+//            tile's side), density (the share of the sites that hold a rock where the ground
+//            is all rock), cap (the most a tile holds: the largest are kept), wl (the
+//            fineness of the ground they are stood on, m), forest (how much closed forest
+//            takes away: the largest stand out of the trees)
+// A level's tile is about as wide as its largest rock is seen from far, so every level
+// needs the same few tiles round the traveller, and a view holds three or four of each:
+// the draw calls are counted in tiles.
 export const ROCKS_FAR_DEFAULTS = {
-  reach: 420, below: 9000,
+  reach: 420, below: 12000,
   levels: [
-    { size: [1.0, 2.6], tile: 0.003, density: 0.26, cap: 1024, wl: 2 },
-    { size: [2.6, 6.5], tile: 0.008, density: 0.55, cap: 768, wl: 5 },
-    { size: [6.5, 18], tile: 0.02, density: 0.85, cap: 1024, wl: 10 },
+    { size: [1.4, 3.4], tile: 0.012, sites: 128, density: 0.42, cap: 3072, wl: 2, forest: 0.82 },
+    { size: [3.4, 8], tile: 0.03, sites: 128, density: 0.5, cap: 4096, wl: 6, forest: 0.6 },
+    { size: [8, 20], tile: 0.075, sites: 128, density: 0.6, cap: 4096, wl: 10, forest: 0.3 },
   ],
 };
 export function rocksFarDef(world) {
@@ -60,12 +62,12 @@ export function tileLon(bi, deg) { const band = Math.floor(bi * deg) + 0.5; retu
 // mean of the ground 12 m round it (m); closed: how closed the canopy is (0..1); cls: the
 // land-cover class; near: metres from a river's or a lake's edge; over: 0 well below the
 // tree line, 1 at it and above.
-export function rockiness(S, conv, closed, cls, near, over) {
+export function rockiness(S, conv, closed, cls, near, over, forest = 0.82) {
   const steep = ss(0.24, 0.52, S) * (1 - 0.45 * ss(1.1, 1.9, S));           // talus and broken slopes; less on the faces themselves
   const brow = 0.7 * ss(0.25, 1.1, conv) * ss(0.06, 0.2, S);                // crests, brows of benches, knolls
   const shore = near < 14 ? 0.45 * (1 - near / 14) : 0;                     // boulders along the water
   let k = Math.max(steep, brow, shore) + 0.15 * over + (cls === 7 || cls === 16 ? 0.12 : 0);
-  k *= 1 - 0.82 * closed;                                                   // few in closed forest
+  k *= 1 - forest * closed;                                                   // few in closed forest
   if (cls === 15) k *= 0.7;                                                 // under snow
   return k > 1 ? 1 : k;
 }
@@ -105,7 +107,7 @@ function qFromZ(n, o) {
 // slope there toward the east and toward the north, 127.5 + 63.75 x metres per metre), bound [x, y, z, r] (a sphere round them all,
 // from the origin) }, the largest rock first.
 export function rockBlock(hs, L, li, bi, bj) {
-  const R = hs.radius, deg = tileDeg(R, L.tile), dLon = tileLon(bi, deg), lat0 = bi * deg, lon0 = bj * dLon, K = ROCK_SITES;
+  const R = hs.radius, deg = tileDeg(R, L.tile), dLon = tileLon(bi, deg), lat0 = bi * deg, lon0 = bj * dLon, K = L.sites ?? 128;
   const salt = 6007 + li * 131, s0 = L.size[0], sr = L.size[1] / L.size[0], wl = L.wl ?? 2;
   const lineDef = hs.life?.trees?.line;
   // (ground kept clear: where the journey begins and the lander stands; [lat, lon, metres])
@@ -141,7 +143,7 @@ export function rockBlock(hs, L, li, bi, bj) {
     const hE = at(1, 0), hW = at(-1, 0), hN = at(0, 1), hS = at(0, -1);
     const gE = (hE - hW) / (2 * ARM), gN = (hN - hS) / (2 * ARM), S = Math.hypot(gE, gN), conv = hc - (hE + hW + hN + hS) / 4;
     const line = lineDef ? lineDef.base - lineDef.perDeg * Math.max(0, Math.abs(lat) - (lineDef.from ?? 0)) : 1e9, over = ss(line - 350, line + 150, hc);
-    const k = rockiness(S, conv, closed, cls, near, over);
+    const k = rockiness(S, conv, closed, cls, near, over, L.forest ?? 0.82);
     if (u3 >= L.density * rockField(c, k)) continue;
     // its size: most are small, and the large ones lie where the ground is rockiest
     const size = s0 * Math.pow(sr, Math.pow(u4, 1.9 - 0.7 * k));
@@ -157,7 +159,7 @@ export function rockBlock(hs, L, li, bi, bj) {
     q3[0] = Math.sin(tx / 2); q3[1] = Math.sin(ty / 2); q3[2] = 0; q3[3] = Math.sqrt(Math.max(0, 1 - q3[0] * q3[0] - q3[1] * q3[1]));
     qmul(q1, q2, q1); qmul(q1, q3, q1);
     // its proportions: the large ones stand taller (outcrops, tors), the small lie flat
-    const big = ss(5, 11, size);
+    const big = ss(6, 13, size);
     const sx = 0.8 + 0.5 * ((h4 >>> 8) & 0xff) / 255, sy = 0.7 + 0.5 * ((h4 >>> 16) & 0xff) / 255, sz = 0.5 + 0.4 * (h4 >>> 24) / 255 + 0.35 * big * u1;
     // sunk a little, and more on a slope: its downhill edge must not hang in the air
     const sink = size * (0.12 + Math.min(0.3, 0.3 * S)), r = R + h - sink;
@@ -185,9 +187,9 @@ export function rockBlock(hs, L, li, bi, bj) {
 // Sunlight on the rocks of a tile (the land's own shadow: a rock under a mountain's shade
 // is in shade). baker: the worker's ShadowBaker; origin, off, count: the tile as rockBlock
 // gave it. A ray for every rock where they are few; where they are many, rays on a grid
-// across the tile and each rock reads between them (a tile of small rocks is 333 m wide:
-// the grid's cells are 42 m). Returns Uint8Array n (0 shade .. 255 sun).
-const VIS_GRID = 9, VIS_EACH = 96;
+// across the tile and each rock reads between them (a tile of small rocks is 1.3 km wide:
+// the grid's cells are 67 m). Returns Uint8Array n (0 shade .. 255 sun).
+const VIS_GRID = 21, VIS_EACH = 400;
 export function rockVis(baker, origin, off, count, sun, sunHalf) {
   const out = new Uint8Array(count), R = baker.hs.radius;
   const one = (x, y, z, lift) => { const r = Math.sqrt(x * x + y * y + z * z); return baker.visibility(x / r, y / r, z / r, r - R + lift, sun[0], sun[1], sun[2], 4, sunHalf); };

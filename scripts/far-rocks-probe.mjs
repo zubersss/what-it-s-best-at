@@ -11,7 +11,7 @@ if (opt('eval', '')) { await page.waitForFunction(() => !!(window.__app && windo
 let last = '';
 while (Date.now() - t0 < secs * 1000) {
   await page.waitForTimeout(5000);
-  const s = await page.evaluate(() => { const a = window.__app, f = a && a.farRocks; return f ? { ready: !!window.__shotReady, frame: a.frameCount, far: window.__stats && window.__stats.farRocks, wait: window.__stats && window.__stats.wait, asked: f.asked, missing: f.missing, vis: f.visBusy, tiles: f.tiles.size, why: [a.post.stableReads >= 3 ? '' : 'exposure', a.terrain.idle ? '' : 'terrain', a.trees.busy ? 'trees' : '', a.groves.busy ? 'groves' : '', a.grass.busy ? 'grass' : '', a.cloudVolume.busy ? 'cloudvol' : '', a.rocks.needVis || a.rocks.pendingVis ? 'rocks' : '', a.lander.pending ? 'lander' : '', a.atmosphere.airBusy ? 'air' : '', a.bodies.pending ? 'bodies' : '', a.clouds.loading ? 'clouds' : '', f.busy ? 'farRocks' : ''].filter(Boolean).join(' '), calls: window.__stats && window.__stats.calls, tris: window.__stats && window.__stats.triangles } : null; });
+  const s = await page.evaluate(() => { const a = window.__app, f = a && a.farRocks; return f ? { ready: !!window.__shotReady, frame: a.frameCount, far: window.__stats && window.__stats.farRocks, wait: window.__stats && window.__stats.wait, asked: f.asked, missing: f.missing, vis: f.visBusy, tiles: f.tiles.size, why: [a.post.stableReads >= 3 ? '' : 'exposure', a.terrain.idle ? '' : 'terrain', a.trees.busy ? 'trees' : '', a.farForest && a.farForest.busy ? 'farForest' : '', a.grass.busy ? 'grass' : '', a.cloudVolume.busy ? 'cloudvol' : '', a.rocks.needVis || a.rocks.pendingVis ? 'rocks' : '', a.lander.pending ? 'lander' : '', a.atmosphere.airBusy ? 'air' : '', a.bodies.pending ? 'bodies' : '', a.clouds.loading ? 'clouds' : '', f.busy ? 'farRocks' : ''].filter(Boolean).join(' '), calls: window.__stats && window.__stats.calls, tris: window.__stats && window.__stats.triangles } : null; });
   const line = JSON.stringify(s); if (line !== last) console.log(((Date.now() - t0) / 1000).toFixed(0) + 's', line); last = line;
   if (s && s.ready) break;
 }
@@ -20,24 +20,21 @@ while (Date.now() - t0 < secs * 1000) {
   if (bad || errs.length) { console.log(`SHADER FAILED: ${bad} not linked: ${errs.join(' / ').slice(0, 3000)}`); errors.push('shader'); } }
 console.log('sunlight on the rocks, by level (mean of the land\'s shadow, 1: all in the Sun):', JSON.stringify(await page.evaluate(() => { const f = window.__app.farRocks, o = {}; for (const s of f.slots) { if (!s.tile) continue; const a = s.at.aMisc.array, n = s.tile.count; let v = 0; for (let i = 0; i < n; i++) v += a[i * 4] / 255; (o[s.li] || (o[s.li] = [0, 0]))[0] += v; o[s.li][1] += n; } for (const k in o) o[k] = +(o[k][0] / o[k][1]).toFixed(2); return o; })));
 console.log('the Sun:', JSON.stringify(await page.evaluate(() => { const a = window.__app, r = a.rig, s = a.ephemeris ? a.ephemeris.sunDir : null, u = r.localUp, f = r.forward; if (!s) return 'unknown'; const el = Math.asin(s[0] * u[0] + s[1] * u[1] + s[2] * u[2]) * 57.3, e = r.east, n = r.north, az = (Math.atan2(s[0] * e[0] + s[1] * e[1] + s[2] * e[2], s[0] * n[0] + s[1] * n[1] + s[2] * n[2]) * 57.3 + 360) % 360; return { up: +el.toFixed(1), bearing: +az.toFixed(0), view: +((Math.atan2(f.x * e[0] + f.y * e[1] + f.z * e[2], f.x * n[0] + f.y * n[1] + f.z * n[2]) * 57.3 + 360) % 360).toFixed(0) }; })));
-// what is truly drawn: every rock of every tile in the view, by the vertex shader's own rule
+// what is truly drawn: every rock of every tile, by the vertex shader's own rule
 console.log('drawn, counted rock by rock:', JSON.stringify(await page.evaluate(() => {
-  const a = window.__app, f = a.farRocks, p = a.rig.pos, u = f.uFar.value, o = { tilesInView: 0, lo: 0, hi: 0, shadows: 0 };
+  const a = window.__app, f = a.farRocks, p = a.rig.pos, u = f.uFar.value, o = { tiles: 0, handed: 0, rocks: 0, shadows: 0 };
   for (const s of f.slots) {
-    const b = s.tile; if (!b || !(s.lo.visible || s.hi.visible)) continue;
-    // (in the view: three's own test, on the mesh as it was last drawn)
-    const off = s.at.aOff.array, ox = b.origin.x - p.x, oy = b.origin.y - p.y, oz = b.origin.z - p.z;
-    let any = false;
-    for (let i = 0; i < Math.max(s.lo.geometry.instanceCount, s.hi.geometry.instanceCount); i++) {
-      const size = off[i * 4 + 3], d = Math.hypot(ox + off[i * 4], oy + off[i * 4 + 1], oz + off[i * 4 + 2]), key = d / size, t = Math.min(1, Math.max(0, (size - 2.6) / 3.9)), reach = u.x * (u.z + (1 - u.z) * t * t * (3 - 2 * t));
-      if (key >= reach) continue;
-      any = true; if (key <= u.y) o.hi++; else o.lo++;
-      if (f.shadows && key / reach < 0.72) o.shadows++;
+    const b = s.tile; if (!b || !s.mesh.visible) continue;
+    const off = s.at.aOff.array, ox = b.origin.x - p.x, oy = b.origin.y - p.y, oz = b.origin.z - p.z, n = s.mesh.geometry.instanceCount;
+    o.tiles++; o.handed += n;
+    for (let i = 0; i < n; i++) {
+      const size = off[i * 4 + 3], d = Math.hypot(ox + off[i * 4], oy + off[i * 4 + 1], oz + off[i * 4 + 2]), t = Math.min(1, Math.max(0, (size - f.shareLo) / (f.shareHi - f.shareLo))), reach = u.x * (u.z + (1 - u.z) * t * t * (3 - 2 * t));
+      if (d / size >= reach) continue;
+      o.rocks++; if (f.shadows && d / size / reach < 0.72) o.shadows++;
     }
-    if (any) o.tilesInView++;
   }
-  o.triangles = o.lo * f.tris[0] + o.hi * f.tris[1] + o.shadows * 8;
-  o.note = 'all round the traveller (the view holds about a third)';
+  o.triangles = o.rocks * f.tris + o.shadows * 8;
+  o.note = 'all round the traveller: handed = instances given to the GPU, rocks = those its vertex shader keeps; the view holds about a third';
   return o; })));
 if (opt('out', '')) await snap(opt('out', ''));
 if (errors.length) console.log('PAGE ERRORS: ' + errors.slice(0, 5).join(' | '));

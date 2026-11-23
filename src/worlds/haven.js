@@ -76,7 +76,10 @@ export default {
     sea: { level: 0, color: [0.008, 0.030, 0.070], roughness: 0.10, ripples: 0.07, tide: { by: [['mira', 0.40], ['sun', 0.16]], gain: 3 } },
     // (far: boulders and outcrops as far as they can be seen, rocks/farRocks.js; the numbers'
     // meaning and the defaults: rocks/rockBlock.js)
-    rocks: { count: 300, radius: 110, size: [0.3, 3.2], albedo: [0.24, 0.17, 0.12], far: { albedo: [0.25, 0.2, 0.145], clear: [[-48.56367, 49.04424, 60]], check: { steep: [-48.8066, 47.22265], level: [-54.4271, 39.2697] } } },
+    // (the stones underfoot stop at 1.4 m: from there up a rock is the land's own, `far`, the same
+    // block at the same place from kilometres off to arm's length; with both making 2 m
+    // rocks there were doubled ones, and near ones that shrank away as one walked off)
+    rocks: { count: 300, radius: 110, size: [0.3, 1.4], albedo: [0.24, 0.17, 0.12], far: { albedo: [0.25, 0.2, 0.145], clear: [[-48.56367, 49.04424, 60]], check: { steep: [-48.8066, 47.22265], level: [-54.4271, 39.2697] } } },
   },
 
   // Air like Earth's in what it does to light (the same Sun, the same blue), standing
