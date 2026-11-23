@@ -20,9 +20,11 @@ All of it is under "The owner's eighth phone results and the seventh painted del
 - **What a traveller coming in from space saw**, reproduced with `?debug=floor`: a pale
   ball with no cloud; a flat map under a flat picture of clouds; one green carpet for a
   forest. **Now**: a blue globe with the day's clouds; less haze from above; a relief
-  light; clouds with a lit side, a clean edge and their own shadows on the ground; the
-  land's colour sharp over the whole view from any height; a canopy of crowns and a ring
-  of far trees. Pictures: `docs/shots/approach/` (`before_*`, `after_*`, `pair_*`).
+  light; white clouds in clusters with a lit side, a clean edge and their own shadows on
+  the ground, from any height; the land's colour sharp over the whole view; a canopy of
+  uneven crowns and a ring of far trees. Pictures: `docs/shots/approach/` (`before_*` as
+  the phone drew it, `after_*`, `pair_*`: 20 000, 2 000, 400, 100, 30 and 10 km, among
+  the clouds, the forest).
 - **Asked of the owner**: an **Earth benchmark in Smooth** (new cost: cloud shadows from
   the heaps and the crowns in the ground's shader on Earth, the far trees; and more
   pixels, since the floor is higher). Read first the line "late frames taken as the
@@ -35,12 +37,16 @@ All of it is under "The owner's eighth phone results and the seventh painted del
      move to the vertex.
   2. With a complaint about the look from the air: take the whole approach again
      (`debug=floor` and without), name what is wrong at each height, then fix.
-  3. Known to be weak: at a phone's pixel the crowns are small from 700 m (seen in a crop
-     at that density: a textured canopy, not yet trees one could count); the far trees
-     reach 2 km only; the night side of the home world from space has no city lights (the
-     far globe has them); clouds from 4 000 to 18 000 km thin out as one comes nearer
-     (from the day's whole map to the heaps' cover); the stability test has one Earth
-     move, run once.
+  3. Known to be weak: at a phone's pixel the crowns are small from 700 m (an uneven
+     canopy, not yet trees one could count); the far trees reach 2 km only; the night
+     side of the home world from space has no city lights (the far globe has them);
+     clouds from 4 000 to 18 000 km thin out as one comes nearer (from the day's whole
+     map to the heaps' cover); inside a cluster the heaps still stand in short rows (the
+     noise repeats every 4.2 km: a larger noise, or two blended, would end it, at a
+     cost in the cloud volume); where a heap is a pixel or two (from 400 km at the test
+     size, from some 2 000 km on the phone) a field is a stipple before it becomes a
+     veil; right under a cluster's base the sky is one cream lid; the ground's shader
+     has no texture to spare (16 of 16); the stability test has one Earth move.
   4. Then the rest of milestone 11.
 
 ### The sixth painted delivery (the delivery before: speed, far things, water, storms, trees)
