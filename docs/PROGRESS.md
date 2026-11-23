@@ -578,6 +578,33 @@ in `docs/ARCHITECTURE.md`):
   rule for slopes.
 - Small things found on the way: rain streaks in dry weather (a rate that read 0.0 drew
   four hundred); square holes in the canopy on steep hillsides.
+- **Found in the last pictures before sending, and put right** (each seen again after):
+  - *The heaps were never there on the way in.* The shell took on the volume's heaps (and
+    the ground their shadows) only once the volume had been drawn, under 30 km: every
+    picture from 30 km and higher had shown the old flat blobs of the day's map, and so
+    did a first approach from space, and the governor's floor. `CloudVolume.place` now
+    says where the base stands every frame.
+  - *With the heaps shown, a wallpaper.* From 30 km one even field of small clouds lay
+    over the whole land in rows: the noise repeats every 4.2 km. Shifting the noise from
+    place to place (three ways tried in a sketch) bent the rows and stretched the clouds
+    and did not hide them; what does is the weather's own way: fair-weather cloud stands
+    in **clusters** some tens of kilometres across with clear country between
+    (`FAIR_GLSL`, one rule for the volume, the shell and the ground). Tuned in seconds
+    in `scripts/cloud-field.mjs`, a top-down sketch without a browser, then seen in the
+    game. The opening view keeps its sky.
+  - *Clouds from above were grey.* Lit as from below (the light that comes through), a
+    heap looked down on was hardly lighter than the desert under it: it now shows its
+    sunlit top (by the line of sight, so nothing jumps on the way through the layer),
+    and the darker middle is only for the under side.
+  - *The forest from the air was a cloth woven in squares*: the same 64 crowns in every
+    64 m tile. A patch's tile coordinates are kept modulo 16 tiles (`DETAIL_PERIOD`) and
+    the crowns differ over a kilometre: an uneven canopy of crowns.
+  - The ground's shader is full: 16 of a phone's 16 textures (the smoke test counts).
+  - Test tooling: `scripts/lib/png.mjs` had lost the names three scripts import (the
+    stability test, `peek`, `probe-terrain` could not start, since the trees' fifth
+    pass); `scripts/check-scripts.mjs` reads every import of every script and is part of
+    the build check. A WebGL error on every frame that drew no shadow tile
+    (`invalidateFramebuffer` on whatever was bound) is gone.
 
 **Tried and taken back**: the far clouds as the map's faint parts too (grey sheets of fog
 over half the land from 100 km); the relief light at full strength from orbit (whole
