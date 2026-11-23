@@ -27,6 +27,13 @@ as you want or need. This is a big ask and I need it to work really well."*
   their brief. The owning session reviews their pictures, merges the branches into
   `ccr-aa39490a-qiw63x`, resolves what both touched (`app.js`, `governor.js`, world
   files), runs the tests on the merged build, and delivers.
+- **The helpers** (started 2026-11-23 09:40 UTC; they are sessions of the same account,
+  reached with the session tools `get_session`, `list_events`, `send_message`): trees:
+  `session_01XG1DZ585vPB1kCXuxRvUFx`, branch `ccr-aa39490a-far-forest`; grass:
+  `session_01XG1DZ6vKJWJCvxUHNSpiWP`, branch `ccr-aa39490a-far-grass`. Each is to send a
+  message when a first version with pictures is pushed and when done. To look at their
+  work: `git fetch origin <branch>`, then their pictures under `docs/shots/far-forest/`
+  and `docs/shots/far-grass/` and their report beside the brief.
 - **If the helpers cannot be reached or their work is not good enough**: the briefs are
   the plan; do them here, trees first.
 
