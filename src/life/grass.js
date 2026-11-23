@@ -48,7 +48,7 @@ const FLOWERS = { grid: 108, spacing: 0.4, seed: 91, out: [15.5, 20.5] };
 export const CLUMPS = [
   { grid: 200, spacing: 0.8, table: 'mid', in: [13, 30], out: [50, 74], tall: 0.5, wide: 1.3, seed: 11 },
   { grid: 200, spacing: 2.0, table: 'mid', in: [50, 74], out: [135, 188], tall: 0.62, wide: 3.0, seed: 23 },
-  { grid: 220, spacing: 5.0, table: 'far', in: [135, 188], out: [360, 520], tall: 0.85, wide: 6.6, seed: 47 },
+  { grid: 220, spacing: 5.0, table: 'far', in: [135, 188], out: [320, 545], tall: 0.85, wide: 6.6, seed: 47 },
 ];
 // The clumps' picture: blades side by side, repeating across (a card shows as much of it as it is wide).
 const PIC_W = 256, PIC_H = 64;
