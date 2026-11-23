@@ -522,7 +522,11 @@ void main() {
       // (a tint, never a patch: its edge broken by the ground's own grain, less of it for
       // the pale kinds, from higher up and far off, where colour piles up along the skyline)
       if (fw.y > 0.0) {
-        float fk = fw.y * smoothstep(0.38, 0.62, 0.6 * d1.r + 0.4 * d1.b + 0.25 * fw.y) * (fw.x < 1.5 ? 0.7 : 1.0);
+        // (a dusting: specks a metre or so across, thicker toward the drift's heart; their
+        // mean where a speck is smaller than a pixel)
+        vec3 fwP = fwidth(planetPos);
+        float speck = smoothstep(0.45, 0.8, flNoise(planetPos / 1.3) * (0.55 + 0.65 * fw.y));
+        float fk = mix(speck, 0.22 * fw.y + 0.05, smoothstep(0.35, 1.3, max(fwP.x, max(fwP.y, fwP.z)))) * (fw.x < 1.5 ? 0.7 : 1.0);
         fk *= (1.0 - 0.6 * clamp(dot(V, up), 0.0, 1.0)) * (1.0 - 0.75 * smoothstep(150.0, 900.0, dG));
         gc = mix(gc, petalColour(fw.x, 0.5), fk * GRASS_FLOWER_SHARE);
       }

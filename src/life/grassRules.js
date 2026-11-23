@@ -107,4 +107,4 @@ export const WAVE_K = 0.35;
 // The ground's own grass: where it gives way to the map's colour (m from the eye), and how
 // much of a drift's ground takes the flowers' colour at most (a tint: a meadow of daisies
 // from above is grass with a dusting, not a white patch).
-export const GRASS_GROUND = { far: [600, 2500], flowers: 0.3 };
+export const GRASS_GROUND = { far: [600, 2500], flowers: 0.5 };
