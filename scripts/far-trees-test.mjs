@@ -15,7 +15,8 @@
 // Run: node scripts/far-trees-test.mjs
 import { loadWorld } from './lib/loadWorld.mjs';
 import { setMadeCover } from './lib/madeCover.mjs';
-import { treeBlock, treeTile, blockDeg, blockLon, TREE_FLOATS, siteRank } from '../src/life/treeBlock.js';
+import { treeBlock, treeTile, blockDeg, blockLon, TREE_FLOATS, siteRank, tileSpan, tileRow, tileOf } from '../src/life/treeBlock.js';
+import { wantedTiles, levelReach } from '../src/life/farTiles.js';
 import { band, LEVELS, BASE_BLOCKS } from '../src/life/farForest.js';
 
 const PLACES = [
@@ -46,7 +47,7 @@ for (const [name, lat, lon] of PLACES) {
   setMadeCover(hs, world, lat, lon);
   const dLon = blockLon(Math.floor(lat / DEG), DEG);
   const bi = Math.floor(lat / DEG), bj = Math.floor(lon / dLon);
-  const blocks = BASE_BLOCKS, ti = Math.floor(bi / blocks), tj = Math.floor(bj / blocks);
+  const blocks = BASE_BLOCKS, [ti, tj] = tileOf(bi, bj, blocks, DEG);
   const t0 = Date.now(), whole = treeTile(hs, ti, tj, blocks, 7, 0, 1), tileMs = Date.now() - t0;
   const all = treesOf(whole, whole.origin);
   console.log(`\n${name} (${lat}, ${lon}): a tile of ${blocks} x ${blocks} blocks (${(blocks * DEG * M / 1000).toFixed(2)} km) holds ${whole.count} trees, ${tileMs} ms`);
@@ -54,10 +55,11 @@ for (const [name, lat, lon] of PLACES) {
 
   // 1. the same trees as block by block
   const byBlock = new Map();
-  for (let a = 0; a < blocks; a++) for (let b = 0; b < blocks; b++) {
-    const r = treeBlock(hs, ti * blocks + a, tj * blocks + b, 7);
-    for (const [k, v] of treesOf(r, whole.origin)) byBlock.set(k, v);
-  }
+  { const { w, e } = tileSpan(ti, tj, blocks, DEG);
+    for (let a = 0; a < blocks; a++) { const [b0, b1] = tileRow(ti * blocks + a, w, e, DEG); for (let b = b0; b < b1; b++) {
+      const r = treeBlock(hs, ti * blocks + a, b, 7);
+      for (const [k, v] of treesOf(r, whole.origin)) byBlock.set(k, v);
+    } } }
   check(byBlock.size === all.size, `${name}: a tile holds as many trees as its blocks (${all.size} vs ${byBlock.size})`);
   let same = 0, moved = 0;
   for (const [k, v] of all) { const o = byBlock.get(k); if (!o) continue; same++; if (apart(v.pos, o.pos) > 0.05) moved++; }
@@ -70,7 +72,7 @@ for (const [name, lat, lon] of PLACES) {
   for (let L = 0; L < LEVELS; L++) {
     const [lo, hi] = band(L), t1 = Date.now();
     const bw = BASE_BLOCKS * 2 ** L;
-    const r = treeTile(hs, Math.floor(ti * blocks / bw), Math.floor(tj * blocks / bw), bw, 7, lo, hi);
+    const r = treeTile(hs, ...tileOf(bi, bj, bw, DEG), bw, 7, lo, hi);
     counts.push(`level ${L} (ranks ${lo.toFixed(4)}..${hi.toFixed(4)}, ${bw} blocks, ${(bw * DEG * M / 1000).toFixed(2)} km): ${r.count} trees, ${Date.now() - t1} ms`);
     // the band of the tile itself, to compare with the whole tile
     const inTile = treeTile(hs, ti, tj, blocks, 7, lo, hi), band1 = treesOf(inTile, whole.origin);
@@ -102,6 +104,67 @@ for (const [name, lat, lon] of PLACES) {
   const sh = lowHalf / Math.max(1, whole.count);
   check(Math.abs(sh - 0.5) < 0.04, `${name}: half the trees have a rank under a half (${(sh * 100).toFixed(1)} %)`);
   if (tall > 200) check(Math.abs(tallLow / tall - 0.5) < 0.07, `${name}: rank does not pick by height (${(tallLow / tall * 100).toFixed(1)} % of the tall ones under a half)`);
+}
+
+// 5. The tiles the far forest wants from a place, by the game's own rule (farTiles.js),
+// hold every block of trees within each level's reach exactly once, and each stands where
+// the rule thinks it does. (Blocks are taken by longitude, not by index: a row's blocks
+// are another width in every one-degree band of latitude, and taken by index the rows of
+// a tile stood kilometres apart, with east-west strips of land that no wanted tile held.)
+// Also at the seam at longitude 0, on both sides of it.
+const FULL = world.life?.trees?.far?.full ?? 450, RADIUS = world.life?.trees?.far?.radius ?? 5600;
+for (const [name, lat, lon] of [...PLACES, ['east of the seam', 22.983, 0.6], ['west of the seam', 22.983, 359.5], ['east of the seam, south', -48.55, 0.02], ['on a band boundary', 23.0, 200.0]]) {
+  const tiles = wantedTiles(lat, ((lon % 360) + 360) % 360, world.radius, FULL, RADIUS), keys = new Map(tiles.map((t) => [t.key, t]));
+  const rad = Math.PI / 180, unit = (la, lo) => [Math.cos(la * rad) * Math.cos(lo * rad), Math.cos(la * rad) * Math.sin(lo * rad), Math.sin(la * rad)];
+  const here = unit(lat, lon), ground = (la, lo) => { const u = unit(la, lo); return world.radius * Math.acos(Math.min(1, u[0] * here[0] + u[1] * here[1] + u[2] * here[2])); };
+  const line = [];
+  for (let L = 0; L < LEVELS; L++) {
+    const blocks = BASE_BLOCKS * 2 ** L, reach = levelReach(L, FULL, RADIUS), nb = Math.ceil(reach / (DEG * M)) + 1;
+    // every block held by the wanted tiles of this level, counted
+    const held = new Map();
+    for (const t of tiles) if (t.level === L) {
+      const { w, e } = tileSpan(t.ti, t.tj, blocks, DEG);
+      for (let a = 0; a < blocks; a++) { const bi = t.ti * blocks + a, [b0, b1] = tileRow(bi, w, e, DEG); for (let b = b0; b < b1; b++) held.set(bi + ':' + b, (held.get(bi + ':' + b) || 0) + 1); }
+    }
+    let inReach = 0, lost = 0, twice = 0, wrongOwner = 0, far = 0;
+    const bi0 = Math.floor(lat / DEG);
+    for (let bi = bi0 - nb; bi <= bi0 + nb; bi++) {
+      const dLon = blockLon(bi, DEG), round = Math.round(360 / dLon), bj0 = Math.floor(lon / dLon);
+      for (let bu = bj0 - nb; bu <= bj0 + nb; bu++) {
+        const bj = ((bu % round) + round) % round;
+        // (a block is in reach when its middle is: half a block's diagonal of slack)
+        const d = ground((bi + 0.5) * DEG, (bj + 0.5) * dLon);
+        if (d > reach - 80) continue;
+        inReach++;
+        const n = held.get(bi + ':' + bj) || 0;
+        if (n === 0) lost++; else if (n > 1) twice++;
+        const [oi, oj] = tileOf(bi, bj, blocks, DEG), owner = keys.get(L + ':' + oi + ':' + oj);
+        if (!owner) wrongOwner++;
+        // (and the rule's own idea of how near the tile is must not be farther than this block)
+        else if (owner.near > d + 80) far++;
+      }
+    }
+    line.push(`level ${L}: ${inReach} blocks in ${(reach / 1000).toFixed(1)} km`);
+    check(lost === 0, `${name}, level ${L}: ${lost} of ${inReach} blocks in reach are in no wanted tile`);
+    check(twice === 0, `${name}, level ${L}: ${twice} blocks are in two wanted tiles`);
+    check(wrongOwner === 0, `${name}, level ${L}: the tile that owns a block is not wanted (${wrongOwner} blocks)`);
+    check(far === 0, `${name}, level ${L}: a tile is reckoned farther off than a block it holds (${far} blocks)`);
+  }
+  console.log(`${name} (${lat}, ${lon}): ${tiles.length} tiles wanted; ${line.join(', ')}`);
+}
+// ... and a large tile that lies across a boundary between two bands holds its blocks' trees
+// where they stand (the first check, at level 1, on a thin band to keep it short)
+{
+  const [name, lat, lon] = PLACES[1];
+  setMadeCover(hs, world, lat, lon);
+  const bw = BASE_BLOCKS * 2, bi = Math.floor(lat / DEG), [ti, tj] = tileOf(bi, Math.floor(lon / blockLon(bi, DEG)), bw, DEG), { w, e } = tileSpan(ti, tj, bw, DEG);
+  const bands = new Set(); for (let a = 0; a < bw; a++) bands.add(blockLon(ti * bw + a, DEG));
+  const tile = treeTile(hs, ti, tj, bw, 7, 0, 0.1), all = treesOf(tile, tile.origin), byBlock = new Map();
+  for (let a = 0; a < bw; a++) { const [b0, b1] = tileRow(ti * bw + a, w, e, DEG); for (let b = b0; b < b1; b++) for (const [k, v] of treesOf(treeBlock(hs, ti * bw + a, b, 7, undefined, undefined, 0, 0.1), tile.origin)) byBlock.set(k, v); }
+  let moved = 0, wide = 0; for (const [k, v] of all) { const o = byBlock.get(k); if (!o || apart(v.pos, o.pos) > 0.05) moved++; wide = Math.max(wide, Math.hypot(v.pos[0], v.pos[1], v.pos[2])); }
+  console.log(`${name}: a level-1 tile over ${bands.size} band(s) of latitude holds ${all.size} trees of rank under 0.1, the farthest ${wide.toFixed(0)} m from its middle`);
+  check(all.size === byBlock.size && moved === 0, `${name}: a level-1 tile holds its blocks' trees where they stand (${all.size} vs ${byBlock.size}, ${moved} apart)`);
+  check(wide < bw * DEG * M * 0.75 + 120, `${name}: a tile's trees lie within the tile (${wide.toFixed(0)} m from its middle, the tile is ${(bw * DEG * M).toFixed(0)} m across)`);
 }
 
 // rank itself: a site's own number, spread evenly

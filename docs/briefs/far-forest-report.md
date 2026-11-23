@@ -184,6 +184,20 @@ the shadow maps those trees had no shadow of the land on them, ever. Both are do
   the wooded slopes, so the clouds' part is right by construction (one rule, the ground's
   numbers) more than it is shown.
 
+## After the independent review (`far-forest-review.md`), finding by finding
+
+1. **Strips with no far trees (serious): true, fixed.** The reviewer was right. With the
+   tiles' blocks taken by index, the new check in `scripts/far-trees-test.mjs` (the game's
+   own selection, now in `src/life/farTiles.js`, against every block of trees within each
+   level's reach) fails: at the north wood 15 of 168 blocks at level 0 and **231 of 755 at
+   level 1** are in no wanted tile; at the opening place 95 of 3 150 at level 2 and 307 of
+   7 736 at level 3. A tile is now its rows of blocks and a span of longitude (that of its
+   first row's blocks), and each row gives it the blocks whose west edge lies in the span
+   (`tileSpan`, `tileRow`, `tileOf` in `treeBlock.js`); where a tile stands is worked out
+   from that span, wrapped at longitude 0, with a block of slack. The check passes at seven
+   places, among them both sides of the seam at longitude 0 and a band boundary, and a
+   level-1 tile lying over two bands holds its blocks' trees where they stand.
+
 ## Tests
 
 - `node scripts/far-trees-test.mjs` (3 s, no browser): a tile holds exactly the trees of its

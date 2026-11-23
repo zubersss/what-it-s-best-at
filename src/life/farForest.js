@@ -36,13 +36,11 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
 import { VARIANTS } from './treeGeometry.js';
 import { SPECIES } from './cover.js';
-import { TREE_FLOATS, blockLon, blockDeg } from './treeBlock.js';
+import { TREE_FLOATS } from './treeBlock.js';
+import { BASE_BLOCKS, BAND, LEVELS, band, levelReach, wantedTiles } from './farTiles.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
 import { PAINT_LEAF, CLOUD_SHADE_VERT, cloudShadeUniforms } from './trees.js';
 
-const BASE_BLOCKS = 8;        // level 0: 8 x 8 tree blocks (889 m); level L: that doubled L times
-const BAND = 4;               // each level's band of ranks is this much thinner than the one before
-const LEVELS = 4;             // 1, 1/4, 1/16, 1/64 of the sites: the last band is everything below
 const CAP = 6144;             // trees drawn from one tile (a fixed pool; the thickest band of a close tile)
 const POOL = 40;              // tiles drawn at once
 const MARGIN = 1.5;           // a tile is filled with rather more trees than are wanted now, so that coming nearer does not refill it at once
@@ -54,8 +52,6 @@ const MARGIN = 1.5;           // a tile is filled with rather more trees than ar
 const COLOUR_TOP = 0.75;
 function pack(c) { const b = (v) => Math.round(Math.min(1, Math.max(0, v / COLOUR_TOP)) * 255); return b(c[0]) * 65536 + b(c[1]) * 256 + b(c[2]); }
 
-// The band of ranks a level holds: [lo, hi).
-function band(level) { return [level >= LEVELS - 1 ? 0 : BAND ** -(level + 1), BAND ** -level]; }
 
 export class FarForest {
   // trees: the Trees (its tree shapes' far meshes say where each picture is in the atlas,
@@ -271,31 +267,16 @@ export class FarForest {
 
     // Which tiles are wanted: for each level, those near enough that some tree of its band
     // would be drawn (keep(d) > the band's lowest rank).
-    const DEG = blockDeg(R), M = R * Math.PI / 180, cosLat = Math.cos(lat * Math.PI / 180);
     const want = [], sunNow = this.shared.uSunDir.value;
     this.missing = 0;
-    for (let L = 0; L < LEVELS; L++) {
-      const [lo] = band(L), blocks = BASE_BLOCKS * 2 ** L, side = blocks * DEG * M;
-      // (how far this level's band reaches: none of it beyond where keep(d) falls to `lo`)
-      const reach = Math.min(radius, lo > 0 ? full / Math.sqrt(lo) : radius);
-      const tDeg = blocks * DEG, ti0 = Math.floor(lat / tDeg), nt = Math.ceil(reach / side) + 1;
-      for (let ti = ti0 - nt; ti <= ti0 + nt; ti++) {
-        const dLon = blockLon(ti * blocks, DEG), tLon = dLon * blocks, rows = Math.ceil(Math.round(360 / dLon) / blocks), tj0 = Math.floor(lon / tLon);
-        for (let tu = tj0 - nt; tu <= tj0 + nt; tu++) {
-          // the tile's middle and its nearest corner, in metres along the ground
-          const dy = ((ti + 0.5) * tDeg - lat) * M, dx = ((tu + 0.5) * tLon - lon) * M * cosLat;
-          const near = Math.hypot(Math.max(0, Math.abs(dx) - side / 2), Math.max(0, Math.abs(dy) - side / 2));
-          if (near > reach) continue;
-          const tj = ((tu % rows) + rows) % rows, key = L + ':' + ti + ':' + tj;
-          let tile = this.tiles.get(key);
-          if (!tile) { tile = { key, level: L, ti, tj, blocks, side, state: 0, fillEye: null, slot: null, data: null, count: 0, shown: 0, stale: false, asking: false }; this.tiles.set(key, tile); }
-          tile.used = this.frame; tile.near = near; tile.mid = Math.hypot(dx, dy);
-          // (the land's shadow on its trees was worked out for where the Sun then stood)
-          if (tile.state === 1 && !tile.stale && tile.sun.dot(sunNow) < 0.99966) tile.stale = true;
-          if (tile.state !== 1 || tile.stale) this.missing++;
-          want.push(tile);
-        }
-      }
+    for (const w of wantedTiles(lat, lon, R, full, radius)) {
+      let tile = this.tiles.get(w.key);
+      if (!tile) { tile = { key: w.key, level: w.level, ti: w.ti, tj: w.tj, blocks: w.blocks, side: w.side, state: 0, fillEye: null, slot: null, data: null, count: 0, shown: 0, stale: false, asking: false }; this.tiles.set(w.key, tile); }
+      tile.used = this.frame; tile.near = w.near; tile.mid = w.mid;
+      // (the land's shadow on its trees was worked out for where the Sun then stood)
+      if (tile.state === 1 && !tile.stale && tile.sun.dot(sunNow) < 0.99966) tile.stale = true;
+      if (tile.state !== 1 || tile.stale) this.missing++;
+      want.push(tile);
     }
     want.sort((a, b) => a.near - b.near);
 
@@ -333,7 +314,7 @@ export class FarForest {
       s.material.uniforms.uTileRel.value.subVectors(tile.origin, p);
       s.mesh.position.copy(s.material.uniforms.uTileRel.value);
       // (the tile is drawn when a tree of its band could be; the view culls it by its bounds)
-      const vis = tile.count > 0 && tile.near <= Math.min(radius, band(tile.level)[0] > 0 ? full / Math.sqrt(band(tile.level)[0]) : radius);
+      const vis = tile.count > 0 && tile.near <= levelReach(tile.level, full, radius);
       s.mesh.visible = vis;
       if (vis) { drawn += tile.shown; given += tile.count; }
     }
