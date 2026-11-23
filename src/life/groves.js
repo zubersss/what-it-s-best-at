@@ -22,7 +22,7 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
 import { VARIANTS } from './treeGeometry.js';
 import { SPECIES } from './cover.js';
-import { TREE_FLOATS, blockLon } from './treeBlock.js';
+import { TREE_FLOATS, blockLon, blockDeg } from './treeBlock.js';
 import { PAINT_LEAF } from './trees.js';
 
 const GROVE_DEG = 0.01, SALT = 7717;      // a block of far trees: 0.01 degrees (1.1 km); its lattice's own number
@@ -161,12 +161,13 @@ export class Groves {
     const p = rig.pos, len = p.length(), lat = Math.asin(p.z / len) * 180 / Math.PI, lon = ((Math.atan2(p.y, p.x) * 180 / Math.PI) + 360) % 360;
     const serial = t.coverSerial * 100000 + t.ringSerial;
     if (serial !== this.serial) { this.serial = serial; for (const b of this.blocks.values()) b.stale = true; }
-    const gi0 = Math.floor(lat / GROVE_DEG), nb = Math.ceil(radius / 1112);
+    const R = this.trees.world.radius, DEG = blockDeg(R, GROVE_DEG), M = R * Math.PI / 180;
+    const gi0 = Math.floor(lat / DEG), nb = Math.ceil(radius / 1112);
     let want = null, wantD = 1e9;
     for (let gi = gi0 - nb; gi <= gi0 + nb; gi++) {
-      const dLon = blockLon(gi, GROVE_DEG), count = Math.round(360 / dLon), gj0 = Math.floor(lon / dLon);
+      const dLon = blockLon(gi, DEG), count = Math.round(360 / dLon), gj0 = Math.floor(lon / dLon);
       for (let gu = gj0 - nb; gu <= gj0 + nb; gu++) {
-        const dy = ((gi + 0.5) * GROVE_DEG - lat) * 111200, dx = ((gu + 0.5) * dLon - lon) * 111200 * Math.cos(lat * Math.PI / 180), d = Math.hypot(dx, dy);
+        const dy = ((gi + 0.5) * DEG - lat) * M, dx = ((gu + 0.5) * dLon - lon) * M * Math.cos(lat * Math.PI / 180), d = Math.hypot(dx, dy);
         if (d > radius + 800) continue;
         const gj = ((gu % count) + count) % count, key = gi + ':' + gj, b = this.blocks.get(key);
         if (b) { b.used = this.frame; if (!b.stale || b.asking) continue; }

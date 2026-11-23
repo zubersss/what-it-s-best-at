@@ -7,6 +7,7 @@
 // Messages out: { type: 'mosaic', id, key, kind, zoom, tx, ty, n, buffer, mips? } or { type: 'failed', id, key, reason }
 // A newer 'want' with the same key replaces an older one that has not finished.
 import { hydrology, packWater, seaBed, despike } from './hydrology.js';
+import { MadeWorld } from './madeTiles.js';
 
 const TILE = 256;
 const cache = new Map();          // url -> Promise<{ data, at }> (decoded tiles, a few hundred at most)
@@ -134,7 +135,30 @@ async function coverOf(m, W, out) {
 // minFlow (m3/s: what is drawn as a river at this zoom) }. The coarser mosaic's result, if
 // one is there or on its way, says what the rivers bring in over the edge.
 const hydro = new Map();          // zoom -> { res, tx, ty } (the last result at that zoom) or a promise of one
-let rainMap = null, waterMap = null;
+const rainMaps = new Map(), waterMaps = new Map();          // by url: more than one world has them
+
+// A made world's own maps (terrain.tiles.made, see madeTiles.js), fetched once: its
+// bundled elevation, which lake each cell belongs to and the lakes' levels, the year's rain.
+const madeWorlds = new Map();
+function madeWorld(c) {
+  let p = madeWorlds.get(c.key);
+  if (!p) {
+    p = (async () => {
+      const [demBuf, lakeMap, levels, rain] = await Promise.all([
+        fetch(c.dem.url).then((r) => { if (!r.ok) throw new Error('elevation: HTTP ' + r.status); return r.arrayBuffer(); }),
+        c.lakes ? greyMap(c.lakes) : null,
+        c.levels ? fetch(c.levels).then((r) => (r.ok ? r.json() : null)).catch(() => null) : null,
+        c.rain ? fetch(c.rain).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null) : null,
+      ]);
+      return new MadeWorld({ radius: c.radius, seed: c.seed, land: c.land, rain: rain ? new Uint8Array(rain) : null,
+        dem: { ...c.dem, data: new Int16Array(demBuf) },
+        lakes: lakeMap && levels ? { ids: lakeMap.data, width: lakeMap.W, height: lakeMap.H, levels: levels.lakes.map((l) => l.level) } : null });
+    })();
+    p.catch(() => madeWorlds.delete(c.key));
+    madeWorlds.set(c.key, p);
+  }
+  return p;
+}
 // A whole-world grey picture as { data (one byte a pixel), W, H }, or null.
 async function greyMap(url) {
   try {
@@ -147,11 +171,13 @@ async function greyMap(url) {
     return { data, W, H };
   } catch (e) { return null; }
 }
-async function waters(m, h, W, cell) {
+// lakes: a made world's own (x, y) -> level or null, given instead of read from the elevation.
+async function waters(m, h, W, cell, lakes = null) {
   try {
-    if (!rainMap) rainMap = fetch(m.hydrology.rain).then((r) => (r.ok ? r.arrayBuffer() : null)).then((b) => (b ? new Uint8Array(b) : null)).catch(() => null);
-    if (!waterMap) waterMap = m.hydrology.water ? greyMap(m.hydrology.water) : Promise.resolve(null);
-    const rain = await rainMap, seen = await waterMap, n = 2 ** m.zoom;
+    const ru = m.hydrology.rain, wu = m.hydrology.water || '';
+    if (!rainMaps.has(ru)) rainMaps.set(ru, fetch(ru).then((r) => (r.ok ? r.arrayBuffer() : null)).then((b) => (b ? new Uint8Array(b) : null)).catch(() => null));
+    if (!waterMaps.has(wu)) waterMaps.set(wu, wu ? greyMap(wu) : Promise.resolve(null));
+    const rain = await rainMaps.get(ru), seen = await waterMaps.get(wu), n = 2 ** m.zoom;
     const rainAt = (x, y) => {
       if (!rain) return 600;
       const lon = (m.tx + x / TILE) / n * 360, lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * (m.ty + y / TILE) / n))) * 57.29577951;
@@ -164,7 +190,7 @@ async function waters(m, h, W, cell) {
     if (coarse && !coarse.res) coarse = null;
     const s = coarse ? 2 ** (coarse.zoom - m.zoom) : 1;
     const res = hydrology(h, W, cell, rainAt, {
-      minFlow: m.hydrology.minFlow,
+      minFlow: m.hydrology.minFlow, lakes,
       lat: (y) => Math.atan(Math.sinh(Math.PI * (1 - 2 * (m.ty + y / TILE) / n))) * 57.29577951,
       // (the water map: the whole world, north first, from longitude -180)
       water: seen ? (x, y) => {
@@ -184,6 +210,8 @@ async function waters(m, h, W, cell) {
 
 self.onmessage = async (ev) => {
   const m = ev.data;
+  // (another world: what was worked out for the last one's rivers says nothing here)
+  if (m.type === 'reset') { hydro.clear(); latest.clear(); return; }
   if (m.type !== 'want') return;
   latest.set(m.key, m.id);
   const { zoom, tx, ty, n } = m, W = n * TILE, rows = 2 ** zoom;
@@ -191,6 +219,32 @@ self.onmessage = async (ev) => {
   let settle = null;
   if (m.kind === 'elevation' && m.hydrology) { const before = hydro.get(zoom); const p = new Promise((r) => { settle = r; }); p.then((v) => { if (hydro.get(zoom) === p) hydro.set(zoom, v || (before && before.res ? before : {})); }); hydro.set(zoom, p); }
   try {
+    if (m.made) {
+      // A made world: nothing to fetch but its own maps, once. Its elevation mosaic is for the
+      // water alone (the ground is the bundled map and the layers at any fineness: the ring
+      // goes out marked waterOnly); its picture is the land's colour and cover by rule.
+      const mw = await madeWorld(m.made);
+      if (latest.get(m.key) !== m.id) return;
+      if (m.kind === 'elevation') {
+        const h = mw.elevation(zoom, tx, ty, n), g = mw.grid(zoom, tx, ty);
+        const cell = 2 * Math.PI * m.made.radius / (TILE * rows) * Math.cos(Math.atan(Math.sinh(Math.PI * (1 - 2 * (ty + n / 2) / rows))));
+        const water = m.hydrology ? await waters(m, h, W, cell, (x, y) => mw.lakeAt(g.lonOf(x), g.latOf(y))) : null;
+        settle?.(water ? hydro.get(zoom + 0.5) : null);
+        if (latest.get(m.key) !== m.id) return;
+        const out = new Int16Array(W * W); for (let i = 0; i < out.length; i++) out[i] = Math.max(-32768, Math.min(32767, Math.round(h[i])));
+        const msg = { type: 'mosaic', id: m.id, key: m.key, kind: m.kind, zoom, tx, ty, n, buffer: out.buffer, waterOnly: true }, transfer = [out.buffer];
+        if (water) {
+          msg.water = { info: water.info, segs: water.segs.buffer, gridStart: water.gridStart.buffer, gridItems: water.gridItems.buffer, lake: water.lake ? water.lake.buffer : null };
+          transfer.push(water.segs.buffer, water.gridStart.buffer, water.gridItems.buffer); if (water.lake) transfer.push(water.lake.buffer);
+        }
+        self.postMessage(msg, transfer);
+      } else {
+        const p = mw.picture(zoom, tx, ty, n), mips = mipChain(p.rgba, W);
+        self.postMessage({ type: 'mosaic', id: m.id, key: m.key, kind: m.kind, zoom, tx, ty, n, buffer: p.rgba.buffer, mips: mips.map((x) => x.buffer), cover: { cls: p.cover.cls.buffer, tall: p.cover.tall.buffer, closed: p.cover.closed.buffer } },
+          [p.rgba.buffer, ...mips.map((x) => x.buffer), p.cover.cls.buffer, p.cover.tall.buffer, p.cover.closed.buffer]);
+      }
+      return;
+    }
     const jobs = [];
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
       const y = ty + j;
@@ -211,6 +265,7 @@ self.onmessage = async (ev) => {
           }
         }
       }
+      // (Earth's own circumference: the map services are Earth's; a made world has its own branch above)
       const cell = 40075016 / (TILE * rows) * Math.cos(Math.atan(Math.sinh(Math.PI * (1 - 2 * (ty + n / 2) / rows))));
       despike(out, W, cell);
       seaBed(out, W, cell);

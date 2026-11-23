@@ -175,6 +175,22 @@ export function speciesFor(cls, lat, lon, alt, near) {
   return savanna ? mix([47, 1]) : mix([29, 1], [30, 1]);
 }
 
+// A made world's own trees (world.life.flora): a list of
+//   { classes: [..] (left out: any class), near: true (only beside a river or a lake),
+//     upTo: how far up toward the tree line, 0..1 (left out: all the way),
+//     mix: [[species, weight], ...] }
+// and the first entry that fits a place says what grows there. up: the place's height as
+// a share of the tree line's.
+export function floraFor(flora, cls, up, near) {
+  for (const f of flora) {
+    if (f.near && !near) continue;
+    if (f.classes && !f.classes.includes(cls)) continue;
+    if (f.upTo != null && up > f.upTo) continue;
+    return f.mix;
+  }
+  return flora[flora.length - 1].mix;
+}
+
 // One of a weighted list, by a number in 0..1.
 export function pick(list, u) {
   let total = 0; for (const e of list) total += e[1];

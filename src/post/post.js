@@ -381,7 +381,10 @@ export class PostPipeline {
       // planet from space, not a figure against the stars) their bright parts may not go
       // above `surface`, however much black surrounds them.
       if (bright > 0) {
-        const x = Math.min(1, Math.max(0, (cover - 0.01) / 0.05)), k = x * x * (3 - 2 * x);
+        // (coverFrom: from what share of the frame lit surfaces count as the subject; a small
+        // world is a small disc from not far off, and at the default it burned out to a white
+        // ball in black space while it covered less than a hundredth of the view)
+        const from = s.coverFrom ?? 0.01, x = Math.min(1, Math.max(0, (cover - from) / (5 * from))), k = x * x * (3 - 2 * x);
         // A world in black space (lit surfaces cover a small part of the frame) is held
         // lower, at `globe`, where its markings and colour still have contrast; a view
         // filled with ground keeps the higher `surface` limit.

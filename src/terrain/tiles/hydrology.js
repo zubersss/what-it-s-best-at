@@ -152,14 +152,19 @@ export function hydrology(h, W, cell, rain, opts = {}) {
   // --- lakes: the water the elevation set itself shows (a stretch of exactly level cells
   // above the sea), and ponds (shallow pits in wet country, on a fine map)
   const lake = new Uint16Array(N), enc = (m) => Math.max(1, Math.min(65535, Math.round((m + 500) * 4)));
-  for (let y = 1; y < W - 1; y++) for (let x = 1; x < W - 1; x++) {
+  // (a made world knows its own lakes: opts.lakes(x, y) -> the water's level there (m), or
+  // null. Where the bed is under that level it is the lake; nothing is read from level
+  // stretches, of which a made land has none.)
+  const given = opts.lakes || null;
+  if (given) for (let y = 1; y < W - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x, L = given(x, y); if (L != null && h[i] < L && (h[i] > 0 || inland[i])) lake[i] = enc(L); }
+  if (!given) for (let y = 1; y < W - 1; y++) for (let x = 1; x < W - 1; x++) {
     const i = y * W + x; if (h[i] <= 0) continue;
     const v = h[i]; let flat = true;
     for (let k = 0; k < 8 && flat; k++) flat = h[(y + DY[k]) * W + x + DX[k]] === v;
     if (flat) lake[i] = 65535;                              // (marked; kept below only in stretches large enough)
     else if (pond > 0 && fill[i] - h[i] > 3 && rain(x, y) > lakeRain) lake[i] = 65534;          // (a pit that fills; kept below if it is a pond)
   }
-  {
+  if (!given) {
     // Level stretches. A cell with all eight neighbours at its own height is the middle of
     // one; the stretch is every cell at that height joined to it (the narrow arms of a
     // reservoir have no such middle). Kept: those with enough middle (a lake, a wide river) ...
@@ -226,7 +231,7 @@ export function hydrology(h, W, cell, rain, opts = {}) {
     // (a middle cell is in one stretch only, but two stretches at one height can share an
     // edge cell: the later one has it, which is as good)
   }
-  {
+  if (!given) {
     const stack = [];
     // pits: keep the hollows of 12 cells or more that are no deeper than a pond (and not
     // one round a lake already found: that lake's own hollow, filled past its level)

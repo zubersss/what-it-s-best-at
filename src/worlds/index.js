@@ -16,8 +16,10 @@ import triton from './triton.js';
 import pluto from './pluto.js';
 import charon from './charon.js';
 import ceres from './ceres.js';
+import haven from './haven.js';
 
-export const WORLDS = { mars, moon, earth, phobos, deimos, mercury, io, europa, enceladus, titan, venus, triton, pluto, charon, ceres };
+// (haven: the made world of milestone 12, and where the game opens)
+export const WORLDS = { haven, mars, moon, earth, phobos, deimos, mercury, io, europa, enceladus, titan, venus, triton, pluto, charon, ceres };
 
 export function getWorld(id) {
   const w = WORLDS[id];

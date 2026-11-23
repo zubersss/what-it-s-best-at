@@ -14,7 +14,10 @@ await mkdir(out, { recursive: true });
 const { base, page, problems, snap, goto, close } = await open({ dist: flag('dist'), touch: true });
 const check = (name, ok) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`); if (!ok) problems.push(name); };
 
-await goto(base);
+// (on Mars: the game opens on Haven, whose wooded ground takes this machine seven seconds a
+// frame; the start screen, the modes and the read-out are the same on any world. --haven
+// runs the Haven benchmark, which opens there.)
+await goto(base + '?world=mars');
 await page.waitForSelector('#start', { timeout: 30000 });
 check('start screen is up while loading', await page.isVisible('#start'));
 await page.waitForFunction(() => window.__app?.loaded, null, { timeout: 240000 });
@@ -47,8 +50,8 @@ console.log(await page.evaluate(() => window.__app.governor.summary), '| steps s
 
 if (!flag('no-bench')) {
   // (--earth: the Earth benchmark; the cost test after the lap takes its time in a software renderer)
-  const soak = flag('soak'), earth = flag('earth'), limit = soak ? 760000 : earth ? 2400000 : 1500000;
-  await goto(base + (soak ? '?bench=soak' : earth ? '?world=earth&bench=earth' : '?bench=run'));
+  const soak = flag('soak'), haven = flag('haven'), earth = flag('earth') || haven, limit = soak ? 760000 : haven ? 4800000 : earth ? 2400000 : 1500000;
+  await goto(base + (soak ? '?world=mars&bench=soak' : haven ? '?world=haven&bench=haven' : earth ? '?world=earth&bench=earth' : '?world=mars&bench=run'));
   await page.waitForFunction(() => window.__app?.benchmark?.active, null, { timeout: earth ? 900000 : 240000 });
   check(`benchmark starts from ?bench=${soak ? 'soak' : 'run'}`, true);
   const t0 = Date.now();

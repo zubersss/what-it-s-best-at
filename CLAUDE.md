@@ -13,13 +13,29 @@ last delivered, what the owner was asked for and exactly what to do next.
 
 ## What this game is
 
-A browser game where you fly a robed, long-haired character (the owner's own design:
-`docs/PROGRESS.md`, "The owner's character") through our real solar system:
-walk on worlds, lift off, reach orbit, cross to other bodies and land. Inspired by No
-Man's Sky, but every place is real: fifteen worlds to land on (Mars, the Moon, Phobos,
-Deimos, Mercury, Venus, Ceres, Io, Europa, Enceladus, Titan, Triton, Pluto, Charon),
-every other planet and large moon in the sky at its true place for the date. Keep
-everything that works.
+**Since 2026-11-23 (the owner's words, with five reference pictures of a stylised
+landscape game): "simply flying somewhere beautiful ... a living world with its own
+physics and water and rain and leaves that change color with the season and fall down
+with the wind and pile up, water that goes down stream and piles where it can't go
+further like real life lakes and rivers and oceans with waves that have tide ... 5 of the
+most beautiful [biomes] on earth including this one."** The owner does not care for real
+sizes, real maps or the explorer's side of things, and allowed a full restart ("whatever
+gets my idea across").
+
+So the game is: you fly a robed, long-haired character (the owner's own design:
+`docs/PROGRESS.md`, "The owner's character") over **a small made-up world** (`haven`,
+milestone 12 in `docs/ROADMAP.md`): small enough that the horizon bends from a few
+kilometres up and mountains stand on its edge from space, its land shaped by rule to be
+beautiful (peaks, stepped plateaus, canyons, valleys, a sea), its water following the
+land, alive with weather and seasons, in five biomes. It was not a restart: the engine,
+the flight, the character, the look, clouds, weather, trees, grass, water and the phone
+tests all carried over; what is new is the world.
+
+The game before this (and still there, on the start screen, nothing deleted): the real
+solar system, fifteen real worlds to land on (Mars, the Moon, Phobos, Deimos, Mercury,
+Venus, Ceres, Io, Europa, Enceladus, Titan, Triton, Pluto, Charon, and Earth in real
+detail), every other planet and large moon in the sky at its true place for the date.
+They are no longer where the work goes. Keep everything that works.
 
 ## Ownership
 
@@ -63,10 +79,13 @@ they have served it well; they are no longer rules.
   "mission-camera realism"). The principles are the landscape poster's: few colours, each
   time of day a pair of them (the light's and the shade's); shade that is coloured, never
   black; the far ground lost in the air layer by layer; trees, rocks and grass as bold
-  shapes known by their outline; a big soft Sun. **The places stay real**: elevation,
-  land cover, species, weather, the true sky for the date. Only how they are drawn
-  changes. The principles are taken, never that game's artwork, palettes picture for
-  picture, places or interface; the reference pictures are not in the repository.
+  shapes known by their outline; a big soft Sun. (On the real worlds the places stay
+  real: elevation, land cover, species, weather, the true sky; on the made world the
+  land is ours to shape.) **The principles are taken, never that game's artwork, palettes
+  picture for picture, places or interface; the reference pictures are not in the
+  repository.** The owner asks for the look "as close as possible": that is the feel
+  (few colours, layered distance, bold shapes, faceted rock, cut-out trees), with our own
+  places, colours and shapes, never a copy of that game.
   A world is drawn this way when its file has a `look` block (`src/render/look.js`);
   Earth is the first, the others follow one at a time and keep the physical picture
   (the Sun as the one light, HDR, auto-exposure, a filmic tone map) until then. That
@@ -182,6 +201,10 @@ npm run lakes          # Earth's lakes and rivers against the real ones, without
 npm run shadowturns    # the shadow tiles drawn in turns: a held tile must draw the same picture as a fresh one after a walk (headless, Moon)
 node scripts/play-profile.mjs [--world earth] [--at "21.7,284.7,40"] [--floor] [--seconds 120] [--shot out.png]   # the real game in play mode at a place: the page's work by part, the governor's level, patches built (--floor: every saving on)
 node scripts/tree-preview.mjs [--out dir] [--variant 1] [--only 0,2] [--below]   # every tree shape at its three distances, drawn without a browser in seconds (PNG sheets)
+node scripts/make-world.mjs [--width 4096] [--seed 7] [--preview dir] [--only-preview]   # makes the small world's land (Haven): elevation with drainage, lakes, rain (a minute; --width 2048 --only-preview: nine seconds, with pictures to judge it by)
+node scripts/make-world-maps.mjs   # ... and from that its colour, slope, water and cloud maps (needs Python's PIL for the JPEGs); prints the albedo map's mean for the world file
+node scripts/find-haven-site.mjs [--open] [--lat 28,52]   # places on Haven to begin at: level ground over low ground and water, high ground near by
+node scripts/find-overlook.mjs --world haven --lat .. --lon .. --heading .. [--below 1500]   # the very spot: level underfoot, the ground falling away in front, mountains on the far skyline (then look with peek.mjs)
 node scripts/cloud-field.mjs [--span 150] [--lat .. --lon ..] [--out file.png]   # the fair-weather cloud field from straight above, without a browser in seconds: rows, clusters, how much of the sky
 node scripts/make-tree-atlas.mjs [--look file.png]   # the trees' picture (public/data/tree_atlas.png): run again after changing a spray or a tree shape
 node scripts/check-ephemeris.mjs   # every orbit and spin against JPL Horizons (no network; fails beyond a tolerance)
@@ -213,7 +236,7 @@ batches in the background, never pipe them through `tail` (it hides all output u
 end), and take final sets from `dist/` so source edits cannot disturb them.
 
 URL parameters: `world=<id>` (any world of `src/worlds/index.js`; without it, the one chosen
-on the start screen last time), `shot=ledge|sun|wall|ship|dusk`, on Mars also `canyon`
+on the start screen last time, or `haven`; in screenshot mode `mars`), `shot=ledge|sun|wall|ship|dusk`, on Mars also `canyon`
 (a sixth view of the opening site, used for the from-orbit and character reference
 pictures), and the world's landmarks (`olympus`, `gale` on Mars; `tycho`, `taurus` on the
 Moon) (fixed camera bookmark, deterministic screenshot mode, skips the start screen),
@@ -588,6 +611,20 @@ finished benchmark leaves its text in `window.__benchResult`.
   haze is looked through whole, and at midday the two tones put every slope in the light.
   Anything of a look that depends on how far off or how high one is needs its own numbers
   there (`uHaze`, the relief light).
+- A made world showed what had quietly assumed Earth's size: tree blocks measured in
+  degrees (0.001 degrees is 111 m on Earth and 4 m on a world 250 km in radius), a tile
+  worker's metres per pixel, a tree line and species by Earth's continents, an exposure
+  rule for "a planet seen whole" that a small globe never met (it burned out white).
+  Anything in degrees or in "share of the frame" is a guess about the world's size.
+- A place chosen from a coarse map by a score is judged again from the ground: "falls
+  1 100 m toward the east" was the sea's bed (a flat coastal plain), and an "open" cell
+  of the 383 m map was a wood. Score the land, not the bed; then find the very spot with
+  the height function (`find-overlook.mjs`) and sketch it (`peek.mjs`) before any picture.
+- Ground-level pictures of a wooded place take this machine seven seconds a frame (some
+  twenty minutes a picture, and the capture itself may time out once and succeed on the
+  second try): keep them few, take the views from the air first (three minutes each),
+  and give them `--timeout 1500`. A part hidden by `visible = false` from a test script
+  is shown again by the app on the next frame: take it out of its scene instead.
 - A script nobody runs breaks without a sound: a helper file rewritten under new names
   left the flicker check, the sketch and the relief probe unable to start for three
   deliveries (and the notes said the flicker check had been run). `scripts/check-scripts.mjs`

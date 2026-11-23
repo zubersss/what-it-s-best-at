@@ -15,7 +15,7 @@ import { localFrame } from '../core/ephemeris.js';
 import { makeTreeGeometries, VARIANTS } from './treeGeometry.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
 import { SPECIES } from './cover.js';
-import { BLOCK_DEG, TREE_FLOATS, blockLon } from './treeBlock.js';
+import { blockDeg, TREE_FLOATS, blockLon } from './treeBlock.js';
 
 const CLOSE_CAP = 192, NEAR_CAP = 768, FAR_CAP = 4096;       // instances of one shape: close, near and far mesh
 const CLOSE_M = 42, NEAR_M = 115;             // trees nearer than these get the close mesh (every leaf), the near mesh
@@ -273,13 +273,15 @@ export class Trees {
     // every time a map moved).
     const serial = t.coverSerial * 100000 + t.ringSerial;
     if (serial !== this.serial) { this.serial = serial; for (const b of this.blocks.values()) b.stale = true; }
-    const bi0 = Math.floor(lat / BLOCK_DEG), nb = Math.ceil(radius / 111.2);
+    // (a block is 111 m on any world: so many degrees on this one, so many metres a degree)
+    const DEG = blockDeg(this.world.radius), M = this.world.radius * Math.PI / 180;
+    const bi0 = Math.floor(lat / DEG), nb = Math.ceil(radius / 111.2);
     let want = null, wantD = 1e9;
     for (let bi = bi0 - nb; bi <= bi0 + nb; bi++) {
-      const dLon = blockLon(bi), count = Math.round(360 / dLon), bj0 = Math.floor(lon / dLon);
+      const dLon = blockLon(bi, DEG), count = Math.round(360 / dLon), bj0 = Math.floor(lon / dLon);
       for (let bu = bj0 - nb; bu <= bj0 + nb; bu++) {
         // (the block's middle, in metres from the traveller along the ground)
-        const dy = ((bi + 0.5) * BLOCK_DEG - lat) * 111200, dx = ((bu + 0.5) * dLon - lon) * 111200 * Math.cos(lat * Math.PI / 180), d = Math.hypot(dx, dy);
+        const dy = ((bi + 0.5) * DEG - lat) * M, dx = ((bu + 0.5) * dLon - lon) * M * Math.cos(lat * Math.PI / 180), d = Math.hypot(dx, dy);
         if (d > radius + 80) continue;
         const bj = ((bu % count) + count) % count;          // (the lattice goes once round the world and meets itself)
         const key = bi + ':' + bj, b = this.blocks.get(key);

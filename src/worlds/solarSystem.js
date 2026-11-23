@@ -521,6 +521,29 @@ SOLAR_SYSTEM.deimos.orbit = {
   node: [320.981, -0.0181 * DAYS_PER_CENTURY],
 };
 
+// A made world and its moon (milestone 12): not real bodies. `made: true`: the checks
+// against JPL leave them alone. Haven runs on Earth's orbit half a year from Earth (the
+// Sun is the Sun the game's light is measured by, and the real planets are in its sky),
+// turns as Earth does (the same day, the same tilt: seasons), and has a small moon close
+// by, as wide in its sky as the Moon is in Earth's, for the tide.
+SOLAR_SYSTEM.haven = {
+  made: true, parent: 'sun', radius: 250.0e3, gravity: 9.81, geometricAlbedo: 0.4, color: [0.72, 0.82, 1.0],
+  orbit: {
+    frame: 'ecliptic',
+    a: [1.00000261 * AU, 0.00000562 * AU], e: [0.01671123, -0.00004392],
+    i: [-0.00001531, -0.01294668], L: [280.46457166, 35999.37244981],
+    lonPeri: [102.93768193, 0.32327364], node: [0.0, 0.0],
+  },
+  rotation: { ra: [0.0, -0.641], dec: [90.0, -0.557], w: [190.147, 360.9856235] },
+  surface: { recipe: 'rock', albedo: [0.2, 0.25, 0.3], lumpiness: 0, mottling: 0.2, mottleScale: 2 },
+};
+SOLAR_SYSTEM.mira = {
+  made: true, parent: 'haven', radius: 62.0e3, gravity: 0.35, geometricAlbedo: 0.2, color: [1.0, 0.95, 0.88], tidallyLocked: true,
+  // (round Haven in eight days and a bit; the numbers are chosen, not measured)
+  orbit: { frame: 'ecliptic', a: [14500e3, 0], e: [0.035, 0], i: [6.5, 0], L: [40.0, 43.7 * DAYS_PER_CENTURY], lonPeri: [80.0, 0.4 * DAYS_PER_CENTURY], node: [200.0, -0.1 * DAYS_PER_CENTURY] },
+  surface: { recipe: 'rock', albedo: [0.30, 0.27, 0.24], lumpiness: 0.0, mottling: 0.4, mottleScale: 2.2 },
+};
+
 
 // ---------------------------------------------------------------------------------------
 // How each body looks from space (the entries above carry placeholders for most).
@@ -533,6 +556,11 @@ SOLAR_SYSTEM.deimos.orbit = {
 // `radii`: a flattened globe. `rings`: stops of [radius m, optical depth, r, g, b].
 const map = (id, size, extra = {}) => ({ colour: { far: `data/${id}_color_512.jpg`, full: `data/${id}_color_${size}.jpg` }, ...extra });
 const LOOKS = {
+  // Haven from space: its own made maps (scripts/make-world.mjs, make-world-maps.mjs)
+  haven: { surface: { recipe: 'globe', maps: { colour: { far: 'data/haven_day_512.jpg', full: 'data/haven_day_4096.jpg' }, clouds: { far: 'data/haven_clouds_512.jpg', full: 'data/haven_clouds_4096.jpg' },
+    water: { far: 'data/haven_water_512.jpg', full: 'data/haven_water_2048.jpg' }, relief: { full: 'data/haven_slopes_4096.jpg' } },
+    gain: 1.0, ocean: [0.014, 0.042, 0.105], cloud: [0.80, 0.80, 0.80], glint: { roughness: 0.11, strength: 1.5 }, relief: 1.2,
+    air: { tau: [0.055, 0.130, 0.310], scaleHeight: 5000 } } },
   moon: { surface: { recipe: 'globe', airless: true, maps: { colour: { far: 'data/moon_albedo_512.jpg', full: 'data/moon_albedo_4096.jpg', linear: true }, relief: { full: 'data/moon_slopes_4096.jpg' } }, tint: [1.0, 0.96, 0.90], gain: 0.37, peak: 0.3, relief: 1.6 } },
   mars: { surface: { recipe: 'globe', maps: { colour: { far: 'data/mars_color_512.jpg', full: 'data/mars_color_4096.jpg' }, relief: { full: 'data/mars_slopes_4096.jpg' } }, tint: [1.45, 1.35, 0.80], gain: 1.0, peak: 0.5, relief: 1.4,
     air: { tau: [0.020, 0.016, 0.012], scaleHeight: 11100 } } },                       // a thin dusty edge

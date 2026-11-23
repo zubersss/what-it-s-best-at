@@ -6,11 +6,55 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-### The seventh painted delivery (Earth from space to landing; the governor): read this first
+### Milestone 12, a small living world: delivery 1 sent (read this first)
+
+*2026-11-23. The owner's new direction is in `CLAUDE.md`, "What this game is"; the plan in
+`docs/ROADMAP.md`, "12. A small living world"; how a made world is built in
+`docs/ARCHITECTURE.md`, "A made world"; what was built and tried under "Milestone 12,
+delivery 1" below.*
+
+- **How it came about**: after the seventh painted delivery the owner asked whether a
+  smaller world would give more depth, then "what if I don't care for the real sized
+  maps or any of the things to do with it being a explorer", then, with five reference
+  pictures (the stylised landscape game again; not in the repository): "simply flying
+  somewhere beautiful ... a living world ... 5 of the most beautiful [biomes] on earth
+  including this one ... tell me what it would take ... idc if you have to do a full
+  restart". Answered: no restart; eight deliveries; where "as close as possible" stops.
+- **Delivered**: Haven, a made world 250 km in radius, where the game now opens. Its
+  land, lakes, rivers, forest, clouds and tide; flyable from space to the ground.
+  Pictures: `docs/shots/haven/` (the opening view, sunrise, evening; 1, 9, 60, 300 and
+  3 000 km; 9 km with every saving on).
+- **Asked of the owner**: a **Haven benchmark in Smooth** (the new button on the start
+  screen); whether the four proposed biomes are the ones wanted (red-rock canyon desert,
+  a broadleaf valley of lakes, tropical islands with a lagoon, high snow peaks with
+  fjords); what feels wrong in flight on a world this small.
+- **Still owed from before**: the Earth benchmark asked for with the seventh painted
+  delivery has not come. Any benchmark that comes says whether the governor's new rules
+  hold on the phone: tune from it first.
+- **What to do next, in order:**
+  1. With a Haven benchmark: read "late frames taken as the device's own" and where the
+     resolution settled, then the cost table at the three views (the opening place, in
+     the forest, from the air). If the ground's shading is what is slow, Haven needs
+     none of Earth's map-tile blocks in the ground's shader except the colour ring:
+     compile the rest out per world.
+  2. With a complaint about a look: reproduce it in a picture (from the air first:
+     three minutes; the ground: twenty), fix, show before and after.
+  3. Then delivery 2 of the roadmap: the look on the ground (big faceted rock, ridge
+     behind ridge with trees on the skyline, mist over water, light shafts).
+- **Known to be weak in delivery 1**: one biome everywhere (dry belts are golden and
+  nearly treeless); no weather yet (no rain, wind only as the grass's own); rivers from
+  the air are pale broken lines (their banks are drawn as dry sand; delivery 3); small
+  clouds are a stipple from 300 km at the test size; the first load is 21 MB; the
+  opening view looks along a brow and the valley below it is not in the picture; the
+  caps are open sea; flight speeds near a world this small are untried by a person.
+
+### The seventh painted delivery (Earth from space to landing; the governor)
 
 *2026-11-23, after the owner's eighth phone results (the three-minute benchmark of build
 f300e6f) and the words "it looks horrible and unrendered ... in space before I've landed".
-All of it is under "The owner's eighth phone results and the seventh painted delivery".*
+All of it is under "The owner's eighth phone results and the seventh painted delivery".
+Merged as pull request #32; the phone link shows build d622d38. (This line was written
+after the merge and is on the session branch only until the next delivery carries it.)*
 
 - **Why the phone's picture was "unrendered"**: the governor sat at its floor (one million
   pixels, every saving on) for whole sessions. One frame in fifteen is late on that phone
@@ -516,6 +560,91 @@ close fir's blades are large flat faces when the camera is among the boughs; no 
 of the tropical, acacia and palm shapes in the game (only in the preview). Clouds: seen
 from below toward the Sun they are one cream tone; the far shell is flatter and dimmer
 than the volume it continues. Nothing here was measured on the phone.
+
+## Milestone 12, delivery 1: the plan
+
+**What is to be delivered**: a small made-up world, `haven`, flyable from space to its
+ground, with depth all the way in: the curve, mountains on the limb, plateaus, canyons, a
+sea, rivers and lakes that follow the land, and the first biome (mountain pine forest).
+
+**Decisions** (Claude's; the reasons in a line each):
+- **Size: 250 km in radius.** The horizon is 0.9 km off at eye level, 22 km from 1 km
+  up, and dips 22 degrees from 20 km up; a 4 km peak is a degree tall on the limb from
+  100 km. Smaller (100 km) and nothing is far enough off for ridge behind ridge from the
+  ground; larger and the curve needs height again.
+- **Not a restart.** The made world is "an Earth whose maps are made up": the same tile
+  rings, hydrology, land cover, trees, grass, clouds and weather, fed by a maker instead
+  of map services. So everything Earth learned (lakes, rivers, canopy, far trees, the
+  governor's steps) serves it from the first day.
+- **Baked large shapes, ruled small ones.** `scripts/make-world.mjs` makes the whole
+  planet's elevation offline at some 380 m a cell, with real drainage (valleys cut by
+  the water that would run there, hollows that fill), and its colour, slope, rain, water
+  and cloud maps; they ship in `public/data/`. Finer ground is made where the traveller
+  is, by rule, in the tile worker (a `made` source beside the map services): the baked
+  map with deterministic detail down to the ring's cell, the hydrology on top.
+- **Its own body in the sky**: on Earth's orbit, half a year from Earth (the same Sun,
+  the same air numbers hold), with a small moon for the tide. Nothing real is replaced.
+- **Lakes from the flood** on the made world (its hollows are real hollows; on Earth they
+  are read from level stretches of the elevation).
+
+**Order of work**: (1) the maker and its maps, judged in top-down relief and CPU
+sketches; (2) the world file, the sky body, the made tiles; a first picture from the
+game; (3) the start site, chosen by script for ridge behind ridge over water; (4) the
+approach in pictures, full and with every saving on; the air and the look tuned to the
+small size (`ledge`, `sun`, `dusk` after any air number changes); (5) tests, a
+benchmark route, the checkpoint.
+
+**Risks**: land made blind (a probe and a sketch before every picture); the poles (the
+tile rings are Mercator: the made land keeps to the middle latitudes, the caps are sea
+and ice); things tuned to a huge planet (flight speed by height, the air's thickness
+against the radius, cloud heights, the hand-over distances).
+
+## Milestone 12, delivery 1: what was built
+
+- **The maker** (`scripts/make-world.mjs`, `make-world-maps.mjs`; how it works is in
+  `docs/ARCHITECTURE.md`, "A made world"): seed 7 gives 43 % land in several continents
+  and islands, ranges to 4 314 m, tablelands, 150 lakes (the largest 2 100 km2, the
+  deepest 840 m), mean land height 930 m. Tuned at half size in nine seconds a try, by
+  shaded-relief previews; the solve counts drained land in cells of that size so the
+  result is the same at full size (it was not at first: finer cells, lower mountains).
+- **In the game**: `src/worlds/haven.js`, the sky bodies `haven` and `mira`, the made
+  mosaics (`tiles/madeTiles.js`, `madeLand.js`), water-only rings, the hydrology with
+  the world's lakes given. First run: 105 rivers from the whole-world ring, 38 and 15
+  from the finer ones; 3 500 trees and 6 600 far trees at a wooded place.
+- **The opening place**: found in three steps (see the lessons in `CLAUDE.md`): a coarse
+  search (`find-haven-site.mjs`), the very spot (`find-overlook.mjs`), a sketch
+  (`peek.mjs`). The far south of the middle continent, 1 470 m up, a range across the view.
+- **Numbers set for the small world**: air standing lower (Rayleigh 4.5 km, the look's
+  haze 2 km, as thick by the metre as Earth's; top 60 km); cloud base 1 200 m over the
+  country; tree line 3 550 m at the equator, less 39 m a degree; snow from 2.7 km at 40
+  degrees; rings at zooms 2, 5 and 8 (1.5 km, 192 m and 24 m a pixel); pictures from zoom
+  7 (48 m) to 2 by height; `maxLevel` 14 (24 m patches).
+- **Tried and taken back**: beds of rock 120 m thick on every slope (contour lines from
+  the air); the haze half again as thick as Earth's by the metre (the lowland from 12 km
+  one grey-green); two opening places (a flat coastal plain that the score took for a
+  drop of 1 100 m: it was the sea's bed; then a meadow shut in by trees).
+- **Known to be weak** (to be looked at before the checkpoint and said to the owner if
+  still so): the first load fetches the elevation (17 MB) twice by address (once for the
+  ground, once in the tile worker: the browser's cache should serve the second); the
+  land's colours are one biome everywhere; no weather block yet (no rain, no storms: the
+  third delivery); the caps are open sea; nothing is measured on the phone.
+
+**Tests of delivery 1** (on the build that was merged, served frozen): the build check;
+`npm run smoke` (opened on Mars now: the start screen, modes and read-out are the same on
+any world, and Haven's wooded ground takes this machine seven seconds a frame; 16 checks,
+the ground's shader at 16 of 16 textures); `node scripts/smoke.mjs --haven` (the Haven
+benchmark end to end: its lap, the flight to the Moon, the cost test at the opening
+place, in the forest and from the air); `npm run shadowturns`; `npm run govsim`;
+`npm run lakes` (Earth's hydrology, with the made world's option in the code);
+`node scripts/check-ephemeris.mjs` (made bodies left alone); the stability test's move
+over Haven from 9 km (`--only haven_flight`: changed 0.55 %, flicker 0.02 %: the nearest
+cloud's edges). Pictures: Haven's opening view, sunrise, evening; 1, 9, 60, 300 and
+3 000 km; 9 and 60 km with every saving on; Earth's opening view (as it was). (Sunrise,
+evening, the two with savings on and Earth are from the merged build; the others from
+the build before, which differs in nothing Haven uses; the 3 000 km one from before the
+haze was thinned.) **Not
+run**: the full reference set, the other stability moves, `flight`, `foot`, `transfer`,
+`worlds`. **Nothing is measured on the phone.**
 
 ## The owner's eighth phone results (build f300e6f) and the seventh painted delivery: Earth from space to landing
 

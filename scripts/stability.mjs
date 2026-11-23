@@ -45,6 +45,8 @@ const MOVES = [
   { id: 'moon_orbit', world: 'moon', shot: 'ledge', query: 'alt=120000&pitch=-25', step: { fwd: 250 }, stride: 150 },
   // (Earth: slow here, ten minutes a station and more; run them by name. The forest from
   // 370 m: the canopy's crowns, the far trees and the clouds' shadows as the camera creeps.)
+  // (Haven from the air: its made land, the lake, clouds and their shadows as the camera creeps)
+  { id: 'haven_flight', world: 'haven', shot: 'ledge', query: 'alt=9000&pitch=-16&t=2', step: { fwd: 6 }, stride: 300, slow: true },
   { id: 'earth_forest_flight', world: 'earth', shot: 'ledge', query: 'lat=36.3&lon=247.9&alt=3000&heading=0&pitch=-25&t=5', step: { fwd: 1.5 }, stride: 300, slow: true },
 ];
 // The list above is tuned by hand for the worlds it names. A world in the registry that

@@ -36,7 +36,7 @@ export class Terrain {
     this.readyShadows = [];                        // re-baked shadows waiting for the next frame
     // Map tiles that arrive while the game runs (terrain/tiles): each arrival is a region
     // whose ground must be built again from the better data.
-    this.ringSerial = 0; this.regions = []; this.ringBoxes = []; this.readyRefresh = []; this.staleData = 0;
+    this.ringSerial = 0; this.regions = []; this.lost = 0; this.ringBoxes = []; this.readyRefresh = []; this.staleData = 0;
     this.ringTex = null;
     this.tiles = new TileRings({ onElevation: (slot, raster) => this.setRing(slot, raster), onPicture: (name, pic) => this.setRingPicture(name, pic) });
     this.lodScale = 1;
@@ -441,7 +441,7 @@ export class Terrain {
   setRing(slot, raster) {
     this.hs.setRing(slot, raster);
     // (posted without a transfer list: each worker gets its own copy)
-    this.workers.tell(() => [{ type: 'ring', slot, raster: raster ? { width: raster.width, height: raster.height, zoom: raster.zoom, tx: raster.tx, ty: raster.ty, buffer: raster.data.buffer, water: raster.water } : null }]);
+    this.workers.tell(() => [{ type: 'ring', slot, raster: raster ? { width: raster.width, height: raster.height, zoom: raster.zoom, tx: raster.tx, ty: raster.ty, buffer: raster.data.buffer, water: raster.water, waterOnly: raster.waterOnly } : null }]);
     const now = raster ? mosaicBox(raster.zoom, raster.tx, raster.ty, raster.width / 256) : null, old = this.ringBoxes[slot] || null;
     if (now) now.margin = 46 / 256 * 360 / 2 ** raster.zoom;          // the feathered edge, in degrees
     this.ringBoxes[slot] = now; (this.ringAt || (this.ringAt = []))[slot] = this.ringSerial + 1;
@@ -462,8 +462,9 @@ export class Terrain {
       nowWet = { grid, G, n: 2 ** raster.zoom, tx: raster.tx, ty: raster.ty };
     }
     this.ringWet[slot] = nowWet;
-    this.regions.push({ serial: ++this.ringSerial, old, now, slot, oldWet, nowWet });
-    if (this.regions.length > 10) this.regions.shift();
+    this.regions.push({ serial: ++this.ringSerial, old, now, slot, oldWet, nowWet, waterOnly: !!(raster && raster.waterOnly) });
+    // (lost: the last change forgotten that changed heights; ground built before it has missed it)
+    if (this.regions.length > 10) { const gone = this.regions.shift(); if (!gone.waterOnly) this.lost = gone.serial; }
   }
 
   // A picture ring (the land's colour): one texture the ground shader reads by place.
@@ -504,10 +505,12 @@ export class Terrain {
     const touches = (b) => !!b && off(b) <= (b.lon1 - b.lon0) / 2 + box.al && box.lat - box.a <= b.lat0 && box.lat + box.a >= b.lat1;
     const inside = (b) => !!b && off(b) <= (b.lon1 - b.lon0) / 2 - b.margin - box.al && box.lat + box.a <= b.lat0 - b.margin && box.lat - box.a >= b.lat1 + b.margin;
     // (built before the oldest change still remembered: it has missed some, so it is stale)
-    if (this.regions.length && ser < this.regions[0].serial - 1) return true;
+    if (ser < (this.lost || 0)) return true;
     for (const g of this.regions) {
       if (g.serial <= ser) continue;
       if (!touches(g.old) && !touches(g.now)) continue;
+      // (a ring that brings water only changes the ground only where its water is)
+      if (g.waterOnly) { if (this._wet(g.oldWet, box) || this._wet(g.nowWet, box)) return true; continue; }
       // (well inside a finer ring that was there before and still is: that one decides the heights)
       let under = false;
       for (let k = g.slot + 1; k < this.ringBoxes.length && !under; k++) under = inside(this.ringBoxes[k]) && (this.ringAt[k] || 0) < g.serial && (this.ringAt[k] || 0) <= ser;

@@ -8,9 +8,14 @@
 // rock faces or above the tree line; beside a river or a lake the trees that follow
 // water grow whatever the class says.
 import { hash3, noise3 } from '../terrain/height/noise.js';
-import { speciesFor, pick, treeLine, SPECIES } from './cover.js';
+import { speciesFor, floraFor, pick, treeLine, SPECIES } from './cover.js';
 
 export const BLOCK_DEG = 0.001;
+// A block is 111 m on any world: its height in degrees on one of radius R (BLOCK_DEG is
+// Earth's; on a world 250 km in radius 0.001 degrees would be four metres).
+const EARTH_R = 6371000;
+// (on Earth exactly the number it always was: its trees stand where they stood)
+export function blockDeg(R, deg = BLOCK_DEG) { return R === EARTH_R ? deg : deg * EARTH_R / R; }
 export const TREE_FLOATS = 8;          // x, y, z (m from the block's origin, planet axes), height, crown width, turn, species, a number of its own
 
 // (the block's width in longitude: the same for every block of a one-degree band of latitude)
@@ -22,9 +27,11 @@ export function blockLon(bi, deg = BLOCK_DEG) { const band = Math.floor(bi * deg
 // Returns { origin: [x, y, z] (planet-centred, m), count, trees: Float32Array }.
 // deg, salt: the far trees (life/groves.js) ask for larger blocks with fewer sites, on a
 // lattice of their own: BLOCK_DEG and the trees' own numbers when left out.
-export function treeBlock(hs, bi, bj, spacing = 7, deg = BLOCK_DEG, salt = 4409) {
-  const R = hs.radius, rad = Math.PI / 180, dLon = blockLon(bi, deg), lat0 = bi * deg, lon0 = bj * dLon;
-  const K = Math.max(2, Math.round(111.2 * (deg / 0.001) / spacing)), out = new Float32Array(K * K * TREE_FLOATS);
+export function treeBlock(hs, bi, bj, spacing = 7, nominal = BLOCK_DEG, salt = 4409) {
+  const R = hs.radius, rad = Math.PI / 180, deg = blockDeg(R, nominal), dLon = blockLon(bi, deg), lat0 = bi * deg, lon0 = bj * dLon;
+  const K = Math.max(2, Math.round(111.2 * (nominal / 0.001) / spacing)), out = new Float32Array(K * K * TREE_FLOATS);
+  // (a made world says where its own tree line is and what grows on it: world.life)
+  const lineDef = hs.life?.trees?.line, flora = hs.life?.flora;
   const dirOf = (lat, lon, d) => { const cl = Math.cos(lat * rad); d[0] = cl * Math.cos(lon * rad); d[1] = cl * Math.sin(lon * rad); d[2] = Math.sin(lat * rad); };
   const d = [0, 0, 0], o = [0, 0, 0];
   dirOf(lat0 + deg / 2, lon0 + dLon / 2, o);
@@ -51,11 +58,11 @@ export function treeBlock(hs, bi, bj, spacing = 7, deg = BLOCK_DEG, salt = 4409)
     if (near) dens = Math.max(dens, cls === 15 || cls === 17 ? 0 : 0.5);
     const slope = hs.baseSlope;
     dens *= slope > 0.95 ? 0 : slope > 0.5 ? 1 - (slope - 0.5) / 0.45 : 1;
-    const line = treeLine(lat), over = (h - line + 350) / 350;                     // 0 well below the tree line, 1 at it
+    const line = lineDef ? lineDef.base - lineDef.perDeg * Math.max(0, Math.abs(lat) - (lineDef.from ?? 0)) : treeLine(lat), over = (h - line + 350) / 350;                     // 0 well below the tree line, 1 at it
     if (over >= 1) continue;
     if (over > 0) dens *= 1 - over;
     if (u3 >= dens) continue;
-    const sp = pick(speciesFor(cls, lat, ((lon + 540) % 360) - 180, h, near), u4), S = SPECIES[sp];
+    const sp = pick(flora ? floraFor(flora, cls, h / Math.max(1, line), near) : speciesFor(cls, lat, ((lon + 540) % 360) - 180, h, near), u4), S = SPECIES[sp];
     // height: the measured canopy's, more or less, and stunted toward the tree line
     const base = Math.max(tall, near ? 9 : 2.5), height = Math.max(1.2, base * S.tall * (0.72 + 0.5 * u1) * (over > 0 ? 1 - 0.6 * over : 1));
     const r = R + h, q = n * TREE_FLOATS;

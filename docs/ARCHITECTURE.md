@@ -495,6 +495,46 @@ ring: it is not asked for.
   its range; a trip's destination is asked for at the finest. Land cover and canopy come
   at the same zoom.
 
+## A made world (`haven`, milestone 12)
+
+A world whose maps are made by rule instead of measured. In the game it is built exactly
+as Earth is; what differs is where the maps come from.
+
+- **Made beforehand** (`scripts/make-world.mjs`, from a seed, a minute in Node; nothing of
+  it runs in the game): the land before water from a handful of slow noise fields on the
+  sphere (continents, mountain belts with ridged crests, tablelands at a few levels,
+  hollows; the caps are sea, since the mosaics are Mercator), then **the solve**: the land
+  is flooded from the coast inward (priority-flood) so that every cell has a way down,
+  the water that drains through each cell is added up, and along every way down the land
+  may stand no higher above the water below it than a river of that size keeps its bed
+  (`slope = KS x hardness / drained^0.45`, never steeper than the rock stands; tablelands
+  are harder: canyons with walls). Where the land is lower already it is left: valleys and
+  canyons are cut, plains and hollows stay. Five rounds. The largest and deepest hollows
+  left are lakes at the level of their lips (at most 254: a byte a cell says which), the
+  rest are filled with land. Output: `haven_dem_4096.i16`, `haven_lakes_4096.png` and
+  `.json`, `haven_rain_720.u8`. `scripts/make-world-maps.mjs` then makes the colour, slope,
+  water and cloud maps (PNG to JPEG through Python's PIL).
+- **The land rule** (`terrain/tiles/madeLand.js`, `landAt`): colour from the air,
+  land-cover class (the IGBP numbers the trees and grass read) and canopy from height,
+  slope, latitude, the year's rain and two noises. One rule for the maps made beforehand
+  and the mosaics made in the game.
+- **In the game** (`terrain.tiles.made` in the world file; `tiles/madeTiles.js` in the tile
+  worker): the same rings as Earth's, made instead of fetched. The **ground** is the
+  bundled map (cubic B-spline) plus the height layers at any fineness, so an elevation
+  ring brings **water only** (`waterOnly`: `DemSet._ringWater`; ground is rebuilt only
+  where a ring has water): the hydrology runs on the bundled map sampled at the ring's
+  cells, with the world's own lakes given to it (`opts.lakes`: level stretches are not
+  looked for, a made land has none). The **picture** ring is `landAt` at every pixel:
+  colour, class, canopy.
+- **What had assumed Earth's size**: tree blocks were 0.001 degrees (111 m on Earth, 4 m
+  on Haven): now 111 m on a world of any radius (`blockDeg`); the tile worker's metres per
+  pixel; the tree line and the choice of species by continent (`world.life.trees.line`,
+  `world.life.flora`); the exposure's idea of when a globe is the subject
+  (`exposure.coverFrom`: a small world is a small disc from not far off).
+- **Its place in the sky**: `haven` and its moon `mira` in the catalogue, marked `made`
+  (the check against JPL leaves them alone): Earth's orbit half a year on, Earth's day
+  and tilt, the same Sun.
+
 ## Water
 
 - The `sea` layer says where water is: with an elevation map, wherever the map is at or
