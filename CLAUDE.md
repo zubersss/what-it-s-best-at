@@ -258,7 +258,7 @@ frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last foo
 `debug=contactx4` (the rocks' contact-darkening spheres four times larger, to see the effect),
 `debug=flash` (a stroke of lightning held at its brightest, on worlds with weather),
 `debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
-`nofarrough`, `noboost`) for before/after pictures, `debug=floor` (every saving of the
+`nofarrough`, `noboost`) for before/after pictures, `debug=farrocksoff` (none of the far rocks, for before/after pictures), `debug=floor` (every saving of the
 governor on and Smooth's share of the patches: what a phone that has given everything up
 draws).
 

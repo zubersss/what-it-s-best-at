@@ -269,7 +269,7 @@ export class FarRocks {
   update(rig, sun, sunHalf) {
     this.frame++; this.missing = 0; this.visBusy = 0;
     const def = this.def, t = this.terrain;
-    const show = !!def && rig.agl < (def.below ?? 9000) && (!this.world.terrain.tiles || !!t.coverSerial);
+    const show = !this.off && !!def && rig.agl < (def.below ?? 9000) && (!this.world.terrain.tiles || !!t.coverSerial);
     this.group.visible = show;
     if (!show) { this.count = 0; this.triangles = 0; return; }
     this.sun = sun; this.sunHalf = sunHalf;
