@@ -6,7 +6,44 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-### The sixth painted delivery (speed, far things, water, storms, trees): read this first
+### The seventh painted delivery (Earth from space to landing; the governor): read this first
+
+*2026-11-23, after the owner's eighth phone results (the three-minute benchmark of build
+f300e6f) and the words "it looks horrible and unrendered ... in space before I've landed".
+All of it is under "The owner's eighth phone results and the seventh painted delivery".*
+
+- **Why the phone's picture was "unrendered"**: the governor sat at its floor (one million
+  pixels, every saving on) for whole sessions. One frame in fifteen is late on that phone
+  whatever is drawn; it stepped down for them and could never step up. It is rewritten
+  where it decides (late frames of the device's own; a step down is a trial that is put
+  back if it cures nothing; floor 1.6 MP). **Not measured on the phone.**
+- **What a traveller coming in from space saw**, reproduced with `?debug=floor`: a pale
+  ball with no cloud; a flat map under a flat picture of clouds; one green carpet for a
+  forest. **Now**: a blue globe with the day's clouds; less haze from above; a relief
+  light; clouds with a lit side, a clean edge and their own shadows on the ground; the
+  land's colour sharp over the whole view from any height; a canopy of crowns and a ring
+  of far trees. Pictures: `docs/shots/approach/` (`before_*`, `after_*`, `pair_*`).
+- **Asked of the owner**: an **Earth benchmark in Smooth** (new cost: cloud shadows from
+  the heaps and the crowns in the ground's shader on Earth, the far trees; and more
+  pixels, since the floor is higher). Read first the line "late frames taken as the
+  device's own" and how often quality was put back.
+- **What to do next, in order:**
+  1. With the benchmark: if the governor now holds well above 1.6 MP with everything on,
+     the diagnosis was right. If Earth is slow in earnest (late frames that fewer pixels
+     do cure), the ground's shader is the place: "the ground's shading" was 18.7 of 44 ms
+     on Mars. Cut it by compiling Earth's blocks out of other worlds, then by what can
+     move to the vertex.
+  2. With a complaint about the look from the air: take the whole approach again
+     (`debug=floor` and without), name what is wrong at each height, then fix.
+  3. Known to be weak: at a phone's pixel the crowns are small from 700 m (seen in a crop
+     at that density: a textured canopy, not yet trees one could count); the far trees
+     reach 2 km only; the night side of the home world from space has no city lights (the
+     far globe has them); clouds from 4 000 to 18 000 km thin out as one comes nearer
+     (from the day's whole map to the heaps' cover); the stability test has one Earth
+     move, run once.
+  4. Then the rest of milestone 11.
+
+### The sixth painted delivery (the delivery before: speed, far things, water, storms, trees)
 
 *2026-11-22, after the owner's seventh phone results (Earth benchmark of build ef3201a)
 and a list. The whole of it is under "The owner's seventh phone results and the sixth
