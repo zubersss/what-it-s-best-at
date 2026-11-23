@@ -512,8 +512,10 @@ void main() {
   // running over it, drifts of flowers; far off it gives way to the map's own colour
   if (uGrassTone.a > 0.0) {
     float dG = length(vRel), gw = uGrassTone.a * uGrassTone.y * flatW * (1.0 - vShell) * (1.0 - smoothstep(6.0, 16.0, canopyTall)) * (1.0 - smoothstep(GRASS_FAR0, GRASS_FAR1, dG))
-        // (a stopgap: ground whose own colour is far too pale to be grass, snow or pale sand, is not painted)
-        * (1.0 - smoothstep(0.42, 0.56, dot(albedo, vec3(0.2126, 0.7152, 0.0722))));
+        // (a stopgap: ground whose own colour is far too pale to be grass, snow or pale sand, is not painted.
+        // The ground's colour here is the surface's dust times the map's tint: on the made world
+        // gold grass comes to 0.44 to 0.47, scrub 0.38, sand and snow 0.77)
+        * (1.0 - smoothstep(0.52, 0.68, dot(albedo, vec3(0.2126, 0.7152, 0.0722))));
     if (gw > 0.0) {
       vec3 gc = grassColour(uGrassTone.x, 0.62) * (0.82 + 0.36 * d1.g);
       // (the waves: paler where they bow the grass; gone where a wave is narrower than a pixel or two)
