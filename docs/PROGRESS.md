@@ -8,7 +8,9 @@ changes behaviour.
 
 ### Milestone 12, a small living world: delivery 1 sent (read this first)
 
-*2026-11-23. The owner's new direction is in `CLAUDE.md`, "What this game is"; the plan in
+*2026-11-23. Merged as pull request #33; the phone link shows build 9f98744 (this line was
+written after the merge and is on the session branch until the next delivery carries
+it). The owner's new direction is in `CLAUDE.md`, "What this game is"; the plan in
 `docs/ROADMAP.md`, "12. A small living world"; how a made world is built in
 `docs/ARCHITECTURE.md`, "A made world"; what was built and tried under "Milestone 12,
 delivery 1" below.*
