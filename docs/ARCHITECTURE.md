@@ -708,8 +708,11 @@ as Earth is; what differs is where the maps come from.
   - **The land's shadow.** Far trees are beyond every shadow map. The tile job asks the
     shadow baker (`baker.visibility`) on a 20 x 20 grid over the tile at crown height and
     each tree carries what it reads off between the grid's points (in `iC.w`, with its
-    autumn); a tile is asked for again when the Sun has moved a degree and a half. Cloud
-    shadow is the camera's own, as for the near trees.
+    autumn); a tile is asked for again when the Sun has moved a degree and a half. The
+    near trees get the same from their block's job (`landShadow` in the worker, `iD.w`).
+  - **The clouds' shadow** on near and far trees is the ground's rule, once per tree in the
+    vertex shader (`CLOUD_SHADE_VERT` in `trees.js`), fed by the ground's own uniform
+    objects: one rule, and a saving on the ground is a saving on the trees.
   - **The far green.** From 300 m to 1.3 km a far tree's leaf colour goes over to a dark
     warm olive of the same brightness and its share of the sky's light loses most of its
     blue; the wood's own air (`forestAir`) fades out between 300 m and 1 km, where the
