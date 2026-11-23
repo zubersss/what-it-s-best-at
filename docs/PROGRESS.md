@@ -63,6 +63,12 @@ as you want or need. This is a big ask and I need it to work really well."*
   when Haven gets weather (delivery 3). **Seen in the colour map and not
   fixed**: a few valleys are straight trenches with rock walls (the maker's valley floors
   along flow lines that run in eight directions): for the water delivery.
+- **13:00**: the far forest is merged here (merge 63ee7a6; `groves.js` is gone,
+  `farForest.js` in its place; its report is `docs/briefs/far-forest-report.md`): trees to
+  5.6 km, the same trees near and far, the land's shadow on them, a wood still a wood with
+  every saving on. It still owes the stability move and a look at the join at 240 m. The
+  grass and rock helpers were asked to merge this branch into theirs and take their
+  remaining pictures on the combination. The bench layer is confirmed gone in a picture.
 - **If the helpers cannot be reached or their work is not good enough**: the briefs are
   the plan; do them here, trees first.
 
