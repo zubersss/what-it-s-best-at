@@ -38,25 +38,33 @@ for (let j = 0; j < H; j += 3) {
       for (let a = 0; a < 8; a++) for (const r of [3, 6]) { const ii = i + Math.round(r * Math.sin(a * Math.PI / 4) / cx), jj = j - Math.round(r * Math.cos(a * Math.PI / 4)); if (at(ii, jj) > 0 && coverAt(ii, jj, lat, 0.1).cls === 1) woods++; }
       if (woods < 3 || woods > 12) continue;
     }
-    // what is round it, out to 14 km: how far the ground falls away, how high it stands behind, where water lies
-    let low = h, high = h, wx = 0, wy = 0, wet = 0, drop = 0, dropDir = 0;
+    // what is round it, out to 14 km, on the land (the sea and a lake count as their surfaces):
+    // how far the ground falls away on the side it falls most, how high it stands on the
+    // other side, how much of the view is water, and how much the skyline goes up and down
+    const lvl = (ii, jj) => { const v = at(ii, jj); return v <= 0 ? 0 : v; };
+    let high = h, wx = 0, wy = 0, wet = 0, lake = 0, drop = 0, dropDir = 0; const sky = [];
     for (let a = 0; a < 16; a++) {
-      const ca = Math.cos(a * Math.PI / 8), sa = Math.sin(a * Math.PI / 8); let lowA = h;
+      const ca = Math.cos(a * Math.PI / 8), sa = Math.sin(a * Math.PI / 8); let lowA = h, top = -1;
       for (let r = 2; r <= 36; r += 2) {
-        const ii = i + Math.round(r * sa / cx), jj = j - Math.round(r * ca), v = at(ii, jj);
-        if (v < lowA) lowA = v; if (v > high) high = v;
-        if ((lakeAt(ii, jj) || v <= 0) && r < 28) { wet++; wx += sa; wy += ca; }
+        const ii = i + Math.round(r * sa / cx), jj = j - Math.round(r * ca), v = lvl(ii, jj);
+        if (r <= 20 && v < lowA) lowA = v; if (v > high) high = v;
+        const el = (v - h) / (r * CELL); if (el > top) top = el;                    // how high the skyline stands that way
+        const lk = lakeAt(ii, jj);
+        if ((lk || at(ii, jj) <= 0) && r < 28) { wet++; wx += sa; wy += ca; if (lk) lake++; }
       }
-      if (lowA < low) low = lowA;
+      sky.push(top);
       if (h - lowA > drop) { drop = h - lowA; dropDir = a * 22.5; }
     }
-    if (wet < 6 || drop < 500 || high - h < 500) continue;
-    const heading = (Math.atan2(wx, wy) * 180 / Math.PI + 360) % 360;
-    found.push({ score: Math.min(drop, 1400) + 0.6 * Math.min(high - h, 1800) + 12 * Math.min(wet, 40), lat: +lat.toFixed(3), lon: +((i + 0.5) / W * 360).toFixed(3), h, drop, above: high - h, wet, heading: Math.round(heading), dropDir });
+    // (the view is toward the drop: mountains should stand in it, beyond the low ground)
+    const toward = sky[Math.round(dropDir / 22.5) % 16], rough = Math.max(...sky) - Math.min(...sky);
+    if (wet < 4 || drop < 350 || high - h < 700) continue;
+    const heading = Math.round(dropDir);
+    found.push({ score: Math.min(drop, 1200) + 0.5 * Math.min(high - h, 2400) + 10 * Math.min(wet, 30) + 14 * Math.min(lake, 20) + 2500 * Math.max(0, toward + 0.02) + 800 * rough,
+      lat: +lat.toFixed(3), lon: +((i + 0.5) / W * 360).toFixed(3), h, drop, above: high - h, wet, lake, heading, dropDir, water: Math.round((Math.atan2(wx, wy) * 180 / Math.PI + 360) % 360) });
   }
 }
 found.sort((a, b) => b.score - a.score);
 // (not ten of one hillside: the best, then the best at least 3 degrees from those taken)
 const out = [];
 for (const f of found) { if (out.every((o) => Math.hypot(o.lat - f.lat, (o.lon - f.lon) * Math.cos(f.lat * Math.PI / 180)) > 3)) out.push(f); if (out.length >= +opt('count', 8)) break; }
-for (const f of out) console.log(`lat ${f.lat}  lon ${f.lon}  ground ${f.h} m  falls ${f.drop} m (toward ${f.dropDir})  rises ${f.above} m behind  water toward ${f.heading}  (score ${f.score.toFixed(0)})`);
+for (const f of out) console.log(`lat ${f.lat}  lon ${f.lon}  ground ${f.h} m  falls ${f.drop} m toward ${f.dropDir}  rises ${f.above} m near by  water toward ${f.water} (${f.wet} sightings, ${f.lake} of a lake)  (score ${f.score.toFixed(0)})`);

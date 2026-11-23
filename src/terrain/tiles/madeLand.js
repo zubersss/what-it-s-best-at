@@ -30,8 +30,8 @@ export const LAND_DEFAULTS = {
   rockSlope: [0.52, 0.72],   // from here the ground is too steep for soil (bare rock by the second)
   dry: 520, wet: 1500, // the year's rain (mm) between which open country closes into forest
   colours: {           // sRGB bytes, as seen from the air
-    forest: [30, 58, 40], woodland: [70, 88, 48], meadow: [132, 136, 62], grass: [178, 148, 76], scrub: [156, 140, 98],
-    soil: [172, 114, 74], rock: [150, 104, 72], highRock: [124, 110, 102], tundra: [132, 124, 88],
+    forest: [36, 64, 30], woodland: [74, 92, 46], meadow: [128, 138, 60], grass: [176, 150, 78], scrub: [156, 142, 100],
+    soil: [160, 124, 84], rock: [150, 116, 84], highRock: [128, 118, 108], tundra: [134, 128, 90],
     snow: [238, 242, 248], sand: [218, 200, 152], shallow: [58, 148, 160], deep: [12, 36, 80], lake: [28, 86, 122],
   },
 };

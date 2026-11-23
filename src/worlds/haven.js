@@ -60,13 +60,13 @@ export default {
     reliefMap: { url: 'data/haven_slopes_4096.jpg', strength: 2.0, latFade: [84, 89] },
     // Its colours from the air, made by the same rule as the mosaics round the traveller
     // (scripts/make-world-maps.mjs prints `mean`: the land's mean, in linear light).
-    albedoMap: { url: 'data/haven_day_4096.jpg', encoding: 'srgb', mean: [0.1378, 0.1233, 0.0674], strength: 1.0, chroma: 1.0, range: [0.2, 4.5], steep: 0.35 },
+    albedoMap: { url: 'data/haven_day_4096.jpg', encoding: 'srgb', mean: [0.1377, 0.1357, 0.0657], strength: 1.0, chroma: 1.0, range: [0.2, 4.5], steep: 0.35 },
     meanAlbedo: [0.14, 0.12, 0.07],
-    dust: [0.20, 0.165, 0.105],        // dry soil, warm
-    sand: [0.32, 0.26, 0.17],
-    scree: [0.21, 0.155, 0.11],
-    rock: [0.20, 0.13, 0.085],         // warm rock
-    strata: { period: 260, contrast: 0.3, finePeriod: 30, fine: 0.14, flat: 0.1, colors: [[0.95, 0.72, 0.52], [0.74, 0.50, 0.38], [0.92, 0.80, 0.64], [0.62, 0.46, 0.38], [0.86, 0.58, 0.40]] },
+    dust: [0.19, 0.17, 0.115],         // dry soil, warm
+    sand: [0.32, 0.27, 0.18],
+    scree: [0.20, 0.165, 0.125],
+    rock: [0.19, 0.15, 0.105],         // warm rock (ochre, not red)
+    strata: { period: 260, contrast: 0.3, finePeriod: 30, fine: 0.14, flat: 0.1, colors: [[0.95, 0.80, 0.60], [0.74, 0.58, 0.44], [0.92, 0.84, 0.68], [0.62, 0.52, 0.44], [0.86, 0.68, 0.48]] },
     slopes: { dustMax: 0.36, screeMin: 0.55, screeMax: 0.8, rockMin: 1.0 },
     sandBelow: -20000, sandFade: 1500,
     ripples: { wavelength: 1, strength: 0 },
@@ -124,29 +124,30 @@ export default {
   sky: { stars: { url: 'data/stars_bsc5.f32' } },
 
   scene: {
-    dateUTC: '2024-09-22T10:20:00Z',   // an equinox, an hour after sunrise at the opening place
-    // Open ground on the east side of the east continent, 780 m up: the land falls away to
-    // water in the east, where the Sun comes up, and a range stands 2 km higher behind
-    // (scripts/find-haven-site.mjs --open).
-    start: { lat: 18.501, lon: 132.671, eye: 1.7, heading: 60, pitch: -4 },
+    dateUTC: '2024-09-22T16:15:00Z',   // an equinox, an hour and a half after sunrise at the opening place
+    // Open ground 1 400 m up in the far south of the middle continent: the land falls a
+    // kilometre to a lake in the south-east, and peaks stand 1 800 m higher round it, with
+    // snow on them (scripts/find-haven-site.mjs --open --lat 28,52).
+    start: { lat: -48.472, lon: 48.823, eye: 1.7, heading: 157, pitch: -4 },
     ship: { east: -30, north: -45, heading: 30 },
     // (coverFrom, globe: the small globe from space is held where its colours show: see post.js)
     exposure: { key: 0.18, min: 0.5, max: 2.0e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, coverFrom: 0.0006, globe: 0.3 },
     // The heaviest views, for the benchmark's cost test: among the trees, and the land from the air.
     costViews: [
       { name: 'in the forest', lat: 22.983, lon: 129.507, heading: 6, pitch: -4 },
-      { name: 'from the air', lat: 18.501, lon: 132.671, alt: 4000, heading: 250, pitch: -14 },
+      { name: 'from the air', lat: -48.472, lon: 48.823, alt: 5000, heading: 157, pitch: -14 },
     ],
     bookmarks: {
-      ledge: { label: 'The first morning', heading: 60, pitch: -4, fov: 60 },
-      sun: { label: 'The Sun over the water', heading: 96, pitch: 8, fov: 40 },
-      wall: { label: 'The range behind', heading: 270, pitch: 6, fov: 26 },
+      ledge: { label: 'The first morning', heading: 157, pitch: -4, fov: 60 },
+      sun: { label: 'The Sun coming up', heading: 84, pitch: 8, fov: 40 },
+      wall: { label: 'The peaks across the lake', heading: 150, pitch: 3, fov: 26 },
       ship: { label: 'The lander', east: -20, north: -12, heading: 230, pitch: 3, fov: 50 },
-      dusk: { label: 'Evening', heading: 300, pitch: -3, fov: 60, timeOffsetHours: 10.6 },
+      dusk: { label: 'Evening', heading: 200, pitch: -3, fov: 60, timeOffsetHours: 10.6 },
     },
   },
   places: [
-    { id: 'landing', name: 'The first morning', fact: 'Where the journey on Haven begins.', lat: 18.501, lon: 132.671 },
+    { id: 'landing', name: 'The first morning', fact: 'Where the journey on Haven begins.', lat: -48.472, lon: 48.823 },
+    { id: 'eastshore', name: 'The golden shore', fact: 'Dry grassland running down to the eastern sea.', lat: 18.501, lon: 132.671 },
     { id: 'northwood', name: 'The north wood', fact: 'Tall forest on a shoulder of the northern range, over the sea.', lat: 22.983, lon: 129.507 },
     { id: 'crown', name: 'The Crown', fact: 'The highest ground on Haven: 4 314 m.', lat: 15.425, lon: 68.95 },
     { id: 'longwater', name: 'Longwater', fact: 'The largest lake: two thousand square kilometres, held 420 m above the sea.', lat: -10.77, lon: 253.7 },
