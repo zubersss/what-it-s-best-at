@@ -166,7 +166,7 @@ work here): `gh api -X POST repos/zubersss/what-it-s-best-at/pulls -f title=... 
 npm install
 npm run dev            # http://localhost:5173/   (add -- --host to open it from a phone on the same Wi-Fi)
 npm run build          # static site in dist/ (relative paths)
-./scripts/build-check.sh    # the same, but fails loudly (never judge a build through `| tail`)
+./scripts/build-check.sh    # the same, but fails loudly (never judge a build through `| tail`); first checks that the scripts' imports exist
 npm run preview        # serve dist/
 npm run shots          # headless screenshots of every bookmark of one world -> docs/shots/
 npm run shots:all      # the full reference set: both worlds, orbit, character
@@ -586,5 +586,10 @@ finished benchmark leaves its text in `window.__benchResult`.
   haze is looked through whole, and at midday the two tones put every slope in the light.
   Anything of a look that depends on how far off or how high one is needs its own numbers
   there (`uHaze`, the relief light).
+- A script nobody runs breaks without a sound: a helper file rewritten under new names
+  left the flicker check, the sketch and the relief probe unable to start for three
+  deliveries (and the notes said the flicker check had been run). `scripts/check-scripts.mjs`
+  (in the build check) reads every import of every script; after changing a file under
+  `scripts/lib/`, start each script that uses it once.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.
