@@ -1,0 +1,30 @@
+{
+  "ledge": {
+    "weather": "",
+    "trees": "676 (37k triangles): ponderosa pine, quaking aspen, Utah juniper",
+    "farTrees": "29511 standing (51783 handed to the GPU)",
+    "farRocks": "14782 in view of 19937 in 27 tiles (25 draw calls, at most 385k triangles)",
+    "water": "z2: 105 rivers, 499 m3/s (no inflow); z5: 34 rivers, 256 m3/s; z8: 4 rivers, 3 m3/s",
+    "stale": 0,
+    "tilesBusy": false,
+    "refreshQ": 0,
+    "rings": 3,
+    "tileFails": 0,
+    "busyW": 0,
+    "calls": 161,
+    "triangles": 2160827,
+    "chunks": 138,
+    "loaded": 438,
+    "visited": 438,
+    "wanted": 0,
+    "lodScale": 1,
+    "avgBuildMs": 44.8,
+    "exposure": 10.86,
+    "surface": [
+      1,
+      0.311
+    ],
+    "frame": 202,
+    "wait": ""
+  }
+}

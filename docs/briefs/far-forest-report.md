@@ -267,6 +267,28 @@ the shadow maps those trees had no shadow of the land on them, ever. Both are do
   radius, as it was, 3 515 did. Check 7c: levels are drawn to 976, 1 952, 3 905 m, where
   their lowest ranks begin to grow (`GROW`, which the shader now takes from `farTiles.js`),
   not 900, 1 800, 3 600, and asked for 10 % before.
+- **T7 (far cards lit by the near rule):** `haven_ledge_join_lowsun_before/_after.png`: a
+  wood from 100 m to a kilometre with the Sun 17 degrees up on the right, the 240 m line
+  running through it. No line shows in either picture at this size (660 x 309): the old
+  rule's difference was there by the numbers (up to 26 degrees between the normals) and
+  is gone by the numbers (0.016), and is not something this pair lets one see. The
+  moonlit pair was not taken (a night picture of a wood is some twenty minutes here).
+- **T8 (the cloud map):** `haven_ledge_cloud1535_after.png` and `cloud1900_after.png` were
+  taken with it: near trees, far trees and ground agree at every shadow edge in them, and
+  no tree stands lit on shaded ground or dark on lit. The edges that cross woods in these
+  two views are mostly the mountain's; the clouds' own fall on the bare slopes above, so
+  the map's agreement with the ground under a cloud's edge is one rule and one set of
+  numbers more than it is a picture. Cost: one pass over 256 x 256 = 65 536 pixels a frame
+  (one read of the day's map and up to three of the cloud noise each) into a one-byte
+  target, drawn in `App` before `post.beginScene()` (after the cloud volume's own small
+  picture, before the main picture's clear), never inside it; then one read per tree vertex.
+- **The north wood where the strips were:** `haven_ledge_forest150_strips_before/_after.png`:
+  **53 502 far trees standing where 43 384 stood** (79 598 handed over, of 63 151). Seen
+  from 150 m the wood changes little, because the raised canopy carries the green there
+  and hid the strips; it is more even, with fewer dark streaks.
+- New since the review, to know of: the near trees' block job now casts a ray per tree
+  (the reviewer measured about 9 ms a block against 1.5); the pool's buffers are 23.6 MB;
+  with the clock at an hour a second the workers re-do some 17 far tiles a second.
 
 ## Tests
 
@@ -277,6 +299,8 @@ the shadow maps those trees had no shadow of the land on them, ever. Both are do
   no bias by height). **Seen to fail**: with rank taken partly from the site's column it
   reports the bias and the share; with a band quietly dropping one site in eight it reports
   that the bands are no longer every tree.
+- `node scripts/far-forest-clock.mjs` (2 s, no browser): the two ask loops with the clock at
+  an hour a second (see T4 above). **Seen to fail** on the code before T4.
 - `npm run stability -- --only haven_treeline` and `--streaming` (strips in
   `docs/shots/far-forest/stability/`): walking at a wood, 0.4 m a frame, three stations
   40 m apart. Whole picture, settled: **59 %, 36 %, 39 % of pixels changed, 11.9 %, 8.2 %,
