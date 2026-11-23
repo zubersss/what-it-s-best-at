@@ -235,15 +235,17 @@ layout(location = 0) out vec4 fragColor;
 
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 // A forest seen from above is crowns: domes side by side, each lit on its sunward side,
-// dark in the gaps between. cells: crowns across the 64 m detail tile (a whole number: each
-// patch knows its tile only modulo one). Returns xy: the surface's tilt (outward from the
+// dark in the gaps between. cells: crowns across the 64 m detail tile (a whole number). The
+// crowns are different in every tile of a block of DETAIL_PERIOD tiles a side (each patch
+// knows its tile modulo that many): the same 64 crowns in every tile were a cloth woven in
+// squares, seen from the air. Returns xy: the surface's tilt (outward from the
 // middle of the nearest crown, along the tile's two axes); z: how high in the crown (0 in a
 // gap, 1 on its top); w: a number of the crown's own.
 vec4 crowns(vec2 uv, float cells) {
   vec2 p = uv * cells, b = floor(p - 0.5);
   vec4 best = vec4(0.0, 0.0, 0.0, 0.5); float hb = -1e3;
   for (int j = 0; j < 2; j++) for (int i = 0; i < 2; i++) {
-    vec2 c = b + vec2(float(i), float(j)), w = mod(c, cells);
+    vec2 c = b + vec2(float(i), float(j)), w = mod(c, cells * float(DETAIL_PERIOD));
     vec3 h = fract(sin(vec3(dot(w, vec2(127.1, 311.7)), dot(w, vec2(269.5, 183.3)), dot(w, vec2(419.2, 371.9)))) * 43758.5453);
     vec2 d = p - (c + 0.5 + (h.xy - 0.5) * 0.62);
     float r = 0.36 + 0.28 * h.z, hgt = 1.0 - dot(d, d) / (r * r);
@@ -728,12 +730,16 @@ export function setTerrainSurface(shared, world) {
 }
 
 export const DETAIL_TILE = 64;   // metres covered by one repeat of the detail texture at the coarsest scale
+// A patch's tile coordinates are kept modulo this many tiles (terrain.js): everything that
+// repeats in a whole number of cycles per tile is as before, and a pattern may be made to
+// differ from tile to tile over this many (the far forest's crowns: a kilometre).
+export const DETAIL_PERIOD = 16;
 
 // The one material of the ground. pool: the ChunkPool, for its texture arrays.
 export function makeTerrainMaterial(shared, pool) {
   return new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
-    defines: { ...atmosphereDefines(), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, DETAIL_TILE, VERT_W: pool.VW, MORPH_START: CONFIG.MORPH_START },
+    defines: { ...atmosphereDefines(), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, DETAIL_TILE, DETAIL_PERIOD, VERT_W: pool.VW, MORPH_START: CONFIG.MORPH_START },
     vertexShader: VERT, fragmentShader: FRAG,
     uniforms: {
       ...shared,

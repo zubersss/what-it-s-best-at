@@ -5,7 +5,7 @@ import { CONFIG } from '../config.js';
 import { Node } from './quadtree.js';
 import { ChunkPool, INSTANCE_FLOATS } from './chunkPool.js';
 import { WorkerPool } from './workerPool.js';
-import { makeTerrainMaterial, makeTerrainShared, setTerrainSurface, setDemList, DETAIL_TILE } from './terrainMaterial.js';
+import { makeTerrainMaterial, makeTerrainShared, setTerrainSurface, setDemList, DETAIL_TILE, DETAIL_PERIOD } from './terrainMaterial.js';
 import { makeDetailTexture, makeStrataTexture } from './surfaceTextures.js';
 import { FACES, dirToFace } from './cubeSphere.js';
 import { TileRings, mosaicBox } from './tiles/tileRings.js';
@@ -592,7 +592,8 @@ export class Terrain {
     node.radius = res.radius; node.minH = res.minH; node.maxH = res.maxH;
     // Detail-texture coordinates: computed in doubles so they stay exact at planet scale.
     const K = (Math.PI * this.radius / 4) / DETAIL_TILE;
-    const frac = (x) => ((x % 1) + 1) % 1;
+    // (modulo DETAIL_PERIOD whole tiles, not one: see terrainMaterial.js)
+    const frac = (x) => ((x % DETAIL_PERIOD) + DETAIL_PERIOD) % DETAIL_PERIOD;
     s.detail[0] = frac(node.a0 * K); s.detail[1] = frac(node.b0 * K); s.detail[2] = node.size * K;
     s.morphX = 1e15; s.fade = 0;
     this.buildMs += res.ms; this.built++;
