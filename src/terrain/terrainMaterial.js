@@ -519,7 +519,13 @@ void main() {
       gc *= 1.0 + 0.12 * sin(arg) * (1.0 - smoothstep(0.7, 1.8, fwidth(arg)));
       // (the drifts of flowers, where the clumps and blades have them)
       vec2 fw = flowersAt(planetPos, int(uGrassTone.z + 0.5));
-      if (fw.y > 0.0) gc = mix(gc, petalColour(fw.x, 0.5), fw.y * GRASS_FLOWER_SHARE);
+      // (a tint, never a patch: its edge broken by the ground's own grain, less of it for
+      // the pale kinds, from higher up and far off, where colour piles up along the skyline)
+      if (fw.y > 0.0) {
+        float fk = fw.y * smoothstep(0.38, 0.62, 0.6 * d1.r + 0.4 * d1.b + 0.25 * fw.y) * (fw.x < 1.5 ? 0.7 : 1.0);
+        fk *= (1.0 - 0.6 * clamp(dot(V, up), 0.0, 1.0)) * (1.0 - 0.75 * smoothstep(150.0, 900.0, dG));
+        gc = mix(gc, petalColour(fw.x, 0.5), fk * GRASS_FLOWER_SHARE);
+      }
       albedo = mix(albedo, gc, gw);
     }
   }

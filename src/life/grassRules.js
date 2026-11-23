@@ -28,12 +28,9 @@ export function floraAt(cls, lat, h, amount) {
 }
 
 // Smooth noise over the world's own coordinates (metres): the drifts stay where they are
-// whatever the grass is anchored to. (Integer arithmetic, the same in the shaders; the
-// lattice is moved far into the positive numbers so that nothing negative is hashed.)
-const OFF = 65536;
+// whatever the grass is anchored to. (Integer arithmetic, the same in the shaders.)
 function hash3(x, y, z) { let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(z, 1440662683); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
 function noise3(x, y, z) {
-  x += OFF; y += OFF; z += OFF;
   const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z), fx = x - xi, fy = y - yi, fz = z - zi;
   const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy), w = fz * fz * (3 - 2 * fz);
   const l = (a, b, t) => a + (b - a) * t;
@@ -46,8 +43,8 @@ function noise3(x, y, z) {
 // some metres across with bare grass between.
 export function flowersAt(X, Y, Z, flora) {
   const fl = FLORA[flora]; if (!fl) return 0;
-  const which = noise3(X / 38, Y / 38, Z / 38), drift = noise3(X / 9 + 40, Y / 9, Z / 9);
-  const many = fl[1] * Math.min(1, Math.max(0, (drift - 0.52) / 0.18));
+  const which = noise3(X / 38, Y / 38, Z / 38), drift = noise3(X / 9 + 40, Y / 9, Z / 9), wide = noise3(X / 120, Y / 120 + 9, Z / 120);
+  const many = fl[1] * Math.min(1, Math.max(0, (drift - 0.5) / 0.18)) * Math.min(1, Math.max(0.1, (wide - 0.35) / 0.25));
   if (many <= 0.01) return 0;
   const kinds = fl[0];
   return kinds[Math.min(kinds.length - 1, Math.floor(Math.min(0.999, Math.max(0, (which - 0.2) / 0.6)) * kinds.length))] + Math.min(0.9, many);
@@ -66,16 +63,17 @@ export const FLOWERS_GLSL = /* glsl */`
     return float(h ^ (h >> 16u)) / 4294967296.0;
   }
   float flNoise(vec3 p) {
-    p += ${OFF}.0;
     vec3 i = floor(p), f = p - i, u = f * f * (3.0 - 2.0 * f);
-    uvec3 q = uvec3(i);
+    uvec3 q = uvec3(ivec3(i));        // (the bits kept: negative places hash as they do in JavaScript)
     return mix(mix(mix(flHash(q), flHash(q + uvec3(1, 0, 0)), u.x), mix(flHash(q + uvec3(0, 1, 0)), flHash(q + uvec3(1, 1, 0)), u.x), u.y),
                mix(mix(flHash(q + uvec3(0, 0, 1)), flHash(q + uvec3(1, 0, 1)), u.x), mix(flHash(q + uvec3(0, 1, 1)), flHash(q + uvec3(1, 1, 1)), u.x), u.y), u.z);
   }
   vec2 flowersAt(vec3 P, int flora) {
     if (flora <= 0 || flora >= FLORA_N) return vec2(0.0);
     float drift = flNoise(P / 9.0 + vec3(40.0, 0.0, 0.0));
-    float many = FLORA_MANY[flora] * clamp((drift - 0.52) / 0.18, 0.0, 1.0);
+    float many = FLORA_MANY[flora] * clamp((drift - 0.5) / 0.18, 0.0, 1.0);
+    if (many <= 0.01) return vec2(0.0);
+    many *= clamp((flNoise(P / 120.0 + vec3(0.0, 9.0, 0.0)) - 0.35) / 0.25, 0.1, 1.0);
     if (many <= 0.01) return vec2(0.0);
     float which = flNoise(P / 38.0);
     int n = FLORA_COUNT[flora], k = min(n - 1, int(clamp((which - 0.2) / 0.6, 0.0, 0.999) * float(n)));
@@ -107,5 +105,6 @@ export const GRASS_GLSL = /* glsl */`
 // (the waves' number per metre: 18 m from crest to crest)
 export const WAVE_K = 0.35;
 // The ground's own grass: where it gives way to the map's colour (m from the eye), and how
-// much of a drift of flowers is flowers seen from afar (as much as on the clumps' picture).
-export const GRASS_GROUND = { far: [600, 2500], flowers: 0.07 };
+// much of a drift's ground takes the flowers' colour at most (a tint: a meadow of daisies
+// from above is grass with a dusting, not a white patch).
+export const GRASS_GROUND = { far: [600, 2500], flowers: 0.3 };

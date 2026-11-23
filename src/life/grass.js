@@ -283,7 +283,8 @@ const CLUMP_VERT = /* glsl */`
     vFoot = grassColour(dry, 0.0) * shade; vTip = grassColour(dry, 1.0) * shade;
     // (flowers: the drift this clump stands in says what kind and how many clumps carry some)
     float fk = tableNearest(tTable, uTab, at).a, kind = floor(fk + 0.001);
-    vFlower = vec4(petalColour(kind, h.y), step(0.5, kind) * step(hash2(cell + 5.1).x, fract(fk + 0.001) * 0.6));
+    // (fewer heads show from above and far off: grass with a dusting, and no band of colour along the skyline)
+    vFlower = vec4(petalColour(kind, h.y), step(0.5, kind) * step(hash2(cell + 5.1).x, fract(fk + 0.001) * 0.6) * (1.0 - 0.5 * rise) * (1.0 - 0.7 * smoothstep(60.0, 400.0, dist)));
     vAlb = vec4(0.0, 0.0, 0.0, 1.0);
     gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
   }`;
