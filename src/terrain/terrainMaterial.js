@@ -526,7 +526,10 @@ void main() {
         // mean where a speck is smaller than a pixel)
         vec3 fwP = fwidth(planetPos);
         float speck = smoothstep(0.45, 0.8, flNoise(planetPos / 1.3) * (0.55 + 0.65 * fw.y));
-        float fk = mix(speck, 0.22 * fw.y + 0.05, smoothstep(0.35, 1.3, max(fwP.x, max(fwP.y, fwP.z)))) * (fw.x < 1.5 ? 0.7 : 1.0);
+        float fpx = max(fwP.x, max(fwP.y, fwP.z));
+        // (from farther: broken patches some metres across, then the drift's mean; nothing with a hard edge)
+        float broken = 0.55 * fw.y * smoothstep(0.32, 0.7, flNoise(planetPos / 4.5 + vec3(7.0, 0.0, 3.0)));
+        float fk = mix(mix(speck, broken, smoothstep(0.35, 1.3, fpx)), 0.2 * fw.y, smoothstep(1.6, 5.0, fpx)) * (fw.x < 1.5 ? 0.7 : 1.0);
         fk *= (1.0 - 0.6 * clamp(dot(V, up), 0.0, 1.0)) * (1.0 - 0.75 * smoothstep(150.0, 900.0, dG));
         gc = mix(gc, petalColour(fw.x, 0.5), fk * GRASS_FLOWER_SHARE);
       }
