@@ -80,6 +80,8 @@ export function clusterNoise(px, py, pz) {
 const OPEN_THR = 0.37, ROCK_THR = -0.03, THR_SOFT = 0.14;
 export function rockField(c, k) { const thr = OPEN_THR + (ROCK_THR - OPEN_THR) * k; return ss(thr, thr + THR_SOFT, c) * (0.45 + 0.55 * k); }
 
+// (the ground's slope east and north, -2..2, in a byte: the shader lays the rock's shadow on that ground)
+const slopeByte = (g) => Math.max(0, Math.min(255, Math.round(127.5 + 63.75 * g)));
 function qmul(a, b, o) {
   const x = a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], y = a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0];
   const z = a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], w = a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2];
@@ -98,7 +100,8 @@ function qFromZ(n, o) {
 // Returns { origin [x, y, z] (planet-centred, m), count, off Float32Array 4n (x, y, z from
 // the origin in planet axes, and the rock's size), quat 4n, scale 3n, shape Uint8Array 4n
 // (the numbers its fracture planes are made from), misc Uint8Array 4n (sunlight on it:
-// 255 until asked; its tone; snow on it; 0), bound [x, y, z, r] (a sphere round them all,
+// 255 until asked; its tone in seven bits, and 128 more with snow on it; the ground's
+// slope there toward the east and toward the north, 127.5 + 63.75 x metres per metre), bound [x, y, z, r] (a sphere round them all,
 // from the origin) }, the largest rock first.
 export function rockBlock(hs, L, li, bi, bj) {
   const R = hs.radius, deg = tileDeg(R, L.tile), dLon = tileLon(bi, deg), lat0 = bi * deg, lon0 = bj * dLon, K = ROCK_SITES;
@@ -158,7 +161,7 @@ export function rockBlock(hs, L, li, bi, bj) {
     // sunk a little, and more on a slope: its downhill edge must not hang in the air
     const sink = size * (0.12 + Math.min(0.3, 0.3 * S)), r = R + h - sink;
     found.push({ size, x: d[0] * r - origin[0], y: d[1] * r - origin[1], z: d[2] * r - origin[2], q: [q1[0], q1[1], q1[2], q1[3]], sx: size * sx, sy: size * sy, sz: size * sz,
-      shape: hash3(bi * 131 + i, bj * 137 + j, 71, salt), tone: h4 & 0xff, snow: cls === 15 ? 255 : 0 });
+      shape: hash3(bi * 131 + i, bj * 137 + j, 71, salt), tone: (h4 & 0x7f) + (cls === 15 ? 128 : 0), gE: slopeByte(gE), gN: slopeByte(gN) });
   }
   found.sort((p, q) => q.size - p.size);
   const n = Math.min(found.length, L.cap ?? 512);
@@ -172,7 +175,7 @@ export function rockBlock(hs, L, li, bi, bj) {
     quat.set(f.q, i * 4);
     scale[i * 3] = f.sx; scale[i * 3 + 1] = f.sy; scale[i * 3 + 2] = f.sz;
     shape[i * 4] = f.shape & 0xff; shape[i * 4 + 1] = (f.shape >>> 8) & 0xff; shape[i * 4 + 2] = (f.shape >>> 16) & 0xff; shape[i * 4 + 3] = f.shape >>> 24;
-    misc[i * 4] = 255; misc[i * 4 + 1] = f.tone; misc[i * 4 + 2] = f.snow; misc[i * 4 + 3] = 0;
+    misc[i * 4] = 255; misc[i * 4 + 1] = f.tone; misc[i * 4 + 2] = f.gE; misc[i * 4 + 3] = f.gN;
     br = Math.max(br, Math.hypot(f.x - bx, f.y - by, f.z - bz) + 1.5 * f.size);
   }
   return { origin, count: n, off, quat, scale, shape, misc, bound: [bx, by, bz, br] };

@@ -1,11 +1,13 @@
 // What the far rocks are doing in the real game at a place, without waiting for a
 // picture to be ready: the page's read-out every few seconds, and a picture at the end.
-//   node scripts/far-rocks-probe.mjs --distdir <build> --query "lat=..&lon=..&alt=.." [--seconds 90] [--out file.png]
+//   node scripts/far-rocks-probe.mjs --distdir <build> --query "lat=..&lon=..&alt=.." [--seconds 90] [--out file.png] [--eval "..."]
 import { open, opt } from './lib/browser.mjs';
 import { shaderUse, overPhone } from './lib/glLimits.mjs';
 const { base, page, errors, snap, goto, close } = await open({ dist: true, width: 660, height: 309, dsf: 1 });
 await goto(`${base}?world=haven&shot=ledge&${opt('query', '')}`);
 const secs = +opt('seconds', 90), t0 = Date.now();
+// --eval "<javascript>": run in the page once the game is there (a switch to try, e.g. window.__app.farRocks.shadows = false)
+if (opt('eval', '')) { await page.waitForFunction(() => !!(window.__app && window.__app.farRocks), null, { timeout: 120000 }); await page.evaluate(opt('eval', '')); }
 let last = '';
 while (Date.now() - t0 < secs * 1000) {
   await page.waitForTimeout(5000);
@@ -17,6 +19,26 @@ while (Date.now() - t0 < secs * 1000) {
   for (const l of overPhone(use)) { console.log("OVER A PHONE'S LIMITS: " + l); errors.push(l); }
   if (bad || errs.length) { console.log(`SHADER FAILED: ${bad} not linked: ${errs.join(' / ').slice(0, 3000)}`); errors.push('shader'); } }
 console.log('sunlight on the rocks, by level (mean of the land\'s shadow, 1: all in the Sun):', JSON.stringify(await page.evaluate(() => { const f = window.__app.farRocks, o = {}; for (const s of f.slots) { if (!s.tile) continue; const a = s.at.aMisc.array, n = s.tile.count; let v = 0; for (let i = 0; i < n; i++) v += a[i * 4] / 255; (o[s.li] || (o[s.li] = [0, 0]))[0] += v; o[s.li][1] += n; } for (const k in o) o[k] = +(o[k][0] / o[k][1]).toFixed(2); return o; })));
+console.log('the Sun:', JSON.stringify(await page.evaluate(() => { const a = window.__app, r = a.rig, s = a.ephemeris ? a.ephemeris.sunDir : null, u = r.localUp, f = r.forward; if (!s) return 'unknown'; const el = Math.asin(s[0] * u[0] + s[1] * u[1] + s[2] * u[2]) * 57.3, e = r.east, n = r.north, az = (Math.atan2(s[0] * e[0] + s[1] * e[1] + s[2] * e[2], s[0] * n[0] + s[1] * n[1] + s[2] * n[2]) * 57.3 + 360) % 360; return { up: +el.toFixed(1), bearing: +az.toFixed(0), view: +((Math.atan2(f.x * e[0] + f.y * e[1] + f.z * e[2], f.x * n[0] + f.y * n[1] + f.z * n[2]) * 57.3 + 360) % 360).toFixed(0) }; })));
+// what is truly drawn: every rock of every tile in the view, by the vertex shader's own rule
+console.log('drawn, counted rock by rock:', JSON.stringify(await page.evaluate(() => {
+  const a = window.__app, f = a.farRocks, p = a.rig.pos, u = f.uFar.value, o = { tilesInView: 0, lo: 0, hi: 0, shadows: 0 };
+  for (const s of f.slots) {
+    const b = s.tile; if (!b || !(s.lo.visible || s.hi.visible)) continue;
+    // (in the view: three's own test, on the mesh as it was last drawn)
+    const off = s.at.aOff.array, ox = b.origin.x - p.x, oy = b.origin.y - p.y, oz = b.origin.z - p.z;
+    let any = false;
+    for (let i = 0; i < Math.max(s.lo.geometry.instanceCount, s.hi.geometry.instanceCount); i++) {
+      const size = off[i * 4 + 3], d = Math.hypot(ox + off[i * 4], oy + off[i * 4 + 1], oz + off[i * 4 + 2]), key = d / size, t = Math.min(1, Math.max(0, (size - 2.6) / 3.9)), reach = u.x * (u.z + (1 - u.z) * t * t * (3 - 2 * t));
+      if (key >= reach) continue;
+      any = true; if (key <= u.y) o.hi++; else o.lo++;
+      if (f.shadows && key / reach < 0.72) o.shadows++;
+    }
+    if (any) o.tilesInView++;
+  }
+  o.triangles = o.lo * f.tris[0] + o.hi * f.tris[1] + o.shadows * 8;
+  o.note = 'all round the traveller (the view holds about a third)';
+  return o; })));
 if (opt('out', '')) await snap(opt('out', ''));
 if (errors.length) console.log('PAGE ERRORS: ' + errors.slice(0, 5).join(' | '));
 await close();

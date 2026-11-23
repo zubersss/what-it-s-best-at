@@ -38,7 +38,8 @@ const VERT = /* glsl */`
 in vec4 aOff;            // xyz: the rock's middle from the tile's origin (m, planet axes), w: its size (m)
 in vec4 aQuat; in vec3 aScale;
 in vec4 aShape;          // four numbers of its own (its fracture planes)
-in vec4 aMisc;           // x: sunlight on it (the land's shadow), y: its tone, z: snow on it
+in vec4 aMisc;           // x: sunlight on it (the land's shadow), y: its tone (and over a half: snow on it), zw: the ground's slope there, east and north
+in vec4 aTint;           // rgb: the land's colour at its place over the world's mean (the albedo map's tint, a fifth of it)
 uniform vec4 uFar;       // x: metres a rock is seen from per metre of its size, y: the same for the 80-triangle block, z: the share of x left to small rocks (the governor), w: where the near shadow map ends (m)
 ${ROCK_SHAPE_GLSL}
 // A rock's place and size; false when this mesh does not draw it.
@@ -55,6 +56,24 @@ bool rockPlace(out vec3 centre, out float grow) {
 
 // The share of `reach` a rock of a size has (as the vertex shader has it: uFar.z).
 function shareOf(sz, small) { if (sz >= 6.5) return 1; if (sz <= 2.6) return small; const t = (sz - 2.6) / 3.9; return small + (1 - small) * t * t * (3 - 2 * t); }
+
+// Sunlight on a rock (vertex shader): the land's shadow from the worker, and the cloud that
+// stands between it and the Sun, as the ground has it (terrainMaterial.js).
+const SUN_VERT = /* glsl */`
+uniform vec3 uCamPlanetPos, uSunDir; uniform float uPlanetRadius;
+uniform sampler2D tClouds; uniform vec4 uCloud; uniform highp sampler3D tCloudNoise; uniform vec4 uCloudHeap; uniform vec3 uCloudVol, uCloudWind;
+${HEAP_GLSL}
+float rockSun(vec3 planetPos, vec3 up) {
+  float sun = aMisc.x;
+  if (uCloud.x > 0.0 && length(planetPos) < uCloud.y) {
+    vec3 uc = normalize(planetPos + uSunDir * ((uCloud.y - length(planetPos)) / max(dot(up, uSunDir), 0.08)));
+    float cd = textureLod(tClouds, vec2(atan(uc.y, uc.x) * 0.15915494 + uCloud.z, acos(clamp(uc.z, -1.0, 1.0)) * 0.31830989), 0.0).r;
+    float shade = smoothstep(0.2, 0.7, cd);
+    if (uCloudHeap.w > 0.5) { float cc, hp = cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudWind, 0.0, cc); shade = 0.85 * smoothstep(0.06, 0.42, hp); }
+    sun *= 1.0 - uCloud.x * shade;
+  }
+  return sun;
+}`;
 
 export class FarRocks {
   // terrain: the Terrain (its workers, its cloud and strata uniforms).
@@ -73,10 +92,8 @@ export class FarRocks {
       tStrata: sh.tStrata, uStrata: sh.uStrata,
     };
     const vertex = /* glsl */`${VERT}
-      uniform vec3 uCamPlanetPos, uSunDir; uniform float uPlanetRadius;
-      uniform sampler2D tClouds; uniform vec4 uCloud; uniform highp sampler3D tCloudNoise; uniform vec4 uCloudHeap; uniform vec3 uCloudVol, uCloudWind;
+      ${SUN_VERT}
       uniform sampler2D tStrata; uniform vec4 uStrata;
-      ${HEAP_GLSL}
       out vec3 vRel; out vec3 vN; out float vLocalZ;
       flat out vec4 vTone;            // x: sunlight on it, y: its tone, z: snow, w: how far it has grown in
       flat out vec3 vBand;            // the tint of the bed of rock it lies on
@@ -87,19 +104,17 @@ export class FarRocks {
         vec3 rel = c + qrot(rockShape(position, nrm) * aScale, aQuat) * grow;
         vRel = rel; vN = qrot(nrm / aScale, aQuat); vLocalZ = position.z;
         vec3 planetPos = uCamPlanetPos + c, up = normalize(planetPos);
-        float sun = aMisc.x;
-        // the cloud that stands between this rock and the Sun (as the ground has it: terrainMaterial.js)
-        if (uCloud.x > 0.0 && length(planetPos) < uCloud.y) {
-          vec3 uc = normalize(planetPos + uSunDir * ((uCloud.y - length(planetPos)) / max(dot(up, uSunDir), 0.08)));
-          float cd = textureLod(tClouds, vec2(atan(uc.y, uc.x) * 0.15915494 + uCloud.z, acos(clamp(uc.z, -1.0, 1.0)) * 0.31830989), 0.0).r;
-          float shade = smoothstep(0.2, 0.7, cd);
-          if (uCloudHeap.w > 0.5) { float cc, hp = cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudWind, 0.0, cc); shade = 0.85 * smoothstep(0.06, 0.42, hp); }
-          sun *= 1.0 - uCloud.x * shade;
-        }
-        vTone = vec4(sun, 0.8 + 0.4 * aMisc.y, aMisc.z, grow);
+        float sun = rockSun(planetPos, up);
+        float tv = aMisc.y * 255.0, snow = step(127.5, tv);
+        vTone = vec4(sun, 0.8 + 0.4 * (tv - 128.0 * snow) / 127.0, snow, grow);
         float hs = length(planetPos) - uPlanetRadius;
         vec3 tint = textureLod(tStrata, vec2(hs * uStrata.x, 0.25), 0.0).rgb * 2.0, fine = textureLod(tStrata, vec2(hs * uStrata.z, 0.75), 0.0).rgb * 2.0;
         vBand = mix(vec3(1.0), tint, uStrata.y) * mix(vec3(1.0), fine, uStrata.w);
+        // (and the land's colour under it: as bright as the country it lies in, half of its hue.
+        // A rock of one colour everywhere was near black on golden grass, the ground there
+        // being three times the world's mean.)
+        vec3 land = aTint.rgb * 5.0; float lg = dot(land, vec3(0.3333));
+        vBand *= mix(vec3(lg), land, 0.5) * (clamp(lg, 0.55, 2.4) / max(lg, 1e-3));
         gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
       }`;
     const fragment = /* glsl */`${LIGHTING_PARS}
@@ -142,6 +157,63 @@ export class FarRocks {
         }`,
       fragmentShader: /* glsl */`layout(location = 0) out vec4 fragColor; void main() { fragColor = vec4(1.0); }`,
     });
+    // The shadow a rock throws on the ground beyond the near shadow map's reach (150 m): a
+    // soft dark patch on the ground beside it, away from the Sun and as long as the Sun is
+    // low. Laid over the ground already drawn (it only darkens: the ground's colour times
+    // what the sky alone lights of it), so a block on a far hillside stands on the hill.
+    // Where the shadow map reaches, that draws the true shadow and these fade out.
+    this.shadowMaterial = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines() }, uniforms: this.uniforms,
+      depthWrite: false, blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.ZeroFactor, blendDst: THREE.SrcColorFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
+      // (no slope-scaled depth offset: seen at a low angle that is metres, and the patch was drawn over the rock itself)
+      polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -4,
+      vertexShader: /* glsl */`
+        in vec4 aOff; in vec4 aQuat; in vec3 aScale; in vec4 aMisc;
+        uniform vec4 uFar;
+        ${SUN_VERT}
+        out vec3 vRel; out vec2 vDisc; flat out vec4 vSh;          // vSh: xyz the ground's normal, w how dark
+        void main() {
+          vec3 c = (modelMatrix * vec4(aOff.xyz, 1.0)).xyz;
+          float d = length(c), size = aOff.w, key = d / size, reach = uFar.x * mix(uFar.z, 1.0, smoothstep(2.6, 6.5, size));
+          // (not for a rock that is a pixel or two: its shadow would be less)
+          float show = (1.0 - smoothstep(0.5, 0.72, key / reach));
+          vec3 planetPos = uCamPlanetPos + c, up = normalize(planetPos);
+          float sun = show > 0.0 ? rockSun(planetPos, up) : 0.0;
+          vec2 g = (aMisc.zw * 255.0 - 127.5) / 63.75;
+          vec3 east = normalize(cross(vec3(0.0, 0.0, 1.0), up)), north = cross(up, east);
+          vec3 n = normalize(up - east * g.x - north * g.y);
+          float sn = dot(uSunDir, n);
+          if (show * sun <= 0.003 || sn < 0.05) { vRel = vec3(0.0); vDisc = vec2(0.0); vSh = vec4(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+          // on the ground under the rock's middle; t: the way the shadow falls along the ground
+          vec3 base = c + up * size * (0.12 + min(0.3, 0.3 * length(g)));
+          vec3 st = uSunDir - n * sn; float sl = length(st);
+          vec3 t = sl > 1e-4 ? -st / sl : east, b = cross(n, t);
+          float r = 0.56 * max(aScale.x, aScale.y), tall = 0.6 * aScale.z, len = min(tall * sl / sn, 5.0 * tall);
+          vec3 rel = base + (t * (position.x * r + len * (0.5 + 0.5 * position.x)) + b * (position.y * r)) + n * (0.04 * size + 0.0005 * d);
+          vRel = rel; vDisc = position.xy; vSh = vec4(n, 0.88 * sun * show);
+          gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
+        }`,
+      fragmentShader: /* glsl */`${LIGHTING_PARS}
+        in vec3 vRel; in vec2 vDisc; flat in vec4 vSh;
+        layout(location = 0) out vec4 fragColor;
+        void main() {
+          float d = length(vRel), a = vSh.w * (1.0 - smoothstep(0.5, 1.0, length(vDisc)));
+          // (the shadow map draws the true shadow near the eye)
+          if (uShadowParams.z > 0.5) a *= smoothstep(0.7 * uShadowParams.x, 0.98 * uShadowParams.x, d);
+          if (a <= 0.004) discard;
+          vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), n = vSh.xyz;
+          // what is left of the ground's light without the Sun: the sky's share of it
+          vec3 sky = skyLight(n, up), sun = directSun(planetPos) * (uPaint.x > 0.0 ? paintLit(dot(n, uSunDir)) * PI : max(dot(n, uSunDir), 0.0));
+          vec3 k = sky / max(sky + sun, vec3(1e-6));
+          // (less of it through the air between: the haze over the ground is not darkened)
+          vec3 through = aerialPerspective(vec3(1.0), vRel) - aerialPerspective(vec3(0.0), vRel);
+          fragColor = vec4(mix(vec3(1.0), k, a * clamp(through, 0.0, 1.0)), 1.0);
+        }`,
+    });
+    // (a flat round patch: a middle and eight on its rim)
+    { const pos = [0, 0, 0], idx = []; for (let i = 0; i < 8; i++) { const an = i / 8 * Math.PI * 2; pos.push(Math.cos(an), Math.sin(an), 0); idx.push(0, 1 + i, 1 + (i + 1) % 8); }
+      this.discPos = new THREE.BufferAttribute(new Float32Array(pos), 3); this.discIdx = new THREE.BufferAttribute(new Uint16Array(idx), 1); }
+    this.shadows = true;
     this.slots = []; this.tiles = new Map();
     this.frame = 0; this.asked = 0; this.missing = 0; this.fraction = 1; this.count = 0; this.drawn = [0, 0]; this.triangles = 0;
     this.coverSerial = -1; this.visSun = [0, 0, 0]; this.sun = [0, 0, 1]; this.sunHalf = 0.0046;
@@ -157,7 +229,7 @@ export class FarRocks {
       for (let k = 0; k < (POOL[li] ?? 48); k++) {
         const fl = (n) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(cap * n), n); a.setUsage(THREE.DynamicDrawUsage); return a; };
         const by = () => { const a = new THREE.InstancedBufferAttribute(new Uint8Array(cap * 4), 4, true); a.setUsage(THREE.DynamicDrawUsage); return a; };
-        const at = { aOff: fl(4), aQuat: fl(4), aScale: fl(3), aShape: by(), aMisc: by() };
+        const at = { aOff: fl(4), aQuat: fl(4), aScale: fl(3), aShape: by(), aMisc: by(), aTint: by() };
         const meshes = this.base.map((b, m) => {
           const geo = new THREE.InstancedBufferGeometry();
           geo.setAttribute('position', b.attributes.position); geo.setAttribute('normal', b.attributes.normal); geo.setIndex(b.index);
@@ -168,14 +240,21 @@ export class FarRocks {
           this.group.add(mesh);
           return mesh;
         });
-        this.slots.push({ li, cap, at, lo: meshes[0], hi: meshes[1], tile: null, shadowN: 0 });
+        const sg = new THREE.InstancedBufferGeometry();
+        sg.setAttribute('position', this.discPos); sg.setIndex(this.discIdx);
+        for (const name of ['aOff', 'aQuat', 'aScale', 'aMisc']) sg.setAttribute(name, at[name]);
+        sg.instanceCount = 0; sg.boundingSphere = new THREE.Sphere();
+        const shade = new THREE.Mesh(sg, this.shadowMaterial);
+        shade.visible = false; shade.renderOrder = 2;            // after the ground it lies on
+        this.group.add(shade);
+        this.slots.push({ li, cap, at, lo: meshes[0], hi: meshes[1], shade, tile: null, shadowN: 0 });
       }
     }
   }
 
   setWorld(world) {
     this.world = world; this.def = rocksFarDef(world);
-    for (const s of this.slots) { s.tile = null; s.lo.visible = s.hi.visible = false; s.shadowN = 0; }
+    for (const s of this.slots) { s.tile = null; s.lo.visible = s.hi.visible = s.shade.visible = false; s.shadowN = 0; }
     this.tiles.clear(); this.asked = 0; this.missing = 0; this.count = 0; this.coverSerial = -1; this.visSun = [0, 0, 0];
     this.group.visible = !!this.def;
     if (!this.def) return;
@@ -203,7 +282,7 @@ export class FarRocks {
     if (!show) { this.count = 0; this.triangles = 0; return; }
     this.sun = sun; this.sunHalf = sunHalf;
     const small = SMALL_SHARE * this.fraction;          // (the share of the reach a small rock has: see uFar)
-    this.uFar.value.z = small; this.uFar.value.y = small < 1 ? HI_K * 0.6 : HI_K;
+    this.uFar.value.z = small; this.uFar.value.y = this.fraction < 1 ? HI_K * 0.6 : HI_K;
     const R = this.world.radius, p = rig.pos, len = p.length(), lat = Math.asin(p.z / len) * 180 / Math.PI, lon = ((Math.atan2(p.y, p.x) * 180 / Math.PI) + 360) % 360, M = R * Math.PI / 180;
     // (the land cover moved or changed: every tile is asked again; a ring of water: the tiles it touches)
     if (t.coverSerial !== this.coverSerial) { this.coverSerial = t.coverSerial; for (const b of this.tiles.values()) b.stale = true; }
@@ -237,7 +316,7 @@ export class FarRocks {
     this.ask();
     this._refreshVis();
     // tiles left far behind are let go (their slots are free for others at once)
-    if (this.frame % 120 === 0) for (const [k, b] of this.tiles) if (this.frame - b.used > 300 && !b.asking) { if (b.slot) { b.slot.tile = null; b.slot.lo.visible = b.slot.hi.visible = false; b.slot.shadowN = 0; } this.tiles.delete(k); }
+    if (this.frame % 120 === 0) for (const [k, b] of this.tiles) if (this.frame - b.used > 300 && !b.asking) { if (b.slot) this._free(b.slot); this.tiles.delete(k); }
     // what each tile draws from here: its rocks are largest first, so the first so-many
     // (counted: what is in the view, which is what is drawn: three leaves out the tiles behind the traveller)
     let count = 0, tris = 0, all = 0; const c = this._c, shadowR = CONFIG.NEAR_SHADOW_RADIUS * 1.6;
@@ -247,8 +326,9 @@ export class FarRocks {
       const b = s.tile;
       if (!b) continue;
       const L = def.levels[s.li], reach = def.reach, sizes = b.sizes;
+      if (!b.tinted && t.tint) this._tint(s, b);
       c.copy(b.origin).sub(p);
-      s.lo.position.copy(c); s.hi.position.copy(c);
+      s.lo.position.copy(c); s.hi.position.copy(c); s.shade.position.copy(c);
       const dmin = Math.max(0, Math.hypot(c.x + b.bound[0], c.y + b.bound[1], c.z + b.bound[2]) - b.bound[3]);
       // (the first rock too small to be seen from the tile's nearest point; a small rock's reach is less under the governor)
       const smallK = (sz) => reach * shareOf(sz, small);
@@ -264,6 +344,10 @@ export class FarRocks {
       s.lo.visible = nLo > 0; s.lo.geometry.instanceCount = nLo;
       s.hi.visible = nHi > 0; s.hi.geometry.instanceCount = nHi;
       s.shadowN = dmin < shadowR ? nHi : 0;
+      // (their shadows on the ground: of the rocks seen from under 0.72 of their reach)
+      let nSh = 0;
+      if (this.shadows && nLo) { let a = 0, z = nLo; while (a < z) { const m = (a + z) >> 1; if (sizes[m] * smallK(sizes[m]) * 0.72 > dmin) a = m + 1; else z = m; } nSh = a; }
+      s.shade.visible = nSh > 0; s.shade.geometry.instanceCount = nSh;
       all += nLo;
       sp.center.set(c.x + b.bound[0], c.y + b.bound[1], c.z + b.bound[2]); sp.radius = b.bound[3];
       if (nLo && fr.intersectsSphere(sp)) { count += nLo; tris += nLo * this.tris[0] + nHi * (this.tris[1] - this.tris[0]); }
@@ -299,7 +383,7 @@ export class FarRocks {
       this.asked--; b.asking = false;
       if (epoch !== t.epoch || world !== this.world || this.tiles.get(key) !== b) return;
       b.state = 1; b.serial = serial; b.count = res.count; b.visSun = sun;
-      if (!res.count) { if (b.slot) { b.slot.tile = null; b.slot.lo.visible = b.slot.hi.visible = false; b.slot.shadowN = 0; b.slot = null; } b.center = null; return; }
+      if (!res.count) { if (b.slot) { this._free(b.slot); b.slot = null; } b.center = null; return; }
       const slot = b.slot || this._slot(li, b);
       if (!slot) { b.count = 0; b.center = null; this.dropped = (this.dropped || 0) + 1; return; }           // (the pool is full of tiles in use: it stays undrawn until it is let go and wanted again; counted, so that a pool too small shows)
       b.slot = slot; slot.tile = b;
@@ -312,7 +396,8 @@ export class FarRocks {
       const misc = new Uint8Array(res.misc), vis = new Uint8Array(res.vis);
       for (let i = 0; i < n; i++) misc[i * 4] = vis[i];
       put(slot.at.aMisc, misc);
-      for (const m of [slot.lo, slot.hi]) { m.geometry.boundingSphere.center.set(res.bound[0], res.bound[1], res.bound[2]); m.geometry.boundingSphere.radius = res.bound[3]; }
+      this._tint(slot, b);
+      for (const m of [slot.lo, slot.hi, slot.shade]) { m.geometry.boundingSphere.center.set(res.bound[0], res.bound[1], res.bound[2]); m.geometry.boundingSphere.radius = res.bound[3]; }
       // (kept for whoever walks among them: the larger levels only)
       b.solid = li >= COLLIDE_FROM ? { off, quat: slot.at.aQuat.array, scale: slot.at.aScale.array, shape: slot.at.aShape.array } : null;
     }, () => { this.asked--; b.asking = false; });
@@ -343,6 +428,20 @@ export class FarRocks {
     return best;
   }
 
+  // The land's colour under each rock of a tile (the world's albedo map, as the ground and
+  // the near rocks have it: Terrain.tintAt), once when the tile arrives; again if the map
+  // itself had not arrived by then.
+  _tint(slot, b) {
+    const t = this.terrain, a = slot.at.aTint, off = slot.at.aOff.array, v = this._tv || (this._tv = new THREE.Vector3()), o = this._to || (this._to = new THREE.Vector3());
+    for (let i = 0; i < b.count; i++) {
+      v.set(b.origin.x + off[i * 4], b.origin.y + off[i * 4 + 1], b.origin.z + off[i * 4 + 2]);
+      t.tintAt(v, o);
+      a.array[i * 4] = Math.min(255, Math.round(o.x * 51)); a.array[i * 4 + 1] = Math.min(255, Math.round(o.y * 51)); a.array[i * 4 + 2] = Math.min(255, Math.round(o.z * 51));
+    }
+    a.clearUpdateRanges(); a.addUpdateRange(0, Math.max(1, b.count) * 4); a.needsUpdate = true;
+    b.tinted = !!t.tint || !this.world.surface.albedoMap;
+  }
+
   // A free slot of the level, or the one whose tile is farthest from the traveller if that
   // is farther than the tile that asks.
   _slot(li, b) {
@@ -353,9 +452,10 @@ export class FarRocks {
       if (s.tile.used < farUsed) { far = s; farUsed = s.tile.used; }
     }
     void b;
-    if (far) { far.tile.slot = null; far.tile.state = 0; far.tile.center = null; far.tile = null; }
+    if (far) { far.tile.slot = null; far.tile.state = 0; far.tile.center = null; this._free(far); }
     return far;
   }
+  _free(s) { s.tile = null; s.lo.visible = s.hi.visible = s.shade.visible = false; s.shadowN = 0; }
 
   // The land's shadow on the rocks follows the Sun: one tile at a time, when a worker is free.
   _refreshVis() {

@@ -1,0 +1,30 @@
+{
+  "ledge": {
+    "weather": "",
+    "trees": "0 (0k triangles)",
+    "farTrees": 248,
+    "farRocks": "8124 in view of 17472 in 124 tiles (350k triangles)",
+    "water": "z2: 105 rivers, 499 m3/s (no inflow); z5: 38 rivers, 122 m3/s; z8: 16 rivers, 5 m3/s",
+    "stale": 0,
+    "tilesBusy": false,
+    "refreshQ": 0,
+    "rings": 3,
+    "tileFails": 0,
+    "busyW": 1,
+    "calls": 140,
+    "triangles": 1347905,
+    "chunks": 108,
+    "loaded": 302,
+    "visited": 302,
+    "wanted": 0,
+    "lodScale": 1,
+    "avgBuildMs": 44.9,
+    "exposure": 4.104,
+    "surface": [
+      0.731,
+      0.23
+    ],
+    "frame": 176,
+    "wait": ""
+  }
+}
