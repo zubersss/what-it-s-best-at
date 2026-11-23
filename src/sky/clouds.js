@@ -150,6 +150,11 @@ void main() {
   // and around the Sun's direction; from below a thick cloud is grey
   float mu0 = dot(up, uSunDir), cs = dot(-V, uSunDir);
   float fwd = 0.6 + 0.9 * pow(max(cs, 0.0), 8.0);
+  // (looked down on, a cloud shows its sunlit top: as bright as the Sun's height over it
+  // makes a white thing. With the light of its under side, a field of heaps from 30 km was
+  // hardly lighter than the desert under it. By the line of sight, not by where the
+  // traveller is: on the way through the layer the clouds far off are seen edge on.)
+  fwd = mix(fwd, 0.45 + 0.8 * max(mu0, 0.0), smoothstep(0.0, 0.3, dot(V, up)));
   float under = uCloud.w > 0.5 ? mix(1.0, uVol.x > 0.0 ? 0.6 : 0.42, cover) : 1.0;
   vec3 sun = directSun(planetPos) * smoothstep(-0.06, 0.08, mu0) * fwd * under;
   // (matched to the volume near the traveller, whose sunlit faces are white)
