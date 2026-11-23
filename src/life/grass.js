@@ -143,8 +143,10 @@ const PRELUDE = /* glsl */`
   // stretches of taller and shorter, greener and drier grass, some metres across (in the
   // ground's own coordinates: a whole number of waves in PERIOD)
   float lieAt(vec2 at) {
-    vec2 p = at + uGrassLie;
-    return sin(p.x * 0.13009 + 2.0 * sin(p.y * 0.07118)) * sin(p.y * 0.11045 + 1.7 + 1.5 * sin(p.x * 0.05400));
+    // (two bent waves that cross at a slant: a product of an east wave and a north wave
+    // was a chequerboard, woven across the whole field seen from 100 m up)
+    vec2 p = (at + uGrassLie) * ${(2 * Math.PI / PERIOD).toFixed(8)};
+    return 0.55 * sin(47.0 * p.x + 23.0 * p.y + 2.2 * sin(11.0 * p.y - 7.0 * p.x)) + 0.45 * sin(53.0 * p.y - 19.0 * p.x + 1.7 + 1.9 * sin(9.0 * p.x + 5.0 * p.y + 2.0 * sin(3.0 * p.y - 2.0 * p.x)));
   }
   // the wind over the field: which way and how hard it bends grass (east, north), and where the wave is (0..1)
   vec3 windAt(vec3 rel, float own) {
@@ -252,7 +254,7 @@ const CLUMP_VERT = /* glsl */`
   out vec3 vFoot, vTip; out vec4 vFlower;
   void main() {
     vec2 cell, rc = latticeCell(cell), h = hash2(cell), h2 = hash2(cell + 17.31);
-    vec2 rel2 = rc + (h - 0.5) * 0.8 * SPACING, at = rel2 + uGrassCam.xy;
+    vec2 rel2 = rc + (h - 0.5) * 0.98 * SPACING, at = rel2 + uGrassCam.xy;
     float dist = length(rel2);
     // (this field's ring: in over IN0..IN1, out over OUT0..OUT1; the traveller's height; the governor)
     float ring = smoothstep(IN0, IN1, dist) * (1.0 - smoothstep(OUT0, OUT1, dist)) * uGrassKeep.y;

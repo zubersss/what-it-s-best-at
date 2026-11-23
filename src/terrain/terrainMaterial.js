@@ -516,7 +516,7 @@ void main() {
       vec3 gc = grassColour(uGrassTone.x, 0.62) * (0.82 + 0.36 * d1.g);
       // (the waves: paler where they bow the grass; gone where a wave is narrower than a pixel or two)
       float arg = dot(vRel, uGrassWave.xyz) + uGrassWave.w;
-      gc *= 1.0 + 0.12 * sin(arg) * (1.0 - smoothstep(0.7, 1.8, fwidth(arg)));
+      gc *= 1.0 + 0.07 * sin(arg + 5.0 * (d1.g - 0.5)) * (1.0 - smoothstep(0.7, 1.8, fwidth(arg)));
       // (the drifts of flowers, where the clumps and blades have them)
       vec2 fw = flowersAt(planetPos, int(uGrassTone.z + 0.5));
       // (a tint, never a patch: its edge broken by the ground's own grain, less of it for
