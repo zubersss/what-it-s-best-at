@@ -12,7 +12,11 @@
 //   grass.blades.N  grass.clumps.N  trees  farForest  rocks  farRocks  leaves
 //   casters.trees  casters.rocks  casters.other   (what draws into the near shadow maps)
 // A part is taken out of its scene, never hidden: the app shows a hidden part again on
-// the next frame.
+// the next frame. The exposure is held at the whole picture's, so taking a dark thing out
+// does not brighten everything else; and the pictures are compared in blocks of 6 x 6
+// pixels (their means), because the grass moves in the wind between one picture and the
+// next. The whole picture is taken again at the end ("none again"): what that row shows
+// is the noise the other rows are to be read against.
 import { open, opt } from './lib/browser.mjs';
 import { decodePNG } from './lib/png.mjs';
 import { mkdir, readFile } from 'node:fs/promises';
@@ -56,26 +60,40 @@ try {
     }
     return Object.keys(P);
   });
-  const parts = ['none', ...names.filter((n) => !only || only.includes(n))];
+  const parts = ['none', ...names.filter((n) => !only || only.includes(n)), 'none again'];
   console.log(`parts: ${names.join(' ')}`);
-  const pic = async (name) => { const f = `${out}/${name}.png`; if (!(await snap(f))) throw new Error('no picture of ' + name); return decodePNG(await readFile(f)); };
+  const pic = async (name) => { const f = `${out}/${name.replace(/ /g, '_')}.png`; if (!(await snap(f))) throw new Error('no picture of ' + name); return decodePNG(await readFile(f)); };
+  // the means of blocks of B x B pixels inside the box: [luminance, ...]
+  const B = 6;
+  const blocks = (im) => {
+    const x0 = Math.floor(box[0] * im.width), x1 = Math.ceil(box[2] * im.width), y0 = Math.floor(box[1] * im.height), y1 = Math.ceil(box[3] * im.height), o = [];
+    for (let y = y0; y + B <= y1; y += B) for (let x = x0; x + B <= x1; x += B) {
+      let r = 0, g = 0, b = 0;
+      for (let v = 0; v < B; v++) for (let u = 0; u < B; u++) { const i = ((y + v) * im.width + x + u) * 3; r += im.rgb[i]; g += im.rgb[i + 1]; b += im.rgb[i + 2]; }
+      o.push(r / (B * B), g / (B * B), b / (B * B));
+    }
+    return o;
+  };
   let ref = null;
-  console.log('part                changed   mean brighter by   (in the box)');
+  console.log('part                blocks changed   mean brighter by   (in the box; a block: 6 x 6 pixels, changed: by more than 10 of 255)');
   for (const p of parts) {
-    if (p !== 'none') await page.evaluate((p) => { window.__back = window.__parts[p](); }, p);
+    const real = p !== 'none' && p !== 'none again';
+    if (real) await page.evaluate((p) => { window.__back = window.__parts[p](); }, p);
     await frames(8);
-    const im = await pic(p);
-    if (p === 'none') ref = im;
-    else {
-      const x0 = Math.floor(box[0] * im.width), x1 = Math.ceil(box[2] * im.width), y0 = Math.floor(box[1] * im.height), y1 = Math.ceil(box[3] * im.height);
-      let n = 0, ch = 0, lum = 0;
-      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
-        const i = (y * im.width + x) * 3, a = im.rgb, b = ref.rgb;
-        const d = Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
-        n++; if (d > 24) ch++; lum += (a[i] + a[i + 1] + a[i + 2] - b[i] - b[i + 1] - b[i + 2]) / 3;
+    const bl = blocks(await pic(p));
+    if (p === 'none') {
+      ref = bl;
+      // (the exposure held from here on: screenshot mode sets it afresh from every frame's metering)
+      await page.evaluate(() => { const po = window.__app.post, st = po.settings; st.min = st.max = po.exposure; });
+    } else {
+      let ch = 0, lum = 0;
+      for (let i = 0; i < bl.length; i += 3) {
+        const d = Math.max(Math.abs(bl[i] - ref[i]), Math.abs(bl[i + 1] - ref[i + 1]), Math.abs(bl[i + 2] - ref[i + 2]));
+        if (d > 10) ch++; lum += (bl[i] + bl[i + 1] + bl[i + 2] - ref[i] - ref[i + 1] - ref[i + 2]) / 3;
       }
-      console.log(`${p.padEnd(18)} ${(100 * ch / n).toFixed(1).padStart(6)} %   ${(lum / n).toFixed(1).padStart(7)}`);
-      await page.evaluate(() => { window.__back(); window.__back = null; });
+      const n = bl.length / 3;
+      console.log(`${p.padEnd(18)} ${(100 * ch / n).toFixed(1).padStart(8)} %      ${(lum / n).toFixed(1).padStart(7)}`);
+      if (real) await page.evaluate(() => { window.__back(); window.__back = null; });
     }
   }
   if (errors.length) { console.log('errors in the page:', errors.slice(0, 3)); failed = true; }
