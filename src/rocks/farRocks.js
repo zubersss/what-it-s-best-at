@@ -270,7 +270,8 @@ export class FarRocks {
     this.world = world; this.def = rocksFarDef(world);
     for (const s of this.slots) this._free(s);
     this.caster.geometry.instanceCount = 0; this.casterDirty = true;
-    this.tiles.clear(); this.asked = 0; this.missing = 0; this.missing0 = undefined; this.count = 0; this.coverSerial = -1; this.visSun = [0, 0, 0];
+    this.tiles.clear(); this.missing = 0;          // (not `asked`: the last world's replies still arrive and each takes one off)
+    this.missing0 = undefined; this.count = 0; this.coverSerial = -1; this.visSun = [0, 0, 0];
     this.group.visible = !!this.def;
     if (!this.def) return;
     this._makePool();
@@ -464,7 +465,7 @@ export class FarRocks {
     const t = this.terrain, want = this._want;
     if (!want || !this.group.visible) return;
     while (want.length) {
-      if (t.workers.idle < 1 || this.asked >= (t.wanted.length > 0 || !t.idle ? 1 : 4)) break;
+      if (t.workers.idle < 1 || this.asked >= (t.wanted.length > 0 ? 1 : 4)) break;      // (by the ground's own demand: `t.idle` is false while a tile of rocks is on its way, and one tile at a time was all that ever went)
       const w = want.shift(), b = this.tiles.get(w[3]);
       if (b && (b.asking || (b.state === 1 && !b.stale))) continue;
       this._ask(w);
@@ -496,7 +497,7 @@ export class FarRocks {
       b.full = { off, quat: new Float32Array(res.quat), scale: new Float32Array(res.scale), shape: new Uint8Array(res.shape), misc, tint, sizes };
       b.sizes = new Float32Array(n); b.filled = 0; b.tinted = false;
       this._tint(b);
-      this._fill(slot, b); this.casterDirty = true;
+      this._fill(slot, b); this.casterDirty = true; this.solidSerial = (this.solidSerial || 0) + 1;
       for (const m of [slot.mesh, slot.shade]) { m.geometry.boundingSphere.center.set(res.bound[0], res.bound[1], res.bound[2]); m.geometry.boundingSphere.radius = res.bound[3]; }
       // (kept for whoever walks among them: the larger levels only)
       b.solid = this.def.levels[li].size[0] >= COLLIDE_FROM - 1e-6 ? b.full : null;
@@ -512,21 +513,33 @@ export class FarRocks {
   // world's centre, r: the ground's distance from the centre there (m). The block as it is
   // drawn: its own twenty faces (rockTop). 0 where there is none.
   riseAt(d, r) {
-    if (!this.def || !this.slots.length) return 0;
+    if (!this.def || !this.slots.length || !this.group.visible) return 0;
     const px = d[0] * r, py = d[1] * r, pz = d[2] * r;
-    let best = 0;
-    for (const s of this.slots) {
-      const b = s.tile;
-      if (!b || !b.solid || !b.center) continue;
-      const cx = px - b.center.x, cy = py - b.center.y, cz = pz - b.center.z;
-      if (cx * cx + cy * cy + cz * cz > b.radius * b.radius) continue;
-      const { off, quat, scale, shape } = b.solid, ox = px - b.origin.x, oy = py - b.origin.y, oz = pz - b.origin.z;
-      for (let i = 0; i < b.count; i++) {
-        const x = ox - off[i * 4], y = oy - off[i * 4 + 1], z = oz - off[i * 4 + 2], size = off[i * 4 + 3], lim = 1.6 * size;
-        if (x * x + y * y + z * z > lim * lim) continue;
-        const t = rockTop(x, y, z, d, quat, scale, shape, i, this.lump);
-        if (t > best) best = t;
+    // (the rocks within 40 m of the last place asked about are kept: the rig asks eight
+    // times a frame on foot, all within a few metres, and a pass over every rock of every
+    // tile each time was half a millisecond a frame)
+    const c = this._near || (this._near = { x: 1e12, y: 0, z: 0, serial: -1, list: [] });
+    if (c.serial !== this.solidSerial || Math.hypot(px - c.x, py - c.y, pz - c.z) > 20) {
+      c.x = px; c.y = py; c.z = pz; c.serial = this.solidSerial; c.list.length = 0;
+      for (const s of this.slots) {
+        const b = s.tile;
+        if (!b || !b.solid || !b.center) continue;
+        const cx = px - b.center.x, cy = py - b.center.y, cz = pz - b.center.z, reach = b.radius + 40;
+        if (cx * cx + cy * cy + cz * cz > reach * reach) continue;
+        const off = b.solid.off, ox = px - b.origin.x, oy = py - b.origin.y, oz = pz - b.origin.z;
+        for (let i = 0; i < b.count; i++) {
+          const x = ox - off[i * 4], y = oy - off[i * 4 + 1], z = oz - off[i * 4 + 2], lim = 40 + 1.6 * off[i * 4 + 3];
+          if (x * x + y * y + z * z <= lim * lim) c.list.push(b, i);
+        }
       }
+    }
+    let best = 0; const list = c.list;
+    for (let k = 0; k < list.length; k += 2) {
+      const b = list[k], i = list[k + 1], { off, quat, scale, shape } = b.solid;
+      const x = px - b.origin.x - off[i * 4], y = py - b.origin.y - off[i * 4 + 1], z = pz - b.origin.z - off[i * 4 + 2], lim = 1.6 * off[i * 4 + 3];
+      if (x * x + y * y + z * z > lim * lim) continue;
+      const t = rockTop(x, y, z, d, quat, scale, shape, i, this.lump);
+      if (t > best) best = t;
     }
     return best;
   }
@@ -588,7 +601,7 @@ export class FarRocks {
     if (far) { far.tile.slot = null; far.tile.state = 0; far.tile.center = null; this._free(far); }
     return far;
   }
-  _free(s) { s.tile = null; s.mesh.visible = s.shade.visible = false; this.casterDirty = true; }
+  _free(s) { s.tile = null; s.mesh.visible = s.shade.visible = false; this.casterDirty = true; this.solidSerial = (this.solidSerial || 0) + 1; }
 
   // The land's shadow on the rocks follows the Sun: one tile at a time, when a worker is free.
   _refreshVis() {
