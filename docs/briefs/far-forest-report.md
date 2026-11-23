@@ -163,11 +163,17 @@ the shadow maps those trees had no shadow of the land on them, ever. Both are do
   cloud noise once or twice), nothing per pixel. **Not measured on a phone.**
 - **The land's shadow on the near trees.** The worker's job for a block of near trees now
   does what the far forest's tile job does (one function, `landShadow` in
-  `src/terrain/chunkWorker.js`): a 4 x 4 grid of shadow rays over the 111 m block, read off
-  per tree, carried in the fourth number of `iD`. A block is asked for again when the Sun
+  `src/terrain/chunkWorker.js`): one shadow ray per tree, from two thirds of its height,
+  carried in the fourth number of `iD`. A block is asked for again when the Sun
   has moved a degree and a half, as the far tiles are. Under the shadow maps a near tree is
   now shaded twice by the same hill, which changes nothing dark to dark; at the soft edge
   of a mountain's shadow near trees are a little darker than before.
+  **Tried and taken back:** a 4 x 4 grid over the block, as the far tiles have. On the
+  opening ledge it read the shade under the cliff into the trees standing on the rim in
+  the Sun (their crowns a fifth darker in the opening view); tree by tree they are as
+  bright as they were. The far tiles keep their grid (20 x 20 over 889 m and up): the same
+  bleed is there on far rims, softer and far off. A block's job now casts one ray per
+  tree, some 200 in a wooded block; its time was not measured here.
 - Pictures: `haven_ledge_cloud1535_before/_after.png` (the near trees at the bottom, lit in
   the shadow before, dark with their ground after), `cloud1535_floor_after` (every saving
   on), `cloud1900_before/_after` (far trees in the shadow on the right). The before
