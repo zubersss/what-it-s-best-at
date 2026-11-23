@@ -44,8 +44,8 @@ export const ROCKS_FAR_DEFAULTS = {
   reach: 420, below: 12000,
   levels: [
     { size: [1.4, 3.4], tile: 0.012, sites: 128, density: 0.55, cap: 3072, wl: 2, forest: 0.6 },
-    { size: [3.4, 8], tile: 0.03, sites: 128, density: 0.5, cap: 4096, wl: 6, forest: 0.4 },
-    { size: [8, 20], tile: 0.075, sites: 128, density: 0.6, cap: 4096, wl: 10, forest: 0.15 },
+    { size: [3.4, 8], tile: 0.03, sites: 128, density: 0.42, cap: 4096, wl: 6, forest: 0.4 },
+    { size: [8, 20], tile: 0.075, sites: 128, density: 0.42, cap: 4096, wl: 10, forest: 0.15 },
     // (the talus near the eye: the small blocks of a rock slope, seen from 200 to 480 m.
     // Last in the list, so that the levels before it keep their numbers and their rocks.)
     { size: [0.6, 1.4], tile: 0.004, sites: 128, density: 0.4, cap: 3072, wl: 1, forest: 0.9, shadow: false },
@@ -95,7 +95,7 @@ export function clusterNoise(px, py, pz) {
 // k: rockiness there. Open ground keeps the noise's highest few per cent (erratics, here
 // and there a field of them); rock ground nearly all of it.
 const CANOPY_SEEN = 180;      // metres a rock under a closed canopy is seen from (it grows in over the last fifth)
-const OPEN_THR = 0.33, ROCK_THR = -0.03, THR_SOFT = 0.14;
+const OPEN_THR = 0.33, ROCK_THR = -0.12, THR_SOFT = 0.14;
 export function rockField(c, k) { const thr = OPEN_THR + (ROCK_THR - OPEN_THR) * k; return ss(thr, thr + THR_SOFT, c) * (0.45 + 0.55 * k); }
 
 // (the ground's slope east and north, -2..2, in a byte: the shader lays the rock's shadow on that ground)

@@ -17,10 +17,10 @@ declare -A Q=(
   [tele]="$STEEP&alt=2053&heading=62&pitch=-3&fov=14"
   [ledge_phone]="fov=21.4"          # (the opening view at a phone's density: 309 px across 21.4 degrees is 1 440 px across 60)
   [ledge_north]="heading=335&pitch=3&fov=21.4"   # (from the opening site toward the open broken ground north of it, at a phone's density: the opening view itself looks into woods)
-  [steep_join]="$STEEP&heading=135&pitch=-6"     # (standing in the field: near stones and far blocks in one view)
+  [steep_join]="lat=-48.79262&lon=47.19238&t=3&heading=20&pitch=0"     # (standing in a field of blocks 110 m from the steep place: near stones and far blocks in one view)
   [floor]="$STEEP&alt=2053&heading=135&pitch=-14&debug=floor"
 )
-ORDER=(steep_air100 steep_ground steep_join steep_air400 ledge_north ledge_phone wall steppe_ground ledge tele floor steppe_air30)
+ORDER=(steep_ground steep_join steep_air100 steep_air400 ledge_north ledge_phone wall steppe_ground ledge tele floor steppe_air30)
 [ $# -gt 0 ] && ORDER=("$@")
 fail=0
 for v in "${ORDER[@]}"; do
