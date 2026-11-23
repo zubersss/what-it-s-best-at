@@ -6,26 +6,47 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-### Milestone 12, a small living world: the owner's new direction (read this first)
+### Milestone 12, a small living world: delivery 1 sent (read this first)
 
-*2026-11-23, after the seventh painted delivery was sent. The owner asked three
-questions in a row and then gave the direction; the words are in `CLAUDE.md`, "What this
-game is", and the plan in `docs/ROADMAP.md`, "12. A small living world".*
+*2026-11-23. The owner's new direction is in `CLAUDE.md`, "What this game is"; the plan in
+`docs/ROADMAP.md`, "12. A small living world"; how a made world is built in
+`docs/ARCHITECTURE.md`, "A made world"; what was built and tried under "Milestone 12,
+delivery 1" below.*
 
-- **Asked**: would a smaller world give more depth on the way in; "what if I don't care
-  for the real sized maps or any of the things to do with it being a explorer"; then,
-  with five reference pictures (the stylised landscape game again; not in the
-  repository): "simply flying somewhere beautiful ... a living world ... 5 of the most
-  beautiful [biomes] on earth including this one ... tell me what it would take ... idc
-  if you have to do a full restart".
-- **Answered**: no restart (the engine carries over; the world is what is rebuilt); the
-  eight deliveries of the roadmap; where "as close as possible" stops. The owner had
-  said yes to building; delivery 1 was begun the same hour.
-- **Still to hear from the owner**: whether the four proposed biomes are the ones wanted.
-- **The seventh painted delivery's benchmark** (Earth, Smooth) was asked for and has not
-  come. If it comes, tune the governor from it first: it says whether the governor's
-  new rules hold on the phone, which the new world needs as much as Earth did.
-- **Delivery 1's plan** is under "Milestone 12, delivery 1: the plan" below.
+- **How it came about**: after the seventh painted delivery the owner asked whether a
+  smaller world would give more depth, then "what if I don't care for the real sized
+  maps or any of the things to do with it being a explorer", then, with five reference
+  pictures (the stylised landscape game again; not in the repository): "simply flying
+  somewhere beautiful ... a living world ... 5 of the most beautiful [biomes] on earth
+  including this one ... tell me what it would take ... idc if you have to do a full
+  restart". Answered: no restart; eight deliveries; where "as close as possible" stops.
+- **Delivered**: Haven, a made world 250 km in radius, where the game now opens. Its
+  land, lakes, rivers, forest, clouds and tide; flyable from space to the ground.
+  Pictures: `docs/shots/haven/` (the opening view, sunrise, evening; 1, 9, 60, 300 and
+  3 000 km; 9 km with every saving on).
+- **Asked of the owner**: a **Haven benchmark in Smooth** (the new button on the start
+  screen); whether the four proposed biomes are the ones wanted (red-rock canyon desert,
+  a broadleaf valley of lakes, tropical islands with a lagoon, high snow peaks with
+  fjords); what feels wrong in flight on a world this small.
+- **Still owed from before**: the Earth benchmark asked for with the seventh painted
+  delivery has not come. Any benchmark that comes says whether the governor's new rules
+  hold on the phone: tune from it first.
+- **What to do next, in order:**
+  1. With a Haven benchmark: read "late frames taken as the device's own" and where the
+     resolution settled, then the cost table at the three views (the opening place, in
+     the forest, from the air). If the ground's shading is what is slow, Haven needs
+     none of Earth's map-tile blocks in the ground's shader except the colour ring:
+     compile the rest out per world.
+  2. With a complaint about a look: reproduce it in a picture (from the air first:
+     three minutes; the ground: twenty), fix, show before and after.
+  3. Then delivery 2 of the roadmap: the look on the ground (big faceted rock, ridge
+     behind ridge with trees on the skyline, mist over water, light shafts).
+- **Known to be weak in delivery 1**: one biome everywhere (dry belts are golden and
+  nearly treeless); no weather yet (no rain, wind only as the grass's own); rivers from
+  the air are pale broken lines (their banks are drawn as dry sand; delivery 3); small
+  clouds are a stipple from 300 km at the test size; the first load is 21 MB; the
+  opening view looks along a brow and the valley below it is not in the picture; the
+  caps are open sea; flight speeds near a world this small are untried by a person.
 
 ### The seventh painted delivery (Earth from space to landing; the governor)
 
