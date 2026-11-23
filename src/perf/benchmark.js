@@ -224,6 +224,9 @@ export class Benchmark {
       }
     }
     L.push(`quality steps: ${steps.length} (resolution down ${down}, up ${up}; features off ${off}, back on ${on}) · ended at ${g.summary}`);
+    // (what the governor has taken for the device's own share of late frames, and how often
+    // it put quality back after steps down that cured nothing)
+    L.push(`late frames taken as the device's own: ${(100 * (g.bg || 0)).toFixed(1)} % · quality put back after steps that cured nothing: ${steps.filter((x) => /did not cure/.test(x.text)).length} times`);
     for (const s of steps.slice(0, 30)) L.push(`  ${s.t}s ${s.text}`);
     if (steps.length > 30) L.push(`  … ${steps.length - 30} more`);
     // Hitches: how many per cause, then the worst ones in the order they happened.
@@ -263,6 +266,7 @@ const WARM = 5, TAKE = 16, HELD = 2.07e6;
 const PARTS_OUT = [
   ['grass', (app, out) => app.grass?.setFraction(out ? 0 : 1)],
   ['trees', (app, out) => app.trees?.setFraction(out ? 0.02 : 1)],
+  ['the far trees', (app, out) => app.groves?.setFraction(out ? 0 : 1)],
   ['the figure', (app, out) => { app.heroScene.visible = !out; app.dustScene.visible = !out; }],
   // (the shadows of trees, rocks and the figure: drawn into their own maps before the picture)
   ['the shadow maps', (app, out) => { app.nearShadow.off = out; }],

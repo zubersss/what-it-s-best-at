@@ -12,6 +12,38 @@ import { G } from '../render/globals.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 
+// A heap of the cloud layer over a place, as the layer draws it and as the ground is shaded
+// by it (terrainMaterial.js): one rule, written here, for both.
+//   noise: the cloud volume's noise; up: the direction from the world's centre; m: the day's
+//   map there; lo: 1 - the layer's cover; fair: the cover of fair-weather cloud where the map
+//   has none; vol: x 1 / the noise's scale, y the fair-weather field's scale, z the radius at
+//   which the volume's masses are widest; wind: where the noise has drifted to; fine: how
+//   much of the smaller lobes (0: none; 1: all). c: the cover there (0..1). Returns 0..1.
+// Fair-weather cloud, where the day's map shows none (its pixels are 10 km: it never saw
+// them): fields of small heaps with clear stretches between, and the fields themselves in
+// clusters some tens of kilometres across with clear country between them. One rule, for
+// the volume (cloudVolume.js), this shell and the ground's shadows. (Without the clusters,
+// seen from high up one even field lay over the whole land: the same few heaps in rows
+// to the horizon, since the noise they are cut from repeats every few kilometres.)
+//   noise: the cloud volume's noise; up: the direction from the world's centre; k: the
+//   world's radius in units of the field; fair: its cover; m: the day's map there.
+//   Never a whole cover: fair weather has sky between its heaps.
+export const FAIR_GLSL = /* glsl */`
+float fairCover(highp sampler3D noise, vec3 up, float k, float fair, float m) {
+  float field = texture(noise, up * k + 0.31).r, cluster = texture(noise, up * (k * 0.2) + 0.83).g;
+  return min(0.5, fair * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, field) * smoothstep(0.40, 0.56, cluster) * (1.3 / 0.55));
+}`;
+
+export const HEAP_GLSL = FAIR_GLSL + /* glsl */`
+float cloudHeap(highp sampler3D noise, vec3 up, float m, float lo, float fair, vec3 vol, vec3 wind, float fine, out float c) {
+  c = smoothstep(lo - 0.08, lo + 0.34, m);
+  if (fair > 0.0) c = max(c, fairCover(noise, up, vol.y, fair, m));
+  vec3 qv = up * (vol.z * vol.x) + wind;
+  float n = texture(noise, qv).r;
+  if (fine > 0.0) n += (texture(noise, qv * 5.3 + 0.37).g - 0.5) * 0.26 * fine;
+  return clamp((n - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
+}`;
+
 const VERT = /* glsl */`
 out vec3 vRel;
 void main() {
@@ -32,6 +64,7 @@ uniform vec3 uVolWind;         // where the volume's noise has drifted to
 uniform float uNearFade;       // metres: nearer than this the cloud is drawn as a volume instead (cloudVolume.js); 0: all of it is this shell
 in vec3 vRel;
 layout(location = 0) out vec4 fragColor;
+${HEAP_GLSL}
 float hash(vec3 p) { p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float vnoise(vec3 x) {
   vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
@@ -61,36 +94,78 @@ void main() {
   float dens = m * (0.25 + 1.7 * d) + (d - 0.45) * 0.2 * smoothstep(0.1, 0.4, m);
   float lo = 1.0 - uCloud.x;
   float cover = smoothstep(lo - 0.08, lo + 0.34, dens);
+  // (how far off this is: 1 where a cloud's heaps are smaller than a pixel. Whether or not
+  // there is a volume near the traveller: with the governor's last saving on there is
+  // none, and from space the Earth then had no cloud at all.)
+  // (by the pixel's width across the line of sight, not its length along it: seen at a low
+  // angle a heap is still as wide as it was. By the longer of the two, every cloud a few
+  // hundred kilometres off from 100 km up was a grey veil, with the crisp shadows of its
+  // heaps on the ground under it.)
+  // (heaps, some kilometres wide, stay heaps until a pixel is a kilometre and a half across)
+  float far = smoothstep(1500.0, 5000.0, 2.0 * min(length(ux), length(uy)) * uCloud.y);
+  float relief = 1.0;            // the Sun on a heap's own shape: over 1 on its sunward side, under 1 in its own shade
   if (uVol.x > 0.0) {
     // With a volume near the traveller, this shell is the same clouds seen from far off: the
     // same cover (the day's map, and fair-weather fields where it is clear), carved by the
     // same noise at the height where the masses are widest. A cloud keeps its place and
     // its outline when the traveller comes near and the volume takes it over. (Not where
     // a mass is smaller than a pixel: there, its mean.)
-    float c = smoothstep(lo - 0.08, lo + 0.34, m);
-    if (uFair > 0.0) c = max(c, min(0.5, uFair * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, texture(tCloudNoise, up * uVol.y + 0.31).r) / 0.55));
-    vec3 qv = up * (uVol.z * uVol.x) + uVolWind;
-    float n = texture(tCloudNoise, qv).r + (texture(tCloudNoise, qv * 5.3 + 0.37).g - 0.5) * 0.26 * (1.0 - smoothstep(150.0, 600.0, px * uVol.z));
-    float dv = clamp((n - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
-    float small = smoothstep(500.0, 1800.0, px * uVol.z);
+    float c, dv = cloudHeap(tCloudNoise, up, m, lo, uFair, uVol.xyz, uVolWind, 1.0 - smoothstep(150.0, 600.0, px * uVol.z), c);
+    float small = far;
     cover = mix(smoothstep(0.0, 0.45, dv) * 0.75, c * 0.5, small);
+    // A heap seen from above has a lit side and a side in its own shade: the same cloud a
+    // few hundred metres toward the Sun says which this is (as the volume does near the
+    // traveller). Flat white, the layer was a picture laid over the land.
+    if (small < 1.0) {
+      float n1 = texture(tCloudNoise, normalize(up + uSunDir * (450.0 / uVol.z)) * (uVol.z * uVol.x) + uVolWind).r;
+      float dv1 = clamp((n1 - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
+      relief = clamp(1.0 + 1.25 * (dv - dv1), 0.6, 1.24);
+    }
   }
   // seen at a slant the layer is longer to look through
   float mu = max(abs(dot(V, up)), 0.12);
   float alpha = 1.0 - exp(-cover * (0.4 + cover) * 1.7 / mu);
-  if (uPaint.x > 0.0) alpha = mix(alpha, smoothstep(0.16, 0.5, cover) * 0.96, uPaint.x);
+  // (a clean edge: a heap is white or it is not there. With a soft one, seen from above
+  // the heaps were grey veils over the land.)
+  if (uPaint.x > 0.0) alpha = mix(alpha, smoothstep(0.2, 0.38, cover) * 0.97, uPaint.x);
+  // From far off (a cloud's heaps smaller than a pixel) the layer is the day's map itself, as
+  // the globe seen from another world wears it (sky/bodies.js): all of its cloud, thin and
+  // thick, every mass lit on its sunward side and in its own shade on the other. (It was the
+  // heaps' mean cover: from orbit the Earth had hardly a cloud, and what it had was flat.)
+  if (far > 0.0) {
+    vec3 ps = normalize(up + uSunDir * 0.0035);
+    float m1 = textureGrad(tCloudMap, vec2(atan(ps.y, ps.x) * 0.15915494 + uCloud.z, acos(clamp(ps.z, -1.0, 1.0)) * 0.31830989), gx, gy).r;
+    // (thin cloud shows only from very far, where the whole globe is in view: nearer, the
+    // map's faint parts were grey veils of fog lying over the land)
+    // Between the two (heaps too small to see one by one, the globe not yet whole in view) a
+    // field of heaps is a white veil as thick as the share of sky it covers: the same cover
+    // the heaps are cut from, so no cloud appears from far that is not there from near.
+    // (With the map's own faint parts shown, grey sheets of fog lay over half the land.)
+    alpha = mix(alpha, mix(0.55 * smoothstep(lo - 0.08, lo + 0.34, m), smoothstep(0.04, 0.9, m), smoothstep(4000.0, 12000.0, px * uCloud.y)), far);
+    relief = mix(relief, clamp(1.0 + 1.3 * (m - m1), 0.55, 1.25), far);
+  }
   if (uNearFade > 0.0) alpha *= smoothstep(0.7 * uNearFade, uNearFade, dist);
   if (alpha < 0.004) discard;
   // light: the Sun through the air to this height, more of it at the cloud's sunward edge
   // and around the Sun's direction; from below a thick cloud is grey
   float mu0 = dot(up, uSunDir), cs = dot(-V, uSunDir);
   float fwd = 0.6 + 0.9 * pow(max(cs, 0.0), 8.0);
+  // (looked down on, a cloud shows its sunlit top: as bright as the Sun's height over it
+  // makes a white thing. With the light of its under side, a field of heaps from 30 km was
+  // hardly lighter than the desert under it. By the line of sight, not by where the
+  // traveller is: on the way through the layer the clouds far off are seen edge on.)
+  fwd = mix(fwd, 0.45 + 0.8 * max(mu0, 0.0), smoothstep(0.0, 0.3, dot(V, up)));
   float under = uCloud.w > 0.5 ? mix(1.0, uVol.x > 0.0 ? 0.6 : 0.42, cover) : 1.0;
   vec3 sun = directSun(planetPos) * smoothstep(-0.06, 0.08, mu0) * fwd * under;
   // (matched to the volume near the traveller, whose sunlit faces are white)
-  vec3 col = vec3(0.86) * (sun * (uVol.x > 0.0 ? 0.8 : 0.42) + skyLight(uCloud.w > 0.5 ? -up : up, up) * 0.9 + skyLight(up, up) * 0.25) / PI;
-  // (... in two tones: its body, and its thick middle a step darker)
-  if (uPaint.x > 0.0) col *= mix(1.0, mix(1.0, 0.8, smoothstep(0.55, 0.7, cover)), uPaint.x);
+  // (... and as white without the volume, in the painted look: with the governor's last
+  // saving on, the same clouds were grey)
+  vec3 col = vec3(0.86) * (sun * (uVol.x > 0.0 ? 0.8 : mix(0.42, 0.8, uPaint.x)) + skyLight(uCloud.w > 0.5 ? -up : up, up) * 0.9 + skyLight(up, up) * 0.25) / PI;
+  // (... in two tones: its body, and its thick middle a step darker. From below only: seen
+  // from above the thick middle of a heap is its sunlit top, and with it darkened a field
+  // of heaps from 30 km was grey flakes with pale rims.)
+  if (uPaint.x > 0.0) col *= mix(1.0, mix(1.0, 0.8, smoothstep(0.55, 0.7, cover)), uPaint.x * (1.0 - far) * uCloud.w);
+  col *= relief;
   col = aerialPerspective(col, vRel);
   fragColor = vec4(col * uExposure * alpha, alpha);
 }`;
@@ -111,6 +186,9 @@ export class CloudLayer {
     this.def = null; this.enabled = true; this.loading = false; this.radius = 0; this.epoch = 0;
     // what the terrain shader needs for the shadow: strength, shell radius, map shift (see setWorld / update)
     this.shadow = new THREE.Vector4(0, 1, 0, 0);
+    // heap: x 1 - the cover, y the fair-weather cover, w 1 when the ground can be shaded by
+    // the layer's own heaps (the volume's noise is there); the ground shader's uCloudHeap.
+    this.heap = new THREE.Vector4(0, 0, 0, 0);
   }
 
   // The home world changed: its cloud map is fetched (decoded off the main thread).
@@ -150,6 +228,7 @@ export class CloudLayer {
       this.uniforms.tCloudNoise.value = volume.noise; this.uniforms.uVolWind.value.copy(volume.drift);
       this.uniforms.uVol.value.set(1 / (v.scale ?? 5200), worldRadius / (v.scale ?? 5200) * 0.11, this.radius, 0);
     } else this.uniforms.uVol.value.x = 0;
+    if (!on || !match) this.heap.w = 0;
     this.mesh.visible = on;
     this.shadow.x = on && this.shadows !== false ? (this.def.shadow ?? 0.6) : 0;
     if (!on) return 0;
@@ -158,6 +237,8 @@ export class CloudLayer {
     this.uniforms.uCloud.value.set(this.def.cover ?? 0.8, this.radius, shift, r < this.radius ? 1 : 0);
     this.uniforms.uFair.value = this.def.volume?.fair ?? 0;
     this.shadow.y = this.radius; this.shadow.z = shift;
+    // (what the ground needs to be shaded by the heaps the layer shows: see heap below)
+    this.heap.set(1 - (this.def.cover ?? 0.8), this.uniforms.uFair.value, 0, match && this.shadows !== false ? 1 : 0);
     return Math.sqrt(Math.max(0, r * r - worldRadius * worldRadius)) + Math.sqrt(this.radius * this.radius - worldRadius * worldRadius);
   }
 }

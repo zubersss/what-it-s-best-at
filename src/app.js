@@ -14,6 +14,7 @@ import { Governor, MODES, FRAME } from './perf/governor.js';
 import { Benchmark } from './perf/benchmark.js';
 import { waveHeightAt, waveScale } from './water/waves.js';
 import { Trees } from './life/trees.js';
+import { Groves } from './life/groves.js';
 import { Leaves } from './life/leaves.js';
 import { CloudVolume } from './sky/cloudVolume.js';
 import { Weather } from './weather/weather.js';
@@ -283,6 +284,8 @@ export class App {
       this.nearScene.add(set.mesh);
       this.nearShadow.addCaster(set.cast, this.trees.depthMaterial, () => set.mesh.visible && (set.lod <= 1 || this.trees.shadowsFar));
     }
+    // (the far trees: a wider ring of tree shapes that rise out of the raised forest)
+    this.groves = new Groves(this.trees, this.terrain); this.nearScene.add(this.groves.mesh);
     this.grass = new Grass(this.terrain, this.terrain.shared.uWind); this.grass.setWorld(world);
     this.nearScene.add(this.grass.mesh);
     this.leaves = new Leaves(this.trees);
@@ -323,6 +326,9 @@ export class App {
     for (const m of this.hero.casters) this.nearShadow.addCaster(m, this.hero.depthMaterial, () => this.hero.group.visible);
     await this.terrain.workers.ready;
 
+    // ?debug=floor: every saving the governor has, and Smooth's share of the patches: what a
+    // phone that has given everything up draws (for pictures of exactly that).
+    if (params.debug.includes('floor')) { this.governor.toFloor(); this.terrainBudget(MODES.smooth.patches ?? 1, 'mode'); }
     this.applyBookmark(params.shot || 'ledge');
     this.pendingAim = params.aim || null;
     if (params.timeOffsetHours != null) this.timeOffsetHours = params.timeOffsetHours;
@@ -1080,7 +1086,7 @@ export class App {
       this.terrain.setWorld(w, data.rasters, data.hs);
       this.clouds.setWorld(w); this.cloudVolume.setWorld(w); this.cloudVolume.setGround(data.rasters[0]);
       this.rocks.setWorld(w, data.hs);
-      this.trees.setWorld(w); this.weather.setWorld(w); this.look.setWorld(w); this.grass.setWorld(w);
+      this.trees.setWorld(w); this.groves.setWorld(w); this.weather.setWorld(w); this.look.setWorld(w); this.grass.setWorld(w);
       this.dust.setWorld(w);
       this.placeLander(w, data.hs);
       this.bodies.setWorld(w);
@@ -1219,6 +1225,7 @@ export class App {
     {
       const d = this.clock, day = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000;
       this.trees.update(rig, day, this.terrain.shared.uWave.value.z);
+      this.groves.update(rig);
       // (beyond the trees the forest is raised as a whole; from high up, all of it)
       const tr = this.trees, drawn = tr.def && rig.agl < (tr.def.below ?? 1500), r = (tr.def?.radius ?? 240) * tr.fraction;
       // (it is up to its height where the last trees stand: from above, the ground showed
@@ -1311,6 +1318,7 @@ export class App {
     // (clouds: near the traveller the layer is a volume. Its small picture is marched now,
     // before the main picture is begun, and laid over the ground further down: nothing
     // interrupts the main picture, see sky/cloudVolume.js)
+    this.cloudVolume.place(rig.pos);
     const cloudFar = this.clouds.update(rig.pos, world.radius, this.cloudVolume);
     const vol = this.cloudVolume.ready(rig.pos, this.clouds);
     this.clouds.uniforms.uNearFade.value = vol ? this.cloudVolume.reach : 0;
@@ -1325,6 +1333,12 @@ export class App {
     const near = Math.max(0.25, Math.min(2e6, rig.agl * 0.15));
     // (clouds: their shadow reads the same map; the view must reach the layer's horizon)
     this.terrain.shared.tClouds.value = this.clouds.mesh.visible ? this.clouds.texture : this.terrain.textures.white;
+    {
+      // (the ground is shaded by the very heaps the layer shows: its numbers, handed over)
+      const sh = this.terrain.shared, cu = this.clouds.uniforms, on = this.clouds.mesh.visible && this.clouds.heap.w > 0.5 && !!cu.tCloudNoise.value;
+      sh.uCloudHeap.value.copy(this.clouds.heap); if (!on) sh.uCloudHeap.value.w = 0;
+      if (on) { sh.tCloudNoise.value = cu.tCloudNoise.value; sh.uCloudVol.value.set(cu.uVol.value.x, cu.uVol.value.y, cu.uVol.value.z); sh.uCloudWind.value.copy(cu.uVolWind.value); }
+    }
     const far = Math.max(this.terrain.farDistance, cloudFar) * 1.05;
     rig.finalize(aspect, near, far);
     renderer.render(this.nearScene, rig.camera);
@@ -1391,9 +1405,9 @@ export class App {
     }
 
     if (this.shotMode) {
-      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.trees.busy && !this.grass.busy && !this.cloudVolume.busy && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && !this.clouds.loading && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
+      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.trees.busy && !this.groves.busy && !this.grass.busy && !this.cloudVolume.busy && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && !this.clouds.loading && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
       window.__shotReady = ready;
-      window.__stats = { weather: this.weather.def ? `wind ${this.weather.windSpeed.toFixed(0)} m/s, rain ${this.weather.rain.toFixed(1)} mm/h, snow ${this.weather.snow.toFixed(1)}, ${this.weather.temp.toFixed(0)} C, sun ${this.weather.sunShade.toFixed(2)}, sky ${this.weather.skyShade.toFixed(2)}, top ${Math.round(this.weather.top)} m` : '', trees: `${this.trees.count} (${Math.round(this.trees.triangles / 1000)}k triangles)${this.trees.names ? ': ' + this.trees.names : ''}`, water: this.terrain.tiles.rings.map((r) => r.info ? `z${r.zoom}: ${r.info.rivers} rivers, ${Math.round(r.info.flow)} m3/s${r.info.inflow ? '' : ' (no inflow)'}` : null).filter(Boolean).join('; '), stale: this.terrain.staleData, tilesBusy: this.terrain.tiles.busy, refreshQ: this.terrain.readyRefresh.length, rings: this.terrain.ringSerial, tileFails: this.terrain.tiles.failures, busyW: this.terrain.workers.busy, calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.clouds.loading ? 'clouds' : ''}` };
+      window.__stats = { weather: this.weather.def ? `wind ${this.weather.windSpeed.toFixed(0)} m/s, rain ${this.weather.rain.toFixed(1)} mm/h, snow ${this.weather.snow.toFixed(1)}, ${this.weather.temp.toFixed(0)} C, sun ${this.weather.sunShade.toFixed(2)}, sky ${this.weather.skyShade.toFixed(2)}, top ${Math.round(this.weather.top)} m` : '', trees: `${this.trees.count} (${Math.round(this.trees.triangles / 1000)}k triangles)${this.trees.names ? ': ' + this.trees.names : ''}`, farTrees: this.groves.count, water: this.terrain.tiles.rings.map((r) => r.info ? `z${r.zoom}: ${r.info.rivers} rivers, ${Math.round(r.info.flow)} m3/s${r.info.inflow ? '' : ' (no inflow)'}` : null).filter(Boolean).join('; '), stale: this.terrain.staleData, tilesBusy: this.terrain.tiles.busy, refreshQ: this.terrain.readyRefresh.length, rings: this.terrain.ringSerial, tileFails: this.terrain.tiles.failures, busyW: this.terrain.workers.busy, calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.clouds.loading ? 'clouds' : ''}` };
     }
   }
 

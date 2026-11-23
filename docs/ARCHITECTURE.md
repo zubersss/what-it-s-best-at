@@ -344,9 +344,12 @@ illuminate anything. Everything goes through `src/render/lightingGlsl.js`.
 
 **Texture budget per shader.** Phones allow 16 textures in one fragment shader (the test
 browser allows 32), and a shader over that draws nothing on the phone, with no error in any
-headless test. The terrain's shader is the fullest: 15 (strata, detail, colour and slope
-maps; the chunk's normal and shadow maps and its parent's two; the sky-light texture, three
-aerial-perspective maps, two atmosphere tables and the near shadow map). The two sky-light tables share one texture
+headless test. The terrain's shader is full: 16 of 16 (strata and detail; the world's
+colour and slope maps and the colour ring of streamed tiles; the chunks' normal and shadow
+layers; the sky-light texture, three aerial-perspective maps, two atmosphere tables, the
+near shadow map; the day's cloud map and the cloud noise, for the heaps' shadows). Its
+vertex shader reads four more (vertices, morph, normals, the ring), which count apart. A
+new map in the ground's shader must take the place of one. The two sky-light tables share one texture
 (`tIrradiance`: octahedral map, circumsolar row, and the level-ground sky light against the
 Sun's height in row IRR+1, each pass drawing only its rows). `scripts/lib/glLimits.mjs`
 checks every linked program against the OpenGL ES 3.0 minimums in `npm run smoke` and in
@@ -421,6 +424,19 @@ as before.
   `life/leaves.js` sheds leaves in their season, in a gale (from every tree) and when
   the traveller passes trees fast.
 
+**Seen from above** (two things of the look that are right on the ground and wrong from
+the air):
+- `uHaze` (`look.js`, `look.spaceHaze`, default 0.45): how much of the haze lies over what
+  is seen. 1 up to 2.5 km, down to 0.45 from 25 km: `hazeOverGround` mixes its result
+  back toward the unhazed colour by it, and `forestAir` is gone by half of it. The look's
+  low air is five times a clear day's; looked through whole from above it was a milky
+  veil, and from orbit the home world was a pale ball.
+- **The relief light** (`look.reliefLight`, `uAirRelief` in the ground shader): ground more
+  than 1.5 km off (in full by 9 km) is lit, for its slopes, by a Sun no higher than 35
+  degrees from the real Sun's side; level ground keeps the brightness the real Sun gives
+  it. Under a high Sun the two-tone light puts every slope in the light and the land was
+  as flat as a carpet from the air. Nothing changes while the Sun is under 35 degrees.
+
 ## Ground ready ahead of the traveller
 
 - `Terrain.update` works out a place ahead: three seconds along the traveller's velocity
@@ -472,6 +488,12 @@ ring: it is not asked for.
   mirrors them at `/__ext/<host>/<path>` from a cache on disk (`/root/mapcache/ext`,
   filled with curl on a miss) and tells the page through `window.__EXT`.
 - Without the services (no connection, Node scripts) the bundled maps are all there is.
+- **A picture's zoom follows the height** (`pictures.colour.zooms: [[zoom, up to (m)], ...]`,
+  finest first): the same four tiles a side, coarser and so wider the higher the
+  traveller is (Earth: 600 m a pixel over 600 km below 125 km, to 10 km a pixel over
+  10 000 km below 2 000 km). The zoom in use is kept until the height is a seventh past
+  its range; a trip's destination is asked for at the finest. Land cover and canopy come
+  at the same zoom.
 
 ## Water
 
@@ -590,6 +612,29 @@ ring: it is not asked for.
 - **The air of a wood** (`forestAir` in the lighting chunk): trees, the forest's floor and
   the far canopy are mixed toward the sky's light by distance (to 38 % by some hundreds of
   metres): row behind row of trees paler, and the far forest lighter than the near.
+- **The far trees** (`groves.js`, `life.trees.far: { radius, spacing, below }`): beyond the
+  trees one walks among, one tree shape in every few out to 2 km, each the picture of a
+  whole tree on two crossed quads with a rosette in its crown (what a far mesh is), in
+  **one instanced draw** (the shape is a number of the instance's own; where each picture
+  is in the atlas is read off the far meshes). Placed by `treeBlock` itself on blocks of
+  0.01 degrees with a site every 30 m (job `trees` with `deg` and `salt`), so the same
+  land cover, slopes, water and tree line decide. They grow in where the nearer trees
+  end and are drawn after the ground: the raised canopy hides their lower part for
+  nothing, and their crowns stand out of it. From higher than the nearer trees are drawn
+  (1 500 m) they begin at the eye: they are the trees a traveller sees coming down.
+  Governor step `far-trees` (half of them); the cost test leaves them out as a part.
+- **The canopy's crowns** (`crowns()` in the ground shader): the raised forest is shaded as
+  domes side by side, 8 m apart (and the stands they grow in, 21 m): each tilts the
+  surface outward from its middle, is lighter on top and dark in the gaps, and has a green
+  of its own; a jittered lattice with a whole number of cells across the detail tile, and
+  different in every tile of a block 16 tiles a side (`DETAIL_PERIOD`: a patch's tile
+  coordinates are kept modulo 16 tiles, 1 km; with the same 64 crowns in every tile the
+  forest was a cloth woven in squares from the air). They
+  fade out as a crown nears a pixel and a half. With the relief light this is what makes
+  a forest a forest from the air, where it was one even green.
+- The canopy stands on slopes up to about 28 degrees and is gone by 40 (the trees' own
+  rule is 27 to 43: `treeBlock.js`), judged over some tens of metres and never over a
+  whole patch at once.
 - **Beyond the trees** the canopy is up to its height where the last trees stand (0.62 to
   0.98 of the radius; the trees shrink away from 0.86), and its normal leans toward the
   eye by how far from overhead one looks: the canopy shows the sides of its crowns, lit
@@ -627,9 +672,17 @@ ring: it is not asked for.
   level set by the cover; the top of the layer at each place stands higher the further
   the noise is over that level (a dome over each heap's middle). The cover is of one
   level: the sky seen from below is the union of all of them and much fuller.
-- `volume.fair`: fair-weather cloud. Where the day's map shows no cloud the cover is still
-  `fair` times a slow field (the cloud noise at a 47 km repeat), so there are fields of
-  small heaps and clear stretches; the shell has the same rule with its own puffs.
+- `volume.fair`: fair-weather cloud (`FAIR_GLSL`, `fairCover`, in `sky/clouds.js`: one
+  rule for the volume, the shell and the ground's shadows). Where the day's map shows no
+  cloud the cover is still `fair` times a slow field (the cloud noise at a 38 km repeat:
+  fields of small heaps and clear stretches) times a slower one (its cells at a 190 km
+  repeat: the fields stand in clusters some tens of kilometres across with clear country
+  between). The heaps' noise repeats every `scale` (4.2 km): without the clusters one
+  even field was the same few heaps in rows to the horizon, seen from 30 km.
+  `node scripts/cloud-field.mjs` draws the field from above in a second.
+- `CloudVolume.place` works out where the base stands every frame, drawn or not: the shell
+  shows the volume's heaps (and the ground their shadows) from any height, on the first
+  way in from space and with the governor's last saving on.
 - The Sun on the cloud is a painter's, not the physical sum: `sunward` (less cloud 280 m
   toward the Sun than here, and height in the cloud) picks between a light shade (0.45)
   and full light; only a cover that is nearly whole darkens what is under it (storms).
@@ -881,7 +934,21 @@ exposure alone decides whether they are visible.
   four sizes of generated puff, lit by the Sun through the air and by the sky. Its shadow
   on the ground is one extra texture read in the terrain shader (`tClouds`, `uCloud`):
   the cloud where the sunbeam to that ground crossed the layer. The near pass's far
-  plane reaches the layer's horizon. Governor step `clouds`.
+  plane reaches the layer's horizon. Governor step `clouds` (one of the last three).
+  **A heap** is one rule (`HEAP_GLSL`, `cloudHeap`): the cover the day's map gives a place
+  (and fair-weather fields where it gives none), carved by the cloud volume's noise at
+  the height where its masses are widest. The layer draws it with a clean edge, a lit side
+  and a side in its own shade (the same heap a few hundred metres toward the Sun,
+  `relief`); **the ground is shaded by the same heap** where the sunbeam to it crosses the
+  layer (`uCloudHeap`, `uCloudVol`, `uCloudWind`, `tCloudNoise` in the ground shader, the
+  sixteenth of its sixteen textures): every cloud has its shadow beside it on the land,
+  and nothing is shaded where no cloud is drawn.
+  **From far off** (`far`: where a pixel is 1.5 to 5 km wide across the line of sight, and
+  a heap no more than a pixel or two) a field of heaps is a white veil as thick as the share of sky
+  it covers (0.55 of the cover), and the ground takes the field's mean shade; from farther
+  still (4 to 12 km a pixel: the whole globe in view) the layer is the day's map itself
+  as the globe seen from another world wears it, `smoothstep(0.04, 0.9, map)`, lit by its
+  own relief. None of this depends on the cloud volume being on.
 - The albedo map can start at longitude -180 (`albedoMap.lon0: -180`, Earth's globe
   maps) and steep rock can take less of its tint (`steep`): snow does not lie on cliffs.
 
@@ -944,7 +1011,8 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   never resampled by the browser. `MAX_NATIVE_PIXELS` (8.3 M) is only a guard for
   monitors above 4K.
 - **Resolution levels**: level k renders `native × 0.88^k` pixels; the lowest level is
-  the one closest to 1 M pixels (or native, if the canvas is smaller than that).
+  the one closest to 1.6 M pixels (or native, if the canvas is smaller than that). (It
+  was 1 M: on the test phone the last 0.6 M bought a twentieth of a frame.)
 - **Slow work is told from slow pixels.** The app passes the page's own time for the frame
   (`scriptMs`: from the start of `frame()` to the governor's update). When frames are late
   and that time fills more than 0.6 of the interval, resolution is left alone and the
@@ -970,18 +1038,40 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   12. `cloak`: robe and hair simulated with half the solver passes (the id is from the cloak it replaced);
   13. `air-shadow`: terrain shadows in the haze off.
 
-  Steps up run in reverse. Every new feature that costs frame time adds its step here.
+  (That list is of milestone 4; the file has more now. The last three to go are the clouds'
+  shadows, the relief of far ground and the clouds with depth: what gives land and sky
+  their depth from the air.) Steps up run in reverse, five at a time. Every new feature
+  that costs frame time adds its step here.
 - **Measuring**: the display's refresh interval is estimated continuously from the
   spacing of animation-frame callbacks (20th percentile of the last 60, never slower than
   57 Hz). The frame interval is the mode's target rounded to a whole number of refreshes.
   A frame is *late* when it takes more than 1.2 × its interval (`LATE`). Lateness is
   judged against the target interval, never against the measured refresh: when every
   frame is slow the refresh reads too long and would excuse them.
-- **Deciding**: over the last 24 frames, step down when more than 20 % of the ordinary
-  frames are late, or more than 60 % of all frames (two steps at once above 60 %). Frames
+- **Deciding**: over the last 24 frames, step down when more than 20 % (+ `bg`) of the
+  ordinary frames are late, or more than 30 % (+ `bg`) of all frames (in strides when
+  most are). Frames
   in which new terrain was uploaded are "soft": lateness there is usually not the
   resolution's fault. Frames after a bookmark jump, a world switch, a resize or a return
   from the background are ignored.
+- **Late frames of the device's own** (`bg`). A phone has late frames that nothing drawn
+  causes (one in fifteen at every stop of the eighth benchmark, at one million pixels as
+  at two). `lateEMA` is the share of ordinary frames late over the last three seconds or
+  so; `bg` is the part of it the device has whatever is drawn. `bg` is learned only from
+  evidence: at the resolution's floor (nothing lower to try), or from a trial that cured
+  nothing; it follows `lateEMA` down at once. Up to `bg` + 3 % a late frame does not reset
+  the clean run; the window's threshold for stepping down is 20 % + `bg`.
+- **A step down is a trial** (`_dip`). When some frames are late (under 60 %), two steps
+  have been taken and about as many are late as before (over 0.7 of the first share),
+  fewer pixels are not the cure: `_putBack` restores the resolution and the savings the
+  trial began with, and such lateness moves nothing for 30 s (then 60, up to 240;
+  `immune`). When everything has been given up and the frames are as long as they were
+  (the window's mean over 0.85 of the first), the same. When only the savings did nothing
+  (frames as long with all of them on as when the first went), the savings come back and
+  the resolution stays (`featImmune`). A few late frames over `bg` + 4 % for six seconds
+  start a trial of their own (one step, two seconds to see what it did); a step up
+  followed by one within twelve seconds is taken back instead. Arriving at another place
+  ends all of it. The benchmark prints `bg` and how often quality was put back.
 - **Stepping up** needs a clean run of `holdUp` seconds (3 s to start) and, where the
   browser exposes GPU timer queries, GPU time under 72 % of the interval. If a step up
   has to be taken back within 4 s, `holdUp` doubles (up to 60 s); it halves again each
@@ -991,7 +1081,11 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   screen, remembered in `localStorage`. Both modes start at native. Switching to Sharp
   jumps to native with every feature on and lets the governor come down; switching to
   Smooth keeps the current level and comes down from there if it has to.
-- `?scale=` and screenshot mode fix the scale and switch all of this off.
+- `?scale=` and screenshot mode fix the scale and switch all of this off. `?debug=floor`
+  (with a picture) switches every saving on and takes Smooth's share of the patches: what
+  a device that has given everything up draws.
+- A place's remembered level is kept under `<mode>:<place>:2`; levels remembered before
+  the eighth results (the floor, everywhere) are not read.
 
 ## Benchmark (`src/perf/benchmark.js`)
 

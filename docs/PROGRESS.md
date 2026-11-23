@@ -6,7 +6,59 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-### The sixth painted delivery (speed, far things, water, storms, trees): read this first
+### The seventh painted delivery (Earth from space to landing; the governor): read this first
+
+*2026-11-23, after the owner's eighth phone results (the three-minute benchmark of build
+f300e6f) and the words "it looks horrible and unrendered ... in space before I've landed".
+All of it is under "The owner's eighth phone results and the seventh painted delivery".*
+
+- **Why the phone's picture was "unrendered"**: the governor sat at its floor (one million
+  pixels, every saving on) for whole sessions. One frame in fifteen is late on that phone
+  whatever is drawn; it stepped down for them and could never step up. It is rewritten
+  where it decides (late frames of the device's own; a step down is a trial that is put
+  back if it cures nothing; floor 1.6 MP). **Not measured on the phone.**
+- **What a traveller coming in from space saw**, reproduced with `?debug=floor`: a pale
+  ball with no cloud; a flat map under a flat picture of clouds; one green carpet for a
+  forest. **Now**: a blue globe with the day's clouds; less haze from above; a relief
+  light; white clouds in clusters with a lit side, a clean edge and their own shadows on
+  the ground, from any height; the land's colour sharp over the whole view; a canopy of
+  uneven crowns and a ring of far trees. Pictures: `docs/shots/approach/` (`before_*` as
+  the phone drew it, `after_*`, `pair_*`: 20 000, 2 000, 400, 100, 30 and 10 km, among
+  the clouds, the forest).
+- **Asked of the owner**: an **Earth benchmark in Smooth** (new cost: cloud shadows from
+  the heaps and the crowns in the ground's shader on Earth, the far trees; and more
+  pixels, since the floor is higher). Read first the line "late frames taken as the
+  device's own" and how often quality was put back.
+- **The owner asked** (a question, "for now", while this was being finished): would a
+  smaller world, built differently from the start, give more depth on the way in
+  (mountains, plateaus, the curve)? **Answered**: no restart; what hid the depth was the
+  floor, the haze and clouds without shadows. A smaller planet would show peaks against
+  the curve but gives up real places at real size (the canyon a slot, the maps no longer
+  fitting). **Offered, not built**: relief two or three times taller seen from high up,
+  easing to true height on the way down (the ground's vertices carry their height:
+  a factor by the eye's height in the vertex shader; the baked shadows would not follow).
+  Do nothing on this unless the owner asks.
+- **What to do next, in order:**
+  1. With the benchmark: if the governor now holds well above 1.6 MP with everything on,
+     the diagnosis was right. If Earth is slow in earnest (late frames that fewer pixels
+     do cure), the ground's shader is the place: "the ground's shading" was 18.7 of 44 ms
+     on Mars. Cut it by compiling Earth's blocks out of other worlds, then by what can
+     move to the vertex.
+  2. With a complaint about the look from the air: take the whole approach again
+     (`debug=floor` and without), name what is wrong at each height, then fix.
+  3. Known to be weak: at a phone's pixel the crowns are small from 700 m (an uneven
+     canopy, not yet trees one could count); the far trees reach 2 km only; the night
+     side of the home world from space has no city lights (the far globe has them);
+     clouds from 4 000 to 18 000 km thin out as one comes nearer (from the day's whole
+     map to the heaps' cover); inside a cluster the heaps still stand in short rows (the
+     noise repeats every 4.2 km: a larger noise, or two blended, would end it, at a
+     cost in the cloud volume); where a heap is a pixel or two (from 400 km at the test
+     size, from some 2 000 km on the phone) a field is a stipple before it becomes a
+     veil; right under a cluster's base the sky is one cream lid; the ground's shader
+     has no texture to spare (16 of 16); the stability test has one Earth move.
+  4. Then the rest of milestone 11.
+
+### The sixth painted delivery (the delivery before: speed, far things, water, storms, trees)
 
 *2026-11-22, after the owner's seventh phone results (Earth benchmark of build ef3201a)
 and a list. The whole of it is under "The owner's seventh phone results and the sixth
@@ -464,6 +516,139 @@ close fir's blades are large flat faces when the camera is among the boughs; no 
 of the tropical, acacia and palm shapes in the game (only in the preview). Clouds: seen
 from below toward the Sun they are one cream tone; the far shell is flatter and dimmer
 than the volume it continues. Nothing here was measured on the phone.
+
+## The owner's eighth phone results (build f300e6f) and the seventh painted delivery: Earth from space to landing
+
+**The numbers** (the three-minute benchmark, Mars and the Moon, Smooth): 55.2 fps, 1 % low
+15.8, 7.0 % of frames late; Mars 54.5, flight 55.9, the Moon 55.1; **resolution 1.16 MP on
+average, at the floor (0.96) at most stops**; the page's own work 5.9 ms (the figure 2.5);
+frames two refreshes long (92.9 %) or four (6.2 %). By stop the late frames run from 0 %
+(Moon dusk) to 18.5 % (Mars ship) **at the same one million pixels**.
+
+**The cost test** (Mars ledge, 2.07 MP; times to a pixel read back, about 2.4 times a
+frame in play): everything on 44.3 ms, every saving on 40.9, at 1.00 MP 40.5, at native
+57.5. Parts left out: the shadow maps 1.7, **the ground's shading 18.7**, the ground and
+all on it 30.4, the sky 2.1, the last pass at the picture's size -0.7 (nothing: that
+change of the sixth delivery bought nothing), nothing drawn 17.9.
+
+**What it says.**
+1. **The levers buy almost nothing.** Half the pixels: 9 % of a frame. Every saving: 8 %.
+   Yet the phone sat at one million pixels with savings on through whole benchmarks, and
+   the owner's word for the picture was "unrendered".
+2. **Why it sat there.** One frame in fifteen is late at every stop, at the floor as
+   anywhere: late frames of the phone's own (its GPU clocks itself down to the load; the
+   browser; the rest of the system). The governor stepped down for them, cured nothing,
+   and needed three seconds without one late frame to step up: with four late frames a
+   second it never could. The simulation with such a phone: the old governor stays at
+   0.96 MP with 23 savings on for all 150 seconds.
+3. **The ground's shader is the largest thing the GPU does** (18.7 of 44 ms on Mars, where
+   none of Earth's features run): the next place to cut, and it is cut by the triangle as
+   much as by the pixel (the whole frame is hardly cheaper at half the pixels).
+
+**The governor, rewritten where it decides** (`src/perf/governor.js`; `npm run govsim`):
+- `bg`: the share of late frames the device has whatever is drawn. Learned only from
+  evidence: at the resolution's floor, or from a trial that cured nothing. Up to it (plus
+  3 %) late frames neither bring quality down nor stop it from coming back.
+- **A step down is a trial.** Some frames late, two steps taken, about as many late as
+  before: what was given up comes back (`_putBack`), and such lateness is left alone for
+  30 s, then 60, up to 240. Everything given up and the frames as long as before: the
+  same. The savings alone can come back while the resolution stays.
+- A few late frames above `bg` for six seconds start a trial of their own (too few to
+  trip the 24-frame window); a step up followed by one within twelve seconds is taken back.
+- The floor is 1.6 MP (it was 1.0); savings come back five at a time; levels remembered
+  before this are left behind (`_key`); the benchmark prints `bg` and how often quality
+  was put back.
+- Four new cases in the simulation, each seen to fail with the old governor.
+- `?debug=floor`: pictures at the floor (every saving on, Smooth's share of patches).
+
+**What the owner said** (with the results): *"I still think it looks horrible ...
+specifically in space before I've landed on Earth: it looks horrible and unrendered and
+it has no height or depth, the clouds are just an image I fly through, and before I land
+I see just a green plot of land, not any trees or canyons or rivers. Restart if you have
+to, but make that aspect a lot better."*
+
+**Reproduced** (`debug=floor`, from 20 000 km down; pictures under `docs/shots/approach/`):
+- From 20 000 km the home world is a pale blue ball with one white smudge; from Mars the
+  same Earth (a sky body, `sky/bodies.js`) is a deep blue globe half covered in cloud.
+  At the hand-over the Earth one was flying toward turns into the pale ball.
+- Why pale: the painted look's low air (five times a clear day's haze, to 4 km) is looked
+  through whole from above. Why no cloud: far off the shell showed the heaps' mean cover
+  (half of a cover curve that starts at 0.47 of the map), not the day's map.
+- From 400 km: forests are flat teal blocks (the far canopy's one green, mixed toward
+  the sky's blue by the wood's air), no relief (the governor had it off), no cloud.
+
+**Built** (the seventh painted delivery; each thing seen in pictures, the working numbers
+in `docs/ARCHITECTURE.md`):
+- **From space**: `uHaze` (the look's haze from above: all of it to 2.5 km, 0.45 of it
+  from 25 km); the cloud layer from far is the day's whole map with its own relief, as
+  the far globe wears it (it showed nothing at all with the cloud volume off, and half a
+  stingy cover with it on); the land's colour ring is coarser and wider with height
+  (`zooms`); the far forest keeps the picture's own colour.
+- **Height and depth**: the relief light (far ground lit for its slopes by a Sun no
+  higher than 35 degrees); every heap of cloud has a lit side, a shaded side and a clean
+  edge, and casts its own shadow on the ground (`HEAP_GLSL`: one rule for the layer and
+  the ground); clouds' shadows, far relief and the cloud volume are the last three savings.
+- **Before landing**: the far trees (`life/groves.js`: a ring of tree shapes to 2 km in
+  one draw); the far canopy has crowns and stands (`crowns()`), and follows the trees'
+  rule for slopes.
+- Small things found on the way: rain streaks in dry weather (a rate that read 0.0 drew
+  four hundred); square holes in the canopy on steep hillsides.
+- **Found in the last pictures before sending, and put right** (each seen again after):
+  - *The heaps were never there on the way in.* The shell took on the volume's heaps (and
+    the ground their shadows) only once the volume had been drawn, under 30 km: every
+    picture from 30 km and higher had shown the old flat blobs of the day's map, and so
+    did a first approach from space, and the governor's floor. `CloudVolume.place` now
+    says where the base stands every frame.
+  - *With the heaps shown, a wallpaper.* From 30 km one even field of small clouds lay
+    over the whole land in rows: the noise repeats every 4.2 km. Shifting the noise from
+    place to place (three ways tried in a sketch) bent the rows and stretched the clouds
+    and did not hide them; what does is the weather's own way: fair-weather cloud stands
+    in **clusters** some tens of kilometres across with clear country between
+    (`FAIR_GLSL`, one rule for the volume, the shell and the ground). Tuned in seconds
+    in `scripts/cloud-field.mjs`, a top-down sketch without a browser, then seen in the
+    game. The opening view keeps its sky.
+  - *Clouds from above were grey.* Lit as from below (the light that comes through), a
+    heap looked down on was hardly lighter than the desert under it: it now shows its
+    sunlit top (by the line of sight, so nothing jumps on the way through the layer),
+    and the darker middle is only for the under side.
+  - *The forest from the air was a cloth woven in squares*: the same 64 crowns in every
+    64 m tile. A patch's tile coordinates are kept modulo 16 tiles (`DETAIL_PERIOD`) and
+    the crowns differ over a kilometre: an uneven canopy of crowns.
+  - The ground's shader is full: 16 of a phone's 16 textures (the smoke test counts).
+  - Test tooling: `scripts/lib/png.mjs` had lost the names three scripts import (the
+    stability test, `peek`, `probe-terrain` could not start, since the trees' fifth
+    pass); `scripts/check-scripts.mjs` reads every import of every script and is part of
+    the build check. A WebGL error on every frame that drew no shadow tile
+    (`invalidateFramebuffer` on whatever was bound) is gone.
+
+**Tried and taken back**: the far clouds as the map's faint parts too (grey sheets of fog
+over half the land from 100 km); the relief light at full strength from orbit (whole
+ranges blue-black); the canopy's slope judged over a whole small patch (square holes).
+
+**Plan** (in this order; each seen in pictures at the floor and at full quality):
+1. From space: the haze thinned from above (`uHaze`), the day's whole cloud map with its
+   shading on the shell, forests in the picture's own colour. *(built, see below)*
+2. Clouds with height: shadows on the ground that stay on, the shell lit by its relief,
+   layers one flies through.
+3. On the way down: relief that stays on, the land's own colours, rivers that can be
+   seen from the air, trees that can be seen well before landing.
+4. Deliver, and ask for an Earth benchmark.
+
+All four are built.
+
+**Tests of this delivery** (on the build that was merged, served frozen): the build check
+(with the scripts' imports); `npm run smoke` (16 checks; 22 shaders, the ground's the
+fullest at 16 of a phone's 16 textures, none failing); `npm run shadowturns` (and no
+WebGL error in its log any more);
+`npm run govsim` (the four new cases among them); `npm run lakes`; the stability test's
+Earth move over the forest from 370 m (`--only earth_forest_flight`: changed 5.3 %,
+flicker 0.24 %: crowns and tree outlines moving with the camera, nothing popping).
+Pictures from the merged build: 20 000, 2 000, 400, 100, 30, 12 km, among the clouds at
+5 km, the forest from 700 and 370 m, the opening view, and 100 and 30 km with every
+saving on. **Not run**: the full reference set, the stability test's other moves, the
+streaming stability run, `flight`, `foot`, `transfer`, `worlds` (nothing in them was
+touched, but the ground's shader and the tile coordinates serve every world: the smoke
+test's Mars and Moon are what stands for them). **Nothing is measured on the phone.**
 
 ## The owner's seventh phone results (build ef3201a) and the sixth painted delivery
 

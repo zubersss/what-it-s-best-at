@@ -166,7 +166,7 @@ work here): `gh api -X POST repos/zubersss/what-it-s-best-at/pulls -f title=... 
 npm install
 npm run dev            # http://localhost:5173/   (add -- --host to open it from a phone on the same Wi-Fi)
 npm run build          # static site in dist/ (relative paths)
-./scripts/build-check.sh    # the same, but fails loudly (never judge a build through `| tail`)
+./scripts/build-check.sh    # the same, but fails loudly (never judge a build through `| tail`); first checks that the scripts' imports exist
 npm run preview        # serve dist/
 npm run shots          # headless screenshots of every bookmark of one world -> docs/shots/
 npm run shots:all      # the full reference set: both worlds, orbit, character
@@ -182,6 +182,7 @@ npm run lakes          # Earth's lakes and rivers against the real ones, without
 npm run shadowturns    # the shadow tiles drawn in turns: a held tile must draw the same picture as a fresh one after a walk (headless, Moon)
 node scripts/play-profile.mjs [--world earth] [--at "21.7,284.7,40"] [--floor] [--seconds 120] [--shot out.png]   # the real game in play mode at a place: the page's work by part, the governor's level, patches built (--floor: every saving on)
 node scripts/tree-preview.mjs [--out dir] [--variant 1] [--only 0,2] [--below]   # every tree shape at its three distances, drawn without a browser in seconds (PNG sheets)
+node scripts/cloud-field.mjs [--span 150] [--lat .. --lon ..] [--out file.png]   # the fair-weather cloud field from straight above, without a browser in seconds: rows, clusters, how much of the sky
 node scripts/make-tree-atlas.mjs [--look file.png]   # the trees' picture (public/data/tree_atlas.png): run again after changing a spray or a tree shape
 node scripts/check-ephemeris.mjs   # every orbit and spin against JPL Horizons (no network; fails beyond a tolerance)
 node scripts/peek.mjs --world io [--shot ledge | --lat .. --lon ..] [--pan 4]   # a CPU sketch of the view from a place, in seconds: for choosing sites and times
@@ -230,7 +231,9 @@ frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last foo
 `debug=contactx4` (the rocks' contact-darkening spheres four times larger, to see the effect),
 `debug=flash` (a stroke of lightning held at its brightest, on worlds with weather),
 `debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
-`nofarrough`, `noboost`) for before/after pictures.
+`nofarrough`, `noboost`) for before/after pictures, `debug=floor` (every saving of the
+governor on and Smooth's share of the patches: what a phone that has given everything up
+draws).
 
 Keys: `WASD` move, mouse look (click to capture), `Shift` super speed on foot / boost in
 flight, left `Ctrl` (hold) slow, for precise moves (flight ×0.12, on foot ×0.3, free-fly
@@ -347,8 +350,9 @@ finished benchmark leaves its text in `window.__benchResult`.
 - Phones allow 16 textures per shader; the test browser allows 32 and 4096 uniform
   vectors. A shader over a phone's limit draws nothing there and works in every headless
   test (the whole ground vanished on the phone at 17). `scripts/lib/glLimits.mjs` checks
-  every program in `npm run smoke` and in screenshot runs; the terrain shader is at 14
-  (plus 2 read by its vertex shader).
+  every program in `npm run smoke` and in screenshot runs. The terrain's fragment
+  shader is full, at 16 of 16 (its vertex shader reads 4 more, which a phone counts
+  apart): a new map there must take the place of one.
 - three uploads a changed texture at the draw call that first uses it, in the middle of
   the render pass, and with `generateMipmaps` has the GPU build the mips there. A phone's
   tile-based GPU must write the half-drawn picture out and read it back for that: every
@@ -569,5 +573,25 @@ finished benchmark leaves its text in `window.__benchResult`.
   (`gl_Position = vec4(2.0, 2.0, 2.0, 1.0)`). To find what draws a thing nobody can
   name, take the parts out of their scenes one at a time and count
   (the scratch script of 2026-11-22 did it in one browser session; guessing took three pictures).
+- A governor that needs a run without one late frame to step up never steps up on a
+  device with late frames of its own: the phone had one in fifteen at every stop, at one
+  million pixels as at two, and sat at the floor with every saving on for whole
+  benchmarks ("unrendered", the owner said). A lever is pulled as a trial: if the late
+  frames stay, it is put back. And the cost test said beforehand that the levers bought a
+  tenth of a frame between them: read what a lever buys before trusting it with the picture.
+- The phone's picture is whatever the governor has left of it. Before judging or tuning a
+  look, take the pictures a traveller on the phone would see: `?debug=floor` for the
+  worst case, and the whole way in (from 20 000 km down to landing), not only the
+  bookmarks on the ground. The home world from space was a pale ball with no clouds beside
+  the Earth one sees from Mars, and nobody had looked.
+- A look made for the ground (thick low air, light in two tones) is wrong from above: the
+  haze is looked through whole, and at midday the two tones put every slope in the light.
+  Anything of a look that depends on how far off or how high one is needs its own numbers
+  there (`uHaze`, the relief light).
+- A script nobody runs breaks without a sound: a helper file rewritten under new names
+  left the flicker check, the sketch and the relief probe unable to start for three
+  deliveries (and the notes said the flicker check had been run). `scripts/check-scripts.mjs`
+  (in the build check) reads every import of every script; after changing a file under
+  `scripts/lib/`, start each script that uses it once.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

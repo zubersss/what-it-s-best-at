@@ -21,7 +21,7 @@ self.onmessage = (ev) => {
     } else if (m.type === 'cover') {
       hs.setCover(m.cover ? { ...m.cover, cls: new Uint8Array(m.cover.cls), tall: new Uint8Array(m.cover.tall), closed: new Uint8Array(m.cover.closed) } : null);
     } else if (m.type === 'trees') {
-      const b = treeBlock(hs, m.bi, m.bj, m.spacing);
+      const b = treeBlock(hs, m.bi, m.bj, m.spacing, m.deg, m.salt);
       self.postMessage({ type: 'trees', id: m.id, origin: b.origin, count: b.count, trees: b.trees.buffer }, [b.trees.buffer]);
     } else if (m.type === 'chunk') {
       const t0 = performance.now();

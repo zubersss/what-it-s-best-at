@@ -14,8 +14,10 @@ export function png(w, h, pixels, channels = 3) {
 }
 
 // Reads a PNG (8 bits a channel; grey, RGB, RGBA or palette, not interlaced) as RGB bytes.
-export function readPng(file) {
-  const b = fs.readFileSync(file); let p = 8, w = 0, h = 0, ct = 0; const idat = []; let plte = null;
+export function readPng(file) { return decode(fs.readFileSync(file)); }
+
+function decode(b) {
+  let p = 8, w = 0, h = 0, ct = 0; const idat = []; let plte = null;
   while (p < b.length) {
     const len = b.readUInt32BE(p), type = b.toString('latin1', p + 4, p + 8), d = b.subarray(p + 8, p + 8 + len);
     if (type === 'IHDR') { w = d.readUInt32BE(0); h = d.readUInt32BE(4); ct = d[9]; if (d[8] !== 8 || d[12]) throw new Error('a PNG this reader does not know'); } else if (type === 'IDAT') idat.push(d); else if (type === 'PLTE') plte = d;
@@ -34,3 +36,7 @@ export function readPng(file) {
   }
   return { w, h, data: out };
 }
+
+// The names the older scripts know these by (peek, probe-terrain, stability).
+export const encodePNG = png;
+export function decodePNG(buf) { const { w, h, data } = decode(buf); return { width: w, height: h, rgb: data }; }

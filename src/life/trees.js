@@ -21,6 +21,15 @@ const CLOSE_CAP = 192, NEAR_CAP = 768, FAR_CAP = 4096;       // instances of one
 const CLOSE_M = 42, NEAR_M = 115;             // trees nearer than these get the close mesh (every leaf), the near mesh
 const REBUILD_M = 25;                        // the instance lists are made again when the traveller has moved this far
 
+// The painted look's leaf: a cleaner green of the tree's own kind, warm for broad leaves, a
+// cold blue-green for firs and spruces, told by the colour the species has. (The far trees
+// of life/groves.js take it from here: the two must be one green.)
+export const PAINT_LEAF = /* glsl */`
+vec3 paintLeaf(vec3 c) {
+  vec3 hue = mix(vec3(0.62, 1.0, 0.36), vec3(0.36, 1.0, 0.62), smoothstep(-0.2, 0.2, (c.b - c.r) / max(c.g, 1e-4)));
+  return mix(c, dot(c, vec3(0.2, 0.7, 0.1)) * hue, 0.45);
+}`;
+
 const TREE_VERT = /* glsl */`
 in vec4 iA;            // xyz: the tree's foot from the anchor (m, planet axes), w: its height (m)
 in vec4 iB;            // x: crown width, y: turn (radians), z: a number of its own (0..1), w: 1 if it drops its leaves
@@ -99,12 +108,7 @@ export class Trees {
           return mix(mix(mix(leafHash(i), leafHash(i + vec3(1, 0, 0)), f.x), mix(leafHash(i + vec3(0, 1, 0)), leafHash(i + vec3(1, 1, 0)), f.x), f.y),
                      mix(mix(leafHash(i + vec3(0, 0, 1)), leafHash(i + vec3(1, 0, 1)), f.x), mix(leafHash(i + vec3(0, 1, 1)), leafHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
         }
-        // (the painted look's leaf: a cleaner green of the tree's own kind, warm for broad
-        // leaves, a cold blue-green for firs and spruces, told by the colour the species has)
-        vec3 paintLeaf(vec3 c) {
-          vec3 hue = mix(vec3(0.62, 1.0, 0.36), vec3(0.36, 1.0, 0.62), smoothstep(-0.2, 0.2, (c.b - c.r) / max(c.g, 1e-4)));
-          return mix(c, dot(c, vec3(0.2, 0.7, 0.1)) * hue, 0.45);
-        }
+        ${PAINT_LEAF}
         void main() {
           // A card: cut out of the picture first of all (most of a card is nothing). Far off the
           // cut is taken lower: averaged down, needles and leaves cover less of a pixel, and a

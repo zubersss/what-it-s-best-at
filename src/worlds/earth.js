@@ -44,6 +44,10 @@ export default {
       // seen from space (the map the globe's glint uses).
       hydrology: { rain: 'data/earth_rain_720.u8', water: 'data/earth_water_2048.jpg' },
       pictures: { colour: { url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg', zoom: 8, below: 2.0e6,
+        // (coarser and wider from higher up: 600 m a pixel over 600 km below 125 km, to 10 km a
+        // pixel over 10 000 km below 2 000 km: what is in view from a height is about as wide
+        // as five times that height)
+        zooms: [[8, 1.25e5], [7, 2.5e5], [6, 5.0e5], [5, 1.0e6], [4, 2.0e6]],
         // What grows there: the land-cover class of every 500 m (MODIS, the IGBP legend) and
         // how tall its canopy stands (GEDI's laser from the space station), both from NASA
         // GIBS as coloured tiles; the palette file says what each colour means.
@@ -118,7 +122,9 @@ export default {
   // The painted look (render/look.js): light in two tones, shade lit by the sky's colour,
   // clean colours, and a grade for each time of day.
   look: {
-    paint: 1, shade: 1.35, colour: 0.7, facets: 0.6, shafts: 1,
+    // reliefLight: far ground (some kilometres off and from the air) is lit as a relief map
+    // is drawn, by a Sun no higher than 35 degrees: see the ground shader, uAirRelief.
+    paint: 1, shade: 1.35, colour: 0.7, facets: 0.6, shafts: 1, reliefLight: 1,
     grade: {
       day: { sat: 1.18, contrast: 1.06, tint: 1, shade: [0.84, 1.02, 1.04], light: [1.05, 1.0, 0.93] },
       low: { sat: 1.3, contrast: 1.08, tint: 1, shade: [0.95, 0.86, 1.02], light: [1.12, 0.98, 0.8] },
@@ -134,7 +140,10 @@ export default {
   // Trees: where the land-cover map says forest, woodland or savanna, of the species the
   // region really grows (life/cover.js), as tall as the canopy was measured.
   // Grass: tufts of blades round the traveller where the land-cover map has grass (life/grass.js).
-  life: { trees: { radius: 240, spacing: 7, below: 1500 }, grass: { below: 90 } },
+  // far: beyond those, one tree shape in every few out to two kilometres, rising out of
+  // the forest the ground raises as a whole (life/groves.js): what a traveller coming
+  // down sees of the trees before landing.
+  life: { trees: { radius: 240, spacing: 7, below: 1500, far: { radius: 2000, spacing: 30, below: 5000 } }, grass: { below: 90 } },
 
   // Clouds of one real day (the globe's own cloud map) as a layer overhead (see sky/clouds.js).
   // Near the traveller the layer is a volume to fly through: its base at 1 400 m, its

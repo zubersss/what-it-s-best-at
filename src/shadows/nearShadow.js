@@ -194,8 +194,9 @@ export class NearShadow {
     }
     tgt.scissorTest = false;
     tgt.viewport.set(0, 0, this.width, this.height);
-    const gl = r.getContext();
-    gl.invalidateFramebuffer(gl.FRAMEBUFFER, [gl.COLOR_ATTACHMENT0]);   // only depth is kept
+    // only depth is kept (and only if a tile was drawn: on a frame that is nobody's turn the
+    // atlas is not bound, and this would be said of whatever picture is)
+    if (this.drawn > 0) { const gl = r.getContext(); gl.invalidateFramebuffer(gl.FRAMEBUFFER, [gl.COLOR_ATTACHMENT0]); }
   }
 }
 

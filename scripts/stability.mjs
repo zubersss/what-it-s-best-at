@@ -43,6 +43,9 @@ const MOVES = [
   { id: 'moon_turn', world: 'moon', shot: 'ledge', query: '', step: { yaw: 0.06 }, stride: 300 },
   { id: 'moon_low_flight', world: 'moon', shot: 'ledge', query: 'hero=1&alt=600', step: { fwd: 1 }, stride: 300 },
   { id: 'moon_orbit', world: 'moon', shot: 'ledge', query: 'alt=120000&pitch=-25', step: { fwd: 250 }, stride: 150 },
+  // (Earth: slow here, ten minutes a station and more; run them by name. The forest from
+  // 370 m: the canopy's crowns, the far trees and the clouds' shadows as the camera creeps.)
+  { id: 'earth_forest_flight', world: 'earth', shot: 'ledge', query: 'lat=36.3&lon=247.9&alt=3000&heading=0&pitch=-25&t=5', step: { fwd: 1.5 }, stride: 300, slow: true },
 ];
 // The list above is tuned by hand for the worlds it names. A world in the registry that
 // it does not mention still gets tested: a walk, a turn, a low flight and an orbit from
@@ -94,7 +97,7 @@ const oneFrame = async () => {
   if (now !== goal) throw new Error(`asked for frame ${goal}, the game is at ${now}: the frames are not being held`);
 };
 
-const ready = (minFrame) => page.waitForFunction((n) => (window.__shotReady === true && window.__app.frameCount >= n) || window.__shotError, minFrame, { timeout: 240000, polling: 250 })
+const ready = (minFrame) => page.waitForFunction((n) => (window.__shotReady === true && window.__app.frameCount >= n) || window.__shotError, minFrame, { timeout: 900000, polling: 250 })
   .catch(async () => { console.log(`  not ready in time (waiting for: ${await page.evaluate(() => window.__stats?.wait || '?')}), using what is on screen`); });
 const move = (step, times) => page.evaluate(({ step, times }) => {
   const a = window.__app, r = a.rig;
@@ -116,7 +119,8 @@ const holdExposure = (on) => page.evaluate((on) => {
 }, on);
 
 const lum = (img, i) => 0.2126 * img.rgb[i * 3] + 0.7152 * img.rgb[i * 3 + 1] + 0.0722 * img.rgb[i * 3 + 2];
-const wanted = (m) => !only || only.split(',').some((k) => m.id.includes(k));
+// (a move marked slow runs only when it is named)
+const wanted = (m) => (only ? only.split(',').some((k) => m.id.includes(k)) : !m.slow);
 // Rows kept from an earlier report: the other kind of run, and with --only this kind's
 // other moves. (Rows written before the two kinds existed are settled ones.)
 let report = [];

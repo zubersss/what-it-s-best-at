@@ -35,6 +35,7 @@ uniform vec3 uShineE;               // its irradiance at the ground (planetshine
 uniform vec3 uHomeShine;            // sunlight the home world's day side sends up to something high above it
 uniform vec4 uQuality;              // governor switches: x close-up detail, y soft shadow edges, z edge-glow samples
 uniform vec4 uPaint;                // the painted look: x amount, y sky light on things, z colour, w facets (globals.js)
+uniform float uHaze;                // how much of the haze lies over what is seen (1: all; less from high above a world with thick low air)
 uniform float uPhotometry;          // 0 = matte dust under air (Oren-Nayar), 1 = airless regolith (lunarDiffuse)
 uniform vec3 uGroundTint;           // the world's albedo map at the camera, relative to its mean
 uniform vec4 uOccluders[16];        // spheres that hide the sky from the ground beside them (camera-relative
@@ -141,7 +142,13 @@ vec3 homeShine(vec3 N, vec3 up) { float d = clamp(0.5 - 0.5 * dot(N, up), 0.0, 1
 #ifdef HAZE_UV
 vec2 gHazeUv;                       // this pixel's place in the main view (0..1), set by the pass before it asks for haze
 #endif
+vec3 hazeOverGroundFull(vec3 color, vec3 rel, vec3 rho);
 vec3 hazeOverGround(vec3 color, vec3 rel, vec3 rho) {
+  vec3 h = hazeOverGroundFull(color, rel, rho);
+  // (seen from high above, through less of the look's thick low air: see uHaze)
+  return uHaze < 1.0 ? mix(color, h, uHaze) : h;
+}
+vec3 hazeOverGroundFull(vec3 color, vec3 rel, vec3 rho) {
   float dist = length(rel);
   // Same path through the air as the froxel pass computed for this view ray.
   vec3 ro = uCamPlanetPos * 0.001, rd = rel / dist;
@@ -225,7 +232,9 @@ vec3 rainVeil(vec3 color, vec3 rel) {
 vec3 forestAir(vec3 color, vec3 rel, vec3 up, float amount) {
   // (the sky's light, a third of the way to grey: with its full blue the far firs were cyan)
   vec3 air = skyLight(up, up); air = mix(air, vec3(dot(air, vec3(0.3, 0.55, 0.15))), 0.35);
-  return mix(color, air * (0.3 / PI), uPaint.x * 0.34 * amount * (1.0 - exp(-length(rel) / 150.0)));
+  // (not from high above: the air of a wood is a thing of the landscape, and from orbit it
+  // turned every forest teal)
+  return mix(color, air * (0.3 / PI), uPaint.x * 0.34 * amount * (1.0 - exp(-length(rel) / 150.0)) * smoothstep(0.5, 1.0, uHaze));
 }
 vec3 aerialPerspective(vec3 color, vec3 rel) { return rainVeil(hazeOverGround(color, rel, vec3(1.0)), rel); }
 // The ground itself, with its own albedo.
