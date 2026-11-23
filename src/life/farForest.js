@@ -178,7 +178,7 @@ export class FarForest {
     for (let i = 0; i < POOL; i++) this.pool.push(this._slot());
     this.tiles = new Map();                  // 'level:ti:tj' -> tile
     this.asked = 0; this.frame = 0; this.serial = -1; this.missing = 0; this.lastMs = 0;
-    this.fraction = 1; this.count = 0; this.drawn = 0;
+    this.fraction = 1; this.count = 0; this.held = 0; this.shown = false;
     this._e = [0, 0, 0]; this._n = [0, 0, 0]; this._u = [0, 0, 0];
     this._p = new THREE.Vector3(); this._rel = new THREE.Vector3();
     this.setWorld(trees.world);
