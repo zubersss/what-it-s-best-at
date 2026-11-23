@@ -272,6 +272,7 @@ export class App {
     // the character stands on the ground as drawn (and in water as deep as heightFn just said)
     this.rig.groundAt = (d, dist) => { const g = this.terrain.drawnHeight(d, dist); return g == null ? null : g - (this._sink || 0) + (this._rise || 0); };
     this.rig.sunkAt = () => this._under || 0;          // (the camera stays above the water its figure stands in)
+    this.rig.riseAt = () => this._rise || 0;           // (a boulder under the place: the floor, but not the land that flight's speed goes by)
     // the home world's cloud layer (a world without clouds: nothing is drawn)
     this.clouds = new CloudLayer(renderer);
     this.cloudVolume = new CloudVolume(renderer); this.cloudVolume.setWorld(world); this.cloudVolume.setGround(data.rasters[0]);
@@ -287,7 +288,7 @@ export class App {
     this.nearShadow.addCaster(this.rocks.mesh, this.rocks.depthMaterial, null, () => this.rocks.nearCount);
     // (boulders and outcrops as far as they can be seen: the land's own, in tiles)
     this.farRocks = new FarRocks(world, this.terrain); this.nearScene.add(this.farRocks.group);
-    for (const c of this.farRocks.casters) this.nearShadow.addCaster(c.mesh, this.farRocks.depthMaterial, c.on);
+    this.addRockCasters();
     this.farRocks.off = params.debug.includes('farrocksoff');      // ?debug=farrocksoff: none of them, for before/after pictures
     // Trees (worlds that have them): drawn with the ground, and they cast shadows
     this.trees = new Trees(world, this.terrain); this.trees.renderer = renderer;
@@ -625,6 +626,10 @@ export class App {
   // --- start screen, modes, benchmark -------------------------------------------------
 
   // True when the drawn ground under the character (or the camera) is the detailed one.
+  // The far rocks near the eye cast into the near shadow map: one small mesh of their own,
+  // there from the start whatever world the page opened on.
+  addRockCasters() { if (!this._rockCasters) { this._rockCasters = true; for (const c of this.farRocks.casters) this.nearShadow.addCaster(c.mesh, this.farRocks.depthMaterial, c.on, c.fine); } }
+
   groundSettled() {
     if (this.terrain.idle) return true;
     const r = this.rig, p = r.onFoot ? r.feet : r.pos, l = p.length(), d = [p.x / l, p.y / l, p.z / l];
@@ -1100,7 +1105,7 @@ export class App {
       this.terrain.setWorld(w, data.rasters, data.hs);
       this.clouds.setWorld(w); this.cloudVolume.setWorld(w); this.cloudVolume.setGround(data.rasters[0]);
       this.rocks.setWorld(w, data.hs);
-      this.farRocks.setWorld(w);
+      this.farRocks.setWorld(w); this.addRockCasters();
       this.trees.setWorld(w); this.farForest.setWorld(w); this.weather.setWorld(w); this.look.setWorld(w); this.grass.setWorld(w);
       this.dust.setWorld(w);
       this.placeLander(w, data.hs);
@@ -1349,7 +1354,7 @@ export class App {
     renderer.render(this.farScene, rig.camera);
     renderer.clearDepth();
     prof.mark(7);
-    const near = Math.max(0.25, Math.min(2e6, rig.agl * 0.15));
+    const near = Math.max(0.25, Math.min(2e6, Math.min(rig.agl, rig.floor || rig.agl) * 0.15));      // (by the floor: a tor right under the camera must not be cut away)
     // (clouds: their shadow reads the same map; the view must reach the layer's horizon)
     this.terrain.shared.tClouds.value = this.clouds.mesh.visible ? this.clouds.texture : this.terrain.textures.white;
     {

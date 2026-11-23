@@ -509,9 +509,10 @@ void main() {
   // --- grass on the ground: round the traveller it is drawn blade by blade and clump by
   // clump (life/grass.js) out to some 500 m; under them and beyond, the ground wears the
   // same grass (life/grassRules.js: one rule for both): its colour, the wind's waves
-  // running over it, drifts of flowers; far off it gives way to the map's own colour
+  // running over it, drifts of flowers; far off it gives way to the map's own colour.
+  // (On slopes by the grass's own rule, the one its blades and clumps stand by: grassRules.js.)
   if (uGrassTone.a > 0.0) {
-    float dG = length(vRel), gw = uGrassTone.a * uGrassTone.y * flatW * (1.0 - vShell) * (1.0 - smoothstep(6.0, 16.0, canopyTall)) * (1.0 - smoothstep(GRASS_FAR0, GRASS_FAR1, dG))
+    float dG = length(vRel), gw = uGrassTone.a * uGrassTone.y * (1.0 - smoothstep(GRASS_SLOPE0, GRASS_SLOPE1, ts)) * (1.0 - vShell) * (1.0 - smoothstep(6.0, 16.0, canopyTall)) * (1.0 - smoothstep(GRASS_FAR0, GRASS_FAR1, dG))
         // (a stopgap: ground whose own colour is far too pale to be grass, snow or pale sand, is not painted.
         // The ground's colour here is the surface's dust times the map's tint: on the made world
         // gold grass comes to 0.44 to 0.47, scrub 0.38, sand and snow 0.77)
@@ -781,7 +782,7 @@ export const DETAIL_PERIOD = 16;
 export function makeTerrainMaterial(shared, pool) {
   return new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
-    defines: { ...atmosphereDefines(), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, DETAIL_TILE, DETAIL_PERIOD, VERT_W: pool.VW, MORPH_START: CONFIG.MORPH_START, GRASS_FAR0: GRASS_GROUND.far[0].toFixed(1), GRASS_FAR1: GRASS_GROUND.far[1].toFixed(1), GRASS_FLOWER_SHARE: GRASS_GROUND.flowers.toFixed(3) },
+    defines: { ...atmosphereDefines(), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, DETAIL_TILE, DETAIL_PERIOD, VERT_W: pool.VW, MORPH_START: CONFIG.MORPH_START, GRASS_FAR0: GRASS_GROUND.far[0].toFixed(1), GRASS_FAR1: GRASS_GROUND.far[1].toFixed(1), GRASS_FLOWER_SHARE: GRASS_GROUND.flowers.toFixed(3), GRASS_SLOPE0: GRASS_GROUND.slope[0].toFixed(3), GRASS_SLOPE1: GRASS_GROUND.slope[1].toFixed(3) },
     vertexShader: VERT, fragmentShader: FRAG,
     uniforms: {
       ...shared,

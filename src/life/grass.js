@@ -32,7 +32,7 @@ import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
 import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
-import { AMOUNT, DRY, floraAt, flowersAt, FLOWERS_GLSL, GRASS_GLSL, WAVE_K } from './grassRules.js';
+import { AMOUNT, DRY, floraAt, flowersAt, FLOWERS_GLSL, GRASS_GLSL, GRASS_GROUND, WAVE_K } from './grassRules.js';
 
 const SHADE_N = 36, SHADE_CELL = 40, SHADE_MOVE = 120;   // the land's shadow for the clumps: places a side, metres between them, how far the traveller goes before it is asked again
 const SNAP = 40;                 // the anchor moves in steps of this (m)
@@ -505,10 +505,11 @@ export class Grass {
     // stood on the water off every low shore)
     const h = hs.height(d[0], d[1], d[2], Math.max(2.5, cell * 0.5)), wet = hs.waterDepth > 0 || (this.seaLevel != null && h <= this.seaLevel + 0.3), slope = hs.baseSlope, cover = hs.coverAt ? hs.coverAt(d[0], d[1], d[2]) : -1;
     const cls = cover < 0 ? 0 : cover & 255, closed = cover < 0 ? 0 : (cover >> 16) / 255;
-    // (none in water; on slopes by the ground's own rule for where its soil ends and with it its
-    // grass paint (terrainMaterial.js, flatW: the world's dustMax to screeMin): by another rule,
-    // clumps stood on unpainted ground on every steeper hillside; thin under a closed canopy)
-    const amount = wet ? 0 : (AMOUNT[cls] || 0) * (1 - smoothstep(this.terrain.shared.uSlopes.value.x, this.terrain.shared.uSlopes.value.y, slope)) * (1 - 0.4 * closed);
+    // (none in water; on slopes by the one rule the ground's grass colour goes by too
+    // (GRASS_GROUND.slope in grassRules.js; terrainMaterial.js reads the same numbers): by
+    // two rules, clumps stood on unpainted ground on every steeper hillside; thin under a
+    // closed canopy)
+    const amount = wet ? 0 : (AMOUNT[cls] || 0) * (1 - smoothstep(GRASS_GROUND.slope[0], GRASS_GROUND.slope[1], slope)) * (1 - 0.4 * closed);
     const D = T.data;
     D[o] = h; D[o + 1] = amount; D[o + 2] = DRY[cls] ?? 0.5;
     // the flowers: the kinds of this land, in drifts (grassRules.js: the far ground has the same)

@@ -207,7 +207,8 @@ node scripts/make-world-maps.mjs   # ... and from that its colour, slope, water 
 node scripts/find-haven-site.mjs [--open] [--lat 28,52]   # places on Haven to begin at: level ground over low ground and water, high ground near by
 node scripts/find-overlook.mjs --world haven --lat .. --lon .. --heading .. [--below 1500]   # the very spot: level underfoot, the ground falling away in front, mountains on the far skyline (then look with peek.mjs)
 node scripts/far-trees-test.mjs     # the far forest's trees are the near trees: a thinned tile is a subset of the full one, at the same places (no browser)
-npm run rocks                      # the rule that places boulders: steep against level, clusters, sizes, a walker's footing (no browser); node scripts/rock-field.mjs draws the field from above
+npm run rocks                      # the rule that places boulders: steep against level, clusters, sizes, a walker's footing (no browser); node scripts/rig-over-rock.mjs   # flight over a boulder, without a browser in a second: the height over the ground stays the land's, the floor is the rock's
+node scripts/rock-field.mjs draws the field from above
 node scripts/cloud-field.mjs [--span 150] [--lat .. --lon ..] [--out file.png]   # the fair-weather cloud field from straight above, without a browser in seconds: rows, clusters, how much of the sky
 node scripts/rock-field.mjs [--lat .. --lon ..] [--span 3000] [--out file.png] [--check]   # where the far rocks lie, from straight above, without a browser in seconds; --check: the rule's promises (fails if one is broken)
 node scripts/far-rocks-probe.mjs --distdir <build> --query "lat=..&lon=..&alt=.." [--seconds 300] [--out file.png] [--eval "..."]   # the far rocks in the real game: tiles arriving, what is drawn counted rock by rock, shader limits
