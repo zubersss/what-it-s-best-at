@@ -289,7 +289,7 @@ export class FarRocks {
     for (let li = 0; li < def.levels.length; li++) {
       const L = def.levels[li], DEG = tileDeg(R, L.tile), T = DEG * M;
       // (a level's small rocks are not seen as far as its large ones: under the governor's saving its tiles are asked for less far)
-      const reach = def.reach * L.size[1] * shareOf(L.size[1], small, lo, hi), radius = reach + 0.72 * T, nb = Math.ceil(radius / T);
+      const reach = L.seenTo ? L.seenTo * small / SMALL_SHARE : def.reach * L.size[1] * shareOf(L.size[1], small, lo, hi), radius = reach + 0.72 * T, nb = Math.ceil(radius / T);
       const bi0 = Math.floor(lat / DEG);
       for (let bi = bi0 - nb; bi <= bi0 + nb; bi++) {
         const dLon = tileLon(bi, DEG), n = Math.round(360 / dLon), bj0 = Math.floor(lon / dLon), cl = Math.cos(lat * Math.PI / 180);

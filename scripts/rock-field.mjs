@@ -150,7 +150,7 @@ if (flag('count')) {
   const east = [-Math.sin(lon0 * RAD), Math.cos(lon0 * RAD), 0], north = [-Math.sin(lat0 * RAD) * Math.cos(lon0 * RAD), -Math.sin(lat0 * RAD) * Math.sin(lon0 * RAD), Math.cos(lat0 * RAD)];
   const bins = new Float64Array(36), by = def.levels.map(() => [0, 0, 0]), near = [0, 0];
   def.levels.forEach((L, li) => {
-    const deg = tileDeg(R, L.tile), T = deg * mLat, radius = def.reach * L.size[1] + 0.72 * T, nb = Math.ceil(radius / T), bi0 = Math.floor(lat0 / deg);
+    const deg = tileDeg(R, L.tile), T = deg * mLat, radius = (L.seenTo || def.reach * L.size[1]) + 0.72 * T, nb = Math.ceil(radius / T), bi0 = Math.floor(lat0 / deg);
     for (let bi = bi0 - nb; bi <= bi0 + nb; bi++) {
       const dLon = tileLon(bi, deg), bj0 = Math.floor(lon0 / dLon), nbj = Math.ceil(radius / (dLon * mLon));
       for (let bj = bj0 - nbj; bj <= bj0 + nbj; bj++) {
@@ -159,7 +159,7 @@ if (flag('count')) {
         for (let i = 0; i < b.count; i++) {
           const x = b.origin[0] + b.off[i * 4] - eye[0], y = b.origin[1] + b.off[i * 4 + 1] - eye[1], z = b.origin[2] + b.off[i * 4 + 2] - eye[2], d = Math.hypot(x, y, z), e = b.off[i * 4 + 3] * b.seen[i] / 255;
           if (d >= e * def.reach * shareOf(e, small, lo, hi)) continue;
-          by[li][2]++; if (d < 150) near[0]++; if (b.seen[i] < 255) near[1]++;
+          by[li][2]++; if (d < 150) near[0]++; if (li < 3 && b.seen[i] < 255) near[1]++;
           bins[Math.floor(((Math.atan2(x * east[0] + y * east[1] + z * east[2], x * north[0] + y * north[1] + z * north[2]) / RAD + 360) % 360) / 10)]++;
         }
       }
