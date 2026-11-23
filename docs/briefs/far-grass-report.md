@@ -154,6 +154,20 @@ picture; the arc is no longer something I can point to in it.
   last mean colour is held (filled once if there is none). Held over a long high flight it
   is the mean of where one climbed.
 
+- **Hillsides that face the eye** (after DONE3; `haven_ledge_ridge_n_before.png` against
+  `haven_ledge_ridge_old_after.png`, the same view): the clump field was level one-pixel
+  dashes in rows, dark and gold, on pale ground. Three changes, none proven apart (no
+  time to take each away once): (1) how squarely the ground is looked at is judged by the
+  slope's own normal as well as the world's up: the more squarely, the lower the clump and
+  the more it is the ground's colour, and it is rolled its own way; (2) ONE slope rule:
+  the tables' amount of grass now fades by the ground's own `uSlopes` (dustMax to
+  screeMin, where the shader's grass paint ends), so no clump stands on unpainted ground;
+  (3) widths more varied, and a clump under a pixel and a half tall on screen is not drawn.
+  In the after picture the meadow is one soft surface with no dashes or rows, and the
+  steppe from 120 m is smooth. **But at these pictures' 309 px most clumps beyond about
+  100 m are under that size and gone; on the phone (1 440 px) they are drawn four to five
+  times farther, and that was not looked at** (`--dsf 3.5` would show it).
+
 C to H went in as one commit, not one each. They build; the one picture taken on them is
 `haven_ledge_steppe_a30_after.png`.
 
