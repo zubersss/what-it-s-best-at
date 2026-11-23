@@ -348,7 +348,7 @@ export class FarForest {
   // Asks a worker for a tile's trees. False when no worker took it.
   _ask(tile) {
     const t = this.terrain, def = this.def, [lo, hi] = band(tile.level), epoch = t.epoch, serialAt = this.serial, sun = this.shared.uSunDir.value.clone();
-    const job = t.workers.run({ type: 'treeTile', ti: tile.ti, tj: tile.tj, blocks: tile.blocks, spacing: def.spacing ?? this.trees.def?.spacing ?? 7, lo, hi, sun: [sun.x, sun.y, sun.z], sunHalf: 0.00465 });
+    const job = t.workers.run({ type: 'treeTile', ti: tile.ti, tj: tile.tj, blocks: tile.blocks, spacing: def.spacing ?? this.trees.def?.spacing ?? 7, lo, hi, sun: [sun.x, sun.y, sun.z], sunHalf: t._sunHalf ?? 0.00465 });
     if (!job) return false;
     tile.asking = true; this.asked++;
     job.then((res) => {

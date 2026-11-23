@@ -120,7 +120,7 @@ export class Trees {
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: this.shared, side: THREE.DoubleSide,
       vertexShader: /* glsl */`${TREE_VERT}
-        in vec3 iC; in vec3 iD;
+        in vec3 iC; in vec4 iD;          // (iD.w: how much of the Sun the land leaves this tree, from the worker)
         out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out float vLeaf; out float vY; out vec2 vOwn; out vec3 vTreeM; out vec2 vUv; out float vCloud;
         ${CLOUD_SHADE_VERT}
         void main() {
@@ -129,8 +129,8 @@ export class Trees {
           // (beyond the radius the far forest draws this tree: out of the picture here)
           if (treeCull) { vCloud = 1.0; vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vLeaf = 0.0; vY = 0.0; vOwn = vec2(0.0); vTreeM = vec3(0.0); vUv = vec2(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
           vTreeM = vec3(position.x * iB.x, position.y, position.z * iB.x) * iA.w + iB.z * 37.0;        // metres in the tree's own frame (for the pattern of its leaves)
-          vRel = rel; vN = treeNormal(); vLeaf = leaf; vY = position.y; vLeafC = iC; vTrunkC = iD; vOwn = vec2(iB.z, iB.w); vUv = aUv;
-          vCloud = cloudShade(uCamPlanetPos + foot + uTreeUp * (iA.w * 0.7));
+          vRel = rel; vN = treeNormal(); vLeaf = leaf; vY = position.y; vLeafC = iC; vTrunkC = iD.rgb; vOwn = vec2(iB.z, iB.w); vUv = aUv;
+          vCloud = cloudShade(uCamPlanetPos + foot + uTreeUp * (iA.w * 0.7)) * iD.w;
           gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
         }`,
       fragmentShader: /* glsl */`${LIGHTING_PARS}
@@ -245,7 +245,7 @@ export class Trees {
       const cap = [CLOSE_CAP, NEAR_CAP, FAR_CAP][lod], geo = new THREE.InstancedBufferGeometry();
       for (const name of ['position', 'normal', 'aLeaf', 'aSway', 'aUv']) geo.setAttribute(name, base.attributes[name]);
       const at = (n) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(cap * n), n); a.setUsage(THREE.DynamicDrawUsage); return a; };
-      const iA = at(4), iB = at(4), iC = at(3), iD = at(3);
+      const iA = at(4), iB = at(4), iC = at(3), iD = at(4);
       geo.setAttribute('iA', iA); geo.setAttribute('iB', iB); geo.setAttribute('iC', iC); geo.setAttribute('iD', iD);
       geo.instanceCount = 0;
       const mesh = new THREE.Mesh(geo, this.material);
@@ -319,7 +319,7 @@ export class Trees {
     // (a block is 111 m on any world: so many degrees on this one, so many metres a degree)
     const DEG = blockDeg(this.world.radius), M = this.world.radius * Math.PI / 180;
     const bi0 = Math.floor(lat / DEG), nb = Math.ceil(radius / 111.2);
-    let want = null, wantD = 1e9;
+    let want = null, wantD = 1e9; const sunNow = this.shared.uSunDir.value;
     for (let bi = bi0 - nb; bi <= bi0 + nb; bi++) {
       const dLon = blockLon(bi, DEG), count = Math.round(360 / dLon), bj0 = Math.floor(lon / dLon);
       for (let bu = bj0 - nb; bu <= bj0 + nb; bu++) {
@@ -328,6 +328,8 @@ export class Trees {
         if (d > radius + 80) continue;
         const bj = ((bu % count) + count) % count;          // (the lattice goes once round the world and meets itself)
         const key = bi + ':' + bj, b = this.blocks.get(key);
+        // (the land's shadow on its trees was worked out for a Sun that has moved on: again)
+        if (b && b.state === 1 && !b.stale && b.sun && b.sun.dot(sunNow) < 0.99966) b.stale = true;
         if (b) { b.used = this.frame; if (!b.stale || b.asking) continue; }
         this.missing++;
         if (d < wantD) { wantD = d; want = [bi, bj, key]; }
@@ -335,7 +337,7 @@ export class Trees {
     }
     // ask for the nearest missing block when a worker has nothing better to do
     if (want && this.asked < 2 && t.workers.idle && !t.tiles.busy && t.wanted.length === 0) {
-      const [bi, bj, key] = want, epoch = t.epoch, serialAt = this.serial, job = t.workers.run({ type: 'trees', bi, bj, spacing: def.spacing ?? 7 });
+      const [bi, bj, key] = want, epoch = t.epoch, serialAt = this.serial, sun = sunNow.clone(), job = t.workers.run({ type: 'trees', bi, bj, spacing: def.spacing ?? 7, sun: [sun.x, sun.y, sun.z], sunHalf: t._sunHalf ?? 0.00465 });
       if (job) {
         let b = this.blocks.get(key);
         if (!b) { b = { state: 0, used: this.frame }; this.blocks.set(key, b); }
@@ -344,7 +346,7 @@ export class Trees {
           this.asked--; b.asking = false;
           if (epoch !== t.epoch) return;                       // another world by now
           // (worked out from maps that have changed again since: kept as it is, and asked for again)
-          b.state = 1; b.origin = res.origin; b.trees = new Float32Array(res.trees); b.count = res.count; b.stale = serialAt !== this.serial; this.dirty = true;
+          b.state = 1; b.origin = res.origin; b.trees = new Float32Array(res.trees); b.vis = new Float32Array(res.vis); b.sun = sun; b.count = res.count; b.stale = serialAt !== this.serial; this.dirty = true;
         }).catch((e) => { this.asked--; b.asking = false; if (b.state === 0) this.blocks.delete(key); console.error(e); });
       }
     }
@@ -379,7 +381,7 @@ export class Trees {
         const i = set.count++;
         set.iA.array.set([x, y, z, T[q + 3]], i * 4);
         set.iB.array.set([T[q + 4], T[q + 5], own, sp.fall], i * 4);
-        set.iC.array.set(sp.leaf, i * 3); set.iD.array.set(sp.trunk, i * 3);
+        set.iC.array.set(sp.leaf, i * 3); set.iD.array.set(sp.trunk, i * 4); set.iD.array[i * 4 + 3] = b.vis ? b.vis[k] : 1;
         if (d2 < 60 * 60) { names.set(sp.name, (names.get(sp.name) || 0) + 1); near++; if (sp.fall) falling++; }
         if (d2 < nearest) nearest = d2;
       }

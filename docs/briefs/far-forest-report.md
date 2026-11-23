@@ -132,8 +132,6 @@ fixed, plus the worker's own arrays for the tiles held (9 floats a tree).
   jobs at a time.
 - Far trees do not sway in the wind (the near ones do). At 240 m a 20 m tree leans less than
   half a degree in a gale, so nothing shows at the line; it is still a difference.
-- **Cloud shadow** on far trees is the camera's own (`uWeather.x`), as for the near trees:
-  a far wood under another cloud is not darkened by it, while the ground under it is.
 - The land's shadow on far trees is read off a grid 45 m apart on the nearest tiles and
   370 m apart on the farthest: the edge of a mountain's shadow on a far wood is soft.
 - At a mile the trees are thinned to a tenth; over closed forest they stand on the canopy
@@ -146,6 +144,39 @@ fixed, plus the worker's own arrays for the tiles held (9 floats a tree).
   stay until their new ones come.
 - Nothing is drawn beyond 5.6 km. Trees are still a few pixels at that distance on the
   phone; from there out the canopy the ground shader raises carries the forest.
+
+## Added after the first delivery: shadow on trees (the owning session's ask)
+
+Asked for: far trees no longer sunlit inside a cloud's shadow. Found on the way: the bright
+trees on dark ground in the view that was named (`alt=1535&pitch=-12`) were not under a
+cloud at all. They were the **trees one walks among, inside the mountain's shadow**: beyond
+the shadow maps those trees had no shadow of the land on them, ever. Both are done.
+
+- **The clouds' shadow** is one piece of vertex shader, `CLOUD_SHADE_VERT` in
+  `src/life/trees.js`, read by the near trees and by the far forest: the ground's own rule
+  (`cloudHeap` from `HEAP_GLSL`, the day's map, `uCloud.x` times the shade), once per tree
+  at two thirds of its height. Its uniforms are the ground's own objects
+  (`cloudShadeUniforms(terrain)`), so nothing was added to `src/app.js`, and a saving that
+  takes the shadow off the ground takes it off the trees in the same frame. It does not use
+  the ground's far-off mean (`0.5 * cc`): within 5.6 km the ground is still shaded heap by
+  heap. Cost: two or three texture reads per vertex of a tree (the day's map, and the
+  cloud noise once or twice), nothing per pixel. **Not measured on a phone.**
+- **The land's shadow on the near trees.** The worker's job for a block of near trees now
+  does what the far forest's tile job does (one function, `landShadow` in
+  `src/terrain/chunkWorker.js`): a 4 x 4 grid of shadow rays over the 111 m block, read off
+  per tree, carried in the fourth number of `iD`. A block is asked for again when the Sun
+  has moved a degree and a half, as the far tiles are. Under the shadow maps a near tree is
+  now shaded twice by the same hill, which changes nothing dark to dark; at the soft edge
+  of a mountain's shadow near trees are a little darker than before.
+- Pictures: `haven_ledge_cloud1535_before/_after.png` (the near trees at the bottom, lit in
+  the shadow before, dark with their ground after), `cloud1535_floor_after` (every saving
+  on), `cloud1900_before/_after` (far trees in the shadow on the right). The before
+  pictures are of the build before the owning branch was merged in: the ground's autumn
+  colours differ a little between the pairs for that reason, not for this one.
+- Still so: the trees' shadow of a cloud is per tree and the ground's per pixel, so under a
+  cloud's edge a tree is all in or all out; and the clouds in these views cast little on
+  the wooded slopes, so the clouds' part is right by construction (one rule, the ground's
+  numbers) more than it is shown.
 
 ## Tests
 
