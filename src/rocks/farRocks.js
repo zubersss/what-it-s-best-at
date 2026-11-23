@@ -32,6 +32,9 @@ import { ROCK_SHAPE_GLSL, rockGeometry } from './rocks.js';
 import { rocksFarDef, tileDeg, tileLon, rockTop, SMALL_SHARE, shareOf, ROCKS_FAR_DEFAULTS } from './rockBlock.js';
 
 const POOL = [14, 14, 14, 16];            // tiles held at once, by level (fixed: memory cannot creep)
+const CASTERS = 1024;                 // the most rocks drawn into the near shadow map
+const FINE_REACH = 45;                // a rock nearer than this can reach the shadow map's fine tile (20 m half-width, and its shadow's length)
+const CASTER_STEP = 20;               // metres the traveller goes before they are chosen again
 const VIS_TURN = 0.9998;              // the land's shadow on the rocks is asked again when the Sun has moved 1.1 degrees
 const COLLIDE_FROM = 3.4;             // levels whose rocks are this large and more carry a walker (m)
 
@@ -210,6 +213,22 @@ export class FarRocks {
       this.discPos = new THREE.BufferAttribute(new Float32Array(pos), 3); this.discIdx = new THREE.BufferAttribute(new Uint16Array(idx), 1); }
     this.shadows = true;
     this.slots = []; this.tiles = new Map();
+    // The rocks near the eye, for the near shadow map: one small mesh of their own, the
+    // nearest first (so the fine tile can take the first few), filled on the CPU when the
+    // traveller has gone 20 m (_fillCaster). (Each tile's own mesh was the caster before:
+    // every shadow tile was handed every instance of every tile within 240 m, nine to
+    // seventeen thousand blocks, for the few that stand in the map.)
+    {
+      const fl = (n) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(CASTERS * n), n); a.setUsage(THREE.DynamicDrawUsage); return a; };
+      const by = new THREE.InstancedBufferAttribute(new Uint8Array(CASTERS * 4), 4, true); by.setUsage(THREE.DynamicDrawUsage);
+      const geo = new THREE.InstancedBufferGeometry();
+      geo.setAttribute('position', this.base.attributes.position); geo.setAttribute('normal', this.base.attributes.normal); geo.setIndex(this.base.index);
+      this.casterAt = { aOff: fl(4), aQuat: fl(4), aScale: fl(3), aShape: by };
+      for (const name in this.casterAt) geo.setAttribute(name, this.casterAt[name]);
+      geo.instanceCount = 0;
+      this.caster = new THREE.Mesh(geo, this.depthMaterial); this.caster.frustumCulled = false;
+      this.casterAnchor = new THREE.Vector3(); this.casterFine = 0; this.casterDirty = true; this.casterAt0 = 0;
+    }
     this.frame = 0; this.asked = 0; this.missing = 0; this.fraction = 1; this.count = 0; this.drawn = [0, 0]; this.triangles = 0;
     this.coverSerial = -1; this.visSun = [0, 0, 0]; this.sun = [0, 0, 1]; this.sunHalf = 0.0046;
     this._c = new THREE.Vector3(); this._q = [0, 0, 0];
@@ -241,15 +260,16 @@ export class FarRocks {
         const shade = new THREE.Mesh(sg, this.shadowMaterial);
         shade.visible = false; shade.renderOrder = 2;            // after the ground it lies on
         this.group.add(shade);
-        this.slots.push({ li, cap, at, mesh, shade, tile: null, shadowN: 0 });
+        this.slots.push({ li, cap, at, mesh, shade, tile: null });
       }
     }
-    this.castersNew = true;
+
   }
 
   setWorld(world) {
     this.world = world; this.def = rocksFarDef(world);
     for (const s of this.slots) this._free(s);
+    this.caster.geometry.instanceCount = 0; this.casterDirty = true;
     this.tiles.clear(); this.asked = 0; this.missing = 0; this.missing0 = undefined; this.count = 0; this.coverSerial = -1; this.visSun = [0, 0, 0];
     this.group.visible = !!this.def;
     if (!this.def) return;
@@ -270,10 +290,39 @@ export class FarRocks {
 
   // The near shadow map draws the blocks near the eye: every slot's mesh is a
   // caster, on while its tile has rocks within the map's reach (app.js adds them).
-  // The pool is made at the first world that has far rocks: whoever takes the casters
-  // asks again after every setWorld (`castersNew` is true once, when there are new ones).
-  // (Asked once at start-up only, a page opened on Mars had no rock shadows on Haven.)
-  get casters() { this.castersNew = false; return this.slots.map((s) => ({ mesh: s.mesh, on: () => s.shadowN > 0 && !!s.tile })); }
+  // What the near shadow map draws of the far rocks: the one small mesh, on while it holds
+  // any; `fine`: how many of its first can reach the fine tile.
+  get casters() { return [{ mesh: this.caster, on: () => this.group.visible && this.caster.geometry.instanceCount > 0, fine: () => this.casterFine }]; }
+
+  // Chooses the rocks that cast into the near shadow map: those within its reach of the
+  // traveller, nearest first, the first CASTERS of them. A pass over the tiles that reach
+  // that far, when the traveller has gone CASTER_STEP metres or a tile has come or gone.
+  _fillCaster(p) {
+    const R = CONFIG.NEAR_SHADOW_RADIUS * 1.6, list = this._cl || (this._cl = []), at = this.casterAt;
+    list.length = 0;
+    for (const s of this.slots) {
+      const b = s.tile; if (!b || !b.full) continue;
+      const ox = b.origin.x - p.x, oy = b.origin.y - p.y, oz = b.origin.z - p.z;
+      if (Math.hypot(ox + b.bound[0], oy + b.bound[1], oz + b.bound[2]) - b.bound[3] > R) continue;
+      const off = b.full.off;
+      for (let i = 0; i < b.count; i++) {
+        const x = ox + off[i * 4], y = oy + off[i * 4 + 1], z = oz + off[i * 4 + 2], d = Math.sqrt(x * x + y * y + z * z) - off[i * 4 + 3];
+        if (d < R) list.push({ d, b, i });
+      }
+    }
+    list.sort((x, y) => x.d - y.d);
+    const n = Math.min(CASTERS, list.length); let fine = 0;
+    for (let k = 0; k < n; k++) {
+      const { d, b, i } = list[k], f = b.full, i4 = i * 4, k4 = k * 4;
+      at.aOff.array[k4] = b.origin.x - p.x + f.off[i4]; at.aOff.array[k4 + 1] = b.origin.y - p.y + f.off[i4 + 1]; at.aOff.array[k4 + 2] = b.origin.z - p.z + f.off[i4 + 2]; at.aOff.array[k4 + 3] = f.off[i4 + 3];
+      for (let c = 0; c < 4; c++) { at.aQuat.array[k4 + c] = f.quat[i4 + c]; at.aShape.array[k4 + c] = f.shape[i4 + c]; }
+      for (let c = 0; c < 3; c++) at.aScale.array[k * 3 + c] = f.scale[i * 3 + c];
+      if (d < FINE_REACH) fine = k + 1;
+    }
+    if (n) for (const name in at) { const a = at[name]; a.clearUpdateRanges(); a.addUpdateRange(0, n * a.itemSize); a.needsUpdate = true; }
+    this.caster.geometry.instanceCount = n; this.casterFine = fine; this.casterDirty = false; this.casterAt0 = this.frame;
+    this.casterAnchor.copy(p); list.length = 0;
+  }
 
   // Every frame. rig: the camera rig; sun: the Sun's direction (planet axes); sunHalf: its half angle.
   update(rig, sun, sunHalf) {
@@ -332,7 +381,7 @@ export class FarRocks {
     if (this.frame % 120 === 0) for (const [k, b] of this.tiles) if (this.frame - b.used > 300 && !b.asking) { if (b.slot) this._free(b.slot); this.tiles.delete(k); }
     // what each tile draws from here: its rocks are largest first, so the first so-many
     // (counted: what is in the view, which is what is drawn: three leaves out the tiles behind the traveller)
-    let count = 0, tris = 0, all = 0, calls = 0; const c = this._c, shadowR = CONFIG.NEAR_SHADOW_RADIUS * 1.6;
+    let count = 0, tris = 0, all = 0, calls = 0; const c = this._c;
     const fr = this._frustum || (this._frustum = new THREE.Frustum()), pm = this._pm || (this._pm = new THREE.Matrix4()), sp = this._sp || (this._sp = new THREE.Sphere());
     fr.setFromProjectionMatrix(pm.multiplyMatrices(rig.camera.projectionMatrix, rig.camera.matrixWorldInverse));
     // (the first rock too small to be seen from a tile's nearest point; a small rock's reach is less)
@@ -348,6 +397,11 @@ export class FarRocks {
     }
     if (f1) this._fill(f1, f1.tile);
     if (f2) this._fill(f2, f2.tile);
+    // (the casters: chosen again after 20 m, or when a tile has come or gone; not more often
+    // than every tenth frame, and not from where the shadow map has nothing to show of them)
+    if (rig.agl < 400) { if ((this.casterDirty || this.casterAnchor.distanceTo(p) > CASTER_STEP) && this.frame - this.casterAt0 >= 10) this._fillCaster(p); }
+    else if (this.caster.geometry.instanceCount) { this.caster.geometry.instanceCount = 0; this.casterDirty = true; }
+    this.caster.position.copy(this.casterAnchor).sub(p);
     for (const s of this.slots) {
       const b = s.tile;
       if (!b) continue;
@@ -362,7 +416,6 @@ export class FarRocks {
         nLo = a;
       }
       s.mesh.visible = nLo > 0; s.mesh.geometry.instanceCount = nLo;
-      s.shadowN = dmin < shadowR ? nLo : 0;
       // (their shadows on the ground: of the rocks seen from under 0.72 of their reach)
       let nSh = 0;
       if (this.shadows && nLo && this.def.levels[s.li].shadow !== false) { let a = 0, z = nLo; while (a < z) { const m = (a + z) >> 1; if (sizes[m] * smallK(sizes[m]) * 0.72 > dmin) a = m + 1; else z = m; } nSh = a; }
@@ -443,7 +496,7 @@ export class FarRocks {
       b.full = { off, quat: new Float32Array(res.quat), scale: new Float32Array(res.scale), shape: new Uint8Array(res.shape), misc, tint, sizes };
       b.sizes = new Float32Array(n); b.filled = 0; b.tinted = false;
       this._tint(b);
-      this._fill(slot, b);
+      this._fill(slot, b); this.casterDirty = true;
       for (const m of [slot.mesh, slot.shade]) { m.geometry.boundingSphere.center.set(res.bound[0], res.bound[1], res.bound[2]); m.geometry.boundingSphere.radius = res.bound[3]; }
       // (kept for whoever walks among them: the larger levels only)
       b.solid = this.def.levels[li].size[0] >= COLLIDE_FROM - 1e-6 ? b.full : null;
@@ -535,7 +588,7 @@ export class FarRocks {
     if (far) { far.tile.slot = null; far.tile.state = 0; far.tile.center = null; this._free(far); }
     return far;
   }
-  _free(s) { s.tile = null; s.mesh.visible = s.shade.visible = false; s.shadowN = 0; }
+  _free(s) { s.tile = null; s.mesh.visible = s.shade.visible = false; this.casterDirty = true; }
 
   // The land's shadow on the rocks follows the Sun: one tile at a time, when a worker is free.
   _refreshVis() {
