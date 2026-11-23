@@ -28,7 +28,8 @@
 //   the same picture, size, turn and colours on both sides of it.
 //
 // A world has them with `life.trees.far: { full (m), radius (m), below (m above the ground:
-// none from higher), levels }`.
+// none from higher) }`; how many levels, how large a tile and how many trees one may hold
+// are the same on every world (the constants below).
 import * as THREE from 'three';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
