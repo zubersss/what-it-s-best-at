@@ -300,7 +300,7 @@ const CLUMP_VERT = /* glsl */`
     vSlope = vec4(normalize(uGrassUp - uGrassEast * dh.x - uGrassNorth * dh.y), smoothstep(12.0, 45.0, dist));
     // (looked down on, or far off, a clump is the ground's own grass colour with a tufted
     // edge: its dark foot showing from above was a field of dark specks that ended in an arc)
-    vEven = 0.85 * max(rise, smoothstep(120.0, 420.0, dist));
+    vEven = 0.9 * max(smoothstep(0.05, 0.35, rise), smoothstep(120.0, 420.0, dist));
     vAlb = vec4(0.0, 0.0, 0.0, 1.0);
     gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
   }`;
@@ -442,7 +442,7 @@ export class Grass {
   // True while the ground tables round the traveller are still being filled in (pictures wait for them).
   get busy() {
     if (!this.mesh.visible) return false;
-    const T = this.tables; return (this.keepBlades > 0 && T.near.pending > 0) || (this.keepClumps > 0 && (T.mid.pending > 0 || T.far.pending > 0));
+    const T = this.tables; return (this.keepBlades > 0 && T.near.pending > 0) || T.mid.pending > 0 || (this.keepClumps > 0 && T.far.pending > 0);
   }
 
   // What the ground is like at place (i, j) (absolute cells of `cell` metres) into entry o of a table.
@@ -492,7 +492,9 @@ export class Grass {
     const agl = rig.agl, below = def?.below ?? 80, midBelow = def?.mid ?? 220;
     // (by the traveller's height: the blades go between half their height and it, the clumps likewise)
     const kb = def ? 1 - smoothstep(below * 0.5, below, agl) : 0, kc = def ? 1 - smoothstep(midBelow * 0.55, midBelow, agl) : 0;
-    const show = !!def && !!t.coverSerial && (kb > 0 || kc > 0) && this.fraction > 0;
+    // (the ground's own grass colour stays far higher: from 220 m up the ground went from gold to the map's beige as the clumps left)
+    const kg = def ? 1 - smoothstep(1500, 3000, agl) : 0;
+    const show = !!def && !!t.coverSerial && kg > 0 && this.fraction > 0;
     this.keepBlades = kb; this.keepClumps = kc;
     if (!show) { this.mesh.visible = false; tone.w = 0; this._toneK = 0; return; }
     const p = rig.pos, w = t.shared.uWind.value;
@@ -541,7 +543,7 @@ export class Grass {
     let budget = this.eager ? 1e9 : 300;
     for (const k of ['near', 'mid', 'far']) {
       const T = this.tables[k];
-      if (k === 'near' ? kb <= 0 : kc <= 0) continue;
+      if (k === 'near' ? kb <= 0 : k === 'far' ? kc <= 0 : false) continue;
       const ci = Math.round((ce + this.origin[0]) / T.cell), cj = Math.round((cn + this.origin[1]) / T.cell);
       budget = T.fill(ci, cj, this.gen, Math.max(budget, k === 'near' && T.pending > 0 ? 200 : 0), (i, j, o, cell) => this._sample(T, i, j, o, cell));
       if (T.changed) { T.changed = false; T.tex.needsUpdate = true; renderer.initTexture(T.tex); if (k === 'mid') this._toneDirty = true; }
@@ -558,10 +560,10 @@ export class Grass {
       if (best > 0) this._flora = fl;
       this._tone = [am / (D.length / 4), am > 0 ? dry / am : 0.5];
     }
-    const [am, dry] = this._tone || [0, 0.5], on = this.tables.mid.pending > this.tables.mid.n * this.tables.mid.n * 0.5 ? 0 : 1;
+    const [am, dry] = this._tone || [0, 0.5], on = this.tables.mid.pending > this.tables.mid.n * this.tables.mid.n * 0.5 && !(kc <= 0 && this._tone) ? 0 : 1;
     this._toneK = this.eager ? on : (this._toneK ?? 0) + (on - (this._toneK ?? 0)) * Math.min(1, dt * 1.5);
-    // (x: how dry, y: how much of the ground is grass, z: the flowers, w: how strongly: by the clumps' own keep)
-    tone.set(dry, Math.min(1, am * 1.25), this._flora || 0, this._toneK * Math.min(1, this.fraction * 2));
+    // (x: how dry, y: how much of the ground is grass, z: the flowers, w: how strongly)
+    tone.set(dry, Math.min(1, am * 1.25), this._flora || 0, this._toneK * kg * Math.min(1, this.fraction * 2));
     this.mesh.visible = true;
   }
 }
