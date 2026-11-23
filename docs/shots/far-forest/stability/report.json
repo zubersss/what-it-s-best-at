@@ -1,0 +1,65 @@
+[
+  {
+    "move": "haven_treeline",
+    "pass": "settled",
+    "station": 0,
+    "changed": 58.94,
+    "flicker": 11.835,
+    "worst": 206
+  },
+  {
+    "move": "haven_treeline",
+    "pass": "settled",
+    "station": 1,
+    "changed": 36.29,
+    "flicker": 8.232,
+    "worst": 160
+  },
+  {
+    "move": "haven_treeline",
+    "pass": "settled",
+    "station": 2,
+    "changed": 38.89,
+    "flicker": 8.982,
+    "worst": 169
+  },
+  {
+    "move": "haven_treeline",
+    "pass": "streaming",
+    "station": 0,
+    "changed": 74.97,
+    "flicker": 3.633,
+    "worst": 174,
+    "arriving": [
+      "terrain rocks",
+      "exposure terrain rocks",
+      "exposure terrain rocks"
+    ]
+  },
+  {
+    "move": "haven_treeline",
+    "pass": "streaming",
+    "station": 1,
+    "changed": 72.01,
+    "flicker": 6.566,
+    "worst": 191,
+    "arriving": [
+      "exposure terrain rocks",
+      "exposure terrain rocks",
+      "exposure terrain rocks"
+    ]
+  },
+  {
+    "move": "haven_treeline",
+    "pass": "streaming",
+    "station": 2,
+    "changed": 76.2,
+    "flicker": 1.198,
+    "worst": 187,
+    "arriving": [
+      "exposure terrain rocks",
+      "exposure terrain rocks",
+      "exposure terrain rocks"
+    ]
+  }
+]
