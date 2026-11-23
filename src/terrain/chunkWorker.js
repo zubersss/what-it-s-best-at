@@ -2,7 +2,7 @@
 import { createHeightSource } from './height/heightSource.js';
 import { ChunkBuilder } from './chunkBuilder.js';
 import { ShadowBaker } from './shadowBake.js';
-import { treeBlock } from '../life/treeBlock.js';
+import { treeBlock, treeTile } from '../life/treeBlock.js';
 
 let hs = null, builder = null, baker = null;
 
@@ -23,6 +23,11 @@ self.onmessage = (ev) => {
     } else if (m.type === 'trees') {
       const b = treeBlock(hs, m.bi, m.bj, m.spacing, m.deg, m.salt);
       self.postMessage({ type: 'trees', id: m.id, origin: b.origin, count: b.count, trees: b.trees.buffer }, [b.trees.buffer]);
+    } else if (m.type === 'treeTile') {
+      // A square of tree blocks in one job, a band of ranks of it: the far forest.
+      const t0 = performance.now();
+      const b = treeTile(hs, m.ti, m.tj, m.blocks, m.spacing, m.lo, m.hi);
+      self.postMessage({ type: 'treeTile', id: m.id, origin: b.origin, count: b.count, ms: performance.now() - t0, trees: b.trees.buffer }, [b.trees.buffer]);
     } else if (m.type === 'chunk') {
       const t0 = performance.now();
       const c = builder.build(m.face, m.level, m.ix, m.iy, m.sun, m.sunHalf);

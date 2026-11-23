@@ -16,7 +16,15 @@ export const BLOCK_DEG = 0.001;
 const EARTH_R = 6371000;
 // (on Earth exactly the number it always was: its trees stand where they stood)
 export function blockDeg(R, deg = BLOCK_DEG) { return R === EARTH_R ? deg : deg * EARTH_R / R; }
-export const TREE_FLOATS = 8;          // x, y, z (m from the block's origin, planet axes), height, crown width, turn, species, a number of its own
+export const TREE_FLOATS = 9;          // x, y, z (m from the block's origin, planet axes), height, crown width, turn, species, a number of its own, its rank
+// A site's **rank** (0..1): a hash of the site alone, of nothing else — not of the chance
+// the class gives it, its species or its shape. A band of ranks can therefore be asked
+// for on its own (`lo`, `hi` below), and the trees of a band are the very trees that
+// stand there, at the same places, with the same shapes: the far forest (life/farForest.js)
+// draws the land in bands, thinner band by band the farther off, and no tree is drawn
+// twice or moves as the traveller comes nearer.
+const RANK_SALT = 60919;
+export function siteRank(bi, bj, i, j) { return (hash3(bi * 131 + i, bj * 137 + j, 97, RANK_SALT) & 0xffffff) / 0x1000000; }
 
 // (the block's width in longitude: the same for every block of a one-degree band of latitude)
 // (a whole number of blocks round the world: the lattice meets itself at longitude 0)
@@ -25,9 +33,11 @@ export function blockLon(bi, deg = BLOCK_DEG) { const band = Math.floor(bi * deg
 
 // hs: the world's height source (with setCover given); radius; bi, bj: the block; spacing (m).
 // Returns { origin: [x, y, z] (planet-centred, m), count, trees: Float32Array }.
-// deg, salt: the far trees (life/groves.js) ask for larger blocks with fewer sites, on a
-// lattice of their own: BLOCK_DEG and the trees' own numbers when left out.
-export function treeBlock(hs, bi, bj, spacing = 7, nominal = BLOCK_DEG, salt = 4409) {
+// deg, salt: a caller may ask for larger blocks with fewer sites on a lattice of its own
+// (BLOCK_DEG and the trees' own numbers when left out).
+// lo, hi: only the sites whose rank is in [lo, hi) (see siteRank). The test is made before
+// anything is asked about the ground, so a thin band costs little.
+export function treeBlock(hs, bi, bj, spacing = 7, nominal = BLOCK_DEG, salt = 4409, lo = 0, hi = 1) {
   const R = hs.radius, rad = Math.PI / 180, deg = blockDeg(R, nominal), dLon = blockLon(bi, deg), lat0 = bi * deg, lon0 = bj * dLon;
   const K = Math.max(2, Math.round(111.2 * (nominal / 0.001) / spacing)), out = new Float32Array(K * K * TREE_FLOATS);
   // (a made world says where its own tree line is and what grows on it: world.life)
@@ -38,6 +48,9 @@ export function treeBlock(hs, bi, bj, spacing = 7, nominal = BLOCK_DEG, salt = 4
   const h0 = hs.height(o[0], o[1], o[2], 30), origin = [o[0] * (R + h0), o[1] * (R + h0), o[2] * (R + h0)];
   let n = 0;
   for (let j = 0; j < K; j++) for (let i = 0; i < K; i++) {
+    // (the band of ranks wanted, first of all: the ground is not asked about a site left out)
+    const rank = siteRank(bi, bj, i, j);
+    if (rank < lo || rank >= hi) continue;
     const h1 = hash3(bi * 131 + i, bj * 137 + j, 17, salt), h2 = hash3(bi * 131 + i, bj * 137 + j, 29, salt);
     const u1 = (h1 & 0xffff) / 65536, u2 = (h1 >>> 16) / 65536, u3 = (h2 & 0xffff) / 65536, u4 = (h2 >>> 16) / 65536;
     const lat = lat0 + (j + 0.15 + 0.7 * u1) / K * deg, lon = lon0 + (i + 0.15 + 0.7 * u2) / K * dLon;
@@ -67,8 +80,42 @@ export function treeBlock(hs, bi, bj, spacing = 7, nominal = BLOCK_DEG, salt = 4
     const base = Math.max(tall, near ? 9 : 2.5), height = Math.max(1.2, base * S.tall * (0.72 + 0.5 * u1) * (over > 0 ? 1 - 0.6 * over : 1));
     const r = R + h, q = n * TREE_FLOATS;
     out[q] = d[0] * r - origin[0]; out[q + 1] = d[1] * r - origin[1]; out[q + 2] = d[2] * r - origin[2];
-    out[q + 3] = height; out[q + 4] = S.wide * (0.85 + 0.35 * u2); out[q + 5] = u3 / Math.max(dens, 1e-3) * 6.2831853; out[q + 6] = sp; out[q + 7] = u4;
+    out[q + 3] = height; out[q + 4] = S.wide * (0.85 + 0.35 * u2); out[q + 5] = u3 / Math.max(dens, 1e-3) * 6.2831853; out[q + 6] = sp; out[q + 7] = u4; out[q + 8] = rank;
     n++;
   }
   return { origin, count: n, trees: out.slice(0, n * TREE_FLOATS) };
+}
+
+// A square of `blocks` x `blocks` tree blocks in one go, as one array: what the far forest
+// asks a worker for (life/farForest.js). ti, tj: the tile, in tiles of that size (a block
+// of the tile is (ti * blocks + a, tj * blocks + b)). lo, hi: the band of ranks.
+//
+// Every block of the world belongs to exactly one tile of each size: blocks run round the
+// world in rows whose length depends on the latitude (blockLon), so a row's last tile is
+// the short one and a block index past the end of its row is simply not there. Positions
+// are metres from the tile's own origin.
+export function treeTile(hs, ti, tj, blocks = 8, spacing = 7, lo = 0, hi = 1, nominal = BLOCK_DEG, salt = 4409) {
+  const R = hs.radius, rad = Math.PI / 180, deg = blockDeg(R, nominal);
+  const bi0 = ti * blocks, biMid = bi0 + blocks / 2, dLonMid = blockLon(Math.floor(biMid), deg);
+  const latMid = biMid * deg, lonMid = (tj * blocks + blocks / 2) * dLonMid;
+  const cl = Math.cos(latMid * rad), dm = [cl * Math.cos(lonMid * rad), cl * Math.sin(lonMid * rad), Math.sin(latMid * rad)];
+  const hM = hs.height(dm[0], dm[1], dm[2], 30), origin = [dm[0] * (R + hM), dm[1] * (R + hM), dm[2] * (R + hM)];
+  const parts = [];
+  let n = 0;
+  for (let a = 0; a < blocks; a++) {
+    const bi = bi0 + a, dLon = blockLon(bi, deg), round = Math.round(360 / dLon);
+    for (let b = 0; b < blocks; b++) {
+      const bj = tj * blocks + b;
+      if (bj >= round) continue;                 // (the short tile at the end of a row)
+      const blk = treeBlock(hs, bi, bj, spacing, nominal, salt, lo, hi);
+      if (!blk.count) continue;
+      const dx = blk.origin[0] - origin[0], dy = blk.origin[1] - origin[1], dz = blk.origin[2] - origin[2], T = blk.trees;
+      for (let k = 0, q = 0; k < blk.count; k++, q += TREE_FLOATS) { T[q] += dx; T[q + 1] += dy; T[q + 2] += dz; }
+      parts.push(T); n += blk.count;
+    }
+  }
+  const trees = new Float32Array(n * TREE_FLOATS);
+  let at = 0;
+  for (const p of parts) { trees.set(p, at); at += p.length; }
+  return { origin, count: n, trees };
 }
