@@ -47,9 +47,11 @@ const MOVES = [
   // 370 m: the canopy's crowns, the far trees and the clouds' shadows as the camera creeps.)
   // (Haven from the air: its made land, the lake, clouds and their shadows as the camera creeps)
   { id: 'haven_flight', world: 'haven', shot: 'ledge', query: 'alt=9000&pitch=-16&t=2', step: { fwd: 6 }, stride: 300, slow: true },
+  // (0.4 m a frame: a tree or two crosses the 240 m line at every step, and the wood's
+  // image hardly moves; the grass at one's feet does, so judge the strips' upper half)
   // (Haven on foot, walking at a wood: the far forest's trees grow in as they are come at,
   // and the line where the trees one walks among take over from them must not show)
-  { id: 'haven_treeline', world: 'haven', shot: 'ledge', query: 'lat=-27.114&lon=51.987&heading=0&pitch=-3&hero=1', step: { fwd: 1.2 }, stride: 200, slow: true },
+  { id: 'haven_treeline', world: 'haven', shot: 'ledge', query: 'lat=-27.114&lon=51.987&heading=0&pitch=-3', step: { fwd: 0.4 }, stride: 100, slow: true },
   { id: 'earth_forest_flight', world: 'earth', shot: 'ledge', query: 'lat=36.3&lon=247.9&alt=3000&heading=0&pitch=-25&t=5', step: { fwd: 1.5 }, stride: 300, slow: true },
 ];
 // The list above is tuned by hand for the worlds it names. A world in the registry that
