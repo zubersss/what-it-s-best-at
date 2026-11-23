@@ -726,9 +726,9 @@ Two kinds, drawn together:
 
 - **The stones underfoot** (`rocks.js`, `surface.rocks`): 300 within 110 m of the
   traveller, scattered by a lattice round the camera, shrinking away at its edge. On
-  Haven they stop at 1.4 m: anything larger is the land's own.
+  Haven they stop at 0.7 m: anything larger is the land's own.
 - **The land's own rocks** (`farRocks.js`, `rockBlock.js`; `surface.rocks.far` in the world
-  file, defaults in `rockBlock.js`): boulders from 1.4 m to 20 m that are there whenever
+  file, defaults in `rockBlock.js`): blocks from 0.7 m to 20 m that are there whenever
   anyone comes back, drawn to `reach` (420) metres for every metre of their size: a 4 m
   block to a mile, a house-sized one to eight kilometres. The same block at the same
   place from that far to arm's length.
@@ -740,19 +740,34 @@ ground: its slope and how far it stands above its neighbours, both measured on g
 water's edge, the tree line, less in closed forest (the land-cover picture; the largest
 level least: outcrops stand out of the trees), none in water. The cluster noise (260, 85
 and 27 m) keeps open ground to its highest few per cent (erratics) and rocky ground to
-about half, so fields have bare ground between them. `node scripts/rock-field.mjs` draws
+about two thirds, so fields have bare ground between them; on all-rock ground (a talus
+slope) the fields run into each other and the noise only thins them. **How a block
+stands**: its middle a fifth of its height over the ground, lying on the slope. (The
+block's underside is not cut: sunk like a pebble only its top face showed, a slab level
+with the hillside, and for a day steep rock ground looked bare.) **From how far it is
+seen** is part of the rule (`seen`, a share of its size in a byte): under a closed
+canopy 180 m, and from afar only blocks of 9 m and more. `node scripts/rock-field.mjs` draws
 the result from above in seconds; `npm run rocks` fails if a promise of the rule is broken.
 
-**Levels and tiles.** Sizes come in three levels (1.4 to 3.4 m, 3.4 to 8 m, 8 to 20 m).
+**Levels and tiles.** Sizes come in three levels (1.4 to 3.4 m, 3.4 to 8 m, 8 to 20 m),
+and a fourth for the talus near the eye (0.7 to 2.6 m on tiles of 445 m, many, seen from
+310 m at most whatever their size: `seenTo`; no shadow patches).
 Each has its own tiles, **about as wide as its largest rock is seen from far** (1.3, 3.3
 and 8.3 km: `tileDeg`, the trees' lattice at other sizes), with 128 x 128 sites: so every
 level needs the same nine or so tiles round the traveller, and a view holds three or
 four of each. A tile is one worker job (`rocks`: 30 to 80 ms with the land's shadow on
-each rock) and comes back largest rock first. On the main thread it is filled once into
-buffers from a **fixed pool** (14 tiles a level; 52 bytes a rock, 8 MB in all) and drawn
+each rock) and comes back in the order of how far each rock is seen from. On the main
+thread the whole tile is kept, and the GPU's buffers (a **fixed pool**: 14 tiles a
+level, 16 for the talus; 52 bytes a rock) are **filled with the rocks that can be seen
+from where the traveller is** and those that will be before the next filling (`_fill`:
+again when the traveller has gone half the slack, two tiles a frame at most, and when
+the governor's step changes). A tile is as wide as its largest rocks are seen from
+far, so most of the tile one stands in is small rocks too far off to draw: handed over
+whole, the vertex shader ran over five times what it drew; now 1.3 times. It is drawn
 as **one instanced mesh** of one block (20 flat faces: the stones' lump at its coarsest,
 cut by the same fracture planes, `ROCK_SHAPE_GLSL`), and one more for the shadows.
-Nothing is done per rock per frame on the CPU; per tile, a binary search says how many
+Nothing is done per rock per frame on the CPU (a filling is a pass over one tile, a few
+times a minute on foot); per tile, a binary search says how many
 of its first rocks can be seen from its nearest point (the instance count). **The draw
 calls are counted in tiles**: some twenty in a view, shadows included. (The first
 version had tiles of 333 m to 2.2 km and three meshes a tile, two block shapes and the
