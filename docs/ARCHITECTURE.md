@@ -685,6 +685,16 @@ as Earth is; what differs is where the maps come from.
     shaders, on the same tree, with the same picture, size, turn, season and colours (the
     far forest's fragment shader is the card path of the near trees' own, and leaf and bark
     colours are packed over their real range so the two cannot differ at the line).
+  - **The land's shadow.** Far trees are beyond every shadow map. The tile job asks the
+    shadow baker (`baker.visibility`) on a 20 x 20 grid over the tile at crown height and
+    each tree carries what it reads off between the grid's points (in `iC.w`, with its
+    autumn); a tile is asked for again when the Sun has moved a degree and a half. Cloud
+    shadow is the camera's own, as for the near trees.
+  - **The far green.** From 300 m to 1.3 km a far tree's leaf colour goes over to a dark
+    warm olive of the same brightness and its share of the sky's light loses most of its
+    blue; the wood's own air (`forestAir`) fades out between 300 m and 1 km, where the
+    air itself takes over. The rule: a far tree is never bluer or paler than the ground
+    behind it. All of it is nothing at the join, where the near trees' numbers hold.
   - Drawn after the ground: the raised canopy hides a far tree's lower part for nothing and
     its crown stands out of it. Governor step `far-trees`: it **thins** them (the widening
     goes with it, so a wood is still a wood) and shortens their reach, never removes them.
