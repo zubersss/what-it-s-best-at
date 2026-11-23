@@ -34,6 +34,7 @@ import { localFrame } from '../core/ephemeris.js';
 import { CLOUD_SHADE_VERT, cloudShadeUniforms } from './trees.js';
 import { AMOUNT, DRY, floraAt, flowersAt, FLOWERS_GLSL, GRASS_GLSL, WAVE_K } from './grassRules.js';
 
+const SHADE_N = 36, SHADE_CELL = 40, SHADE_MOVE = 120;   // the land's shadow for the clumps: places a side, metres between them, how far the traveller goes before it is asked again
 const SNAP = 40;                 // the anchor moves in steps of this (m)
 const RENEW = 60;                // ... when the traveller is this far from it
 const PERIOD = 2560;             // the stretches of taller and drier grass repeat after this (m; a multiple of SNAP)
@@ -263,6 +264,7 @@ const CLUMP_VERT = /* glsl */`
   ${FLOWERS_GLSL}
   ${CLOUD_SHADE_VERT}
   uniform vec4 uWeather;
+  uniform sampler2D tShade; uniform vec4 uShade;   // the land's own shadow round the traveller: xy its middle from the anchor (m), z 1 / its span, w 1 when there is one
   out float vCloud;                  // the cloud between this clump and the Sun (1: none)
   out vec3 vUv;                      // the picture (u, v), and how far across the card (-1..1)
   out vec3 vFoot, vTip; out vec4 vFlower; out vec4 vSlope; out float vEven;
@@ -314,6 +316,9 @@ const CLUMP_VERT = /* glsl */`
     // the traveller for every clump, stepping under a cloud dimmed half a kilometre of grass
     // on sunlit ground. Close by it is the traveller's, as the blades have it.)
     vCloud = mix(uWeather.x, cloudShade(uCamPlanetPos + foot), smoothstep(30.0, 120.0, dist));
+    // (and the land's: a ridge between the clump and the Sun. Beyond the shadow maps the
+    // clumps of a meadow in a ridge's shadow stood sunlit on dark ground.)
+    vCloud *= mix(1.0, texture(tShade, (at - uShade.xy) * uShade.z + 0.5).r, uShade.w * smoothstep(30.0, 120.0, dist));
     vEven = 0.9 * max(smoothstep(0.05, 0.35, rise), smoothstep(120.0, 420.0, dist));
     vAlb = vec4(0.0, 0.0, 0.0, 1.0);
     gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
@@ -407,6 +412,15 @@ export class Grass {
       uGrassWind: wind, uGrassWave: this.waveU, uGrassKeep: { value: new THREE.Vector4(1, 1, 1, 1) }, uGrassTone: terrain.shared.uGrassTone,
     };
     this.clumpTex = makeClumpPicture();
+    // The land's own shadow on the ground round the traveller (a mountain between a place
+    // and the Sun), for the clumps: SHADE_N x SHADE_N places SHADE_CELL apart, asked of the
+    // shadow baker in one worker job when the traveller has gone SHADE_MOVE from its middle,
+    // the Sun has turned a degree and a half or maps have arrived. Sunlit until the first answer.
+    this.shade = new Uint8Array(SHADE_N * SHADE_N).fill(255);
+    this.shadeTex = new THREE.DataTexture(this.shade, SHADE_N, SHADE_N, THREE.RedFormat, THREE.UnsignedByteType);
+    this.shadeTex.minFilter = this.shadeTex.magFilter = THREE.LinearFilter; this.shadeTex.needsUpdate = true;
+    this.shadeU = { value: new THREE.Vector4(0, 0, 1 / (SHADE_N * SHADE_CELL), 0) };
+    this._shade = null; this._shadeAsking = false; this._shadeNew = null;
     this._seen = new Float64Array(32);
     // a field: one tuft (or flower, or clump) of triangles, drawn once for every place of its lattice
     const field = (f, geo, vertexShader, own, defines, tris) => {
@@ -432,7 +446,7 @@ export class Grass {
       g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(12), 3));       // (three wants one; the shader does not read it)
       g.setIndex([0, 1, 2, 0, 2, 3]);
       const t = this.tables[f.table];
-      return field(f, g, CLUMP_VERT, { tTable: { value: t.tex }, uTab: t.info, tClump: { value: this.clumpTex }, ...cloudShadeUniforms(this.terrain) },
+      return field(f, g, CLUMP_VERT, { tTable: { value: t.tex }, uTab: t.info, tClump: { value: this.clumpTex }, ...cloudShadeUniforms(this.terrain), tShade: { value: this.shadeTex }, uShade: this.shadeU },
         { CLUMP: 1, OWN_CLOUD_SHADOW: 1, IN0: f.in[0].toFixed(2), IN1: f.in[1].toFixed(2), OUT0: f.out[0].toFixed(2), OUT1: f.out[1].toFixed(2), TALL: f.tall.toFixed(3) }, 2);
     };
     this.fields = [tuft(NEAR), tuft(FAR), flower(FLOWERS)];
@@ -458,7 +472,7 @@ export class Grass {
   // True while the ground tables round the traveller are still being filled in (pictures wait for them).
   get busy() {
     if (!this.mesh.visible) return false;
-    const T = this.tables; return (this.keepBlades > 0 && T.near.pending > 0) || ((this.keepClumps > 0 || !this._tone) && T.mid.pending > 0) || (this.keepClumps > 0 && T.far.pending > 0);
+    const T = this.tables; return (this.keepBlades > 0 && T.near.pending > 0) || ((this.keepClumps > 0 || !this._tone) && T.mid.pending > 0) || (this.keepClumps > 0 && (T.far.pending > 0 || !this._shade));
   }
 
   // What the ground is like at place (i, j) (absolute cells of `cell` metres) into entry o of a table.
@@ -482,6 +496,43 @@ export class Grass {
     T.flora[o >> 2] = flora;
   }
 
+  // The land's shadow for the clumps (see the constructor). ce, cn: the traveller on the plane.
+  _landShadow(ce, cn, kc, renderer) {
+    const t = this.terrain, sun = this.shared.uSunDir.value, sh = this._shade;
+    if (this._shadeNew) {
+      // (an answer: to the GPU between frames)
+      const r = this._shadeNew; this._shadeNew = null;
+      this.shade.set(r.vis); this.shadeTex.needsUpdate = true; renderer.initTexture(this.shadeTex);
+      this._shade = r;
+    }
+    if (this._shade) this.shadeU.value.set(this._shade.x - this.origin[0], this._shade.y - this.origin[1], 1 / (SHADE_N * SHADE_CELL), 1);
+    if (kc <= 0 || this._shadeAsking) return;
+    const ax = ce + this.origin[0], ay = cn + this.origin[1];
+    if (sh && sh.gen === this.gen && Math.hypot(ax - sh.x, ay - sh.y) < SHADE_MOVE && sh.sun[0] * sun.x + sh.sun[1] * sun.y + sh.sun[2] * sun.z > 0.99966) return;
+    if (t.workers.idle < 1) return;
+    const x0 = Math.round(ax / SHADE_CELL) * SHADE_CELL, y0 = Math.round(ay / SHADE_CELL) * SHADE_CELL;
+    const hs = t.hs, A = this.anchor, e = this._e, n = this._n, pts = new Float64Array(SHADE_N * SHADE_N * 3);
+    for (let j = 0, q = 0; j < SHADE_N; j++) for (let i = 0; i < SHADE_N; i++, q += 3) {
+      const x = x0 - this.origin[0] + (i + 0.5 - SHADE_N / 2) * SHADE_CELL, y = y0 - this.origin[1] + (j + 0.5 - SHADE_N / 2) * SHADE_CELL;
+      let dx = A.x + e[0] * x + n[0] * y, dy = A.y + e[1] * x + n[1] * y, dz = A.z + e[2] * x + n[2] * y;
+      const l = Math.hypot(dx, dy, dz); dx /= l; dy /= l; dz /= l;
+      const r = hs.radius + hs.height(dx, dy, dz, SHADE_CELL * 0.5) + 2;
+      pts[q] = dx * r; pts[q + 1] = dy * r; pts[q + 2] = dz * r;
+    }
+    const want = [sun.x, sun.y, sun.z], epoch = t.epoch, gen = this.gen, anchorKey = this._anchorKey;
+    const job = t.workers.run({ type: 'points', points: pts, sun: want, sunHalf: 0.0047, minWL: 20 }, [pts.buffer]);
+    if (!job) return;
+    this._shadeAsking = true;
+    job.then((res) => {
+      this._shadeAsking = false;
+      // (another world, or an anchor made afresh, since it was asked: not this ground's)
+      if (epoch !== t.epoch || anchorKey !== this._anchorKey) return;
+      const v = new Float32Array(res.vis), vis = new Uint8Array(v.length);
+      for (let k = 0; k < v.length; k++) vis[k] = Math.round(255 * Math.min(1, Math.max(0, v[k])));
+      this._shadeNew = { vis, x: x0, y: y0, sun: want, gen };
+    }, () => { this._shadeAsking = false; });
+  }
+
   // A new anchor where the traveller is: start afresh (far from the old one, or the first time) ...
   // The anchor lies on the ground's own sphere under the traveller, never at the traveller's
   // height: places are worked out along lines from the world's centre through the plane and
@@ -489,10 +540,10 @@ export class Grass {
   // out stood on ground x.D/R from where its height was taken (on a world 250 km in radius
   // and from 1 km up: 2 m at the far clumps, and the whole field 0.8 m aside at every step).
   _anchorAfresh(p, agl) {
-    this.has = true; this.anchorR = p.length() - agl; this.anchor.copy(p).multiplyScalar(this.anchorR / p.length()); this.origin = [0, 0];
+    this.has = true; this._anchorKey = (this._anchorKey || 0) + 1; this.anchorR = p.length() - agl; this.anchor.copy(p).multiplyScalar(this.anchorR / p.length()); this.origin = [0, 0];
     localFrame([p.x, p.y, p.z], this._e, this._n, this._u);
     for (const k in this.tables) this.tables[k].reset();
-    this._tone = null;
+    this._tone = null; this._shade = null; this._shadeNew = null; this.shadeU.value.w = 0;
   }
   // ... or move it by whole steps along its own plane, its axes carried over: nothing drawn changes.
   _anchorStep(se, sn, groundR) {
@@ -574,6 +625,7 @@ export class Grass {
       budget = T.fill(ci, cj, this.gen, Math.max(budget, k === 'near' && T.pending > 0 ? 200 : 0), (i, j, o, cell) => this._sample(T, i, j, o, cell));
       if (T.changed) { T.changed = false; T.tex.needsUpdate = true; renderer.initTexture(T.tex); if (k === 'mid') this._toneDirty = true; }
     }
+    this._landShadow(ce, cn, kc, renderer);
     if (!this._clumpUp) { renderer.initTexture(this.clumpTex); this._clumpUp = true; }
     // What the ground under and beyond the grass should wear: the grass of the middle field
     // (its mean dryness and how much of it there is), and the flowers that grow most here.
