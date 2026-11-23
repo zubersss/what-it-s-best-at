@@ -275,6 +275,9 @@ export class FarRocks {
     this.sun = sun; this.sunHalf = sunHalf;
     const small = SMALL_SHARE * this.fraction;          // (the share of the reach a small rock has: see uFar)
     this.uFar.value.z = small;
+    // (the traveller's place and speed, for the tiles' filling: _fill)
+    const eye = this._eye || (this._eye = new THREE.Vector3().copy(rig.pos)), step = eye.distanceTo(rig.pos);
+    this.speed = step > 5000 ? 0 : Math.max(step * 60, (this.speed || 0) * 0.95); eye.copy(rig.pos);
     const lo = this.shareLo, hi = this.shareHi;
     const R = this.world.radius, p = rig.pos, len = p.length(), lat = Math.asin(p.z / len) * 180 / Math.PI, lon = ((Math.atan2(p.y, p.x) * 180 / Math.PI) + 360) % 360, M = R * Math.PI / 180;
     // (the land cover moved or changed: every tile is asked again; a ring of water: the tiles it touches)
@@ -324,17 +327,27 @@ export class FarRocks {
     fr.setFromProjectionMatrix(pm.multiplyMatrices(rig.camera.projectionMatrix, rig.camera.matrixWorldInverse));
     // (the first rock too small to be seen from a tile's nearest point; a small rock's reach is less)
     const reach = def.reach, smallK = (sz) => reach * shareOf(sz, small, lo, hi);
+    // (filled again: the tiles the traveller has moved most against, two a frame)
+    let f1 = null, f2 = null, u1 = 0.5, u2 = 0.5;
+    for (const s of this.slots) {
+      const b = s.tile;
+      if (!b) continue;
+      if (!b.tinted && t.tint) this._tint(b);
+      const u = b.dirty || !b.fillPos || b.fillSmall !== small ? 1e9 : b.fillPos.distanceTo(p) / b.fillSlack;
+      if (u > u1) { f2 = f1; u2 = u1; f1 = s; u1 = u; } else if (u > u2) { f2 = s; u2 = u; }
+    }
+    if (f1) this._fill(f1, f1.tile);
+    if (f2) this._fill(f2, f2.tile);
     for (const s of this.slots) {
       const b = s.tile;
       if (!b) continue;
       const sizes = b.sizes;
-      if (!b.tinted && t.tint) this._tint(s, b);
       c.copy(b.origin).sub(p);
       s.mesh.position.copy(c); s.shade.position.copy(c);
       const dmin = Math.max(0, Math.hypot(c.x + b.bound[0], c.y + b.bound[1], c.z + b.bound[2]) - b.bound[3]);
       let nLo = 0;
-      if (dmin < sizes[0] * smallK(sizes[0])) {
-        let a = 0, z = b.count;
+      if (b.filled && dmin < sizes[0] * smallK(sizes[0])) {
+        let a = 0, z = b.filled;
         while (a < z) { const m = (a + z) >> 1; if (sizes[m] * smallK(sizes[m]) > dmin) a = m + 1; else z = m; }
         nLo = a;
       }
@@ -413,19 +426,17 @@ export class FarRocks {
       b.slot = slot; slot.tile = b;
       b.origin = new THREE.Vector3(res.origin[0], res.origin[1], res.origin[2]); b.bound = res.bound;
       b.center = new THREE.Vector3(res.origin[0] + res.bound[0], res.origin[1] + res.bound[1], res.origin[2] + res.bound[2]); b.radius = res.bound[3]; b.box = null;
-      const off = new Float32Array(res.off), n = res.count;
-      // (the size each is seen as from afar, as the shader has it: the order they come in)
-      const seen = new Uint8Array(res.seen), ta = slot.at.aTint.array;
-      b.sizes = new Float32Array(n); for (let i = 0; i < n; i++) { b.sizes[i] = off[i * 4 + 3] * seen[i] / 255; ta[i * 4 + 3] = seen[i]; }
-      const put = (a, src) => { a.array.set(src); a.clearUpdateRanges(); a.addUpdateRange(0, n * a.itemSize); a.needsUpdate = true; };
-      put(slot.at.aOff, off); put(slot.at.aQuat, new Float32Array(res.quat)); put(slot.at.aScale, new Float32Array(res.scale)); put(slot.at.aShape, new Uint8Array(res.shape));
-      const misc = new Uint8Array(res.misc), vis = new Uint8Array(res.vis);
-      for (let i = 0; i < n; i++) misc[i * 4] = vis[i];
-      put(slot.at.aMisc, misc);
-      this._tint(slot, b);
+      // (the whole tile stays here; the GPU is given the rocks that can be seen from where the traveller is: _fill)
+      const off = new Float32Array(res.off), n = res.count, seen = new Uint8Array(res.seen), misc = new Uint8Array(res.misc), vis = new Uint8Array(res.vis), tint = new Uint8Array(n * 4);
+      const sizes = new Float32Array(n);
+      for (let i = 0; i < n; i++) { sizes[i] = off[i * 4 + 3] * seen[i] / 255; tint[i * 4 + 3] = seen[i]; misc[i * 4] = vis[i]; }
+      b.full = { off, quat: new Float32Array(res.quat), scale: new Float32Array(res.scale), shape: new Uint8Array(res.shape), misc, tint, sizes };
+      b.sizes = new Float32Array(n); b.filled = 0; b.tinted = false;
+      this._tint(b);
+      this._fill(slot, b);
       for (const m of [slot.mesh, slot.shade]) { m.geometry.boundingSphere.center.set(res.bound[0], res.bound[1], res.bound[2]); m.geometry.boundingSphere.radius = res.bound[3]; }
       // (kept for whoever walks among them: the larger levels only)
-      b.solid = this.def.levels[li].size[0] >= COLLIDE_FROM - 1e-6 ? { off, quat: slot.at.aQuat.array, scale: slot.at.aScale.array, shape: slot.at.aShape.array } : null;
+      b.solid = this.def.levels[li].size[0] >= COLLIDE_FROM - 1e-6 ? b.full : null;
     }, (e) => {
       // (a tile that cannot be worked out is asked twice more and then left empty, with a word:
       // asked for ever, it would keep every screenshot waiting and say nothing)
@@ -462,15 +473,45 @@ export class FarRocks {
   // The land's colour under each rock of a tile (the world's albedo map, as the ground and
   // the near rocks have it: Terrain.tintAt), once when the tile arrives; again if the map
   // itself had not arrived by then.
-  _tint(slot, b) {
-    const t = this.terrain, a = slot.at.aTint, off = slot.at.aOff.array, v = this._tv || (this._tv = new THREE.Vector3()), o = this._to || (this._to = new THREE.Vector3());
+  _tint(b) {
+    const t = this.terrain, a = b.full.tint, off = b.full.off, v = this._tv || (this._tv = new THREE.Vector3()), o = this._to || (this._to = new THREE.Vector3());
     for (let i = 0; i < b.count; i++) {
       v.set(b.origin.x + off[i * 4], b.origin.y + off[i * 4 + 1], b.origin.z + off[i * 4 + 2]);
       t.tintAt(v, o);
-      a.array[i * 4] = Math.min(255, Math.round(o.x * 51)); a.array[i * 4 + 1] = Math.min(255, Math.round(o.y * 51)); a.array[i * 4 + 2] = Math.min(255, Math.round(o.z * 51));
+      a[i * 4] = Math.min(255, Math.round(o.x * 51)); a[i * 4 + 1] = Math.min(255, Math.round(o.y * 51)); a[i * 4 + 2] = Math.min(255, Math.round(o.z * 51));
     }
-    a.clearUpdateRanges(); a.addUpdateRange(0, Math.max(1, b.count) * 4); a.needsUpdate = true;
-    b.tinted = !!t.tint || !this.world.surface.albedoMap;
+    b.tinted = !!t.tint || !this.world.surface.albedoMap; b.dirty = true;
+  }
+
+  // The GPU's share of a tile: the rocks that can be seen from where the traveller is, and
+  // those that will be before the tile is filled again (it is, when the traveller has gone
+  // half of `slack` metres: update()). A tile is as wide as its largest rocks are seen
+  // from far, so most of the tile the traveller stands in is small rocks too far off to be
+  // drawn: handed over all the same, the vertex shader ran over five times what it drew.
+  // The order stays (seen from farthest first), so the first so-many are still the ones a
+  // distance can show.
+  _fill(slot, b) {
+    if (!this._eye) { b.dirty = true; return; }
+    const f = b.full, n = b.count, p = this._eye, at = slot.at, reach = this.def.reach, small = this.uFar.value.z, lo = this.shareLo, hi = this.shareHi;
+    const slack = Math.max(0.2 * this.def.levels[slot.li].size[0] * reach, this.speed * 1.0);
+    const ox = b.origin.x - p.x, oy = b.origin.y - p.y, oz = b.origin.z - p.z;
+    const aOff = at.aOff.array, aQuat = at.aQuat.array, aScale = at.aScale.array, aShape = at.aShape.array, aMisc = at.aMisc.array, aTint = at.aTint.array;
+    let k = 0;
+    for (let i = 0; i < n; i++) {
+      const x = ox + f.off[i * 4], y = oy + f.off[i * 4 + 1], z = oz + f.off[i * 4 + 2], e = f.sizes[i], r = e * reach * shareOf(e, small, lo, hi) + slack;
+      if (x * x + y * y + z * z >= r * r) continue;
+      const i4 = i * 4, k4 = k * 4, i3 = i * 3, k3 = k * 3;
+      aOff[k4] = f.off[i4]; aOff[k4 + 1] = f.off[i4 + 1]; aOff[k4 + 2] = f.off[i4 + 2]; aOff[k4 + 3] = f.off[i4 + 3];
+      aQuat[k4] = f.quat[i4]; aQuat[k4 + 1] = f.quat[i4 + 1]; aQuat[k4 + 2] = f.quat[i4 + 2]; aQuat[k4 + 3] = f.quat[i4 + 3];
+      aScale[k3] = f.scale[i3]; aScale[k3 + 1] = f.scale[i3 + 1]; aScale[k3 + 2] = f.scale[i3 + 2];
+      aShape[k4] = f.shape[i4]; aShape[k4 + 1] = f.shape[i4 + 1]; aShape[k4 + 2] = f.shape[i4 + 2]; aShape[k4 + 3] = f.shape[i4 + 3];
+      aMisc[k4] = f.misc[i4]; aMisc[k4 + 1] = f.misc[i4 + 1]; aMisc[k4 + 2] = f.misc[i4 + 2]; aMisc[k4 + 3] = f.misc[i4 + 3];
+      aTint[k4] = f.tint[i4]; aTint[k4 + 1] = f.tint[i4 + 1]; aTint[k4 + 2] = f.tint[i4 + 2]; aTint[k4 + 3] = f.tint[i4 + 3];
+      b.sizes[k] = e; k++;
+    }
+    if (k) for (const name in at) { const a = at[name]; a.clearUpdateRanges(); a.addUpdateRange(0, k * a.itemSize); a.needsUpdate = true; }
+    b.filled = k; b.dirty = false; b.fillSlack = slack; b.fillSmall = small;
+    (b.fillPos || (b.fillPos = new THREE.Vector3())).copy(p);
   }
 
   // A free slot of the level, or the one whose tile is farthest from the traveller if that
@@ -501,15 +542,15 @@ export class FarRocks {
     }
     if (!pick || this.visAsked || t.workers.idle < 1 || t.wanted.length > 0) return;
     const b = pick.tile, n = b.count, want = [sun[0], sun[1], sun[2]], epoch = t.epoch;
-    const job = t.workers.run({ type: 'rockvis', origin: [b.origin.x, b.origin.y, b.origin.z], off: pick.at.aOff.array.slice(0, n * 4), count: n, sun: want, sunHalf: this.sunHalf });
+    const job = t.workers.run({ type: 'rockvis', origin: [b.origin.x, b.origin.y, b.origin.z], off: b.full.off.slice(0, n * 4), count: n, sun: want, sunHalf: this.sunHalf });
     if (!job) return;
     b.visAsking = true; this.visAsked = true;
     job.then((res) => {
       b.visAsking = false; this.visAsked = false;
       if (epoch !== t.epoch || pick.tile !== b || b.count !== n) return;
-      const vis = new Uint8Array(res.vis), a = pick.at.aMisc;
-      for (let i = 0; i < n; i++) a.array[i * 4] = vis[i];
-      a.clearUpdateRanges(); a.addUpdateRange(0, n * 4); a.needsUpdate = true;
+      const vis = new Uint8Array(res.vis), a = b.full.misc;
+      for (let i = 0; i < n; i++) a[i * 4] = vis[i];
+      b.dirty = true;
       b.visSun = want;
     }, () => { b.visAsking = false; this.visAsked = false; });
   }
