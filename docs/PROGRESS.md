@@ -10,7 +10,9 @@ changes behaviour.
 
 *2026-11-23, after the owner's eighth phone results (the three-minute benchmark of build
 f300e6f) and the words "it looks horrible and unrendered ... in space before I've landed".
-All of it is under "The owner's eighth phone results and the seventh painted delivery".*
+All of it is under "The owner's eighth phone results and the seventh painted delivery".
+Merged as pull request #32; the phone link shows build d622d38. (This line was written
+after the merge and is on the session branch only until the next delivery carries it.)*
 
 - **Why the phone's picture was "unrendered"**: the governor sat at its floor (one million
   pixels, every saving on) for whole sessions. One frame in fifteen is late on that phone
