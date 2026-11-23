@@ -52,6 +52,9 @@ const MOVES = [
   // blocks changing over, their shadows on the ground; nothing may pop)
   { id: 'haven_rocks_walk', world: 'haven', shot: 'ledge', query: 'lat=-48.80660&lon=47.22265&t=3&heading=80&pitch=2', step: { fwd: 0.055 }, stride: 160, slow: true },
   { id: 'haven_rocks_flight', world: 'haven', shot: 'ledge', query: 'lat=-48.80660&lon=47.22265&t=3&alt=2013&heading=135&pitch=-10', step: { fwd: 1 }, stride: 250, slow: true },
+  // (Haven on foot, walking at a wood: the far forest's trees grow in as they are come at,
+  // and the line where the trees one walks among take over from them must not show)
+  { id: 'haven_treeline', world: 'haven', shot: 'ledge', query: 'lat=-27.114&lon=51.987&heading=0&pitch=-3&hero=1', step: { fwd: 1.2 }, stride: 200, slow: true },
   { id: 'earth_forest_flight', world: 'earth', shot: 'ledge', query: 'lat=36.3&lon=247.9&alt=3000&heading=0&pitch=-25&t=5', step: { fwd: 1.5 }, stride: 300, slow: true },
 ];
 // The list above is tuned by hand for the worlds it names. A world in the registry that

@@ -46,10 +46,10 @@ export default {
       { op: 'fbm', seed: 3, maxWavelength: 60000, minWavelength: 0.8, roughness: 0.82, amp: 26, belowDem: 2.2, slopeGain: [0.04, 0.4, 0.15, 1.0], hetero: 0.5 },
       // Gullies and spurs on the mountain sides and canyon walls.
       { op: 'ridged', seed: 5, maxWavelength: 1400, minWavelength: 20, roughness: 0.9, amp: 260, slopeMask: [0.12, 0.4], warp: 0.3, belowDem: 4 },
-      // Layered rock: beds stand as small cliffs and benches where the ground is steep. (Only
-      // the fine ones, and only on steep ground: with beds 120 m thick as well, every hillside
-      // seen from the air was drawn in contour lines.)
-      { op: 'terrace', seed: 9, thickness: 24, cliff: 0.18, rise: 0.76, strength: 0.45, slopeMask: [0.3, 0.55], jitter: 0.4, warpAmp: 5, warpWavelength: 260 },
+      // (No layered rock: beds standing as benches, even only on the steepest ground, drew level
+      // streaks over every mountain side, a wood's grain from a few kilometres. The flanks
+      // the maker leaves stand at one slope for long stretches, so "only where it is steep"
+      // was everywhere on them. Rock on this world is blocks and outcrops, not benches.)
       // The sea: nothing lies below sea level (this layer stays last).
       { op: 'sea', level: 0 },
     ],
@@ -61,13 +61,13 @@ export default {
     reliefMap: { url: 'data/haven_slopes_4096.jpg', strength: 2.0, latFade: [84, 89] },
     // Its colours from the air, made by the same rule as the mosaics round the traveller
     // (scripts/make-world-maps.mjs prints `mean`: the land's mean, in linear light).
-    albedoMap: { url: 'data/haven_day_4096.jpg', encoding: 'srgb', mean: [0.1377, 0.1357, 0.0657], strength: 1.0, chroma: 1.0, range: [0.2, 4.5], steep: 0.35 },
+    albedoMap: { url: 'data/haven_day_4096.jpg', encoding: 'srgb', mean: [0.1299, 0.1272, 0.0560], strength: 1.0, chroma: 1.0, range: [0.2, 4.5], steep: 0.35 },
     meanAlbedo: [0.14, 0.12, 0.07],
     dust: [0.19, 0.17, 0.115],         // dry soil, warm
     sand: [0.32, 0.27, 0.18],
     scree: [0.20, 0.165, 0.125],
     rock: [0.19, 0.15, 0.105],         // warm rock (ochre, not red)
-    strata: { period: 260, contrast: 0.16, finePeriod: 30, fine: 0.1, flat: 0.05, colors: [[0.95, 0.80, 0.60], [0.74, 0.58, 0.44], [0.92, 0.84, 0.68], [0.62, 0.52, 0.44], [0.86, 0.68, 0.48]] },
+    strata: { period: 260, contrast: 0.1, finePeriod: 30, fine: 0.03, flat: 0, colors: [[0.95, 0.80, 0.60], [0.74, 0.58, 0.44], [0.92, 0.84, 0.68], [0.62, 0.52, 0.44], [0.86, 0.68, 0.48]] },
     slopes: { dustMax: 0.36, screeMin: 0.55, screeMax: 0.8, rockMin: 1.0 },
     sandBelow: -20000, sandFade: 1500,
     ripples: { wavelength: 1, strength: 0 },
@@ -109,7 +109,11 @@ export default {
   // rule's own tree line); flora: what grows, the first entry that fits (life/cover.js:
   // species by number; upTo: how far up toward the tree line).
   life: {
-    trees: { radius: 240, spacing: 7, below: 1500, far: { radius: 2000, spacing: 30, below: 5000 }, line: { base: 3548, perDeg: 38.7, from: 0 } },
+    trees: { radius: 240, spacing: 7, below: 1500,
+      // The far forest (life/farForest.js): the same trees as those within `radius`, at the
+      // same places, out to `radius` of their own. `full`: full density out to here, then
+      // thinner as (full / distance)^2, the thinned ones standing a little wider.
+      far: { full: 450, radius: 5600, below: 6000 }, line: { base: 3548, perDeg: 38.7, from: 0 } },
     grass: { below: 90 },
     flora: [
       { near: true, upTo: 0.6, mix: [[6, 2], [5, 2], [0, 1]] },                    // by water: cottonwood, aspen

@@ -515,8 +515,11 @@ void main() {
   // some hundreds of metres across, with clean edges, as fields, stands of trees and open
   // ground lie beside each other. (Placed by the direction itself: whole repeats round the
   // globe, so no seam.)
+  // (so many repeats round the globe that a repeat is 2.9 km on a world of any size: with
+  // Earth's count on a world 250 km in radius the stretches were ten metres across, and on a
+  // mountain side seen from some kilometres off they were level streaks, like a wood's grain)
   if (uPaint.x > 0.0 && farW < 1.0) {
-    vec2 kp = vec2(14000.0, 7000.0);
+    vec2 kp = vec2(10.0, 5.0) * floor(uPlanetRadius * 0.00021975 + 0.5);
     float pa = textureGrad(tDetail, uvA * kp, gx * kp, gy * kp).a, pb = textureGrad(tDetail, uvA * kp * 3.7 + 0.31, gx * kp * 3.7, gy * kp * 3.7).a;
     float lay = smoothstep(0.42, 0.58, 0.6 * pa + 0.4 * pb);
     albedo *= mix(vec3(1.0), mix(vec3(0.85, 0.90, 0.85), vec3(1.15, 1.11, 1.0), lay), uPaint.x * (1.0 - farW) * flatW * smoothstep(60.0, 400.0, length(vRel)));
