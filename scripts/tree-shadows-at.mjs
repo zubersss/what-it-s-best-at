@@ -1,9 +1,10 @@
 // Whose shadow lies in front of a traveller? The trees round a place, worked out without
 // a browser (the same trees the game plants there), and where each crown's shadow falls at
 // the world's opening hour: for choosing a place to stand whose foreground is in the Sun.
-//   node scripts/tree-shadows-at.mjs [--world haven] [--lat .. --lon ..] [--heading ..] [--t 0] [--search 40]
-// Prints the trees whose crown shades the ground 1 to 12 m ahead of the eye, and with
-// --search <m> the nearest places (steps of 3 m) where none does and the ground is as level.
+//   node scripts/tree-shadows-at.mjs [--world haven] [--lat .. --lon ..] [--heading ..] [--t 0] [--ahead 50] [--search 40 [--most 0.03] [--list 12]]
+// Prints the trees whose crown shades the ground in view to 50 m ahead of the eye (--ahead),
+// and how much of that ground; with --search <m> the nearest places (steps of 3 m) where hardly
+// any is shaded (--most 0.03), no trunk stands close in the view and the ground is as level.
 // (A made world only: its land cover is worked out here; no water rings, so no trees "by water".)
 import { loadWorld } from './lib/loadWorld.mjs';
 import { setMadeCover } from './lib/madeCover.mjs';
@@ -41,40 +42,56 @@ for (let bi = bi0 - 2; bi <= bi0 + 2; bi++) {
 // a crown: a ball 0.3 of the tree's height in radius (times its width), its middle 0.62 up; its
 // shadow on level ground: an ellipse that far along the shadows' way
 const sx = -Math.sin(az) / Math.tan(el), sy = -Math.cos(az) / Math.tan(el);
+// the trees whose crown's shadow lies on the ground in view: on a fan of places 2 to `reach`
+// m ahead (to 0.6 of the distance to either side); `share`: how much of that ground is shaded
+const reach = +opt('ahead', 50);
 const shaders = (east, north, hd) => {
-  const fx = Math.sin(hd * RAD), fy = Math.cos(hd * RAD), out = [];
-  for (const t of trees) {
-    const cx = t.east + sx * 0.62 * t.h, cy = t.north + sy * 0.62 * t.h, r = 0.3 * t.h * t.wide;
-    for (const d of [1, 3, 5, 8, 12]) {
-      const px = east + fx * d - cx, py = north + fy * d - cy;
+  const fx = Math.sin(hd * RAD), fy = Math.cos(hd * RAD), out = [], se = Math.sin(el), sl = Math.hypot(sx, sy);
+  let pts = 0, dark = 0;
+  const hit = new Set();
+  for (let d = 2; d <= reach; d += 2) for (let l = -0.6 * d, st = Math.max(1, 0.15 * d); l <= 0.6 * d; l += st) {
+    const gx = east + fx * d + fy * l, gy = north + fy * d - fx * l;
+    let shaded = false;
+    for (let i = 0; i < trees.length; i++) {
+      const t = trees[i], px = gx - (t.east + sx * 0.62 * t.h), py = gy - (t.north + sy * 0.62 * t.h), r = 0.3 * t.h * t.wide;
       // (the ellipse is stretched along the shadows' way by 1 / sin(elevation))
-      const along = (px * sx + py * sy) / Math.hypot(sx, sy), across = Math.hypot(px, py) ** 2 - along * along;
-      if ((along * Math.sin(el)) ** 2 + across < r * r) { out.push({ ...t, at: d }); break; }
+      const along = (px * sx + py * sy) / sl, across = px * px + py * py - along * along;
+      if ((along * se) ** 2 + across < r * r) { shaded = true; if (!hit.has(i)) { hit.add(i); out.push({ ...t, at: d }); } }
     }
+    pts++; if (shaded) dark++;
   }
+  out.share = dark / pts;
   return out;
 };
 const here = shaders(0, 0, heading);
-console.log(`${trees.length} trees within about 250 m; ${here.length} shade the ground 1 to 12 m ahead of the eye at ${lat0}, ${lon0} facing ${heading}:`);
-for (const t of here) console.log(`  a tree ${t.h.toFixed(0)} m tall, ${Math.hypot(t.east, t.north).toFixed(0)} m off toward ${((Math.atan2(t.east, t.north) / RAD + 360) % 360).toFixed(0)}: its crown's shadow lies ${t.at} m ahead`);
+console.log(`${trees.length} trees within about 250 m; ${here.length} shade the ground in view to ${reach} m ahead of the eye at ${lat0}, ${lon0} facing ${heading} (${(100 * here.share).toFixed(0)} % of it):`);
+for (const t of here) console.log(`  a tree ${t.h.toFixed(0)} m tall, ${Math.hypot(t.east, t.north).toFixed(0)} m off toward ${((Math.atan2(t.east, t.north) / RAD + 360) % 360).toFixed(0)}: its crown's shadow from ${t.at} m ahead`);
+const dirOf = (e, n) => latLonToDir(lat0 + n / M, lon0 + e / mLon), hAt = (e, n) => { const d = dirOf(e, n); return hs.height(d[0], d[1], d[2], 8); };
+{
+  const fx = Math.sin(heading * RAD), fy = Math.cos(heading * RAD), h0 = hAt(0, 0);
+  console.log(`the ground here: ${h0.toFixed(0)} m; ahead it falls ${[10, 20, 30, 60, 200].map((d) => `${(h0 - hAt(fx * d, fy * d)).toFixed(1)} m in ${d}`).join(', ')} m`);
+}
 const search = +opt('search', 0);
 if (search) {
-  const dirOf = (e, n) => latLonToDir(lat0 + n / M, lon0 + e / mLon), hAt = (e, n) => { const d = dirOf(e, n); return hs.height(d[0], d[1], d[2], 8); };
-  const found = [];
+  const found = [], most = +opt('most', 0.03);
   for (let n = -search; n <= search; n += 3) for (let e = -search; e <= search; e += 3) {
-    if (shaders(e, n, heading).length) continue;
-    // not inside a tree, and as level underfoot as a place to stand should be
-    if (trees.some((t) => Math.hypot(t.east - e, t.north - n) < 2.5)) continue;
+    const sh = shaders(e, n, heading);
+    if (sh.share > most) continue;
+    // not inside a tree, no trunk close in the view (a pole cut by the picture's edge), and
+    // as level underfoot as a place to stand should be
+    const fx = Math.sin(heading * RAD), fy = Math.cos(heading * RAD);
+    if (trees.some((t) => { const dx = t.east - e, dy = t.north - n, d = Math.hypot(dx, dy); return d < 2.5 || (d < 14 && dx * fx + dy * fy > d * 0.5); })) continue;
     const slope = Math.hypot(hAt(e + 4, n) - hAt(e - 4, n), hAt(e, n + 4) - hAt(e, n - 4)) / 8;
     if (slope > 0.3) continue;
+    // (how far the ground falls 60 and 200 m ahead: a brow to look out from)
+    const h0 = hAt(e, n), f60 = h0 - hAt(e + fx * 60, n + fy * 60), f200 = h0 - hAt(e + fx * 200, n + fy * 200);
     // (trees in view ahead within 80 m, for the picture: one or two, not a wall)
-    const fx = Math.sin(heading * RAD), fy = Math.cos(heading * RAD);
     const ahead = trees.filter((t) => { const dx = t.east - e, dy = t.north - n, a = dx * fx + dy * fy; return a > 12 && a < 80 && Math.abs(dx * fy - dy * fx) < a * 0.5; }).length;
-    found.push({ e, n, slope, ahead, d: Math.hypot(e, n) });
+    found.push({ e, n, slope, ahead, d: Math.hypot(e, n), share: sh.share, f60, f200 });
   }
   found.sort((a, b) => a.d - b.d);
-  console.log(`${found.length} places within ${search} m with a sunlit foreground; the nearest:`);
-  for (const f of found.slice(0, 8)) console.log(`  ${f.e} m east, ${f.n} m north (lat ${(lat0 + f.n / M).toFixed(5)}, lon ${(lon0 + f.e / mLon).toFixed(5)}): slope ${f.slope.toFixed(2)}, ${f.ahead} trees in view within 80 m`);
+  console.log(`${found.length} places within ${search} m with a sunlit foreground (at most ${(100 * most).toFixed(0)} % of it shaded); the nearest:`);
+  for (const f of found.slice(0, +opt('list', 12))) console.log(`  ${f.e} m east, ${f.n} m north (lat ${(lat0 + f.n / M).toFixed(5)}, lon ${(lon0 + f.e / mLon).toFixed(5)}): shaded ${(100 * f.share).toFixed(0)} %, slope ${f.slope.toFixed(2)}, falls ${f.f60.toFixed(0)} m in 60 m and ${f.f200.toFixed(0)} m in 200 m, ${f.ahead} trees in view within 80 m`);
 }
 if (process.argv.includes('--near')) {
   const near = trees.map((t) => ({ ...t, d: Math.hypot(t.east, t.north), b: (Math.atan2(t.east, t.north) / RAD + 360) % 360 })).sort((a, b) => a.d - b.d).slice(0, 10);

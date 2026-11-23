@@ -19,7 +19,7 @@ import { treeBlock, treeTile, blockDeg, blockLon, TREE_FLOATS, siteRank } from '
 import { band, LEVELS, BASE_BLOCKS } from '../src/life/farForest.js';
 
 const PLACES = [
-  ['the opening place', -48.56367, 49.04424],
+  ['the opening place', -48.54992, 49.05567],
   ['the north wood', 22.983, 129.507],
   ['the golden shore', 18.501, 132.671],
 ];
