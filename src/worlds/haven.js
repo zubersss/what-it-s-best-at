@@ -132,25 +132,27 @@ export default {
     // Open ground 1 400 m up in the far south of the middle continent: the land falls a
     // kilometre to a lake in the south-east, and peaks stand 1 800 m higher round it, with
     // snow on them (scripts/find-haven-site.mjs --open --lat 28,52).
-    start: { lat: -48.472, lon: 48.823, eye: 1.7, heading: 157, pitch: -4 },
+    // (the very spot: level ground at the lip of a slope, a range across the view beyond the low
+    // ground: scripts/find-overlook.mjs, then a sketch by scripts/peek.mjs)
+    start: { lat: -48.56367, lon: 49.04424, eye: 1.7, heading: 235, pitch: -2 },
     ship: { east: -30, north: -45, heading: 30 },
     // (coverFrom, globe: the small globe from space is held where its colours show: see post.js)
     exposure: { key: 0.18, min: 0.5, max: 2.0e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, coverFrom: 0.0006, globe: 0.3 },
     // The heaviest views, for the benchmark's cost test: among the trees, and the land from the air.
     costViews: [
       { name: 'in the forest', lat: 22.983, lon: 129.507, heading: 6, pitch: -4 },
-      { name: 'from the air', lat: -48.472, lon: 48.823, alt: 5000, heading: 157, pitch: -14 },
+      { name: 'from the air', lat: -48.56367, lon: 49.04424, alt: 5000, heading: 235, pitch: -14 },
     ],
     bookmarks: {
-      ledge: { label: 'The first morning', heading: 157, pitch: -4, fov: 60 },
-      sun: { label: 'The Sun coming up', heading: 84, pitch: 8, fov: 40 },
-      wall: { label: 'The peaks across the lake', heading: 150, pitch: 3, fov: 26 },
+      ledge: { label: 'The first morning', heading: 235, pitch: -2, fov: 60 },
+      sun: { label: 'The Sun coming up', heading: 64, pitch: 12, fov: 40 },
+      wall: { label: 'The range across the valley', heading: 250, pitch: 3, fov: 26 },
       ship: { label: 'The lander', east: -20, north: -12, heading: 230, pitch: 3, fov: 50 },
-      dusk: { label: 'Evening', heading: 200, pitch: -3, fov: 60, timeOffsetHours: 10.6 },
+      dusk: { label: 'Evening', heading: 275, pitch: 0, fov: 60, timeOffsetHours: 9.6 },
     },
   },
   places: [
-    { id: 'landing', name: 'The first morning', fact: 'Where the journey on Haven begins.', lat: -48.472, lon: 48.823 },
+    { id: 'landing', name: 'The first morning', fact: 'Where the journey on Haven begins.', lat: -48.56367, lon: 49.04424 },
     { id: 'eastshore', name: 'The golden shore', fact: 'Dry grassland running down to the eastern sea.', lat: 18.501, lon: 132.671 },
     { id: 'northwood', name: 'The north wood', fact: 'Tall forest on a shoulder of the northern range, over the sea.', lat: 22.983, lon: 129.507 },
     { id: 'crown', name: 'The Crown', fact: 'The highest ground on Haven: 4 314 m.', lat: 15.425, lon: 68.95 },
