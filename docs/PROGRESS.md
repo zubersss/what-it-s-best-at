@@ -51,7 +51,14 @@ as you want or need. This is a big ask and I need it to work really well."*
   made again, new `albedoMap.mean`; neither changed the streaks). The cause: the ground
   shader's "stretches of lighter and darker ground" of the painted look repeat 14 000
   times round the globe, 2.9 km a repeat on Earth and **112 m on Haven**: one more thing
-  that assumed Earth's size. Now by the world's radius. **Still assuming Earth's size**:
+  that assumed Earth's size. Now by the world's radius (right, but it did not change the
+  streaks either: that pattern is on level ground only). **Third finding, the one**: the
+  bench layer (`terrace`): the maker's mountain flanks stand at one slope (its cap, 0.72)
+  for long stretches, so benches "only on steep ground" were on every flank, treads in
+  dust colour and risers in rock colour. The layer is off Haven's ground altogether (the
+  opening place did not move: 1 475 m). Lesson: three guesses, each "fixed" and pushed
+  before a picture said so; the picture should have come first each time, and the
+  cheapest test was to switch the suspect off in one build. **Still assuming Earth's size**:
   `weather/weather.js` and `rainbow.js` (111 200 m a degree throughout): to be put right
   when Haven gets weather (delivery 3). **Seen in the colour map and not
   fixed**: a few valleys are straight trenches with rock walls (the maker's valley floors

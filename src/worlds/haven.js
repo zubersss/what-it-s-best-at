@@ -46,13 +46,10 @@ export default {
       { op: 'fbm', seed: 3, maxWavelength: 60000, minWavelength: 0.8, roughness: 0.82, amp: 26, belowDem: 2.2, slopeGain: [0.04, 0.4, 0.15, 1.0], hetero: 0.5 },
       // Gullies and spurs on the mountain sides and canyon walls.
       { op: 'ridged', seed: 5, maxWavelength: 1400, minWavelength: 20, roughness: 0.9, amp: 260, slopeMask: [0.12, 0.4], warp: 0.3, belowDem: 4 },
-      // Layered rock: beds stand as small cliffs and benches where the ground is steep. (Only
-      // the fine ones, and only on steep ground: with beds 120 m thick as well, every hillside
-      // seen from the air was drawn in contour lines.)
-      // (... and only where it is steep enough to be a cliff: on ordinary mountain sides the
-      // beds drew fine level lines over the whole slope, a wood grain seen from a few
-      // kilometres, and stripes under the forest's canopy from the air)
-      { op: 'terrace', seed: 9, thickness: 28, cliff: 0.2, rise: 0.76, strength: 0.4, slopeMask: [0.52, 0.8], jitter: 0.45, warpAmp: 6, warpWavelength: 260 },
+      // (No layered rock: beds standing as benches, even only on the steepest ground, drew level
+      // streaks over every mountain side, a wood's grain from a few kilometres. The flanks
+      // the maker leaves stand at one slope for long stretches, so "only where it is steep"
+      // was everywhere on them. Rock on this world is blocks and outcrops, not benches.)
       // The sea: nothing lies below sea level (this layer stays last).
       { op: 'sea', level: 0 },
     ],
