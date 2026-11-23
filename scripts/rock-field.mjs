@@ -146,7 +146,7 @@ if (flag('check')) {
 
 if (flag('count')) {
   const d0 = dirOf(lat0, lon0), up = +opt('up', 2), r0 = R + hs.height(d0[0], d0[1], d0[2], 4) + up, eye = d0.map((v) => v * r0);
-  const small = +opt('small', SMALL_SHARE), lo = def.levels[0].size[1], hi = (def.levels[1] || def.levels[0]).size[1];
+  const small = +opt('small', SMALL_SHARE), lo = def.share[0], hi = def.share[1];
   const east = [-Math.sin(lon0 * RAD), Math.cos(lon0 * RAD), 0], north = [-Math.sin(lat0 * RAD) * Math.cos(lon0 * RAD), -Math.sin(lat0 * RAD) * Math.sin(lon0 * RAD), Math.cos(lat0 * RAD)];
   const bins = new Float64Array(36), by = def.levels.map(() => [0, 0, 0]), near = [0, 0];
   def.levels.forEach((L, li) => {
@@ -185,7 +185,7 @@ for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
   const q = (y * W + x) * 3; px[q] = Math.min(255, c[0] * light); px[q + 1] = Math.min(255, c[1] * light); px[q + 2] = Math.min(255, c[2] * light);
 }
 const counts = def.levels.map(() => 0), tilesN = def.levels.map(() => 0), most = def.levels.map(() => 0); let ms = 0, n = 0;
-const COL = [[40, 20, 10], [150, 20, 20], [130, 0, 150]];
+const COL = [[40, 20, 10], [150, 20, 20], [130, 0, 150], [20, 20, 20]];
 for (const [L, li, bi, bj] of tilesOver(SPAN)) {
   const t0 = performance.now(), b = rockBlock(hs, L, li, bi, bj); ms += performance.now() - t0; n++;
   counts[li] += b.count; tilesN[li]++; most[li] = Math.max(most[li], b.count);
@@ -194,7 +194,7 @@ for (const [L, li, bi, bj] of tilesOver(SPAN)) {
     const lat = Math.asin(z / r) / RAD, lon = ((Math.atan2(y, x) / RAD) + 360) % 360, cx = ((lon - lon0 + 540) % 360 - 180) * mLon / mpp + W / 2, cy = W / 2 - (lat - lat0) * mLat / mpp, rad = Math.max(0.6, 0.65 * b.off[i * 4 + 3] / mpp);
     for (let yy = Math.floor(cy - rad); yy <= Math.ceil(cy + rad); yy++) for (let xx = Math.floor(cx - rad); xx <= Math.ceil(cx + rad); xx++) {
       if (xx < 0 || yy < 0 || xx >= W || yy >= W || Math.hypot(xx + 0.5 - cx, yy + 0.5 - cy) > rad + 0.3) continue;
-      const q = (yy * W + xx) * 3; px[q] = COL[li % 3][0]; px[q + 1] = COL[li % 3][1]; px[q + 2] = COL[li % 3][2];
+      const q = (yy * W + xx) * 3; px[q] = COL[li % 4][0]; px[q + 1] = COL[li % 4][1]; px[q + 2] = COL[li % 4][2];
     }
   }
 }
