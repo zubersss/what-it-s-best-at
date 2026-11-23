@@ -711,9 +711,11 @@ as Earth is; what differs is where the maps come from.
     autumn); a tile is asked for again when the Sun has moved a degree and a half. The
     near trees get theirs from their block's job, tree by tree (`landShadow` in the worker,
     `iD.w`): a grid over a block on a rim put the cliff's shade on the trees above it.
-  - **The clouds' shadow** on near and far trees is the ground's rule, once per tree in the
-    vertex shader (`CLOUD_SHADE_VERT` in `trees.js`), fed by the ground's own uniform
-    objects: one rule, and a saving on the ground is a saving on the trees.
+  - **The clouds' shadow** on near and far trees is read from a small map of it
+    (`life/treeShade.js`: 256 x 256 points over 14 km round the traveller, drawn once a
+    frame before the main picture by the ground's rule from the ground's own uniform
+    objects). A tree reads it once per vertex, where the Sun's ray through its crown meets
+    the map's plane. One rule, and a saving on the ground is a saving on the trees.
   - **The far green.** From 300 m to 1.3 km a far tree's leaf colour goes over to a dark
     warm olive of the same brightness and its share of the sky's light loses most of its
     blue; the wood's own air (`forestAir`) fades out between 300 m and 1 km, where the

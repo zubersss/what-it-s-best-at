@@ -267,7 +267,9 @@ const WARM = 5, TAKE = 16, HELD = 2.07e6;
 // pixel read back), to be taken off the rest.
 const PARTS_OUT = [
   ['grass', (app, out) => app.grass?.setFraction(out ? 0 : 1)],
-  ['trees', (app, out) => app.trees?.setFraction(out ? 0.02 : 1)],
+  // (hidden, not shortened: shortened, the far forest drew every tree from 5 m as a card,
+  // and the row read meshes against cards)
+  ['trees', (app, out) => { if (app.trees) app.trees.hidden = out; }],
   ['the far forest', (app, out) => app.farForest?.setFraction(out ? 0 : 1)],
   ['the figure', (app, out) => { app.heroScene.visible = !out; app.dustScene.visible = !out; }],
   // (the shadows of trees, rocks and the figure: drawn into their own maps before the picture)
