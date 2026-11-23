@@ -707,7 +707,7 @@ fails if a rule is broken.
 each with its own tiles (333 m, 890 m, 2.2 km: `tileDeg`, the trees' lattice at another
 size) and 56 x 56 sites a tile. A tile is one worker job (`rocks`: 5 to 30 ms with the
 land's shadow on each rock) and comes back largest rock first. On the main thread it is
-filled once into buffers from a **fixed pool** (64, 56 and 48 tiles; 52 bytes a rock) and
+filled once into buffers from a **fixed pool** (72, 64 and 64 tiles; 52 bytes a rock, 10 MB in all) and
 drawn as three instanced meshes on the same buffers: the near rocks' block (80
 triangles), a 20-triangle block, and a shadow patch. Nothing is done per rock per frame
 on the CPU; per tile, a binary search says how many of its first rocks can be seen from

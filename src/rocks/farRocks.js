@@ -28,7 +28,7 @@ import { CONFIG } from '../config.js';
 import { ROCK_SHAPE_GLSL, rockGeometry } from './rocks.js';
 import { rocksFarDef, tileDeg, tileLon, rockTop } from './rockBlock.js';
 
-const POOL = [64, 56, 48];            // tiles held at once, by level (fixed: memory cannot creep)
+const POOL = [72, 64, 64];            // tiles held at once, by level (fixed: memory cannot creep)
 const HI_K = 80;                      // nearer than this many times its size a rock is the 80-triangle block
 const SMALL_SHARE = 0.82;             // a rock under 2.6 m is seen from this share of `reach` (it is a few pixels there; and they are most of the count)
 const VIS_TURN = 0.9998;              // the land's shadow on the rocks is asked again when the Sun has moved 1.1 degrees
