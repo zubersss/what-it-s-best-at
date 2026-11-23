@@ -49,6 +49,7 @@ import { SkyBodies } from './sky/bodies.js';
 import { CloudLayer } from './sky/clouds.js';
 import { NearShadow } from './shadows/nearShadow.js';
 import { Rocks } from './rocks/rocks.js';
+import { FarRocks } from './rocks/farRocks.js';
 import { Lander } from './ship/lander.js';
 import { Hero } from './hero/hero.js';
 import { Dust } from './fx/dust.js';
@@ -164,14 +165,19 @@ export class App {
   heightFn(world, hs) {
     const walkWL = 2 * (Math.PI / 2) * world.radius / (1 << world.terrain.maxLevel) / CONFIG.NORMAL_RES;
     this._sink = 0; this._under = 0; // (a world without water: nothing sinks; the last world's values must not stay)
-    if (!world.surface.sea) return (d) => hs.height(d[0], d[1], d[2], walkWL);
+    // (a traveller does not walk through a rock the size of a house: the ground rises over
+    // the large far rocks; `_rise` is kept for the drawn ground asked for right after)
+    this._rise = 0;
+    const land = (d, h) => { const r = this.farRocks ? this.farRocks.riseAt(d, world.radius + h) : 0; this._rise = r; return h + r; };
+    if (!world.surface.sea) return (d) => land(d, hs.height(d[0], d[1], d[2], walkWL));
     // Water does not carry a walker: what stands in it sinks to the bed or to SWIM_DEPTH,
     // whichever comes first, and rides the waves where it floats. (`_sink` is kept for the
     // drawn ground asked for the same place right after: see rig.groundAt in init.)
     const pos = new THREE.Vector3();
     return (d) => {
       const h = hs.height(d[0], d[1], d[2], walkWL), mapped = hs.waterDepth;
-      if (mapped <= 0) { this.depthAsked = 0; this._sink = 0; this._under = 0; return h; }
+      if (mapped <= 0) { this.depthAsked = 0; this._sink = 0; this._under = 0; return land(d, h); }
+      this._rise = 0;
       // (the tide: the sea stands under the level its shore is mapped at, and where it was
       // shallower than that the bed is bare; lakes and rivers have none. As the ground
       // shader has it.)
@@ -263,7 +269,7 @@ export class App {
     this.nearShadow = new NearShadow(renderer);
     this.terrain = new Terrain(world, data.rasters, data.hs, renderer);
     // the character stands on the ground as drawn (and in water as deep as heightFn just said)
-    this.rig.groundAt = (d, dist) => { const g = this.terrain.drawnHeight(d, dist); return g == null ? null : g - (this._sink || 0); };
+    this.rig.groundAt = (d, dist) => { const g = this.terrain.drawnHeight(d, dist); return g == null ? null : g - (this._sink || 0) + (this._rise || 0); };
     this.rig.sunkAt = () => this._under || 0;          // (the camera stays above the water its figure stands in)
     // the home world's cloud layer (a world without clouds: nothing is drawn)
     this.clouds = new CloudLayer(renderer);
@@ -278,6 +284,9 @@ export class App {
     this.rocks = new Rocks(world, data.hs);
     this.nearScene.add(this.terrain.group, this.rocks.mesh, this.clouds.mesh);
     this.nearShadow.addCaster(this.rocks.mesh, this.rocks.depthMaterial, null, () => this.rocks.nearCount);
+    // (boulders and outcrops as far as they can be seen: the land's own, in tiles)
+    this.farRocks = new FarRocks(world, this.terrain); this.nearScene.add(this.farRocks.group);
+    for (const c of this.farRocks.casters) this.nearShadow.addCaster(c.mesh, this.farRocks.depthMaterial, c.on);
     // Trees (worlds that have them): drawn with the ground, and they cast shadows
     this.trees = new Trees(world, this.terrain); this.trees.renderer = renderer;
     for (const set of this.trees.sets.flat(2)) {
@@ -617,7 +626,8 @@ export class App {
     if (this.terrain.idle) return true;
     const r = this.rig, p = r.onFoot ? r.feet : r.pos, l = p.length(), d = [p.x / l, p.y / l, p.z / l];
     const g = this.terrain.drawnHeight(d, r.pos.distanceTo(p));
-    return g != null && Math.abs(g - r.heightAt(d)) < 1;
+    const e = r.heightAt(d) - (this._rise || 0);             // (the ground itself: not the rock stood on)
+    return g != null && Math.abs(g - e) < 1;
   }
 
   play() {
@@ -1087,6 +1097,7 @@ export class App {
       this.terrain.setWorld(w, data.rasters, data.hs);
       this.clouds.setWorld(w); this.cloudVolume.setWorld(w); this.cloudVolume.setGround(data.rasters[0]);
       this.rocks.setWorld(w, data.hs);
+      this.farRocks.setWorld(w);
       this.trees.setWorld(w); this.farForest.setWorld(w); this.weather.setWorld(w); this.look.setWorld(w); this.grass.setWorld(w);
       this.dust.setWorld(w);
       this.placeLander(w, data.hs);
@@ -1220,9 +1231,11 @@ export class App {
     // for a traveller arriving a few hundred metres over it)
     const tg = this.transfer && this._tgtU && this._tgtU.kind === 'place' ? this._tgtU.pos : null;
     if (tg) { const l = Math.hypot(tg[0], tg[1], tg[2]); this.terrain.dest = (this._destV || (this._destV = new THREE.Vector3())).set(tg[0], tg[1], tg[2]).multiplyScalar((l + OVER_PLACE * 0.5) / l); } else this.terrain.dest = null;
+    this.farRocks.ask();                               // (one tile of far rocks before the ground takes the workers)
     this.terrain.update(rig, aspect0, G.uSunDir.value, sunHalf);
     prof.mark(2);
     this.rocks.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
+    this.farRocks.update(rig, eph.sunDir, sunHalf);
     {
       const d = this.clock, day = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000;
       this.trees.update(rig, day, this.terrain.shared.uWave.value.z);
@@ -1406,9 +1419,9 @@ export class App {
     }
 
     if (this.shotMode) {
-      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.trees.busy && !this.farForest.busy && !this.grass.busy && !this.cloudVolume.busy && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && !this.clouds.loading && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
+      const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.trees.busy && !this.farForest.busy && !this.farRocks.busy && !this.grass.busy && !this.cloudVolume.busy && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && !this.clouds.loading && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
       window.__shotReady = ready;
-      window.__stats = { weather: this.weather.def ? `wind ${this.weather.windSpeed.toFixed(0)} m/s, rain ${this.weather.rain.toFixed(1)} mm/h, snow ${this.weather.snow.toFixed(1)}, ${this.weather.temp.toFixed(0)} C, sun ${this.weather.sunShade.toFixed(2)}, sky ${this.weather.skyShade.toFixed(2)}, top ${Math.round(this.weather.top)} m` : '', trees: `${this.trees.count} (${Math.round(this.trees.triangles / 1000)}k triangles)${this.trees.names ? ': ' + this.trees.names : ''}`, farTrees: `${this.farForest.count} standing (${this.farForest.held} handed to the GPU)`, water: this.terrain.tiles.rings.map((r) => r.info ? `z${r.zoom}: ${r.info.rivers} rivers, ${Math.round(r.info.flow)} m3/s${r.info.inflow ? '' : ' (no inflow)'}` : null).filter(Boolean).join('; '), stale: this.terrain.staleData, tilesBusy: this.terrain.tiles.busy, refreshQ: this.terrain.readyRefresh.length, rings: this.terrain.ringSerial, tileFails: this.terrain.tiles.failures, busyW: this.terrain.workers.busy, calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.clouds.loading ? 'clouds' : ''}` };
+      window.__stats = { weather: this.weather.def ? `wind ${this.weather.windSpeed.toFixed(0)} m/s, rain ${this.weather.rain.toFixed(1)} mm/h, snow ${this.weather.snow.toFixed(1)}, ${this.weather.temp.toFixed(0)} C, sun ${this.weather.sunShade.toFixed(2)}, sky ${this.weather.skyShade.toFixed(2)}, top ${Math.round(this.weather.top)} m` : '', trees: `${this.trees.count} (${Math.round(this.trees.triangles / 1000)}k triangles)${this.trees.names ? ': ' + this.trees.names : ''}`, farTrees: `${this.farForest.count} standing (${this.farForest.held} handed to the GPU)`, farRocks: `${this.farRocks.count} in view of ${this.farRocks.countAll || 0} in ${this.farRocks.slots.filter((s) => s.tile).length} tiles (${this.farRocks.calls || 0} draw calls, at most ${Math.round(this.farRocks.triangles / 1000)}k triangles${this.farRocks.dropped ? ', ' + this.farRocks.dropped + ' tiles dropped' : ''})`, water: this.terrain.tiles.rings.map((r) => r.info ? `z${r.zoom}: ${r.info.rivers} rivers, ${Math.round(r.info.flow)} m3/s${r.info.inflow ? '' : ' (no inflow)'}` : null).filter(Boolean).join('; '), stale: this.terrain.staleData, tilesBusy: this.terrain.tiles.busy, refreshQ: this.terrain.readyRefresh.length, rings: this.terrain.ringSerial, tileFails: this.terrain.tiles.failures, busyW: this.terrain.workers.busy, calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.clouds.loading ? 'clouds' : ''}` };
     }
   }
 

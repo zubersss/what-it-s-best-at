@@ -740,6 +740,75 @@ as Earth is; what differs is where the maps come from.
 - Governor steps: `leaves`, `tree-shadows` (the far meshes stop casting), `trees-far`
   (two thirds of the radius), `far-trees` (the far forest thinned).
 
+## Rocks as far as they can be seen (`src/rocks/`)
+
+Two kinds, drawn together:
+
+- **The stones underfoot** (`rocks.js`, `surface.rocks`): 300 within 110 m of the
+  traveller, scattered by a lattice round the camera, shrinking away at its edge. On
+  Haven they stop at 1.4 m: anything larger is the land's own.
+- **The land's own rocks** (`farRocks.js`, `rockBlock.js`; `surface.rocks.far` in the world
+  file, defaults in `rockBlock.js`): boulders from 1.4 m to 20 m that are there whenever
+  anyone comes back, drawn to `reach` (420) metres for every metre of their size: a 4 m
+  block to a mile, a house-sized one to eight kilometres. The same block at the same
+  place from that far to arm's length.
+
+**Where rock lies** (`rockBlock.js`, plain arithmetic: workers and Node). A site holds a
+rock with the chance `density x rockField(cluster noise, rockiness)`. Rockiness is of the
+ground: its slope and how far it stands above its neighbours, both measured on ground
+16 m coarse with arms of 12 m (so the foot of a cliff counts as steep: talus), the
+water's edge, the tree line, less in closed forest (the land-cover picture; the largest
+level least: outcrops stand out of the trees), none in water. The cluster noise (260, 85
+and 27 m) keeps open ground to its highest few per cent (erratics) and rocky ground to
+about half, so fields have bare ground between them. `node scripts/rock-field.mjs` draws
+the result from above in seconds; `npm run rocks` fails if a promise of the rule is broken.
+
+**Levels and tiles.** Sizes come in three levels (1.4 to 3.4 m, 3.4 to 8 m, 8 to 20 m).
+Each has its own tiles, **about as wide as its largest rock is seen from far** (1.3, 3.3
+and 8.3 km: `tileDeg`, the trees' lattice at other sizes), with 128 x 128 sites: so every
+level needs the same nine or so tiles round the traveller, and a view holds three or
+four of each. A tile is one worker job (`rocks`: 30 to 80 ms with the land's shadow on
+each rock) and comes back largest rock first. On the main thread it is filled once into
+buffers from a **fixed pool** (14 tiles a level; 52 bytes a rock, 8 MB in all) and drawn
+as **one instanced mesh** of one block (20 flat faces: the stones' lump at its coarsest,
+cut by the same fracture planes, `ROCK_SHAPE_GLSL`), and one more for the shadows.
+Nothing is done per rock per frame on the CPU; per tile, a binary search says how many
+of its first rocks can be seen from its nearest point (the instance count). **The draw
+calls are counted in tiles**: some twenty in a view, shadows included. (The first
+version had tiles of 333 m to 2.2 km and three meshes a tile, two block shapes and the
+shadow: 40 to 60 draw calls, and a rock that changed shape at 80 times its size.)
+
+**Per rock, in the vertex shader**: distance over size decides whether it is drawn
+(beyond `reach` it is thrown out of the picture); it grows in over the last fifth of its
+reach. Rocks of the smallest level have 0.82 of the reach, and 0.62 of that under the
+governor's step `far-rocks` (the largest level keeps all).
+
+**Light**: the shared chunk and the painted look as the stones (true faces, two tones);
+the rock's colour is `far.albedo` or the world's `surface.rock`, times the bed of
+coloured rock at its height (`tStrata`) and the land's colour under it (the albedo map's
+tint, read once per rock when the tile arrives: `Terrain.tintAt`; as bright as the
+country, half its hue: a rock of one colour everywhere was near black on golden grass);
+dust on top, or snow. The land's shadow comes with the tile and is asked again a tile at
+a time when the Sun has moved 1.1 degrees (`rockvis`: a ray a rock, or a 21 x 21 grid
+across the tile where there are more than 400). The clouds' shadow is worked out per
+rock as the ground does it. Within 150 m the near shadow map shades them and they cast
+into it; **beyond it each rock lays a soft dark patch on the ground** away from the Sun
+(a blended mesh drawn after the ground: the ground's colour times the sky's share of
+its light, less through haze; no slope-scaled depth offset, which at a low angle is
+metres and drew the patch over the rock itself). Governor step `far-rock-shadows` takes
+the patches away.
+
+**Walking**: `FarRocks.riseAt` gives how far a rock of the two larger levels stands over
+the ground at a place (its fracture planes, in JavaScript: `rockTop` in `rockBlock.js`),
+and the app's height function adds it (`_rise`): the traveller walks up and over a rock
+of 3.4 m and more, lands on it, and the camera rises to see over it. The world file keeps
+places clear (`far.clear`): where the journey begins.
+
+**Workers**: one tile is asked for before the ground takes the workers each frame
+(`ask()` in `app.js`), so a traveller on the move is not left without rocks until the
+ground has settled; with the ground at rest, every free worker. A tile is asked again
+when the land cover changes and when a ring of water touches it (`Terrain._stale`).
+
 ## Clouds with depth (`src/sky/cloudVolume.js`)
 
 - Near the traveller (to `reach`, 16 km) the cloud layer is a volume; beyond it the thin

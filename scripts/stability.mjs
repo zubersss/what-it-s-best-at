@@ -50,6 +50,11 @@ const MOVES = [
   // (Haven on foot through the opening meadow: the blades, the clumps beyond them and the
   // ground's own grass, where each field gives way to the next, as the traveller walks)
   { id: 'haven_meadow_walk', world: 'haven', shot: 'ledge', query: 'lat=-54.4271&lon=39.2697&heading=120&t=5&pitch=-3', step: { fwd: 0.055 }, stride: 160, slow: true },
+  // (the land's own rocks, rocks/farRocks.js: walking toward a field of boulders on a steep
+  // open slope, and flying low at it: rocks growing in with distance, the 80- and 20-triangle
+  // blocks changing over, their shadows on the ground; nothing may pop)
+  { id: 'haven_rocks_walk', world: 'haven', shot: 'ledge', query: 'lat=-48.80660&lon=47.22265&t=3&heading=80&pitch=2', step: { fwd: 0.055 }, stride: 160, slow: true },
+  { id: 'haven_rocks_flight', world: 'haven', shot: 'ledge', query: 'lat=-48.80660&lon=47.22265&t=3&alt=2013&heading=135&pitch=-10', step: { fwd: 1 }, stride: 250, slow: true },
   // (Haven on foot, walking at a wood: the far forest's trees grow in as they are come at,
   // and the line where the trees one walks among take over from them must not show)
   // (0.4 m a frame: a tree or two crosses the 240 m line at every step, and the wood's

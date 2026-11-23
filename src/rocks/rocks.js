@@ -9,9 +9,9 @@ import { noise3, hash3 } from '../terrain/height/noise.js';
 import { latLonToDir, dirToLatLon } from '../core/ephemeris.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
-const INSTANCE_VERT = /* glsl */`
-in vec3 aOffset; in vec4 aQuat; in vec3 aScale; in vec2 aMisc; in vec4 aShape;
-uniform float uFadeRadius;
+// The block's shape, shared with the far rocks (farRocks.js): one rule, one look. Whoever
+// uses it declares the attribute aShape (four numbers of the rock's own, 0..1).
+export const ROCK_SHAPE_GLSL = /* glsl */`
 vec3 qrot(vec3 v, vec4 q) { return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v); }
 vec3 sphDir(float u, float z) { float s = sqrt(max(0.0, 1.0 - z * z)), a = 6.2831853 * u; return vec3(cos(a) * s, sin(a) * s, z); }
 // Every rock is a block: the same lump trimmed by four to six fracture planes round its
@@ -38,7 +38,12 @@ vec3 rockShape(vec3 p, inout vec3 nrm) {
     if (c > 1e-3 && r * c > h) { r = h / c; nrm = n; }
   }
   return d * r;
-}
+}`;
+
+const INSTANCE_VERT = /* glsl */`
+in vec3 aOffset; in vec4 aQuat; in vec3 aScale; in vec2 aMisc; in vec4 aShape;
+uniform float uFadeRadius;
+${ROCK_SHAPE_GLSL}
 vec3 rockPosition(out vec3 centre, inout vec3 nrm) {
   centre = (modelMatrix * vec4(aOffset, 1.0)).xyz;
   float fade = 1.0 - smoothstep(uFadeRadius * 0.72, uFadeRadius, length(centre));
@@ -47,8 +52,9 @@ vec3 rockPosition(out vec3 centre, inout vec3 nrm) {
 
 // A rounded lump (80 triangles on 42 shared vertices); the fracture planes that make each
 // rock a different block are cut in the vertex shader.
-function rockGeometry() {
-  const ico = new THREE.IcosahedronGeometry(1, 1);
+// (detail 0: 20 triangles on 12 vertices, for rocks a few pixels across)
+export function rockGeometry(detail = 1) {
+  const ico = new THREE.IcosahedronGeometry(1, detail);
   ico.deleteAttribute('normal'); ico.deleteAttribute('uv');
   const geo = mergeVertices(ico, 1e-4);
   const p = geo.attributes.position, v = new THREE.Vector3();
