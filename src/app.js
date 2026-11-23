@@ -272,6 +272,7 @@ export class App {
     // the character stands on the ground as drawn (and in water as deep as heightFn just said)
     this.rig.groundAt = (d, dist) => { const g = this.terrain.drawnHeight(d, dist); return g == null ? null : g - (this._sink || 0) + (this._rise || 0); };
     this.rig.sunkAt = () => this._under || 0;          // (the camera stays above the water its figure stands in)
+    this.rig.riseAt = () => this._rise || 0;           // (a boulder under the place: the floor, but not the land that flight's speed goes by)
     // the home world's cloud layer (a world without clouds: nothing is drawn)
     this.clouds = new CloudLayer(renderer);
     this.cloudVolume = new CloudVolume(renderer); this.cloudVolume.setWorld(world); this.cloudVolume.setGround(data.rasters[0]);
@@ -1353,7 +1354,7 @@ export class App {
     renderer.render(this.farScene, rig.camera);
     renderer.clearDepth();
     prof.mark(7);
-    const near = Math.max(0.25, Math.min(2e6, rig.agl * 0.15));
+    const near = Math.max(0.25, Math.min(2e6, Math.min(rig.agl, rig.floor || rig.agl) * 0.15));      // (by the floor: a tor right under the camera must not be cut away)
     // (clouds: their shadow reads the same map; the view must reach the layer's horizon)
     this.terrain.shared.tClouds.value = this.clouds.mesh.visible ? this.clouds.texture : this.terrain.textures.white;
     {

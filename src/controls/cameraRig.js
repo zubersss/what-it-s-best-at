@@ -94,6 +94,11 @@ export class CameraRig {
     this.groundAt = null;
     this.water = 0;             // how deep the water is where the figure stands (m; the app sets it)
     this.sunkAt = null;         // () -> how far under the water's surface the last heightAt answer was (m; the app sets it)
+    // riseAt() -> how far the last heightAt answer stands over the land (a boulder under the
+    // place: the app sets it). The floor is the rock; `agl` in flight stays the height over
+    // the land, so that the speed law does not dip over every tor; `floor` is the height
+    // over what one would stand on (the touch-down tests, the near plane).
+    this.riseAt = null; this.floor = 0;
     this.auto = null;        // { mult } during a hands-off trip (set by the app)
     this._h = new THREE.Vector3(); this._r = new THREE.Vector3(); this._u = new THREE.Vector3(); this._t = new THREE.Vector3();
   }
@@ -107,7 +112,7 @@ export class CameraRig {
     this.pos.set(d[0] * r, d[1] * r, d[2] * r);
     // Height above ground is known here; leaving the old value until the next update
     // would give one frame of the previous place's flight speed (it scales with height).
-    this.agl = eye; this.groundAlt = h;
+    this.agl = this.floor = eye; this.groundAlt = h;
     if (heading != null) this.heading = heading;
     if (pitch != null) this.pitch = pitch;
     this.jumpOffset = 0; this.vUp = 0; this.velocity.set(0, 0, 0); this._prevHeading = this.heading;
@@ -123,7 +128,7 @@ export class CameraRig {
     const d = [p[0] / l, p[1] / l, p[2] / l];
     const ground = this.heightAt(d), r = this.world.radius + ground + eye;
     this.pos.set(d[0] * r, d[1] * r, d[2] * r);
-    this.agl = eye; this.groundAlt = ground;
+    this.agl = this.floor = eye; this.groundAlt = ground;
     this._refresh();
   }
 
@@ -270,7 +275,7 @@ export class CameraRig {
       p.addScaledVector(v, dt * (step > maxStep ? maxStep / step : 1));
       this._snapToGround(null);
       this._holdDirection();
-      if (this.agl <= 1.2001) {
+      if (this.floor <= 1.2001) {
         // Standing on the ground: what is left of the fall is gone (the figure's pose and
         // cloak read the velocity, and a figure at rest must not look like it is sinking).
         const down = -(v.x * this.localUp[0] + v.y * this.localUp[1] + v.z * this.localUp[2]);
@@ -290,7 +295,7 @@ export class CameraRig {
         const vu = v.x * this.localUp[0] + v.y * this.localUp[1] + v.z * this.localUp[2];
         // (also when the camera itself is held by the ground behind a figure hanging over a drop:
         // off a sheer wall it hung in mid-air)
-        if ((clear < 0.25 && vu < 0.5) || (this.throttle < 0.05 && (clear < FOOT.dropBelow || this.agl <= 1.2001))) this._toFoot(c, clear);
+        if ((clear < 0.25 && vu < 0.5) || (this.throttle < 0.05 && (clear < FOOT.dropBelow || this.floor <= 1.2001))) this._toFoot(c, clear);
       }
     } else {
       const base = Math.max(4, Math.min(60000, this.agl * 0.7));
@@ -530,7 +535,7 @@ export class CameraRig {
     else this._camAlt = Math.max(ground + 0.6, this._camAlt + (r - this._camAlt) * (1 - Math.exp(-dt * FOOT.camRise)));
     r = this._camAlt;
     p.setLength(r);
-    this.agl = r - ground; this.groundAlt = ground - this.world.radius;
+    this.agl = this.floor = r - ground; this.groundAlt = ground - this.world.radius;
     this.heroRel.subVectors(body, p);
   }
 
@@ -539,9 +544,12 @@ export class CameraRig {
     const d = this._dir; d[0] = p.x / l; d[1] = p.y / l; d[2] = p.z / l;
     const ground = this.world.radius + this.heightAt(d) + (this.sunkAt ? this.sunkAt() : 0);
     let r = l;
+    const rise = this.riseAt ? this.riseAt() : 0;          // (asked right after heightAt: of the same place)
     if (eye != null) r = ground + eye; else r = Math.max(l, ground + 1.2);
     p.set(d[0] * r, d[1] * r, d[2] * r);
-    this.agl = r - ground; this.groundAlt = ground - this.world.radius;
+    this.floor = r - ground;
+    // (standing, eye given: over what is stood on; in flight: over the land)
+    this.agl = eye != null ? r - ground : r - ground + rise; this.groundAlt = ground - this.world.radius;
   }
 
   _basis() {
