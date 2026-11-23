@@ -75,7 +75,7 @@ bare mountain: `air1900_tele14` is the same lens pitched down onto the wood. The
 place is 248 degrees of longitude from the opening place and so in another time of day:
 `t=-5` puts it just before dawn, which shows the shadow fix below better than noon would.
 
-Memory: the pool is 40 tiles x 6 144 instances x 48 bytes = **11 MB** of instance buffers,
+Memory: the pool is 40 tiles x 12 288 instances x 48 bytes = **23.6 MB** of instance buffers (11.8 before the review's second finding),
 fixed, plus the worker's own arrays for the tiles held (9 floats a tree).
 
 ## What was tried and taken back
@@ -132,8 +132,6 @@ fixed, plus the worker's own arrays for the tiles held (9 floats a tree).
   jobs at a time.
 - Far trees do not sway in the wind (the near ones do). At 240 m a 20 m tree leans less than
   half a degree in a gale, so nothing shows at the line; it is still a difference.
-- **Cloud shadow** on far trees is the camera's own (`uWeather.x`), as for the near trees:
-  a far wood under another cloud is not darkened by it, while the ground under it is.
 - The land's shadow on far trees is read off a grid 45 m apart on the nearest tiles and
   370 m apart on the farthest: the edge of a mountain's shadow on a far wood is soft.
 - At a mile the trees are thinned to a tenth; over closed forest they stand on the canopy
@@ -147,6 +145,151 @@ fixed, plus the worker's own arrays for the tiles held (9 floats a tree).
 - Nothing is drawn beyond 5.6 km. Trees are still a few pixels at that distance on the
   phone; from there out the canopy the ground shader raises carries the forest.
 
+## Added after the first delivery: shadow on trees (the owning session's ask)
+
+Asked for: far trees no longer sunlit inside a cloud's shadow. Found on the way: the bright
+trees on dark ground in the view that was named (`alt=1535&pitch=-12`) were not under a
+cloud at all. They were the **trees one walks among, inside the mountain's shadow**: beyond
+the shadow maps those trees had no shadow of the land on them, ever. Both are done.
+
+- **The clouds' shadow** (first as one piece of vertex shader, `CLOUD_SHADE_VERT`; since
+  the review's eighth finding a small map, `src/life/treeShade.js`) is read by the near
+  trees and by the far forest: the ground's own rule
+  (`cloudHeap` from `HEAP_GLSL`, the day's map, `uCloud.x` times the shade), once per tree
+  at two thirds of its height. Its uniforms are the ground's own objects
+  (`cloudShadeUniforms(terrain)`), so nothing was added to `src/app.js`, and a saving that
+  takes the shadow off the ground takes it off the trees in the same frame. It does not use
+  the ground's far-off mean (`0.5 * cc`): within 5.6 km the ground is still shaded heap by
+  heap. Cost: two or three texture reads per vertex of a tree (the day's map, and the
+  cloud noise once or twice), nothing per pixel. **Not measured on a phone.**
+- **The land's shadow on the near trees.** The worker's job for a block of near trees now
+  does what the far forest's tile job does (one function, `landShadow` in
+  `src/terrain/chunkWorker.js`): one shadow ray per tree, from two thirds of its height,
+  carried in the fourth number of `iD`. A block is asked for again when the Sun
+  has moved a degree and a half, as the far tiles are. Under the shadow maps a near tree is
+  now shaded twice by the same hill, which changes nothing dark to dark; at the soft edge
+  of a mountain's shadow near trees are a little darker than before.
+  **Tried and taken back:** a 4 x 4 grid over the block, as the far tiles have. On the
+  opening ledge it read the shade under the cliff into the trees standing on the rim in
+  the Sun (their crowns a fifth darker in the opening view); tree by tree they are as
+  bright as they were. The far tiles keep their grid (20 x 20 over 889 m and up): the same
+  bleed is there on far rims, softer and far off. A block's job now casts one ray per
+  tree, some 200 in a wooded block; its time was not measured here.
+- Pictures: `haven_ledge_cloud1535_before/_after.png` (the near trees at the bottom, lit in
+  the shadow before, dark with their ground after), `cloud1535_floor_after` (every saving
+  on), `cloud1900_before/_after` (far trees in the shadow on the right). The before
+  pictures are of the build before the owning branch was merged in: the ground's autumn
+  colours differ a little between the pairs for that reason, not for this one.
+- Still so: the trees' shadow of a cloud is per tree and the ground's per pixel, so under a
+  cloud's edge a tree is all in or all out; and the clouds in these views cast little on
+  the wooded slopes, so the clouds' part is right by construction (one rule, the ground's
+  numbers) more than it is shown.
+
+## After the independent review (`far-forest-review.md`), finding by finding
+
+1. **Strips with no far trees (serious): true, fixed.** The reviewer was right. With the
+   tiles' blocks taken by index, the new check in `scripts/far-trees-test.mjs` (the game's
+   own selection, now in `src/life/farTiles.js`, against every block of trees within each
+   level's reach) fails: at the north wood 15 of 168 blocks at level 0 and **231 of 755 at
+   level 1** are in no wanted tile; at the opening place 95 of 3 150 at level 2 and 307 of
+   7 736 at level 3. A tile is now its rows of blocks and a span of longitude (that of its
+   first row's blocks), and each row gives it the blocks whose west edge lies in the span
+   (`tileSpan`, `tileRow`, `tileOf` in `treeBlock.js`); where a tile stands is worked out
+   from that span, wrapped at longitude 0, with a block of slack. The check passes at seven
+   places, among them both sides of the seam at longitude 0 and a band boundary, and a
+   level-1 tile lying over two bands holds its blocks' trees where they stand.
+2. **The cap of 6 144: true, fixed.** A new check (the tile under a traveller in the thick
+   of a wood must fit its buffer with its margin) failed: the north wood wants 9 464 trees
+   at level 0 and **11 425 at level 1**, the golden shore 7 709, 6 455 and 7 209 (level 3).
+   `CAP` is now 12 288 (the most sites a band of levels 0 to 2 can have), and on overflow
+   the margin goes to 1.2 and then 1.0, never under the trees that stand. The pool is now
+   40 x 12 288 x 48 bytes = **23.6 MB** of instance buffers (it was 11.8).
+3. **Trees at the 240 m line drawn by nobody: true by the code, fixed; not seen in a
+   picture.** The near list held trees to 10 m past the radius and was made again every
+   25 m, while both shaders cut at 240 m from the eye. The list now reaches the radius plus
+   the 25 m and 5 more, and blocks are asked for that much farther out. The stability move
+   never walks 10 m from a rebuild, so it could not have shown it and does not prove the fix.
+4. **The clock run fast: true by the code, fixed; not run in a browser.** Blocks of near
+   trees whose shadow was worked out for an older Sun counted as missing, and the far
+   forest asks for nothing while near trees are missing. They are now a count of their own:
+   asked for after everything that has no trees yet, one sweep a second at most, and the
+   lists are made again once when a sweep is in, not at every reply. A far tile is asked
+   for again for the Sun at most every two seconds. (And the count of jobs out no longer
+   goes negative after a change of world: the review's small leftover.)
+5. **Nothing asked for ahead of the line: true by the code, fixed; not seen in a picture.**
+   Near side: blocks are asked for from 1.6 times the radius above the ground (384 m), and
+   the near trees' reach (which is also where the far forest and the canopy begin) goes no
+   farther than the blocks that are in, so a block that has not come leaves its trees to
+   the far forest instead of to nobody. Far side: a level is drawn out to where its lowest
+   rank begins to grow (`full / sqrt(0.85 lo)`, a twelfth farther than before) and its
+   tiles are asked for a tenth before that. 36 to 39 tiles are wanted at the places tested
+   (54 beside the seam at longitude 0, where tiles are short); the pool of 40 takes the
+   nearest, and those left out are the ones that cannot show a tree yet.
+6. **Refills in bursts, height, draw order: true by the code, fixed.** At most two tiles are
+   filled in a frame, nearest first (screenshot mode waits for a tile's first fill); the
+   distance a tile is wanted, shown and refilled by counts 0.7 of the height over the
+   ground, so from 2 km up the thick bands' tiles are neither worked out nor held; a tile
+   with no tree in it takes no place in the pool; and the tiles are drawn nearest first by
+   an order set each frame (each has a material of its own, which three sorts by first).
+7. **The same tree lit differently across the join: true, fixed.** The far cards now take
+   their normals by the near cards' own rule with each shape's own middle height (a copy of
+   the rule checked against the near meshes' normals in Node: 0.016 degrees apart at worst,
+   over all 18 corners of every shape and variant; the far forest's own rule had been up to
+   26 degrees off), and far trees have the moon's light (`planetShine`) as near ones do.
+8. **The governor's step, the cost test, the cloud shade per vertex: true, changed.**
+   `trees-far` no longer shortens the near trees' radius (that handed the same cards to
+   the far forest and moved the join nearer): it now brings the full shapes in to two
+   thirds of their distance (76 m and 28 m), beyond which a tree is its three cards. The
+   cost test's `trees` row hides the near meshes and leaves the line where it is. The
+   clouds' shadow is no longer worked out on every vertex of every tree: a map of it
+   (`src/life/treeShade.js`, 256 x 256 over 14 km, one small pass before the main picture,
+   the ground's rule and numbers) is read once per vertex by near and far trees, one
+   texture read where there were up to four. A tree off the map's plane looks it up where
+   the Sun's ray through its crown meets the plane. **Behaviour changes for the checkpoint:**
+   the `trees-far` step now does something else; `src/app.js` has three lines for the map.
+   None of this is measured on a phone.
+
+### The proofs asked for after T1 to T8 (one line each)
+
+- **T2 (cap):** check 6 of `scripts/far-trees-test.mjs`; with `CAP` at 6 144 it fails (north
+  wood 9 464 and 11 425 wanted, golden shore 7 709, 6 455, 7 209), with 12 288 it passes.
+- **T3 (the 240 m line):** check 7a, on the real trees round the north wood: after 25 m of
+  travel, 16 ways, 0 of 56 424 trees inside the radius are outside the near list; with the
+  list 10 m past the radius, as it was, **1 798** were drawn by nobody. The rule is read
+  from `trees.js` (`nearListReach`), and the check fails if the old rule would have passed.
+- **T4 (the clock run fast):** `node scripts/far-forest-clock.mjs` runs the two real update
+  loops frame by frame against workers that answer three frames later, the Sun going round
+  at 3600 x. This code: first sweep in after 2.0 s, then 302 far tiles asked for again in
+  18 s (17 a second), 538 near blocks, the near lists made again 0.9 times a second. The
+  code before T4 (`--src` a copy of d2bc994): "the first sweep never finished", exit 1.
+- **T5 (asked ahead):** check 7b: with each of 121 blocks in turn not yet come, 0 of its
+  trees lie inside the near trees' reach (`nearReach`); with the reach always the full
+  radius, as it was, 3 515 did. Check 7c: levels are drawn to 976, 1 952, 3 905 m, where
+  their lowest ranks begin to grow (`GROW`, which the shader now takes from `farTiles.js`),
+  not 900, 1 800, 3 600, and asked for 10 % before.
+- **T7 (far cards lit by the near rule):** `haven_ledge_join_lowsun_before/_after.png`: a
+  wood from 100 m to a kilometre with the Sun 17 degrees up on the right, the 240 m line
+  running through it. No line shows in either picture at this size (660 x 309): the old
+  rule's difference was there by the numbers (up to 26 degrees between the normals) and
+  is gone by the numbers (0.016), and is not something this pair lets one see. The
+  moonlit pair was not taken (a night picture of a wood is some twenty minutes here).
+- **T8 (the cloud map):** `haven_ledge_cloud1535_after.png` and `cloud1900_after.png` were
+  taken with it: near trees, far trees and ground agree at every shadow edge in them, and
+  no tree stands lit on shaded ground or dark on lit. The edges that cross woods in these
+  two views are mostly the mountain's; the clouds' own fall on the bare slopes above, so
+  the map's agreement with the ground under a cloud's edge is one rule and one set of
+  numbers more than it is a picture. Cost: one pass over 256 x 256 = 65 536 pixels a frame
+  (one read of the day's map and up to three of the cloud noise each) into a one-byte
+  target, drawn in `App` before `post.beginScene()` (after the cloud volume's own small
+  picture, before the main picture's clear), never inside it; then one read per tree vertex.
+- **The north wood where the strips were:** `haven_ledge_forest150_strips_before/_after.png`:
+  **53 502 far trees standing where 43 384 stood** (79 598 handed over, of 63 151). Seen
+  from 150 m the wood changes little, because the raised canopy carries the green there
+  and hid the strips; it is more even, with fewer dark streaks.
+- New since the review, to know of: the near trees' block job now casts a ray per tree
+  (the reviewer measured about 9 ms a block against 1.5); the pool's buffers are 23.6 MB;
+  with the clock at an hour a second the workers re-do some 17 far tiles a second.
+
 ## Tests
 
 - `node scripts/far-trees-test.mjs` (3 s, no browser): a tile holds exactly the trees of its
@@ -156,4 +299,22 @@ fixed, plus the worker's own arrays for the tiles held (9 floats a tree).
   no bias by height). **Seen to fail**: with rank taken partly from the site's column it
   reports the bias and the share; with a band quietly dropping one site in eight it reports
   that the bands are no longer every tree.
-- `npm run stability -- --only haven_treeline` and `--streaming`: *(filled in below)*
+- `node scripts/far-forest-clock.mjs` (2 s, no browser): the two ask loops with the clock at
+  an hour a second (see T4 above). **Seen to fail** on the code before T4.
+- `npm run stability -- --only haven_treeline` and `--streaming` (strips in
+  `docs/shots/far-forest/stability/`): walking at a wood, 0.4 m a frame, three stations
+  40 m apart. Whole picture, settled: **59 %, 36 %, 39 % of pixels changed, 11.9 %, 8.2 %,
+  9.0 % flicker**; streaming: 75 %, 72 %, 76 % changed, 3.6 %, 6.6 %, 1.2 % flicker. Those
+  numbers are the grass and the trees near by in the wind (the clock runs between settled
+  frames), not the far forest: **the same walk on the branch as it was found gives 59 %,
+  36 %, 39 % and 11.9 %, 8.1 %, 8.9 %**, and band by band down the picture the two builds
+  agree to half a point (the top eighth at the second station: 0.2 % changed in both). In
+  the strips the far wood on the skyline changes only along its outlines, and nothing
+  appears or goes at the line where the near trees take over. What this test cannot do is
+  tell a small pop in the near wood from the wind there: it would need the clock stopped.
+  (The move was first written at 1.2 m a frame with the figure in view: the grass at one's
+  feet filled the picture with honest motion, 67 to 83 %, and it said nothing.)
+- The join at a phone's pixel density: `haven_ledge_join_phone_after.png` (a quarter of
+  the phone's frame through a lens half as wide, 1540 x 721, which is the phone's pixels
+  per degree; the whole 3080 x 1442 frame did not finish in 70 minutes on this machine).
+  The wood runs from 100 m to a kilometre and no line shows at 240 m.

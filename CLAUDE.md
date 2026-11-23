@@ -206,6 +206,8 @@ node scripts/make-world.mjs [--width 4096] [--seed 7] [--preview dir] [--only-pr
 node scripts/make-world-maps.mjs   # ... and from that its colour, slope, water and cloud maps (needs Python's PIL for the JPEGs); prints the albedo map's mean for the world file
 node scripts/find-haven-site.mjs [--open] [--lat 28,52]   # places on Haven to begin at: level ground over low ground and water, high ground near by
 node scripts/find-overlook.mjs --world haven --lat .. --lon .. --heading .. [--below 1500]   # the very spot: level underfoot, the ground falling away in front, mountains on the far skyline (then look with peek.mjs)
+node scripts/far-trees-test.mjs     # the far forest's trees are the near trees: a thinned tile is a subset of the full one, at the same places (no browser)
+npm run rocks                      # the rule that places boulders: steep against level, clusters, sizes, a walker's footing (no browser); node scripts/rock-field.mjs draws the field from above
 node scripts/cloud-field.mjs [--span 150] [--lat .. --lon ..] [--out file.png]   # the fair-weather cloud field from straight above, without a browser in seconds: rows, clusters, how much of the sky
 node scripts/rock-field.mjs [--lat .. --lon ..] [--span 3000] [--out file.png] [--check]   # where the far rocks lie, from straight above, without a browser in seconds; --check: the rule's promises (fails if one is broken)
 node scripts/far-rocks-probe.mjs --distdir <build> --query "lat=..&lon=..&alt=.." [--seconds 300] [--out file.png] [--eval "..."]   # the far rocks in the real game: tiles arriving, what is drawn counted rock by rock, shader limits
@@ -219,6 +221,7 @@ python3 scripts/fetch-earth-climate.py   # Earth's yearly rainfall for the river
 python3 scripts/fit-orbits.py      # orbits fitted to JPL Horizons (needs ssd.jpl.nasa.gov; replies cached)
 npm run assets         # re-download and convert the small NASA/Yale files into public/data/
 python3 scripts/fetch-maps.py   # the rest of public/data/ (needs: pip install rasterio numpy pillow), see docs/ASSETS.md
+node scripts/parts-out.mjs --world haven --shot ledge [--query ..] [--box 0.2,0.6,0.8,1] [--distdir build]   # who draws that? one view taken with one part out at a time (grass, clumps, trees, far forest, rocks, shadow casters), and how much of the picture each changes
 npm run probe          # top-down shaded relief of the height function (no browser)
 node scripts/sky-table.mjs [--lat .. --lon ..]   # where the sky bodies are from a place over time (no browser)
 node scripts/profile-chunks.mjs --world moon   # chunk build times per level (no browser)
@@ -629,10 +632,44 @@ finished benchmark leaves its text in `window.__benchResult`.
   second try): keep them few, take the views from the air first (three minutes each),
   and give them `--timeout 1500`. A part hidden by `visible = false` from a test script
   is shown again by the app on the next frame: take it out of its scene instead.
+- Helpers on machines of their own (other sessions of this account, started with
+  `create_session` on a branch of their own, a brief in `docs/briefs/`): three of them
+  built the far forest, the far grass and the far rocks in an afternoon, where pictures
+  at one browser a machine would have taken days here. What made it work: the brief in
+  the repository, not in a message (what is wrong today with numbers, the design, the
+  rules that bite, the pictures to hand back, a report beside the brief); a first
+  working version with one before/after pair asked for early; corrections sent as short
+  notes about a named picture; their branches merged here as soon as they build, and the
+  others asked to merge this branch into theirs, so every later picture is of the
+  combination. What went wrong: a brief's view inside a cloud and views of a meadow that
+  was a wood (try the views before writing them into a brief); and reading a helper's
+  transcript with `list_events` floods this session's context even at a small limit:
+  ask the helper, or read its branch.
+- A layer "only where it is steep" is everywhere on land whose slopes are all alike: the
+  maker leaves mountain flanks at one slope (its cap) for long stretches, and benches of
+  rock meant for cliffs drew level streaks over every mountain side. Three causes were
+  guessed, "fixed" and pushed before a picture said which (the snow's edge, a ground
+  pattern sized for Earth, the benches). Switch the suspect off in one build and look,
+  before changing anything for good.
 - A script nobody runs breaks without a sound: a helper file rewritten under new names
   left the flicker check, the sketch and the relief probe unable to start for three
   deliveries (and the notes said the flicker check had been run). `scripts/check-scripts.mjs`
   (in the build check) reads every import of every script; after changing a file under
   `scripts/lib/`, start each script that uses it once.
+- Pictures from a standing camera cannot show what goes wrong in motion, and a helper's
+  pictures are all of that kind. Three reviewers reading the far-view code cold (one part
+  each, no browser, findings backed by small replays in Node) found in twenty minutes what
+  a day of pictures had not: the whole grass field sliding 0.8 m sideways every 200 m of
+  flight, far trees missing in strips, trees at a hand-over line drawn by nobody for 15 m
+  of travel, a walker standing in the air beside rocks. Have work that others built
+  reviewed this way before it ships, hand each builder its list, and ask for a test that
+  fails before the fix.
+- A small world also shows every term in x times D over R that Earth hides: a plane 1 km
+  over the ground was 0.03 m of error on Earth and 0.8 m on Haven (the grass's anchor);
+  and a lattice whose cell width changes by latitude band (`blockLon`) cannot be indexed
+  by column across two bands (on Haven a band is 4 km: every large tile straddled one).
+- A sketch tool's answer is only as wide as its question: "no tree shades the ground 1 to
+  12 m ahead" was true, and the pine's shadow lay 15 to 50 m ahead, across the whole
+  opening view. When a tool and a picture disagree, find what the tool did not ask.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

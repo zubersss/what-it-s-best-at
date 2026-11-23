@@ -86,27 +86,46 @@ export function treeBlock(hs, bi, bj, spacing = 7, nominal = BLOCK_DEG, salt = 4
   return { origin, count: n, trees: out.slice(0, n * TREE_FLOATS) };
 }
 
-// A square of `blocks` x `blocks` tree blocks in one go, as one array: what the far forest
-// asks a worker for (life/farForest.js). ti, tj: the tile, in tiles of that size (a block
-// of the tile is (ti * blocks + a, tj * blocks + b)). lo, hi: the band of ranks.
-//
-// Every block of the world belongs to exactly one tile of each size: blocks run round the
-// world in rows whose length depends on the latitude (blockLon), so a row's last tile is
-// the short one and a block index past the end of its row is simply not there. Positions
-// are metres from the tile's own origin.
+// The far forest's tiles (life/farForest.js, life/farTiles.js). A tile (ti, tj) of `blocks`
+// is `blocks` rows of tree blocks (rows ti * blocks ...) and a span of longitude: the span
+// `blocks` blocks of its FIRST row take, [w, e). A row's blocks are not the same width in
+// every row (blockLon: each one-degree band of latitude has its own, and on a small world
+// a band is a few kilometres), so the same block index is another longitude in another
+// row: taken by index, the rows of one tile stood kilometres apart and the far forest had
+// east-west strips with no trees. Each row therefore gives the tile the blocks whose west
+// edge lies in the span. Every block of the world belongs to exactly one tile of each
+// size; the last tile of a row of tiles ends at longitude 360 and is the short one.
+// tileSpan: { w, e (degrees), count (tiles round the world in this row of tiles) }.
+export function tileSpan(ti, tj, blocks, deg) {
+  const dLon0 = blockLon(ti * blocks, deg), count = Math.ceil(Math.round(360 / dLon0) / blocks);
+  return { w: tj * blocks * dLon0, e: tj >= count - 1 ? 360 : (tj + 1) * blocks * dLon0, count };
+}
+// tileRow: the blocks [b0, b1) of row bi that lie in a span.
+export function tileRow(bi, w, e, deg) {
+  const dLon = blockLon(bi, deg), round = Math.round(360 / dLon);
+  const edge = (x) => (x >= 360 ? round : Math.min(round, Math.max(0, Math.ceil(x / dLon - 1e-7))));
+  return [edge(w), edge(e)];
+}
+// tileOf: the tile a block belongs to.
+export function tileOf(bi, bj, blocks, deg) {
+  const ti = Math.floor(bi / blocks), dLon = blockLon(bi, deg), dLon0 = blockLon(ti * blocks, deg), count = Math.ceil(Math.round(360 / dLon0) / blocks);
+  return [ti, Math.min(count - 1, Math.floor((bj + 1e-7) * dLon / (blocks * dLon0)))];
+}
+
+// A tile of tree blocks in one go, as one array: what the far forest asks a worker for.
+// lo, hi: the band of ranks. Positions are metres from the tile's own origin (the middle
+// of its rows and of its span, on the ground).
 export function treeTile(hs, ti, tj, blocks = 8, spacing = 7, lo = 0, hi = 1, nominal = BLOCK_DEG, salt = 4409) {
   const R = hs.radius, rad = Math.PI / 180, deg = blockDeg(R, nominal);
-  const bi0 = ti * blocks, biMid = bi0 + blocks / 2, dLonMid = blockLon(Math.floor(biMid), deg);
-  const latMid = biMid * deg, lonMid = (tj * blocks + blocks / 2) * dLonMid;
+  const bi0 = ti * blocks, { w, e } = tileSpan(ti, tj, blocks, deg);
+  const latMid = (bi0 + blocks / 2) * deg, lonMid = (w + e) / 2;
   const cl = Math.cos(latMid * rad), dm = [cl * Math.cos(lonMid * rad), cl * Math.sin(lonMid * rad), Math.sin(latMid * rad)];
   const hM = hs.height(dm[0], dm[1], dm[2], 30), origin = [dm[0] * (R + hM), dm[1] * (R + hM), dm[2] * (R + hM)];
   const parts = [];
   let n = 0;
   for (let a = 0; a < blocks; a++) {
-    const bi = bi0 + a, dLon = blockLon(bi, deg), round = Math.round(360 / dLon);
-    for (let b = 0; b < blocks; b++) {
-      const bj = tj * blocks + b;
-      if (bj >= round) continue;                 // (the short tile at the end of a row)
+    const bi = bi0 + a, [b0, b1] = tileRow(bi, w, e, deg);
+    for (let bj = b0; bj < b1; bj++) {
       const blk = treeBlock(hs, bi, bj, spacing, nominal, salt, lo, hi);
       if (!blk.count) continue;
       const dx = blk.origin[0] - origin[0], dy = blk.origin[1] - origin[1], dz = blk.origin[2] - origin[2], T = blk.trees;
