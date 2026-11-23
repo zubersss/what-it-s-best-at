@@ -291,6 +291,12 @@ const CLUMP_VERT = /* glsl */`
     // level dashes in rows). The more squarely, the lower a clump stands and the more it is
     // the ground's own colour with a tufted edge.
     float rise = clamp(max(dot(toCam, uGrassUp), dot(toCam, nrm)), 0.0, 1.0);
+    // (looked at squarely from farther than some 60 m a clump adds nothing: the ground wears
+    // the grass there, and the card was a scratch on it. They go one by one, by chance,
+    // over a band of that measure and of distance; clumps stay where the ground is seen at
+    // a grazing angle, the level steppe and a brow against the sky, where they do their work.)
+    float square = smoothstep(0.22, 0.5, rise);
+    if (hash2(cell + 3.7).y < square * smoothstep(40.0, 90.0, dist) * 1.02) OUT_OF_PICTURE
     float tall = TALL * (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) * (0.85 + 0.3 * lie) * (0.8 + 0.4 * h2.y) * keep * (1.0 - 0.45 * smoothstep(0.15, 0.6, rise));
     float wide = WIDE * (0.45 + 1.1 * h.x * h.x) * uGrassKeep.w * keep;
     // (behind the camera or far off the side of the picture: nothing to draw)
@@ -322,7 +328,7 @@ const CLUMP_VERT = /* glsl */`
     // (the lie of the ground under the clump, from the table: far off a clump takes the
     // light of the slope it stands on, as the ground between the clumps does. Lit as level
     // ground, a hillside turned from the Sun was bright scales on a dark slope.)
-    vSlope = vec4(nrm, smoothstep(12.0, 45.0, dist));
+    vSlope = vec4(nrm, max(smoothstep(12.0, 45.0, dist), square));       // (seen squarely: the ground's own light at any distance)
     // (looked down on, or far off, a clump is the ground's own grass colour with a tufted
     // edge: its dark foot showing from above was a field of dark specks that ended in an arc)
     // (the clouds' shadow where the clump stands, by the ground's own rule: with the shade at
