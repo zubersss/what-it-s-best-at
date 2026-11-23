@@ -639,7 +639,10 @@ place, in the forest and from the air); `npm run shadowturns`; `npm run govsim`;
 `node scripts/check-ephemeris.mjs` (made bodies left alone); the stability test's move
 over Haven from 9 km (`--only haven_flight`: changed 0.55 %, flicker 0.02 %: the nearest
 cloud's edges). Pictures: Haven's opening view, sunrise, evening; 1, 9, 60, 300 and
-3 000 km; 9 and 60 km with every saving on; Earth's opening view (as it was). **Not
+3 000 km; 9 and 60 km with every saving on; Earth's opening view (as it was). (Sunrise,
+evening, the two with savings on and Earth are from the merged build; the others from
+the build before, which differs in nothing Haven uses; the 3 000 km one from before the
+haze was thinned.) **Not
 run**: the full reference set, the other stability moves, `flight`, `foot`, `transfer`,
 `worlds`. **Nothing is measured on the phone.**
 
