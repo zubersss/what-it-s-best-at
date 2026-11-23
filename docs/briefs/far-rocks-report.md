@@ -78,7 +78,37 @@ How it works is in `docs/ARCHITECTURE.md`, "Rocks as far as they can be seen".*
 
 ## Numbers
 
-NUMBERS
+From `window.__stats` of the after pictures (660 x 309, the build of 02e6bbe; "in view"
+is counted rock by rock, `tally`). Handed over = instances given to the GPU, all round
+the traveller; the vertex shader throws out those too far off. A block is 20 triangles,
+a shadow patch 8. The budget: 6 000 rocks and 150k triangles of rock in a view.
+
+| view | rocks in view | drawn all round | handed over | triangles of rock in view | draw calls of rock in view | whole frame: calls, triangles |
+| --- | --- | --- | --- | --- | --- | --- |
+| steep place, on the ground (`steep_ground`) | 4 701 | 15 016 | 19 847 | 108k | 21 | 82, 1.79 M |
+| the same, along the slope (`steep_join`) | 4 402 | 15 016 | 19 847 | 101k | 20 | 83, 1.70 M |
+| steep place from 100 m (`steep_air100`) | 4 038 | 13 915 | 18 563 | 93k | 22 | 71, 1.28 M |
+| the same with every saving on (`floor`) | 2 017 | 8 003 | 11 342 | 40k | 13 | 45, 0.77 M |
+| the opening view (`ledge`, the new start) | 1 414 | 8 188 | 10 818 | 34k | 19 | 158, 1.70 M |
+| steppe, on the ground (`steppe_ground`) | 510 | 1 287 | 1 726 | 11k | 21 | 68, 1.19 M |
+
+(three counts every instance handed over as triangles: the whole frame's figure holds
+handed over x 20, not what is drawn.)
+
+Without a browser (`node scripts/rock-field.mjs --count`), the fullest 100 degrees of the
+compass: 5 000 at the steep place, 4 200 at the opening site, 510 on the steppe.
+
+Work in a worker: a tile's rule 30 ms on average (63 at worst), its sunlight up to 60 ms
+(Node on this machine). On the main thread: a filling is one pass over a tile (at most
+7 400 rocks), two a frame at most, on foot a few times a minute; the casters are chosen
+again every 20 m walked. Memory: 19 MB of instance buffers in the pool (58 tiles), and
+the tiles in use kept whole on the CPU beside them.
+
+Stability: STABILITY
+
+**Not measured: anything on the phone.** The cost of the vertex work, of the shadow
+patches (a blended pass over the ground) and of the fillings is unknown there. The cost
+test's saving-by-saving table will say what `far-rock-shadows` and `far-rocks` buy.
 
 ## Changes a player sees (other than the far rocks themselves)
 
@@ -113,4 +143,34 @@ NUMBERS
 
 ## Known problems
 
-KNOWN
+- **Not seen on the phone.** See above.
+- **Not run in a browser:** arriving on Haven from a world without far rocks (review 1,
+  fixed by reading); walking onto a block and landing on one after the change to its
+  faces (`npm run rocks` compares the faces; `npm run foot` was not run on Haven's
+  rocks); flight over a tor (`scripts/rig-over-rock.mjs` only).
+- **Review finding 7 is open:** a tile worked out before the land-cover picture reaches
+  it takes its ground for open, and its rocks are swapped when the picture arrives (in
+  fast flight, and at high latitudes). The fix the reviewer proposes (no rock seen from
+  afar where the cover does not reach) is small; it was left for want of time.
+- **The opening view shows hardly a rock.** It looks over woods; the rule puts few rocks
+  in forest and the budget hides those from afar. The open broken ground is north of
+  the start. The first steep view (`steep_ground`) has a bare middle: it stands in a low
+  of the cluster noise on a shoulder that is only gently steep beyond 80 m.
+- **From 400 m up at 309 pixels the rocks are specks**; they are made for the phone's
+  1 440. Not judged at the phone's density from the air.
+- **Before pictures** exist for the opening view and the range across the valley only
+  (taken before the merge, from the old start); the views `steep_air400`, `tele`,
+  `steppe_air30`, `wall`, `ledge_phone`, `ledge_north`, `steep_ground_phone` are in
+  `scripts/far-rocks-shots.sh` but were not retaken on the last build.
+  `NOROCKS=1 scripts/far-rocks-shots.sh <build> _before` takes the same views without
+  the far rocks.
+- **Rocks stand on the fine ground** (2 to 10 m detail); far off the drawn ground is
+  coarser and a block can float or sink by a metre or two there.
+- **A block of 2.6 m of the talus level grows in at 310 m to 240 m** (the level is seen
+  from 310 m whatever its size): on the phone that is a block a dozen pixels tall
+  growing from nothing as one walks up. A longer reach for its largest would cost count.
+- **The near shadow map takes the nearest 1 024 rocks**: on the densest talus that is
+  about 150 m; beyond, a rock has its soft patch only.
+- **The near plane still follows the rock under the camera** in flight (so that a tor is
+  not cut away); the reviewer listed it with the speed, which is fixed.
+- The second stability move (`haven_rocks_flight`) was not run.
