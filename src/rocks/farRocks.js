@@ -26,7 +26,7 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { HEAP_GLSL } from '../sky/clouds.js';
 import { CONFIG } from '../config.js';
 import { ROCK_SHAPE_GLSL, rockGeometry } from './rocks.js';
-import { rocksFarDef, tileDeg, tileLon } from './rockBlock.js';
+import { rocksFarDef, tileDeg, tileLon, rockTop } from './rockBlock.js';
 
 const POOL = [64, 56, 48];            // tiles held at once, by level (fixed: memory cannot creep)
 const HI_K = 80;                      // nearer than this many times its size a rock is the 80-triangle block
@@ -255,7 +255,7 @@ export class FarRocks {
   setWorld(world) {
     this.world = world; this.def = rocksFarDef(world);
     for (const s of this.slots) { s.tile = null; s.lo.visible = s.hi.visible = s.shade.visible = false; s.shadowN = 0; }
-    this.tiles.clear(); this.asked = 0; this.missing = 0; this.count = 0; this.coverSerial = -1; this.visSun = [0, 0, 0];
+    this.tiles.clear(); this.asked = 0; this.missing = 0; this.missing0 = undefined; this.count = 0; this.coverSerial = -1; this.visSun = [0, 0, 0];
     this.group.visible = !!this.def;
     if (!this.def) return;
     this._makePool();
@@ -286,7 +286,10 @@ export class FarRocks {
     const R = this.world.radius, p = rig.pos, len = p.length(), lat = Math.asin(p.z / len) * 180 / Math.PI, lon = ((Math.atan2(p.y, p.x) * 180 / Math.PI) + 360) % 360, M = R * Math.PI / 180;
     // (the land cover moved or changed: every tile is asked again; a ring of water: the tiles it touches)
     if (t.coverSerial !== this.coverSerial) { this.coverSerial = t.coverSerial; for (const b of this.tiles.values()) b.stale = true; }
-    const want = this._want || (this._want = []); want.length = 0;
+    // (which tiles are wanted: looked at every fourth frame; the list is asked from in between)
+    const want = this._want || (this._want = []);
+    if (this.frame % 4 === 1 || this.missing0 === undefined) {
+    want.length = 0; let missing = 0;
     for (let li = 0; li < def.levels.length; li++) {
       const L = def.levels[li], DEG = tileDeg(R, L.tile), T = DEG * M;
       // (a level's small rocks are not seen as far as its large ones: under the governor's saving its tiles are asked for less far)
@@ -302,16 +305,20 @@ export class FarRocks {
           let b = this.tiles.get(key);
           if (b) {
             b.used = this.frame;
+            if (b.retry > this.frame) continue;
             if (b.state === 1 && !b.stale && (b.serial || 0) < t.ringSerial) { if (b.center && t._stale(b)) b.stale = true; else b.serial = t.ringSerial; }
             if ((b.state === 1 && !b.stale) || b.asking) continue;
           }
-          this.missing++;
+          missing++;
           // (nearest first, as near as the rocks of the tile can matter: by distance over the level's reach)
-          const score = d / reach;
-          if (want.length < 4 || score < want[want.length - 1][4]) { want.push([li, bi, bj, key, score]); want.sort((x, y) => x[4] - y[4]); if (want.length > 4) want.length = 4; }
+          want.push([li, bi, bj, key, d / reach]);
         }
       }
     }
+    want.sort((x, y) => x[4] - y[4]); if (want.length > 16) want.length = 16;
+    this.missing0 = missing;
+    }
+    this.missing = this.missing0;
     // asked for when a worker is free: the ground itself comes first (it has taken its workers already this frame)
     this.ask();
     this._refreshVis();
@@ -322,16 +329,16 @@ export class FarRocks {
     let count = 0, tris = 0, all = 0; const c = this._c, shadowR = CONFIG.NEAR_SHADOW_RADIUS * 1.6;
     const fr = this._frustum || (this._frustum = new THREE.Frustum()), pm = this._pm || (this._pm = new THREE.Matrix4()), sp = this._sp || (this._sp = new THREE.Sphere());
     fr.setFromProjectionMatrix(pm.multiplyMatrices(rig.camera.projectionMatrix, rig.camera.matrixWorldInverse));
+    // (the first rock too small to be seen from a tile's nearest point; a small rock's reach is less)
+    const reach = def.reach, smallK = (sz) => reach * shareOf(sz, small);
     for (const s of this.slots) {
       const b = s.tile;
       if (!b) continue;
-      const L = def.levels[s.li], reach = def.reach, sizes = b.sizes;
+      const sizes = b.sizes;
       if (!b.tinted && t.tint) this._tint(s, b);
       c.copy(b.origin).sub(p);
       s.lo.position.copy(c); s.hi.position.copy(c); s.shade.position.copy(c);
       const dmin = Math.max(0, Math.hypot(c.x + b.bound[0], c.y + b.bound[1], c.z + b.bound[2]) - b.bound[3]);
-      // (the first rock too small to be seen from the tile's nearest point; a small rock's reach is less under the governor)
-      const smallK = (sz) => reach * shareOf(sz, small);
       let nLo = 0, nHi = 0;
       if (dmin < sizes[0] * smallK(sizes[0])) {
         let a = 0, z = b.count;
@@ -340,7 +347,6 @@ export class FarRocks {
         while (a < z) { const m = (a + z) >> 1; if (sizes[m] * hk > dmin) a = m + 1; else z = m; }
         nHi = a;
       }
-      void L;
       s.lo.visible = nLo > 0; s.lo.geometry.instanceCount = nLo;
       s.hi.visible = nHi > 0; s.hi.geometry.instanceCount = nHi;
       s.shadowN = dmin < shadowR ? nHi : 0;
@@ -385,7 +391,7 @@ export class FarRocks {
       b.state = 1; b.serial = serial; b.count = res.count; b.visSun = sun;
       if (!res.count) { if (b.slot) { this._free(b.slot); b.slot = null; } b.center = null; return; }
       const slot = b.slot || this._slot(li, b);
-      if (!slot) { b.count = 0; b.center = null; this.dropped = (this.dropped || 0) + 1; return; }           // (the pool is full of tiles in use: it stays undrawn until it is let go and wanted again; counted, so that a pool too small shows)
+      if (!slot) { b.state = 0; b.count = 0; b.center = null; b.retry = this.frame + 180; this.dropped = (this.dropped || 0) + 1; return; }           // (the pool is full of tiles in use: asked again in a while, when one may have been let go; counted, so that a pool too small shows)
       b.slot = slot; slot.tile = b;
       b.origin = new THREE.Vector3(res.origin[0], res.origin[1], res.origin[2]); b.bound = res.bound;
       b.center = new THREE.Vector3(res.origin[0] + res.bound[0], res.origin[1] + res.bound[1], res.origin[2] + res.bound[2]); b.radius = res.bound[3]; b.box = null;
@@ -400,7 +406,12 @@ export class FarRocks {
       for (const m of [slot.lo, slot.hi, slot.shade]) { m.geometry.boundingSphere.center.set(res.bound[0], res.bound[1], res.bound[2]); m.geometry.boundingSphere.radius = res.bound[3]; }
       // (kept for whoever walks among them: the larger levels only)
       b.solid = li >= COLLIDE_FROM ? { off, quat: slot.at.aQuat.array, scale: slot.at.aScale.array, shape: slot.at.aShape.array } : null;
-    }, () => { this.asked--; b.asking = false; });
+    }, (e) => {
+      // (a tile that cannot be worked out is asked twice more and then left empty, with a word:
+      // asked for ever, it would keep every screenshot waiting and say nothing)
+      this.asked--; b.asking = false; b.failed = (b.failed || 0) + 1;
+      if (b.failed >= 3) { b.state = 1; b.count = 0; b.center = null; console.error(`far rocks: tile ${key} failed: ${e?.message || e}`); }
+    });
   }
 
   // How far a large rock stands over the ground at a place: d: the unit direction from the
@@ -483,40 +494,3 @@ export class FarRocks {
     }, () => { b.visAsking = false; this.visAsked = false; });
   }
 }
-
-// The highest point of rock i on the vertical through a place: (x, y, z): the place from
-// the rock's middle (m, planet axes); up: the vertical there. Metres over the place, or 0.
-const LUMP = 0.86, TAU = 6.2831853;
-const fr = (v) => v - Math.floor(v);
-function rockTop(x, y, z, up, quat, scale, shape, i) {
-  // into the rock's own axes (the turn undone), in units of its size along each
-  const qx = -quat[i * 4], qy = -quat[i * 4 + 1], qz = -quat[i * 4 + 2], qw = quat[i * 4 + 3];
-  const rot = (vx, vy, vz, o) => {
-    const tx = qy * vz - qz * vy + qw * vx, ty = qz * vx - qx * vz + qw * vy, tz = qx * vy - qy * vx + qw * vz;
-    o[0] = vx + 2 * (qy * tz - qz * ty); o[1] = vy + 2 * (qz * tx - qx * tz); o[2] = vz + 2 * (qx * ty - qy * tx);
-  };
-  const p = _p, u = _u;
-  rot(x, y, z, p); rot(up[0], up[1], up[2], u);
-  const sx = scale[i * 3], sy = scale[i * 3 + 1], sz = scale[i * 3 + 2];
-  p[0] /= sx; p[1] /= sy; p[2] /= sz; u[0] /= sx; u[1] /= sy; u[2] /= sz;
-  // the line p + t u inside the lump's sphere ...
-  const a = u[0] * u[0] + u[1] * u[1] + u[2] * u[2], bq = p[0] * u[0] + p[1] * u[1] + p[2] * u[2], c = p[0] * p[0] + p[1] * p[1] + p[2] * p[2] - LUMP * LUMP, disc = bq * bq - a * c;
-  if (disc <= 0) return 0;
-  let t0 = (-bq - Math.sqrt(disc)) / a, t1 = (-bq + Math.sqrt(disc)) / a;
-  // ... and under every fracture plane
-  const s0 = shape[i * 4] / 255, s1 = shape[i * 4 + 1] / 255, s2 = shape[i * 4 + 2] / 255, s3 = shape[i * 4 + 3] / 255;
-  const az = s0 * TAU, sides = 4 + Math.floor(s3 * 2.999);
-  for (let f = 0; f <= sides; f++) {
-    let nz, ang, h;
-    if (f < sides) { ang = az + f * TAU / sides + (fr(s1 * 7.13 + f * 0.618034) - 0.5) * 0.9; nz = (fr(s2 * 5.71 + f * 0.381966) - 0.45) * 0.55; h = 0.5 + 0.32 * fr(s1 * 3.31 + f * 0.754878); }
-    else { ang = s2 * TAU; nz = 0.6 + 0.37 * s1; h = 0.35 + 0.35 * s0; }
-    const sn = Math.sqrt(Math.max(0, 1 - nz * nz)), nx = Math.cos(ang) * sn, ny = Math.sin(ang) * sn;
-    const dp = p[0] * nx + p[1] * ny + p[2] * nz - h, du = u[0] * nx + u[1] * ny + u[2] * nz;
-    if (Math.abs(du) < 1e-9) { if (dp > 0) return 0; continue; }
-    const t = -dp / du;
-    if (du > 0) { if (t < t1) t1 = t; } else if (t > t0) t0 = t;
-    if (t0 >= t1) return 0;
-  }
-  return t1 > 0 ? t1 : 0;
-}
-const _p = [0, 0, 0], _u = [0, 0, 0];

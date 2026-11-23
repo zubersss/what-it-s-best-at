@@ -29,6 +29,7 @@ export const ROCK_SITES = 56;          // sites along a tile's side, on every le
 //   below    metres over the ground: none are drawn from higher
 //   albedo   the rock's colour (the world's `surface.rock` when left out: the cliffs' own)
 //   clear    [[latitude, longitude, metres], ...]: no rock within these places
+//   check    { steep: [latitude, longitude], level: [...] }: two places for scripts/rock-field.mjs --check
 //   levels   size [from, to] (m: the same measure as the near rocks' `size`), tile (degrees
 //            of latitude on Earth: 0.003 is 333 m on a world of any radius), density (the
 //            share of the sites that hold a rock where the ground is all rock), cap (the
@@ -39,7 +40,7 @@ export const ROCKS_FAR_DEFAULTS = {
   levels: [
     { size: [1.0, 2.6], tile: 0.003, density: 0.26, cap: 1024, wl: 2 },
     { size: [2.6, 6.5], tile: 0.008, density: 0.55, cap: 768, wl: 5 },
-    { size: [6.5, 15], tile: 0.02, density: 0.3, cap: 512, wl: 10 },
+    { size: [6.5, 18], tile: 0.02, density: 0.85, cap: 1024, wl: 10 },
   ],
 };
 export function rocksFarDef(world) {
@@ -215,3 +216,43 @@ export function rockVis(baker, origin, off, count, sun, sunHalf) {
   }
   return out;
 }
+
+// For whoever walks among the large ones (farRocks.js, riseAt): the block as it is drawn,
+// near enough: its fracture planes (ROCK_SHAPE_GLSL in rocks.js, in JavaScript: change one,
+// change the other) and a sphere a little inside the lump they are cut from.
+// The highest point of rock i on the vertical through a place: (x, y, z): the place from
+// the rock's middle (m, planet axes); up: the vertical there. Metres over the place, or 0.
+const LUMP = 0.86, TAU = 6.2831853;
+const fr = (v) => v - Math.floor(v);
+export function rockTop(x, y, z, up, quat, scale, shape, i) {
+  // into the rock's own axes (the turn undone), in units of its size along each
+  const qx = -quat[i * 4], qy = -quat[i * 4 + 1], qz = -quat[i * 4 + 2], qw = quat[i * 4 + 3];
+  const rot = (vx, vy, vz, o) => {
+    const tx = qy * vz - qz * vy + qw * vx, ty = qz * vx - qx * vz + qw * vy, tz = qx * vy - qy * vx + qw * vz;
+    o[0] = vx + 2 * (qy * tz - qz * ty); o[1] = vy + 2 * (qz * tx - qx * tz); o[2] = vz + 2 * (qx * ty - qy * tx);
+  };
+  const p = _p, u = _u;
+  rot(x, y, z, p); rot(up[0], up[1], up[2], u);
+  const sx = scale[i * 3], sy = scale[i * 3 + 1], sz = scale[i * 3 + 2];
+  p[0] /= sx; p[1] /= sy; p[2] /= sz; u[0] /= sx; u[1] /= sy; u[2] /= sz;
+  // the line p + t u inside the lump's sphere ...
+  const a = u[0] * u[0] + u[1] * u[1] + u[2] * u[2], bq = p[0] * u[0] + p[1] * u[1] + p[2] * u[2], c = p[0] * p[0] + p[1] * p[1] + p[2] * p[2] - LUMP * LUMP, disc = bq * bq - a * c;
+  if (disc <= 0) return 0;
+  let t0 = (-bq - Math.sqrt(disc)) / a, t1 = (-bq + Math.sqrt(disc)) / a;
+  // ... and under every fracture plane
+  const s0 = shape[i * 4] / 255, s1 = shape[i * 4 + 1] / 255, s2 = shape[i * 4 + 2] / 255, s3 = shape[i * 4 + 3] / 255;
+  const az = s0 * TAU, sides = 4 + Math.floor(s3 * 2.999);
+  for (let f = 0; f <= sides; f++) {
+    let nz, ang, h;
+    if (f < sides) { ang = az + f * TAU / sides + (fr(s1 * 7.13 + f * 0.618034) - 0.5) * 0.9; nz = (fr(s2 * 5.71 + f * 0.381966) - 0.45) * 0.55; h = 0.5 + 0.32 * fr(s1 * 3.31 + f * 0.754878); }
+    else { ang = s2 * TAU; nz = 0.6 + 0.37 * s1; h = 0.35 + 0.35 * s0; }
+    const sn = Math.sqrt(Math.max(0, 1 - nz * nz)), nx = Math.cos(ang) * sn, ny = Math.sin(ang) * sn;
+    const dp = p[0] * nx + p[1] * ny + p[2] * nz - h, du = u[0] * nx + u[1] * ny + u[2] * nz;
+    if (Math.abs(du) < 1e-9) { if (dp > 0) return 0; continue; }
+    const t = -dp / du;
+    if (du > 0) { if (t < t1) t1 = t; } else if (t > t0) t0 = t;
+    if (t0 >= t1) return 0;
+  }
+  return t1 > 0 ? t1 : 0;
+}
+const _p = [0, 0, 0], _u = [0, 0, 0];

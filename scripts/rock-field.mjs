@@ -15,7 +15,7 @@
 import fs from 'node:fs';
 import { loadWorld } from './lib/loadWorld.mjs';
 import { png } from './lib/png.mjs';
-import { rockBlock, rocksFarDef, tileDeg, tileLon, rockVis } from '../src/rocks/rockBlock.js';
+import { rockBlock, rocksFarDef, tileDeg, tileLon, rockVis, rockTop } from '../src/rocks/rockBlock.js';
 import { MadeWorld } from '../src/terrain/tiles/madeTiles.js';
 import { ShadowBaker } from '../src/terrain/shadowBake.js';
 import { CONFIG } from '../src/config.js';
@@ -72,11 +72,15 @@ if (flag('check')) {
   }
   console.log(`${list.length} tiles, ${rocks} rocks; a tile takes ${(total / list.length).toFixed(0)} ms, the slowest ${worst.toFixed(0)} ms`);
   if (worst > 400) fail(`a tile took ${worst.toFixed(0)} ms: more than a worker can spare (400 ms)`);
-  // steep open ground against level open ground: the share of the sites taken on each
+  // steep open ground against level open ground: the rocks a tile holds on each. (Over this
+  // square and the two the world's file names for it, `surface.rocks.far.check`: one place
+  // seldom has both kinds.)
   {
     const L = def.levels[0], deg = tileDeg(R, L.tile);
     let steepN = 0, steepA = 0, flatN = 0, flatA = 0;
-    for (const [L2, li, bi, bj] of list) {
+    const both = [...list];
+    for (const at of Object.values(def.check || {})) { const i0 = Math.floor(at[0] / deg) - 3; for (let bi = i0; bi < i0 + 6; bi++) { const dLon = tileLon(bi, deg), j0 = Math.floor(at[1] / dLon) - 3; for (let bj = j0; bj < j0 + 6; bj++) both.push([L, 0, bi, bj]); } }
+    for (const [L2, li, bi, bj] of both) {
       if (li !== 0) continue;
       const b = rockBlock(hs, L2, li, bi, bj), dLon = tileLon(bi, deg), d = dirOf((bi + 0.5) * deg, (bj + 0.5) * dLon);
       let S = 0; for (let k = 0; k < 9; k++) { const dd = dirOf((bi + (k % 3 + 0.5) / 3) * deg, (bj + (Math.floor(k / 3) + 0.5) / 3) * dLon); hs.height(dd[0], dd[1], dd[2], 60); const e = 30 / R, a = hs.height(dd[0], dd[1], dd[2] + e, 60), c = hs.height(dd[0], dd[1], dd[2] - e, 60), f = hs.height(dd[0] + e, dd[1], dd[2], 60), g = hs.height(dd[0] - e, dd[1], dd[2], 60); S += Math.hypot(a - c, f - g) / 60 / 9; }
@@ -86,7 +90,7 @@ if (flag('check')) {
     }
     console.log(`open ground: ${steepA} steep tiles with ${(steepN / Math.max(1, steepA)).toFixed(0)} rocks each, ${flatA} level tiles with ${(flatN / Math.max(1, flatA)).toFixed(0)} each`);
     if (steepA && flatA && steepN / steepA < 4 * (flatN / flatA)) fail('steep open ground holds fewer than four times the rocks of level open ground');
-    if (!steepA || !flatA) console.log('(no steep or no level open tiles in this square: that comparison was not made; try another --lat --lon)');
+    if (!steepA || !flatA) console.log('FAILED: (no steep or no level open tiles: that comparison was not made)'), bad++;
   }
   // the land's shadow on a tile: in full sun from overhead, in shade with the Sun under the ground
   {
@@ -97,6 +101,21 @@ if (flag('check')) {
       console.log(`sunlight on a tile of ${b.count}: ${ms.toFixed(0)} ms; Sun overhead ${mean(hi).toFixed(2)}, Sun underfoot ${mean(lo).toFixed(2)}`);
       if (mean(hi) < 0.95 || mean(lo) > 0.05) fail('the sunlight on a tile is wrong (should be 1 with the Sun overhead, 0 with it underfoot)');
     }
+  }
+  // what a walker stands on: over a rock's middle its top is some way up, a few sizes off there is none
+  {
+    const [L, li, bi, bj] = list.find((t) => t[1] === 2) || list[0], b = rockBlock(hs, L, li, bi, bj);
+    let low = 1e9, high = 0, stray = 0;
+    for (let i = 0; i < b.count; i++) {
+      const x = b.origin[0] + b.off[i * 4], y = b.origin[1] + b.off[i * 4 + 1], z = b.origin[2] + b.off[i * 4 + 2], r = Math.hypot(x, y, z), up = [x / r, y / r, z / r], s = b.off[i * 4 + 3];
+      const top = rockTop(0, 0, 0, up, b.quat, b.scale, b.shape, i) / s; low = Math.min(low, top); high = Math.max(high, top);
+      // (two sizes to one side, on the level of its middle)
+      const e = [-up[1], up[0], 0], el = Math.hypot(e[0], e[1]) || 1;
+      if (rockTop(e[0] / el * 2 * s, e[1] / el * 2 * s, 0, up, b.quat, b.scale, b.shape, i) > 0) stray++;
+    }
+    console.log(`a walker on ${b.count} large rocks: their tops stand ${low.toFixed(2)} to ${high.toFixed(2)} of their size over their middles`);
+    if (b.count && (low < 0.1 || high > 1.2)) fail('a rock\'s top is not where its shape puts it (0.1 to 1.2 of its size over its middle)');
+    if (stray) fail(`${stray} rocks carry a walker two sizes away from their middle`);
   }
   console.log(bad ? `${bad} check(s) failed` : 'all checks passed');
   process.exit(bad ? 1 : 0);

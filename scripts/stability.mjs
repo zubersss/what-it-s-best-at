@@ -47,6 +47,11 @@ const MOVES = [
   // 370 m: the canopy's crowns, the far trees and the clouds' shadows as the camera creeps.)
   // (Haven from the air: its made land, the lake, clouds and their shadows as the camera creeps)
   { id: 'haven_flight', world: 'haven', shot: 'ledge', query: 'alt=9000&pitch=-16&t=2', step: { fwd: 6 }, stride: 300, slow: true },
+  // (the land's own rocks, rocks/farRocks.js: walking toward a field of boulders on a steep
+  // open slope, and flying low at it: rocks growing in with distance, the 80- and 20-triangle
+  // blocks changing over, their shadows on the ground; nothing may pop)
+  { id: 'haven_rocks_walk', world: 'haven', shot: 'ledge', query: 'lat=-48.80660&lon=47.22265&t=3&heading=80&pitch=2', step: { fwd: 0.055 }, stride: 160, slow: true },
+  { id: 'haven_rocks_flight', world: 'haven', shot: 'ledge', query: 'lat=-48.80660&lon=47.22265&t=3&alt=2013&heading=135&pitch=-10', step: { fwd: 1 }, stride: 250, slow: true },
   { id: 'earth_forest_flight', world: 'earth', shot: 'ledge', query: 'lat=36.3&lon=247.9&alt=3000&heading=0&pitch=-25&t=5', step: { fwd: 1.5 }, stride: 300, slow: true },
 ];
 // The list above is tuned by hand for the worlds it names. A world in the registry that

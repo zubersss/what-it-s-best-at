@@ -198,6 +198,7 @@ npm run transfer       # GO trips flown without a browser: arrival, time against
 npm run target         # the target list, marker and a GO trip in the real game (headless)
 npm run worlds         # every world opens at its start with ground drawn and no errors (headless, about an hour; -- --only io,titan)
 npm run lakes          # Earth's lakes and rivers against the real ones, without a browser (15 s; -- --list, -- utah vermont)
+npm run rocks          # the far rocks' rule against its promises, without a browser (5 s): the same twice, none in water, on the ground, steep against level ground, a walker's footing
 npm run shadowturns    # the shadow tiles drawn in turns: a held tile must draw the same picture as a fresh one after a walk (headless, Moon)
 node scripts/play-profile.mjs [--world earth] [--at "21.7,284.7,40"] [--floor] [--seconds 120] [--shot out.png]   # the real game in play mode at a place: the page's work by part, the governor's level, patches built (--floor: every saving on)
 node scripts/tree-preview.mjs [--out dir] [--variant 1] [--only 0,2] [--below]   # every tree shape at its three distances, drawn without a browser in seconds (PNG sheets)
@@ -206,6 +207,9 @@ node scripts/make-world-maps.mjs   # ... and from that its colour, slope, water 
 node scripts/find-haven-site.mjs [--open] [--lat 28,52]   # places on Haven to begin at: level ground over low ground and water, high ground near by
 node scripts/find-overlook.mjs --world haven --lat .. --lon .. --heading .. [--below 1500]   # the very spot: level underfoot, the ground falling away in front, mountains on the far skyline (then look with peek.mjs)
 node scripts/cloud-field.mjs [--span 150] [--lat .. --lon ..] [--out file.png]   # the fair-weather cloud field from straight above, without a browser in seconds: rows, clusters, how much of the sky
+node scripts/rock-field.mjs [--lat .. --lon ..] [--span 3000] [--out file.png] [--check]   # where the far rocks lie, from straight above, without a browser in seconds; --check: the rule's promises (fails if one is broken)
+node scripts/far-rocks-probe.mjs --distdir <build> --query "lat=..&lon=..&alt=.." [--seconds 300] [--out file.png] [--eval "..."]   # the far rocks in the real game: tiles arriving, what is drawn counted rock by rock, shader limits
+scripts/far-rocks-shots.sh <frozen build> <suffix> [view ...]   # the far rocks' set of views (docs/shots/far-rocks)
 node scripts/make-tree-atlas.mjs [--look file.png]   # the trees' picture (public/data/tree_atlas.png): run again after changing a spray or a tree shape
 node scripts/check-ephemeris.mjs   # every orbit and spin against JPL Horizons (no network; fails beyond a tolerance)
 node scripts/peek.mjs --world io [--shot ledge | --lat .. --lon ..] [--pan 4]   # a CPU sketch of the view from a place, in seconds: for choosing sites and times

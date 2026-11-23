@@ -11,7 +11,7 @@ declare -A Q=(
   [ledge]="" [wall]=""
   [steep_air100]="$STEEP&alt=2053&heading=135&pitch=-14"
   [steep_air400]="$STEEP&alt=2353&heading=135&pitch=-28"
-  [steep_ground]="$STEEP&heading=100&pitch=-4"
+  [steep_ground]="$STEEP&heading=80&pitch=2"
   [steppe_air30]="$STEPPE&alt=1491&pitch=-8"
   [steppe_ground]="$STEPPE"
   [tele]="$STEEP&alt=2053&heading=62&pitch=-3&fov=14"

@@ -682,6 +682,64 @@ as Earth is; what differs is where the maps come from.
 - Governor steps: `leaves`, `tree-shadows` (the far meshes stop casting), `trees-far`
   (two thirds of the radius).
 
+## Rocks as far as they can be seen (`src/rocks/`)
+
+Two kinds, drawn together:
+
+- **The rocks one walks among** (`rocks.js`, `surface.rocks`): 300 within 110 m of the
+  traveller, pebbles to 3 m, scattered by a lattice round the camera. As they always were.
+- **The land's own rocks** (`farRocks.js`, `rockBlock.js`; `surface.rocks.far` in the world
+  file, defaults in `rockBlock.js`): boulders from 1 m to 15 m that are there whenever
+  anyone comes back, drawn to `reach` (420) metres for every metre of their size: a 4 m
+  block to a mile, a house-sized one to six kilometres.
+
+**Where rock lies** (`rockBlock.js`, plain arithmetic: workers and Node). A site holds a
+rock with the chance `density x rockField(cluster noise, rockiness)`. Rockiness is of the
+ground: its slope and how far it stands above its neighbours, both measured on ground
+16 m coarse with arms of 12 m (so the bench under a cliff counts as steep: talus), the
+water's edge, the tree line, less in closed forest (the land-cover picture), none in
+water. The cluster noise (260, 85 and 27 m) keeps open ground to its highest few per
+cent (erratics) and rocky ground to about half, so fields have bare ground between them.
+`node scripts/rock-field.mjs` draws the result from above in seconds, and `--check`
+fails if a rule is broken.
+
+**Levels and tiles.** Sizes come in three levels (1 to 2.6 m, 2.6 to 6.5 m, 6.5 to 15 m),
+each with its own tiles (333 m, 890 m, 2.2 km: `tileDeg`, the trees' lattice at another
+size) and 56 x 56 sites a tile. A tile is one worker job (`rocks`: 5 to 30 ms with the
+land's shadow on each rock) and comes back largest rock first. On the main thread it is
+filled once into buffers from a **fixed pool** (64, 56 and 48 tiles; 52 bytes a rock) and
+drawn as three instanced meshes on the same buffers: the near rocks' block (80
+triangles), a 20-triangle block, and a shadow patch. Nothing is done per rock per frame
+on the CPU; per tile, a binary search says how many of its first rocks can be seen from
+its nearest point (the instance count).
+
+**Per rock, in the vertex shader**: distance over size decides. Under 80 the 80-triangle
+mesh draws it, over that the 20-triangle one, and over `reach` nobody (thrown out of the
+picture); it grows in over the last fifth of its reach. Rocks under 2.6 m have 0.82 of the
+reach, and 0.62 of that under the governor's step `far-rocks` (the large ones keep all).
+
+**Light**: the shared chunk and the painted look as the near rocks (true faces, two
+tones); the rock's colour is `far.albedo` or the world's `surface.rock`, times the bed of
+coloured rock at its height (`tStrata`) and the land's colour under it (the albedo map's
+tint, read once per rock when the tile arrives: `Terrain.tintAt`; as bright as the
+country, half its hue); dust on top, or snow. The land's shadow comes with the tile and
+is asked again a tile at a time when the Sun has moved 1.1 degrees (`rockvis`: a ray a
+rock, or a 9 x 9 grid across the tile where there are more than 96). The clouds' shadow
+is worked out per rock as the ground does it. Within 150 m the near shadow map shades
+them and they cast into it; **beyond it each rock lays a soft dark patch on the ground**
+away from the Sun (the ground's colour times the sky's share of its light, less through
+haze), which is what makes a block on a far hillside stand on the hill. Governor step
+`far-rock-shadows` takes the patches away.
+
+**Walking**: `FarRocks.riseAt` gives how far a rock of the two larger levels stands over
+the ground at a place (its fracture planes, in JavaScript: `rockTop`), and the app's
+height function adds it: the traveller walks up and over a house-sized rock, lands on
+it, and the camera rises to see over it. The world file keeps places clear
+(`far.clear`): where the journey begins.
+
+**When the ground changes**: a tile is asked again when the land cover changes and when
+a ring of water touches it (`Terrain._stale`, as the ground's own patches).
+
 ## Clouds with depth (`src/sky/cloudVolume.js`)
 
 - Near the traveller (to `reach`, 16 km) the cloud layer is a volume; beyond it the thin
