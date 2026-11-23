@@ -18,11 +18,13 @@ export class StartScreen {
     card.append(el('h1', {}, 'Solar System Explorer'), el('p', { class: 'sub' }, 'Fifteen real worlds · the space between'));
     const row = el('div', { class: 'row' });
     const play = el('button', { class: 'primary' }, 'Play');
+    const haven = el('button', {}, 'Haven benchmark · 3 min');
     const bench = el('button', {}, 'Benchmark · 3 min');
     const earth = el('button', {}, 'Earth benchmark · 3 min');
     const soak = el('button', {}, 'Soak test · 10 min');
-    row.append(play, bench, earth, soak);
-    this.buttons = [play, bench, earth, soak];
+    row.append(play, haven, bench, earth, soak);
+    this.buttons = [play, haven, bench, earth, soak];
+    haven.addEventListener('click', () => handlers.benchmark('haven'));
     // Where the game opens: choosing another world loads it (the page starts again there).
     const where = el('label', { class: 'where' }, 'Start on ');
     const pick = el('select');
