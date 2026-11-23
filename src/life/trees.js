@@ -278,18 +278,18 @@ export class Trees {
 
   setWorld(world) {
     this.world = world; this.def = world.life?.trees || null;
-    this.blocks.clear(); this.asked = 0; this.dirty = true; this.serial = -1;
+    this.blocks.clear(); this.asked = 0; this.gen = (this.gen || 0) + 1; this.sunStale = 0; this.sunDirty = false; this.dirty = true; this.serial = -1;
     this.shared.uSeason.value.set(0, 0, 0);
     for (const s of this.sets.flat(2)) { s.count = 0; s.geo.instanceCount = 0; if (s.castGeo) s.castGeo.instanceCount = 0; s.mesh.visible = false; }
     this.count = 0; this.triangles = 0; this.names = ''; this.falling = 0; this.reach = 0;
   }
 
   // True while blocks that are wanted have not arrived (screenshots wait for them).
-  get busy() { return !!this.def && (this.asked > 0 || this.missing > 0 || !this.atlasReady); }
+  get busy() { return !!this.def && (this.asked > 0 || this.missing > 0 || this.sunStale > 0 || !this.atlasReady); }
 
   // Every frame. rig: the camera rig; day: the day of the year (0..365.25); time (s).
   update(rig, day, time) {
-    this.frame++; this.missing = 0;
+    this.frame++; this.missing = 0; this.sunStale = 0;
     const def = this.def, t = this.terrain;
     if (!def) return;
     const R = this.world.radius, radius = (def.radius ?? 240) * this.fraction;
@@ -319,7 +319,8 @@ export class Trees {
     // (a block is 111 m on any world: so many degrees on this one, so many metres a degree)
     const DEG = blockDeg(this.world.radius), M = this.world.radius * Math.PI / 180;
     const bi0 = Math.floor(lat / DEG), nb = Math.ceil((radius + REBUILD_M + 5) / 111.2);
-    let want = null, wantD = 1e9; const sunNow = this.shared.uSunDir.value;
+    let want = null, wantD = 1e9, sunWant = null, sunD = 1e9; const sunNow = this.shared.uSunDir.value, now = performance.now(), sweep = now - (this.sweepAt || 0) > 1000;
+    this.sunStale = 0;
     for (let bi = bi0 - nb; bi <= bi0 + nb; bi++) {
       const dLon = blockLon(bi, DEG), count = Math.round(360 / dLon), bj0 = Math.floor(lon / dLon);
       for (let bu = bj0 - nb; bu <= bj0 + nb; bu++) {
@@ -328,26 +329,43 @@ export class Trees {
         if (d > radius + 80 + REBUILD_M + 5) continue;
         const bj = ((bu % count) + count) % count;          // (the lattice goes once round the world and meets itself)
         const key = bi + ':' + bj, b = this.blocks.get(key);
-        // (the land's shadow on its trees was worked out for a Sun that has moved on: again)
-        if (b && b.state === 1 && !b.stale && b.sun && b.sun.dot(sunNow) < 0.99966) b.stale = true;
-        if (b) { b.used = this.frame; if (!b.stale || b.asking) continue; }
+        if (b) {
+          b.used = this.frame;
+          if (b.asking) continue;
+          if (b.state === 1 && !b.stale) {
+            // The land's shadow on its trees was worked out for a Sun that has moved on:
+            // again, but after everything that has no trees yet, a sweep a second at most,
+            // and not counted as missing. (With the clock at an hour a second the Sun moves
+            // that far every six frames: counted as missing, these held the far forest's
+            // own asking back for good, and each reply made the lists again.)
+            if (sweep && b.sun && b.sun.dot(sunNow) < 0.99966) { b.sunStale = true; this.sweepAt = now; }
+            if (b.sunStale) { this.sunStale++; if (d < sunD) { sunD = d; sunWant = [bi, bj, key]; } }
+            continue;
+          }
+        }
         this.missing++;
         if (d < wantD) { wantD = d; want = [bi, bj, key]; }
       }
     }
+    if (!want) want = sunWant;
+    // (the lists are made again once, when a sweep for the Sun is all in)
+    if (this.sunDirty && this.sunStale === 0 && this.asked <= 0) { this.sunDirty = false; this.dirty = true; }
     // ask for the nearest missing block when a worker has nothing better to do
     if (want && this.asked < 2 && t.workers.idle && !t.tiles.busy && t.wanted.length === 0) {
       const [bi, bj, key] = want, epoch = t.epoch, serialAt = this.serial, sun = sunNow.clone(), job = t.workers.run({ type: 'trees', bi, bj, spacing: def.spacing ?? 7, sun: [sun.x, sun.y, sun.z], sunHalf: t._sunHalf ?? 0.00465 });
       if (job) {
         let b = this.blocks.get(key);
         if (!b) { b = { state: 0, used: this.frame }; this.blocks.set(key, b); }
+        const forSun = b.state === 1 && !b.stale, gen = this.gen;
         b.asking = true; this.asked++;
         job.then((res) => {
-          this.asked--; b.asking = false;
+          if (gen === this.gen) this.asked--;
+          b.asking = false;
           if (epoch !== t.epoch) return;                       // another world by now
           // (worked out from maps that have changed again since: kept as it is, and asked for again)
-          b.state = 1; b.origin = res.origin; b.trees = new Float32Array(res.trees); b.vis = new Float32Array(res.vis); b.sun = sun; b.count = res.count; b.stale = serialAt !== this.serial; this.dirty = true;
-        }).catch((e) => { this.asked--; b.asking = false; if (b.state === 0) this.blocks.delete(key); console.error(e); });
+          b.state = 1; b.origin = res.origin; b.trees = new Float32Array(res.trees); b.vis = new Float32Array(res.vis); b.sun = sun; b.count = res.count; b.stale = serialAt !== this.serial; b.sunStale = false;
+          if (forSun) this.sunDirty = true; else this.dirty = true;
+        }).catch((e) => { if (gen === this.gen) this.asked--; b.asking = false; if (b.state === 0) this.blocks.delete(key); console.error(e); });
       }
     }
     if (this.frame % 600 === 0) for (const [key, b] of this.blocks) if (b.state === 1 && b.used < this.frame - 1200) this.blocks.delete(key);

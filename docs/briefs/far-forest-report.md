@@ -208,6 +208,13 @@ the shadow maps those trees had no shadow of the land on them, ever. Both are do
    25 m, while both shaders cut at 240 m from the eye. The list now reaches the radius plus
    the 25 m and 5 more, and blocks are asked for that much farther out. The stability move
    never walks 10 m from a rebuild, so it could not have shown it and does not prove the fix.
+4. **The clock run fast: true by the code, fixed; not run in a browser.** Blocks of near
+   trees whose shadow was worked out for an older Sun counted as missing, and the far
+   forest asks for nothing while near trees are missing. They are now a count of their own:
+   asked for after everything that has no trees yet, one sweep a second at most, and the
+   lists are made again once when a sweep is in, not at every reply. A far tile is asked
+   for again for the Sun at most every two seconds. (And the count of jobs out no longer
+   goes negative after a change of world: the review's small leftover.)
 
 ## Tests
 

@@ -223,7 +223,7 @@ export class FarForest {
   setWorld(world) {
     this.world = world; this.def = world.life?.trees?.far || null;
     for (const t of this.tiles.values()) if (t.slot) this._free(t);
-    this.tiles.clear(); this.asked = 0; this.serial = -1; this.missing = 0; this.count = 0; this.held = 0;
+    this.tiles.clear(); this.asked = 0; this.gen = (this.gen || 0) + 1; this.serial = -1; this.missing = 0; this.count = 0; this.held = 0;
     for (const s of this.pool) { s.mesh.visible = false; s.geo.instanceCount = 0; s.tile = null; }
     const d = this.def;
     if (d) this.shared.uFar.value.set(d.full ?? 450, d.radius ?? 5600, 0, 1);
@@ -271,14 +271,16 @@ export class FarForest {
 
     // Which tiles are wanted: for each level, those near enough that some tree of its band
     // would be drawn (keep(d) > the band's lowest rank).
-    const want = [], sunNow = this.shared.uSunDir.value;
+    const want = [], sunNow = this.shared.uSunDir.value, now = performance.now();
     this.missing = 0;
     for (const w of wantedTiles(lat, lon, R, full, radius)) {
       let tile = this.tiles.get(w.key);
       if (!tile) { tile = { key: w.key, level: w.level, ti: w.ti, tj: w.tj, blocks: w.blocks, side: w.side, state: 0, fillEye: null, slot: null, data: null, count: 0, shown: 0, stale: false, asking: false }; this.tiles.set(w.key, tile); }
       tile.used = this.frame; tile.near = w.near; tile.mid = w.mid;
       // (the land's shadow on its trees was worked out for where the Sun then stood)
-      if (tile.state === 1 && !tile.stale && tile.sun.dot(sunNow) < 0.99966) tile.stale = true;
+      // (not more than once in two seconds a tile: with the clock run fast the Sun moves that
+      // far every few frames, and the workers would do nothing else)
+      if (tile.state === 1 && !tile.stale && tile.sun.dot(sunNow) < 0.99966 && now - tile.at > 2000) tile.stale = true;
       if (tile.state !== 1 || tile.stale) this.missing++;
       want.push(tile);
     }
@@ -335,15 +337,17 @@ export class FarForest {
     const t = this.terrain, def = this.def, [lo, hi] = band(tile.level), epoch = t.epoch, serialAt = this.serial, sun = this.shared.uSunDir.value.clone();
     const job = t.workers.run({ type: 'treeTile', ti: tile.ti, tj: tile.tj, blocks: tile.blocks, spacing: def.spacing ?? this.trees.def?.spacing ?? 7, lo, hi, sun: [sun.x, sun.y, sun.z], sunHalf: t._sunHalf ?? 0.00465 });
     if (!job) return false;
+    const gen = this.gen;
     tile.asking = true; this.asked++;
     job.then((res) => {
-      this.asked--; tile.asking = false;
+      if (gen === this.gen) this.asked--;
+      tile.asking = false;
       if (epoch !== t.epoch) return;                       // another world by now
       tile.origin = new THREE.Vector3(...res.origin);
-      tile.data = new Float32Array(res.trees); tile.vis = new Float32Array(res.vis); tile.sun = sun; tile.have = res.count; tile.state = 1;
+      tile.data = new Float32Array(res.trees); tile.vis = new Float32Array(res.vis); tile.sun = sun; tile.at = performance.now(); tile.have = res.count; tile.state = 1;
       tile.stale = serialAt !== this.serial; tile.fillEye = null;
       this.lastMs = res.ms ?? 0;
-    }).catch((e) => { this.asked--; tile.asking = false; if (tile.state === 0) this.tiles.delete(tile.key); console.error(e); });
+    }).catch((e) => { if (gen === this.gen) this.asked--; tile.asking = false; if (tile.state === 0) this.tiles.delete(tile.key); console.error(e); });
     return true;
   }
 
