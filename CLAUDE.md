@@ -221,6 +221,7 @@ python3 scripts/fetch-earth-climate.py   # Earth's yearly rainfall for the river
 python3 scripts/fit-orbits.py      # orbits fitted to JPL Horizons (needs ssd.jpl.nasa.gov; replies cached)
 npm run assets         # re-download and convert the small NASA/Yale files into public/data/
 python3 scripts/fetch-maps.py   # the rest of public/data/ (needs: pip install rasterio numpy pillow), see docs/ASSETS.md
+node scripts/parts-out.mjs --world haven --shot ledge [--query ..] [--box 0.2,0.6,0.8,1] [--distdir build]   # who draws that? one view taken with one part out at a time (grass, clumps, trees, far forest, rocks, shadow casters), and how much of the picture each changes
 npm run probe          # top-down shaded relief of the height function (no browser)
 node scripts/sky-table.mjs [--lat .. --lon ..]   # where the sky bodies are from a place over time (no browser)
 node scripts/profile-chunks.mjs --world moon   # chunk build times per level (no browser)
