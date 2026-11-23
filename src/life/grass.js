@@ -507,7 +507,8 @@ export class Grass {
         const se = Math.round(ce / SNAP) * SNAP, sn = Math.round(cn / SNAP) * SNAP;
         // (the wind's waves pivot on the anchor: carried over so that they do not move)
         const kx = w.x * e[0] + w.y * e[1] + w.z * e[2], ky = w.x * n[0] + w.y * n[1] + w.z * n[2];
-        this.phase -= WAVE_K * (kx * se + ky * sn);
+        // (the wave at a place is K.(place - anchor) + phase: the anchor moved by S, the phase grows by K.S)
+        this.phase += WAVE_K / (Math.hypot(w.x, w.y, w.z) || 1) * (kx * se + ky * sn);
         this._anchorStep(se, sn);
       }
     }
