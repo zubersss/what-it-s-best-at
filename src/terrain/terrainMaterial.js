@@ -8,6 +8,7 @@ import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { FACES } from './cubeSphere.js';
 import { HEAP_GLSL } from '../sky/clouds.js';
+import { GRASS_GLSL, FLOWERS_GLSL, GRASS_GROUND } from '../life/grassRules.js';
 
 // Holds an albedo map's brightness (relative to its mean) inside the range the real ground
 // spans, with soft knees: a mosaic also records the shading of steep slopes, haze and
@@ -163,7 +164,9 @@ uniform vec3 uCloudVol, uCloudWind;      // the heaps' scales, and where their n
 ${HEAP_GLSL}
 uniform vec4 uSea;             // water: x = 1 if the world has any, y the sea's level (m), z how tight the Sun's glint is, w how strong the ripples
 uniform vec3 uSeaColor;        // deep water's own colour
-uniform vec4 uGrassTone;       // the colour of the grass round the traveller, and how much of the ground it covers (0: none drawn)
+uniform vec4 uGrassTone;       // the grass round the traveller (life/grass.js): x how dry, y how much of the ground it covers, z its flowers, w how strongly (0: none drawn)
+${GRASS_GLSL}
+${FLOWERS_GLSL}
 uniform vec4 uWind;            // xyz: where the wind blows to (unit, planet axes), w: its speed (m/s)
 uniform vec3 uWave;            // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
 in float vShell;               // the forest raised as a whole (vertex shader): how much canopy stands here
@@ -503,12 +506,32 @@ void main() {
     }
   }
 
-  // --- the grass beyond the blades: round the traveller the grass is drawn blade by blade
-  // (life/grass.js) for some tens of metres; beyond that the ground wears its colour and
-  // fades back into the map's own over some hundreds of metres
+  // --- grass on the ground: round the traveller it is drawn blade by blade and clump by
+  // clump (life/grass.js) out to some 500 m; under them and beyond, the ground wears the
+  // same grass (life/grassRules.js: one rule for both): its colour, the wind's waves
+  // running over it, drifts of flowers; far off it gives way to the map's own colour
   if (uGrassTone.a > 0.0) {
-    float dG = length(vRel), gw = uGrassTone.a * flatW * (1.0 - vShell) * (1.0 - smoothstep(6.0, 16.0, canopyTall)) * (1.0 - smoothstep(180.0, 900.0, dG));
-    if (gw > 0.0) albedo = mix(albedo, uGrassTone.rgb * (0.82 + 0.36 * d1.g), gw);
+    float dG = length(vRel), gw = uGrassTone.a * uGrassTone.y * flatW * (1.0 - vShell) * (1.0 - smoothstep(6.0, 16.0, canopyTall)) * (1.0 - smoothstep(GRASS_FAR0, GRASS_FAR1, dG));
+    if (gw > 0.0) {
+      vec3 gc = grassColour(uGrassTone.x, 0.62) * (0.82 + 0.36 * d1.g);
+      // (the waves: paler where they bow the grass; gone where a wave is narrower than a pixel or two)
+      float arg = dot(vRel, uGrassWave.xyz) + uGrassWave.w;
+      gc *= 1.0 + 0.07 * sin(arg + 5.0 * (d1.g - 0.5)) * (1.0 - smoothstep(0.7, 1.8, fwidth(arg)));
+      // (the drifts of flowers, where the clumps and blades have them)
+      vec2 fw = flowersAt(planetPos, int(uGrassTone.z + 0.5));
+      // (a tint, never a patch: its edge broken by the ground's own grain, less of it for
+      // the pale kinds, from higher up and far off, where colour piles up along the skyline)
+      if (fw.y > 0.0) {
+        // (a dusting: specks a metre or so across, thicker toward the drift's heart; their
+        // mean where a speck is smaller than a pixel)
+        vec3 fwP = fwidth(planetPos);
+        float speck = smoothstep(0.45, 0.8, flNoise(planetPos / 1.3) * (0.55 + 0.65 * fw.y));
+        float fk = mix(speck, 0.22 * fw.y + 0.05, smoothstep(0.35, 1.3, max(fwP.x, max(fwP.y, fwP.z)))) * (fw.x < 1.5 ? 0.7 : 1.0);
+        fk *= (1.0 - 0.6 * clamp(dot(V, up), 0.0, 1.0)) * (1.0 - 0.75 * smoothstep(150.0, 900.0, dG));
+        gc = mix(gc, petalColour(fw.x, 0.5), fk * GRASS_FLOWER_SHARE);
+      }
+      albedo = mix(albedo, gc, gw);
+    }
   }
 
   // --- the land from the air (the painted look): stretches of lighter and darker ground
@@ -674,7 +697,7 @@ export function makeTerrainShared(world, textures) {
     uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
     uPlain: { value: 0 }, uTide: { value: new THREE.Vector2(0, 0) }, uAirRelief: { value: 0 },
     tCloudNoise: { value: null }, uCloudHeap: { value: new THREE.Vector4(0, 0, 0, 0) }, uCloudVol: { value: new THREE.Vector3() }, uCloudWind: { value: new THREE.Vector3() },
-    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) }, uGrassWave: { value: new THREE.Vector4(0, 0, 0, 0) },
     tRingColour: { value: textures.white }, uRingColour: { value: new THREE.Vector4(0, 0, 1, 0) },
     tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoShift: { value: 0 }, uAlbedoSteep: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
     uAlbedoRange: { value: new THREE.Vector2() }, uRockHue: { value: new THREE.Vector2() }, uCoverContrast: { value: 1 }, uBedrockSlope: { value: 0 },
@@ -742,7 +765,7 @@ export const DETAIL_PERIOD = 16;
 export function makeTerrainMaterial(shared, pool) {
   return new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
-    defines: { ...atmosphereDefines(), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, DETAIL_TILE, DETAIL_PERIOD, VERT_W: pool.VW, MORPH_START: CONFIG.MORPH_START },
+    defines: { ...atmosphereDefines(), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, DETAIL_TILE, DETAIL_PERIOD, VERT_W: pool.VW, MORPH_START: CONFIG.MORPH_START, GRASS_FAR0: GRASS_GROUND.far[0].toFixed(1), GRASS_FAR1: GRASS_GROUND.far[1].toFixed(1), GRASS_FLOWER_SHARE: GRASS_GROUND.flowers.toFixed(3) },
     vertexShader: VERT, fragmentShader: FRAG,
     uniforms: {
       ...shared,

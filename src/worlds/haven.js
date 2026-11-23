@@ -112,7 +112,7 @@ export default {
       // same places, out to `radius` of their own. `full`: full density out to here, then
       // thinner as (full / distance)^2, the thinned ones standing a little wider.
       far: { full: 450, radius: 5600, below: 6000 }, line: { base: 3548, perDeg: 38.7, from: 0 } },
-    grass: { below: 90 },
+    grass: { below: 90, mid: 220 },
     flora: [
       { near: true, upTo: 0.6, mix: [[6, 2], [5, 2], [0, 1]] },                    // by water: cottonwood, aspen
       { classes: [7, 10, 16, 12], mix: [[2, 2], [1, 2], [9, 2], [0, 1]] },          // open dry country: juniper, pinyon, sage
