@@ -98,8 +98,8 @@ fixed, plus the worker's own arrays for the tiles held (9 floats a tree).
   it is filled again).
 - **The air of a wood at its full strength all the way out.** `forestAir` mixes a tree
   toward a desaturated sky light, saturating by some 300 m; carried to five kilometres it
-  made every far tree a **blue-grey speck on warm ground**. It now fades out between 700 m
-  and 2.2 km, where the air itself (`aerialPerspective`) does that work.
+  made every far tree a **blue-grey speck on warm ground**. It now fades out between 300 m
+  and 1 km, where the air itself (`aerialPerspective`) does that work.
 - **A cut-out threshold of its own.** The far forest discarded a card's pixel below 0.3 of
   cover while `trees.js` lowers its threshold with the mip level (0.42 near, 0.16 far):
   the same tree was thinner just outside the near radius than just inside it. It now uses
