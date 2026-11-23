@@ -162,7 +162,7 @@ export class FarForest {
         // where the near trees end (nothing changes there) out to a kilometre and more its
         // green goes over to a dark warm olive, and less of the sky's blue is counted.
         float dFar = length(vRel), farW = smoothstep(300.0, 1300.0, dFar);
-        leafC = mix(leafC, dot(leafC, vec3(0.3, 0.6, 0.1)) * vec3(0.86, 1.0, 0.40), 0.75 * farW);
+        leafC = mix(leafC, dot(leafC, vec3(0.3, 0.6, 0.1)) * vec3(0.72, 0.88, 0.38), 0.7 * farW);
         vec3 albedo = wood ? vTrunkC * 0.6 : leafC;
         float nl = dot(N, uSunDir), lit = wood ? max(nl, 0.0) : max(nl * 0.7 + 0.3, 0.0);
         if (uPaint.x > 0.0) { lit = mix(lit, paintLit(wood ? nl : nl * 0.75 + 0.25) * PI, uPaint.x); albedo = paintColour(albedo); leafC = paintColour(leafC); }
