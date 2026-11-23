@@ -41,7 +41,11 @@ import { BASE_BLOCKS, BAND, LEVELS, band, levelReach, wantedTiles } from './farT
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
 import { PAINT_LEAF, CLOUD_SHADE_VERT, cloudShadeUniforms } from './trees.js';
 
-const CAP = 6144;             // trees drawn from one tile (a fixed pool; the thickest band of a close tile)
+// Trees one tile may hand the GPU (a fixed pool). A band of ranks of levels 0 to 2 has at
+// most 64 blocks x 256 sites x 3/4 = 12 288 sites, and a traveller in the thick of a wood
+// wants nearly all of the tile underfoot (11 425 at the north wood, level 1): at 6 144 one
+// tree in six that should have stood was left out there.
+const CAP = 12288;
 const POOL = 40;              // tiles drawn at once
 const MARGIN = 1.5;           // a tile is filled with rather more trees than are wanted now, so that coming nearer does not refill it at once
 
@@ -356,14 +360,14 @@ export class FarForest {
     const uf = this.shared.uFar.value, full2 = uf.x ** 2, inner2 = uf.z ** 2, far2 = uf.y ** 2, thin = uf.w;
     const ex = eyeRel.x, ey = eyeRel.y, ez = eyeRel.z;
     let n = 0, bound2 = 0, shown = 0, margin = MARGIN;
-    for (let pass = 0; pass < 4; pass++) {
+    for (let pass = 0; pass < 3; pass++) {
       n = 0; bound2 = 0; shown = 0;
       for (let k = 0, q = 0; k < tile.have; k++, q += TREE_FLOATS) {
         const x = T[q], y = T[q + 1], z = T[q + 2], rank = T[q + 8];
         const dx = x + ex, dy = y + ey, dz = z + ez, d2 = dx * dx + dy * dy + dz * dz;
         const keep = Math.min(1, full2 / Math.max(d2, 1)) * thin;
         if (rank >= margin * keep) continue;
-        if (n >= CAP) break;
+        if (n >= CAP) { n++; break; }
         // (how many of them the vertex shader will draw, for the read-out)
         if (rank < keep && d2 > inner2 && d2 < far2) shown++;
         const sp = SPECIES[T[q + 6]], own = T[q + 7];
@@ -374,11 +378,13 @@ export class FarForest {
         if (r2 > bound2) bound2 = r2;
         n++;
       }
-      // (more trees than a tile may draw: the thinnest of them go)
-      if (n < CAP) break;
-      margin *= 0.6;
+      // (more than a tile may hold: less of the margin, but never under the trees that
+      // stand; if even those are too many, the last of the worker's list are left out)
+      if (n <= CAP) break;
+      n = CAP; margin = pass === 0 ? 1.2 : 1.0;
     }
-    tile.count = n; tile.shown = shown; tile.capped = margin < MARGIN;
+    n = Math.min(n, CAP);
+    tile.count = n; tile.shown = shown;
     tile.fillEye = (tile.fillEye || new THREE.Vector3()).copy(eye);
     s.geo.instanceCount = n;
     s.geo.boundingSphere.center.set(0, 0, 0); s.geo.boundingSphere.radius = Math.sqrt(bound2) + 20;
@@ -387,4 +393,4 @@ export class FarForest {
 }
 
 
-export { BASE_BLOCKS, BAND, LEVELS, band, CAP };
+export { BASE_BLOCKS, BAND, LEVELS, band, CAP, MARGIN };

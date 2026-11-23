@@ -75,7 +75,7 @@ bare mountain: `air1900_tele14` is the same lens pitched down onto the wood. The
 place is 248 degrees of longitude from the opening place and so in another time of day:
 `t=-5` puts it just before dawn, which shows the shadow fix below better than noon would.
 
-Memory: the pool is 40 tiles x 6 144 instances x 48 bytes = **11 MB** of instance buffers,
+Memory: the pool is 40 tiles x 12 288 instances x 48 bytes = **23.6 MB** of instance buffers (11.8 before the review's second finding),
 fixed, plus the worker's own arrays for the tiles held (9 floats a tree).
 
 ## What was tried and taken back
@@ -197,6 +197,12 @@ the shadow maps those trees had no shadow of the land on them, ever. Both are do
    from that span, wrapped at longitude 0, with a block of slack. The check passes at seven
    places, among them both sides of the seam at longitude 0 and a band boundary, and a
    level-1 tile lying over two bands holds its blocks' trees where they stand.
+2. **The cap of 6 144: true, fixed.** A new check (the tile under a traveller in the thick
+   of a wood must fit its buffer with its margin) failed: the north wood wants 9 464 trees
+   at level 0 and **11 425 at level 1**, the golden shore 7 709, 6 455 and 7 209 (level 3).
+   `CAP` is now 12 288 (the most sites a band of levels 0 to 2 can have), and on overflow
+   the margin goes to 1.2 and then 1.0, never under the trees that stand. The pool is now
+   40 x 12 288 x 48 bytes = **23.6 MB** of instance buffers (it was 11.8).
 
 ## Tests
 

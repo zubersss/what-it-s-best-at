@@ -17,7 +17,7 @@ import { loadWorld } from './lib/loadWorld.mjs';
 import { setMadeCover } from './lib/madeCover.mjs';
 import { treeBlock, treeTile, blockDeg, blockLon, TREE_FLOATS, siteRank, tileSpan, tileRow, tileOf } from '../src/life/treeBlock.js';
 import { wantedTiles, levelReach } from '../src/life/farTiles.js';
-import { band, LEVELS, BASE_BLOCKS } from '../src/life/farForest.js';
+import { band, LEVELS, BASE_BLOCKS, CAP, MARGIN } from '../src/life/farForest.js';
 
 const PLACES = [
   ['the opening place', -48.54992, 49.05567],
@@ -165,6 +165,26 @@ for (const [name, lat, lon] of [...PLACES, ['east of the seam', 22.983, 0.6], ['
   console.log(`${name}: a level-1 tile over ${bands.size} band(s) of latitude holds ${all.size} trees of rank under 0.1, the farthest ${wide.toFixed(0)} m from its middle`);
   check(all.size === byBlock.size && moved === 0, `${name}: a level-1 tile holds its blocks' trees where they stand (${all.size} vs ${byBlock.size}, ${moved} apart)`);
   check(wide < bw * DEG * M * 0.75 + 120, `${name}: a tile's trees lie within the tile (${wide.toFixed(0)} m from its middle, the tile is ${(bw * DEG * M).toFixed(0)} m across)`);
+}
+
+// 6. A tile's buffer holds every tree the far forest would put in it (those whose rank is
+// under MARGIN x keep at their own distance) from a traveller standing in the middle of the
+// thickest wood: more than CAP and trees that should stand are left out.
+for (const [name, lat, lon] of PLACES.slice(1)) {
+  setMadeCover(hs, world, lat, lon);
+  const rad = Math.PI / 180, cl = Math.cos(lat * rad), u = [cl * Math.cos(lon * rad), cl * Math.sin(lon * rad), Math.sin(lat * rad)], r = world.radius + hs.height(u[0], u[1], u[2], 30) + 2;
+  const bi = Math.floor(lat / DEG), bj = Math.floor(lon / blockLon(bi, DEG)), line = [];
+  for (let L = 0; L < LEVELS; L++) {
+    const bw = BASE_BLOCKS * 2 ** L, [lo, hi] = band(L), t = treeTile(hs, ...tileOf(bi, bj, bw, DEG), bw, 7, lo, hi);
+    let n = 0;
+    for (let k = 0, q = 0; k < t.count; k++, q += TREE_FLOATS) {
+      const d2 = (t.origin[0] + t.trees[q] - u[0] * r) ** 2 + (t.origin[1] + t.trees[q + 1] - u[1] * r) ** 2 + (t.origin[2] + t.trees[q + 2] - u[2] * r) ** 2;
+      if (t.trees[q + 8] < MARGIN * Math.min(1, FULL * FULL / Math.max(d2, 1))) n++;
+    }
+    line.push(`level ${L}: ${n} of ${t.count}`);
+    check(n <= CAP, `${name}, level ${L}: the tile under the traveller wants ${n} trees in a buffer of ${CAP}`);
+  }
+  console.log(`${name}: trees wanted in the buffer of the tile underfoot, ${line.join(', ')} (it holds ${CAP})`);
 }
 
 // rank itself: a site's own number, spread evenly
