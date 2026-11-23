@@ -51,11 +51,19 @@ whatever the level — a level with four times the area asks for a quarter of th
 Level 3's tile (64 x 64 blocks, 7.1 km) is the dearest at 35 to 50 ms, because the ranks of
 a million sites are hashed even though 1/64 of them are kept.
 
-In the picture (from `window.__stats.farTrees`, 660 x 309):
+In the picture (from `window.__stats`, 660 x 309 at `--dsf 1`; "before" is the branch as it
+was found, with `groves.js`):
 
-| view | trees standing | instances handed to the GPU | triangles in the frame | draw calls |
-| --- | --- | --- | --- | --- |
-| *filled in from the delivered pictures below* | | | | |
+| view | far trees | triangles in the frame | draw calls |
+| --- | --- | --- | --- |
+| the opening view, before | 6 278 | 953 000 | 111 |
+| the opening view, after | *(below)* | | |
+| 130 m up over it, before | 2 472 | 363 000 | 26 |
+| 130 m up over it, after | 18 879 standing | 727 000 | 47 |
+
+(The "after" air view above was taken before the tiles were filled tree by tree; it handed
+the GPU 81 556 instances for those 18 879. With the fill as it now stands that number is
+about 1.5 times the standing count.)
 
 Memory: the pool is 40 tiles x 6 144 instances x 48 bytes = **11 MB** of instance buffers,
 fixed, plus the worker's own arrays for the tiles held (9 floats a tree).
