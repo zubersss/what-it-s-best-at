@@ -33,7 +33,7 @@ import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
 import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
-import { renderPass } from '../render/fullscreen.js';
+import { fullscreenGeometry } from '../render/fullscreen.js';
 import { AMOUNT, DRY, KINDS, floraAt, flowersAt, flowerTable, FLOWERS_GLSL, GRASS_GLSL, GRASS_GROUND, WAVE_K } from './grassRules.js';
 
 const SHADE_N = 36, SHADE_CELL = 40, SHADE_MOVE = 120;   // the land's shadow for the far grass: places a side, metres between them, how far the traveller goes before it is asked again
@@ -438,24 +438,15 @@ const FRAG = /* glsl */`
 // stretch (the nearest 14 cm apart, the farthest 12 m), three numbers each (see lightAt).
 // A blade reads it at its foot. The places are fixed to the ground (their middle moves in
 // whole places), so a shadow's edge does not crawl as the traveller walks.
-const LIGHT_FRAG = /* glsl */`
-  ${LIGHTING_PARS}
-  ${TREE_SHADE_VERT}
-  ${TABLE_GLSL}
-  uniform sampler2D tNear, tMid, tFar; uniform vec4 uTabNear, uTabMid, uTabFar;
-  uniform vec4 uCasc[${RINGS.length}];     // each ring's stretch: xy its middle from the anchor (m), z its span (m), w which table
-  uniform vec3 uGrassCam, uGrassEast, uGrassNorth, uGrassUp; uniform vec2 uGrassCurve;
-  uniform sampler2D tLandShade; uniform vec4 uLandShade;   // the land's own shadow round the traveller: xy its middle from the anchor (m), z 1 / its span, w 1 when there is one
-  uniform mat4 uViewProj;
-  layout(location = 0) out vec4 fragColor;
-  void main() {
-    float third = floor(gl_FragCoord.x / ${LIGHT_N}.0), row = floor(gl_FragCoord.y / ${LIGHT_N}.0);
-    vec4 c = uCasc[int(row)];
-    vec2 at = c.xy + ((gl_FragCoord.xy - vec2(third, row) * ${LIGHT_N}.0) / ${LIGHT_N}.0 - 0.5) * c.z, rel2 = at - uGrassCam.xy, grad;
-    vec4 g = c.w < 0.5 ? tableAt(tNear, uTabNear, at, grad) : c.w < 1.5 ? tableAt(tMid, uTabMid, at, grad) : tableAt(tFar, uTabFar, at, grad);
+// The three numbers are the picture's three parts across (LIGHT_PARTS, in the order lightAt
+// reads them), and each part is drawn by a program of its own over its own third: a pixel
+// works out only the number it keeps. (One program for all three worked the whole light out
+// in every pixel, the shadows, the sky's light and the air twice over, and kept a third of it.)
+const LIGHT_PARTS = ['sun', 'sky', 'air'];
+const LIGHT_KEEP = [
+  // the Sun's light there, through the air
+  /* glsl */`
     float dist = length(rel2);
-    vec3 rel = uGrassEast * rel2.x + uGrassNorth * rel2.y + uGrassUp * (g.r + uGrassCurve.x - dot(at, at) * uGrassCurve.y - uGrassCam.z + 0.15);
-    vec3 planetPos = uCamPlanetPos + rel, up = normalize(planetPos);
     // (a field is lit as the ground it stands on: by the Sun's height over it close by, where
     // the blades are seen one by one; farther off by the lie of its slope, as the ground
     // between the blades is. Lit as level ground, a far hillside turned from the Sun was
@@ -467,12 +458,43 @@ const LIGHT_FRAG = /* glsl */`
     // a ridge between it and the Sun. Close by, the shade at the traveller.)
     float far = smoothstep(30.0, 120.0, dist);
     float cloud = mix(uWeather.x, cloudShade(rel), far) * mix(1.0, texture(tLandShade, (at - uLandShade.xy) * uLandShade.z + 0.5).r, uLandShade.w * far);
-    vec3 sun = directSun(planetPos) * (cloud * nearShadow(rel, up) * lit / PI), sky = skyLight(up, up) / PI;
-    // (the air between: what it adds, and how much of the thing's own light it lets through)
+    vec3 sun = directSun(planetPos) * (cloud * nearShadow(rel, up) * lit / PI);
+    fragColor = vec4(sun * through * uExposure, 1.0);`,
+  // the sky's, through the air
+  /* glsl */`
+    vec3 sky = skyLight(up, up) / PI;
+    fragColor = vec4(sky * through * uExposure, 1.0);`,
+  // the air's own light
+  /* glsl */`
+    fragColor = vec4(air * uExposure, 1.0);`,
+];
+const lightFrag = (part) => /* glsl */`
+  ${LIGHTING_PARS}
+  ${TREE_SHADE_VERT}
+  ${TABLE_GLSL}
+  uniform sampler2D tNear, tMid, tFar; uniform vec4 uTabNear, uTabMid, uTabFar;
+  uniform vec4 uCasc[${RINGS.length}];     // each ring's stretch: xy its middle from the anchor (m), z its span (m), w which table
+  uniform vec3 uGrassCam, uGrassEast, uGrassNorth, uGrassUp; uniform vec2 uGrassCurve;
+  uniform sampler2D tLandShade; uniform vec4 uLandShade;   // the land's own shadow round the traveller: xy its middle from the anchor (m), z 1 / its span, w 1 when there is one
+  uniform mat4 uViewProj;
+  layout(location = 0) out vec4 fragColor;
+  void main() {
+    // (drawn over x ${part * LIGHT_N} to ${(part + 1) * LIGHT_N} of the picture only: the ${LIGHT_PARTS[part]}'s third)
+    float third = ${part}.0, row = floor(gl_FragCoord.y / ${LIGHT_N}.0);
+    vec4 c = uCasc[int(row)];
+    vec2 at = c.xy + ((gl_FragCoord.xy - vec2(third, row) * ${LIGHT_N}.0) / ${LIGHT_N}.0 - 0.5) * c.z, rel2 = at - uGrassCam.xy, grad;
+    vec4 g = c.w < 0.5 ? tableAt(tNear, uTabNear, at, grad) : c.w < 1.5 ? tableAt(tMid, uTabMid, at, grad) : tableAt(tFar, uTabFar, at, grad);
+    vec3 rel = uGrassEast * rel2.x + uGrassNorth * rel2.y + uGrassUp * (g.r + uGrassCurve.x - dot(at, at) * uGrassCurve.y - uGrassCam.z + 0.15);
+    vec3 planetPos = uCamPlanetPos + rel, up = normalize(planetPos);
+    // (the air between: how much of the place's own light it lets through, and what it adds,
+    // from one look at the froxels, as the ground's vertices take them: hazeAffine, for an eye
+    // inside the air, and the table is drawn only within 3 km of the ground. The same numbers
+    // as aerialPerspective of white less that of black, and of black, which looked twice:
+    // scripts/grass-light-test.mjs replays both.)
     vec4 clip = uViewProj * vec4(rel, 1.0);
     gHazeUv = clip.w > 0.0 ? clamp(clip.xy / clip.w * 0.5 + 0.5, 0.0, 1.0) : vec2(0.5);
-    vec3 air = aerialPerspective(vec3(0.0), rel), through = aerialPerspective(vec3(1.0), rel) - air;
-    fragColor = vec4((third < 0.5 ? sun * through : third < 1.5 ? sky * through : air) * uExposure, 1.0);
+    vec3 through, air, airOverGround; hazeAffine(rel, gHazeUv, through, air, airOverGround);
+    ${LIGHT_KEEP[part]}
   }`;
 
 // --- the ground tables
@@ -539,18 +561,24 @@ export class Grass {
     this.shadeU = { value: new THREE.Vector4(0, 0, 1 / (SHADE_N * SHADE_CELL), 0) };
     this._shade = null; this._shadeAsking = false; this._shadeNew = null;
     this._seen = new Float64Array(32);
-    // The light on the ground (see LIGHT_FRAG): one picture, a row for each ring, three parts across.
+    // The light on the ground (see lightFrag): one picture, a row for each ring, three parts across.
     this.light = new THREE.WebGLRenderTarget(LIGHT_N * 3, LIGHT_N * RINGS.length, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false, generateMipmaps: false });
     this.light.texture.wrapS = this.light.texture.wrapT = THREE.ClampToEdgeWrapping;
     this.casc = RINGS.map(() => new THREE.Vector4());
     this.lightU = RINGS.map((r, k) => ({ value: new THREE.Vector4(0, 0, 1, k) }));
     const T = this.tables;
-    this.lightMat = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3, depthTest: false, depthWrite: false, vertexShader: 'void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: LIGHT_FRAG,
-      defines: { ...atmosphereDefines(), OWN_CLOUD_SHADOW: 1, HAZE_UV: 1 },
-      uniforms: { ...this.shared, ...TREE_SHADE_UNIFORMS, tNear: { value: T.near.tex }, tMid: { value: T.mid.tex }, tFar: { value: T.far.tex }, uTabNear: T.near.info, uTabMid: T.mid.info, uTabFar: T.far.info,
-        uCasc: { value: this.casc }, tLandShade: { value: this.shadeTex }, uLandShade: this.shadeU, uViewProj: { value: new THREE.Matrix4() } },
-    });
+    this._viewProj = new THREE.Matrix4();
+    const lightUniforms = { ...this.shared, ...TREE_SHADE_UNIFORMS, tNear: { value: T.near.tex }, tMid: { value: T.mid.tex }, tFar: { value: T.far.tex }, uTabNear: T.near.info, uTabMid: T.mid.info, uTabFar: T.far.info,
+      uCasc: { value: this.casc }, tLandShade: { value: this.shadeTex }, uLandShade: this.shadeU, uViewProj: { value: this._viewProj } };
+    // (a program for each third of the picture, and a triangle over the whole view to draw each with, one third at a time)
+    this.lightMats = LIGHT_PARTS.map((_, part) => new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3, depthTest: false, depthWrite: false, vertexShader: 'void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: lightFrag(part),
+      defines: { ...atmosphereDefines(), OWN_CLOUD_SHADOW: 1, HAZE_UV: 1 }, uniforms: { ...lightUniforms },
+    }));
+    this._lightQuad = new THREE.Mesh(fullscreenGeometry, this.lightMats[0]); this._lightQuad.frustumCulled = false;
+    this._lightCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    // Who else reads the table (pollen.js): { row, drawn() }, asked each frame before it is drawn.
+    this.lightReaders = [];
     // a field: one cell's triangles, drawn once for every place of its lattice
     const field = (f, geo, vertexShader, defines, tris, light) => {
       geo.instanceCount = f.grid * f.grid;
@@ -561,7 +589,7 @@ export class Grass {
         defines: { GRID: f.grid, SPACING: f.spacing.toFixed(4), BOX: (f.grid * f.spacing).toFixed(3), HALF: (Math.floor(f.grid / 2) * f.spacing).toFixed(4), SEED: f.seed.toFixed(1), OUT0: f.out[0].toFixed(2), OUT1: f.out[1].toFixed(2), ...defines },
       });
       const mesh = new THREE.Mesh(geo, material); mesh.frustumCulled = false;
-      return { f, geo, mesh, lat, all: f.grid * f.grid, tris };
+      return { f, geo, mesh, lat, all: f.grid * f.grid, tris, row: light };
     };
     const plain = (pos, attr, values) => { const g = new THREE.InstancedBufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3)); g.setAttribute(attr, new THREE.BufferAttribute(new Float32Array(values), 1)); return g; };
     // a ring of grass: each blade a triangle; x: across the blade (-1, 1, 0 at the tip), y: up it, and which blade it is
@@ -708,13 +736,49 @@ export class Grass {
     this.origin[0] += se; this.origin[1] += sn;
   }
 
+  // The rows of the light table that something drawn this frame reads, [lowest, highest], or
+  // null for none: asked after this frame's update of the grass and of the pollen (they say
+  // what is drawn) and before the table is drawn, so that in the frame anything comes back
+  // (a dive, a jump to a bookmark, the governor's clumps given back) its rows are lit afresh.
+  lightRows() {
+    if (!this.mesh.visible) return null;
+    // (no closure and no new array a frame: the answer is kept in one pair)
+    let lo = RINGS.length, hi = -1;
+    for (const f of this.fields) if (f.mesh.visible) { if (f.row < lo) lo = f.row; if (f.row > hi) hi = f.row; }
+    for (const f of this.clumps) if (f.mesh.visible) { if (f.row < lo) lo = f.row; if (f.row > hi) hi = f.row; }
+    for (const r of this.lightReaders) if (r.drawn()) { if (r.row < lo) lo = r.row; if (r.row > hi) hi = r.row; }
+    if (hi < 0) return null;
+    const rows = this._rows || (this._rows = [0, 0]);
+    rows[0] = lo; rows[1] = hi;
+    return rows;
+  }
+
   // The light on the ground round the traveller, for this frame: before the main picture is
-  // begun (after the shadow maps and the clouds' shade are made).
+  // begun (after the shadow maps and the clouds' shade are made). Only the rows something
+  // drawn reads: none from some 220 m up to 3 km, where the grass is only the ground's own
+  // colour, and the clumps' alone from 90 m (each third by its own program, see LIGHT_PARTS).
   renderLight(renderer, camera) {
-    if (!this.mesh.visible) return;
+    const rows = this.lightRows();
+    if (!rows) return;
     camera.updateMatrixWorld();
-    this.lightMat.uniforms.uViewProj.value.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-    renderPass(renderer, this.lightMat, this.light);
+    this._viewProj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    const L = this.light, y = rows[0] * LIGHT_N, h = (rows[1] - rows[0] + 1) * LIGHT_N;
+    // (the whole picture cleared, so that a tile-based GPU need not read it back: no row left
+    // out is read this frame)
+    L.viewport.set(0, 0, L.width, L.height); L.scissor.copy(L.viewport); L.scissorTest = false;
+    renderer.setRenderTarget(L);
+    renderer.clear(true, false, false);
+    L.scissorTest = true;
+    for (let part = 0; part < LIGHT_PARTS.length; part++) {
+      // (three puts a target's viewport and scissor in force when the target is set)
+      L.viewport.set(part * LIGHT_N, y, LIGHT_N, h); L.scissor.copy(L.viewport);
+      renderer.setRenderTarget(L);
+      this._lightQuad.material = this.lightMats[part];
+      renderer.render(this._lightQuad, this._lightCam);
+    }
+    // (and the target left as a plain pass leaves it: the whole of it, no scissor)
+    L.viewport.set(0, 0, L.width, L.height); L.scissor.copy(L.viewport); L.scissorTest = false;
+    renderer.setRenderTarget(L);
   }
 
   // Every frame. rig: the camera rig; dt (s); renderer (the tables go to the GPU between frames).
