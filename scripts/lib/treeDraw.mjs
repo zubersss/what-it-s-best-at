@@ -49,7 +49,7 @@ export function drawTree(geo, A, img, W, ox, oy, cw, ch, proj, o = {}) {
         lit = 0.5 + 0.6 * Math.min(1, Math.max(0, (nl + 0.25) / 0.9));
       } else if (leaf < 0.5) {
         lit = 0.45 + 0.6 * Math.min(1, Math.max(0, nl + 0.2));
-        if (bark) { const bu = -(u * U[t * 6] + v * U[t * 6 + 2] + w * U[t * 6 + 4]) - 2, bv = (u * U[t * 6 + 1] + v * U[t * 6 + 3] + w * U[t * 6 + 5]) * tall, f = Math.abs(((bu + 0.32 * Math.sin(bv * 1.3 + bu)) % 1 + 1) % 1 - 0.5) * 2; lit *= 1 - 0.4 * Math.min(1, Math.max(0, (f - 0.5) / 0.3)); }
+        if (bark) { const U2 = -(u * U[t * 6] + v * U[t * 6 + 2] + w * U[t * 6 + 4]) - 2, fur = Math.floor(U2 / 2), bu = (U2 - 2 * fur) * fur, bv = (u * U[t * 6 + 1] + v * U[t * 6 + 3] + w * U[t * 6 + 5]) * tall, f = Math.abs(((bu + 0.32 * Math.sin(bv * 1.3 + bu)) % 1 + 1) % 1 - 0.5) * 2; lit *= 1 - 0.4 * Math.min(1, Math.max(0, (f - 0.5) / 0.3)); }
       } else lit = leaf > 1.1 && leaf < 1.5 ? 0.5 + 0.5 * Math.min(1, Math.max(0, nl + 0.3)) : nl > 0.12 ? 1 : 0.5;
       zb[i] = iz;
       const q = ((oy + y) * W + ox + x) * 3;

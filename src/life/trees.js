@@ -18,14 +18,11 @@ import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
 import { EDGE0, EDGE1 } from './farTreeForm.js';
 import { SPECIES, bloomOf } from './cover.js';
 import { blockDeg, TREE_FLOATS, blockLon } from './treeBlock.js';
+import { REBUILD_M, radii, fineStep, toMake, inFarList, nearCandidates, makeOf, CUT_IN } from './treeLod.js';
 
 const CLOSE_CAP = 192, NEAR_CAP = 768, FAR_CAP = 4096;       // instances of one shape: close, near and far mesh
-// Trees nearer than these get the close mesh (the whole skeleton, sprays a metre long) and
-// the near mesh (the same skeleton, a few large sprays); beyond, a tree is its picture on
-// two crossed cards. They were 42 and 115 m: a forest is paid for in layers of cut-out
-// pixels, and from 60 m a tree on the phone is no taller than its picture is.
-const CLOSE_M = 20, NEAR_M = 60;
-export const REBUILD_M = 25;                 // the instance lists are made again when the traveller has moved this far
+// (which make a tree gets, and when the lists are made again: life/treeLod.js)
+export { REBUILD_M } from './treeLod.js';
 // How far from where a list was made its trees reach: every tree that can come within the
 // radius of the eye before the list is made again (the cut at the radius is by distance
 // from the eye, and the far forest draws nothing inside it).
@@ -72,7 +69,7 @@ async function loadAtlas(url) {
   return t;
 }
 
-const TREE_VERT = /* glsl */`
+export const TREE_VERT = /* glsl */`
 in vec4 iA;            // xyz: the tree's foot from the anchor (m, planet axes), w: its height (m)
 in vec4 iB;            // x: crown width, y: turn (radians), z: a number of its own (0..1), w: 1 if it drops its leaves
 in float aLeaf; in vec2 aSway;      // aSway.x: how far the wind moves the vertex, y: how much it flutters (0 where a spray is held)
@@ -81,6 +78,8 @@ uniform vec3 uAnchorRel, uTreeEast, uTreeNorth, uTreeUp;
 uniform vec4 uTreeWind;      // xyz: where the wind blows to (unit), w: its speed (m/s)
 uniform vec3 uSeason;        // x: how far the leaves have turned, y: how bare the branches are, z: time (s)
 uniform float uTreeRadius;
+in float iF;                  // 1: a tree of the far list (its cards), drawn only outside uLodCut's radius (life/treeLod.js)
+uniform vec4 uLodCut;         // xyz: the eye at the last choice of makes, from the anchor (m); w: the near radius then
 bool treeCull;                // set by treePosition: this tree is the far forest's to draw
 vec3 treePosition(out vec3 foot, out float leaf) {
   foot = uAnchorRel + iA.xyz;
@@ -93,7 +92,13 @@ vec3 treePosition(out vec3 foot, out float leaf) {
   // A whole tree's upright pictures, looked down on: on edge they are bright slivers on the
   // crown, so they draw in to nothing as the far forest's do, by its rule (life/farTreeForm.js:
   // the same tree at 150 m and at 400 m), and the rosette in the crown is the tree from there.
+  // (Not in the shadow pass: a shadow is the tree seen from the Sun, never from the eye. Drawn
+  // in by the eye's angle there, every tree in a ring under anyone looking down cast a disc.)
+#ifdef TREE_DEPTH
+  float edge = 1.0;
+#else
   float edge = aLeaf > 3.5 ? 1.0 - smoothstep(${EDGE0.toFixed(3)}, ${EDGE1.toFixed(3)}, dot(-normalize(foot + uTreeUp * (iA.w * 0.7)), uTreeUp)) : 1.0;
+#endif
   p.xz *= iB.x * (1.0 - 0.85 * gone) * edge;
   vec3 l = vec3(p.x * c - p.z * s, p.y, p.x * s + p.z * c) * iA.w;
   // wind: the whole tree leans a little and its crown swings, gust by gust, each tree in
@@ -105,7 +110,9 @@ vec3 treePosition(out vec3 foot, out float leaf) {
   // the same picture at the same size: the two are cut against each other by distance from
   // the eye, and a tree is drawn by exactly one of them. (They used to shrink away over the
   // last 14 % of the radius, from when nothing stood beyond it.)
-  treeCull = length(foot) > uTreeRadius || edge <= 0.0;
+  // A far card is cut where its tree stands inside the near radius of the eye at the last
+  // choice of makes: the close and near lists have it there (life/treeLod.js).
+  treeCull = length(foot) > uTreeRadius || edge <= 0.0 || (iF > 0.5 && length(iA.xyz - uLodCut.xyz) < uLodCut.w);
   float fade = 1.0;
   leaf = aLeaf;
   // (single leaves flutter, each in its own time, harder the harder it blows)
@@ -119,6 +126,43 @@ vec3 treeNormal() {
   return normalize(uTreeEast * (n.x * c - n.z * s) + uTreeUp * n.y + uTreeNorth * (n.x * s + n.z * c));
 }`;
 
+// Bark, by rule, on a tube's own coordinates (life/treeGeometry.js, tube): U = -aUv.x - 2 is
+// twice the furrows round the tube plus how far round it (0..1), bv how far along it in
+// metres. Three kinds, told by the trunk's colour as the leaf's kind is by its green: a pale
+// trunk is smooth with dark bands part of the way round and black scars (birch, aspen); a red
+// one is large plates, each its own tone, with dark cracks between (pine); any other is
+// furrowed, the ridges broken into lengths (fir, spruce, oak).
+// Every term goes a whole number of times round the tube (the furrows' wander, which column a
+// plate is in, the bands, the scars), so the pattern meets itself where the tube's
+// coordinate starts again: it broke along a line down every trunk and limb. And where a
+// pattern is finer than the pixels (fu, fv: a pixel's footprint in furrows round and in
+// metres along), it gives way to its own mean, not to a plain trunk: near-black furrows a
+// pixel or two apart crawled on every trunk's flanks as one walked.
+// (scripts/trees-near-test.mjs evaluates this function as written, in JavaScript.)
+export const BARK = /* glsl */`
+float barkHash(float x) { return fract(sin(x) * 43758.5453); }
+float barkMean(float pale, float red) { return mix(mix(0.665, 0.81, red), 0.915, pale); }
+float barkTone(float U, float bv, float fu, float fv, float pale, float red, float own) {
+  float fur = floor(U * 0.5), bu = (U - 2.0 * fur) * fur;
+  // (whole turns round the tube: about 2.1 and 1 radians a furrow, as the wander was)
+  float k1 = max(1.0, floor(fur * 0.334 + 0.5)) * 6.2831853 / fur, k2 = max(1.0, floor(fur * 0.159 + 0.5)) * 6.2831853 / fur;
+  // furrows: lines up the tube that wander; a ridge between two is broken across here and there
+  float wob = bu + 0.3 * sin(bv * 1.7 + bu * k1) + 0.12 * sin(bv * 5.3 + bu * k2), col = mod(floor(wob), fur), f = abs(fract(wob) - 0.5) * 2.0;
+  float rowF = mix(1.5, 0.9, red), row = bv * rowF + barkHash(col * 12.9898) * 7.0;
+  // (how fine each pattern is on the screen: the furrows in periods a pixel, the breaks across in lines a pixel)
+  float aaF = smoothstep(0.3, 0.6, (fu + fv * 1.15) * mix(1.0, 2.0, red)), aaR = smoothstep(0.1, 0.25, fv * rowF);
+  float across = mix(smoothstep(0.82, 0.95, abs(fract(row) - 0.5) * 2.0), 0.115, aaR);
+  float plate = mix(barkHash(dot(vec2(col, floor(row + 0.5)), vec2(127.1, 311.7))), 0.5, aaF);
+  float furrow = max(smoothstep(mix(0.45, 0.72, red), mix(0.8, 0.92, red), f), across * mix(0.7, 1.0, red));
+  float rough = (1.0 - 0.86 * furrow) * (1.0 + mix(0.45, 0.6, red) * (plate - 0.4));          // (furrows near black, the plates' faces catching the light)
+  // a pale trunk: bands a little way round it, a black scar now and then
+  float band = floor(bv * 9.0), bh = barkHash(band * 91.7 + own * 31.0);
+  float bandOn = step(0.45, bh) * step(abs(fract(bu * max(1.0, floor(fur * 0.31 + 0.5)) / fur + bh * 5.0) - 0.5), 0.12 + 0.2 * bh) * step(0.55, fract(bv * 9.0));
+  float scar = step(0.9, barkHash(floor(bv * 1.3) * 17.3 + own * 9.0)) * step(abs(fract(bu * max(1.0, floor(fur * 0.2 + 0.5)) / fur + bh) - 0.5), 0.1) * step(abs(fract(bv * 1.3) - 0.5), 0.2);
+  float smooth_ = 1.0 - 0.6 * max(mix(bandOn, 0.17, smoothstep(0.25, 0.5, fv * 9.0)), scar * 1.4);
+  return mix(mix(rough, barkMean(0.0, red), aaF), smooth_, pale);
+}`;
+
 export class Trees {
   constructor(world, terrain) {
     this.terrain = terrain;
@@ -126,12 +170,12 @@ export class Trees {
     this.shared = {
       ...lightingUniforms(), ...TREE_SHADE_UNIFORMS,
       uAnchorRel: { value: new THREE.Vector3() }, uTreeEast: { value: new THREE.Vector3(1, 0, 0) }, uTreeNorth: { value: new THREE.Vector3(0, 1, 0) }, uTreeUp: { value: new THREE.Vector3(0, 0, 1) },
-      uTreeWind: terrain.shared.uWind, uSeason: { value: new THREE.Vector3() }, uTreeRadius: { value: 240 },
+      uTreeWind: terrain.shared.uWind, uSeason: { value: new THREE.Vector3() }, uTreeRadius: { value: 240 }, uLodCut: { value: new THREE.Vector4(0, 0, 0, 0) },
       tTreeAtlas: { value: null },
     };
     // The trees' picture (made by scripts/make-tree-atlas.mjs). Until it has come, no tree is drawn.
     this.atlasReady = false;
-    loadAtlas(import.meta.env.BASE_URL + 'data/tree_atlas.png').then((t) => {
+    loadAtlas((import.meta.env?.BASE_URL ?? '/') + 'data/tree_atlas.png').then((t) => {
       this.renderer?.initTexture(t);              // (to the GPU now, between frames, if the renderer is known by then)
       this.shared.tTreeAtlas.value = t; this.atlasReady = true; this.dirty = true;
     }).catch((e) => console.error(e));
@@ -166,7 +210,11 @@ export class Trees {
                      mix(mix(leafHash(i + vec3(0, 0, 1)), leafHash(i + vec3(1, 0, 1)), f.x), mix(leafHash(i + vec3(0, 1, 1)), leafHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
         }
         ${PAINT_LEAF}
+        ${BARK}
         void main() {
+          // (a pixel's footprint in the trees' coordinates, here before anything is thrown away:
+          // a derivative is only sure where every pixel round it is still being drawn)
+          vec2 uvW = fwidth(vUv);
           // A card: cut out of the picture first of all (most of a card is nothing). Far off the
           // cut is taken lower: averaged down, needles and leaves cover less of a pixel, and a
           // tree would thin to nothing.
@@ -177,15 +225,18 @@ export class Trees {
             float lod = 0.5 * log2(max(max(dot(dFdx(px), dFdx(px)), dot(dFdy(px), dFdy(px))), 1.0));
             if (cut.r < mix(0.42, 0.16, clamp(lod / 3.0, 0.0, 1.0))) discard;
           }
-          // What the picture says a texel is (its blue): 0 a leaf, a half a petal, 1 wood. Only a
-          // tree that flowers has petals (vBloom.w >= 0), and it shows them flower by flower
-          // as it comes into bloom; out of flower they are not there.
-          bool flowers = vBloom.w >= 0.0, wood = card ? cut.b > (flowers ? 0.75 : 0.5) : vLeaf < 0.5;
+          // What the picture says a texel is (its blue): 0 a leaf, a half a petal, 1 wood (over
+          // 0.75 on every tree, as the far forest takes it: life/farForest.js). Only a tree that
+          // flowers has petals (vBloom.w >= 0), and it shows them flower by flower as it comes
+          // into bloom; a flower not yet open, or a tree out of flower, is leaves there, as the
+          // far forest draws it (thrown away, a cherry out of flower was a lace of twigs near by
+          // and a full crown from 240 m on, ten months of the year).
+          bool flowers = vBloom.w >= 0.0, wood = card ? cut.b > 0.75 : vLeaf < 0.5;
           float petal = card && flowers && !wood ? clamp(cut.b * 2.0, 0.0, 1.0) : 0.0;
           if (card && !wood) {
             // (one number for each flower, each leaf: the texels of a spray in blocks of twelve)
             vec2 cell = floor(vUv * vec2(${ATLAS_W}.0, ${ATLAS_H}.0) / 12.0); float h = fract(sin(dot(cell, vec2(12.9898, 78.233)) + vOwn.x * 37.0) * 43758.5453);
-            if (petal > 0.5 && h >= vBloom.w) discard;
+            if (petal > 0.5 && h >= vBloom.w) petal = 0.0;
             // bare in winter: the leaves are gone from the spray, leaf by leaf; its twigs stay
             if (petal <= 0.5 && h < vTall.y * 1.05) discard;
           }
@@ -235,29 +286,16 @@ export class Trees {
           // pale peeled pole; only the pale trunks, birch and aspen, keep their tone)
           float paleT = step(0.4, dot(vTrunkC, vec3(0.333)));
           vec3 albedo = wood ? (card || vLeaf > 0.1 ? twigC : vTrunkC * mix(0.28, 0.6, paleT)) : leafC;
-          // (bark near by: furrows running up the trunk, wandering a little; and a trunk is
-          // round even in the shade of the wood, where no light says so: darker toward its edges)
-          // Bark, by rule, on the tubes' own coordinates (vUv.x: -2 - furrows round the tube,
-          // vUv.y: how far along it in tree heights; life/treeGeometry.js, tube). Three kinds,
-          // told by the trunk's colour as the leaf's kind is by its green: a pale trunk is
-          // smooth with dark bands part of the way round and black scars (birch, aspen); a red
-          // one is large plates, each its own tone, with dark cracks between (pine); any other
-          // is furrowed, the ridges broken into lengths (fir, spruce, oak).
+          // (bark: furrows, plates or bands by rule, BARK above; a trunk is round even in the
+          // shade of the wood, where no light says so: darker toward its edges)
           if (wood && !card) {
             albedo *= mix(0.42, 1.0, smoothstep(0.05, 0.75, abs(dot(N, V))));          // (round: darker toward its two edges)
             float dW = length(vRel);
-            if (vUv.x < -1.5 && dW < 70.0) {
-              float bu = -vUv.x - 2.0, bv = vUv.y * vTall.x, near = 1.0 - smoothstep(30.0, 70.0, dW), pale = step(0.4, dot(vTrunkC, vec3(0.333))), red = (1.0 - pale) * smoothstep(1.7, 2.3, vTrunkC.r / max(vTrunkC.b, 1e-3));
-              // furrows: lines up the tube that wander; a ridge between two is broken across here and there
-              float wob = bu + 0.3 * sin(bv * 1.7 + bu * 2.1) + 0.12 * sin(bv * 5.3 + bu), col = floor(wob), f = abs(fract(wob) - 0.5) * 2.0;
-              float row = bv * mix(1.5, 0.9, red) + fract(sin(col * 12.9898) * 43758.5453) * 7.0, across = smoothstep(0.82, 0.95, abs(fract(row) - 0.5) * 2.0);
-              float plate = fract(sin(dot(vec2(col, floor(row + 0.5)), vec2(127.1, 311.7))) * 43758.5453);
-              float furrow = max(smoothstep(mix(0.45, 0.72, red), mix(0.8, 0.92, red), f), across * mix(0.7, 1.0, red));
-              float rough = (1.0 - 0.86 * furrow) * (1.0 + mix(0.45, 0.6, red) * (plate - 0.4));          // (furrows near black, the plates' faces catching the light)
-              // a pale trunk: bands a little way round it, a black scar now and then
-              float band = floor(bv * 9.0), bh = fract(sin(band * 91.7 + vOwn.x * 31.0) * 43758.5453), bandOn = step(0.45, bh) * step(abs(fract(bu * 0.31 + bh * 5.0) - 0.5), 0.12 + 0.2 * bh) * step(0.55, fract(bv * 9.0));
-              float scar = step(0.9, fract(sin(floor(bv * 1.3) * 17.3 + vOwn.x * 9.0) * 43758.5453)) * step(abs(fract(bu * 0.2 + bh) - 0.5), 0.1) * step(abs(fract(bv * 1.3) - 0.5), 0.2);
-              albedo *= mix(1.0, mix(rough, 1.0 - 0.6 * max(bandOn, scar * 1.4), pale), near);
+            if (vUv.x < -1.5) {
+              float U = -vUv.x - 2.0, pale = step(0.4, dot(vTrunkC, vec3(0.333))), red = (1.0 - pale) * smoothstep(1.7, 2.3, vTrunkC.r / max(vTrunkC.b, 1e-3));
+              // (from 30 m the pattern gives way to its mean: tubes are drawn to 60 m at most)
+              float near = 1.0 - smoothstep(30.0, 70.0, dW);
+              albedo *= near > 0.0 ? mix(barkMean(pale, red), barkTone(U, vUv.y * vTall.x, uvW.x * floor(U * 0.5), uvW.y * vTall.x, pale, red, vOwn.x), near) : barkMean(pale, red);
             } else if (uPaint.x > 0.0 && dot(vTrunkC, vec3(0.333)) > 0.4) albedo *= 1.0 - 0.75 * step(0.8, fract(vY * 31.0 + vOwn.x * 9.0)) * step(0.35, fract(vY * 7.7 + vOwn.x * 3.0));
           }
           // (the shadow is asked for a little outside the crown: on a mass of a few faces the
@@ -282,7 +320,7 @@ export class Trees {
         }`,
     });
     this.depthMaterial = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3, colorWrite: false, uniforms: this.shared, side: THREE.DoubleSide,
+      glslVersion: THREE.GLSL3, colorWrite: false, uniforms: this.shared, side: THREE.DoubleSide, defines: { TREE_DEPTH: 1 },
       vertexShader: /* glsl */`${TREE_VERT}
         in vec4 iE;
         out float vLeaf; out vec2 vUv; out float vBare; out vec2 vBloom;
@@ -299,10 +337,10 @@ export class Trees {
           if (vUv.x >= 0.0) {
             vec3 cut = texture(tTreeAtlas, vUv).rgb;
             if (cut.r < 0.3) discard;
-            // (petals of a tree out of flower, leaves of a bare one: as the picture pass leaves them out)
-            bool petal = cut.b > 0.25 && cut.b < 0.75 && vBloom.x >= 0.0;
-            if (petal && vBloom.x < 0.5) discard;
-            if (!petal && cut.b < 0.5 && vBloom.y > 0.5) discard;
+            // (leaves of a bare one, as the picture pass leaves them out; a tree's petals while it
+            // is in flower are kept, and out of flower they are leaves, as in the picture pass)
+            bool open = cut.b > 0.25 && cut.b <= 0.75 && vBloom.x >= 0.5;
+            if (!open && cut.b <= 0.75 && vBloom.y > 0.5) discard;
           } else if (vLeaf > 0.5 && vBloom.y > 0.5) discard;
           // (which pixels: scattered, not in rows; the shadow's soft edge blends them)
           uvec2 q = uvec2(gl_FragCoord.xy); uint h = q.x * 1597334677u ^ q.y * 3812015801u; h ^= h >> 15; h *= 2246822507u; h ^= h >> 13;
@@ -317,10 +355,12 @@ export class Trees {
       const at = (n) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(cap * n), n); a.setUsage(THREE.DynamicDrawUsage); return a; };
       const iA = at(4), iB = at(4), iC = at(3), iD = at(4), iE = at(4);
       geo.setAttribute('iA', iA); geo.setAttribute('iB', iB); geo.setAttribute('iC', iC); geo.setAttribute('iD', iD); geo.setAttribute('iE', iE);
+      // (iF: 1 on the far list's cards, cut inside the near radius; written once)
+      const iF = new THREE.InstancedBufferAttribute(new Float32Array(cap).fill(lod === 2 ? 1 : 0), 1); geo.setAttribute('iF', iF);
       geo.instanceCount = 0;
       const mesh = new THREE.Mesh(geo, this.material);
       mesh.frustumCulled = false; mesh.visible = false; mesh.userData.lod = lod;
-      return { geo, mesh, cap, iA, iB, iC, iD, iE, count: 0, tris: base.attributes.position.count / 3, lod };
+      return { geo, mesh, cap, iA, iB, iC, iD, iE, iF, count: 0, tris: base.attributes.position.count / 3, lod };
     })));
     // What casts a tree's shadow: the next simpler mesh of the same tree (the nearest trees
     // cast as their near mesh, those farther as their far mesh: two crossed pictures of
@@ -332,14 +372,14 @@ export class Trees {
       if (src === s) { s.cast = s.mesh; return; }
       const g = new THREE.InstancedBufferGeometry();
       for (const name of ['position', 'normal', 'aLeaf', 'aSway', 'aUv']) g.setAttribute(name, src.geo.attributes[name]);
-      g.setAttribute('iA', s.iA); g.setAttribute('iB', s.iB); g.setAttribute('iE', s.iE);
+      g.setAttribute('iA', s.iA); g.setAttribute('iB', s.iB); g.setAttribute('iE', s.iE); g.setAttribute('iF', s.iF);
       g.instanceCount = 0;
       s.castGeo = g; s.cast = new THREE.Mesh(g, this.depthMaterial); s.cast.frustumCulled = false;
     });
     this.meshes = this.sets.flat(2).map((s) => s.mesh);
     this.blocks = new Map();                 // 'bi:bj' -> { state: 0 asked, 1 ready, origin, trees, count, used }
     this.asked = 0; this.frame = 0; this.serial = -1;
-    this.anchor = new THREE.Vector3(); this.builtAt = new THREE.Vector3(1e12, 0, 0); this.dirty = false;
+    this.anchor = new THREE.Vector3(); this.builtAt = new THREE.Vector3(1e12, 0, 0); this.fineAt = new THREE.Vector3(1e12, 0, 0); this.dirty = false;
     this.fraction = 1; this.shadowsFar = true; this.count = 0; this.triangles = 0; this.reach = 0;
     this.names = '';                          // the species standing nearest, for anyone who asks
     this._e = [0, 0, 0]; this._n = [0, 0, 0]; this._u = [0, 0, 0];
@@ -446,15 +486,18 @@ export class Trees {
       }
     }
     if (this.frame % 600 === 0) for (const [key, b] of this.blocks) if (b.state === 1 && b.used < this.frame - 1200) this.blocks.delete(key);
-    if (this.dirty || this.builtAt.distanceToSquared(p) > REBUILD_M * REBUILD_M) this._build(rig, radius);
+    // the whole list when the eye has gone REBUILD_M, the close and near ones every few metres
+    const make = toMake(this.dirty, this.builtAt.distanceToSquared(p), this.fineAt.distanceToSquared(p), fineStep(this.fraction, this.closeOn !== false, rig.agl, rig.onFoot ? (rig.footVel?.length() || 0) : rig.velocity.length()));
+    if (make === 2) this._build(rig, radius); else if (make === 1) this._fine(p);
     // per frame: where the anchor is from the camera, the season, the wind's clock
     const u = this.shared;
     u.uAnchorRel.value.subVectors(this.anchor, p);
     u.uTreeRadius.value = this.reach;
   }
 
-  // The instance lists, from the blocks that are in: near trees to the near meshes, the
-  // rest to the far ones, all measured from an anchor at the traveller's place.
+  // The whole list, from the blocks that are in, measured from an anchor at the traveller's
+  // place: every tree within reach, nearest first; the far cards of every tree that may need
+  // them before the list is made again (life/treeLod.js); then the close and near lists.
   _build(rig, radius) {
     this.dirty = false; this.builtAt.copy(rig.pos);
     const p = rig.pos, A = this.anchor.copy(p);
@@ -462,8 +505,7 @@ export class Trees {
     const u = this.shared;
     u.uTreeEast.value.set(...this._e); u.uTreeNorth.value.set(...this._n); u.uTreeUp.value.set(...this._u);
     for (const s of this.sets.flat(2)) s.count = 0;
-    const r2 = nearListReach(radius) ** 2,
-       near2 = (NEAR_M * this.fraction) ** 2, close2 = (CLOSE_M * this.fraction) ** 2 * (this.closeOn === false ? 0 : 1);
+    const r2 = nearListReach(radius) ** 2, { near: nearR } = radii(this.fraction, this.closeOn !== false);
     let names = new Map(), falling = 0, near = 0;
     // Every tree within reach, nearest first: the lists are filled in that order and the
     // meshes drawn close, near, far, so that what stands in front is drawn first and what
@@ -481,32 +523,68 @@ export class Trees {
       }
     }
     list.length = n; list.sort((p, q) => p.d2 - q.d2);
-    const blooming = [], lat = Math.asin(A.z / A.length()) * 180 / Math.PI;
+    const blooming = [], lat = this._lat = Math.asin(A.z / A.length()) * 180 / Math.PI;
     for (const e of list) {
-      const T = e.b.trees, q = e.q, d2 = e.d2;
-      const sp = SPECIES[T[q + 6]], own = T[q + 7], trio = this.sets[sp.arch][Math.min(VARIANTS - 1, Math.floor(((own * 7.31) % 1) * VARIANTS))];
-      // (a list that is full hands the tree to the next simpler one: it was left out altogether)
-      let lod = d2 < close2 ? 0 : d2 < near2 ? 1 : 2; while (lod < 2 && trio[lod].count >= trio[lod].cap) lod++;
-      const set = trio[lod];
-      if (set.count >= set.cap) continue;
-      const i = set.count++;
-      set.iA.array.set([e.x, e.y, e.z, T[q + 3]], i * 4);
-      set.iB.array.set([T[q + 4], T[q + 5], own, sp.fall], i * 4);
-      set.iC.array.set(sp.leaf, i * 3); set.iD.array.set(sp.trunk, i * 4); set.iD.array[i * 4 + 3] = e.b.vis ? e.b.vis[e.k] : 1;
-      // (in flower: each tree a few days before or after its neighbours)
-      if (sp.blossom) { const bl = bloomOf(sp, this.day + (own - 0.5) * 8, lat); set.iE.array.set([...sp.blossom.colour, bl.open], i * 4); if (bl.fall > 0 && blooming.length < 8 && d2 < 90 * 90) blooming.push({ x: e.x, y: e.y, z: e.z, tall: T[q + 3], wide: T[q + 4], fall: bl.fall, colour: sp.blossom.colour }); } else set.iE.array.set([0, 0, 0, -1], i * 4);
+      const T = e.b.trees, q = e.q, d2 = e.d2, sp = SPECIES[T[q + 6]];
+      e.trio = this.sets[sp.arch][Math.min(VARIANTS - 1, Math.floor(((T[q + 7] * 7.31) % 1) * VARIANTS))];
+      e.far = false; if (inFarList(d2, nearR)) { const set = e.trio[2]; if (set.count < set.cap) { this._put(set, e); e.far = true; } }
+      if (sp.blossom) { const bl = bloomOf(sp, this.day + (T[q + 7] - 0.5) * 8, lat); if (bl.fall > 0 && blooming.length < 8 && d2 < 90 * 90) blooming.push({ x: e.x, y: e.y, z: e.z, tall: T[q + 3], wide: T[q + 4], fall: bl.fall, colour: sp.blossom.colour }); }
       if (d2 < 60 * 60) { names.set(sp.name, (names.get(sp.name) || 0) + 1); near++; if (sp.fall) falling++; }
     }
     this.blooming = blooming;                 // the nearest trees in flower (from the anchor, m): the petals come off these (life/leaves.js)
+    for (const trio of this.sets.flat()) this._send(trio[2]);
+    this.falling = falling; this.near = near;          // (near: trees within 60 m, for the leaves that come off them)
+    this.names = [...names.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map((e) => e[0]).join(', ');
+    this._fine(p);
+  }
+
+  // The close and near lists, by each tree's distance from the eye now (p: the eye, planet
+  // axes). A few hundred trees: made again every few metres (life/treeLod.js, fineStep).
+  _fine(p) {
+    this.fineAt.copy(p);
+    const A = this.anchor, ex = p.x - A.x, ey = p.y - A.y, ez = p.z - A.z, { close, near } = radii(this.fraction, this.closeOn !== false);
+    for (const trio of this.sets.flat()) trio[0].count = trio[1].count = 0;
+    const reach2 = nearCandidates(near) ** 2, list = this._list || [], pick = this._pick || (this._pick = []);
+    let n = 0, cut = 0, cutTris = 0;
+    for (const e of list) {
+      if (e.d2 >= reach2) break;              // (the list is nearest first from the anchor)
+      const dx = e.x - ex, dy = e.y - ey, dz = e.z - ez, d2 = dx * dx + dy * dy + dz * dz;
+      if (d2 >= near * near) continue;
+      if (e.far) { cut++; cutTris += e.trio[2].tris; }          // (its far card is cut in the vertex shader)
+      e.de2 = d2; pick[n++] = e;
+    }
+    pick.length = n; pick.sort((a, b) => a.de2 - b.de2);          // (nearest first: what stands in front is drawn first)
+    for (const e of pick) {
+      // (a list that is full hands the tree to the next simpler one; the far list's cards
+      // are cut here, so a tree the near list has no room for is left out)
+      let lod = makeOf(e.de2, close, near); while (lod < 2 && e.trio[lod].count >= e.trio[lod].cap) lod++;
+      if (lod < 2) this._put(e.trio[lod], e);
+    }
+    this.shared.uLodCut.value.set(ex, ey, ez, Math.max(0, near - CUT_IN));
     let count = 0, tris = 0;
     for (const s of this.sets.flat(2)) {
-      s.geo.instanceCount = s.count; s.mesh.visible = s.count > 0 && this.atlasReady && !this.hidden;
-      if (s.castGeo) s.castGeo.instanceCount = s.count;
-      if (s.count) { for (const a of [s.iA, s.iB, s.iC, s.iD, s.iE]) { a.clearUpdateRanges?.(); a.addUpdateRange?.(0, s.count * a.itemSize); a.needsUpdate = true; } }
+      if (s.lod < 2) this._send(s);
       count += s.count; tris += s.count * s.tris;
     }
-    this.count = count; this.triangles = tris; this.falling = falling; this.near = near;          // (near: trees within 60 m, for the leaves that come off them)
-    this.names = [...names.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map((e) => e[0]).join(', ');
+    this.count = count - cut; this.triangles = tris - cutTris;          // (trees drawn: the far cards cut inside the near radius are not)
+  }
+
+  // One tree into a list: where it stands from the anchor, its size, kind and colours.
+  _put(set, e) {
+    const T = e.b.trees, q = e.q, sp = SPECIES[T[q + 6]], own = T[q + 7], i = set.count++, A = set.iA.array, B = set.iB.array, D = set.iD.array, E = set.iE.array;
+    A[i * 4] = e.x; A[i * 4 + 1] = e.y; A[i * 4 + 2] = e.z; A[i * 4 + 3] = T[q + 3];
+    B[i * 4] = T[q + 4]; B[i * 4 + 1] = T[q + 5]; B[i * 4 + 2] = own; B[i * 4 + 3] = sp.fall;
+    set.iC.array.set(sp.leaf, i * 3); D[i * 4] = sp.trunk[0]; D[i * 4 + 1] = sp.trunk[1]; D[i * 4 + 2] = sp.trunk[2]; D[i * 4 + 3] = e.b.vis ? e.b.vis[e.k] : 1;
+    // (in flower: each tree a few days before or after its neighbours)
+    if (sp.blossom) { const bl = bloomOf(sp, this.day + (own - 0.5) * 8, this._lat); E[i * 4] = sp.blossom.colour[0]; E[i * 4 + 1] = sp.blossom.colour[1]; E[i * 4 + 2] = sp.blossom.colour[2]; E[i * 4 + 3] = bl.open; }
+    else { E[i * 4] = E[i * 4 + 1] = E[i * 4 + 2] = 0; E[i * 4 + 3] = -1; }
+  }
+
+  // A list's instances to the GPU (the part that is used).
+  _send(s) {
+    s.geo.instanceCount = s.count; s.mesh.visible = s.count > 0 && this.atlasReady && !this.hidden;
+    if (s.castGeo) s.castGeo.instanceCount = s.count;
+    if (s.count) { for (const a of [s.iA, s.iB, s.iC, s.iD, s.iE]) { a.clearUpdateRanges?.(); a.addUpdateRange?.(0, s.count * a.itemSize); a.needsUpdate = true; } }
   }
 
   // Governor: the trees' full shapes to a shorter distance (1: all the way); beyond it a
