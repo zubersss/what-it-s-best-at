@@ -44,7 +44,7 @@ export const FEATURE_STEPS = [
   { id: 'grass-mid', label: 'thinner grass in the middle distance', apply: (app, off) => { app.grass?.setMidShare(off ? 0.5 : 1); } },
   { id: 'grass', label: 'half the grass', apply: (app, off) => { app.grass?.setFraction(off ? 0.5 : 1); } },
   { id: 'tree-leaves', label: 'every leaf on the nearest trees', apply: (app, off) => { if (app.trees) { app.trees.closeOn = !off; app.trees.dirty = true; } } },
-  { id: 'tree-shadows', label: 'shadows of the farther trees', apply: (app, off) => { if (app.trees) app.trees.shadowsFar = !off; } },
+  { id: 'tree-shadows', label: 'shadows of the farther trees', apply: (app, off) => { if (app.trees) app.trees.shadowsFar = !off; if (app.farForest) app.farForest.shadows = !off; } },      // (and the far forest's shadows on the ground, drawn from the air: life/farForest.js)
   { id: 'trees-far', label: "the trees' full shapes to two thirds of their distance", apply: (app, off) => { app.trees?.setFraction(off ? 0.66 : 1); } },
   // (it thins the far forest and shortens its reach; a wood stays a wood: the thinned trees
   // stand wider, see life/farForest.js)

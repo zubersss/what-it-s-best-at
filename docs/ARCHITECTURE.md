@@ -736,6 +736,41 @@ as Earth is; what differs is where the maps come from.
     blue; the wood's own air (`forestAir`) fades out between 300 m and 1 km, where the
     air itself takes over. The rule: a far tree is never bluer or paler than the ground
     behind it. All of it is nothing at the join, where the near trees' numbers hold.
+  - **Seen from above** (`life/farTreeForm.js`: the rule, in GLSL for the vertex shader and
+    in JavaScript for the sketch and the test). A far tree is three quads: two crossed
+    upright pictures and a rosette lying in its crown. Looked down on, the upright ones are
+    on edge. So by the sine of the angle a tree is looked down at (`down`), everything
+    blended and nothing switched, and nothing at all below 17 degrees (the view from the
+    ground is as it was):
+    - the rosette is the crown's top: lit as a dome that faces the sky (by the rule the cards
+      share with the near trees, a rosette under the middle height of its crown faces the
+      ground, and from above every fir was a dark disc the Sun did nothing to; the dome comes
+      in over the 200 m beyond the near trees' line, where nothing may differ), and **spread**
+      where the trees are thinned, by keep^-(1/4 + 0.17) against the keep^-1/4 (at most 1.5)
+      of the view from the side, at most 8 crown widths, and **only in a closed wood**: each
+      tree carries the chance its site had of a tree (`treeBlock.js`, the tenth float; beside
+      its rank in `iC.x`), and a lone tree on open ground stays its own size;
+    - **the tree's shadow** is a fourth quad, handed over only for a traveller in the air
+      (from 60 m up; `setDrawRange`, two triangles a tree more there): the picture of the
+      whole tree laid on the ground along the Sun's ray, the tree's own outline, up to five
+      heights long, coming in from 17 to 30 degrees of looking down. It takes a share of
+      what is drawn under it (the material blends by alpha: a tree writes 1, a shadow its
+      share; `uShadow.x` brings it in between 60 and 160 m up, and the governor's step
+      `tree-shadows` takes it away). One tree's alone takes half; where several lie over
+      one another at a wood's edge each is so much lighter that the lot come to half. None
+      from a tree in the land's or a cloud's shadow, none on ground the Sun does not reach
+      by its slope (the tile job hands that over with the land's shadow:
+      `treeLandShade.js`, `lit`), none beyond 4.2 km. Under the canopy the ground raises
+      they are hidden, which is right: they are for trees on open ground;
+    - the upright pictures draw in to nothing from 49 to 68 degrees (steeper, they are
+      bright slivers beside the crown's top, and from straight above a cross on it);
+    - the forest's end: seen from above its trees draw in over the last two fifths of its
+      reach (the last seventh from the side), so that it has no edge on the land below.
+    On the ground no more triangles than before (6 a tree) and no more instances; in the
+    air 8 a tree.
+  - **The land's shadow, the grid**: 20 points a side over the smallest tile and finer by
+    half for each size up (20, 28, 40, 57): 20 over a tile of 7 km was a point every 370 m.
+    `scripts/far-tree-shade-test.mjs` compares the grid with a ray from every tree.
   - Drawn after the ground: the raised canopy hides a far tree's lower part for nothing and
     its crown stands out of it. Governor step `far-trees`: it **thins** them (the widening
     goes with it, so a wood is still a wood) and shortens their reach, never removes them.

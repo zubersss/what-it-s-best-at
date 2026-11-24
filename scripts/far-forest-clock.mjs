@@ -44,7 +44,7 @@ const workers = {
   },
 };
 const terrain = { epoch: 1, coverSerial: 1, ringSerial: 1, workers, tiles: { busy: false }, wanted: [], _sunHalf: 0.00465 };
-const shared = () => ({ uSunDir: { value: sun }, uSeason: { value: new THREE.Vector3() }, uAnchorRel: { value: new THREE.Vector3() }, uTreeRadius: { value: 240 }, uTreeEast: { value: new THREE.Vector3() }, uTreeNorth: { value: new THREE.Vector3() }, uTreeUp: { value: new THREE.Vector3() }, uFar: { value: new THREE.Vector4() } });
+const shared = () => ({ uSunDir: { value: sun }, uShadow: { value: new THREE.Vector4() }, uSeason: { value: new THREE.Vector3() }, uAnchorRel: { value: new THREE.Vector3() }, uTreeRadius: { value: 240 }, uTreeEast: { value: new THREE.Vector3() }, uTreeNorth: { value: new THREE.Vector3() }, uTreeUp: { value: new THREE.Vector3() }, uFar: { value: new THREE.Vector4() } });
 
 const trees = Object.create(Trees.prototype);
 Object.assign(trees, { terrain, world, def: world.life.trees, shared: shared(), sets: [], blocks: new Map(), asked: 0, frame: 0, serial: -1, fraction: 1, reach: 0, dirty: true, atlasReady: true, anchor: new THREE.Vector3(), builtAt: new THREE.Vector3(1e9, 0, 0), _e: [0, 0, 0], _n: [0, 0, 0], _u: [0, 0, 0], gen: 1 });

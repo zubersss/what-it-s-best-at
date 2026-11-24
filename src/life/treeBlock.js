@@ -16,7 +16,8 @@ export const BLOCK_DEG = 0.001;
 const EARTH_R = 6371000;
 // (on Earth exactly the number it always was: its trees stand where they stood)
 export function blockDeg(R, deg = BLOCK_DEG) { return R === EARTH_R ? deg : deg * EARTH_R / R; }
-export const TREE_FLOATS = 9;          // x, y, z (m from the block's origin, planet axes), height, crown width, turn, species, a number of its own, its rank
+export const TREE_FLOATS = 10;         // x, y, z (m from the block's origin, planet axes), height, crown width, turn, species, a number of its own, its rank,
+                                       // the chance a site here had of carrying a tree (0..1: how closed the wood is round it; the far forest's view from above)
 // A site's **rank** (0..1): a hash of the site alone, of nothing else — not of the chance
 // the class gives it, its species or its shape. A band of ranks can therefore be asked
 // for on its own (`lo`, `hi` below), and the trees of a band are the very trees that
@@ -80,7 +81,7 @@ export function treeBlock(hs, bi, bj, spacing = 7, nominal = BLOCK_DEG, salt = 4
     const base = Math.max(tall, near ? 9 : 2.5), height = Math.max(1.2, base * S.tall * (0.72 + 0.5 * u1) * (over > 0 ? 1 - 0.6 * over : 1));
     const r = R + h, q = n * TREE_FLOATS;
     out[q] = d[0] * r - origin[0]; out[q + 1] = d[1] * r - origin[1]; out[q + 2] = d[2] * r - origin[2];
-    out[q + 3] = height; out[q + 4] = S.wide * (0.85 + 0.35 * u2); out[q + 5] = u3 / Math.max(dens, 1e-3) * 6.2831853; out[q + 6] = sp; out[q + 7] = u4; out[q + 8] = rank;
+    out[q + 3] = height; out[q + 4] = S.wide * (0.85 + 0.35 * u2); out[q + 5] = u3 / Math.max(dens, 1e-3) * 6.2831853; out[q + 6] = sp; out[q + 7] = u4; out[q + 8] = rank; out[q + 9] = Math.min(1, dens);
     n++;
   }
   return { origin, count: n, trees: out.slice(0, n * TREE_FLOATS) };
