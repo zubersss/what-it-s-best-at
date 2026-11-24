@@ -39,7 +39,7 @@ import { SPECIES, bloomOf } from './cover.js';
 import { TREE_FLOATS } from './treeBlock.js';
 import { BASE_BLOCKS, BAND, LEVELS, band, levelReach, wantedTiles, GROW } from './farTiles.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
-import { PAINT_LEAF } from './trees.js';
+import { PAINT_LEAF, TREE_WOOD } from './trees.js';
 import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
 import { SHADOW0, FORM_GLSL, SHADOW_GLSL, FAR_GREEN_GLSL, DENS_STEPS, SHADOW_LONG, SHADOW_FAR0, SHADOW_FAR1, TOP0, TOP1, TOP_MAX, END_ABOVE } from './farTreeForm.js';
 
@@ -225,6 +225,7 @@ export class FarForest {
       in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in vec2 vUv; in vec2 vOwn; in float vShade; in float vShadowA;
       layout(location = 0) out vec4 fragColor;
       ${PAINT_LEAF}
+      ${TREE_WOOD}
       ${FAR_GREEN_GLSL}
       void main() {
         vec3 cut = texture(tTreeAtlas, vUv).rgb;
@@ -238,13 +239,13 @@ export class FarForest {
         // (a tree's shadow on the ground: it takes this share of what is drawn there; see the
         // material's blending)
         if (vShadowA > 0.0) { fragColor = vec4(0.0, 0.0, 0.0, vShadowA); return; }
-        // (by the near trees' rule, trees.js: in a tree that flowers, 0.5 is a petal in the
-        // picture, and it is its petals' colour all over from here (see inFlower); in any other
-        // tree the edges of trunks and limbs are wood from 0.5, and with 0.75 for every tree
-        // they went green at the line where the near trees end: review farforest-6)
+        // (what a texel is: the near trees' rule itself, TREE_WOOD from trees.js, so that the
+        // two cannot differ at the line where the near trees end (they crossed over twice:
+        // reviews farforest-6, farforest2-2); a tree that flowers is its petals' colour all
+        // over from here, see inFlower)
         bool flowers = vOwn.y > 3.5;
         float fall = vOwn.y - (flowers ? 4.0 : 0.0);
-        bool wood = cut.b > (flowers ? 0.75 : 0.5);
+        bool wood = treeWood(cut);          // (one rule with the near trees: TREE_WOOD, life/trees.js)
         vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel), N = normalize(vN);
         // leaves in their season: green, then this tree's own gold, orange or red
         float turn = fall > 0.5 ? clamp(uSeason.x * 1.6 - vOwn.x * 0.6, 0.0, 1.0) : 0.0;

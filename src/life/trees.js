@@ -37,6 +37,12 @@ export const ASK_ABOVE = 1.6;
 // The painted look's leaf: a cleaner green of the tree's own kind, warm for broad leaves, a
 // cold blue-green for firs and spruces, told by the colour the species has. (The far trees
 // of life/farForest.js take it from here: the two must be one green.)
+// What a texel of the trees' picture is (its blue: 0 a leaf, a half a petal, 1 wood): ONE
+// rule, used by the near trees' picture and shadow passes and by the far forest
+// (life/farForest.js imports it). Written in two places, the two crossed over twice.
+export const TREE_WOOD = /* glsl */`
+bool treeWood(vec3 cut) { return cut.b > 0.75; }`;
+
 export const PAINT_LEAF = /* glsl */`
 vec3 paintLeaf(vec3 c) {
   vec3 hue = mix(vec3(0.62, 1.0, 0.36), vec3(0.36, 1.0, 0.62), smoothstep(-0.2, 0.2, (c.b - c.r) / max(c.g, 1e-4)));
@@ -210,6 +216,7 @@ export class Trees {
                      mix(mix(leafHash(i + vec3(0, 0, 1)), leafHash(i + vec3(1, 0, 1)), f.x), mix(leafHash(i + vec3(0, 1, 1)), leafHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
         }
         ${PAINT_LEAF}
+        ${TREE_WOOD}
         ${BARK}
         void main() {
           // (a pixel's footprint in the trees' coordinates, here before anything is thrown away:
@@ -231,12 +238,12 @@ export class Trees {
           // into bloom; a flower not yet open, or a tree out of flower, is leaves there, as the
           // far forest draws it (thrown away, a cherry out of flower was a lace of twigs near by
           // and a full crown from 240 m on, ten months of the year).
-          bool flowers = vBloom.w >= 0.0, wood = card ? cut.b > 0.75 : vLeaf < 0.5;
+          bool flowers = vBloom.w >= 0.0, wood = card ? treeWood(cut) : vLeaf < 0.5;
           float petal = card && flowers && !wood ? clamp(cut.b * 2.0, 0.0, 1.0) : 0.0;
           if (card && !wood) {
             // (one number for each flower, each leaf: the texels of a spray in blocks of twelve)
             vec2 cell = floor(vUv * vec2(${ATLAS_W}.0, ${ATLAS_H}.0) / 12.0); float h = fract(sin(dot(cell, vec2(12.9898, 78.233)) + vOwn.x * 37.0) * 43758.5453);
-            if (petal > 0.5 && h >= vBloom.w) petal = 0.0;
+            if (h >= vBloom.w) petal = 0.0;          // (and a texel part leaf part petal: no petal's tint out of flower)
             // bare in winter: the leaves are gone from the spray, leaf by leaf; its twigs stay
             if (petal <= 0.5 && h < vTall.y * 1.05) discard;
           }
@@ -332,15 +339,16 @@ export class Trees {
           vBare = aLeaf > 3.5 ? min(iB.w, 1.0) * uSeason.y : 0.0;
         }`,
       // (a crown lets some of the Sun through: its shadow is flecked, not solid)
-      fragmentShader: /* glsl */`uniform sampler2D tTreeAtlas; in float vLeaf; in vec2 vUv; in float vBare; in vec2 vBloom; layout(location = 0) out vec4 fragColor;
+      fragmentShader: /* glsl */`${TREE_WOOD}
+        uniform sampler2D tTreeAtlas; in float vLeaf; in vec2 vUv; in float vBare; in vec2 vBloom; layout(location = 0) out vec4 fragColor;
         void main() {
           if (vUv.x >= 0.0) {
             vec3 cut = texture(tTreeAtlas, vUv).rgb;
             if (cut.r < 0.3) discard;
             // (leaves of a bare one, as the picture pass leaves them out; a tree's petals while it
             // is in flower are kept, and out of flower they are leaves, as in the picture pass)
-            bool open = cut.b > 0.25 && cut.b <= 0.75 && vBloom.x >= 0.5;
-            if (!open && cut.b <= 0.75 && vBloom.y > 0.5) discard;
+            bool wood = treeWood(cut), open = cut.b > 0.25 && !wood && vBloom.x >= 0.5;
+            if (!open && !wood && vBloom.y > 0.5) discard;
           } else if (vLeaf > 0.5 && vBloom.y > 0.5) discard;
           // (which pixels: scattered, not in rows; the shadow's soft edge blends them)
           uvec2 q = uvec2(gl_FragCoord.xy); uint h = q.x * 1597334677u ^ q.y * 3812015801u; h ^= h >> 15; h *= 2246822507u; h ^= h >> 13;
@@ -379,7 +387,7 @@ export class Trees {
     this.meshes = this.sets.flat(2).map((s) => s.mesh);
     this.blocks = new Map();                 // 'bi:bj' -> { state: 0 asked, 1 ready, origin, trees, count, used }
     this.asked = 0; this.frame = 0; this.serial = -1;
-    this.anchor = new THREE.Vector3(); this.builtAt = new THREE.Vector3(1e12, 0, 0); this.fineAt = new THREE.Vector3(1e12, 0, 0); this.dirty = false;
+    this.anchor = new THREE.Vector3(); this.builtAt = new THREE.Vector3(1e12, 0, 0); this.fineAt = new THREE.Vector3(1e12, 0, 0); this.nearest = 0; this.dirty = false;
     this.fraction = 1; this.shadowsFar = true; this.count = 0; this.triangles = 0; this.reach = 0;
     this.names = '';                          // the species standing nearest, for anyone who asks
     this._e = [0, 0, 0]; this._n = [0, 0, 0]; this._u = [0, 0, 0];
@@ -487,7 +495,7 @@ export class Trees {
     }
     if (this.frame % 600 === 0) for (const [key, b] of this.blocks) if (b.state === 1 && b.used < this.frame - 1200) this.blocks.delete(key);
     // the whole list when the eye has gone REBUILD_M, the close and near ones every few metres
-    const make = toMake(this.dirty, this.builtAt.distanceToSquared(p), this.fineAt.distanceToSquared(p), fineStep(this.fraction, this.closeOn !== false, rig.agl, rig.onFoot ? (rig.footVel?.length() || 0) : rig.velocity.length()));
+    const make = toMake(this.dirty, this.builtAt.distanceToSquared(p), this.fineAt.distanceToSquared(p), fineStep(this.fraction, this.closeOn !== false, this.nearest, rig.onFoot ? (rig.footVel?.length() || 0) : rig.velocity.length()));
     if (make === 2) this._build(rig, radius); else if (make === 1) this._fine(p);
     // per frame: where the anchor is from the camera, the season, the wind's clock
     const u = this.shared;
@@ -545,10 +553,11 @@ export class Trees {
     const A = this.anchor, ex = p.x - A.x, ey = p.y - A.y, ez = p.z - A.z, { close, near } = radii(this.fraction, this.closeOn !== false);
     for (const trio of this.sets.flat()) trio[0].count = trio[1].count = 0;
     const reach2 = nearCandidates(near) ** 2, list = this._list || [], pick = this._pick || (this._pick = []);
-    let n = 0, cut = 0, cutTris = 0;
+    let n = 0, cut = 0, cutTris = 0, nearest2 = reach2;
     for (const e of list) {
       if (e.d2 >= reach2) break;              // (the list is nearest first from the anchor)
       const dx = e.x - ex, dy = e.y - ey, dz = e.z - ez, d2 = dx * dx + dy * dy + dz * dz;
+      if (d2 < nearest2) nearest2 = d2;
       if (d2 >= near * near) continue;
       if (e.far) { cut++; cutTris += e.trio[2].tris; }          // (its far card is cut in the vertex shader)
       e.de2 = d2; pick[n++] = e;
@@ -561,6 +570,7 @@ export class Trees {
       if (lod < 2) this._put(e.trio[lod], e);
     }
     this.shared.uLodCut.value.set(ex, ey, ez, Math.max(0, near - CUT_IN));
+    this.nearest = Math.sqrt(nearest2);          // (the nearest tree's foot from the eye: how soon the makes are chosen again)
     let count = 0, tris = 0;
     for (const s of this.sets.flat(2)) {
       if (s.lod < 2) this._send(s);
