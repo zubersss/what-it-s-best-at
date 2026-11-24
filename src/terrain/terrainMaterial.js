@@ -301,23 +301,23 @@ float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 // middle of the nearest crown, along the tile's two axes); z: how high in the crown (0 in a
 // gap, 1 on its top); w: a number of the crown's own.
 // Not a net (the first thing one saw of a wood from 300 m at a phone's density was the
-// lattice: domes all of a size in straight rows): the rows are bent by two long waves (a
-// whole number of them across the tile, so patches agree), the crowns are from a quarter to
-// two thirds of a cell across, and one cell in five has none (a gap where the ground shows
-// dark). (The block searched is 2 x 2 cells: a crown's centre is at most 0.33 of a cell from
+// lattice: domes all of a size in straight rows): the rows are bent by a long wave (one
+// across the tile each way, so patches agree; never stretching a dome by more than a fifth:
+// at 0.4 of a cell, two to a tile, the domes were streaks), the crowns are from 0.3 to 0.66
+// of a cell in radius, and one cell in ten has none (a gap where the ground shows dark). (The block searched is 2 x 2 cells: a crown's centre is at most 0.33 of a cell from
 // its cell's middle and its radius at most 0.66, so no crown of a cell outside the block can
 // reach the point: 0.66 <= 1 - 0.33. Larger, and a crown would be cut along a lattice line.)
 vec4 crowns(vec2 uv, float cells) {
   vec2 p = uv * cells;
-  p += 0.42 * vec2(sin(6.2831853 * (uv.y * 2.0 + uv.x)), sin(6.2831853 * (uv.x * 2.0 - uv.y)));
+  p += min(0.3, 0.0225 * cells) * vec2(sin(6.2831853 * (uv.y + uv.x)), sin(6.2831853 * (uv.x - uv.y)));
   vec2 b = floor(p - 0.5);
   vec4 best = vec4(0.0, 0.0, 0.0, 0.5); float hb = -1e3;
   for (int j = 0; j < 2; j++) for (int i = 0; i < 2; i++) {
     vec2 c = b + vec2(float(i), float(j)), w = mod(c, cells * float(DETAIL_PERIOD));
     vec3 h = fract(sin(vec3(dot(w, vec2(127.1, 311.7)), dot(w, vec2(269.5, 183.3)), dot(w, vec2(419.2, 371.9)))) * 43758.5453);
-    if (fract(h.z * 17.31) < 0.2) continue;
+    if (fract(h.z * 17.31) < 0.1) continue;
     vec2 d = p - (c + 0.5 + (h.xy - 0.5) * 0.66);
-    float r = 0.24 + 0.42 * h.z, hgt = 1.0 - dot(d, d) / (r * r);
+    float r = 0.3 + 0.36 * h.z, hgt = 1.0 - dot(d, d) / (r * r);
     if (hgt > hb) { hb = hgt; best = vec4(d / (r * r), max(hgt, 0.0), fract(h.z * 7.31)); }
   }
   return best;
