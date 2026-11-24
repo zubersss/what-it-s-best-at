@@ -41,7 +41,7 @@ import { BASE_BLOCKS, BAND, LEVELS, band, levelReach, wantedTiles, GROW } from '
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
 import { PAINT_LEAF } from './trees.js';
 import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
-import { FORM_GLSL, SHADOW_GLSL, FAR_GREEN_GLSL, DENS_STEPS, SHADOW_LONG, SHADOW_FAR0, SHADOW_FAR1, TOP0, TOP1, END_ABOVE } from './farTreeForm.js';
+import { SHADOW0, FORM_GLSL, SHADOW_GLSL, FAR_GREEN_GLSL, DENS_STEPS, SHADOW_LONG, SHADOW_FAR0, SHADOW_FAR1, TOP0, TOP1, END_ABOVE } from './farTreeForm.js';
 
 // Trees one tile may hand the GPU (a fixed pool). A band of ranks of levels 0 to 2 has at
 // most 64 blocks x 256 sites x 3/4 = 12 288 sites, and a traveller in the thick of a wood
@@ -49,6 +49,10 @@ import { FORM_GLSL, SHADOW_GLSL, FAR_GREEN_GLSL, DENS_STEPS, SHADOW_LONG, SHADOW
 // tree in six that should have stood was left out there.
 const CAP = 12288;
 const POOL = 40;              // tiles drawn at once
+// A tree is looked down on at the angle its shadow begins at (farTreeForm.js, SHADOW0) when
+// it is no farther off along the ground than this many times the traveller's height; half
+// as much again, for ground that falls away.
+const SHADOW_REACH = 1.5 * Math.sqrt(1 / (SHADOW0 * SHADOW0) - 1);
 const MARGIN = 1.5;           // a tile is filled with rather more trees than are wanted now, so that coming nearer does not refill it at once
 
 // Three bytes of colour in one number a float can hold exactly (the shader takes it apart).
@@ -197,7 +201,7 @@ export class FarForest {
     this.fragmentShader = /* glsl */`${LIGHTING_PARS}
       uniform sampler2D tTreeAtlas;        // r cover, g tone, b wood (life/treeAtlasGen.js)
       uniform vec3 uSeason;                // x: how far the leaves have turned, y: how bare, z: time
-      uniform vec4 uShadow;
+      uniform vec4 uShadow, uFar;
       in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in vec2 vUv; in vec2 vOwn; in float vShade; in float vShadowA;
       layout(location = 0) out vec4 fragColor;
       ${PAINT_LEAF}
@@ -238,6 +242,11 @@ export class FarForest {
         float through = wood ? 0.0 : max(-nl, 0.0) * 0.28 + 0.4 * pow(max(dot(-V, uSunDir), 0.0), 4.0);
         float open = (wood ? 0.45 : mix(0.5, 1.0, smoothstep(-0.6, 0.8, dot(N, up)))) * (uPaint.x > 0.0 && !wood ? 0.8 : 1.0);
         vec3 sun = directSun(planetPos) * vShade;          // (the land's own shadow, from the worker)
+        // Looked down on, a trunk stands under its own crown, in its shade: on the upright
+        // pictures it is drawn right through the crown's top, and a pale trunk in the Sun was a
+        // bright line across every birch and aspen of a wood seen from above. (Not at the line
+        // where the trees one walks among take over: it comes in over the 200 m beyond.)
+        if (wood) { float under = smoothstep(0.25, 0.6, dot(V, up)) * smoothstep(uFar.z, uFar.z + 200.0, dFar); sun *= 1.0 - 0.92 * under; open *= 1.0 - 0.5 * under; }
         // (in the shade of the wood a crown is never black: light has come down through the
         // leaves above it, green from the passage)
         vec3 glow = wood ? vec3(0.0) : leafC * sun * (0.07 * smoothstep(0.0, 0.25, dot(up, uSunDir))) * vec3(0.9, 1.2, 0.5);
@@ -308,7 +317,7 @@ export class FarForest {
   // merely looks thinner.
   setFraction(f) { if (f !== this.fraction) { this.fraction = f; for (const b of this.tiles.values()) b.fillEye = null; } }
 
-  get triangles() { return this.count * (this.blend === THREE.CustomBlending ? 8 : 6); }
+  get triangles() { return this.count * 6; }
   // True while tiles that are wanted have not arrived (screenshots wait for them).
   get busy() { return !!this.def && this.shown && (this.asked > 0 || this.missing > 0 || this.unfilled > 0); }
 
@@ -342,7 +351,7 @@ export class FarForest {
     const air = this.shadows === false ? 0 : Math.min(1, Math.max(0, (rig.agl - 60) / 100)), shadows = air * air * (3 - 2 * air);
     this.shared.uShadow.value.x = shadows;
     const blend = shadows > 0 ? THREE.CustomBlending : THREE.NoBlending;
-    if (blend !== this.blend) { this.blend = blend; for (const q of this.pool) { q.material.blending = blend; q.geo.setDrawRange(0, shadows > 0 ? 24 : 18); } }
+    if (blend !== this.blend) { this.blend = blend; for (const q of this.pool) q.material.blending = blend; }
     const p = this._p.copy(rig.pos), R = this.world.radius, s0 = this._rel;
     const len = p.length(), lat = Math.asin(p.z / len) * 180 / Math.PI, lon = ((Math.atan2(p.y, p.x) * 180 / Math.PI) + 360) % 360;
     // new land cover or new elevation: every tile is worked out again (the ones that stand
@@ -412,6 +421,11 @@ export class FarForest {
       s.mesh.position.copy(s.material.uniforms.uTileRel.value);
       // (the tile is drawn when a tree of its band could be; the view culls it by its bounds)
       const vis = tile.count > 0 && tile.far3 <= levelReach(tile.level, full, radius);
+      // (the shadows' quad, two triangles a tree, only for the tiles that can show one: near
+      // enough for a shadow to be drawn at all, and near enough under the traveller to be
+      // looked down on at the angle shadows begin at, with room for ground lower than the
+      // ground underfoot)
+      s.geo.setDrawRange(0, shadows > 0 && tile.far3 < SHADOW_FAR1 && tile.near < Math.max(0, rig.agl) * SHADOW_REACH + 400 ? 24 : 18);
       s.mesh.visible = vis;
       if (vis) { drawn += tile.shown; given += tile.count; }
     }

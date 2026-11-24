@@ -210,6 +210,10 @@ node scripts/make-world-maps.mjs   # ... and from that its colour, slope, water 
 node scripts/find-haven-site.mjs [--open] [--lat 28,52]   # places on Haven to begin at: level ground over low ground and water, high ground near by
 node scripts/find-overlook.mjs --world haven --lat .. --lon .. --heading .. [--below 1500]   # the very spot: level underfoot, the ground falling away in front, mountains on the far skyline (then look with peek.mjs)
 node scripts/far-trees-test.mjs     # the far forest's trees are the near trees: a thinned tile is a subset of the full one, at the same places (no browser)
+node scripts/far-tree-above.mjs [--old] [--out file.png] [--dist 450,1200,3000] [--down 15,35,60,90] [--sun 25]   # the far trees seen from above, sketched without a browser in seconds: a closed wood and lone trees at three distances and four angles (the rule is life/farTreeForm.js)
+node scripts/far-tree-form-test.mjs  # that rule's promises (nothing changes from the ground, nothing switches, a wood's cover from above, a lone tree's size, shadows); node scripts/far-tree-shade-test.mjs [--was]   # the land's shadow on a far tile's trees against a ray from every tree (15 s)
+node scripts/far-forest-probe.mjs --distdir <build> --query "lat=..&lon=..&alt=..&pitch=.." [--out file.png] [--map file.png] [--eval ".."] [--print ".."]   # the far forest in the real game at a place: tiles, the land's shadow by tile, the clouds' shadow map the trees read, draw calls and triangles
+scripts/from-above-shots.sh <frozen build> <suffix> [view ...]   # Haven from above, the set of views (docs/shots/from-above; a view: <ledge|wood|steppe>_<metres over the ground>_p<degrees down>[_phone|_floor|_clear])
 npm run rocks                      # the rule that places boulders: steep against level, clusters, sizes, a walker's footing (no browser); node scripts/rig-over-rock.mjs   # flight over a boulder, without a browser in a second: the height over the ground stays the land's, the floor is the rock's
 node scripts/rock-field.mjs draws the field from above
 node scripts/cloud-field.mjs [--span 150] [--lat .. --lon ..] [--out file.png]   # the fair-weather cloud field from straight above, without a browser in seconds: rows, clusters, how much of the sky
@@ -264,6 +268,8 @@ body or `sun`, that many of its radii from its centre, looking at it; `round` de
 frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last footfalls), `debug=noair|airall` (haze shadows off / everywhere),
 `debug=contactx4` (the rocks' contact-darkening spheres four times larger, to see the effect),
 `debug=flash` (a stroke of lightning held at its brightest, on worlds with weather),
+`debug=noclouds` (a clear sky: no cloud layer, no cloud volume and none of their shadows; from 1.2 km over Haven's opening place one is in cloud),
+`debug=treeshade` (the far trees painted by how much of the Sun the land and the clouds leave them: red all, blue none),
 `debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
 `nofarrough`, `noboost`) for before/after pictures, `debug=farrocksoff` (none of the far rocks, for before/after pictures), `debug=floor` (every saving of the
 governor on and Smooth's share of the patches: what a phone that has given everything up
@@ -680,5 +686,15 @@ finished benchmark leaves its text in `window.__benchResult`.
   scratchpad, the frozen build and the pictures survived, the processes did not. Start
   long runs detached (`nohup setsid script &`), as steps that each write a line to a log
   when done, and wait on the log: then a run is picked up from its last line.
+- A debug switch that hides a thing must take away what the thing does to everything else:
+  `debug=noclouds` first hid the cloud layer and left its shadow on, with a white map for a
+  cloud, and every "clear" picture was taken under an even overcast. And a render target
+  of one byte a pixel read back into a buffer of four fills a quarter of it: "three
+  quarters in shade" was the part never written.
+- A card on edge is nothing: the far trees (upright cards) were specks and crosses from
+  above, a fir's rosette lay under the middle of its crown and was lit as its underside,
+  and a trunk drawn on an upright card shows through the crown. What is seen from above
+  needs a form, a light and a rule of its own, blended in by the angle it is looked down at
+  (`life/farTreeForm.js`), and a sketch of it alone from several angles before any picture.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

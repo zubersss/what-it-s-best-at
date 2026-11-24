@@ -178,5 +178,53 @@
     "changed": 0.47,
     "flicker": 0.005,
     "worst": 135
+  },
+  {
+    "move": "haven_above_flight",
+    "pass": "settled",
+    "station": 0,
+    "changed": 21.44,
+    "flicker": 3.823,
+    "worst": 103
+  },
+  {
+    "move": "haven_above_flight",
+    "pass": "settled",
+    "station": 1,
+    "changed": 15.13,
+    "flicker": 1.794,
+    "worst": 129
+  },
+  {
+    "move": "haven_above_flight",
+    "pass": "settled",
+    "station": 2,
+    "changed": 28.96,
+    "flicker": 3.896,
+    "worst": 113
+  },
+  {
+    "move": "haven_climb",
+    "pass": "settled",
+    "station": 0,
+    "changed": 24.64,
+    "flicker": 2.691,
+    "worst": 131
+  },
+  {
+    "move": "haven_climb",
+    "pass": "settled",
+    "station": 1,
+    "changed": 19.16,
+    "flicker": 1.658,
+    "worst": 164
+  },
+  {
+    "move": "haven_climb",
+    "pass": "settled",
+    "station": 2,
+    "changed": 0,
+    "flicker": 0,
+    "worst": 2
   }
 ]
