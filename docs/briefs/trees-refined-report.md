@@ -53,12 +53,47 @@ six tenths of that).
 
 - **A dark lump of plain faces as a bunch's heart** (24 triangles, nothing cut out, drawn
   first so that the cards behind it are never shaded). Cheaper in layers and it does stop
-  the eye going through a crown, but it showed as a dark hexagon from below and from the
-  side at every size tried (62 %, 40 % and 27 % of the bunch's radius), worst on the tree
-  in flower. Back to crossed rosette cards (a cut edge), fewer of them. The firs' skirts
-  (plain cones under each tier) stay, smaller on the close mesh.
-- Sprays at 1 m and smaller on the oak (leaves 10 cm): a lace with no mass. 1.3 to
-  1.6 m with a dark inside holds together.
+  the eye going through a crown, but it showed as a dark hexagon hung in the tree from
+  every side at every size tried (62 %, 40 % and 27 % of the bunch's radius), worst on the
+  tree in flower. A crown's dark inside is now foliage: crossed rosette cut-outs and the
+  bunch's inner sprays drawn dark.
+- **A fir's dark inside as a cone**, then **as one rosette lying flat under each tier**:
+  the cone was a black pyramid on the nearest trees; the flat rosette, seen from under
+  it, was a shelf that cut the trunk off (the first game picture, `game_first_fir_4m.png`).
+  Now three or four short dark fronds hanging outward by the trunk under each tier (the
+  middle-distance mesh keeps a small cone inside them).
+- **A fir's hanging twigs as a long curtain** under every bough: "wet hair". Cut to short
+  swept twiglets; the bough is a fan of fronds, each hanging at its tip.
+- **A pine's head as long plumes**: now round tufts at the twigs' ends with last year's
+  smaller tufts behind them, bare twig and sky between; the middle distance shows the
+  same tufts.
+- Sprays of 1 m and smaller on the oak (leaves 10 cm): a lace with no mass. 1.3 to 1.6 m
+  with a dark inside holds together.
+- **Pale bark** (the trunk colour at 0.6): a peeled pole in the Sun. Now 0.28 of it on
+  every trunk that is not pale, furrows near black, darker toward the trunk's two edges.
+- **Petals at life size** (4 to 7 cm): under two pixels from twelve metres. Now 9 to 14 cm.
+- The close views at 1540 x 721: on this machine the forest never settled in 25 minutes
+  at that size; the pairs are at 660 x 309 through a 21.4 degree lens (the same density).
+
+## Pictures (`docs/shots/trees-refined/`)
+
+- `early_old_new_close.png`, `sheet2_old_new_close.png`: fir, pine, broadleaf, old left
+  and new right, the close mesh from 4 m at the phone's density (tree-preview; the second
+  after the owning session's first review).
+- `fir_4m_before.png`, `fir_4m_after.png`: a Douglas fir's boughs and trunk in the forest
+  cost place, about 4 m from its foliage (660 x 309, 21.4 degrees). `game_first_*`: the
+  first two game pictures, kept for what they showed (the shelves; the pale trunk).
+- `wood_before.png`, `wood_after.png`: the wood from inside (the cost view);
+  `wood_deeper_after.png`: the same wood a little on (asked for as a view from 45 m up;
+  `alt` is from the datum, so it came out on the ground).
+- `overdraw_trees_before.png`, `_after.png`: where the near trees' layers are.
+- `opening_after.png`, `opening_before.png`: the opening view (on the joined build with
+  the new grass). The wooded slope left of the middle runs from some 150 m to past
+  600 m: the 240 m line between the near trees and the far forest crosses it and does not show.
+- `blossom_after.png`: a wild cherry 44 m from the opening place from 12 m, petals in
+  the air; `blossom_5m_after.png`: from 5 m.
+- `above_before.png`, `above_after.png`: the opening place from 100 m up, looking down
+  60 degrees (the from-above helper's item 10).
 
 ## Numbers
 
@@ -80,14 +115,24 @@ far), which the old build did not do and these numbers do not show. The grey pic
 `overdraw_trees_before.png` and `_after.png` show where the layers are (white: 16 and
 more). Not measured on the phone.
 
-## The governor's steps
+## The governor's steps (the three tree steps, on the new trees)
 
-- `tree-leaves` (was: every leaf on the nearest trees): off, no tree gets the close mesh;
-  the nearest are drawn as the near mesh (same skeleton, a few large sprays). Thins.
-- `trees-far`: off, the close mesh reaches 13 m and the near mesh 40 m (two thirds).
-- `tree-shadows`: off, trees drawn as cards (now beyond 60 m, was beyond 115 m) cast no
-  shadow. It takes more shadow away than it did, all of it far from the eye.
-- `leaves`: the falling leaves off as before; the petals thinned to a third, never off.
+- `tree-leaves` ("every leaf on the nearest trees"): off, no tree gets the close mesh; the
+  trees within 20 m are drawn as the near mesh: the same skeleton in fewer, plainer tubes
+  (no flare, no twigs), a few large sprays to a bunch, one card to a fir's bough. In the
+  forest view that takes 25 or so trees from 2 000 to 4 000 triangles each to 200 to
+  600. It thins; no tree goes.
+- `trees-far` ("the trees' full shapes to two thirds of their distance"): off, the close
+  mesh reaches 13 m and the near mesh 40 m; beyond, a tree is its picture on two crossed
+  cards and a rosette. (From above the near mesh still reaches up to four times farther.)
+- `tree-shadows` ("shadows of the farther trees"): off, the trees drawn as cards cast no
+  shadow: now those beyond 60 m (40 m with `trees-far` off), where it was those beyond
+  115 m. It takes more shadow away than it did, all of it far from the eye; a close tree
+  casts as its near mesh and a near tree as its cards, as before.
+- `leaves` (in the new ladder, `buys: 0.3`): the falling leaves off as before; the petals
+  thinned to a third (falling and lying), never off.
+
+What each buys on the phone is not known: the cost test of the next benchmark will say.
 
 ## Behaviour changes (for the checkpoint message)
 
@@ -105,8 +150,17 @@ more). Not measured on the phone.
   (thorn) of the northern year, half a year later in the south: the opening date (22
   September, 48 degrees south) is three weeks into it. Out of flower they are small
   round-leaved trees.
-- Petals: up to eight flowering trees within 90 m let petals go (640 falling, 320 lying
-  on the drawn ground under and down the wind of each tree).
+- Petals: the flowering trees within 90 m (up to eight) let petals go: a pool of 640
+  falling (a steady light fall, a flurry in a gust, carried by the wind's velocity eased
+  over three seconds) and 480 lying, shared among the trees there are. They are drawn
+  larger than life (9 to 14 cm). The lying ones are put on the drawn ground, six a frame,
+  lifted to the turf's top where the land's class grows grass (the grass's own `AMOUNT`),
+  two in three in a ring at the crown's edge, shifted down the wind.
+- A tree looked down on keeps its near mesh up to four times farther (240 m from
+  straight overhead), and a full instance list hands a tree to the simpler mesh (it was
+  left out altogether).
+- Twigs are grey-brown and darker than their limb whatever the trunk's colour; bark is
+  dark on every trunk that is not pale.
 - The trees' picture is 2.7 MB (was 0.76) and 44 MB on the GPU with its mip maps (was 11).
 
 ## For the owning session
@@ -124,4 +178,28 @@ more). Not measured on the phone.
 
 ## Known problems, most visible first
 
-(filled in at the end)
+1. **Nothing here is measured on a phone.** The layers are fewer than before, but the
+   close trees' triangles are five to eight times what they were (2 000 to 4 000 each,
+   some 25 of them in a wood), the atlas is 44 MB on the GPU, and its mip maps are made on
+   the main thread when it arrives (8 million texels: a hitch of a tenth of a second or
+   two, once, before the first tree is drawn). Ask for the forest view's cost table.
+2. **The step from the close mesh to the near mesh at 20 m** is a change of make (sprays
+   of 1.3 m to sprays of 2.5 to 4 m, twigs gone): standing still it does not show, walking
+   through a wood a tree some 20 m off changes as it is passed. Not judged in motion (no
+   stability run was made on these trees: two hours on this machine).
+3. **Petals** are a scatter in a still; the lying ones sit on the grass's tips by the
+   land class's rule, not by the blade's height at the very spot, so on thin grass some
+   float a hand's width and in the tallest some are under it. The ground shader drawing a
+   speckle under a flowering tree would be the better carpet (see above).
+4. **From above** the near trees are better than rosettes but not yet round crowns with a
+   shadow beside each: see the pair. The far forest's own trees (beyond 240 m) are the
+   from-above helper's.
+5. **Winter**: a line at 60 m between bare near trees and the far cards that keep their
+   leaves (it was at 115 m). The opening date is spring, and Haven's woods are conifers.
+6. **The far forest's blossom** is a leaf colour blended to the petals' (`inFlower`), and
+   `paintLeaf` pulls it toward green: beyond 240 m a flowering tree is a pale dusty pink,
+   not the white-to-pink of the near ones. Its tiles are not made again when the day changes.
+7. The palm is as it was (plain faces); the tropical tree, the acacia, the bush and the
+   aspen have the new make but were seen only in the preview, not in the game (none on
+   Haven's opening views but juniper and aspen).
+8. `tree-preview.mjs` does not show the game's blossom shading (white tips), only its cut.
