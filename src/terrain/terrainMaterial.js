@@ -699,8 +699,8 @@ void main() {
     // (the clumps: their light and shade on whatever colour the wood has there, its own or,
     // beyond 19 km, the map's; tilted a little toward their own light)
     if (kz > 0.0) {
-      N = normalize(N + (uTanU * cz.x + uTanV * cz.y) * (0.12 * kz * shellW));
-      albedo *= mix(1.0, (0.62 + 0.55 * smoothstep(0.0, 0.55, cz.z)) * (0.85 + 0.3 * cz.w), kz * shellW);
+      N = normalize(N + (uTanU * cz.x + uTanV * cz.y) * (0.25 * kz * shellW));
+      albedo *= mix(1.0, (0.48 + 0.8 * smoothstep(0.0, 0.55, cz.z)) * (0.8 + 0.4 * cz.w), kz * shellW);
     }
   }
   // ===================================== end of THE GROUND FROM AFAR, 1 ================
