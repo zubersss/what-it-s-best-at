@@ -9,6 +9,8 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { FACES } from './cubeSphere.js';
 import { HEAP_GLSL } from '../sky/clouds.js';
 import { GRASS_GLSL, FLOWERS_GLSL, GRASS_GROUND } from '../life/grassRules.js';
+import { PAINT_LEAF } from '../life/trees.js';
+import { FAR_GREEN_GLSL } from '../life/farTreeForm.js';
 
 // Holds an albedo map's brightness (relative to its mean) inside the range the real ground
 // spans, with soft knees: a mosaic also records the shading of steep slopes, haze and
@@ -324,21 +326,42 @@ ${ALBEDO_RANGE_GLSL}
 // ---- branches that decide where each runs are in main and need not be touched.
 // The far canopy's own colour (the forest raised as a whole), before its crowns' light and
 // shade. tint: the land's colour map there over its mean; c1, c2: two reads of the detail
-// tile, about zero (five repeats a tile, and one); turn: the season's turning, 0..1.
-vec3 farCanopyColour(vec3 tint, vec3 c1, vec3 c2, float turn) {
-  vec3 leaves = vec3(0.040, 0.078, 0.028) * mix(vec3(1.0), tint, 0.6) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
-  // (in their season, in patches: the trees that turn among those that do not)
-  return mix(leaves, mix(vec3(0.17, 0.10, 0.02), vec3(0.13, 0.035, 0.015), smoothstep(-0.1, 0.25, c1.r)) * (0.8 + 0.6 * (c2.b + 0.5)), turn * 0.85 * smoothstep(-0.12, 0.1, c2.r + 0.5 * c1.g));
+// tile, about zero (five repeats a tile, and one); turn: the season's turning, 0..1; dist:
+// metres from the eye.
+// ONE FOREST IN ONE GREEN: the canopy is the crowns of the trees that stand out of it (the
+// far forest, life/farForest.js), so it is their green by their rule, at every distance: a
+// leaf as the trees have it (a species' leaf albedo x 0.61, through paintLeaf in the painted
+// look, x 1.12 for a crown's top, x 0.76 for the tone of the trees' cut-out), then the far
+// olive (farGreen, life/farTreeForm.js). The land's colour map is not in it: with 60 % of
+// the map's tint the canopy was gold at the opening place and blue green in the north wood,
+// and the trees on it specks of another colour in both.
+${PAINT_LEAF}
+${FAR_GREEN_GLSL}
+vec3 farCanopyColour(vec3 tint, vec3 c1, vec3 c2, float turn, float dist) {
+  vec3 leaf = vec3(0.045, 0.085, 0.03) * 0.61;
+  if (uPaint.x > 0.0) leaf = paintLeaf(leaf);
+  vec3 leaves = farGreen(leaf * (1.12 * 0.76), dist) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
+  // (in their season, in patches: the trees that turn among those that do not. Few patches:
+  // turn is 1 from autumn to the end of winter, and with two thirds of the canopy turned a
+  // wood of firs and pines, which keep their needles, was gold and rust all winter under
+  // green trees: the gold scales of the opening place in its first morning, which is the
+  // last day of its winter. The canopy does not know what grows in it; one patch in six
+  // turns, as the aspens and cottonwoods among Haven's conifers do.)
+  return mix(leaves, mix(vec3(0.17, 0.10, 0.02), vec3(0.13, 0.035, 0.015), smoothstep(-0.1, 0.25, c1.r)) * (0.8 + 0.6 * (c2.b + 0.5)), turn * 0.85 * smoothstep(0.2, 0.34, c2.r + 0.5 * c1.g));
 }
 // The far canopy's grain: how it tilts the surface, along the tile's two axes, where a
 // pixel is narrower than the canopy's unevenness (nearC 1: all of it; 0: none).
-vec2 farCanopyGrain(vec3 c1, vec3 c2, float nearC) { return (c1.rg + 0.7 * c2.rg) * (1.6 * nearC); }
+// (Half of what it was, and the crowns' tilt under half: tilted hard, every dome had a side
+// full in a low Sun's orange and a side with none of it, gold scales with violet gaps. A
+// crown's light and dark is in its colour now, farCrownShade: the same green, lighter and
+// darker, as the far trees' tops are.)
+vec2 farCanopyGrain(vec3 c1, vec3 c2, float nearC) { return (c1.rg + 0.7 * c2.rg) * (0.8 * nearC); }
 // A crown's or a stand's share of the canopy's colour: cr from crowns(); stand: true for the
 // stands (21 m), false for single crowns (8 m). Its tilt is cr.xy times farCrownTilt.
 float farCrownShade(vec4 cr, bool stand) {
   return stand ? (0.7 + 0.42 * smoothstep(0.0, 0.6, cr.z)) * (0.84 + 0.32 * cr.w) : (0.4 + 0.78 * smoothstep(0.0, 0.5, cr.z)) * (0.76 + 0.48 * cr.w);
 }
-float farCrownTilt(bool stand) { return stand ? 0.4 : 0.8; }
+float farCrownTilt(bool stand) { return stand ? 0.2 : 0.3; }
 // The grass the ground wears beyond its blades, and under them: dry 0..1, grain: a read of
 // the detail tile (0..1).
 vec3 farGrassColour(float dry, float grain) { return grassColour(dry, 0.62) * (0.82 + 0.36 * grain); }
@@ -594,7 +617,7 @@ void main() {
     // (a canopy seen from the side shows the sides of its crowns: lit with the Sun behind
     // the eye, dark against it, as the trees drawn one by one are; from straight above, its top)
     N = normalize(N + (V - up * dot(V, up)) * (1.1 * vShell));
-    vec3 leaves = farCanopyColour(mapTint, c1, c2, uLitter);
+    vec3 leaves = farCanopyColour(mapTint, c1, c2, uLitter, dist);
     // (not from far off: there the forest is what the picture from space shows, not one
     // flat green laid over it in blocks: the canopy's map has pixels a kilometre wide)
     // (by distance, not by the patch's texel: a patch a step finer than its neighbours was

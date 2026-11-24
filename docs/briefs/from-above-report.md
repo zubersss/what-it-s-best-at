@@ -16,6 +16,35 @@ draw out of sight from above, and the forest's end has no edge. Nothing changes 
 traveller on the ground. **What is left is the ground's**: the canopy it raises under and
 beyond the trees is another forest in another colour, and from 3 km up it is all there is.
 
+## After the trees: the ground's far canopy (2026-11-24, later)
+
+The owning session handed over the far look of the ground (`terrainMaterial.js`, the pieces
+above `main` and the block "THE GROUND FROM AFAR, 1"). First of its four items, **one
+forest in one green**, done:
+
+- **The cause of the gold scales was not the land's colour map and not the light: it was
+  the season.** The canopy turned to autumn's and winter's colours over two thirds of its
+  patches whenever `uLitter` was up, whatever grows there, and the opening place in its
+  first morning is at the last day of its winter (`uLitter` 1): a wood of pines and firs,
+  which keep their needles, was gold and rust under green trees. One patch in six turns
+  now. (The canopy does not know its trees' kinds; a share of leaf-dropping trees by land
+  cover class would be the right number, for Earth's hardwood forests above all, which
+  now turn in too few patches.)
+- **The canopy's colour is the far trees' own**: a leaf by their rule (`paintLeaf`,
+  imported from life/trees.js; `farGreen`, from life/farTreeForm.js), none of the map's
+  tint. The north wood's canopy was blue green under olive trees; it is their olive.
+- **Softer domes**: the crowns' tilt under half and the canopy's grain half of what they
+  were; a crown's light and dark is in its colour (the same green, lighter and darker).
+- Cost in the ground's shader: nothing added (no read, no noise call; a few multiplications
+  in place of a mix with the map's tint).
+- Pairs: `haven_ledge_<view>_canopy_before.png` / `_canopy_after.png` for
+  `ledge_300_p20_phone`, `ledge_1000_p60`, `wood_1000_p60` (before: this branch with the
+  owning branch merged, the trees' side already in).
+- Tried and taken out again: a greener share of a low Sun's light for far foliage (I took
+  the rust for olive leaves under orange light before finding the season).
+- Still to do, in the owning session's order: the domes varied in size and place (not a
+  net), grain and a broken edge from 3 to 30 km, the steppe from above.
+
 ## The ranked list, and what was done
 
 Numbers refer to `from-above-look.md`.
