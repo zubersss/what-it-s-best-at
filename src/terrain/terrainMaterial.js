@@ -77,8 +77,10 @@ out vec3 vSun;               // the Sun's light reaching the place (directSun)
 out vec3 vHazeT;             // the air between the eye and the place: colour * T + L + G * (rho - 1), see hazeAffine (lightingGlsl.js)
 out vec3 vHazeL;
 out vec3 vHazeG;
-out vec3 vCloud;             // the cloud between the place and the Sun (cloudOver), on the near ground (CLOUD_VERT_TILES)
+out vec4 vCloud;             // xyz: the cloud between the place and the Sun (cloudOver), on the near ground (CLOUD_VERT_TILES); w: the wind's gusts over the grass (a noise 240 m wide)
 ${CLOUD_OVER_GLSL}
+uniform vec4 uGrassTone;     // (w: how strongly the ground wears the grass; 0: none drawn)
+${FLOWERS_GLSL}
 uniform vec4 uWind;          // xyz: where the wind blows to (unit, planet axes), w: its speed (m/s)
 uniform vec3 uWave;          // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
 uniform vec2 uTide;          // x: the sea's level against the level its shore is mapped at (m, 0 or below: the map is the highest tide)
@@ -175,8 +177,11 @@ void main() {
   vSun = directSun(uCamPlanetPos + rel);
   vHazeT = vec3(1.0); vHazeL = vec3(0.0); vHazeG = vec3(0.0);
   // (a vertex behind the eye has no place in the view: the edge of the view on its side)
-  vCloud = vec3(0.0);
-  if (uCloud.x > 0.0 && aI2.z <= float(CLOUD_VERT_TILES)) { vec3 P = uCamPlanetPos + rel; float rP = length(P); if (rP < uCloud.y) vCloud = cloudOver(P, rP); }
+  vCloud = vec4(0.0, 0.0, 0.0, 0.5);
+  if (uCloud.x > 0.0 && aI2.z <= float(CLOUD_VERT_TILES)) { vec3 P = uCamPlanetPos + rel; float rP = length(P); if (rP < uCloud.y) vCloud.xyz = cloudOver(P, rP); }
+  // (the gusts that send waves over the grass: broad, 240 m to a cell of their noise, and
+  // seen to 900 m: the patches that near have vertices a few tens of metres apart at most)
+  if (uGrassTone.a > 0.0 && far < 1100.0) vCloud.w = flNoise((uCamPlanetPos + rel) / 240.0 + vec3(3.0, 11.0, 5.0));
   if (length(uCamPlanetPos) * 0.001 <= uRTop) hazeAffine(rel, gl_Position.xy / max(abs(gl_Position.w), 1e-6) * 0.5 + 0.5, vHazeT, vHazeL, vHazeG);
 }`;
 
@@ -269,7 +274,7 @@ in vec3 vSun;                  // the Sun's light reaching the place, and the ai
 in vec3 vHazeT;
 in vec3 vHazeL;
 in vec3 vHazeG;
-in vec3 vCloud;                // the cloud between the place and the Sun (cloudOver), on the near ground
+in vec4 vCloud;                // xyz: the cloud between the place and the Sun (cloudOver), on the near ground; w: the wind's gusts over the grass
 flat in vec3 vTanU;
 flat in vec3 vTanV;
 flat in vec4 vChunk;           // x = layer, y = parent's layer (-1: none), z = extent in tiles of DETAIL_TILE metres
@@ -512,69 +517,84 @@ void main() {
     }
   }
 
-  // --- forest: under the trees the ground is litter and shade; where the forest is raised
-  // as a whole (far off) the surface is its canopy: leaves, uneven, darker between crowns
+  // --- forest: under the trees the ground is litter and shade
   if (canopyTall > 0.3) {
     float wooded = smoothstep(0.5, 5.0, canopyTall) * flatW;
     woodAir = max(vShell, smoothstep(5.0, 14.0, canopyTall) * flatW);
-    {
-      // open country is grass in patches; under a closed canopy it is litter and shade
-      vec3 g1 = texture(tDetail, vDetailUv * 0.5).rgb, g2 = texture(tDetail, vDetailUv * 4.0).rgb;
-      float veg = smoothstep(0.3, 3.0, canopyTall) * flatW * (1.0 - vShell), tuft = smoothstep(0.35, 0.65, 0.6 * g1.r + 0.4 * g2.g);
-      vec3 grass = vec3(0.070, 0.095, 0.030) * mix(vec3(1.0), mapTint, 0.5) * (0.8 + 0.5 * g2.b);
-      vec3 litter = vec3(0.085, 0.070, 0.042) * mix(vec3(1.0), mapTint, 0.4);
-      albedo = mix(albedo, mix(grass, litter, smoothstep(4.0, 14.0, canopyTall) * (0.5 + 0.5 * tuft)), veg * (0.45 + 0.35 * tuft));
-    }
-    // (under a closed canopy little of the sky is seen, and what light comes down has
-    // come through leaves)
-    canopyShade = smoothstep(6.0, 16.0, canopyTall) * flatW * (1.0 - vShell);
-    ao *= mix(1.0, 0.55, canopyShade);
-    if (uLitter > 0.0) {
-      // fallen leaves: a scatter of them, thicker as the season goes on
-      vec3 f1 = texture(tDetail, vDetailUv * 23.0).rgb, f2 = texture(tDetail, vDetailUv * 61.0).rgb;
-      float lie = smoothstep(0.70 - 0.22 * uLitter, 0.80 - 0.22 * uLitter, 0.6 * f1.r + 0.4 * f2.g) * wooded * (1.0 - vShell) * (1.0 - smoothstep(0.004, 0.03, fwidth(vDetailUv.x) + fwidth(vDetailUv.y)));
-      albedo = mix(albedo, mix(vec3(0.17, 0.11, 0.035), vec3(0.13, 0.05, 0.03), smoothstep(0.35, 0.7, f1.b)), lie * 0.6);
-    }
-    if (vShell > 0.0) {
-      vec3 c1 = texture(tDetail, vDetailUv * 5.0).rgb - 0.5, c2 = texture(tDetail, vDetailUv * 1.0).rgb - 0.5;
-      float nearC = 1.0 - smoothstep(0.03, 0.5, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
-      N = normalize(N + (uTanU * (c1.r + 0.7 * c2.r) + uTanV * (c1.g + 0.7 * c2.g)) * (1.6 * vShell * nearC));
-      // (a canopy seen from the side shows the sides of its crowns: lit with the Sun behind
-      // the eye, dark against it, as the trees drawn one by one are; from straight above, its top)
-      N = normalize(N + (V - up * dot(V, up)) * (1.1 * vShell));
-      vec3 leaves = vec3(0.040, 0.078, 0.028) * mix(vec3(1.0), mapTint, 0.6) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
-      // (in their season, in patches: the trees that turn among those that do not)
-      leaves = mix(leaves, mix(vec3(0.17, 0.10, 0.02), vec3(0.13, 0.035, 0.015), smoothstep(-0.1, 0.25, c1.r)) * (0.8 + 0.6 * (c2.b + 0.5)), uLitter * 0.85 * smoothstep(-0.12, 0.1, c2.r + 0.5 * c1.g));
-      // (not from far off: there the forest is what the picture from space shows, not one
-      // flat green laid over it in blocks: the canopy's map has pixels a kilometre wide)
-      // (by distance, not by the patch's texel: a patch a step finer than its neighbours was
-      // a square of darker green in the land, seen from 30 km)
-      float ownC = 1.0 - smoothstep(3000.0, 19000.0, dist);
-      // Crowns, 8 m apart, and the stands they grow in, 21 m: where one is larger than a
-      // pixel or so it is a dome with its own light and shade and its own green, and the
-      // gaps between are dark. (Without them the far forest was one even green from the
-      // air: "a green plot of land", the owner said, and no trees.)
+    // (where the canopy raised as a whole is all of the surface, nothing of the floor shows)
+    if (vShell < 1.0) {
       {
-        float fwC = fwidth(vDetailUv.x) + fwidth(vDetailUv.y);
-        // (a crown fades out between five pixels and one and a half: 0.25 / fwC pixels across)
-        float kc = (1.0 - smoothstep(0.05, 0.16, fwC)) * vShell * ownC, kg = (1.0 - smoothstep(0.14, 0.42, fwC)) * vShell * ownC;
-        if (kg > 0.0) {
-          vec4 cg = crowns(vDetailUv + 0.37, 3.0);
-          N = normalize(N + (uTanU * cg.x + uTanV * cg.y) * (0.4 * kg));
-          leaves *= mix(1.0, (0.7 + 0.42 * smoothstep(0.0, 0.6, cg.z)) * (0.84 + 0.32 * cg.w), kg);
-        }
-        if (kc > 0.0) {
-          vec4 cr = crowns(vDetailUv, 8.0);
-          // (strongly: at a phone's pixel a crown is a few pixels, and a faint one was a net
-          // laid over the forest, not trees)
-          N = normalize(N + (uTanU * cr.x + uTanV * cr.y) * (0.8 * kc));
-          leaves *= mix(1.0, (0.4 + 0.78 * smoothstep(0.0, 0.5, cr.z)) * (0.76 + 0.48 * cr.w), kc);
-        }
+        // open country is grass in patches; under a closed canopy it is litter and shade
+        vec3 g1 = texture(tDetail, vDetailUv * 0.5).rgb, g2 = texture(tDetail, vDetailUv * 4.0).rgb;
+        float veg = smoothstep(0.3, 3.0, canopyTall) * flatW * (1.0 - vShell), tuft = smoothstep(0.35, 0.65, 0.6 * g1.r + 0.4 * g2.g);
+        vec3 grass = vec3(0.070, 0.095, 0.030) * mix(vec3(1.0), mapTint, 0.5) * (0.8 + 0.5 * g2.b);
+        vec3 litter = vec3(0.085, 0.070, 0.042) * mix(vec3(1.0), mapTint, 0.4);
+        albedo = mix(albedo, mix(grass, litter, smoothstep(4.0, 14.0, canopyTall) * (0.5 + 0.5 * tuft)), veg * (0.45 + 0.35 * tuft));
       }
-      albedo = mix(albedo, leaves, vShell * ownC);
-      ao *= mix(1.0, 0.72 + 0.5 * clamp(c1.b + c2.b, -0.4, 0.5), vShell * ownC);
+      // (under a closed canopy little of the sky is seen, and what light comes down has
+      // come through leaves)
+      canopyShade = smoothstep(6.0, 16.0, canopyTall) * flatW * (1.0 - vShell);
+      ao *= mix(1.0, 0.55, canopyShade);
+      if (uLitter > 0.0) {
+        // fallen leaves: a scatter of them, thicker as the season goes on
+        vec3 f1 = texture(tDetail, vDetailUv * 23.0).rgb, f2 = texture(tDetail, vDetailUv * 61.0).rgb;
+        float lie = smoothstep(0.70 - 0.22 * uLitter, 0.80 - 0.22 * uLitter, 0.6 * f1.r + 0.4 * f2.g) * wooded * (1.0 - vShell) * (1.0 - smoothstep(0.004, 0.03, fwidth(vDetailUv.x) + fwidth(vDetailUv.y)));
+        albedo = mix(albedo, mix(vec3(0.17, 0.11, 0.035), vec3(0.13, 0.05, 0.03), smoothstep(0.35, 0.7, f1.b)), lie * 0.6);
+      }
     }
   }
+
+  // =====================================================================================
+  // THE GROUND FROM AFAR, 1: the forest raised as a whole. Where the forest is too far off
+  // to be drawn tree by tree the ground itself stands at the canopy's height (vertex
+  // shader, uShell) and is shaded here as that canopy: leaves, uneven, darker between
+  // crowns. vShell: how much of the surface is canopy (0: none; the block is skipped).
+  // It reads: N, V, up, dist, mapTint, vDetailUv, uLitter, uTanU / uTanV; it writes: N
+  // (the crowns' shapes), albedo (the leaves' colour, by vShell * ownC) and ao.
+  // What a far wood looks like is decided in this block and nowhere else in this shader.
+  // (THE GROUND FROM AFAR, 2 is the land's painted patches, further down; 3 the relief
+  // light, in the lighting.)
+  // =====================================================================================
+  if (canopyTall > 0.3 && vShell > 0.0) {
+    vec3 c1 = texture(tDetail, vDetailUv * 5.0).rgb - 0.5, c2 = texture(tDetail, vDetailUv * 1.0).rgb - 0.5;
+    float nearC = 1.0 - smoothstep(0.03, 0.5, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
+    N = normalize(N + (uTanU * (c1.r + 0.7 * c2.r) + uTanV * (c1.g + 0.7 * c2.g)) * (1.6 * vShell * nearC));
+    // (a canopy seen from the side shows the sides of its crowns: lit with the Sun behind
+    // the eye, dark against it, as the trees drawn one by one are; from straight above, its top)
+    N = normalize(N + (V - up * dot(V, up)) * (1.1 * vShell));
+    vec3 leaves = vec3(0.040, 0.078, 0.028) * mix(vec3(1.0), mapTint, 0.6) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
+    // (in their season, in patches: the trees that turn among those that do not)
+    leaves = mix(leaves, mix(vec3(0.17, 0.10, 0.02), vec3(0.13, 0.035, 0.015), smoothstep(-0.1, 0.25, c1.r)) * (0.8 + 0.6 * (c2.b + 0.5)), uLitter * 0.85 * smoothstep(-0.12, 0.1, c2.r + 0.5 * c1.g));
+    // (not from far off: there the forest is what the picture from space shows, not one
+    // flat green laid over it in blocks: the canopy's map has pixels a kilometre wide)
+    // (by distance, not by the patch's texel: a patch a step finer than its neighbours was
+    // a square of darker green in the land, seen from 30 km)
+    float ownC = 1.0 - smoothstep(3000.0, 19000.0, dist);
+    // Crowns, 8 m apart, and the stands they grow in, 21 m: where one is larger than a
+    // pixel or so it is a dome with its own light and shade and its own green, and the
+    // gaps between are dark. (Without them the far forest was one even green from the
+    // air: "a green plot of land", the owner said, and no trees.)
+    {
+      float fwC = fwidth(vDetailUv.x) + fwidth(vDetailUv.y);
+      // (a crown fades out between five pixels and one and a half: 0.25 / fwC pixels across)
+      float kc = (1.0 - smoothstep(0.05, 0.16, fwC)) * vShell * ownC, kg = (1.0 - smoothstep(0.14, 0.42, fwC)) * vShell * ownC;
+      if (kg > 0.0) {
+        vec4 cg = crowns(vDetailUv + 0.37, 3.0);
+        N = normalize(N + (uTanU * cg.x + uTanV * cg.y) * (0.4 * kg));
+        leaves *= mix(1.0, (0.7 + 0.42 * smoothstep(0.0, 0.6, cg.z)) * (0.84 + 0.32 * cg.w), kg);
+      }
+      if (kc > 0.0) {
+        vec4 cr = crowns(vDetailUv, 8.0);
+        // (strongly: at a phone's pixel a crown is a few pixels, and a faint one was a net
+        // laid over the forest, not trees)
+        N = normalize(N + (uTanU * cr.x + uTanV * cr.y) * (0.8 * kc));
+        leaves *= mix(1.0, (0.4 + 0.78 * smoothstep(0.0, 0.5, cr.z)) * (0.76 + 0.48 * cr.w), kc);
+      }
+    }
+    albedo = mix(albedo, leaves, vShell * ownC);
+    ao *= mix(1.0, 0.72 + 0.5 * clamp(c1.b + c2.b, -0.4, 0.5), vShell * ownC);
+  }
+  // ===================================== end of THE GROUND FROM AFAR, 1 ================
 
   // --- grass on the ground: round the traveller it is drawn blade by blade and clump by
   // clump (life/grass.js) out to some 500 m; under them and beyond, the ground wears the
@@ -593,7 +613,7 @@ void main() {
       // (the wind over far grass: a few broad gusts with gaps between them, their lines bent,
       // and only a hint beyond 600 m. Everywhere and all alike, the waves ruled the land with stripes.)
       if (dG < 900.0) {
-        float gustN = flNoise(planetPos / 240.0 + vec3(3.0, 11.0, 5.0));
+        float gustN = vCloud.w;      // (flNoise(planetPos / 240.0 + vec3(3.0, 11.0, 5.0)), asked at the vertices)
         float arg = dot(vRel, uGrassWave.xyz) + uGrassWave.w + 9.0 * gustN;
         gc *= 1.0 + 0.07 * sin(arg + 5.0 * (d1.g - 0.5)) * (1.0 - smoothstep(0.7, 1.8, fwidth(arg))) * smoothstep(0.52, 0.72, gustN) * (1.0 - 0.85 * smoothstep(250.0, 600.0, dG)) * (1.0 - smoothstep(600.0, 900.0, dG));
       }
@@ -627,6 +647,7 @@ void main() {
     }
   }
 
+  // === THE GROUND FROM AFAR, 2: the land's painted patches (weight zero within 60 m) ===
   // --- the land from the air (the painted look): stretches of lighter and darker ground
   // some hundreds of metres across, with clean edges, as fields, stands of trees and open
   // ground lie beside each other. (Placed by the direction itself: whole repeats round the
@@ -708,7 +729,7 @@ void main() {
   if (uCloud.x > 0.0 && length(planetPos) < uCloud.y) {
     // the cloud that stands between this ground and the Sun (asked at the vertices of the
     // near ground, here for the far: see CLOUD_VERT_TILES)
-    vec3 co = vCloud;
+    vec3 co = vCloud.xyz;
     if (vChunk.z > float(CLOUD_VERT_TILES)) co = cloudOver(planetPos, length(planetPos));
     float shade = smoothstep(0.2, 0.7, co.x);
     // (and every heap the layer shows casts its own: a cloud with its shadow beside it on
@@ -730,6 +751,7 @@ void main() {
   // (where the painted light is all of it, the other is not worked out)
   float diffuse = paint < 1.0 ? groundDiffuse(N, uSunDir, V, sigma) : 0.0;
   if (paint > 0.0) { diffuse = mix(diffuse, paintLit(dot(N, uSunDir)), paint); albedo = mix(albedo, paintColour(albedo), 1.0 - water); }
+  // === THE GROUND FROM AFAR, 3: the relief light (weight zero within 1.5 km) ===
   // The relief light: far ground is lit as a relief map is drawn, by a Sun no higher than
   // 35 degrees (from the real Sun's side), so that a canyon or a range has its lit and its
   // shaded slopes at any hour. Under a high Sun every slope is in the light, and from the
