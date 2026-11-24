@@ -69,9 +69,11 @@ transcript, the numbers that matter here):
 `send_message`; never `list_events`; look at their work with `git fetch origin <branch>`):
 trees `session_01XG1DZ6z4HnMC6bjsyXexux`, branch `ccr-aa39490a-trees-refined`; grass
 `session_01XG1DZ7F3Rxaid46abwPs1f`, branch `ccr-aa39490a-grass-rich`; from above
-`session_01XG1DZ4yJLFGhdSyRj3Cexf`, branch `ccr-aa39490a-from-above`. Each announces an
-early push ("T-EARLY", "G-EARLY", "A-LOOK") and writes a report beside its brief. None of
-them may edit `terrainMaterial.js`: the ground's shader is being rewritten here.
+`session_01XG1DZ4yJLFGhdSyRj3Cexf`, branch `ccr-aa39490a-from-above`; speed
+`session_01XG1DZ38BpdeY4LvbUGcmCq`, branch `ccr-aa39490a-phone-speed` (announces
+"S-EARLY", then "S1" to "S4"). Each announces an
+early push ("T-EARLY", "G-EARLY", "A-LOOK") and writes a report beside its brief. Only the
+speed helper may edit `terrainMaterial.js`.
 
 ### The far view sent: trees, grass and rock as far as one can see
 
