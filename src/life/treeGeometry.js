@@ -31,7 +31,7 @@
 // node scripts/tree-preview.mjs draws them all without a browser;
 // node scripts/make-tree-atlas.mjs draws the picture (run it after changing a shape).
 import * as THREE from 'three';
-import { SPRAYS, sprayRect, impostorRect, IMP_HALF, IMP_TALL } from './treeAtlasLayout.js';
+import { SPRAYS, sprayRect, impostorRect, IMP_HALF, IMP_TALL, CROWNS, crownRect } from './treeAtlasLayout.js';
 
 // (the same numbers every time: a tree shape is the same on every device)
 function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -146,7 +146,9 @@ class Shape {
   // each a thin tube, and on every twig sprays a metre or so long (`size`, tree heights):
   // two part way along it, standing off to its sides, two at its end. from: where the limb
   // that carries the bunch ends (the twigs start there, not in the air).
-  twigs(cx, cy, cz, r, n, cells, R, size, flat = 1, low = -0.45, from = null, rose = SPRAYS.roseL) {
+  // face: the sprays turned to face out of the crown and up (a blossom tree's clusters: seen
+  // from outside they are flowers, not cards on edge), and only at the twigs' ends.
+  twigs(cx, cy, cz, r, n, cells, R, size, flat = 1, low = -0.45, from = null, rose = SPRAYS.roseL, face = false) {
     const c = [cx, cy, cz], f = from || c;
     this.heart(cx, cy + r * 0.05, cz, r * 0.6, r * 0.5 * Math.min(1, flat + 0.25), rose);
     for (let k = 0; k < n; k++) {
@@ -157,7 +159,10 @@ class Shape {
       for (let j = 0; j < 5; j++) {
         // (two from the knee, off to the sides and outward; three from the tip, onward)
         const at = j < 2 ? knee : tip, sd = j % 2 ? 1 : -1, sw = j < 2 ? 0.9 : 0.45, dir = norm([d[0] + (e1[0] * sd + e2[0] * (R() - 0.5)) * sw, d[1] + (e1[1] * sd + e2[1] * (R() - 0.5)) * sw + 0.12, d[2] + (e1[2] * sd + e2[2] * (R() - 0.5)) * sw]);
-        const len = size * (j < 2 ? 1.15 : 1) * (0.85 + 0.4 * R()), ay = norm(cross(dir, norm([R() - 0.5, R() - 0.5 + 0.6 * sd, R() - 0.5])));
+        const len = size * (j < 2 ? 1.15 : 1) * (0.85 + 0.4 * R()), rnd = norm([R() - 0.5, R() - 0.5 + 0.6 * sd, R() - 0.5]);
+        // (facing: the card's face toward the way out of the crown and up, a little at random)
+        const ay = face ? norm(cross(dir, norm([d[0] + rnd[0] * 0.35, d[1] * 0.5 + 0.8 + rnd[1] * 0.2, d[2] + rnd[2] * 0.35]))) : norm(cross(dir, rnd));
+        if (face && j < 2 && j !== k % 2) continue;          // (a cluster at the end, one at the knee: sky between them)
         this.plate(add(at, dir, -len * 0.04), dir, [-ay[0], -ay[1], -ay[2]], len, len * 0.9, sprayRect(cells[(k + j) % cells.length]), 0, 0.5, c, j < 2 ? 3.25 : 3);          // (those inside the bunch are its dark heart)
       }
     }
@@ -168,7 +173,10 @@ class Shape {
   whole(arch, v, rose, r, y) {
     const rect = impostorRect(arch, v);
     for (const [rx, rz] of [[1, 0], [0, 1]]) this.plate([0, 0, 0], [rx, 0, rz], [0, 1, 0], 2 * IMP_HALF, IMP_TALL, rect, 0.5, 1, [0, this.mid, 0], 4);
-    this.plate([0, y, 0], [1, 0, 0], [0, 0, 1], 2 * r, 2 * r, sprayRect(rose), 0.5, 0.5, [0, y - r, 0], 3);
+    // (the rosette is the crown's top from above: its own picture, a solid rounded mass, not
+    // the star of sprays a bunch's heart is made of: treeAtlasGen.js, crownTop)
+    const crown = rose === SPRAYS.roseN ? CROWNS.N : rose === SPRAYS.roseB ? CROWNS.B : CROWNS.L;
+    this.plate([0, y, 0], [1, 0, 0], [0, 0, 1], 2 * r, 2 * r, crownRect(crown), 0.5, 0.5, [0, y - r, 0], 3);
   }
 
   build() {
@@ -323,8 +331,8 @@ export function makeTreeGeometries() {
   // What the broad crowns share: bunches [x, y, z, r, where the limb that carries it ends]
   // at the limbs' ends. Close by each is twigs with small sprays (`size`: how long a spray
   // is, in tree heights); at the middle distance a few large ones.
-  const bunches = (s, L, list, n, cells, flat = 1, low = -0.45, size = 0.09, rose = SPRAYS.roseL) => {
-    for (const [x, y, z, r, from] of list) { if (s.q === 2) s.twigs(x, y, z, r, Math.max(5, Math.round(n * 1.2)), cells, L, Math.min(size, r * 0.7), flat, low, from, rose); else s.bunch(x, y, z, r, Math.ceil(n * 1.1), cells, L, flat, low, rose); }
+  const bunches = (s, L, list, n, cells, flat = 1, low = -0.45, size = 0.09, rose = SPRAYS.roseL, face = false) => {
+    for (const [x, y, z, r, from] of list) { if (s.q === 2) s.twigs(x, y, z, r, Math.max(5, Math.round(n * 1.2)), cells, L, Math.min(size, r * 0.7), flat, low, from, rose, face); else s.bunch(x, y, z, r, Math.ceil(n * 1.1), cells, L, flat, low, rose); }
   };
 
   // 2 broadleaf: a trunk that parts into limbs, each limb into two, twigs of leaves all round
@@ -466,21 +474,37 @@ export function makeTreeGeometries() {
     s.mid = 0.62;
     const tr = (y) => [0.03 * Math.sin(y / fork * 2), y, 0.02 * y / fork];
     if (q === 2) s.bole(tr, 0.022, 0.017, fork); else s.trunk([tr(0), tr(fork * 0.5), tr(fork)], 0.022, 0.016, 5);
-    const f0 = tr(fork), list = [];
+    // A limb curves: out from the fork and then up, tapering all the way (a quadratic curve
+    // through `k` points; straight rods with one knee read as sticks).
+    const curve = (a, ctl, b, r0, r1, k, sides) => {
+      const pts = [], rs = [];
+      for (let i = 0; i <= k; i++) { const t = i / k, u = 1 - t; pts.push([u * u * a[0] + 2 * u * t * ctl[0] + t * t * b[0], u * u * a[1] + 2 * u * t * ctl[1] + t * t * b[1], u * u * a[2] + 2 * u * t * ctl[2] + t * t * b[2]]); rs.push(r0 + (r1 - r0) * Math.pow(t, 0.8)); }
+      s.tube(pts, rs, sides);
+    };
+    const f0 = tr(fork), list = [], sides = q === 2 ? 5 : 4;
     for (let i = 0; i < M; i++) {
-      const a = i / M * TAU + R() * 0.8, d = (0.17 + 0.07 * R()) * wide, e1 = [f0[0] + Math.cos(a) * d, fork + 0.2 + 0.08 * R(), f0[2] + Math.sin(a) * d];
-      s.tube([[f0[0], fork - 0.02, f0[2]], [f0[0] + Math.cos(a) * d * 0.6, fork + 0.07, f0[2] + Math.sin(a) * d * 0.6], e1], [0.012, 0.0085, 0.005], q === 2 ? 5 : 4);
-      list.push([e1[0] * 1.15, e1[1] - 0.03, e1[2] * 1.15, (0.16 + 0.04 * R()) * wide, e1]);
-      for (const da of [-0.7, 0.7]) {
-        const b = a + da + (R() - 0.5) * 0.3, d2 = (0.12 + 0.06 * R()) * wide, e2 = [e1[0] + Math.cos(b) * d2, e1[1] + 0.1 + 0.1 * R(), e1[2] + Math.sin(b) * d2];
-        s.tube([e1, e2], [0.005, 0.0025], q === 2 ? 4 : 3);
-        list.push([e2[0], e2[1] + 0.02, e2[2], (0.15 + 0.04 * R()) * wide, e2]);
+      // the limb: out and up from the fork
+      const a = i / M * TAU + R() * 0.8, d = (0.17 + 0.07 * R()) * wide, ca = Math.cos(a), sa = Math.sin(a);
+      const e1 = [f0[0] + ca * d, fork + 0.2 + 0.08 * R(), f0[2] + sa * d], c1 = [f0[0] + ca * d * 0.7, fork + 0.04, f0[2] + sa * d * 0.7];
+      curve([f0[0], fork - 0.02, f0[2]], c1, e1, 0.012, 0.0055, q === 2 ? 5 : 2, sides);
+      // two branches from its end, each forking again into two twigs that carry the blossom
+      for (const da of [-0.6, 0.6]) {
+        const b = a + da + (R() - 0.5) * 0.3, d2 = (0.12 + 0.06 * R()) * wide, cb = Math.cos(b), sb = Math.sin(b);
+        const e2 = [e1[0] + cb * d2, e1[1] + 0.08 + 0.1 * R(), e1[2] + sb * d2], c2 = [e1[0] + cb * d2 * 0.6, e1[1] + 0.02, e1[2] + sb * d2 * 0.6];
+        curve(e1, c2, e2, 0.0055, 0.003, q === 2 ? 3 : 1, q === 2 ? 4 : 3);
+        list.push([e2[0] * 1.06, e2[1] - 0.05, e2[2] * 1.06, (0.1 + 0.03 * R()) * wide, e2]);          // (and one under the fork, round the crown's side)
+        for (const db of [-0.45, 0.45]) {
+          const g = b + db + (R() - 0.5) * 0.4, d3 = (0.06 + 0.04 * R()) * wide, e3 = [e2[0] + Math.cos(g) * d3, e2[1] + 0.04 + 0.06 * R(), e2[2] + Math.sin(g) * d3];
+          if (q === 2) s.tube([e2, e3], [0.003, 0.0018], 3);
+          list.push([e3[0], e3[1] + 0.02, e3[2], (0.11 + 0.03 * R()) * wide, e3]);
+        }
       }
     }
     const lead = [f0[0], fork + 0.42, f0[2]];
-    s.tube([f0, lead], [0.011, 0.004], q === 2 ? 5 : 4);
-    list.push([lead[0], lead[1] + 0.1, lead[2], 0.2 * wide, lead], [lead[0] + 0.03, fork + 0.24, lead[2] - 0.02, 0.17 * wide, f0]);
-    bunches(s, L, list, 8, [SPRAYS.blossom], 0.85, -0.4, 0.14, SPRAYS.roseB);
+    curve(f0, [f0[0] + 0.02, fork + 0.2, f0[2] - 0.01], lead, 0.011, 0.004, q === 2 ? 4 : 1, sides);
+    list.push([lead[0], lead[1] + 0.08, lead[2], 0.14 * wide, lead], [lead[0] + 0.03, fork + 0.26, lead[2] - 0.02, 0.12 * wide, f0]);
+    // (clusters of blossom at the twigs' ends, facing out of the crown and up, with sky between)
+    bunches(s, L, list, 5, [SPRAYS.blossom], 0.85, -0.5, 0.12, SPRAYS.roseB, true);
   });
   return out;
 }

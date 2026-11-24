@@ -280,8 +280,10 @@ export class Trees {
             // From a deep tone of it inside the crown and on its under side to near white on the
             // flowers at the sprays' tips and where the crown looks up at the sky (the picture's
             // tone says which flower: the last of a twig is its lightest).
-            float pale = clamp(smoothstep(0.45, 1.0, cut.g) * 0.75 + smoothstep(-0.3, 0.7, dot(N, up)) * 0.5 - (vLeaf > 3.1 && vLeaf < 3.5 ? 0.5 : 0.0), 0.0, 1.0);
-            leafC = mix(leafC, mix(vBloom.rgb * vec3(0.62, 0.5, 0.56), mix(vBloom.rgb, vec3(0.8, 0.78, 0.76), 0.72), pale), petal);
+            // (pink kept at every distance and from above: its palest is a pale pink, not white; seen
+            // from above every texel looks up, and at 0.72 of white a cherry was a white splat)
+            float pale = clamp(smoothstep(0.45, 1.0, cut.g) * 0.75 + smoothstep(-0.3, 0.7, dot(N, up)) * 0.3 - (vLeaf > 3.1 && vLeaf < 3.5 ? 0.5 : 0.0), 0.0, 1.0);
+            leafC = mix(leafC, mix(vBloom.rgb * vec3(0.62, 0.42, 0.52), mix(vBloom.rgb, vec3(0.8, 0.76, 0.76), 0.45), pale), petal);
           }
           // (the heart of a bunch: the dark inside of the crown, see Shape.heart in treeGeometry.js)
           bool heart = (vLeaf > 3.1 && vLeaf < 3.5) || (vLeaf > 1.1 && vLeaf < 1.5);
