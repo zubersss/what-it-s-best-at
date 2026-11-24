@@ -49,6 +49,9 @@ const MOVES = [
   { id: 'haven_flight', world: 'haven', shot: 'ledge', query: 'alt=9000&pitch=-16&t=2', step: { fwd: 6 }, stride: 300, slow: true },
   // (Haven on foot through the opening meadow: the blades, the clumps beyond them and the
   // ground's own grass, where each field gives way to the next, as the traveller walks)
+  // (a flower meadow, and low flight over grass: the flowers of every habit, the pollen, the far rings of blades; docs/briefs/grass-rich-report.md)
+  { id: 'haven_flower_walk', world: 'haven', shot: 'ledge', query: 'lat=-54.39501&lon=38.28479&heading=45&t=5&pitch=-3', step: { fwd: 0.055 }, stride: 160, slow: true },
+  { id: 'haven_grass_flight', world: 'haven', shot: 'ledge', query: 'lat=-54.39501&lon=38.28479&heading=45&t=5&alt=1508&pitch=-8', step: { fwd: 0.5 }, stride: 250, slow: true },
   { id: 'haven_meadow_walk', world: 'haven', shot: 'ledge', query: 'lat=-54.4271&lon=39.2697&heading=120&t=5&pitch=-3', step: { fwd: 0.055 }, stride: 160, slow: true },
   // (the land's own rocks, rocks/farRocks.js: walking toward a field of boulders on a steep
   // open slope, and flying low at it: rocks growing in with distance, the 80- and 20-triangle

@@ -1,0 +1,11 @@
+serving the frozen build in /tmp/claude-0/-home-user-what-it-s-best-at/c2e06aa6-a3d3-578e-9921-c4e678174260/scratchpad/dist_before
+haven ledge lat=-54.4271&lon=39.2697&t=5&heading=120&alt=1491&pitch=-8   (660 x 309)
+field              triangles  instances   raster   drawn  shaded   most   share of picture
+all grass             614672     177184     2.50    1.14    1.06      4   12.4 %
+blades 0.2 m          131072      16384     0.00    0.00              0   0.0 %
+blades 0.5 m          145152      20736     0.00    0.00              0   0.0 %
+flowers 0.4 m          81648      11664     0.00    0.00              0   0.0 %
+clumps 0.8 m           80000      40000     0.25    0.14              3   1.7 %
+clumps 2 m             80000      40000     1.57    0.70              4   7.7 %
+clumps 5 m             96800      48400     0.68    0.29              4   3.1 %
+(layers: per pixel that has any grass; a field's rows are its share of that mean)

@@ -217,7 +217,9 @@ const BLADE_VERT = /* glsl */`
     // looked along loses none that the eye could see)
     float area = float(BLADES) * GOV * WIDE * 1.25 * (1.0 + GROW * dist) * TALL * 0.41 * (0.6 + 0.6 * g.g) / (SPACING * SPACING);
     float share = clamp(${LAYERS.toFixed(1)} * rise / area, ${LAYERS_FLOOR.toFixed(2)}, 1.0);
-    float keep = keepOf(ring * share, hb.x) * clamp((dens - own) / 0.12, 0.0, 1.0);
+    // (by a number of its own, not the one its height and width come from: the blades kept
+    // where few are kept would have been the short thin ones, and the field low and flat)
+    float keep = keepOf(ring * share, fract(hb.x * 7.13 + hb.y * 3.71)) * clamp((dens - own) / 0.12, 0.0, 1.0);
     if (keep <= 0.0) OUT_OF_PICTURE
     tall *= keep;
     #ifdef FAR
@@ -254,7 +256,8 @@ const BLADE_VERT = /* glsl */`
     // (flowers: in a drift some blades are stalks in flower, their upper part the flower's colour:
     // fewer from above and far off: grass with a dusting, and no band of colour along the skyline)
     float fk = tableNearest(tTable, uTab, at).a, kind = floor(fk + 0.001);
-    float flowered = step(0.5, kind) * step(hash2(cell + 5.1 + aBlade).x, fract(fk + 0.001) * 0.7 * (1.0 - 0.5 * rise) * (1.0 - 0.7 * smoothstep(60.0, 400.0, dist))) * smoothstep(38.0, 52.0, dist);
+    // (pale kinds on fewer blades: a white meadow seen from the air was frost)
+    float flowered = step(0.5, kind) * step(hash2(cell + 5.1 + aBlade).x, fract(fk + 0.001) * (KIND_PALE[clamp(int(kind + 0.5), 0, KIND_N - 1)] > 0.5 ? 0.35 : 0.7) * (1.0 - 0.5 * rise) * (1.0 - 0.7 * smoothstep(60.0, 400.0, dist))) * smoothstep(38.0, 52.0, dist);
     if (flowered > 0.5) { alb = mix(alb, petalColour(kind, h.y), 0.3 + 0.7 * y); skyShare = 1.0; }
     #endif
     vec3 sun, sky, air; lightAt(at, sun, sky, air);
