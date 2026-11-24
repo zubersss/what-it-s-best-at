@@ -81,6 +81,7 @@ out vec4 vCloud;             // xyz: the cloud between the place and the Sun (cl
 ${CLOUD_OVER_GLSL}
 uniform vec4 uGrassTone;     // (w: how strongly the ground wears the grass; 0: none drawn)
 ${FLOWERS_GLSL}
+out vec2 vFlowerFields;      // the flower rule's two broad noises (grassRules.js: flowerMeadow, flowerHill), for the ground within 900 m
 uniform vec4 uWind;          // xyz: where the wind blows to (unit, planet axes), w: its speed (m/s)
 uniform vec3 uWave;          // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
 uniform vec2 uTide;          // x: the sea's level against the level its shore is mapped at (m, 0 or below: the map is the highest tide)
@@ -181,7 +182,11 @@ void main() {
   if (uCloud.x > 0.0 && aI2.z <= float(CLOUD_VERT_TILES)) { vec3 P = uCamPlanetPos + rel; float rP = length(P); if (rP < uCloud.y) vCloud.xyz = cloudOver(P, rP); }
   // (the gusts that send waves over the grass: broad, 240 m to a cell of their noise, and
   // seen to 900 m: the patches that near have vertices a few tens of metres apart at most)
-  if (uGrassTone.a > 0.0 && far < 1100.0) vCloud.w = flNoise((uCamPlanetPos + rel) / 240.0 + vec3(3.0, 11.0, 5.0));
+  // (and where the meadows are and which hillsides flower: noises 260 and 420 m to the cell,
+  // which every pixel of grass within 900 m used to work out for itself before it knew
+  // whether a flower was near)
+  vFlowerFields = vec2(0.0, 0.5);
+  if (uGrassTone.a > 0.0 && far < 1100.0) { vec3 Pg = uCamPlanetPos + rel; vCloud.w = flNoise(Pg / 240.0 + vec3(3.0, 11.0, 5.0)); vFlowerFields = vec2(flowerMeadow(Pg), flowerHill(Pg)); }
   if (length(uCamPlanetPos) * 0.001 <= uRTop) hazeAffine(rel, gl_Position.xy / max(abs(gl_Position.w), 1e-6) * 0.5 + 0.5, vHazeT, vHazeL, vHazeG);
 }`;
 
@@ -274,6 +279,7 @@ in vec3 vSun;                  // the Sun's light reaching the place, and the ai
 in vec3 vHazeT;
 in vec3 vHazeL;
 in vec3 vHazeG;
+in vec2 vFlowerFields;         // the flower rule's two broad noises, worked out at the vertices (within 1 100 m)
 in vec4 vCloud;                // xyz: the cloud between the place and the Sun (cloudOver), on the near ground; w: the wind's gusts over the grass
 flat in vec3 vTanU;
 flat in vec3 vTanV;
@@ -643,7 +649,7 @@ void main() {
       }
       // (the drifts of flowers, where the clumps and blades have them)
       // (none beyond 900 m: their share of the colour there was a fiftieth, their cost the same as near)
-      vec2 fw = dG < 900.0 ? flowersAt(planetPos, int(uGrassTone.z + 0.5), ts) : vec2(0.0);      // (by the ground's slope too: hillsides of one kind, as the blades have them)
+      vec2 fw = dG < 900.0 ? flowersAt(planetPos, int(uGrassTone.z + 0.5), ts, vFlowerFields) : vec2(0.0);      // (by the ground's slope too: hillsides of one kind, as the blades have them)
       // (a tint, never a patch: its edge broken by the ground's own grain, less of it for
       // the pale kinds, from higher up and far off, where colour piles up along the skyline)
       if (fw.y > 0.0) {
