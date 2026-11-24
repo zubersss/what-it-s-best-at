@@ -241,7 +241,7 @@ export class Trees {
               float row = bv * mix(1.5, 0.9, red) + fract(sin(col * 12.9898) * 43758.5453) * 7.0, across = smoothstep(0.82, 0.95, abs(fract(row) - 0.5) * 2.0);
               float plate = fract(sin(dot(vec2(col, floor(row + 0.5)), vec2(127.1, 311.7))) * 43758.5453);
               float furrow = max(smoothstep(mix(0.45, 0.72, red), mix(0.8, 0.92, red), f), across * mix(0.7, 1.0, red));
-              float rough = (1.0 - mix(0.5, 0.62, red) * furrow) * (1.0 + mix(0.16, 0.5, red) * (plate - 0.5));
+              float rough = (1.0 - mix(0.66, 0.7, red) * furrow) * (1.0 + mix(0.3, 0.5, red) * (plate - 0.5)) * mix(0.8, 1.0, red);
               // a pale trunk: bands a little way round it, a black scar now and then
               float band = floor(bv * 9.0), bh = fract(sin(band * 91.7 + vOwn.x * 31.0) * 43758.5453), bandOn = step(0.45, bh) * step(abs(fract(bu * 0.31 + bh * 5.0) - 0.5), 0.12 + 0.2 * bh) * step(0.55, fract(bv * 9.0));
               float scar = step(0.9, fract(sin(floor(bv * 1.3) * 17.3 + vOwn.x * 9.0) * 43758.5453)) * step(abs(fract(bu * 0.2 + bh) - 0.5), 0.1) * step(abs(fract(bv * 1.3) - 0.5), 0.2);
