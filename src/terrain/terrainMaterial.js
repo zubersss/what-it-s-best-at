@@ -10,7 +10,8 @@ import { FACES } from './cubeSphere.js';
 import { HEAP_GLSL } from '../sky/clouds.js';
 import { GRASS_GLSL, FLOWERS_GLSL, GRASS_GROUND } from '../life/grassRules.js';
 import { PAINT_LEAF } from '../life/trees.js';
-import { FAR_GREEN_GLSL } from '../life/farTreeForm.js';
+import { FAR_GREEN_GLSL, canopyLeaf } from '../life/farTreeForm.js';
+import { SPECIES } from '../life/cover.js';
 
 // Holds an albedo map's brightness (relative to its mean) inside the range the real ground
 // spans, with soft knees: a mosaic also records the shading of steep slopes, haze and
@@ -290,6 +291,7 @@ flat in vec2 vParentOff;       // this chunk's corner inside the parent (0 or 0.
 uniform vec2 uTide;          // x: the sea's level against the level its shore is mapped at (m, 0 or below)
 uniform float uAirRelief;    // the relief light of far ground (a world's look.reliefLight; 0: none)
 uniform float uPlain;        // 1: the ground in one flat tone (the benchmark's cost test: its shading apart from its triangles)
+uniform vec4 uCanopy;        // the far canopy's leaf before the light (rgb) and its share of the colour map's tint (w): the world's own (life/farTreeForm.js, canopyLeaf)
 layout(location = 0) out vec4 fragColor;
 
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
@@ -330,17 +332,20 @@ ${ALBEDO_RANGE_GLSL}
 // metres from the eye.
 // ONE FOREST IN ONE GREEN: the canopy is the crowns of the trees that stand out of it (the
 // far forest, life/farForest.js), so it is their green by their rule, at every distance: a
-// leaf as the trees have it (a species' leaf albedo x 0.61, through paintLeaf in the painted
-// look, x 1.12 for a crown's top, x 0.76 for the tone of the trees' cut-out), then the far
-// olive (farGreen, life/farTreeForm.js). The land's colour map is not in it: with 60 % of
-// the map's tint the canopy was gold at the opening place and blue green in the north wood,
-// and the trees on it specks of another colour in both.
+// leaf as the trees have it (uCanopy: the world's flora's mean leaf albedo x 0.61, x 1.12 for
+// a crown's top, x 0.76 for the tone of the trees' cut-out; or the world's own number),
+// through paintLeaf in the painted look, then the far olive (farGreen, life/farTreeForm.js).
+// How much of the land's colour map it wears is the world's too (uCanopy.w): on Haven none
+// (with 60 % of the map's tint the canopy was gold at the opening place and blue green in
+// the north wood, and the trees on it specks of another colour in both); on Earth 60 %, the
+// real map's regions. (One leaf for every world here was Haven's flora on Earth: review
+// farforest-4.)
 ${PAINT_LEAF}
 ${FAR_GREEN_GLSL}
 vec3 farCanopyColour(vec3 tint, vec3 c1, vec3 c2, float turn, float dist) {
-  vec3 leaf = vec3(0.045, 0.085, 0.03) * 0.61;
+  vec3 leaf = uCanopy.rgb * mix(vec3(1.0), tint, uCanopy.w);
   if (uPaint.x > 0.0) leaf = paintLeaf(leaf);
-  vec3 leaves = farGreen(leaf * (1.12 * 0.76), dist) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
+  vec3 leaves = farGreen(leaf, dist) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
   // (in their season, in patches: the trees that turn among those that do not. Few patches:
   // turn is 1 from autumn to the end of winter, and with two thirds of the canopy turned a
   // wood of firs and pines, which keep their needles, was gold and rust all winter under
@@ -870,7 +875,7 @@ export function makeTerrainShared(world, textures) {
     uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
     uPlain: { value: 0 }, uTide: { value: new THREE.Vector2(0, 0) }, uAirRelief: { value: 0 },
     tCloudNoise: { value: null }, uCloudHeap: { value: new THREE.Vector4(0, 0, 0, 0) }, uCloudVol: { value: new THREE.Vector3() }, uCloudWind: { value: new THREE.Vector3() },
-    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) }, uGrassWave: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uCanopy: { value: new THREE.Vector4(0.0234, 0.0441, 0.0156, 0) }, uLitter: { value: 0 }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) }, uGrassWave: { value: new THREE.Vector4(0, 0, 0, 0) },
     tRingColour: { value: textures.white }, uRingColour: { value: new THREE.Vector4(0, 0, 1, 0) },
     tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoShift: { value: 0 }, uAlbedoSteep: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
     uAlbedoRange: { value: new THREE.Vector2() }, uRockHue: { value: new THREE.Vector2() }, uCoverContrast: { value: 1 }, uBedrockSlope: { value: 0 },
@@ -921,6 +926,7 @@ export function setTerrainSurface(shared, world) {
   shared.uSeaColor.value.set(...(s.sea?.color || [0.01, 0.03, 0.07]));
   shared.uFarRoughness.value = s.farRoughness ?? shared.uRoughness.value;
   shared.uAirRelief.value = world.look?.reliefLight ?? 0;
+  { const c = canopyLeaf(world, SPECIES) || [0.0234, 0.0441, 0.0156, 0]; shared.uCanopy.value.set(c[0], c[1], c[2], c[3]); }
   shared.uDetailStrength.value = s.detailStrength ?? 0.5;
   shared.uPhotometry.value = s.photometry === 'lunar' ? 1 : 0;
   shared.uAlbedoMap.value.w = 0;          // until the world's map has loaded (Terrain.loadAlbedoMap)

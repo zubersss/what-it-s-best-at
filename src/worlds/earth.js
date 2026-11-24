@@ -143,7 +143,10 @@ export default {
   // far: beyond those, the same trees thinned with distance out to some kilometres, rising
   // out of the forest the ground raises as a whole (life/farForest.js): what a traveller coming
   // down sees of the trees before landing.
-  life: { trees: { radius: 240, spacing: 7, below: 1500, far: { full: 450, radius: 5600, below: 6000 } }, grass: { below: 90 } },
+  // (far.canopy: the forest the ground raises beyond the trees, life/farTreeForm.js
+  // canopyLeaf: its leaf colour, and how much of the land's colour map it wears: the real
+  // map's regions, boreal against hardwood, a rain forest against a dry woodland)
+  life: { trees: { radius: 240, spacing: 7, below: 1500, far: { full: 450, radius: 5600, below: 6000, canopy: { leaf: [0.040, 0.078, 0.028], tint: 0.6 } } }, grass: { below: 90 } },
 
   // Clouds of one real day (the globe's own cloud map) as a layer overhead (see sky/clouds.js).
   // Near the traveller the layer is a volume to fly through: its base at 1 400 m, its

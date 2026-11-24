@@ -10,7 +10,8 @@
 // 5. A lone tree stays its own size from above (at most 1.5 wide, as from the side).
 // 6. Shadows lying over one another at a wood's edge come to SHADOW_DARK, and a lone
 //    tree's shadow is SHADOW_DARK.
-import { widths, shadowAlpha, TOP0, SHADOW_DARK, SITE_M2, TOP_MAX } from '../src/life/farTreeForm.js';
+import { widths, shadowAlpha, TOP0, SHADOW_DARK, SITE_M2, TOP_MAX, SHADOW0 } from '../src/life/farTreeForm.js';
+import { tileShadow } from '../src/life/farForest.js';
 
 let failed = false;
 const check = (ok, text) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${text}`); if (!ok) failed = true; };
@@ -51,6 +52,18 @@ const FULL = 450, keepAt = (d) => Math.min(1, (FULL / d) ** 2), old = (keep) => 
 { // 6
   const lone = shadowAlpha(300, 0.02, 1), area = 400, n = 1 * 1 * area / SITE_M2, stacked = 1 - (1 - shadowAlpha(area, 1, 1)) ** n;
   check(Math.abs(lone - SHADOW_DARK) < 1e-9 && Math.abs(stacked - SHADOW_DARK) < 1e-6, `a lone tree's shadow takes ${lone.toFixed(2)} of the light, ${n.toFixed(1)} shadows over one another at a wood's edge ${stacked.toFixed(2)}`);
+}
+{ // 7: a rim (review farforest-2 and 3). The eye 70 m over a rim, a valley's trees 600 m
+  // below, the nearest of them 1 200 m out along the ground: they are looked down on at
+  // 29 degrees, past where shadows begin, so their tile's shadows are drawn, whole; and one
+  // metre on, over the drop, nothing changes for them. (By the height over the ground
+  // underfoot they were at 3 % on the rim and all there a metre on, and the tile was not
+  // handed its shadows at all.)
+  const R = 250000, rim = R + 1500, eye = rim + 70, low = rim - 600, near = 1200;
+  const a = tileShadow(eye, low, near), b = tileShadow(eye, low, near - 1), down = (eye - low) / Math.hypot(eye - low, near);
+  check(down > SHADOW0 && a.air === 1 && a.reach && b.air === a.air, `a valley's trees from a rim 670 m over them, looked down on at ${(Math.asin(down) * 180 / Math.PI).toFixed(0)} degrees: their shadows drawn ${(a.air * 100).toFixed(0)} %, handed over ${a.reach}; a metre on ${(b.air * 100).toFixed(0)} %`);
+  const flat = tileShadow(R + 2, R, 300);
+  check(flat.air === 0, `on the ground among the trees no shadows are drawn (${(flat.air * 100).toFixed(0)} %)`);
 }
 console.log(failed ? '\nfar tree forms: FAILED' : '\nfar tree forms: every check passed');
 process.exit(failed ? 1 : 0);

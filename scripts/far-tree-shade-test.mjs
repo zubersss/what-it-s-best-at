@@ -10,7 +10,7 @@ import { loadWorld } from './lib/loadWorld.mjs';
 import { setMadeCover } from './lib/madeCover.mjs';
 import { ShadowBaker } from '../src/terrain/shadowBake.js';
 import { CONFIG } from '../src/config.js';
-import { treeTile, blockDeg, tileOf, blockLon } from '../src/life/treeBlock.js';
+import { treeTile, blockDeg, tileOf, blockLon, TREE_FLOATS } from '../src/life/treeBlock.js';
 import { landShadow, tileGrid } from '../src/life/treeLandShade.js';
 import { band, LEVELS, BASE_BLOCKS } from '../src/life/farForest.js';
 
@@ -34,6 +34,29 @@ for (let L = 0; L < LEVELS; L++) {
   const share = wrong / Math.max(1, b.count), ok = share < 1 / 12;
   console.log(`${ok ? 'ok  ' : 'FAIL'} level ${L} (${(blocks * DEG * R * rad).toFixed(0)} m, ${G} points a side, ${ms.toFixed(0)} ms): ${b.count} trees, ${shade} in the land's shadow; on the wrong side of it ${wrong} (${(share * 100).toFixed(1)} %), of them lit in the shade ${litInShade}`);
   if (!ok) failed = true;
+}
+// The slope's share of the sunlight on a round world with no relief at all (review
+// farforest-5): every tree's ground is level, so it must take what level ground takes under
+// its own sky, at a Sun 6 degrees up. (The heights over the tile's plane once had the
+// world's curve the wrong way round: the slope was tilted by 2x/R, 1.6 degrees at the edge
+// of a 7 km tile on Haven, and the shadows' strength stepped at the seams of big tiles.)
+{
+  const flat = { radius: R, height: () => 0 }, open = { visibility: () => 1 }, low = 6 * rad;
+  const sun6 = [0, 1, 2].map((i) => up[i] * Math.sin(low) + east[i] * Math.cos(low));
+  for (let L = 0; L < LEVELS; L++) {
+    const blocks = BASE_BLOCKS * 2 ** L, bi = Math.floor(lat / DEG), bj = Math.floor(lon / blockLon(bi, DEG)), [ti, tj] = tileOf(bi, bj, blocks, DEG), [lo, hi] = band(L);
+    const b = treeTile(hs, ti, tj, blocks, spacing, lo, hi), ground = new Float32Array(b.count);
+    landShadow(flat, open, b, sun6, 0.00465, tileGrid(blocks), ground);
+    let worst = 0;
+    for (let k = 0, q = 0; k < b.count; k++, q += TREE_FLOATS) {
+      const px = b.origin[0] + b.trees[q], py = b.origin[1] + b.trees[q + 1], pz = b.origin[2] + b.trees[q + 2], l = Math.hypot(px, py, pz);
+      const nl = (sun6[0] * px + sun6[1] * py + sun6[2] * pz) / l, t = Math.min(1, Math.max(0, (nl + 0.04) / 0.38)), want = t * t * (3 - 2 * t);
+      worst = Math.max(worst, Math.abs(ground[k] - want));
+    }
+    const ok = worst < 0.02;
+    console.log(`${ok ? 'ok  ' : 'FAIL'} level ${L}, level ground on a round world, Sun 6 degrees up: the slope's share of the Sun off by at most ${worst.toFixed(3)}`);
+    if (!ok) failed = true;
+  }
 }
 console.log(failed ? '\nfar trees, the land\'s shadow: FAILED' : '\nfar trees, the land\'s shadow: every check passed');
 process.exit(failed && !was ? 1 : 0);
