@@ -207,10 +207,13 @@ export class App {
     this.post = new PostPipeline(renderer, world.scene.exposure);
     this.post.instant = this.shotMode;
     let savedMode = null;
-    try { savedMode = localStorage.getItem('sse.mode'); } catch { /* storage blocked: use the default */ }
+    // (the key is new with Sharp as the default, 2026-11-24: a mode kept under the old key was
+    // Smooth for everyone, the default then, and cannot be told from the owner's own tap; it is
+    // forgotten once. A tap on the mode button from now on is kept.)
+    try { savedMode = localStorage.getItem('sse.mode2'); } catch { /* storage blocked: use the default */ }
     this.profile = new Profile();          // where each frame's own work goes (perf/profile.js)
     this.profileParts = PARTS;
-    this.governor = new Governor(this, params.mode || savedMode || 'smooth', this.shotMode ? (params.scale ?? 1) : params.scale);
+    this.governor = new Governor(this, params.mode || savedMode || 'sharp', this.shotMode ? (params.scale ?? 1) : params.scale);
     // (what each world held last time, per mode: a return starts from it)
     if (typeof this.save.data.gov !== 'object' || !this.save.data.gov) this.save.data.gov = {};
     this.governor.remember(this.save.data.gov, () => this.save.touch());
@@ -670,7 +673,7 @@ export class App {
     this.governor.setMode(next);
     this.terrainBudget(MODES[next].patches ?? 1, 'mode');
     this.nearShadow.every = this.shotMode || MODES[next].fps < 45 ? 1 : 2;
-    try { localStorage.setItem('sse.mode', next); } catch { /* storage blocked: the choice lasts for this visit */ }
+    try { localStorage.setItem('sse.mode2', next); } catch { /* storage blocked: the choice lasts for this visit */ }
     this.startScreen?.setMode(next);
     this.toast?.show(`${MODES[next].label} — ${MODES[next].fps} fps`);
   }

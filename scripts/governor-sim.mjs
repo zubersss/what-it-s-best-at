@@ -193,4 +193,27 @@ ninth('Phone, ninth results, from the air: only cloud-volume cures (9.4); no nea
     for (const id of ['tree-shadows', 'trees-far', 'tree-leaves', 'grass-mid', 'grass', 'far-trees']) if (ever.includes(id)) { console.log(`FAILED: ${id} switched off where nothing of it is drawn`); process.exitCode = 1; }
     if (ids.length > 4) { console.log(`FAILED: ${ids.length} savings left on where one cures the frames`); process.exitCode = 1; }
   });
+// Sharp is the default since 2026-11-24 (a steady 30 with the sharpest picture that holds).
+// A GPU like the test phone's, from its ninth results: Sharp starts at the screen's own
+// size with everything on. (1) A view whose frames hardly depend on the picture's size (the
+// opening view: 62 ms at native, 64 at 2 MP in the cost test): fewer pixels cure nothing,
+// two savings do. It must not sit at native with its frames late, nor end at the fewest
+// pixels: the savings are tried at the size that stands. (2) A view that is pixels (the
+// wood: 104 ms at native, 72 at 2 MP): frames of 45 to 60 ms at native must settle at a
+// size that holds, without hunting.
+const sharp = (label, costAt, saves, check) => {
+  let seed = 99, late = 0, n = 0;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const g = run(label, { vsyncMs: 8.403, mode: 'sharp', native: NATIVE, seconds: 300, work: () => 8,
+    cost: (p, t, gg) => { let c = costAt(p / 1e6) + 4 * rnd(); for (const id in saves) if (offNow(gg, id)) c -= saves[id]; if (t > 180) { n++; if (c > 33.6) late++; } return c; } });
+  const share = late / Math.max(1, n), tail = g.log.filter((l) => l.t > 180).length;
+  console.log(`  late in the last two minutes ${(100 * share).toFixed(1)} %, ${(g.pixels / 1e6).toFixed(2)} MP, savings on: ${(g.offIds || []).join(', ') || 'none'}; steps in the last two minutes: ${tail}`);
+  if (share > 0.1) { console.log('FAILED: frames still late against 33 ms'); process.exitCode = 1; }
+  if (tail > 14) { console.log(`FAILED: still hunting (${tail} steps in the last two minutes)`); process.exitCode = 1; }
+  check?.(g);
+};
+sharp('Phone in Sharp, a view that is not pixels (frames 38 to 43 ms at any size; grass-mid buys 5.0, far-trees 3.6)', (mp) => 33.5 + 1.0 * mp,
+  { 'grass-mid': 5.0, 'far-trees': 3.6, clouds: 4.0, 'far-relief': 3.5 },
+  (g) => { if (g.pixels < 3.0e6) { console.log(`FAILED: ended at ${(g.pixels / 1e6).toFixed(2)} MP for frames that fewer pixels do not cure`); process.exitCode = 1; } });
+sharp('Phone in Sharp, a view that is pixels (frames 50 to 55 ms at native, 33 at 2 MP; must settle)', (mp) => 16 + 7.8 * mp, { 'tree-leaves': 6.0, 'trees-far': 3.5 });
 run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native: 1920 * 1080, seconds: 40, cost: (p) => 2 + 1.5 * p / 1e6 });
