@@ -664,7 +664,21 @@ say finding by finding what was done.
 and shortens the far forest; `trees-far` now brings the trees' full shapes nearer (it used
 to shorten their radius, which only moved the hand-over).
 
-**Tested** (on the final frozen build, a1fa9bd and later): TESTED
+**Tested** (on the final frozen build, a1fa9bd and later): `./scripts/build-check.sh`; `npm run smoke` (on Mars: 16 checks; 22 shaders, every one
+within a phone's limits, the ground's at 16 of 16 textures); `npm run foot`;
+`npm run shadowturns`; without a browser `govsim`, `lakes`, `check-ephemeris`,
+`transfer`, `far-trees-test`, `far-forest-clock`, `npm run rocks`, `rig-over-rock`,
+`grass-anchor-replay`. `node scripts/smoke.mjs --haven` (the Haven benchmark as the owner will run it): the start screen, the three-minute lap with the flight to the Moon, and every switch of the cost test at the opening view, without an error; its other two views (in the forest, from the air) were still being measured when this was merged, and on the build of four hours earlier the forest view had got through 50 of its 59 measures before the run was stopped for time.
+Pictures on that build (`scratchpad/fin14`; the helpers' own are in `docs/shots/far-*`):
+the opening view (158 draw calls, 1.70 M triangles handed over; 111 and 0.95 M before),
+87 m over it (144, 1.59 M), the steppe at eye
+height (68, 1.19 M), the steep rocky place from 100 m (71, 1.28 M), the opening view with
+every saving on (79, 0.96 M), Earth's opening view (138, 1.71 M: the same scene as before).
+The hillside that had hatched was looked at at a phone's pixel density (a lens of 21.4
+degrees at 309 pixels). The helpers' stability moves: a walk at a wood (the same numbers
+as the branch as found), a walk on the steppe, a walk among rocks (flicker 0.03 %).
+**Not run**: the full reference set, `flight`, `target`, `worlds`, any stability move on
+the final build. Nothing was seen in motion.
 
 **Left for later, known**:
 - The ground's grass colour, share and flower kinds within about a kilometre are those of
