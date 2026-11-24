@@ -4,12 +4,15 @@
 // writes it to public/data/tree_atlas.png; scripts/tree-preview.mjs uses it as it is.
 //
 // Three numbers a pixel: how much of it is covered (the cut-out), a tone (each needle
-// and leaf a little lighter or darker than its neighbours), and whether it is wood.
+// and leaf a little lighter or darker than its neighbours), and what it is: 0 a leaf,
+// a half a petal (shown only on a tree in flower), 1 wood.
 // Everything is drawn nine times too large and averaged down, so edges are soft enough
 // to be cut cleanly at any size.
 //
 // Plain JavaScript with no canvas: it runs in Node.
-import { ATLAS_W, ATLAS_H, SPRAY, SPRAY_COLS, SPRAYS, IMP_X0, IMP_W, IMP_H, IMP_HALF, IMP_TALL } from './treeAtlasLayout.js';
+import { ATLAS_W, ATLAS_H, SPRAY, SPRAY_COLS, SPRAYS, IMP_W, IMP_H, IMP_HALF, IMP_TALL, impostorCell } from './treeAtlasLayout.js';
+
+const WOOD = 2, PETAL = 1;          // what a polygon is (0: a leaf); halved when averaged down
 
 function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
@@ -34,7 +37,7 @@ class Cell {
     }
   }
   // a twig: a tapering line
-  line(x0, y0, x1, y1, w0, w1, tone = 0.5, wood = 1) {
+  line(x0, y0, x1, y1, w0, w1, tone = 0.5, wood = WOOD) {
     const dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l;
     this.poly([[x0 + nx * w0, y0 + ny * w0], [x1 + nx * w1, y1 + ny * w1], [x1 - nx * w1, y1 - ny * w1], [x0 - nx * w0, y0 - ny * w0]], tone, wood);
   }
@@ -51,69 +54,114 @@ class Cell {
     for (let k = N - 1; k >= 1; k--) { const t = k / N; pts.push([x + c * len * t + s * w(t), y + s * len * t - c * w(t)]); }
     this.poly(pts, tone);
   }
+  // a flower: five petals round a small dark middle, `r` across its half, turned by `a`
+  flower(x, y, r, a, tone) {
+    for (let k = 0; k < 5; k++) {
+      const b = a + k * 1.2566, c = Math.cos(b), s = Math.sin(b), pts = [], N = 6;
+      for (let j = 0; j <= N; j++) { const t = j / N * 6.2831853, px = 0.55 + 0.45 * Math.cos(t), py = 0.34 * Math.sin(t) * (1 + 0.25 * Math.cos(t)); pts.push([x + (c * px - s * py) * r, y + (s * px + c * py) * r]); }
+      this.poly(pts, tone * (0.86 + 0.14 * ((k * 7) % 5) / 4), PETAL);
+    }
+    const pts = []; for (let j = 0; j < 6; j++) pts.push([x + Math.cos(j * 1.047) * r * 0.2, y + Math.sin(j * 1.047) * r * 0.2]);
+    this.poly(pts, 0.35, PETAL);
+  }
   // averaged down to its real size: { cov, tone, wood } as numbers 0..1
   down() {
     const s = this.size, n = this.n, cov = new Float32Array(s * s), tone = new Float32Array(s * s), wood = new Float32Array(s * s);
     for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
       let c = 0, t = 0, w = 0;
       for (let b = 0; b < SS; b++) for (let a = 0; a < SS; a++) { const i = (y * SS + b) * n + x * SS + a; if (this.cov[i]) { c++; t += this.tone[i]; w += this.wood[i]; } }
-      const o = y * s + x; cov[o] = c / (SS * SS); tone[o] = c ? t / c : 0; wood[o] = c ? w / c : 0;
+      const o = y * s + x; cov[o] = c / (SS * SS); tone[o] = c ? t / c : 0; wood[o] = c ? w / c / 2 : 0;
     }
     return { cov, tone, wood, size: s };
   }
 }
 
 // A twig with needles down both sides, swept toward its tip and shorter toward it.
-function needled(c, R, x0, y0, x1, y1, nlen, step, wide = 0.0065) {
+function needled(c, R, x0, y0, x1, y1, nlen, step, wide = 0.0052) {
   const dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy), dir = Math.atan2(dy, dx);
-  c.line(x0, y0, x1, y1, 0.006, 0.0025, 0.5);
+  c.line(x0, y0, x1, y1, 0.0045, 0.002, 0.5);
   for (let d = step * 0.5; d < l; d += step) {
     const t = d / l, x = x0 + dx * t, y = y0 + dy * t;
     for (const sd of [-1, 1]) c.needle(x, y, dir + sd * (0.85 + 0.35 * R()), nlen * (1 - 0.45 * t) * (0.75 + 0.5 * R()), wide, 0.6 + 0.4 * R());
   }
   c.needle(x1, y1, dir, nlen * 0.7, wide, 0.9);
 }
+const IN = (v) => Math.min(0.975, Math.max(0.025, v));
 
 // A fir's bough seen from the side: the branch along the top, sagging, its twigs hanging
 // from it and forward, all needled. Root at the left, a fifth of the way down.
 function fir(c, R) {
   const P = (t) => [0.02 + 0.95 * t, 0.2 + 0.24 * t * t];
-  for (let t = 0.05; t < 0.94; t += 0.055 + 0.03 * R()) {
+  for (let t = 0.04; t < 0.95; t += 0.04 + 0.022 * R()) {
     const [x, y] = P(t), L = (0.52 * Math.pow(1 - t, 0.65) + 0.07) * (0.75 + 0.5 * R()), a = 0.95 + 0.45 * R();
-    const ex = Math.min(0.975, x + Math.cos(a) * L), ey = Math.min(0.975, y + Math.sin(a) * L);
-    needled(c, R, x, y, ex, ey, 0.045, 0.011);
+    const ex = IN(x + Math.cos(a) * L), ey = IN(y + Math.sin(a) * L);
+    needled(c, R, x, y, ex, ey, 0.03, 0.008);
     // (smaller twigs off the long ones, and a short one standing up from the branch)
-    if (L > 0.22) for (let k = 0; k < 3; k++) { const u = 0.3 + 0.2 * k + 0.1 * R(), sx = x + (ex - x) * u, sy = y + (ey - y) * u, b = a + (k % 2 ? 0.7 : -0.7), l2 = L * 0.33 * (0.7 + 0.5 * R()); needled(c, R, sx, sy, Math.min(0.975, sx + Math.cos(b) * l2), Math.min(0.975, Math.max(0.02, sy + Math.sin(b) * l2)), 0.038, 0.012); }
-    if (R() < 0.6) { const b = -(0.5 + 0.5 * R()), l2 = 0.05 + 0.07 * R(); needled(c, R, x, y, Math.min(0.975, x + Math.cos(b) * l2), Math.max(0.02, y + Math.sin(b) * l2), 0.035, 0.012); }
+    if (L > 0.16) for (let k = 0; k < 4; k++) { const u = 0.22 + 0.18 * k + 0.1 * R(), sx = x + (ex - x) * u, sy = y + (ey - y) * u, b = a + (k % 2 ? 0.7 : -0.7), l2 = L * 0.33 * (0.7 + 0.5 * R()); needled(c, R, sx, sy, IN(sx + Math.cos(b) * l2), IN(sy + Math.sin(b) * l2), 0.026, 0.008); }
+    if (R() < 0.6) { const b = -(0.5 + 0.5 * R()), l2 = 0.05 + 0.07 * R(); needled(c, R, x, y, IN(x + Math.cos(b) * l2), IN(y + Math.sin(b) * l2), 0.026, 0.008); }
   }
-  for (let k = 0; k < 12; k++) { const a = P(k / 12), b = P((k + 1) / 12); needled(c, R, a[0], a[1], b[0], b[1], 0.04, 0.012); }
+  for (let k = 0; k < 12; k++) { const a = P(k / 12), b = P((k + 1) / 12); needled(c, R, a[0], a[1], b[0], b[1], 0.028, 0.008); }
 }
 
-// A bough seen from above or below: the branch down the middle, twigs to both sides.
-function firTop(c, R, reach = 0.36, nlen = 0.045) {
-  for (let t = 0.06; t < 0.93; t += 0.06 + 0.03 * R()) for (const sd of [-1, 1]) {
+// A frond seen from above or below: the branch down the middle, twigs to both sides swept
+// forward, twiglets off the long ones.
+function firTop(c, R, reach = 0.36, nlen = 0.034) {
+  for (let t = 0.05; t < 0.93; t += 0.05 + 0.025 * R()) for (const sd of [-1, 1]) {
     const x = 0.02 + 0.95 * t, L = (reach * Math.pow(1 - t, 0.6) + 0.06) * (0.75 + 0.5 * R()), a = sd * (0.75 + 0.35 * R());
-    needled(c, R, x, 0.5, Math.min(0.975, x + Math.cos(a) * L), Math.min(0.975, Math.max(0.025, 0.5 + Math.sin(a) * L)), nlen, 0.011);
+    const ex = IN(x + Math.cos(a) * L), ey = IN(0.5 + Math.sin(a) * L);
+    needled(c, R, x, 0.5, ex, ey, nlen, 0.0065);
+    if (L > 0.2) for (let k = 0; k < 3; k++) { const u = 0.3 + 0.22 * k + 0.08 * R(), sx = x + (ex - x) * u, sy = 0.5 + (ey - 0.5) * u, b = a + (k % 2 ? 0.75 : -0.75), l2 = L * 0.36 * (0.7 + 0.5 * R()); needled(c, R, sx, sy, IN(sx + Math.cos(b) * l2), IN(sy + Math.sin(b) * l2), nlen * 0.85, 0.008); }
   }
-  needled(c, R, 0.02, 0.5, 0.97, 0.5, nlen, 0.011);
+  needled(c, R, 0.02, 0.5, 0.97, 0.5, nlen, 0.008);
+}
+
+// What hangs under a bough: the branch along the top of the cell, twigs hanging from it
+// like a curtain with a ragged hem, each with its twiglets. Root at the left, 7 % down.
+function firHang(c, R) {
+  c.line(0.0, 0.07, 1.0, 0.075, 0.007, 0.005, 0.5);
+  for (let x = 0.03; x < 0.97; x += 0.035 + 0.02 * R()) {
+    const L = (0.3 + 0.55 * R()) * (1 - 0.35 * x), a = 1.5708 - 0.3 + 0.35 * R(), ex = IN(x + Math.cos(a) * L), ey = IN(0.07 + Math.sin(a) * L);
+    needled(c, R, x, 0.07, ex, ey, 0.03, 0.0065);
+    for (let k = 0; k < 4; k++) { const u = 0.2 + 0.2 * k + 0.08 * R(), sx = x + (ex - x) * u, sy = 0.07 + (ey - 0.07) * u, b = a + (k % 2 ? 0.6 : -0.6), l2 = L * 0.3 * (0.6 + 0.6 * R()); needled(c, R, sx, sy, IN(sx + Math.cos(b) * l2), IN(sy + Math.sin(b) * l2), 0.025, 0.008); }
+    if (R() < 0.5) { const l2 = 0.03 + 0.04 * R(); needled(c, R, x, 0.07, IN(x + 0.02), IN(0.07 - l2), 0.022, 0.008); }
+  }
 }
 
 // A pine's bunch of needles: long ones standing out of a point every way but straight down.
 function burst(c, R, n, spread, len) {
   c.line(0.5, 0.98, 0.5, 0.56, 0.012, 0.007, 0.5);
-  for (let k = 0; k < n; k++) c.needle(0.5 + (R() - 0.5) * 0.04, 0.56 + (R() - 0.5) * 0.04, -1.5708 + (R() - 0.5) * 2 * spread, len * (0.7 + 0.45 * R()), 0.0085, 0.58 + 0.42 * R());
+  for (let k = 0; k < n; k++) c.needle(0.5 + (R() - 0.5) * 0.04, 0.56 + (R() - 0.5) * 0.04, -1.5708 + (R() - 0.5) * 2 * spread, len * (0.7 + 0.45 * R()), 0.006, 0.58 + 0.42 * R());
+}
+
+// The end of a pine's branch: a forked twig standing on the middle of the cell's bottom
+// edge, a tuft of long needles on every end of it.
+function pineTwig(c, R) {
+  const tuftAt = (x, y, dir, n, len, dark) => { for (let k = 0; k < n; k++) c.needle(x + (R() - 0.5) * 0.015, y + (R() - 0.5) * 0.015, dir + (R() - 0.5) * 3.6, len * (0.65 + 0.5 * R()), 0.006, (0.55 + 0.45 * R()) * dark); };
+  // [the end's x, y, the way its needles point, where on the stem its twig leaves]
+  const ends = [[0.5, 0.36, -1.57, 0.52], [0.25, 0.5, -2.3, 0.7], [0.76, 0.48, -0.85, 0.66], [0.35, 0.25, -1.9, 0.52], [0.67, 0.23, -1.2, 0.52], [0.2, 0.74, -2.7, 0.86], [0.8, 0.72, -0.45, 0.82]];
+  c.line(0.5, 0.985, 0.5, 0.5, 0.011, 0.006, 0.5);
+  for (const e of ends) { e[0] += (R() - 0.5) * 0.05; e[1] += (R() - 0.5) * 0.05; c.line(0.5, e[3], e[0], e[1], 0.005, 0.003, 0.5); }
+  // (the tufts behind first, darker; then those in front)
+  for (const [x, y, dir] of ends) tuftAt(x, y, dir, 120, 0.3, 0.8);
+  for (const [x, y, dir] of ends) tuftAt(x, y, dir, 60, 0.22, 1);
 }
 
 // A twig of leaves: side twigs to both sides, a leaf at every joint and at every end, in
-// three tones. o: { leaf (length), ratio (width over length), step (between leaves), twigs, bare (how much twig shows) }
+// three tones. o: { leaf (length), ratio (width over length), step (between leaves), twigs,
+// flowers (a twig in flower: clusters of this many at the joints, few and small leaves) }
 function leafy(c, R, o) {
-  const tones = [0.6, 0.8, 1.0], leaves = [];
+  const tones = [0.6, 0.8, 1.0], leaves = [], flowers = [];
   const along = (x0, y0, x1, y1) => {
     const dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy), dir = Math.atan2(dy, dx);
-    c.line(x0, y0, x1, y1, 0.005, 0.002, 0.45);
+    c.line(x0, y0, x1, y1, 0.0045, 0.002, 0.45);
     let sd = R() < 0.5 ? 1 : -1;
-    for (let d = o.step * (0.4 + 0.4 * R()); d < l; d += o.step * (0.8 + 0.4 * R())) { const t = d / l; leaves.push([x0 + dx * t, y0 + dy * t, dir + sd * (0.65 + 0.5 * R()), o.leaf * (0.8 + 0.4 * R())]); sd = -sd; }
+    for (let d = o.step * (0.4 + 0.4 * R()); d < l; d += o.step * (0.8 + 0.4 * R())) {
+      const t = d / l, x = x0 + dx * t, y = y0 + dy * t;
+      leaves.push([x, y, dir + sd * (0.65 + 0.5 * R()), o.leaf * (0.8 + 0.4 * R())]); sd = -sd;
+      if (o.flowers) for (let k = 0; k < o.flowers; k++) flowers.push([x + (R() - 0.5) * 0.07, y + (R() - 0.5) * 0.07, 0.028 + 0.014 * R(), R() * 6.28, 0.8 + 0.2 * R()]);
+    }
     leaves.push([x1, y1, dir + (R() - 0.5) * 0.4, o.leaf * (0.9 + 0.3 * R())]);
+    if (o.flowers) flowers.push([x1, y1, 0.036, R() * 6.28, 1]);
   };
   const bend = (R() - 0.5) * 0.16, P = (t) => [0.03 + 0.82 * t, 0.5 + bend * t * t];
   for (let k = 0; k < o.twigs; k++) {
@@ -123,11 +171,12 @@ function leafy(c, R, o) {
   for (let k = 0; k < 6; k++) { const a = P(k / 6), b = P((k + 1) / 6); along(a[0], a[1], b[0], b[1]); }
   // (leaves over the twigs; those whose point would leave the cell are left out)
   for (const [x, y, a, len] of leaves) { const tx = x + Math.cos(a) * len, ty = y + Math.sin(a) * len; if (tx > 0.985 || tx < 0.015 || ty > 0.985 || ty < 0.015) continue; c.leaf(x, y, a, len, o.ratio, tones[Math.floor(R() * 3)]); }
+  for (const [x, y, r, a, tone] of flowers) { if (x > 0.955 || x < 0.045 || y > 0.955 || y < 0.045) continue; c.flower(x, y, r, a, tone); }
 }
 
 // A fan of short needled twigs from the root: a juniper's or a sagebrush's tuft.
 function tuft(c, R) {
-  for (let k = 0; k < 9; k++) { const a = (k / 8 - 0.5) * 1.9 + (R() - 0.5) * 0.15, L = 0.5 + 0.38 * R() * Math.cos(a); needled(c, R, 0.03, 0.5, Math.min(0.97, 0.03 + Math.cos(a) * L), Math.min(0.97, Math.max(0.03, 0.5 + Math.sin(a) * L)), 0.03, 0.009, 0.0075); }
+  for (let k = 0; k < 11; k++) { const a = (k / 10 - 0.5) * 1.9 + (R() - 0.5) * 0.15, L = 0.5 + 0.38 * R() * Math.cos(a), ex = IN(0.03 + Math.cos(a) * L), ey = IN(0.5 + Math.sin(a) * L); needled(c, R, 0.03, 0.5, ex, ey, 0.024, 0.007, 0.0055); for (let j = 0; j < 3; j++) { const u = 0.35 + 0.2 * j, sx = 0.03 + (ex - 0.03) * u, sy = 0.5 + (ey - 0.5) * u, b = a + (j % 2 ? 0.5 : -0.5), l2 = 0.1 + 0.08 * R(); needled(c, R, sx, sy, IN(sx + Math.cos(b) * l2), IN(sy + Math.sin(b) * l2), 0.022, 0.007, 0.0055); } }
 }
 
 // A rosette: sprays laid round a middle (a crown seen from straight above).
@@ -141,15 +190,18 @@ function rosette(c, R, draw, n) {
   c.xf = null;
 }
 
+const BLOSSOM = { leaf: 0.06, ratio: 0.5, step: 0.07, twigs: 7, flowers: 3 };
 const DRAW = {
-  fir: (c, R) => fir(c, R), firTop: (c, R) => firTop(c, R),
-  pine: (c, R) => burst(c, R, 120, 2.0, 0.44), pine2: (c, R) => burst(c, R, 150, 2.5, 0.4),
-  leaf: (c, R) => leafy(c, R, { leaf: 0.13, ratio: 0.55, step: 0.075, twigs: 6 }), leaf2: (c, R) => leafy(c, R, { leaf: 0.12, ratio: 0.62, step: 0.07, twigs: 7 }),
-  aspen: (c, R) => leafy(c, R, { leaf: 0.095, ratio: 0.92, step: 0.1, twigs: 5 }),
-  big: (c, R) => leafy(c, R, { leaf: 0.2, ratio: 0.42, step: 0.1, twigs: 5 }),
+  fir: (c, R) => fir(c, R), firTop: (c, R) => firTop(c, R), firHang: (c, R) => firHang(c, R),
+  pine: (c, R) => burst(c, R, 150, 2.0, 0.44), pine2: (c, R) => burst(c, R, 190, 2.5, 0.4), pineTwig: (c, R) => pineTwig(c, R),
+  leaf: (c, R) => leafy(c, R, { leaf: 0.105, ratio: 0.55, step: 0.058, twigs: 7 }), leaf2: (c, R) => leafy(c, R, { leaf: 0.095, ratio: 0.64, step: 0.055, twigs: 8 }),
+  aspen: (c, R) => leafy(c, R, { leaf: 0.08, ratio: 0.92, step: 0.08, twigs: 6 }),
+  big: (c, R) => leafy(c, R, { leaf: 0.17, ratio: 0.42, step: 0.085, twigs: 6 }),
   fine: (c, R) => leafy(c, R, { leaf: 0.04, ratio: 0.5, step: 0.022, twigs: 11 }),
+  blossom: (c, R) => leafy(c, R, BLOSSOM),
   tuft: (c, R) => tuft(c, R),
-  roseN: (c, R) => rosette(c, R, (cc, RR) => firTop(cc, RR, 0.3, 0.05), 8), roseL: (c, R) => rosette(c, R, (cc, RR) => leafy(cc, RR, { leaf: 0.15, ratio: 0.6, step: 0.09, twigs: 5 }), 7),
+  roseN: (c, R) => rosette(c, R, (cc, RR) => firTop(cc, RR, 0.3, 0.04), 8), roseL: (c, R) => rosette(c, R, (cc, RR) => leafy(cc, RR, { leaf: 0.12, ratio: 0.6, step: 0.07, twigs: 6 }), 7),
+  roseB: (c, R) => rosette(c, R, (cc, RR) => leafy(cc, RR, BLOSSOM), 7),
 };
 
 // The sprays: returns the whole picture so far, { W, H, cov, tone, wood } (numbers 0..1).
@@ -180,7 +232,7 @@ export function addImpostors(A, geos) {
   const W = IMP_W * SS, H = IMP_H * SS;
   geos.forEach((variants, arch) => variants.forEach((lods, v) => {
     const g = lods[1], P = g.attributes.position.array, U = g.attributes.aUv.array, L = g.attributes.aLeaf.array, n = P.length / 9;
-    const cov = new Uint8Array(W * H), tone = new Float32Array(W * H), wood = new Uint8Array(W * H), zb = new Float32Array(W * H).fill(-1e9);
+    const cov = new Uint8Array(W * H), tone = new Float32Array(W * H), wood = new Uint8Array(W * H) /* 0 leaf, 1 petal, 2 wood */, zb = new Float32Array(W * H).fill(-1e9);
     const px = (x) => (x / (2 * IMP_HALF) + 0.5) * W, py = (y) => (1 - y / IMP_TALL) * H;
     for (let t = 0; t < n; t++) {
       const o = t * 9, a = [px(P[o]), py(P[o + 1]), P[o + 2]], b = [px(P[o + 3]), py(P[o + 4]), P[o + 5]], c = [px(P[o + 6]), py(P[o + 7]), P[o + 8]];
@@ -192,8 +244,8 @@ export function addImpostors(A, geos) {
         if (u < 0 || w < 0 || r < 0) continue;
         const z = u * a[2] + w * b[2] + r * c[2], i = y * W + x; if (z <= zb[i]) continue;
         // (the dark inside of a crown, 1.25 and 3.25 in treeGeometry.js, is dark in the picture too)
-        let tn = leaf < 0.5 ? 0.8 : leaf > 1.1 && leaf < 1.5 ? 0.3 : 0.85, wd = leaf < 0.5 ? 1 : 0;
-        if (card) { const s = sampleAtlas(A, u * ua[0] + w * ub[0] + r * uc[0], u * ua[1] + w * ub[1] + r * uc[1]); if (s[0] < 0.42) continue; tn = s[1] * (leaf > 3.1 && leaf < 3.5 ? 0.4 : 1); wd = s[2] > 0.5 ? 1 : 0; }
+        let tn = leaf < 0.5 ? 0.8 : leaf > 1.1 && leaf < 1.5 ? 0.3 : 0.85, wd = leaf < 0.5 ? WOOD : 0;
+        if (card) { const s = sampleAtlas(A, u * ua[0] + w * ub[0] + r * uc[0], u * ua[1] + w * ub[1] + r * uc[1]); if (s[0] < 0.42) continue; tn = s[1] * (leaf > 3.1 && leaf < 3.5 ? 0.4 : 1); wd = s[2] > 0.75 ? WOOD : s[2] > 0.25 ? PETAL : 0; }
         // (what is nearer the eye a little lighter: the tree keeps some depth when it is flat)
         zb[i] = z; cov[i] = 1; tone[i] = tn * (0.82 + 0.18 * Math.min(1, Math.max(0, z / 0.3 * 0.5 + 0.5))); wood[i] = wd;
       }
@@ -202,9 +254,9 @@ export function addImpostors(A, geos) {
     for (let y = 0; y < IMP_H; y++) for (let x = 0; x < IMP_W; x++) {
       let c = 0, t = 0, w = 0;
       for (let bb = 0; bb < SS; bb++) for (let aa = 0; aa < SS; aa++) { const i = (y * SS + bb) * W + x * SS + aa; if (cov[i]) { c++; t += tone[i]; w += wood[i]; } }
-      const o = y * IMP_W + x; d.cov[o] = c / (SS * SS); d.tone[o] = c ? t / c : 0; d.wood[o] = c ? w / c : 0;
+      const o = y * IMP_W + x; d.cov[o] = c / (SS * SS); d.tone[o] = c ? t / c : 0; d.wood[o] = c ? w / c / 2 : 0;
     }
-    put(A, d, IMP_X0 + arch * IMP_W, v * IMP_H, IMP_W, IMP_H);
+    put(A, d, ...impostorCell(arch, v), IMP_W, IMP_H);
   }));
   return A;
 }
