@@ -9,7 +9,7 @@ const { base, page, problems, goto, close } = await open({ dist: flag('dist') ||
 await goto(`${base}?world=${world}&hud=1${query ? '&' + query : ''}`);
 await page.waitForFunction(() => window.__app && window.__app.loaded, null, { timeout: 600000 });
 await page.waitForSelector('#start button.primary:not([disabled])', { timeout: 600000 });
-await page.click('#start button.primary', { noWaitAfter: true });
+await page.click('#start button.primary', { noWaitAfter: true, timeout: 240000 });      // (a software-drawn frame of Haven takes seconds, and a click needs several)
 // --go <target>: set that target and fly there hands-off, as a player would (place:irma, moon, ...)
 const go = opt('go', null);
 if (go) await page.evaluate((id) => { const a = window.__app; a.pickTarget(id); a.startTransfer(); }, go);

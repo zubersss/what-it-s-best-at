@@ -188,12 +188,18 @@ export const FLOWERS_GLSL = /* glsl */`
     return mix(mix(mix(flHash(q), flHash(q + uvec3(1, 0, 0)), u.x), mix(flHash(q + uvec3(0, 1, 0)), flHash(q + uvec3(1, 1, 0)), u.x), u.y),
                mix(mix(flHash(q + uvec3(0, 0, 1)), flHash(q + uvec3(1, 0, 1)), u.x), mix(flHash(q + uvec3(0, 1, 1)), flHash(q + uvec3(1, 1, 1)), u.x), u.y), u.z);
   }
-  vec2 flowersAt(vec3 P, int flora, float slope) {
+  // The rule's two broad noises at a place: x where the meadows are (260 m to a cell), y
+  // where hillsides flower (420 m). They change so slowly that the ground asks them at its
+  // vertices and hands them on (terrainMaterial.js); flowersAt with four arguments takes
+  // them as given, with three it works them out itself. One rule either way.
+  float flowerMeadow(vec3 P) { return flNoise(P / 260.0 + vec3(17.0, 0.0, 5.0)); }
+  float flowerHill(vec3 P) { return flNoise(P / 420.0 + vec3(5.0, 3.0, 11.0)); }
+  vec2 flowersAt(vec3 P, int flora, float slope, vec2 fields) {
     if (flora <= 0 || flora >= FLORA_N) return vec2(0.0);
-    float meadow = flNoise(P / 260.0 + vec3(17.0, 0.0, 5.0)), t0 = FLORA_RICH[flora];
+    float meadow = fields.x, t0 = FLORA_RICH[flora];
     float rich = clamp((meadow - t0) / 0.07, 0.0, 1.0), fringe = clamp((meadow - t0 + 0.11) / 0.06, 0.0, 1.0);
     float hill = 0.0;
-    if (slope > 0.16) hill = clamp((slope - 0.16) / 0.12, 0.0, 1.0) * clamp((flNoise(P / 420.0 + vec3(5.0, 3.0, 11.0)) - 0.5) / 0.08, 0.0, 1.0);
+    if (slope > 0.16) hill = clamp((slope - 0.16) / 0.12, 0.0, 1.0) * clamp((fields.y - 0.5) / 0.08, 0.0, 1.0);
     if (fringe <= 0.0 && hill <= 0.0) return vec2(0.0);
     float drift = flNoise(P / 9.0 + vec3(40.0, 0.0, 0.0));
     float many = FLORA_MANY[flora] * max(max(rich * (0.45 + 0.75 * clamp((drift - 0.25) / 0.4, 0.0, 1.0)), 0.5 * fringe * clamp((drift - 0.6) / 0.15, 0.0, 1.0)), 1.1 * hill);
@@ -206,6 +212,7 @@ export const FLOWERS_GLSL = /* glsl */`
     }
     return vec2(float(kind), min(0.9, many) * (kind > 1 && KIND_PALE[kind] > 0.5 ? 0.45 : 1.0));
   }
+  vec2 flowersAt(vec3 P, int flora, float slope) { return flowersAt(P, flora, slope, vec2(flowerMeadow(P), slope > 0.16 ? flowerHill(P) : 0.5)); }
   vec2 flowersAt(vec3 P, int flora) { return flowersAt(P, flora, 0.0); }
   // a flower's colour (own: 0..1, the flower's own number)
   vec3 petalColour(float kind, float own) { int k = clamp(int(kind + 0.5), 0, KIND_N - 1); return mix(KIND_A[k], KIND_B[k], own); }`;
