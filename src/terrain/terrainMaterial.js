@@ -394,9 +394,10 @@ vec3 farGrassColour(float dry, float grain) {
   // a stencilled wallpaper.)
   float kB = 1.0 - smoothstep(0.09, 0.18, fw), bare = 0.21;
   if (kB > 0.0) bare = mix(bare, smoothstep(0.56, 0.7, 0.6 * textureLod(tDetail, vDetailUv * 0.75 + 0.13, 4.0).b + 0.4 * textureLod(tDetail, vDetailUv * 0.3125 + 0.61, 4.0).b + 0.04), kB);
-  c = mix(c, vec3(0.30, 0.22, 0.11) * (0.85 + 0.3 * grain), 0.3 * bare * smoothstep(0.2, 0.8, dry) * beyond);
-  float kS = 1.0 - smoothstep(0.03, 0.06, fw), shrub = 0.106;
-  if (kS > 0.0) shrub = mix(shrub, smoothstep(0.66, 0.7, textureLod(tDetail, vDetailUv * 2.0 + 0.37, 4.0).b), kS);
+  c = mix(c, vec3(0.30, 0.22, 0.11) * (0.85 + 0.3 * grain), 0.42 * bare * smoothstep(0.2, 0.8, dry) * beyond);
+  float kS = 1.0 - smoothstep(0.03, 0.06, fw), shrub = 0.101;
+  // (in clusters and gaps by a second read 205 m apart: by one alone the shrubs stood in a grid)
+  if (kS > 0.0) shrub = mix(shrub, smoothstep(0.618, 0.648, 0.6 * textureLod(tDetail, vDetailUv * 2.0 + 0.37, 4.0).b + 0.4 * textureLod(tDetail, vDetailUv * 0.3125 + vec2(0.29, 0.83), 4.0).b), kS);
   c = mix(c, vec3(0.04, 0.05, 0.025), 0.8 * shrub * beyond);
   // tussocks: a grain a metre across, light and dark
   float kT = 1.0 - smoothstep(0.004, 0.012, fw);
