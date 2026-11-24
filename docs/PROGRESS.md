@@ -63,6 +63,14 @@ transcript, the numbers that matter here):
 6. Merge as they push, review their code cold as before, final pictures and tests, a
    new Haven benchmark asked for.
 
+**The helpers** (started 2026-11-24 06:12 UTC; sessions of the same account, reached with
+`send_message`; never `list_events`; look at their work with `git fetch origin <branch>`):
+trees `session_01XG1DZ6z4HnMC6bjsyXexux`, branch `ccr-aa39490a-trees-refined`; grass
+`session_01XG1DZ7F3Rxaid46abwPs1f`, branch `ccr-aa39490a-grass-rich`; from above
+`session_01XG1DZ4yJLFGhdSyRj3Cexf`, branch `ccr-aa39490a-from-above`. Each announces an
+early push ("T-EARLY", "G-EARLY", "A-LOOK") and writes a report beside its brief. None of
+them may edit `terrainMaterial.js`: the ground's shader is being rewritten here.
+
 ### The far view sent: trees, grass and rock as far as one can see
 
 *2026-11-24. Merged as pull request #34; the phone link shows build 6ac24ff (this line was
