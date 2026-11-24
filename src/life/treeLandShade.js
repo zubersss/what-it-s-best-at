@@ -42,7 +42,10 @@ export function landShadow(hs, baker, b, sun, sunHalf, G, ground = null) {
       const px = o[0] + e[0] * x + n[0] * y, py = o[1] + e[1] * x + n[1] * y, pz = o[2] + e[2] * x + n[2] * y, l = Math.hypot(px, py, pz);
       const h = hs.height(px / l, py / l, pz / l, 30);
       grid[j * G + i] = baker.visibility(px / l, py / l, pz / l, h + 10, sun[0], sun[1], sun[2], 30, sunHalf);
-      if (high) high[j * G + i] = l + h - ol;          // (over the plane through the tile's middle, near enough: the world's curve is the same for neighbours)
+      // (the ground's height over the plane through the tile's middle: the ground is (R + h) along
+      // this direction, whose share of the tile's up is ol / l. As l + h - ol the world's curve
+      // was counted the wrong way round, and the slope tilted by 2x / R: review farforest-5)
+      if (high) high[j * G + i] = (hs.radius + h) * ol / l - ol;
     }
     if (high) {
       // the slope's share of the sunlight at every point of the grid, from its neighbours' heights

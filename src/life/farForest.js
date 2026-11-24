@@ -41,7 +41,7 @@ import { BASE_BLOCKS, BAND, LEVELS, band, levelReach, wantedTiles, GROW } from '
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
 import { PAINT_LEAF } from './trees.js';
 import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
-import { SHADOW0, FORM_GLSL, SHADOW_GLSL, FAR_GREEN_GLSL, DENS_STEPS, SHADOW_LONG, SHADOW_FAR0, SHADOW_FAR1, TOP0, TOP1, END_ABOVE } from './farTreeForm.js';
+import { SHADOW0, FORM_GLSL, SHADOW_GLSL, FAR_GREEN_GLSL, DENS_STEPS, SHADOW_LONG, SHADOW_FAR0, SHADOW_FAR1, TOP0, TOP1, TOP_MAX, END_ABOVE } from './farTreeForm.js';
 
 // Trees one tile may hand the GPU (a fixed pool). A band of ranks of levels 0 to 2 has at
 // most 64 blocks x 256 sites x 3/4 = 12 288 sites, and a traveller in the thick of a wood
@@ -53,6 +53,14 @@ const POOL = 40;              // tiles drawn at once
 // it is no farther off along the ground than this many times the traveller's height; half
 // as much again, for ground that falls away.
 const SHADOW_REACH = 1.5 * Math.sqrt(1 / (SHADOW0 * SHADOW0) - 1);
+// A tile's shadows, from the eye's distance from the world's middle, its lowest tree's and
+// its nearest point's distance along the ground (m): air, how much of them is drawn (0 to 60
+// m over the tile, all from 160 m), and reach, whether any of its trees can be looked down
+// on at the angle shadows begin at (scripts/far-tree-form-test.mjs checks a rim).
+export function tileShadow(eyeLen, low, near) {
+  const over = Math.max(0, eyeLen - low), a = Math.min(1, Math.max(0, (over - 60) / 100));
+  return { over, air: a * a * (3 - 2 * a), reach: near < over * SHADOW_REACH + 400 };
+}
 const MARGIN = 1.5;           // a tile is filled with rather more trees than are wanted now, so that coming nearer does not refill it at once
 
 // Three bytes of colour in one number a float can hold exactly (the shader takes it apart).
@@ -65,6 +73,12 @@ const COLOUR_TOP = 0.75;
 // crown takes the colour). own: the tree's own number (it flowers a few days before or after its neighbours).
 function inFlower(sp, day, own, south) { const k = bloomOf(sp, day + (own - 0.5) * 8, south ? -1 : 1).open * 0.8; return sp.leaf.map((v, i) => v + (sp.blossom.colour[i] * 0.5 - v) * k); }
 function pack(c) { const b = (v) => Math.round(Math.min(1, Math.max(0, v / COLOUR_TOP)) * 255); return b(c[0]) * 65536 + b(c[1]) * 256 + b(c[2]); }
+// The colours packed once: a species' leaves and bark, and a flowering species' crown by its
+// tree's own number in this many steps (an eighth of a day of flowering apart), worked out
+// again when the day changes. (Worked out tree by tree in every fill, a flowering wood made
+// thousands of short-lived objects a frame in flight: review farforest-8.)
+const OWN_STEPS = 64;
+const PACK_LEAF = SPECIES.map((sp) => pack(sp.leaf)), PACK_TRUNK = SPECIES.map((sp) => pack(sp.trunk));
 
 
 export class FarForest {
@@ -89,7 +103,8 @@ export class FarForest {
     const corner = [], index = [];
     // (and a fourth, 3: the tree's shadow on the ground, drawn only for a traveller in the air: update())
     for (let q = 0; q < 4; q++) { for (const [u, v] of [[0, 0], [1, 0], [0, 1], [1, 1]]) corner.push(q, u, v); index.push(q * 4, q * 4 + 2, q * 4 + 1, q * 4 + 1, q * 4 + 2, q * 4 + 3); }
-    this.corner = new THREE.BufferAttribute(new Float32Array(corner), 3); this.index = index;
+    this.corner = new THREE.BufferAttribute(new Float32Array(corner), 3); this.index = new THREE.BufferAttribute(new Uint16Array(index), 1);
+    this.bloom = new Map(); this.bloomDay = null; this.bloomSouth = null;
     // Shared by every tile; only where a tile stands is its own (uTileRel and its frame).
     this.shared = {
       ...lightingUniforms(),
@@ -100,19 +115,19 @@ export class FarForest {
       // x: full density out to here (m), y: none beyond here (m), z: none nearer than here
       // (where the trees one walks among end), w: the share of them drawn (the governor)
       uFar: { value: new THREE.Vector4(450, 5600, 240, 1) },
-      // x: how much of a tree's shadow on the ground is drawn (none for a traveller on the
-      // ground, all from the air: update())
       // y: 1 paints every tree by the Sun it is left (?debug=treeshade)
+      // (how much of a tree's shadow on the ground is drawn is each tile's own: uTileShadow)
       uShadow: { value: new THREE.Vector4(0, 0, 0, 0) },
     };
     this.vertexShader = /* glsl */`
       in vec4 iA;            // xyz: the tree's foot from the tile's origin (m, planet axes), w: its height (m)
       in vec4 iB;            // x: crown width, y: turn (radians), z: which picture (shape x variants + variant), w: a number of its own
-      in vec4 iC;            // x: its rank, and beside it the chance its site had of a tree (2 x that in DENS_STEPS steps + the rank), y: leaf colour packed, z: trunk colour packed, w: 4 x (1 or 2 if it drops its leaves) + 3 x how much of the Sun the land leaves it + 16 x (in 15 steps) how much sunlight the ground at its feet takes by its slope
+      in vec4 iC;            // x: its rank, and beside it the chance its site had of a tree (2 x that in DENS_STEPS steps + the rank), y: leaf colour packed, z: trunk colour packed, w: 4 x (1 or 2 if it drops its leaves) + 3 x how much of the Sun the land leaves it + 16 x (in 15 steps) how much sunlight the ground at its feet takes by its slope + 256 if its species flowers
       uniform vec3 uTileRel, uTileEast, uTileNorth, uTileUp;
       uniform vec4 uRectTree[CELLS], uRectRose[CELLS], uRoseGeo[CELLS];
       uniform float uCellMid[CELLS];
       uniform vec4 uFar, uShadow;
+      uniform float uTileShadow;
       uniform vec3 uSunDir;
       ${TREE_SHADE_VERT}
       ${SHADOW_GLSL}
@@ -144,15 +159,16 @@ export class FarForest {
         vec4 g = uRoseGeo[cell], rect;
         vec3 l, na;                                  // (na: outward from the middle of its mass, in the mesh's own measure)
         float mid = uCellMid[cell];
-        float groundQ = floor(iC.w / 16.0), packed = iC.w - 16.0 * groundQ;
+        float flowers = floor(iC.w / 256.0), rest = iC.w - 256.0 * flowers;
+        float groundQ = floor(rest / 16.0), packed = rest - 16.0 * groundQ;
         float fall = floor(packed * 0.25 + 1e-3), sunLeft = clamp((packed - fall * 4.0) / 3.0, 0.0, 1.0) * cloudShade(foot + uTileUp * (iA.w * 0.7));
         if (position.x > 2.5) {
-          // The fourth quad, handed over only from the air: the picture of the whole tree laid
-          // on the ground along the Sun's ray, the tree's shadow (its own outline, as long as
-          // the Sun is low).
+          // The fourth quad, drawn only from the air and in a draw of its own (the slot's shadow
+          // mesh): the picture of the whole tree laid on the ground along the Sun's ray, the
+          // tree's shadow (its own outline, as long as the Sun is low).
           float sunUp = dot(uSunDir, uTileUp); vec3 lie = uSunDir - uTileUp * sunUp; float len = length(lie);
           // (a tree in the shade casts none, and one the grid of the land's shadow leaves half lit is in the shade as likely as not; none on ground the Sun does not reach by its slope)
-          float a = wShadow * uShadow.x * smoothstep(0.03, 0.14, sunUp) * (1.0 - smoothstep(${SHADOW_FAR0.toFixed(1)}, ${SHADOW_FAR1.toFixed(1)}, d)) * smoothstep(0.5, 0.95, sunLeft) * (groundQ / 15.0);
+          float a = wShadow * uTileShadow * smoothstep(0.03, 0.14, sunUp) * (1.0 - smoothstep(${SHADOW_FAR0.toFixed(1)}, ${SHADOW_FAR1.toFixed(1)}, d)) * smoothstep(0.5, 0.95, sunLeft) * (groundQ / 15.0);
           if (a < 0.004 || len < 1e-3) NONE
           vec3 along = -lie / len, across = cross(uTileUp, along);
           float stretch = min(len / max(sunUp, 0.12), ${SHADOW_LONG.toFixed(1)}), wideM = 2.0 * g.z * iB.x * iA.w * grow, longM = g.w * iA.w * grow * stretch;
@@ -195,7 +211,7 @@ export class FarForest {
         l *= iA.w * grow;
         vRel = foot + uTileEast * (l.x * c - l.z * s) + uTileUp * l.y + uTileNorth * (l.x * s + l.z * c);
         vN = normalize(uTileEast * (nl.x * c - nl.z * s) + uTileUp * nl.y + uTileNorth * (nl.x * s + nl.z * c));
-        vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); vOwn = vec2(iB.w, fall); vShade = sunLeft; vShadowA = 0.0;
+        vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); vOwn = vec2(iB.w, fall + 4.0 * flowers); vShade = sunLeft; vShadowA = 0.0;
         vUv = vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
         gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
       }`;
@@ -222,11 +238,17 @@ export class FarForest {
         // (a tree's shadow on the ground: it takes this share of what is drawn there; see the
         // material's blending)
         if (vShadowA > 0.0) { fragColor = vec4(0.0, 0.0, 0.0, vShadowA); return; }
-        bool wood = cut.b > 0.75;          // (0.5 is a petal in the picture: a tree in flower is its petals' colour all over from here, see inFlower)
+        // (by the near trees' rule, trees.js: in a tree that flowers, 0.5 is a petal in the
+        // picture, and it is its petals' colour all over from here (see inFlower); in any other
+        // tree the edges of trunks and limbs are wood from 0.5, and with 0.75 for every tree
+        // they went green at the line where the near trees end: review farforest-6)
+        bool flowers = vOwn.y > 3.5;
+        float fall = vOwn.y - (flowers ? 4.0 : 0.0);
+        bool wood = cut.b > (flowers ? 0.75 : 0.5);
         vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel), N = normalize(vN);
         // leaves in their season: green, then this tree's own gold, orange or red
-        float turn = vOwn.y > 0.5 ? clamp(uSeason.x * 1.6 - vOwn.x * 0.6, 0.0, 1.0) : 0.0;
-        vec3 autumn = vOwn.y > 1.5 ? vec3(0.42, 0.26, 0.03) : mix(vec3(0.40, 0.20, 0.03), vec3(0.30, 0.045, 0.02), smoothstep(0.35, 0.8, fract(vOwn.x * 7.3)));
+        float turn = fall > 0.5 ? clamp(uSeason.x * 1.6 - vOwn.x * 0.6, 0.0, 1.0) : 0.0;
+        vec3 autumn = fall > 1.5 ? vec3(0.42, 0.26, 0.03) : mix(vec3(0.40, 0.20, 0.03), vec3(0.30, 0.045, 0.02), smoothstep(0.35, 0.8, fract(vOwn.x * 7.3)));
         vec3 leafC = mix(vLeafC * (0.5 + 0.22 * fract(vOwn.x * 13.7)), autumn * 0.6, turn);
         if (uPaint.x > 0.0) leafC = paintLeaf(leafC) * mix(0.5, 1.12, smoothstep(-0.5, 0.6, dot(N, up)));
         leafC *= 0.46 + 0.6 * cut.g;
@@ -239,7 +261,9 @@ export class FarForest {
         // canopy the ground raises beyond the trees)
         float dFar = length(vRel), farW = farGreenW(dFar);
         leafC = farGreen(leafC, dFar);
-        vec3 albedo = wood ? vTrunkC * 0.6 : leafC;
+        // (wood on a card is the near trees' twig colour, trees.js: grey-brown, darker than the
+        // trunk; as vTrunkC * 0.6 every bark pixel changed tone at the line, review farforest-6)
+        vec3 albedo = wood ? mix(vTrunkC, dot(vTrunkC, vec3(0.333)) * vec3(1.06, 1.0, 0.9), 0.75) * 0.4 : leafC;
         float nl = dot(N, uSunDir), lit = wood ? max(nl, 0.0) : max(nl * 0.7 + 0.3, 0.0);
         if (uPaint.x > 0.0) { lit = mix(lit, paintLit(wood ? nl : nl * 0.75 + 0.25) * PI, uPaint.x); albedo = paintColour(albedo); leafC = paintColour(leafC); }
         // (seen against the Sun, foliage glows: the light comes through needles and leaves)
@@ -277,40 +301,55 @@ export class FarForest {
   }
 
   // One tile of the pool: its buffers are made once and filled when a tile lands in it.
+  // Two meshes share them: the trees (their three quads), and from the air the trees'
+  // shadows (the fourth), in a draw of their own. (In the trees' own draw a shadow wrote
+  // depth: one lying over another was thrown out by it, so a wood's edge came to a fifth of
+  // the darkness meant, and it cut away the lower part of every tree standing in a
+  // neighbour's shadow: review farforest-1.)
   _slot() {
-    const geo = new THREE.InstancedBufferGeometry();
-    geo.setAttribute('position', this.corner);
-    geo.setIndex(this.index);
-    geo.setDrawRange(0, 18);                 // (the three quads of the tree; the shadow's with them from the air)
     const at = () => { const a = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 4), 4); a.setUsage(THREE.DynamicDrawUsage); return a; };
     const iA = at(), iB = at(), iC = at();
-    geo.setAttribute('iA', iA); geo.setAttribute('iB', iB); geo.setAttribute('iC', iC);
-    geo.instanceCount = 0;
-    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1);
+    const geometry = (from, count) => {
+      const geo = new THREE.InstancedBufferGeometry();
+      geo.setAttribute('position', this.corner);
+      geo.setIndex(this.index);
+      geo.setDrawRange(from, count);
+      geo.setAttribute('iA', iA); geo.setAttribute('iB', iB); geo.setAttribute('iC', iC);
+      geo.instanceCount = 0;
+      geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1);
+      return geo;
+    };
+    const geo = geometry(0, 18), shadowGeo = geometry(18, 6);
+    const own = { uTileRel: { value: new THREE.Vector3() }, uTileEast: { value: new THREE.Vector3(1, 0, 0) }, uTileNorth: { value: new THREE.Vector3(0, 1, 0) }, uTileUp: { value: new THREE.Vector3(0, 0, 1) }, uTileShadow: { value: 0 } };
     const material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: this.defines, side: THREE.DoubleSide,
-      // What is drawn takes its alpha's share of what was there: a tree all of it (alpha 1,
-      // as every lit surface writes), a tree's shadow a part, darkening the ground under it.
-      // Only switched on from the air, where the shadows are drawn (update()).
-      blending: THREE.NoBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
-      uniforms: { ...this.shared, uTileRel: { value: new THREE.Vector3() }, uTileEast: { value: new THREE.Vector3(1, 0, 0) }, uTileNorth: { value: new THREE.Vector3(0, 1, 0) }, uTileUp: { value: new THREE.Vector3(0, 0, 1) } },
+      uniforms: { ...this.shared, ...own },
       vertexShader: this.vertexShader, fragmentShader: this.fragmentShader,
     });
-    const mesh = new THREE.Mesh(geo, material);
+    // A shadow takes its alpha's share of what was drawn there, and writes no depth: where
+    // several lie over one another each darkens what the others left.
+    const shadowMaterial = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3, defines: this.defines, side: THREE.DoubleSide, depthWrite: false,
+      blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
+      uniforms: { ...this.shared, ...own },
+      vertexShader: this.vertexShader, fragmentShader: this.fragmentShader,
+    });
+    const mesh = new THREE.Mesh(geo, material), shadow = new THREE.Mesh(shadowGeo, shadowMaterial);
     // The vertices are worked out from the tile's own uniform, not from this matrix; the
     // mesh is put where the tile stands all the same, so that three can cull it against the
     // view. (The order they are drawn in is set each frame, nearest first.)
-    mesh.visible = false;
+    mesh.visible = false; shadow.visible = false;
     mesh.renderOrder = 5;                   // after the ground: the canopy hides the lower part of a far tree for nothing
-    this.mesh.add(mesh);
-    return { geo, mesh, material, iA, iB, iC, tile: null };
+    shadow.renderOrder = 3;                 // after the ground they lie on, before every far tree (which then stand on them whole)
+    this.mesh.add(mesh); this.mesh.add(shadow);
+    return { geo, shadowGeo, mesh, shadow, material, shadowMaterial, own, iA, iB, iC, tile: null };
   }
 
   setWorld(world) {
     this.world = world; this.def = world.life?.trees?.far || null;
     for (const t of this.tiles.values()) if (t.slot) this._free(t);
     this.tiles.clear(); this.asked = 0; this.gen = (this.gen || 0) + 1; this.serial = -1; this.missing = 0; this.count = 0; this.held = 0;
-    for (const s of this.pool) { s.mesh.visible = false; s.geo.instanceCount = 0; s.tile = null; }
+    for (const s of this.pool) { s.mesh.visible = false; s.shadow.visible = false; s.geo.instanceCount = 0; s.shadowGeo.instanceCount = 0; s.tile = null; }
     const d = this.def;
     if (d) this.shared.uFar.value.set(d.full ?? 450, d.radius ?? 5600, 0, 1);
   }
@@ -323,14 +362,14 @@ export class FarForest {
 
   get triangles() { return this.count * 6; }
   // True while the trees' shadows on the ground are drawn (in the air: update()).
-  get shadowsShown() { return !!this.shown && this.blend === THREE.CustomBlending; }
+  get shadowsShown() { return !!this.shown && this.shadowTiles > 0; }
   // True while tiles that are wanted have not arrived (screenshots wait for them).
   get busy() { return !!this.def && this.shown && (this.asked > 0 || this.missing > 0 || this.unfilled > 0); }
 
   _free(tile) {
     const s = tile.slot;
     if (!s) return;
-    s.tile = null; s.mesh.visible = false; s.geo.instanceCount = 0; tile.slot = null;
+    s.tile = null; s.mesh.visible = false; s.shadow.visible = false; s.geo.instanceCount = 0; s.shadowGeo.instanceCount = 0; tile.slot = null;
   }
 
   // Every frame. rig: the camera rig.
@@ -340,8 +379,8 @@ export class FarForest {
     const shown = !!def && this.fraction > 0 && tr.atlasReady && !!t.coverSerial && rig.agl < (def.below ?? 6000);
     this.shown = shown;
     if (!shown) {
-      for (const s of this.pool) s.mesh.visible = false;
-      this.count = 0; this.held = 0; this.missing = 0;
+      for (const s of this.pool) { s.mesh.visible = false; s.shadow.visible = false; }
+      this.count = 0; this.held = 0; this.missing = 0; this.shadowTiles = 0;
       return;
     }
     // The governor thins the trees and shortens their reach; the look of a wood is kept by
@@ -350,14 +389,6 @@ export class FarForest {
     // (they begin where the trees one walks among end, and at the eye where none are drawn)
     const inner = tr.reach || 0;
     this.shared.uFar.value.set(full, radius, inner, this.fraction);
-    // A tree's shadow on the ground beside it is drawn for a traveller in the air (it comes
-    // in between 60 and 160 m up): on the ground the far trees are seen from the side, their
-    // shadows hidden behind them, and the blending they need would be paid for nothing.
-    // (the governor's step `tree-shadows` takes them away with the trees' other far shadows)
-    const air = this.shadows === false ? 0 : Math.min(1, Math.max(0, (rig.agl - 60) / 100)), shadows = air * air * (3 - 2 * air);
-    this.shared.uShadow.value.x = shadows;
-    const blend = shadows > 0 ? THREE.CustomBlending : THREE.NoBlending;
-    if (blend !== this.blend) { this.blend = blend; for (const q of this.pool) q.material.blending = blend; }
     const p = this._p.copy(rig.pos), R = this.world.radius, s0 = this._rel;
     const len = p.length(), lat = Math.asin(p.z / len) * 180 / Math.PI, lon = ((Math.atan2(p.y, p.x) * 180 / Math.PI) + 360) % 360;
     // new land cover or new elevation: every tile is worked out again (the ones that stand
@@ -370,6 +401,23 @@ export class FarForest {
     const want = [], sunNow = this.shared.uSunDir.value, now = performance.now();
     this.missing = 0;
     const high = 0.7 * Math.max(0, rig.agl);
+    // (a new day: the trees in flower are a day further on, as the near trees are; the tiles
+    // that hold any are filled again)
+    const south = tr.anchor ? tr.anchor.z < 0 : false;
+    if (Math.floor(tr.day || 0) !== this.bloomDay || south !== this.bloomSouth || !this.bloom) {
+      const first = this.bloomDay == null; this.bloom ??= new Map();
+      this.bloomDay = Math.floor(tr.day || 0); this.bloomSouth = south;
+      for (let k = 0; k < SPECIES.length; k++) {
+        const sp = SPECIES[k]; if (!sp.blossom) continue;
+        const tab = this.bloom.get(k) || new Float64Array(OWN_STEPS + 1);
+        for (let o = 0; o <= OWN_STEPS; o++) tab[o] = pack(inFlower(sp, tr.day || 0, o / OWN_STEPS, south));
+        this.bloom.set(k, tab);
+      }
+      if (!first) for (const b of this.tiles.values()) if (b.flowering) b.fillEye = null;
+    }
+    // How long since the last frame, for what eases (s; a frame of a second and more in a
+    // headless picture is let through whole)
+    const dt = Math.min(5, Math.max(0, (now - (this.lastNow ?? now)) / 1000)); this.lastNow = now;
     for (const w of wantedTiles(lat, lon, R, full, radius, Math.max(0, rig.agl))) {
       let tile = this.tiles.get(w.key);
       if (!tile) { tile = { key: w.key, level: w.level, ti: w.ti, tj: w.tj, blocks: w.blocks, side: w.side, state: 0, fillEye: null, slot: null, data: null, count: 0, shown: 0, stale: false, asking: false }; this.tiles.set(w.key, tile); }
@@ -406,7 +454,7 @@ export class FarForest {
     // At most two tiles are filled in a frame, the nearest first: tiles filled while the
     // traveller stood all came due together (15 to 20 of them every 45 m, some 8 ms of the
     // page's work and 3 MB of buffers in one frame). The margin a tile holds covers the wait.
-    let drawn = 0, given = 0, fills = 0, i = 0; this.unfilled = 0;
+    let drawn = 0, given = 0, fills = 0, i = 0, shadowTiles = 0; this.unfilled = 0;
     for (const tile of take) {
       if (!tile.slot) {
         const s = this.pool.find((q) => !q.tile);
@@ -422,22 +470,34 @@ export class FarForest {
       }
       // (drawn nearest first: each tile has a material of its own, and three would order
       // them by material before depth)
-      s.mesh.renderOrder = 5 + (i++) / 64;
-      s.material.uniforms.uTileRel.value.subVectors(tile.origin, p);
-      s.mesh.position.copy(s.material.uniforms.uTileRel.value);
+      s.mesh.renderOrder = 5 + i / 64; s.shadow.renderOrder = 3 + (i++) / 64;
+      s.own.uTileRel.value.subVectors(tile.origin, p);
+      s.mesh.position.copy(s.own.uTileRel.value); s.shadow.position.copy(s.own.uTileRel.value);
       // (the tile is drawn when a tree of its band could be; the view culls it by its bounds)
       const vis = tile.count > 0 && tile.far3 <= levelReach(tile.level, full, radius);
-      // (the shadows' quad, two triangles a tree, only for the tiles that can show one: near
-      // enough for a shadow to be drawn at all, and near enough under the traveller to be
-      // looked down on at the angle shadows begin at, with room for ground lower than the
-      // ground underfoot)
-      s.geo.setDrawRange(0, shadows > 0 && tile.far3 < SHADOW_FAR1 && tile.near < Math.max(0, rig.agl) * SHADOW_REACH + 400 ? 24 : 18);
-      s.mesh.visible = vis;
+      // The trees' shadows on the ground are drawn for a traveller in the air over them: on
+      // the ground the far trees are seen from the side, their shadows hidden behind them, and
+      // their draw would be paid for nothing. "Over them" is the eye's height over the
+      // tile's lowest tree, not over the ground underfoot: by the ground underfoot every
+      // shadow came on and went off at once at a rim or a ridge (review farforest-2), and
+      // a tile of a valley's trees looked down on steeply from a rim had none (farforest-3).
+      // They come in between 60 and 160 m over the tile, eased over a second.
+      // (the governor's step `tree-shadows` takes them away with the trees' other far shadows)
+      const sh = tileShadow(len, tile.low, tile.near), wantAir = this.shadows === false ? 0 : sh.air;
+      tile.air = tile.air === undefined ? wantAir : tile.air + (wantAir - tile.air) * (1 - Math.exp(-dt / 0.8));
+      if (Math.abs(wantAir - tile.air) < 0.01) tile.air = wantAir;
+      s.own.uTileShadow.value = tile.air;
+      // (only for the tiles that can show one: near enough for a shadow to be drawn at all,
+      // and near enough under the traveller to be looked down on at the angle shadows begin
+      // at, with room to spare)
+      const shade = vis && tile.air > 0 && tile.far3 < SHADOW_FAR1 && sh.reach;
+      s.mesh.visible = vis; s.shadow.visible = shade;
+      if (shade) shadowTiles++;
       if (vis) { drawn += tile.shown; given += tile.count; }
     }
     // (count: the trees standing in the picture. held: the instances the tiles hand the
     // GPU, some of which the vertex shader throws out as too thin for their distance.)
-    this.count = drawn; this.held = given;
+    this.count = drawn; this.held = given; this.shadowTiles = shadowTiles;
     // Tiles left behind are let go, with the trees the worker gave them (a few hundred
     // kilobytes each): a traveller who comes back pays one worker job for them again.
     if (this.frame % 60 === 0) for (const [k, b] of this.tiles) if (this.frame - b.used > 240 && !b.asking) { this._free(b); this.tiles.delete(k); }
@@ -455,7 +515,12 @@ export class FarForest {
       tile.asking = false;
       if (epoch !== t.epoch) return;                       // another world by now
       tile.origin = new THREE.Vector3(...res.origin);
-      tile.data = new Float32Array(res.trees); tile.vis = new Float32Array(res.vis); tile.lit = res.lit ? new Float32Array(res.lit) : null; tile.sun = sun; tile.at = performance.now(); tile.have = res.count; tile.state = 1;
+      tile.data = new Float32Array(res.trees);
+      // (the tile's lowest tree: its foot's distance from the world's middle)
+      let low = Infinity; const T = tile.data;
+      for (let k = 0, q = 0; k < res.count; k++, q += TREE_FLOATS) low = Math.min(low, Math.hypot(res.origin[0] + T[q], res.origin[1] + T[q + 1], res.origin[2] + T[q + 2]));
+      tile.low = Number.isFinite(low) ? low : tile.origin.length();
+      tile.vis = new Float32Array(res.vis); tile.lit = res.lit ? new Float32Array(res.lit) : null; tile.sun = sun; tile.at = performance.now(); tile.have = res.count; tile.state = 1;
       tile.stale = serialAt !== this.serial; tile.fillEye = null;
       this.lastMs = res.ms ?? 0;
     }).catch((e) => { if (gen === this.gen) this.asked--; tile.asking = false; if (tile.state === 0) this.tiles.delete(tile.key); console.error(e); });
@@ -474,9 +539,9 @@ export class FarForest {
     u.uTileEast.value.set(...this._e); u.uTileNorth.value.set(...this._n); u.uTileUp.value.set(...this._u);
     const uf = this.shared.uFar.value, full2 = uf.x ** 2, inner2 = uf.z ** 2, far2 = uf.y ** 2, thin = uf.w;
     const ex = eyeRel.x, ey = eyeRel.y, ez = eyeRel.z;
-    let n = 0, bound2 = 0, shown = 0, margin = MARGIN;
+    let n = 0, bound2 = 0, shown = 0, margin = MARGIN, tallest = 0, flowering = false;
     for (let pass = 0; pass < 3; pass++) {
-      n = 0; bound2 = 0; shown = 0;
+      n = 0; bound2 = 0; shown = 0; tallest = 0; flowering = false;
       for (let k = 0, q = 0; k < tile.have; k++, q += TREE_FLOATS) {
         const x = T[q], y = T[q + 1], z = T[q + 2], rank = T[q + 8];
         const dx = x + ex, dy = y + ey, dz = z + ez, d2 = dx * dx + dy * dy + dz * dz;
@@ -485,10 +550,12 @@ export class FarForest {
         if (n >= CAP) { n++; break; }
         // (how many of them the vertex shader will draw, for the read-out)
         if (rank < keep && d2 > inner2 && d2 < far2) shown++;
-        const sp = SPECIES[T[q + 6]], own = T[q + 7];
+        const spi = T[q + 6], sp = SPECIES[spi], own = T[q + 7];
         iA[n * 4] = x; iA[n * 4 + 1] = y; iA[n * 4 + 2] = z; iA[n * 4 + 3] = T[q + 3];
         iB[n * 4] = T[q + 4]; iB[n * 4 + 1] = T[q + 5]; iB[n * 4 + 2] = sp.arch * VARIANTS + Math.min(VARIANTS - 1, Math.floor(((own * 7.31) % 1) * VARIANTS)); iB[n * 4 + 3] = own;
-        iC[n * 4] = rank + 2 * Math.round(Math.min(1, Math.max(0, T[q + 9])) * DENS_STEPS); iC[n * 4 + 1] = pack(sp.blossom ? inFlower(sp, this.trees.day, T[q + 7], this.trees.anchor.z < 0) : sp.leaf); iC[n * 4 + 2] = pack(sp.trunk); iC[n * 4 + 3] = sp.fall * 4 + 3 * tile.vis[k] + 16 * Math.round(15 * (tile.lit ? tile.lit[k] : 1));
+        iC[n * 4] = rank + 2 * Math.round(Math.min(1, Math.max(0, T[q + 9])) * DENS_STEPS); iC[n * 4 + 1] = sp.blossom ? this.bloom.get(spi)[Math.round(own * OWN_STEPS)] : PACK_LEAF[spi]; iC[n * 4 + 2] = PACK_TRUNK[spi]; iC[n * 4 + 3] = sp.fall * 4 + 3 * tile.vis[k] + 16 * Math.round(15 * (tile.lit ? tile.lit[k] : 1)) + (sp.blossom ? 256 : 0);
+        if (sp.blossom) flowering = true;
+        if (T[q + 3] > tallest) tallest = T[q + 3];
         const r2 = x * x + y * y + z * z + T[q + 3] * T[q + 3];
         if (r2 > bound2) bound2 = r2;
         n++;
@@ -499,10 +566,14 @@ export class FarForest {
       n = CAP; margin = pass === 0 ? 1.2 : 1.0;
     }
     n = Math.min(n, CAP);
-    tile.count = n; tile.shown = shown;
+    tile.count = n; tile.shown = shown; tile.flowering = flowering;
     tile.fillEye = (tile.fillEye || new THREE.Vector3()).copy(eye);
-    s.geo.instanceCount = n;
+    s.geo.instanceCount = n; s.shadowGeo.instanceCount = n;
     s.geo.boundingSphere.center.set(0, 0, 0); s.geo.boundingSphere.radius = Math.sqrt(bound2) + 20;
+    // (the shadows reach out from the trees' feet by as much as SHADOW_LONG of their heights,
+    // or the rosette's spread from above: with the trees' own bounds the shadows near a
+    // tile's corner were culled with it at the screen's edge, review farforest-7)
+    s.shadowGeo.boundingSphere.center.set(0, 0, 0); s.shadowGeo.boundingSphere.radius = Math.sqrt(bound2) + 20 + tallest * Math.max(SHADOW_LONG, TOP_MAX * 0.3);
     for (const a of [s.iA, s.iB, s.iC]) { a.clearUpdateRanges?.(); a.addUpdateRange?.(0, Math.max(1, n) * 4); a.needsUpdate = true; }
   }
 }
