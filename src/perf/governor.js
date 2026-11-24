@@ -54,7 +54,9 @@ export const MODES = {
 // of the trial. Without `live` a step is always live.
 // The last steps leave the scene what it is: a step thins, it does not remove what a place
 // is about (the cloud layer and the rain stay whatever is switched off).
-const nearTrees = (app) => (app.trees?.count ?? 0) > 0 && !app.trees.hidden;
+// (reach: 0 whenever none are drawn, in the air above the trees' height for one: the count is
+// the last list's, kept after a take-off)
+const nearTrees = (app) => (app.trees?.count ?? 0) > 0 && (app.trees.reach ?? 1) > 0 && !app.trees.hidden;
 const cloudVolume = (app) => !!app.cloudVolume?.wanted;
 export const FEATURE_STEPS = [
   // --- 1. bought 2.5 ms and more on the phone
@@ -430,7 +432,9 @@ export class Governor {
     this.bg = Math.min(this.bg, this.lateEMA);
     const tol = this.bg + 0.03;
     // (more late frames than that, for six seconds, above the floor: a trial is due, see below)
-    if (this.lateEMA > tol + 0.01 && this.resLevel < this.maxResLevel && this._filled >= WINDOW) this.overTime += dt; else this.overTime = 0;
+    // (only while the late frames are recent: the long average remembers a trial's first late
+    // frames for some 15 s at 30 a second, and would take back a saving that came back clean)
+    if (this.lateEMA > tol + 0.01 && this.lateFast > tol && this.resLevel < this.maxResLevel && this._filled >= WINDOW) this.overTime += dt; else this.overTime = 0;
     // (leverClean: the same clock for the two terrain levers, which a resolution step up does not reset)
     if (late && !soft) { if (this.lateEMA > tol) this.cleanTime = this.leverClean = 0; } else if (!late) { this.cleanTime += dt; this.leverClean += dt; }
     // Just stepped up? Watch the next frames closely: if most of the first eight are late
@@ -520,7 +524,9 @@ export class Governor {
         // were: pixels are not what they wait for. The same verdict, without the dive to the
         // fewest pixels that used to come first.)
         const notPixels = resTrial && d.m0 >= 0.6 && d.n >= 1 && this.resLevel > d.res && mean > 0.92 * d.dt0;
-        if ((futile || notPixels) && resTrial && !this._featFirst && this._bigLeft()) { this._putBack(d, true); this.immune = 0; this._featFirst = true; }
+        // (only a trial started by a burst of late frames: one started by the slow drift of
+        // the late share is the device's own, and learns that, as before)
+        if ((futile || notPixels) && resTrial && !d.probe && !this._featFirst && this._bigLeft()) { this._putBack(d, true); this.immune = 0; this._featFirst = true; }
         else if (futile) { this._putBack(d, true); this._featFirst = false; if (d.m0 < 0.6) this.bg = Math.max(this.bg, Math.min(0.12, 0.9 * Math.min(m, this.lateEMA))); }
         else if (featFutile) this._putBack(d, false);
         // (a trial that began for a few late frames, and a step that cut them: it is over)

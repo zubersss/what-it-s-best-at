@@ -149,6 +149,22 @@ Still to do after: the visual critic on the final pictures, the final tests here
 pull request, the checkpoint asking for a Haven benchmark in Sharp. Only the
 speed helper may edit `terrainMaterial.js`.
 
+**20:50** (2026-11-24): the helpers' errors were their model's weekly limit (it resets
+28 November), not a fault: they cannot go on. Two new helpers on this session's model
+took over from the repository's briefs: **trees** (`session_01XG1DZ4JBNV4DZkAnD1YRtX`,
+`docs/briefs/trees-refined-2.md`: the review's seven tree findings, bark in motion, the
+owed pictures) and **from above** (`session_01XG1DZ33bk1c9DExN4K4Gys`,
+`from-above-2.md`: the review's far-forest findings, the ground's far look items 2 to 4,
+the after set; it owns the blocks "THE GROUND FROM AFAR" of `terrainMaterial.js`, this
+session the rest of that file). Grass, governor and ground are fixed here: workflow
+`fix-grass-findings` (three fixers in worktrees, `fix/grass-*` branches, each checked by
+a cold reader, no browser), then the governor's and the ground's findings once the review
+has checked them. The review's findings: `docs/briefs/haven-rich-review.md` (made from
+its journal by `scratchpad/tools/review_md.py`). Its check refuted the grass's "open
+problem": the shimmer measured at station 2 is 3.6 m over the ground, ordinary near
+parallax. The speed helper's last job (the Haven benchmark end to end, headless) runs
+here, detached, on a frozen build of 41705a3 (`scratchpad/haven_bench.log`).
+
 ### The far view sent: trees, grass and rock as far as one can see
 
 *2026-11-24. Merged as pull request #34; the phone link shows build 6ac24ff (this line was

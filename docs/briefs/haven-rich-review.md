@@ -600,7 +600,7 @@ The reviewer's fix (three phases kept on the CPU) works, but there is a simpler 
 
 ### farforest-1. Tree shadows are drawn in the trees' own draw and write depth: overlaps don't multiply, and they hide the lower parts of trees
 
-`src/life/farForest.js:290`, medium; check: **not yet checked**
+`src/life/farForest.js:290`, medium; check: **holds**
 
 **What goes wrong.** The fourth quad (the shadow) is in the same instanced draw and material as the cards. The material leaves depthWrite at its default (true) and the depth test is LessEqual. (1) Overlapping shadows: a later quad lands only where it is at least as near as every quad already drawn there. shadowAlpha() assumes every overlapping shadow multiplies (dens*keep*area/SITE_M2 layers coming to SHADOW_DARK), but on average only about ln N of N layers land. Which ones land depends on the ground's slope against the worker's row order. (2) Each shadow quad lies 0.4 + 0.0015*d m over its foot (1.9 m at 1 km, 4.9 m at 3 km, 6.4 m at 4 km) and writes depth wherever its cut-out passes. The later card of any tree standing in that shadow loses everything below the quad's plane, even when the shadow's alpha is only 0.004.
 
@@ -610,9 +610,32 @@ The reviewer's fix (three phases kept on the CPU) works, but there is a simpler 
 
 **Suggested fix.** Draw the shadows as a second mesh per pool slot. It shares the slot's instanced attributes, uses index range 18..24 (its own geometry or drawRange start 18, count 6) and a material with depthWrite:false and CustomBlending, and gets a renderOrder just below its tile's trees, so trees overwrite it and nothing is cut. The trees' material then stays NoBlending always. This adds one draw call per tile, only in the air; the shadows can then be thinned where dens*keep*area/SITE_M2 is large, if their fill turns out to cost.
 
+**The check.** The finding holds. I read the code at bd66c52.
+
+- src/life/farForest.js:290-298: the material is one ShaderMaterial per slot. It sets blending and blend factors but not depthWrite, depthTest or depthFunc. In three 0.187, Material.js:211/220/231 make those LessEqualDepth, true and true. WebGLState.js:765 applies CustomBlending even with transparent=false, so update() (l.359-360) switches blending on and depth writes stay on.
+- l.91 and l.284/434: the shadow is index range 18..24 of the same geometry. The draw order is therefore, per instance: card, card, rosette, shadow, then the next tree. The GL standard requires depth testing and blending to happen in primitive order inside an instanced draw.
+- l.160: each shadow quad is a level plane at the tree's foot + up*(0.4+0.0015 d). That is 1.9 m at 1 km, 4.9 m at 3 km and 6.4 m at 4 km.
+- l.155-156: the quad is thrown out only when a < 0.004. vShadowA = a*shadowAlpha can be far smaller than that and the quad is still drawn.
+- l.224: every shadow fragment that survives the cut-out writes depth. Nothing writes gl_FragDepth.
+
+(1) Overlapping shadows do not multiply. Seen from above, a higher plane is nearer. A shadow quad lands only where it is at least as near as every quad already drawn at that pixel, and the planes never lie at the same depth because foot height and 0.0015 d differ. shadowAlpha (farTreeForm.js:72-75) assumes all dens*keep*area/SITE_M2 layers multiply to SHADOW_DARK. treeBlock.treeTile (l.43-55) gives the trees block by block in row order, so draw order follows position:
+- on ground rising in row order, all layers land (about 0.5 dark);
+- on ground falling in row order, only one lands (0.03 to 0.1);
+- on uneven ground, about H_N of N land.
+
+I ran the reviewer's replay (overlap.mjs) and got its numbers: 24 deep gives 0.10 where 0.49 is meant; dens 0.8, keep 0.5 gives 0.18 where 0.51 is meant; 6 deep gives 0.24. A lone tree (N <= 1) still gets the full 0.5, so a wood's edge, which is where the report says these shadows show, is much fainter than a lone tree. from-above-report.md item 4 states "the lot come to half". The briefs do not list this as known or accepted, and far-tree-form-test only checks the formula.
+
+(2) Shadows cut the trees drawn after them. Any later tree whose lower part lies behind a neighbour's shadow plane loses that part wherever the neighbour's cut-out passes, even when the shadow's alpha is tiny. The same happens across tiles: a nearer tile's shadows cut a farther tile's trees. It is worse than the reviewer says on a slope that falls along the shadow. The quad is laid level, so its far end floats slope*length above the ground. With the Sun at 30 degrees and a 15-degree slope facing away from it, an 18 m tree's 31 m shadow ends about 8 m up. treeLandShade.js gives that slope lit 0.86, so the quad is drawn. A tree downhill inside that shadow loses several metres of its trunk and lower crown, not 1.9.
+
+Inside woods the canopy the ground raises (terrainMaterial.js:120-150, uShell from r*0.62) hides both the quads and the tree bottoms. Both effects therefore show at wood edges and among scattered trees, which is exactly where the shadows are meant to be seen.
+
+There are pops at the a = 0.004 threshold: the ring where down passes 0.30, and out at 4.2 km, where a ~0.02 shadow still writes depth 6 m up. When the governor's tree-shadows step turns the shadows off, the cuts and the shadows go together, so that part is not a pop without a shadow.
+
+Severity is medium. It shows from the air at a low Sun as faint or patchy edge shadows and cut tree bottoms, and costs no frame time. The established pattern in this codebase (farRocks.js:163-165, 258-261) is a separate shadow mesh with depthWrite:false.
+
 ### farforest-2. Shadow strength follows the ground under the traveller: every far shadow pops on or off at a rim or ridge
 
-`src/life/farForest.js:357`, medium; check: **not yet checked**
+`src/life/farForest.js:357`, medium; check: **holds**
 
 **What goes wrong.** uShadow.x (which multiplies every far tree's shadow alpha) and the switch to blending are a smoothstep of rig.agl between 60 and 160 m. rig.agl is the height over the ground directly below the camera, and it jumps at any edge. The trees whose shadows are seen lie elsewhere, often far below, so their shadows' strength does not follow their own view at all.
 
@@ -622,9 +645,31 @@ The reviewer's fix (three phases kept on the CPU) works, but there is a simpler 
 
 **Suggested fix.** Ease the value over time instead of taking it frame by frame, for example this._air += (target - this._air) * (1 - Math.exp(-dt / 0.8)), with blending on while _air > 0. Better still, take the height from the trees' side (the eye over the lowest ground of the tiles near by, see the next finding), so a rim is not a switch.
 
+**The check.** The cause is real but the reviewer overstates what it does. There is no pop. Shadows fade in or out over at least 25 frames.
+
+What holds:
+- src/life/farForest.js:357 sets `air = clamp((rig.agl - 60) / 100)` and smoothsteps it. Line 358 writes the result to `uShadow.x`. Line 155 multiplies every far tree's shadow alpha by `uShadow.x`.
+- src/controls/cameraRig.js:552 measures `rig.agl` in flight as `r - ground` at the camera's own place.
+- So the strength of every far tree's shadow follows the ground under the traveller, not the tree's own view. In the band from 60 to 160 m up, the valley trees' shadows change as the traveller crosses a rim or flies over rolling ground. That is the "moves when I move" kind of defect that CLAUDE.md and the brief's rule ("nothing about a tree may hang on where the traveller stands") warn against.
+
+What does not hold:
+- "One metre further, agl 670, in a single frame" cannot happen. The ground is continuous: a DEM with 383 m cells, interpolated, plus noise of 260 m at most. The reviewer's rim.mjs does not replay terrain; it assumes the step from 70 to 670 m.
+- On the elevation map, 1.3 % of land cells are steeper than 45 degrees, 0.27 % steeper than 60, and 0.01 % steeper than 75. The steepest is a 1 441 m step over a 203 m cell (82 degrees) near lat 59.7, lon 286.7.
+- I replayed level flight at 70 m with the game's own speed law (speedLaw.js) and `height()`, at 30 frames a second (scratchpad review/rim2.mjs and rim3.mjs):
+  - Steepest 150 m drop within 8 km of the start (64 degrees): shadows go from 5 % to 95 % in 2.5 s at cruise and 0.83 s at boost.
+  - The 77-degree wall near the map's steepest spot: 3.7 s at cruise, 1.3 s (38 frames) at boost.
+  - Steepest drop near the opening place: 13.7 s at cruise, 4.6 s at boost.
+  - In every case `uShadow.x` changes by at most 0.055 in one frame.
+- The overlook case (standing, valley trees with no shadows) is a choice the report documents and accepts. from-above-report.md says "On the ground nothing is added: the shadow's quad is not handed over under 60 m, the blending is off", and its behaviour changes say "Far trees have shadows on open ground when one flies (from 60 m up)". This follows the brief's rule that nothing may add cost on the ground.
+- What is visible is further limited by known problem 2 in the report: the shadows are hidden under the raised canopy almost everywhere a wood is, and show only on open ground and at wood edges.
+
+What remains: in the 60 to 160 m band, the shadows on open ground in view fade over about 1 to 4 s at boost after the traveller crosses steep ground, and drift slowly over rolling ground. A player can see this, but rarely, so the severity is low. It costs nothing on the phone.
+
+The reviewer's fix is not enough. Easing `uShadow.x` over time only slows the fade; the strength still follows the ground under the traveller.
+
 ### farforest-3. Shadow quads are handed over by tile with a reach worked from rig.agl: valley trees' shadows are missing, then appear a whole tile at once
 
-`src/life/farForest.js:434`, medium; check: **not yet checked**
+`src/life/farForest.js:434`, medium; check: **holds**
 
 **What goes wrong.** A tile gets its fourth quad only when tile.near < rig.agl * SHADOW_REACH + 400. That treats the eye's height over the ground underfoot as its height over the tile's trees. Where the tile's ground is lower than the ground under the traveller (by more than about 0.5*agl + 126 m), its trees are already looked down on at more than 17 degrees (wShadow > 0, up to 1) while the tile gets no quad. When tile.near crosses the line, every shadow of a tile 0.9 to 7 km wide appears in one frame.
 
@@ -634,9 +679,29 @@ The reviewer's fix (three phases kept on the CPU) works, but there is a simpler 
 
 **Suggested fix.** In _fill, record the tile's lowest foot radius (tile.low = min |origin + T[q..q+2]|, beside bound2). In update, use the eye's height over that ground, Math.max(0, len - tile.low), in place of rig.agl in the hand-over test (len is already computed).
 
+**The check.** The defect is real.
+
+What the code does:
+- src/life/farForest.js:434 hands a tile its shadow quad (draw range 24 instead of 18) only when `tile.near < Math.max(0, rig.agl) * SHADOW_REACH + 400`. Here `tile.near` is the distance along the ground to the tile's nearest ground (farTiles.js, `wantedTiles`).
+- SHADOW_REACH is 4.77 (lines 52-55). `rig.agl` is the height over the ground directly under the eye (cameraRig.js:538/552: `r - ground`).
+- In the shader, a tree's shadow strength comes from its own angle: line 132 measures `down` to the tree's own crown, `wShadow = smoothstep(0.30, 0.50, down)` (farTreeForm.js), and line 155 multiplies it into `a`. Nothing fades a shadow in at the hand-over line.
+- So once the line passes a tile's near edge, every tree in that tile with wShadow above zero gets its shadow in the same frame.
+- A tree x metres out, with the eye H metres above its crown, has wShadow above zero when x is under about 3.18 × H. The line is 4.77 × agl + 400. The test therefore leaves shadows out whenever the tile's ground is lower than the ground underfoot by more than about 0.5 × agl + 126 m, exactly as the finder says.
+
+Checking the finder's numbers: at 150 m up the line is 1 115 m out. A tree 1 200 m out and 600 m lower has down 0.52 and wShadow 1.0, with no quad.
+
+Replay on Haven's real ground, at the opening place (scratch file review/rimv.mjs: Haven's elevation, curvature included):
+- Hovering 150 m up, line 1 115 m: heading 180 has trees at 1.2–2.0 km (316–609 m lower) with wShadow 0.17–0.31; heading 222 (the opening view's heading) has 0.08–0.13 at 1.4–1.8 km. None of them gets a quad.
+- 300 m up, line 1 831 m: at 2.0 km heading 180, wShadow is 0.60.
+- These shadows switch on all at once when a small move or a change in height brings the line past the tile's edge. They switch off again when the ground rises under the traveller and the line moves back in. A tile here is 0.9 to 7 km across.
+
+Nothing else hides this. The air factor is about 0.97 at 150 m. The distance fade only starts at 1.6 km. The briefs do not accept it: from-above-report.md says the tile test "with room for falling ground" leaves "the picture the same". That claim was checked only at ledge_300_p20 and wood_300_p60. In the morning light of those views the valley's trees are shaded by the land, so their shadows are switched off anyway (smoothstep on sunLeft). The pop is not in the report's known problems.
+
+What limits how visible it is: shadows show only on open ground and at the edges of woods (known problem 2), and only on sunlit valley ground. A 26 m shadow at 2 km is still about 10 × 34 px on the phone, at up to half darkness × wShadow. Flight over Haven's ranges is exactly where the line keeps moving, so a whole tile's shadows appearing or vanishing will be seen sometimes. I judge it medium. It is not a cost every frame.
+
 ### farforest-4. The ground's far canopy takes Haven's leaf colour on every world, and Earth's lost its map tint
 
-`src/terrain/terrainMaterial.js:341`, medium; check: **not yet checked**
+`src/terrain/terrainMaterial.js:341`, medium; check: **REFUTED**
 
 **What goes wrong.** farCanopyColour now builds every world's far canopy from the constant vec3(0.045, 0.085, 0.03) * 0.61. The report calls that 'Haven's leaf' (its species are all near it). It also drops the 60 % of the land's colour map the canopy used to take. That is a value for one world written into the shared ground shader, and it changes Earth.
 
@@ -646,9 +711,19 @@ The reviewer's fix (three phases kept on the CPU) works, but there is a simpler 
 
 **Suggested fix.** Make both numbers world data: a canopy leaf albedo (from the world file, or the mean leaf of its flora worked out in setWorld) in a uniform, and a share of the map's tint (Haven 0, Earth 0.6 as before), applied as leaves *= mix(vec3(1.0), tint, uCanopyTint).
 
+**The check.** The reviewer reads the code correctly. At terrainMaterial.js:340-343 farCanopyColour ignores its tint argument and builds the canopy from vec3(0.045, 0.085, 0.03) * 0.61, then paintLeaf, then farGreen. On origin/main (line 475) the canopy was vec3(0.040, 0.078, 0.028) * mix(1, mapTint, 0.6). Earth gets this branch: earth.js has life.trees.far, app.js:1268 sets uShell.z = 1 for any world with trees, and canopyTall comes from the land-cover ring. What does not hold up is the claim that this is a defect, and the scenario given for it.
+
+1) It was decided and written down, with the cost named. from-above-look.md:89-96 sets out the choice: "either the canopy drops the map's tint for the trees' green, or the trees must take the map's tint ... The first is one line in the ground", and notes the constant is Haven's. PROGRESS.md:96 records the decision: "Decided: one forest, one green". from-above-report.md:33-35 says it was done ("none of the map's tint"). The same report lists Earth as known problem 7 ("Earth has the same far forest: only Haven was looked at") and, at line 31, names Earth's hardwood forests as affected. That meets the brief's "known and accepted" test.
+
+2) The regional colour the scenario says was lost was hardly there. I sampled Earth's own map (public/data/earth_day_4096.jpg, linearised, divided by the world file's mean) and ran it through the old formula. Siberian taiga, Canadian boreal, Amazon, Congo, New England and the Pacific Northwest all come out at the same canopy, about (0.017, 0.036, 0.012), within about 5 %. The map's closed forests are all one dark green, and the formula's 0.4 floor squeezes what difference there is. Where albedoRange applies (farW < 1), every dark forest goes to a near-grey tint of about 0.39 before the mix, so even that small difference fades. Only open woodland differed (Kaibab about (0.028, 0.049, 0.014), Miombo), and that difference is the soil between the trees showing in the map. Soil colour on a canopy of crowns is the gold canopy this change set out to remove.
+
+3) "Two forests in two colours comes back on Earth" is wrong. Earth never had them matched: before this change its canopy was map-tinted while the far trees (farForest.js:491) had species colours. The constant is not Haven-only either. It is species 0 in the shared table (cover.js:26), ponderosa pine, the tree of Earth's opening place on the South Rim. The old code also had one fixed leaf in the shared shader. Past 1.3 km, farGreen moves trees and canopy alike 70 % toward one olive. Close in, regional colour is still carried by the far trees standing on the canopy, which take their species from speciesFor(lat, lon). From 3 to 19 km the canopy fades back into the map's own colour, as before.
+
+What is left is a small, documented change to Earth's canopy within 3 km: about 20 % brighter for closed forest, with a fixed hue. Earth is no longer where the work goes and was flagged as not looked at. This does not meet the bar for a defect.
+
 ### farforest-5. The slope light of far trees' ground has the world's curve the wrong way round
 
-`src/life/treeLandShade.js:45`, low; check: **not yet checked**
+`src/life/treeLandShade.js:45`, low; check: **holds**
 
 **What goes wrong.** The height over the tile's middle plane is taken as l + h - ol, where l = |o + e x + n y| is about ol + s^2/(2R). That adds +s^2/2R where the ground drops by s^2/2R, so the slope worked out from it is tilted by 2x/R the wrong way. On Haven (R = 250 km) that is 1.6 degrees at the edge of a 7 km tile. The error changes sign from one tile to the next, so at a seam between two big tiles the slope jumps by 4x/R.
 
@@ -658,9 +733,42 @@ The reviewer's fix (three phases kept on the CPU) works, but there is a simpler 
 
 **Suggested fix.** high[j*G+i] = (hs.radius + h) * ol / l - ol (the ground's height over the plane through the tile's middle).
 
+**The check.** The finding holds. The briefs that would excuse it do not: from-above.md, from-above-look.md and from-above-report.md say nothing about it. from-above-2.md:24 and haven-rich-review.md:649 list it as farforest-5, "not yet checked", which is a fix still to make, not an accepted problem.
+
+Lines read:
+- src/life/treeLandShade.js:33-35. The frame is the tile's middle: u = o/|o|, with e and n tangent there.
+- :42-45. p = o + e x + n y and l = |p| = sqrt(ol² + s²), which is about ol + s²/2ol. h = hs.height(p/l) is the elevation over R, and high = l + h - ol, which is about h + s²/2R.
+- :49-55. The normal comes from the gradient of high and is dotted with the Sun's direction in that one middle frame (se, sn, su).
+
+Where o is: treeBlock.js:124 puts o at dm·(R + hM), the tile's middle on the ground. A ground point is (R+h)·p/l, and since p·u = ol, its height over the plane through o is (R+h)·ol/l - ol, which is about h - hM - s²/2R. So the code adds +s²/2R where the ground falls by s²/2R. Its normal leans by -x/R where the true one leans by +x/R, an error of 2x/R. The comment ("the world's curve is the same for neighbours") is wrong because the slope of s²/2R is x/R, not zero.
+
+My own replay, with the real landShadow, a level world of R = 250 km, baker visibility 1, Sun 6° up from the east:
+(/tmp/claude-0/-home-user-what-it-s-best-at/7f5a2798-c792-5715-aa56-df0c988ece7a/scratchpad/review/mycurv.mjs and myseam.mjs)
+
+| Tile | Code, west / middle / east edge | True |
+|---|---|---|
+| 64 blocks, edges ±3555 m | 0.377 / 0.324 / 0.273 | 0.272 / 0.324 / 0.377 |
+| 32 blocks | 0.350 / 0.324 / 0.298 | 0.298 / 0.324 / 0.350 |
+
+At the seam between two 64-block tiles, trees on either side of the shared edge read 0.224 (3 of 15 steps) and 0.432 (6 of 15). The truth is 0.324 on both sides. So the shadows are about twice as strong on one side of a straight seam, with a sawtooth ramp across each tile.
+
+The fix (mycurv2.mjs) matches the truth to 0.001 for 8, 16, 32 and 64 blocks.
+
+Where the player can see it:
+- farForest.js:491 packs lit into groundQ, and :155 multiplies the shadow's alpha by groundQ/15.
+- farForest.js:376 makes far3 the nearest 3D distance, so :434 does hand shadow quads to the 3.6 and 7.1 km tiles within 4.2 km.
+- Haven's far forest is full 450, radius 5600. Level 2 reaches 3.9 km, so beyond about 1.95 km only level 2 and 3 trees stand. From 1.5 km up, about 70% of the trees straight below come from those two levels.
+
+Why low, not higher:
+- Shadows fade between 1.6 and 4.2 km, and smoothstep(0.03, 0.14, sunUp) weakens them at the lowest Suns.
+- On level ground lit saturates at 1 once the Sun is above about 20°. Above that the error shows only on slopes turned partly from the Sun, where the ground varies anyway.
+- At 1–1.6 km the trees of the small tiles (errors ±0.2° and ±0.4°) are mixed in and break up the line.
+
+So it shows at a low morning or evening Sun from the air: a straight line, kilometres long, where far shadows step in strength. There is no cost per frame.
+
 ### farforest-6. Far trees take wood at cut.b > 0.75 for every species; near trees take 0.5 unless the tree flowers, so trunks change at the 240 m line
 
-`src/life/farForest.js:225`, low; check: **not yet checked**
+`src/life/farForest.js:225`, low; check: **holds**
 
 **What goes wrong.** The near trees' card path is wood = cut.b > (flowers ? 0.75 : 0.5) (trees.js 183). The far forest now uses 0.75 for all trees. For every species without flowers (all of Haven's conifers and aspens, most of Earth's), atlas texels with b in (0.5, 0.75] are bark inside the near trees' reach and green leaf just outside it. Those texels are trunk and branch edges at mip 0, and more of them at mips 1 and 2.
 
@@ -670,9 +778,31 @@ The reviewer's fix (three phases kept on the CPU) works, but there is a simpler 
 
 **Suggested fix.** Carry 'flowers' per instance (for example iB.w + 2 when sp.blossom, decoded with a floor) into a varying, and use the near trees' rule: wood = cut.b > (flowers ? 0.75 : 0.5).
 
+**The check.** The finding holds, but its effect is small.
+
+Code as it stands:
+- src/life/trees.js:183 has `bool flowers = vBloom.w >= 0.0, wood = card ? cut.b > (flowers ? 0.75 : 0.5) : vLeaf < 0.5;`. trees.js:497 writes iE.w = bloomOf().open (0 or more) only for a species with sp.blossom, and -1 for every other species. So a species that never flowers takes wood at b > 0.5.
+- src/life/farForest.js:225 has `bool wood = cut.b > 0.75;` for every tree. At origin/main both files used 0.5, so this delivery made them disagree.
+- Beyond uFar.z (240 m) the near trees draw their far mesh (lod 2, trees.js:489). The far forest draws the same whole-tree pictures (uRectTree / uRectRose). So one atlas texel with b in (0.5, 0.75] is bark on one side of the moving 240 m line and leaf on the other.
+
+Nothing hides it. The far forest carries no per-tree flowers flag: iB.w is `own` (farForest.js:490) and vOwn.y is `fall`. The briefs do not list it as accepted. from-above-2.md job 1 and trees-refined-2.md job 4 list it as a finding still to fix, and haven-rich-review.md trees-4 rates this part "real but minor".
+
+I replayed it in /tmp/claude-0/-home-user-what-it-s-best-at/7f5a2798-c792-5715-aa56-df0c988ece7a/scratchpad/review/woodflip.py. It decodes public/data/tree_atlas.png, builds loadAtlas's mips (g and b weighted by cover) and applies the lod-dependent cut at 0.42 down to 0.16. On the whole-tree pictures of the shapes that never flower (arch 0-7):
+- 0.1 to 3.2 % of drawn texels flip, at every lod from 0 to 4.
+- As a share of the near rule's wood, the flips are 1 to 4 % for arch 3, 4 and 6, 13 to 26 % for arch 1, 2, 5 and 7, and up to 43 % for the conifer arch 0 at lod 2 (55 of 128 texels).
+- Bilinear filtering adds to this. Every wood edge, against leaf or against an empty texel (r = b = 0), has a band a quarter of a texel wide where b is in (0.5, 0.75]. So in the far rule every trunk and branch is about half a texel narrower.
+
+The reviewer's own evidence is inflated. Their mip-1 count over the whole atlas ("30 961 in (0.5, 0.75]") is mostly petals: the BLOSSOM shape and the blossom and roseB sprays, where b is about 0.5. Flowering trees take 0.75 on both sides, so those texels do not matter here.
+
+How big it looks at the line: a 20 m tree's picture is 512 texels over 22 m, about 23 texels a metre. At 240 m on the phone that is about 5 pixels a metre, so lod is about 2 and a texel is about a pixel. Per tree, a few to some twenty edge pixels go from dark twig-brown to dark green, and a 2 to 3 px trunk loses about half a pixel. That shows at a line that moves with the traveller (the "move when I move" kind of defect), but it is hard to see.
+
+A larger mismatch at the same line, from the same delivery: near card wood is `twigC = mix(vTrunkC, grey(vTrunkC)*(1.06,1,0.9), 0.75)*0.4` (trees.js:234-237). Far wood is `vTrunkC * 0.6` (farForest.js:243). At origin/main both were vTrunkC * 0.6. So every bark pixel already changes brightness (about 1.5 times) and saturation at 240 m. Fixing only the threshold leaves the trunks changing at the line anyway.
+
+Severity is low: sub-pixel to one-pixel fringes, dark against dark, no cost.
+
 ### farforest-7. A tile's bounding sphere does not cover its trees' shadows, so frustum culling cuts them at the screen edge
 
-`src/life/farForest.js:505`, low; check: **not yet checked**
+`src/life/farForest.js:505`, low; check: **holds**
 
 **What goes wrong.** The sphere's radius is max sqrt(|foot|^2 + h^2) + 20 m. A shadow quad reaches up to SHADOW_LONG (5) tree heights from its foot (100 m for a 20 m tree at a low Sun), so the shadows of trees near a tile's corners stick out of the sphere by up to about 80 m. three culls the whole tile, shadows included, as soon as the sphere leaves the view.
 
@@ -682,9 +812,32 @@ The reviewer's fix (three phases kept on the CPU) works, but there is a simpler 
 
 **Suggested fix.** Track the tile's tallest tree in _fill and add SHADOW_LONG * maxHeight (or TOP_MAX * 0.3 * maxHeight, whichever is larger) to the radius.
 
+**The check.** The finding holds. I read src/life/farForest.js as it stands at HEAD and replayed the geometry with three's own Frustum.
+
+What the code does:
+- `_fill` (lines 492-493 and 505) sets each tile's sphere from the filled trees only: radius = max sqrt(x^2+y^2+z^2+h^2) + 20, centred on the tile's origin. That origin is the middle of the tile (treeBlock.js:124), and `s.mesh.position` is set to it each frame (line 427).
+- The meshes keep three's default `frustumCulled = true`. Nothing in src turns that off for them.
+- three 0.187 `Frustum.intersectsObject` uses `geometry.boundingSphere` times `matrixWorld` for a plain Mesh, and `renderer.render(this.nearScene, rig.camera)` culls against the rig camera, which sits at the origin.
+- The shadow quad (lines 149-165) runs from the foot out to `along * longM`, with longM = g.w * h * grow * min(len/max(sunUp, 0.12), SHADOW_LONG = 5). That is up to 5 tree heights, and it is drawn whenever down > 0.3, sunUp > 0.03 and d < 4200, for tiles passing the test at line 434.
+- So a tree near a corner of the tile (about 629 m from the middle for a level-0 tile of 889 m) can throw its shadow up to 5h - 20 m past the sphere. When the sphere is wholly outside one frustum plane, the whole tile is skipped, shadows included.
+
+Nothing else prevents it, and the briefs do not accept it as known. It is farforest-7 in docs/briefs/haven-rich-review.md, marked "not yet checked", and from-above-2.md lists it as a job still to fix.
+
+The replay (scratchpad review/cull.mjs and cull2.mjs) uses a flat 7 x 7 tile grid of 20-25 m trees, the game's keep/margin fill rule, fov 48, aspect 880/412, the Sun 9-10 degrees up, and a yaw sweep at several heights and pitches:
+- In 37 of 192 setups, a culled tile has shadow samples with shader weight a >= 0.3 inside the view.
+- They reach up to 124 px into a picture 412 px tall, and 40-90 px is common.
+- The deepest cases come from looking steeply down. At pitch -60 the bottom frustum plane is nearly vertical (its inward normal is about 0.994 horizontal). A tile behind and below the traveller is then culled while its corner trees' shadows, cast forward by a Sun at the back, still lie well inside the bottom of the picture.
+
+So the pop happens both when turning the head and in plain forward flight, as each tile behind passes out of the bottom plane. How much shows:
+- Each shadow is pale in a closed wood (shadowAlpha splits SHADOW_DARK among overlapping shadows), so there a wedge beyond the tile's corner loses part of its darkening.
+- At a wood's edge or for lone trees on open ground (alpha about 0.3-0.45), whole crown shadows appear and vanish.
+- It needs the Sun below about 30 degrees and a traveller above 60 m. That is common in the views from high above that this delivery is about, so I rate it medium rather than low.
+
+The same sphere also leaves out the rosette. Far off it spreads to TOP_MAX (8) crown widths, about g.x * iB.x * 8 * h, which is several tree heights. So far tiles' crown tops can be cut at the screen edge the same way.
+
 ### farforest-8. inFlower allocates per tree on every fill, and the far trees' blossom is not refreshed when the day changes
 
-`src/life/farForest.js:491`, low; check: **not yet checked**
+`src/life/farForest.js:491`, low; check: **holds**
 
 **What goes wrong.** For every tree of a flowering species (cherry and blackthorn: 15 to 27 % of Haven's meadow, parkland and riverside trees), each _fill calls bloomOf (a new object) and sp.leaf.map (a new array and closure), all year round. That happens for up to two tiles of up to 12 288 trees a frame while flying. The colour is also packed only at fill time, while the near trees rebuild when Math.floor(day) changes (trees.js 363). Far tiles are refilled only on movement, on a 1.5 degree Sun move, or on a serial change.
 
@@ -694,11 +847,29 @@ The reviewer's fix (three phases kept on the CPU) works, but there is a simpler 
 
 **Suggested fix.** Work out the packed colour once per species and per own-step (for example 16 steps of own) when Math.floor(this.trees.day) changes, into a small table read in _fill. In update, null every tile's fillEye when the day changes, as setFraction does.
 
+**The check.** Both halves hold as the code stands, but the effect is small.
+
+1. Allocation (farForest.js:66 and :491). In `_fill`, every kept tree whose species has `blossom` calls `inFlower(sp, this.trees.day, T[q+7], ...)`, all year round. `inFlower` calls `bloomOf` (cover.js:98-103), which returns a new `{open, fall}`, and then `sp.leaf.map(...)`, which makes a new array and closure. On Haven that is species 64 and 65: haven.js:125-129 gives them 17-27 % of the mix beside water, in meadows and in parkland, and none in the forest classes. `_fill` runs at most twice a frame (update(), `fills < 2`), and in flight a tile is filled again after a move of 0.1*max(far3, 450) m, so fills come nearly every frame.
+
+   I replayed it in Node (scratchpad review/inflower-bench.mjs, gc.mjs):
+   - The allocations are real. V8 does not remove them: 1 960 young-generation collections for 12 M calls, about 170 bytes of garbage a call. `pack`'s own closure is optimised away (1 collection).
+   - Time: about 150 ns per flowering tree. A full 12 288-tree fill with 25 % flowering took 0.85 ms against 0.40 ms without `inFlower`.
+   - In practice: parkland tiles are sparse (cover density 0.22-0.55), so a fill there holds a few hundred to about 1 500 flowering trees. That is roughly 0.1-0.4 ms of page work in a flight frame over flowering country, nothing over forest, plus some collector pressure. A modest CPU cost, not GPU time and not every frame everywhere.
+
+2. Blossom not refreshed when the day changes. `trees.update` rebuilds on `Math.floor(day)` (trees.js:363). `FarForest.update` reads no day: `fillEye` is cleared only by `setFraction`, a new slot or a worker reply, and a tile goes stale only on a serial change or a Sun move of more than 1.494 degrees (`dot < 0.99966`). Nothing in src/ outside farForest.js touches `fillEye`, and app.js `setDate` does not tell the far forest.
+   - The date field sets 12:00 UTC (menu.js:61). Replaying Haven's ephemeris: a jump of 1 day moves the Sun 0.40 degrees, 3 days 1.20 degrees, and 2025-04-10 to 04-13 moves it 1.14 degrees. So a few days' jump with the clock stopped leaves every far tile as it was.
+   - In the flowering ramps the colour step is large. For a cherry over days 63 to 66 the packed far crown goes from [26,45,13] to [47,48,29]; for a blackthorn over 56 to 59, from [22,39,15] to [46,57,37].
+   - So the near trees show the new day and the far trees the old one, meeting at the 240 m line, until the traveller moves about 45 m (the tiles at that line) or the Sun moves 1.5 degrees. With the clock running at real time, crossing midnight UTC heals in about 6 minutes. A fast clock heals within about 2 s through staleness.
+
+It is not listed as known and accepted in from-above.md, from-above-look.md or from-above-report.md. from-above-2.md only lists it as an open finding to fix, and haven-rich-review.md farforest-8 marks it "not yet checked", rated low.
+
+Severity low: the stale blossom needs a stopped clock, a date jump of a few days in one of the roughly 10-day opening or closing windows, and a traveller standing still. The allocation is a fraction of a millisecond of page work in flight over flowering country.
+
 ## ground (owning session)
 
 ### ground-1. Daisies lost their thinning on the far ground: drifts of kind 1 now tint the land 2.5 times as strongly
 
-`src/terrain/terrainMaterial.js:694`, medium; check: **not yet checked**
+`src/terrain/terrainMaterial.js:694`, medium; check: **holds**
 
 **What goes wrong.** Commit 772b169 removed the ground's own `fk *= (fw.x < 1.5 ? 0.4 : 1.0)`, which thinned daisies (kind 1, the pale kind the ground knew about), on the grounds that "flowersAt thins them itself". But the GLSL rule thins only `kind > 1 && KIND_PALE[kind] > 0.5` (grassRules.js:213). The grass helper wrote it that way because at the time the ground still thinned kind 1 itself. So kind 1 is now thinned nowhere: the daisy tint on the far ground is x1.0 where it was x0.4. Neither report lists this; the commit says the thinning moved, not that it changed.
 
@@ -708,9 +879,33 @@ The reviewer's fix (three phases kept on the CPU) works, but there is a simpler 
 
 **Suggested fix.** Put back `fk *= (fw.x < 1.5 ? 0.4 : 1.0);` just before the existing `fk *= (1.0 - 0.6 * clamp(dot(V, up)...` line in terrainMaterial.js. That gives exactly the old picture for daisies and leaves the rule's 0.45 for the new pale kinds. Alternatively, drop `kind > 1 &&` in grassRules.js:213, but that thins `many` rather than `fk`, so it is not the old picture.
 
+**The check.** The claim holds for the committed branch. Nothing I read refutes it.
+
+1. Before this delivery: origin/main terrainMaterial.js:546 ended the fk line with `* (fw.x < 1.5 ? 0.4 : 1.0)`, so daisies (kind 1) were thinned to 0.4.
+
+2. Commit 772b169 removed that factor. The comment that replaced it says "flowersAt thins them itself". But grassRules.js at 772b169 (line 207) already read `min(0.9, many) * (kind > 1 && KIND_PALE[kind] > 0.5 ? 0.45 : 1.0)`, so kind 1 was already excluded from the rule's own thinning. The grass helper added that rule in 0e0036f, which comes before 772b169, and it skipped kind 1 because the ground was thinning it.
+
+3. Committed HEAD (22dd61e): `git show HEAD:src/terrain/terrainMaterial.js` line 694 is only the comment, and grassRules.js:213 still has `kind > 1 &&`.
+   - KINDS[1] is `K('daisy', ..., true)`, and the last argument is `pale`, so KIND_PALE[1] = 1.0.
+   - The GLSL flowersAt's only caller is the ground (terrainMaterial.js:680). grass.js:607 calls the JS twin, which has no pale thinning at all, so nothing else depended on the exception.
+   - Result: daisies are thinned nowhere.
+
+4. How much it shows: GRASS_FLOWER_SHARE is 0.5 (GRASS_GROUND.flowers).
+   - Where single specks are seen (speck = 1), the blend toward the daisy's near-white (0.82, 0.82, 0.76) rises from 0.2 to 0.5.
+   - In the far mean (fk = 0.2 * dens, up to 0.18), it rises from about 0.036 to 0.09.
+   - That is the 2.5x the reviewer gives.
+   - Daisy leads patches on Haven's steppe and in Earth's mixed, steppe, crop and farm floras (grassRules.js lines 67, 72, 74, 75).
+   - The other pale kinds keep the rule's 0.45, so daisy patches alone come out whiter: the "white patch from the air reads as snow or stone" the old comment warns about.
+
+5. Neither phone-speed.md nor phone-speed-report.md mentions it, and grass-rich-report.md does not accept it either.
+
+One more thing: the working tree has an uncommitted edit to terrainMaterial.js, at lines 699-701, that puts back exactly `fk *= (fw.x < 1.5 ? 0.4 : 1.0);`. Its comment reads "all but the daisy, kind 1, whose thinning is the ground's own, as it was". That is someone's fix in progress. It is not on the branch yet, so the defect stands until it is committed.
+
+Severity is medium. The change is easy to see in daisy-led meadows within about 600 m (fk fades from 150 m and is gone at 900 m), where daisies now stand out whiter than every other pale flower. It costs no frame time.
+
 ### ground-2. The benchmark row for the ground's shading can no longer see the shading that moved to the vertices
 
-`src/terrain/terrainMaterial.js:180`, medium; check: **not yet checked**
+`src/terrain/terrainMaterial.js:180`, medium; check: **holds**
 
 **What goes wrong.** The cost test measures the ground's shading as the frame with `uPlain` 0 against the frame with `uPlain` 1 (benchmark.js:278, commented "its triangles are still drawn, its shading is not"). `uPlain` exists only in the fragment shader. The work this delivery moved out of the pixels now runs in the vertex shader whatever `uPlain` says: `directSun` (2 reads), `hazeAffine` (6 froxel reads, a pow, square roots, the rain veil), `cloudOver` on the near patches (atan, acos, one 2-D and up to three 3-D reads) and three flNoise noises within 1 100 m. So it now sits in the flat-tone baseline. The row will fall by the cost of that moved work even if the frame got no cheaper. The report names this row as job 1's verdict and predicts 17.4 falling to 10-13 ms. On a binning GPU like the phone's, the vertex shader can also run more than once per frame, which makes the hidden part larger.
 
@@ -719,6 +914,20 @@ The reviewer's fix (three phases kept on the CPU) works, but there is a simpler 
 **Evidence.** terrainMaterial.js:292 declares `uniform float uPlain` in FRAG only; line 370 returns early on it. VERT lines 180-192 run directSun, cloudOver, flNoise/flowerMeadow/flowerHill and hazeAffine with no check of uPlain. perf/benchmark.js:278 toggles only `app.terrain.shared.uPlain`. The report itself notes that the flat-tone time rose by about a tenth on the proxy and that the vertex shader's cost grew.
 
 **Suggested fix.** Declare `uniform float uPlain;` in VERT (it is already in the shared uniforms) and wrap the per-vertex light, air, cloud, gust and flower block in `if (uPlain < 0.5) { ... }`, keeping the defaults when it is skipped. The fragment shader ignores those values in flat-tone mode anyway, so the picture is unchanged and the row again measures all of the ground's shading.
+
+**The check.** The defect is real in the committed branch. At HEAD (22dd61e), `git show HEAD:src/terrain/terrainMaterial.js` declares `uniform float uPlain` only in FRAG (line 292), and FRAG returns early on it (line 370). VERT lines 180-192 call `directSun`, `cloudOver` (on patches of 12.5 tiles or fewer), `flNoise`, `flowerMeadow`, `flowerHill` and `hazeAffine` with no check of uPlain.
+
+At origin/main (6ac24ff) none of this work was in the vertex shader. `directSun` was called at frag lines 675, 686 and 695, and the gust noise and `flNoise` at 526 and 542-543, all after the frag's `uPlain` return at line 270. So the ninth benchmark's 17.4 ms "the ground's shading" row counted this work. At HEAD it falls into the flat-tone baseline.
+
+`perf/benchmark.js:278` still toggles only `app.terrain.shared.uPlain`, and its comment ("its triangles are still drawn, its shading is not") is no longer true. Nothing in the reports accepts this. `phone-speed-report.md` says the flat-tone time rose by about a tenth and that the vertex shader's cost grew (line 483). Yet its prediction table (line 402) counts "the air and the Sun at the vertices" as part of the expected fall from 17.4 to 10-13 ms, and line 9 calls that row "job 1's verdict". So at HEAD the row would fall by the moved cost even if the frame got no cheaper, which is the scenario the finding describes.
+
+It costs the player nothing on screen and no frame time. It corrupts the one measurement this delivery is to be judged by.
+
+The working tree already holds an uncommitted edit (file modified 20:51:47, the HEAD commit at 20:52:11 does not include it) that does what the finding asks:
+- line 87 declares `uniform float uPlain;` in VERT;
+- lines 181-187 set the defaults (`vSun` 0, haze T=1 L=G=0, `vCloud` (0,0,0,0.5), `vFlowerFields` (0,0.5)), then `if (uPlain > 0.5) return;` after `gl_Position` and `vHMS` are written, before the per-vertex light, cloud, gust, flower and air.
+
+I checked that edit. With uPlain 0 the values are the same as before, so the picture does not change. The geometry (morph, shell, tide, waves) still runs, so the flat-tone triangles stay where they were and the flat-tone baseline is again comparable with the ninth results. No other included GLSL declares uPlain, so there is no redeclaration. The vertex and fragment shaders already share other uniforms (uSea, uWind, uWave, uTide, uGrassTone) under the same three.js precision prefix. The return comes from a uniform, so the phone's GPU skips the block. Software WebGL may not skip it, which matters only for the proxy, not the phone. Until that edit is committed, the finding holds for the build that would ship.
 
 ## governor (owning session)
 
