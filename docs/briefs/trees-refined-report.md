@@ -4,6 +4,170 @@ Branch `ccr-aa39490a-trees-refined`. Brief: `trees-refined.md` beside this file.
 Pictures: `docs/shots/trees-refined/`. Written as the work went; the newest state is at
 the top of each section.
 
+## Second round (brief `trees-refined-2.md`): the cold review's seven, fixed in motion
+
+The cold review (`haven-rich-review.md`, trees-1 to trees-7, wiring-1 and 2, and the owning
+session's "second looks") found seven faults that pictures from a standing camera cannot
+show. Every one held against the code; each now has a check in
+**`node scripts/trees-near-test.mjs`** (no browser, ten seconds) that failed on b2108ee
+and passes now. `--old` runs trees-1's walk with the rule as it was.
+
+**trees-1, which make a tree gets (high).** It was chosen by the distance from where the
+whole list was made, up to 25 m behind the eye, and the close radius is 20 m. Now
+(`src/life/treeLod.js`): the whole list (some 4 500 trees: reach, far cards, trees in
+flower) is still made every 25 m; the close and near lists (the few hundred trees within
+85 m of where it was made) are chosen again by the distance from the eye every
+`fineStep`: a quarter of the smallest radius in use, or of the height over the ground, and
+no less than a fifth of a second's travel (5 m walking, 3.3 m with `trees-far`, 12 m at
+super speed). After the second review (trees2-2) the height is the nearest tree's distance
+at the last choice, not the height over the ground under the eye (beside a rim the two
+differ; on Haven by three times at most). The far cards are not rewritten at that pace: the far list holds every tree
+that can need its cards before the next whole list, and a card is cut in the vertex shader
+where its tree stands inside the near radius of the eye at the last choice (`iF`,
+`uLodCut`). The walk (trees on a 7 m grid, 4.5 m/s):
+
+| | nearest tree not close | farthest close | nearest cards | within 15 m not close |
+|---|---|---|---|---|
+| before, full shapes | 0.6 m | 44.4 m | 35.4 m | 30 % |
+| before, `trees-far` | 0.3 m | 37.6 m | 15.2 m | 54 % (within 10 m) |
+| now, full shapes | 15.6 m | 24.6 m | 55.4 m | 0 % |
+| now, `trees-far` | 10.7 m | 15.8 m | 36.9 m | 0 % (within 10 m) |
+| now, super speed (60 m/s) | 10.3 m | 29.8 m | 50.1 m | 4 % |
+| now, flying beside a rim at tree height | 16.1 m | 24.0 m | 55.8 m | 0 % |
+
+Every tree inside the radius is drawn by exactly one make in every frame of every walk.
+
+**What a making costs** (`node scripts/tree-build-cost.mjs`: the real Trees class on the
+north wood's trees, in Node on this machine; a phone's JavaScript is some three times
+slower): the whole list ~5 ms and 343 KB to the GPU (every 25 m, as before); the close and
+near lists ~0.2 ms and 17 KB. A second of walking at 4.5 m/s: ~1.1 ms and 77 KB (was
+~0.95 ms and 62 KB); low flight boosted, 21 m/s: ~5 ms and 360 KB (was ~4.4 and 290); super
+speed, 60 m/s: ~14 to 23 ms and 900 KB (was 13 to 22 and 820), nearly all of it the whole
+list 2.4 times a second, as before. The benchmark should see the walk's cost as nothing
+new; super speed through a wood was and is the whole list's hitch, 5 ms here (some 15 on
+the phone) every 0.4 s.
+
+**trees-2, shadows from above.** The shadow pass ran the vertex shader's "cards drawn in
+when looked down on" with the eye's angle: every tree in a ring under anyone looking down
+cast only its rosette's disc. The shadow pass now compiles with `TREE_DEPTH`, where the
+cards are whole: a shadow is the tree seen from the Sun.
+
+**trees-3 / wiring-1, petals at every making of the lists (high).** A making cleared all
+480 lying petals (back six a frame over 2.7 s) and dealt the slots out again, so falling
+petals jumped to other trees. Now a slot keeps its tree while the tree is listed (found by
+its foot in the world), its lying petals stay where they lie (re-expressed from the new
+anchor, `this.abs`), and only a slot whose tree has gone, or that the sharing out moves
+to a tree with too few, changes. After the second review (trees2-1) every listed tree keeps
+at least one slot (a tree that joined with four already listed had none), and a slot that
+moves fades its falling petals out and in over half a second while its lying petals stay
+until they are laid again one by one under the new tree. Trees coming into flower one at a
+time, 1 to 8: no step leaves a tree without a slot (before: 2,2,2,2,0 to 2,2,2,2,0,0,0) and
+no lying petal vanishes in a frame (before: 582). Kept petals are set again on the ground as drawn, six a
+frame, without ever being hidden, so they follow finer ground as one walks up. Checked:
+a making 25 m on, 0 of 480 lying petals gone or moved, 0 of 8 slots on another tree; one
+tree gone and one come, 300 of 300 petals of the trees that stayed kept; the ground 8 cm
+higher, every lying petal on it in four seconds, none hidden.
+
+**trees-4, a flowering tree out of flower.** Petal texels were thrown away out of flower
+(a cherry near by a lace of twigs, at 240 m the far forest's full crown, ten months of the
+year). A flower not open, or a tree out of flower, is now leaves there, in the picture and
+in the shadow pass, as the far forest draws it, with no petal tint on texels part leaf part
+petal (trees2-4). Wood: the first fix and the far forest's (farforest-6) crossed over, each
+taking the other's old threshold. Now there is one rule, `TREE_WOOD` in `trees.js` (wood
+over 0.75, as trees-4 settled), used by both near passes and imported by `farForest.js`
+(that one line, its import and comment edited here, at the owning session's word); the
+check fails if any of the three passes takes wood by a threshold of its own.
+
+**trees-5 / wiring-2, petals on the parent ground.** The height was asked with the eye's
+distance from the planet's centre (k = 1 always); now with the petal's distance from the
+eye. The check fails if any ask is over 200 m (it was 250 002 m).
+
+**trees-6 and trees-7, bark.** Bark is now one GLSL function, `BARK` in `trees.js`, that
+the check runs as written in JavaScript. The tube's coordinate carries the number of
+furrows round it (`aUv.x = -2 - (2 * furrows + share of the way round)`), and every term
+(the furrows' wander, the plate's column, the bands, the scars) goes a whole number of
+times round: where the coordinate starts again the tone stepped along 99 % of the tube's
+length, now 0 %. Where the bark is finer than the pixels (`fwidth(vUv)`, taken before any
+discard) it gives way to its own mean (0.665 furrowed, 0.81 red plates, 0.915 pale; within
+0.01 of the pattern's measured mean), not to a plain trunk, and from 30 m it fades to that
+mean too (it faded to 1.0, a third brighter than the bark near by). The crawl, as a pixel's
+tone changes when the eye moves by less than a pixel, more than the bark under it changes:
+0.37 unfiltered, now 0.05 at most (furrowed and red bark and pale bands, trees of 8 and 20 m,
+5 to 60 m, facing and on the flank, full size and the governor's floor).
+
+**Bark in motion: the stability walk** (`npm run stability -- --only haven_wood_walk`, a move
+added: on foot in the north wood, the forest cost view, trunks from 2 to 40 m; three
+stations, settled frames a walking step apart; b2108ee against this round's build). The
+whole picture: changed 58.1 / 56.6 / 55.2 % and flicker 10.7 / 11.2 / 10.1 % before, 57.9 /
+58.0 / 54.3 % and 10.7 / 11.5 / 10.7 % after: the grass and the crowns in the wind and the
+sun-flecks moving over everything own these numbers, as they do any frame in a wood. On
+the trunks alone (boxes at station 1): changed 71 / 60 / 72 / 76 % and flicker 16.0 / 6.0 /
+7.3 / 9.8 % before (trunks at about 3, 12, 25, 35 m), 72 / 69 / 65 / 50 % and 15.3 / 8.4 /
+8.3 / 7.1 % after. The flecks of light under the crowns dominate even there (the trunk 3 m
+off changes 71 % of its pixels before and after alike): the walk cannot isolate the bark,
+and says only that nothing new crawls. The bark's own crawl is the check's number above
+(0.37 to 0.05). `wood_walk_trunks_before_after2.png`: station 1, before above, after below,
+the picture and its difference (red: one-frame changes). It also shows trees-1 at work: the
+young fir in the middle, some 15 m off, is the close make after and the plain near make before.
+
+**Pictures** (`docs/shots/trees-refined/`, `_after2`):
+- `above_after2.png`: the opening place from 100 m up, 60 degrees down (to set beside
+  `above_after.png`; the near trees there are no longer given their near mesh farther out
+  when looked down on, as the first round's last commit decided, so they are the far
+  forest's tree, crowns and rosettes, under whole shadows).
+- `opening_300m_after2.png`: the opening view from 300 m up, 20 degrees down: the woods
+  on the slopes read as one, no line where the near trees hand over.
+- `fir_4m_preview_after2.png`: a fir's close mesh from 4 m at the phone's density
+  (`tree-preview --close`): furrows continuous round the trunk.
+- `wood_after2.png`: the wood from inside (the cost view, the stability walk's first frame).
+- `blossom_after2.png`: the wild cherry 44 m from the opening place, from 12 m down the slope, looking 25 degrees up: in flower, petals in the air round the crown.
+
+**The forest view's two numbers** (`node scripts/overdraw.mjs --part trees --view "in the
+forest"`, 880 x 412, this round's build): **170 064 triangles** handed over (first round
+163 288, before it 264 142) and **11.16 layers a pixel** over the whole picture, 20.88 where
+the trees are (53 %), 73 at most (first round 10.49 and 19.64, 71). The 4 % more triangles
+and 6 % more layers are the trees round the eye now really getting their close make: the
+first round's numbers were taken with lists made at the eye, which only a standing camera
+gets; in play they were fewer close trees than intended. The far cards cut inside the near
+radius cost their vertices only (a few hundred cards).
+
+### Behaviour changes (for the checkpoint message)
+
+- Walking through a wood, the trees round the walker are the full skeleton within about
+  15 to 25 m whichever way one goes (before: anywhere from 0 to 45 m, mostly behind); the
+  change of make happens a few trees at a time every 5 m instead of a band every 25 m.
+- Trees' shadows seen from above are whole trees' shadows everywhere (no ring of small
+  discs round the point under the eye).
+- Petals under a flowering tree stay as one walks or as the lists are made again; falling
+  petals stay with their tree.
+- Out of flower a cherry or blackthorn near by is a full crown of leaves (it was sparse);
+  its shadow too.
+- Trunks from 30 to 60 m are as dark as near by (they were up to a third brighter); bark
+  far off is its average tone instead of fine black lines; no seam down the trunks.
+- The near trees count (HUD) does not count far cards cut inside the near radius.
+
+### Known problems, most visible first
+
+1. **Nothing here is measured on a phone.** What to read in the next benchmark: walking
+   adds some 0.3 ms of page work a second for the close and near lists (0.2 to 0.3 ms and
+   17 KB every 5 m); the whole list is as before, 3.6 to 5 ms and 343 KB every 25 m here,
+   some three times that on the phone, which at super speed through a wood is 2.4 times a
+   second (unchanged by this round, and the largest tree cost the page has).
+2. **The change of make is still a change of make**: a tree crossing 20 m (close to near)
+   or 60 m (near to cards) changes in one frame; now a few trees every 5 m, near those
+   radii, where it was a band every 25 m anywhere from 0 to 45 m.
+3. **The stability walk cannot isolate bark** in a wood: the light under the crowns moves
+   with the wind. A walk with the wind stilled would (there is no switch for it yet).
+4. **From above** (trees2-3, refuted by the check, kept as known): within the near shadow's
+   150 m a far-list tree's rosette lies partly in the shadow of its own upright cards (5 to
+   25 % darker), as it did on main; climbing through 115 to 150 m the woods below brighten a
+   little at the shadow's edge.
+5. A slot that moves to another tree shows its lying petals in the new tree's colour for
+   the few frames until they are laid again (rare: only when the count of flowering trees
+   near by changes).
+6. Petals on grass sit by the land class's rule, not the blade at that spot (first round,
+   known problem 3).
+
 ## What a tree was made of, and what it is made of now
 
 A phone 1 440 pixels tall through the walker's 60 degree lens shows a metre at 3 m as
