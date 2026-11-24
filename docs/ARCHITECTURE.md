@@ -247,6 +247,28 @@ chunk), which makes dense crater fields 3–5× cheaper.
 
 ## Terrain
 
+- **What the ground's shader pays for** (`terrainMaterial.js`; since the phone's ninth
+  results, where its shading was the largest cost wherever ground shows: 17 to 18 ms a
+  frame). Three rules. (1) *Nothing is worked out that is then weighted zero*: the close-up
+  detail layers are read only where a pixel is narrow enough on the ground for them to
+  show (beyond that the sampler would answer with the texture's last level, one number,
+  `uDetailMean`; `DETAIL_LAST`), the world's colour map only where the ring's map does not
+  cover the place whole, the strata only on rock, scree and bare bedrock, the list of
+  elevation rasters (`demLog2Res`, an eight-step loop) only on patches coarse enough for
+  the far relief, the flowers' fine noises only where a speck is larger than a pixel, the
+  painted patches only where they have weight, Oren-Nayar only where the painted light is
+  not all of it. (2) *What hardly changes over a triangle is asked at the vertices*: the
+  Sun's light through the air above the place (`vSun`), the air between the eye and it
+  (`vHazeT/L/G`, from `hazeAffine` in `lightingGlsl.js`: the same froxel lookup as
+  `hazeOverGroundFull`, as three numbers a colour is put through; from space the air is
+  still marched per pixel), and on patches up to 12.5 detail tiles across the cloud
+  between the place and the Sun (`vCloud`, `cloudOver`: one rule for the vertices and the
+  far pixels; the shade's clean edge is still cut per pixel). (3) *Footprints are taken
+  before a branch* (`textureGrad`, or a level given outright), never inside one. The
+  shader's vertex stage now reads 11 textures (a phone allows 16, and 32 for both stages:
+  27 are used) and hands on 13 rows of varyings (of 15). `scripts/ground-cost.mjs` draws
+  the ground alone with this shader and an earlier one side by side: what a change costs
+  and whether the picture moved.
 - Cube-sphere, 6 quadtrees. Node = (face, level, ix, iy). Chunk mesh is a fixed
   `GRID`×`GRID` (40) quad grid plus skirts; all chunks share one index buffer and one
   grid-UV attribute. Per chunk: positions (relative to chunk centre), height + morph delta.
@@ -862,7 +884,12 @@ when the land cover changes and when a ring of water touches it (`Terrain._stale
   own picture). In the main picture, after the ground, six passes lay them over it from
   the farthest to the nearest, each a curved sheet at the distance where its slice
   begins (a 24 x 12 grid, every corner at the depth that distance has along its own
-  ray): the depth test hides cloud behind a ridge, to within a slice.
+  ray): the depth test hides cloud behind a ridge, to within a slice. The clean edge of
+  the painted look is cut by all the cloud along the line of sight: that sum is worked
+  out once a frame in a third small picture (one slice's size, the `ALL` pass) and each
+  laying pass reads it (two reads a pixel with cloud, where each pass used to read all
+  six slices again: 42 reads a pixel with cloud in every slice, and on the phone's ninth
+  results 9.4 ms a frame from the air that the march's saving did not touch).
 - Nothing reads the main picture's depth and nothing is drawn elsewhere in the middle of
   it: the first form did both (depth as a texture, the march after the ground) and cost
   the phone three quarters of its frame rate on every world (PROGRESS, "fifth phone
@@ -1071,6 +1098,13 @@ exposure alone decides whether they are visible.
   cloth hangs a little looser); the step itself stays at 75 a second and the pinned points
   are placed every frame, so the sleeves never lag the arms. The cloth has a ground plane
   (the ground under the figure) and feels at most 0.2 of air, the thin air it is tuned for.
+  The cloth is all of the figure's work on the page (the pose is a hundredth of a
+  millisecond), so it is written for speed: links as flat tables, each point's share of
+  the flutter's phases as tabled sines and cosines (no sine per point and step), the
+  drawn surface from tabled Catmull-Rom weights, nothing made anew in a frame.
+  `node scripts/hero-cost.mjs` times it without a browser and checks its drawn points
+  against `scripts/lib/robe-reference.json` after ten seconds of a set flight (a change
+  that is not meant to move the cloth must leave them where they were).
   Its triangles are wound to match the normals `_draw` writes, and a cell's material is
   carried flat by the point both its triangles end on (`flat` varying `vMat`).
 - **Speed law** (`speedLaw.js`): top speed = 0.85 × distance to the nearest surface of
@@ -1229,26 +1263,35 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   (`App.terrainPace`: one patch a frame, then one every other frame; full pace again after
   5 clean seconds). `MODES[mode].patches` is the share of the patch cap a mode draws
   (Smooth 0.8, Sharp 1).
-- **Feature steps** (`FEATURE_STEPS` in `governor.js` is the source of truth; fixed
-  order, used only once resolution is at its floor). Thirteen steps, by id:
-  1. `detail`: close-up ground detail off;
-  2. `soft-shadows`: soft edges on rock and ship shadows off;
-  3. `contact`: darkening at the foot of rocks and the lander off;
-  4. `edge-glow`: the glow on a planet's edge marched with half the samples;
-  5. `dust`: half the kicked-up dust, and a simpler cloud;
-  6. `rocks`: half the rocks;
-  7. `fine-shadows`: the fine shadow tile of the nearest rocks off (coarser shadows);
-  8. `terrain-1`: terrain patch cap ×0.8;
-  9. `bloom`: bloom off;
-  10. `terrain-2`: terrain patch cap ×0.64;
-  11. `far-relief`: relief shading of far ground off;
-  12. `cloak`: robe and hair simulated with half the solver passes (the id is from the cloak it replaced);
-  13. `air-shadow`: terrain shadows in the haze off.
+- **Feature steps** (`FEATURE_STEPS` in `governor.js` is the source of truth, with a line
+  on every step saying what the phone measured; used only once resolution is at its
+  floor). Since the ninth phone results (build 6ac24ff) the order is **by what a step buys
+  on the test phone, then by what the eye loses**; before that it was "least loss first",
+  and a trial of two to four steps ended among eight that buy nothing there, with the
+  steps that could have cured the frames behind them. Four groups:
+  1. bought 2.5 ms and more: `cloud-steps`, `tree-shadows`, `grass-mid`, `trees-far`,
+     `far-trees`, `tree-leaves`;
+  2. bought a little (0.5 to 1.6 ms): `cloak`, `fine-shadows`, `bloom`, `grass`,
+     `terrain-1`, `terrain-2`;
+  3. the depth of the land and the sky from the air: `clouds` (their shadows),
+     `far-relief`, `cloud-volume`;
+  4. nothing that could be measured on the phone: `detail`, `soft-shadows`, `contact`,
+     `edge-glow`, `dust`, `rocks`, `far-rock-shadows`, `far-rocks`, `rain`, `leaves`,
+     `sun-beams`, `air-shadow` (kept for other devices and for the floor).
 
-  (That list is of milestone 4; the file has more now. The last three to go are the clouds'
-  shadows, the relief of far ground and the clouds with depth: what gives land and sky
-  their depth from the air.) Steps up run in reverse, five at a time. Every new feature
-  that costs frame time adds its step here.
+  Each step has `buys` (ms a frame where the phone measured it) and may have `live(app)`:
+  whether it can buy anything where the traveller is (no near trees drawn: the tree steps
+  cannot; no clumps: `grass-mid`; no cloud volume: its two). A step that is not live is
+  passed over. A **stride** down takes live steps until they are expected to buy 2.5 ms
+  (`STRIDE_MS`), so a run of small steps is one stride. The savings that are on are a
+  list (`governor.off`, in the order they went; `featureLevel` is its length), no longer a
+  prefix of the order. **Coming back**: the ones that went first come back first, five at
+  a time; when what came back makes frames late again it goes off again and to the end
+  of the list, and the next few come back one at a time: what stays off in the end is
+  what the frames need (a trial takes steps until one cures the frames; the ones before
+  it bought nothing). `governor.toFloor()` switches all of them on, live or not. Every
+  new feature that costs frame time adds its step here, with what it buys once a
+  benchmark has said.
 - **Measuring**: the display's refresh interval is estimated continuously from the
   spacing of animation-frame callbacks (20th percentile of the last 60, never slower than
   57 Hz). The frame interval is the mode's target rounded to a whole number of refreshes.
@@ -1270,7 +1313,9 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   the clean run; the window's threshold for stepping down is 20 % + `bg`.
 - **A step down is a trial** (`_dip`). When some frames are late (under 60 %), two steps
   have been taken and about as many are late as before (over 0.7 of the first share),
-  fewer pixels are not the cure: `_putBack` restores the resolution and the savings the
+  fewer pixels are not the cure (once the savings are being tried, the verdict waits
+  until no live step known to buy a stride's worth by itself is left untried, `_bigLeft`:
+  a trial that ends before the steps that could cure the frames has proved nothing): `_putBack` restores the resolution and the savings the
   trial began with, and such lateness moves nothing for 30 s (then 60, up to 240;
   `immune`). When everything has been given up and the frames are as long as they were
   (the window's mean over 0.85 of the first), the same. When only the savings did nothing

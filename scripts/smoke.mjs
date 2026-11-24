@@ -73,10 +73,12 @@ if (!flag('no-bench')) {
   check('results have every line the owner asked for', ['average fps', '1% low', 'worst frame', 'render resolution', 'quality steps', 'hitches over 100 ms', 'GPU:', 'pixel ratio', 'mode', 'build'].every((k) => text.includes(k)));
   await snap(path.join(out, 'results_screen.png'));
   console.log('\n' + text + '\n');
-  await page.click('#results button.primary', { noWaitAfter: true });
+  // (a click is three messages to the page, each answered between two frames, and a
+  // software-drawn frame after a benchmark can take ten seconds: the usual 30 s ran out once)
+  await page.click('#results button.primary', { noWaitAfter: true, timeout: 240000 });
   await page.waitForTimeout(500);
   console.log('copy button says:', await page.textContent('#results button.primary'));
-  await page.click('#results .row button:not(.primary)', { noWaitAfter: true });
+  await page.click('#results .row button:not(.primary)', { noWaitAfter: true, timeout: 240000 });
   check('closing the results returns to the start screen', await page.isVisible('#start'));
 }
 // Every shader linked so far (after the benchmark: both worlds, the flight, the sky)
