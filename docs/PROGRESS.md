@@ -46,12 +46,14 @@ transcript, the numbers that matter here):
   character's 2 to 3 ms of page work is paid everywhere.
 
 **The plan** (one delivery; the helpers again, on the owner's word):
-1. *Here, first*: the governor's ladder by what a step buys on the phone (the dead steps
-   out of it, the ones that buy 3 ms and more first), checked in `govsim`.
-2. *Here*: the ground's shader made several times cheaper (tiers by distance, the
-   flowers' noise from a texture already bound, nothing worked out that is not seen);
-   the character's page work; then the land from high above where it is the ground's
-   doing (the forest beyond the far trees, the ground's grain, no ring at any height).
+1. and 2. *Helper, speed* (`docs/briefs/phone-speed.md`; the phone's whole text is
+   `docs/benchmarks/2026-11-24-haven-6ac24ff.txt`): the ground's shader several times
+   cheaper and looking the same (it owns `terrainMaterial.js` for this delivery), the
+   governor's ladder by what a step buys, the character's page work, the cloud volume
+   from the air. (First meant to be done here; given to a helper with a machine of its
+   own so that this session keeps its room for merging, reviewing and deciding.) What the
+   land needs from the ground's shader when seen from above (the forest beyond the far
+   trees, no ring) is passed to it from the "from above" helper's list.
 3. *Helper, trees* (`docs/briefs/trees-refined.md`): the near trees at the references'
    level of detail (limbs, twigs, finely cut leaves), blossom and petals on the wind,
    for less than a forest costs today.
