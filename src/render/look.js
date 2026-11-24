@@ -38,6 +38,7 @@ export class Look {
     // the whole of it, on a slant: from 10 km the land lay under a blue-grey veil, and from
     // orbit the globe was a pale ball beside the Earth one sees from Mars.)
     { const hx = Math.min(1, Math.max(0, Math.log10(Math.max(1, altitude) / 2500))); G.uHaze.value = d ? 1 - (1 - (d.spaceHaze ?? 0.45)) * hx * hx * (3 - 2 * hx) : 1; }
+    if (this.debug?.includes('nohaze')) G.uHaze.value = 0;          // ?debug=nohaze: none of the haze over the ground (before/after pictures)
     if (!d) { this.apply(null, 0); return; }
     const x = Math.min(1, Math.max(0, (Math.log10(Math.max(1, altitude)) - 4.6) / 1.0)), near = 1 - (1 - 0.33) * x * x * (3 - 2 * x);
     const g = d.grade || {};
@@ -55,7 +56,7 @@ export class Look {
     const d = this.def;
     G.uPaint.value.set(paint, d?.shade ?? 1, d?.colour ?? 1, d?.facets ?? 0);
     const u = this.uniforms; if (!u) return;
-    if (!n || paint <= 0) { u.uGrade.value.set(1, 1, 0, 0); return; }
+    if (!n || paint <= 0 || this.debug?.includes('nograde')) { u.uGrade.value.set(1, 1, 0, 0); return; }   // (?debug=nograde: the picture without the look's grade)
     // (the grade fades with the painted look itself)
     u.uGrade.value.set(mix(1, n.sat, paint), mix(1, n.contrast, paint), n.tint * paint, 0);
     u.uGradeShade.value.set(n.shade[0], n.shade[1], n.shade[2]); u.uGradeLight.value.set(n.light[0], n.light[1], n.light[2]);

@@ -329,7 +329,7 @@ export class App {
     this.nearShadow.every = this.shotMode ? 1 : 2; this.nearShadow.alternate = MODES[this.governor.mode].fps < 45;
     // Weather (worlds that have it): wind, rain, wet ground, shade, lightning
     this.weather = new Weather(); this.weather.setWorld(world);
-    this.look = new Look(); this.look.setWorld(world);          // the world's look, if it has one of its own (render/look.js)
+    this.look = new Look(); this.look.debug = params.debug; this.look.setWorld(world);          // the world's look, if it has one of its own (render/look.js)
     this.rain = new Rain(G);
     this.bolt = new Bolt(G);
     this.rainbow = new Rainbow(G);
