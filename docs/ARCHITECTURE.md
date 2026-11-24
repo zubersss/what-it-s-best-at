@@ -407,7 +407,11 @@ as before.
   10 m; nearest places first, 300 a frame, all at once in screenshot mode), float textures
   sent between frames: height, how much grass, how dry, and the flowers there (whole part:
   which of seven kinds; fraction: how many). Everything stands on a plane (the anchor)
-  that steps 40 m at a time when the traveller is 200 m from it, its axes carried along;
+  that lies on the ground's own sphere under the traveller, never at the traveller's
+  height (places are worked out along lines from the world's centre and drawn at plain
+  metres: with the plane 1 km over the ground the whole field slid 0.8 m aside at every
+  step on Haven; `scripts/grass-anchor-replay.mjs`), and that moves in whole steps of
+  40 m when the traveller is 60 m from it, its axes carried along;
   every spacing divides 40 m, so no tuft, table entry or pattern changes at a step, and
   the shaders take off the world's curve (0.7 m at 600 m on Haven). `grassRules.js` holds
   what the grass and the ground must agree on, once: `AMOUNT`, `DRY`, `FLORA` by land
@@ -417,6 +421,17 @@ as before.
   ground and the clumps between 121 and 220 m (`grass.below`, `grass.mid` in a world's
   file). Governor: `grass-mid` halves the clumps and widens the ones left; `grass`
   thins the blades.
+  On slopes grass stands by ONE rule, `GRASS_GROUND.slope` in `grassRules.js` (all of it
+  to 0.45, none by 0.75): the tables' amount fades by it and the ground's shader lays the
+  grass's colour by the same numbers, so that no tuft stands on unpainted ground and no
+  steep meadow is bare. A clump takes the clouds' shadow from the trees' map
+  (`life/treeShade.js`) and the land's cast shadow from a table of its own (`tLandShade`:
+  36 x 36 places 40 m apart round the anchor, one worker job when the traveller has moved
+  120 m, the Sun 1.5 degrees or the maps have changed), both eased in between 30 and
+  120 m; the blades have the near shadow map. A clump whose ground is looked at squarely
+  (against the world's up or its own slope's normal) from beyond 40 to 90 m is not drawn:
+  the ground wears the grass there, and on a hillside facing the eye the cards were a
+  brickwork of dashes.
 - **The land from the air** (painted look): the tile worker draws each pixel of the colour
   ring part of the way to a clean colour of its land-cover class (`cover.paint`,
   `cover.colours` in the world file; classes not listed keep the satellite's colour).
@@ -823,7 +838,11 @@ the patches away.
 the ground at a place (its fracture planes, in JavaScript: `rockTop` in `rockBlock.js`),
 and the app's height function adds it (`_rise`): the traveller walks up and over a rock
 of 3.4 m and more, lands on it, and the camera rises to see over it. The world file keeps
-places clear (`far.clear`): where the journey begins.
+places clear (`far.clear`): where the journey begins. The rig asks how much of the last
+height was rock (`rig.riseAt`, set by the app beside `sunkAt`): in flight `rig.agl` stays
+the height over the LAND (the speed law must not dip over a tor) and `rig.floor` is the
+height over what one would stand on (the touch-down tests; the near plane goes by the
+lesser of the two). `scripts/rig-over-rock.mjs` fails if that comes back.
 
 **Workers**: one tile is asked for before the ground takes the workers each frame
 (`ask()` in `app.js`), so a traveller on the move is not left without rocks until the

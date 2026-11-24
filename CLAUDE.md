@@ -672,5 +672,10 @@ finished benchmark leaves its text in `window.__benchResult`.
 - A sketch tool's answer is only as wide as its question: "no tree shades the ground 1 to
   12 m ahead" was true, and the pine's shadow lay 15 to 50 m ahead, across the whole
   opening view. When a tool and a picture disagree, find what the tool did not ask.
+- A long run started as a background command dies at the two-hour limit, and the machine
+  itself can restart in the middle of one (it did, during a delivery's final tests): the
+  scratchpad, the frozen build and the pictures survived, the processes did not. Start
+  long runs detached (`nohup setsid script &`), as steps that each write a line to a log
+  when done, and wait on the log: then a run is picked up from its last line.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.
