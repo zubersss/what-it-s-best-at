@@ -144,7 +144,57 @@ the two painted patches, the cloud's four on coarse patches, the sky's light.)
 
 ### Numbers (the proxy; software WebGL, 1100 x 515; a count of work, never a frame rate)
 
-(the table is filled in under "S1" below once all ten views have been run)
+At the phone's pixel count (1936 x 906, 1.75 MP: the first runs at the reference
+pictures' 1100 x 515 had as many vertices as pixels and showed nothing of the work moved
+to the vertices). The old shader (commit 1a16c80) and the new, the same ground in the
+same browser session; ms until drawn:
+
+| view | shaded before | shaded after | after / before | pictures apart (levels of 255: mean, largest) |
+|---|---|---|---|---|
+| Haven, the opening view | 13 859 | 12 771 | 0.92 | see below |
+| Haven, dry grassland from 40 m up | 12 175 | 9 568 | 0.79 | 0.01, 1 |
+| Haven, in the north wood | 11 274 | 8 951 | 0.79 | 0.00, 1 |
+| Haven, a steep mountain side | 10 621 | 8 207 | 0.77 | 0.00, 12 (a few pixels) |
+| Haven, the eastern shore | 8 722 | 6 830 | 0.78 | 0.00, 1 |
+| Haven from 300 m up | 8 099 | 7 062 | 0.87 | 0.01, 2 |
+| Haven from 3 km up | 4 915 | 4 178 | 0.85 | 0.02, 2 |
+| Haven from 30 km up | 3 775 | 2 766 | 0.73 | 0.05, 6 |
+| Earth's opening view | 10 186 | 8 226 | 0.81 | 0.02, 2 |
+| Mars's opening view | 12 845 | 12 772 | 0.99 | 0.01, 4 |
+| all ten | 96 471 | 81 331 | 0.84 | |
+
+**This is not "several times cheaper", and I do not claim it.** By the proxy the ground's
+shading is a sixth cheaper, a quarter at best, and on Mars nothing. Read with what the
+proxy is worth (above): it counts the texture reads with a long footprint (`textureGrad`
+with four taps: the ring's colour, the painted patches, the normal map, the near detail)
+far above everything else, and those are the reads that are still there, because the
+picture needs them; the plain reads and the arithmetic that were cut (eight reads a
+pixel moved to the vertices, the raster loop, the cloud's four reads on the near ground,
+a noise) hardly register in it, and the vertices they moved to cost it dear (the time "in
+one flat tone" rose by about a tenth). The phone's own table says the opposite about its
+GPU: there the `detail` saving (two to six long-footprint reads a pixel) bought nothing
+that could be measured, while `far-relief` (a loop and arithmetic) bought 3.5 ms and
+`clouds` (three plain 3-D reads, an `atan`, an `acos`) 4.0. If the phone weighs work as
+its table suggests, the row "the ground's shading" should fall by more than the proxy's
+sixth: by my reading of the two savings alone some 5 to 7 of its 17.4 ms at the opening
+view, and the air and the Sun at the vertices on top of that. That is a reading, not a
+measurement; the benchmark says.
+
+The opening view's pictures are 1.75 levels apart in the mean in this run, in smooth
+patches on the near hillside (`docs/shots/phone-speed/ground_ledge.png`): that is the
+grass helper's flower rule, which the ground now gives the slope (flowers of one kind on
+hillsides, as the blades have them), asked for and put in between the two shaders being
+set against each other; it is a change of the look, theirs, and on purpose. The tiers
+alone, on the commit before it (5786c74, 1100 x 515): 0.01 levels in the mean, largest 2.
+The whole game from 5 km over Haven, old build against new (ground, clouds, everything):
+0.03 levels in the mean, six pixels over 8 (`haven_5km_before.png`, `haven_5km_after.png`).
+
+The pictures: `docs/shots/phone-speed/ground_<view>.png`, each the old shader's ground,
+the new one's and their difference times eight, at half size.
+
+Tolerance, stated: a mean under 0.1 level and no patch of pixels more than 3 levels off
+(single pixels on the skyline or at a patch's edge may be: the Mars and rock views have a
+few at 4 to 12).
 
 ### Tried and taken back
 
@@ -202,6 +252,10 @@ half of its frames late (four times in the ninth benchmark).
   what the frames need: in the simulation one saving (`grass-mid` at the opening view,
   `trees-far` in a wood, `cloud-volume` from the air), where the old ladder left nine
   to fifteen on or cured nothing.
+- **The resolution is not held down by a saving that stays on**: while every saving
+  still on is one that made frames late when it came back alone, the resolution and they
+  take turns at coming back (before, no pixel came back while any saving was on; in the
+  simulation the picture sat at 1.60 MP for good behind one saving).
 - The savings that are on are a list (`governor.off`), no longer a count; `featureLevel`
   is its length; the benchmark's cost test uses `allOn()` / `restoreSavings()`.
 - `debug=floor` and `toFloor()` switch all of them on, live or not: the floor's picture is
@@ -216,6 +270,22 @@ half of its frames late (four times in the ninth benchmark).
 | from the air, no trees or grass drawn: only `cloud-volume` cures (9.4) | not reached | 0.6 % late, `cloud-volume` on, no tree or grass step touched |
 
 All the earlier cases pass unchanged.
+
+### Reviewed cold (a reviewer with the diff and Node, no browser; its replays reproduced each)
+
+Found and fixed: a list of savings just brought back survived a change of mode or place
+and was "taken back" there (Sharp gave up five savings at native resolution before a
+pixel); one step up could be taken back by every late window for four seconds; after a
+return of five failed, the one-at-a-time returns went to five other steps; the picture
+stayed at its fewest pixels for good behind one saving; the "from the air" case passed
+without `live` (it looked only at the end of the run: it now reads the log). Found and
+left, as the design's price: lateness that nothing cures now costs a trial through every
+live step known to buy something (some six seconds with up to eighteen savings on)
+before quality is put back, where the old ladder judged after two steps; it then leaves
+such lateness alone for 30 s, doubling to 240 s. Checked and sound: no step is ever
+applied twice or left applied outside the list (1 200 random runs with mode changes,
+arrivals, the floor and the cost test); the cloth old against new over all sixteen
+combinations of its options: 1.8e-5 m apart at most.
 
 ### Behaviour changes (for the checkpoint message)
 
@@ -265,15 +335,17 @@ evaluated from scratch per point and axis.
 | | before | after |
 |---|---|---|
 | cloth at 60 frames a second | 0.81 | 0.37 |
-| cloth at 30 frames a second | 1.20 | 0.61 |
+| cloth at 30 frames a second (the aim now) | 1.20 | 0.61 |
 | a step / the drawn surface | 0.31 / 0.42 | 0.18 / 0.09 |
 | the cloth's 1 951 drawn points after ten seconds of a set flight | reference | within 0.000 mm |
 
 (Taken while this machine was drawing pictures: the ratios hold, the figures are high.)
-The phone read 2.2 to 3.1 ms at 31 to 48 frames a second: by the ratios here that is 1.0
-to 1.5 ms now at those frame rates and under 1 ms at 60, where one step in four fewer
-runs. **Under 1 ms on the phone is likely at 60 frames a second and not proven**: the
-benchmark's `character` figure says.
+The phone read 2.2 to 3.1 ms at 31 to 48 frames a second: by the ratios here that is 1.1
+to 1.6 ms now at those frame rates. **Under 1 ms is not reached at 30 frames a second,
+the aim since the owner's word of 2026-11-24** (at 30 the cloth runs two and a half steps
+a frame); it would be at 60. The owning session's decision: the cloth keeps its full
+quality, a millisecond and a half of 33 is well spent on the figure, and `cloak` stays a
+saving (it halves the passes: 0.44 ms here at 30).
 
 `scripts/lib/robe-reference.json` holds the cloth's points after the set flight;
 `hero-cost.mjs` fails if a change moves them by 2 mm.
@@ -323,6 +395,100 @@ The six passes still fill the view six times. If `cloud-volume` still buys sever
 milliseconds from the air in the next benchmark, the next step is fewer, wider slices
 far off (the last three are 2.6, 4 and 7 km deep).
 
+## Which rows of the phone's next table should move (if the reading above is right)
+
+| row (ninth results, build 6ac24ff) | was | should be | why |
+|---|---|---|---|
+| the ground's shading, opening view | 17.4 | 10 to 13 | the raster loop gone near by, the cloud's shade, the air and the Sun at the vertices, the close-up layers skipped beyond 90 and 300 m |
+| the ground's shading, from the air | 18.1 | 12 to 15 | the same, less of the first (far relief is added there) |
+| the ground's shading, in a wood | 3.7 | about 3 | little ground shows |
+| saved by `far-relief`, opening view | 3.5 | under 1 | what it saved was the loop |
+| saved by `clouds`, opening view | 4.0 | 1 to 2 | near ground asks at its vertices |
+| saved by `cloud-volume`, from the air | 9.4 | 4 to 6 | 12 reads a cloudy pixel in the laying, not 42 |
+| saved by `detail` | noise | noise | the shader skips those layers itself now |
+| character, by stop | 2.2 to 3.1 | 1.1 to 1.6 at 30 a second | the cloth at half its cost |
+| quality steps | trials of 2 to 4 steps, put back four times | a trial that reaches `grass-mid`, the tree steps or the clouds'; few savings left on; the resolution coming back behind them | the ladder |
+
+If "the ground's shading" has not moved, the proxy was right and the phone's GPU is paying
+for the long-footprint reads: then the next cut is the painted patches and the ring's
+colour read with a level given outright in place of a footprint (a change of the look at
+low angles: it needs pictures and the owner's eye).
+
+## Behaviour changes, all jobs (for the checkpoint message)
+
+- The ground looks the same (the tolerance above); far flowers now follow the slope, the
+  grass helper's rule.
+- A fresh page opens in Sharp; a mode chosen before today is forgotten once.
+- The governor tries savings in another order, tries them at the size that stands when
+  fewer pixels cure nothing, tries longer before giving up, brings back what bought
+  nothing first, and lets the resolution return while a saving that is needed stays on.
+- The cloth moves as it did (to a hundredth of a millimetre after ten seconds).
+- The clouds look the same; their clean edge is cut from a small picture of all the
+  cloud along the line of sight (edges within a pixel of where they were).
+- `scripts/smoke.mjs`: the two clicks after the benchmark wait up to four minutes.
+
+## Round two (asked by the owning session after the four jobs were merged)
+
+### The flower rule at the ground
+
+Found: every pixel of grass within 900 m ran the rule's meadow noise (260 m to the cell)
+before it knew whether a flower was near, and on a slope the hillside noise (420 m) too.
+Done: both are asked at the ground's vertices within 1 100 m (`vFlowerFields`) and
+handed on; `grassRules.js` got `flowerMeadow(P)`, `flowerHill(P)` and a `flowersAt` that
+takes them as given (the three-argument form calls it: one rule; nothing the old forms
+return has changed). A grass pixel outside a meadow now runs no noise; inside one, the
+9 m drift noise and the kind's hash, which must match the blades, and the two speck
+noises where specks show. Pictures, the shader before against after in one session:
+opening view 0.00 levels apart (largest 0), the cornflower meadow 0.00 (largest 1).
+The proxy: meadow 3 203 -> 2 951 ms shaded; the opening view 3 734 -> 4 012 (its vertices
+cost it more than the pixels saved, as before: see what the proxy is worth). Varyings: 14
+rows of 15. Not done: the 26-kind tables are still indexed per pixel where a flower is.
+
+### The shadow maps
+
+Found: the turns (the wide tile every fourth frame, the fine one every other) were only
+for the 60-a-second mode; at 30 a second all three tiles were drawn every frame, and
+Sharp is now the default. The phone's 3.3 and 7.3 ms were measured in Smooth, with turns:
+in Sharp the maps would have cost about twice that a frame. Done: in the 30-a-second mode
+the wide and the fine tile take the frames in turn, the character's own is drawn every
+frame: no frame draws more than one of the two, neither is older than a fifteenth of a
+second, and a tile that is not drawn stays on the ground where it was drawn (the
+mechanism that was there for 60). `npm run shadowturns` passes (a held tile after a 4 m
+walk: 0.000 % of pixels differ from tiles drawn afresh). Clean by that test; what it does
+not show is a bough's shadow a fifteenth of a second behind the bough, which I take to be
+invisible and have not seen in motion.
+
+### The Haven benchmark end to end
+
+(below, when it has run: it takes hours on software drawing)
+
+### Round one's last checks
+
+- The clouds' six laying passes alone (`scripts/cloud-cost.mjs`, old build and new):
+  222 -> 77 ms.
+- The figure's `fly` and `stand` poses on Mars, old build against new: 0.01 levels apart
+  (largest 3 and 2). The floor picture (`debug=floor`) from 5 km: largest 1.
+- `play-profile` could not give the character's before and after: its click on Play timed
+  out on both builds (a software-drawn Haven frame outlasts the click's 30 s; the click
+  now waits four minutes). The Mars benchmark in `npm run smoke` names the character at
+  0.8 to 3.3 ms a stop on this machine at one frame a second, which says nothing.
+- `npm run smoke` on the last build of round one passed every check and still exited 1:
+  a "full screen refused" warning (the tap that starts play was more than five seconds
+  old by the time the page asked). Now counted as benign in the test browser.
+
 ## What was not done
 
-(filled in at the end)
+- "Several times cheaper" for the ground's shader: not reached by the proxy's measure
+  (see the table), unproven on the phone.
+- The vertex shader's own cost was not cut: it grew (11 texture reads a vertex, a noise).
+  Some 225 000 vertices a frame at the opening view against 1.6 to 4.45 million pixels.
+- The flowers' rule at the ground (`flowersAt`, now with a meadow noise and 26 kinds in
+  constant tables) was not counted or cut: within 900 m a grass pixel still runs two to
+  five integer-hash noises. If the next benchmark leaves the ground dear near by, this is
+  the first place to look; it can go to the vertices of the finest patches the way the
+  gusts did.
+- No test in motion (the flicker check takes two hours of this machine). What could show
+  in motion: nothing in the exact skips; in the vertex work, a patch crossing 12.5 tiles
+  changes who asks about the cloud (measured: 2 to 3 levels on a few pixels).
+- The Haven benchmark was not run headless on the merged build (hours here); the Mars one
+  in `npm run smoke` was.

@@ -61,7 +61,8 @@ export const FEATURE_STEPS = [
   // (3.4 ms in a wood)
   { id: 'cloud-steps', buys: 3.4, label: 'coarser clouds near you', live: cloudVolume, apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.steps = off ? 22 : 36; } },
   // (2.7 ms in a wood)
-  { id: 'tree-shadows', buys: 2.7, label: 'shadows of the farther trees', live: nearTrees, apply: (app, off) => { if (app.trees) app.trees.shadowsFar = !off; } },
+  // (and the far forest's shadows on the ground, drawn for a traveller in the air: life/farForest.js; not yet measured on the phone)
+  { id: 'tree-shadows', buys: 2.7, label: 'shadows of the farther trees', live: (app) => nearTrees(app) || !!app.farForest?.shadowsShown, apply: (app, off) => { if (app.trees) app.trees.shadowsFar = !off; if (app.farForest) app.farForest.shadows = !off; } },
   // (5.0 ms at the opening view; the clumps left are wider: the ground stays covered)
   { id: 'grass-mid', buys: 5.0, label: 'thinner grass in the middle distance', live: (app) => (app.grass?.keepClumps ?? 0) > 0 && !!app.grass.mesh?.visible, apply: (app, off) => { app.grass?.setMidShare(off ? 0.5 : 1); } },
   // (7.0 ms in a wood)
@@ -170,6 +171,13 @@ export class Governor {
     this.maxResLevel = 0;
     this.off = [];                // the FEATURE_STEPS switched off (their numbers, in the order they went)
     this._single = 0;             // how many of the next returns bring one step back, not five (see _up)
+    this._alone = new Set();      // savings that made frames late again when they came back by themselves: what the frames need
+    this._resTurn = false;        // with only such savings on: the next step up is the resolution's (they take turns)
+    // Fewer pixels were tried here and cured nothing: the next trial is of the savings, at the
+    // resolution that stands (before, they were only ever tried at the fewest pixels, and a
+    // view whose frames wait for something other than pixels stayed late at full size for good:
+    // on the test phone the opening view costs the same at 2 MP as at 4.45).
+    this._featFirst = false;
     this.scale = fixedScale ?? 1;
     // Display refresh interval in ms: from the start-up probe if it ran, else assumed
     // 60 Hz; refined all the time from the animation-frame callbacks (see shouldRender).
@@ -237,6 +245,8 @@ export class Governor {
     this.resLevel = Math.max(0, Math.min(this.maxResLevel, Math.round(level)));
     this._applyScale();
     this.holdUp = 3; this.cooldown = 1.0; this.cleanTime = 0; this._filled = 0; this.lastUpFailed = false; this._probeFrames = -1;
+    // (a step up taken before this is not this place's or this mode's to take back)
+    this._upList = null; this._upFeat = 0; this._upFrom = null; this.sinceUp = 1e9; this._single = 0; this._alone.clear(); this._resTurn = false; this._featFirst = false;
     this.goodLevel = null; this.sinceDown = 0; this._learned = null;
     this._dip = null; this.immune = this.featImmune = 0; this.immuneFor = 30;
     this._note(`${place}: starting at ${(this.pixels / 1e6).toFixed(2)} MP`);
@@ -260,6 +270,8 @@ export class Governor {
     }
     // A new target: forget what was learned and look again from where we are.
     this.holdUp = 3; this.cooldown = 1.0; this.cleanTime = 0; this._filled = 0; this.lastUpFailed = false; this._probeFrames = -1;
+    // (a step up taken before this is not this place's or this mode's to take back)
+    this._upList = null; this._upFeat = 0; this._upFrom = null; this.sinceUp = 1e9; this._single = 0; this._alone.clear(); this._resTurn = false; this._featFirst = false;
     this.goodLevel = null; this.sinceDown = 0; this.loadHold = 15; this.loadUpFailed = false; this.leverClean = 0;
     this._dip = null; this.immune = this.featImmune = 0; this.immuneFor = 30; this.lateEMA = 0;
     {
@@ -303,7 +315,7 @@ export class Governor {
   _stepOn(note = true) { const i = this.off.pop(), f = FEATURE_STEPS[i]; f.apply(this.app, false); if (note) this._note(`back on: ${f.label}`); return i; }
   // Every saving off again, at once (the benchmark's cost test, a change of mode); returns
   // what was on, for `restoreSavings`.
-  allOn() { const was = this.off.slice(); while (this.off.length) this._stepOn(false); return was; }
+  allOn() { const was = this.off.slice(); while (this.off.length) this._stepOn(false); this._alone.clear(); this._upList = null; this._upFeat = 0; return was; }
   restoreSavings(list) { this.allOn(); for (const i of list) this._stepOff(i, false); }
 
   get targetFps() { return 1000 / this.interval; }
@@ -471,7 +483,8 @@ export class Governor {
       const lateScript = nl ? sl / nl : 0, work = lateScript > this.interval * 0.9;
       this._hold = lateScript > this.interval;
       let cool = 0.7;
-      if (tookBack) { this.holdUp = Math.min(60, this.holdUp * 2); this.lastUpFailed = true; this._takeBack(); this.overTime = 0; }
+      // (once: the same step up is not taken back again by the next late window)
+      if (tookBack) { this.holdUp = Math.min(60, this.holdUp * 2); this.lastUpFailed = true; this._takeBack(); this.overTime = 0; this.sinceUp = 1e9; }
       else if (streaming && this.streamLevel < 2) { this.streamLevel++; this.app.terrainPace(this.streamLevel); this._note(`terrain let in more slowly (${this.streamLevel})`); this.sinceStep = 0; }
       // (still late with terrain at its slowest pace: the arriving ground is the work that
       // is slow, so patches go before pixels)
@@ -496,12 +509,19 @@ export class Governor {
         // been shown to buy a stride's worth by itself is still untried and live here: a
         // trial that ends before the steps that could cure the frames has proved nothing.
         // The small steps after them never hold a verdict up.)
-        const futile = d && ((d.m0 < 0.6 && d.n >= 2 && (this.resLevel < this.maxResLevel || !this._bigLeft()) && m > 0.7 * d.m0) || (atFloor && d.n >= 2 && mean > 0.85 * d.dt0));
+        const resTrial = d && !d.feat1 && this.resLevel < this.maxResLevel;       // (a trial of fewer pixels, not yet of savings)
+        const futile = d && ((d.m0 < 0.6 && d.n >= 2 && (resTrial || !this._bigLeft()) && m > 0.7 * d.m0) || (atFloor && d.n >= 2 && mean > 0.85 * d.dt0));
         // (and the savings alone, when the resolution's steps did help: with every one of
         // them on and the frames as long as when the first was switched on, they come back
         // and the resolution stays where it holds)
         const featFutile = d && !futile && atFloor && d.dtF != null && mean > 0.85 * d.dtF;
-        if (futile) { this._putBack(d, true); if (d.m0 < 0.6) this.bg = Math.max(this.bg, Math.min(0.12, 0.9 * Math.min(m, this.lateEMA))); }
+        // (fewer pixels cured nothing and the savings are untried: they are next, at once)
+        // (most frames late, a stride of fewer pixels taken, and the frames as long as they
+        // were: pixels are not what they wait for. The same verdict, without the dive to the
+        // fewest pixels that used to come first.)
+        const notPixels = resTrial && d.m0 >= 0.6 && d.n >= 1 && this.resLevel > d.res && mean > 0.92 * d.dt0;
+        if ((futile || notPixels) && resTrial && !this._featFirst && this._bigLeft()) { this._putBack(d, true); this.immune = 0; this._featFirst = true; }
+        else if (futile) { this._putBack(d, true); this._featFirst = false; if (d.m0 < 0.6) this.bg = Math.max(this.bg, Math.min(0.12, 0.9 * Math.min(m, this.lateEMA))); }
         else if (featFutile) this._putBack(d, false);
         // (a trial that began for a few late frames, and a step that cut them: it is over)
         else if (d && d.probe && m <= 0.7 * d.m0) { this._dip = null; this.overTime = 0; }
@@ -509,7 +529,7 @@ export class Governor {
         else if (atFloor) { /* nothing left to give up */ }
         else if (this.time < this.featImmune && this.resLevel >= this.maxResLevel) { /* the savings were tried a moment ago, for nothing */ }
         else {
-          if (!d) this._dip = { res: this.resLevel, feat: this.featureLevel, m0: m, dt0: mean, n: 0, dtF: null, probe: !trigger, bought: 0 };
+          if (!d) this._dip = { res: this.resLevel, feat: this.featureLevel, m0: m, dt0: mean, n: 0, dtF: null, probe: !trigger, bought: 0, feat1: this._featFirst };
           // (how long the frames are when the first saving is about to go)
           if (this._dip.dtF == null && this.resLevel >= this.maxResLevel) this._dip.dtF = mean;
           this._dip.n++;
@@ -568,7 +588,10 @@ export class Governor {
     }
     let bought = 0;
     for (let s = 0; s < steps; s++) {
-      if (this.resLevel < this.maxResLevel) { this.resLevel++; this._applyScale(); this._note(`resolution down to ${(this.pixels / 1e6).toFixed(2)} MP`); bought += STRIDE_MS; }
+      // (the savings first where fewer pixels have just been shown to cure nothing, while one
+      // known to buy something is untried; then the pixels again: every lever falls through)
+      const featNow = this._featFirst && this._bigLeft();
+      if (this.resLevel < this.maxResLevel && !featNow) { this.resLevel++; this._applyScale(); this._note(`resolution down to ${(this.pixels / 1e6).toFixed(2)} MP`); bought += STRIDE_MS; }
       else {
         // a stride: steps that can buy something here, until they should have bought STRIDE_MS
         let got = 0;
@@ -599,11 +622,16 @@ export class Governor {
     if (this._upFrom != null && this._upFrom > this.resLevel) {
       this.resLevel = Math.min(this.maxResLevel, this._upFrom); this._applyScale();
       this._note(`resolution down to ${(this.pixels / 1e6).toFixed(2)} MP`);
-      this.sinceStep = 0; this.sinceDown = 0;
+      this.sinceStep = 0; this.sinceDown = 0; this._resTurn = false;
     } else if (this._upFeat) {
       // (the very steps that had come back, in the order they had gone)
-      for (const i of this._upList || []) if (!this.off.includes(i)) this._stepOff(i);
-      if ((this._upList || []).length > 1) this._single = this._upList.length;
+      // (several came back together: they go to the front again and come back one at a
+      // time, to find which of them it was. One came back alone: it is what the frames
+      // need; to the end of the line, and the resolution may be tried while it stays off.)
+      const list = (this._upList || []).filter((i) => !this.off.includes(i));
+      for (const i of list) this._stepOff(i);
+      if (list.length > 1) { this.off = list.concat(this.off.filter((i) => !list.includes(i))); this._single = list.length; }
+      else if (list.length === 1) { this._alone.add(list[0]); this._resTurn = true; }
       this._upList = null;
       this.sinceStep = 0; this.sinceDown = 0;
     } else this._down(1);
@@ -611,7 +639,14 @@ export class Governor {
   }
 
   _up() {
-    if (this.featureLevel > 0) {
+    // (when every saving still on is one the frames need, the resolution is not held down
+    // by them for good: it and they take turns at coming back. A sharp picture with thinner
+    // grass in the middle distance is better than a soft one with the same.)
+    const needed = this.featureLevel > 0 && this.resLevel > 0 && this.off.every((i) => this._alone.has(i));
+    // (the resolution keeps the turn while its steps hold; a step of it that fails hands the
+    // turn to the savings: _takeBack)
+    const res = needed && this._resTurn;
+    if (this.featureLevel > 0 && !res) {
       // (five at a time: after a passing dip, a burst of ground arriving, the way back up
       // through twenty savings one by one took two minutes of a picture with nothing in it)
       let n = 0;
@@ -625,7 +660,7 @@ export class Governor {
       for (; n < many && this.featureLevel > 0; n++) { const i = this.off.shift(), f = FEATURE_STEPS[i]; f.apply(this.app, false); this._note(`back on: ${f.label}`); back.push(i); }
       this._upFeat = n; this._upList = back; this._upFrom = null;
     } else if (this.resLevel > 0) {
-      this._upFeat = 0;
+      this._upFeat = 0; this._upList = null;
       this._upFrom = this.resLevel;
       this.resLevel = this.goodLevel != null && this.goodLevel < this.resLevel ? this.goodLevel : this.resLevel - 1;
       this._applyScale(); this._note(`resolution up to ${(this.pixels / 1e6).toFixed(2)} MP`);

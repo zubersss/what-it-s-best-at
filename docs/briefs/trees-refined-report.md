@@ -66,10 +66,19 @@ six tenths of that).
 
 | | triangles handed over | layers a pixel, whole picture | where the part is | most |
 |---|---|---|---|---|
-| near trees, before | | | | |
-| near trees, after | | | | |
-| far forest, before | | | | |
-| far forest, after | | | | |
+| near trees, before | 264 142 | 12.52 | 23.73 (53 % of the picture) | 87 |
+| near trees, after | 163 288 | 10.49 | 19.64 (53 %) | 71 |
+| far forest, before | 490 182 | 4.04 | 18.66 (22 %) | 82 |
+| far forest, after | 490 182 | 4.14 | 18.85 (22 %) | 84 |
+
+The near trees are drawn in **16 % fewer layers** and 38 % fewer triangles than before,
+with the detail of the nearest ones some six times finer; the far forest is unchanged
+(its 0.1 is the larger picture's finer cut-outs). These counts are without the depth
+test: what is rasterised, the upper bound of what is shaded. The near trees are now also
+drawn nearest first (the lists are sorted, the close meshes before the near before the
+far), which the old build did not do and these numbers do not show. The grey pictures
+`overdraw_trees_before.png` and `_after.png` show where the layers are (white: 16 and
+more). Not measured on the phone.
 
 ## The governor's steps
 

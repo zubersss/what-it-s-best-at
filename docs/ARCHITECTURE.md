@@ -807,6 +807,41 @@ as Earth is; what differs is where the maps come from.
     blue; the wood's own air (`forestAir`) fades out between 300 m and 1 km, where the
     air itself takes over. The rule: a far tree is never bluer or paler than the ground
     behind it. All of it is nothing at the join, where the near trees' numbers hold.
+  - **Seen from above** (`life/farTreeForm.js`: the rule, in GLSL for the vertex shader and
+    in JavaScript for the sketch and the test). A far tree is three quads: two crossed
+    upright pictures and a rosette lying in its crown. Looked down on, the upright ones are
+    on edge. So by the sine of the angle a tree is looked down at (`down`), everything
+    blended and nothing switched, and nothing at all below 17 degrees (the view from the
+    ground is as it was):
+    - the rosette is the crown's top: lit as a dome that faces the sky (by the rule the cards
+      share with the near trees, a rosette under the middle height of its crown faces the
+      ground, and from above every fir was a dark disc the Sun did nothing to; the dome comes
+      in over the 200 m beyond the near trees' line, where nothing may differ), and **spread**
+      where the trees are thinned, by keep^-(1/4 + 0.17) against the keep^-1/4 (at most 1.5)
+      of the view from the side, at most 8 crown widths, and **only in a closed wood**: each
+      tree carries the chance its site had of a tree (`treeBlock.js`, the tenth float; beside
+      its rank in `iC.x`), and a lone tree on open ground stays its own size;
+    - **the tree's shadow** is a fourth quad, handed over only for a traveller in the air
+      (from 60 m up; `setDrawRange`, two triangles a tree more there): the picture of the
+      whole tree laid on the ground along the Sun's ray, the tree's own outline, up to five
+      heights long, coming in from 17 to 30 degrees of looking down. It takes a share of
+      what is drawn under it (the material blends by alpha: a tree writes 1, a shadow its
+      share; `uShadow.x` brings it in between 60 and 160 m up, and the governor's step
+      `tree-shadows` takes it away). One tree's alone takes half; where several lie over
+      one another at a wood's edge each is so much lighter that the lot come to half. None
+      from a tree in the land's or a cloud's shadow, none on ground the Sun does not reach
+      by its slope (the tile job hands that over with the land's shadow:
+      `treeLandShade.js`, `lit`), none beyond 4.2 km. Under the canopy the ground raises
+      they are hidden, which is right: they are for trees on open ground;
+    - the upright pictures draw in to nothing from 49 to 68 degrees (steeper, they are
+      bright slivers beside the crown's top, and from straight above a cross on it);
+    - the forest's end: seen from above its trees draw in over the last two fifths of its
+      reach (the last seventh from the side), so that it has no edge on the land below.
+    On the ground no more triangles than before (6 a tree) and no more instances; in the
+    air 8 a tree.
+  - **The land's shadow, the grid**: 20 points a side over the smallest tile and finer by
+    half for each size up (20, 28, 40, 57): 20 over a tile of 7 km was a point every 370 m.
+    `scripts/far-tree-shade-test.mjs` compares the grid with a ray from every tree.
   - Drawn after the ground: the raised canopy hides a far tree's lower part for nothing and
     its crown stands out of it. Governor step `far-trees`: it **thins** them (the widening
     goes with it, so a wood is still a wood) and shortens their reach, never removes them.
@@ -1335,10 +1370,13 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   (`STRIDE_MS`), so a run of small steps is one stride. The savings that are on are a
   list (`governor.off`, in the order they went; `featureLevel` is its length), no longer a
   prefix of the order. **Coming back**: the ones that went first come back first, five at
-  a time; when what came back makes frames late again it goes off again and to the end
-  of the list, and the next few come back one at a time: what stays off in the end is
-  what the frames need (a trial takes steps until one cures the frames; the ones before
-  it bought nothing). `governor.toFloor()` switches all of them on, live or not. Every
+  a time; when several that came back together make frames late again they go off again,
+  to the front, and come back one at a time; the one that makes frames late by itself
+  goes to the end of the list and is marked as needed (`_alone`): what stays off in the
+  end is what the frames need (a trial takes steps until one cures the frames; the ones
+  before it bought nothing). While only needed savings are on, the resolution and they
+  take turns at coming back, so one saving that stays on does not hold the picture at
+  its fewest pixels for good. `governor.toFloor()` switches all of them on, live or not. Every
   new feature that costs frame time adds its step here, with what it buys once a
   benchmark has said.
 - **Measuring**: the display's refresh interval is estimated continuously from the
@@ -1373,13 +1411,22 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   start a trial of their own (one step, two seconds to see what it did); a step up
   followed by one within twelve seconds is taken back instead. Arriving at another place
   ends all of it. The benchmark prints `bg` and how often quality was put back.
+- **Pixels or savings.** A trial begins with fewer pixels. When that cures nothing (two
+  rounds with as many frames late; or, with most frames late, one stride of fewer pixels
+  and frames as long as before), the pixels come back and the next trial is of the savings
+  **at the resolution that stands** (`_featFirst`), while a live step known to buy
+  something is untried; then pixels again. Before, savings were only ever tried at the
+  fewest pixels: a view whose frames do not wait for pixels (the phone's opening view
+  costs the same at 2 MP as at 4.45) sat late at full size in Sharp, or was taken to the
+  fewest pixels first for nothing.
 - **Stepping up** needs a clean run of `holdUp` seconds (3 s to start) and, where the
   browser exposes GPU timer queries, GPU time under 72 % of the interval. If a step up
   has to be taken back within 4 s, `holdUp` doubles (up to 60 s); it halves again each
   time a step up holds. That is the hysteresis. The first eight frames after a step up
   are watched separately: if five of them are late the step is taken back at once.
-- **Modes**: Smooth (60 fps) and Sharp (30 fps), `M` / the MODE button / the start
-  screen, remembered in `localStorage`. Both modes start at native. Switching to Sharp
+- **Modes**: Sharp (30 fps; the default since 2026-11-24, the owner's word) and Smooth
+  (60 fps), `M` / the MODE button / the start screen, remembered in `localStorage`
+  (`sse.mode2`: a mode kept under the old key was the old default and is not read). Both modes start at native. Switching to Sharp
   jumps to native with every feature on and lets the governor come down; switching to
   Smooth keeps the current level and comes down from there if it has to.
 - `?scale=` and screenshot mode fix the scale and switch all of this off. `?debug=floor`

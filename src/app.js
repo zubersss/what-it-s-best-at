@@ -207,10 +207,13 @@ export class App {
     this.post = new PostPipeline(renderer, world.scene.exposure);
     this.post.instant = this.shotMode;
     let savedMode = null;
-    try { savedMode = localStorage.getItem('sse.mode'); } catch { /* storage blocked: use the default */ }
+    // (the key is new with Sharp as the default, 2026-11-24: a mode kept under the old key was
+    // Smooth for everyone, the default then, and cannot be told from the owner's own tap; it is
+    // forgotten once. A tap on the mode button from now on is kept.)
+    try { savedMode = localStorage.getItem('sse.mode2'); } catch { /* storage blocked: use the default */ }
     this.profile = new Profile();          // where each frame's own work goes (perf/profile.js)
     this.profileParts = PARTS;
-    this.governor = new Governor(this, params.mode || savedMode || 'smooth', this.shotMode ? (params.scale ?? 1) : params.scale);
+    this.governor = new Governor(this, params.mode || savedMode || 'sharp', this.shotMode ? (params.scale ?? 1) : params.scale);
     // (what each world held last time, per mode: a return starts from it)
     if (typeof this.save.data.gov !== 'object' || !this.save.data.gov) this.save.data.gov = {};
     this.governor.remember(this.save.data.gov, () => this.save.touch());
@@ -302,6 +305,7 @@ export class App {
     // (the far forest: the same trees as those near by, thinned with distance, out to some
     // kilometres; they rise out of the forest the ground shader raises as a whole)
     this.farForest = new FarForest(this.trees, this.terrain); this.nearScene.add(this.farForest.mesh);
+    if (params.debug.includes('treeshade')) this.farForest.shared.uShadow.value.y = 1;      // ?debug=treeshade: the far trees painted by how much of the Sun the land and the clouds leave them
     this.treeShade = new TreeShade(this.terrain);
     this.grass = new Grass(this.terrain, this.terrain.shared.uWind); this.grass.setWorld(world); this.grass.eager = this.shotMode; this.grass.debugKinds = params.debug.includes('flowers');
     this.nearScene.add(this.grass.mesh);
@@ -322,7 +326,7 @@ export class App {
     // (a picture must not depend on which frame it is; and at Sharp's 30 frames a second
     // every tile is drawn every frame: a turn of four frames there would be 7 shadow
     // pictures a second under trees that sway)
-    this.nearShadow.every = this.shotMode || MODES[this.governor.mode].fps < 45 ? 1 : 2;
+    this.nearShadow.every = this.shotMode ? 1 : 2; this.nearShadow.alternate = MODES[this.governor.mode].fps < 45;
     // Weather (worlds that have it): wind, rain, wet ground, shade, lightning
     this.weather = new Weather(); this.weather.setWorld(world);
     this.look = new Look(); this.look.setWorld(world);          // the world's look, if it has one of its own (render/look.js)
@@ -669,8 +673,8 @@ export class App {
     const next = this.governor.mode === 'smooth' ? 'sharp' : 'smooth';
     this.governor.setMode(next);
     this.terrainBudget(MODES[next].patches ?? 1, 'mode');
-    this.nearShadow.every = this.shotMode || MODES[next].fps < 45 ? 1 : 2;
-    try { localStorage.setItem('sse.mode', next); } catch { /* storage blocked: the choice lasts for this visit */ }
+    this.nearShadow.every = this.shotMode ? 1 : 2; this.nearShadow.alternate = MODES[next].fps < 45;
+    try { localStorage.setItem('sse.mode2', next); } catch { /* storage blocked: the choice lasts for this visit */ }
     this.startScreen?.setMode(next);
     this.toast?.show(`${MODES[next].label} — ${MODES[next].fps} fps`);
   }
@@ -1354,7 +1358,7 @@ export class App {
     this.cloudVolume.place(rig.pos);
     const cloudFar = this.clouds.update(rig.pos, world.radius, this.cloudVolume);
     // (?debug=noclouds: a clear sky, for pictures of the land from high above; their shadows go with them)
-    if (this.noClouds) this.clouds.mesh.visible = false;
+    if (this.noClouds) { this.clouds.mesh.visible = false; this.clouds.shadow.x = 0; }
     const vol = !this.noClouds && this.cloudVolume.ready(rig.pos, this.clouds);
     this.clouds.uniforms.uNearFade.value = vol ? this.cloudVolume.reach : 0;
     if (vol) this.cloudVolume.render(post, rig, this.terrain.shared.uWave.value.z, this.clouds, this.terrain.shared.uWind, this.weather);

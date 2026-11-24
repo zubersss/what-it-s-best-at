@@ -44,6 +44,7 @@ export const VIEWS = [
   { id: 'air300', what: 'Haven from 300 m up', q: 'world=haven&shot=ledge&alt=1813&heading=235&pitch=-10' },
   { id: 'air3k', what: 'Haven from 3 km up', q: 'world=haven&shot=ledge&alt=4513&heading=235&pitch=-14' },
   { id: 'air30k', what: 'Haven from 30 km up', q: 'world=haven&shot=ledge&alt=31513&heading=235&pitch=-30' },
+  { id: 'meadow', what: 'Haven, the cornflower meadow', q: 'world=haven&shot=ledge&lat=-54.39501&lon=38.28479&t=5&heading=45' },
   { id: 'earth', what: "Earth's opening view", q: 'world=earth&shot=ledge' },
   { id: 'mars', what: "Mars's opening view", q: 'world=mars&shot=ledge' },
 ];

@@ -52,6 +52,7 @@ export class NearShadow {
     // How often the tiles are drawn (see render): 2 = the wide tile every fourth frame, the
     // fine one every other; 1 = all of them every frame (screenshots, which must not
     // depend on which frame they are).
+    this.alternate = false;       // the 30-a-second mode: the wide and the fine tile take the frames in turn (see render)
     this.every = 2; this._has = false; this._draw = [false, false, false]; this.drawn = 0;
     this.state = this.tiles.map(() => ({ ax: 0, ay: 0, az: 0, at: -1e9 }));      // where each tile was drawn last (light space, from the anchor) and when
     this._anchor = new THREE.Vector3(); this._rel = new THREE.Vector3(); this._anchored = false;
@@ -145,7 +146,13 @@ export class NearShadow {
       // due: by turn (the wide tile on every fourth frame, the fine one on the odd ones), or
       // when the camera has left the middle of what was drawn
       // (hold: a test's switch: the wide and fine tiles are left as they are while the camera moves)
-      const turn = k === 2 || (!this.hold && ((k === 0 ? frame % (2 * every) === 0 : frame % every === every - 1) || frame - st.at >= 2 * every));
+      // (alternate, the 30-a-second mode: the wide tile on the even frames, the fine one on the
+      // odd, so that no frame draws more than one of the two beside the character's own, and
+      // neither is older than a fifteenth of a second: what casts into them, rocks, trunks and
+      // slowly swaying boughs, does not move in that time. All three every frame, as that mode
+      // had it, was the "second picture's worth" above, paid thirty times a second.)
+      const due = this.alternate ? (k === 0 ? frame % 2 === 0 : frame % 2 === 1) || frame - st.at >= 2 : (k === 0 ? frame % (2 * every) === 0 : frame % every === every - 1) || frame - st.at >= 2 * every;
+      const turn = k === 2 || (!this.hold && due);
       const moved = Math.max(Math.abs(st.ax - cx), Math.abs(st.ay - cy)) > 0.3 * t.R;
       draw[k] = all || turn || moved || st.at < 0;
       if (draw[k]) {

@@ -4,7 +4,9 @@
 in `docs/shots/from-above/`, `haven_ledge_<view>_before.png`; a view's name is
 `<place>_<metres over the ground>_p<degrees looked down>` (`ledge`: the opening place,
 `wood`: the north wood, `steppe`), `_phone`: at a phone's density (`fov=21.4`), `_floor`:
-every saving of the governor on, `_clear`: with `debug=noclouds` (a new switch: see 12).
+every saving of the governor on, `_clear`: with `debug=noclouds` (a new switch: see 12;
+the clear pictures were taken a second time, on 2026-11-25, when the switch was found to have
+left the clouds' shadow on: the first ones were under an even overcast).
 Taken with `scripts/from-above-shots.sh <frozen build> _before [view ...]`.
 
 The times of day: the opening place in its first morning (the Sun low in the east, long
@@ -58,6 +60,10 @@ N the near trees' (the trees helper), R the far rocks'.
    and over a tile of 7 km that is a point every 370 m (`ledge_300_p60`: pale trees in the
    blue shade). Trees of the lowest ranks belong to the largest tiles at any distance, so
    this is seen near by as well.
+   (Measured afterwards, `scripts/far-tree-shade-test.mjs --was`: 13 % of the largest
+   tiles' trees on the wrong side of a shadow. And most of the pale trees in the blue are
+   another thing: the painted look paints a slope turned from the Sun in the shade's
+   colour, and the trees on it stand in the Sun. See the report.)
 9. **Where the far forest ends** (T, then G). At 5.6 km of slant distance, so from 3 km
    up it reaches 4.7 km along the ground and from 5 km up 2.5 km, and above 6 km there is
    none. No line shows in these pictures, but only because the trees are specks out
