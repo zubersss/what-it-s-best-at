@@ -6,6 +6,63 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
+### In hand: Haven rich and smooth (the owner's ninth phone results; read this first)
+
+*2026-11-24. The owner ran the Haven benchmark on build 6ac24ff and wrote: "this was a
+good job it looks a lot better but I need it perfect from a distance, specially when I'm
+flying high above it, and also the grass should be a lot denser in the areas that have
+it, and the flowers should be more diverse and abundant in certain areas and biomes,
+different flowers of different sizes that release pollen into the air that makes it
+beautiful, and trees with flower petals that bloom and ride the wind, and the trees
+should really be refined: the trunks and the leaves still don't look anything like the
+references when it comes to level of detail, specially the leaves and branches. Try as
+hard as you can, I gave you any access you need to accomplish this."*
+
+**What the phone said** (Smooth, 60 aimed at; the whole text is in the session's
+transcript, the numbers that matter here):
+- Haven 31.3 fps, the Moon 48.4; late frames at Haven's stops 25 to 52 %; the picture at
+  the floor (1.60 MP, 36 % of native) nearly throughout; four times the governor "put
+  quality back after steps that cured nothing".
+- The page's own work 7 to 10 ms a frame on Haven (a frame has 16.8): **the character
+  2.2 to 3.1 ms at every stop on both worlds**, the ground 1.2 to 2.0, rocks and trees
+  0.7 to 1.7, terrain 0.7 to 1.2.
+- What each thing costs (ms a frame until drawn, picture held at 2.07 MP; the measuring
+  itself is some 20 ms of each figure):
+  - opening view: everything on 64.5, every saving on 40.5, nothing drawn 21.7. Left out:
+    **the ground's shading 17.4**, **grass 11.7**, the far forest 4.6, the shadow maps
+    3.3, the figure 2.1, trees 0.8. One saving alone: grass-mid 5.0, clouds 4.0,
+    far-trees 3.6, far-relief 3.5, cloud-volume 2.8; every other under 1.2.
+  - in the forest: everything on 72.2 (104 at native: the forest is pixels), every saving
+    on 48.4. Left out: **trees 21.2**, **the far forest 10.7**, the shadow maps 7.3,
+    grass 5.9, the ground's shading 3.7. One saving: tree-leaves 11.5, trees-far 7.0,
+    cloud-steps 3.4, tree-shadows 2.7.
+  - from the air: everything on 55.5, every saving on 43.9. Left out: **the ground's
+    shading 18.1**. One saving: cloud-volume 9.4, far-relief 2.1.
+- Read: (1) the ground's fragment shader is the largest cost wherever the ground shows,
+  and no saving touches it; (2) the first eight or so steps of the governor's ladder buy
+  nothing on this phone (each under 1 ms), so its trials end before they reach a step
+  that does, and the picture sits at the floor for nothing; (3) near trees and their
+  leaves are what a forest costs; (4) the grass is dear for what it shows; (5) the
+  character's 2 to 3 ms of page work is paid everywhere.
+
+**The plan** (one delivery; the helpers again, on the owner's word):
+1. *Here, first*: the governor's ladder by what a step buys on the phone (the dead steps
+   out of it, the ones that buy 3 ms and more first), checked in `govsim`.
+2. *Here*: the ground's shader made several times cheaper (tiers by distance, the
+   flowers' noise from a texture already bound, nothing worked out that is not seen);
+   the character's page work; then the land from high above where it is the ground's
+   doing (the forest beyond the far trees, the ground's grain, no ring at any height).
+3. *Helper, trees* (`docs/briefs/trees-refined.md`): the near trees at the references'
+   level of detail (limbs, twigs, finely cut leaves), blossom and petals on the wind,
+   for less than a forest costs today.
+4. *Helper, grass* (`docs/briefs/grass-rich.md`): denser grass for less, flowers of more
+   kinds and sizes and abundant by place, pollen in the air.
+5. *Helper, from above* (`docs/briefs/from-above.md`): the far forest seen from high
+   above (a card on edge is nothing from above), pictures from 300 m to 30 km, no line or
+   ring.
+6. Merge as they push, review their code cold as before, final pictures and tests, a
+   new Haven benchmark asked for.
+
 ### The far view sent: trees, grass and rock as far as one can see
 
 *2026-11-24. Merged as pull request #34; the phone link shows build 6ac24ff (this line was
