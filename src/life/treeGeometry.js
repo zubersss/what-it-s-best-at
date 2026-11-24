@@ -19,8 +19,9 @@
 // face; a tube's is its own round), aLeaf (0 wood, 0.25 a twig's wood, 1 and 2 leaves drawn as plain faces: a
 // palm's fronds; 1.25 the dark inside of a fir's tier, a plain face; 3 a card of foliage; 3.25 a
 // card of the dark heart of a bunch; 4 a whole tree's card), aUv (where in the picture; -1 on
-// plain faces; on a tube (-2 - how far round it, in furrows of its bark; how far along it,
-// in tree heights)), aSway (x: how far the wind can move the vertex, by its height and its
+// plain faces; on a tube (-2 - (twice the furrows round it + how far round it, 0..1: the
+// bark's pattern is made whole round the tube with it, life/trees.js BARK); how far along
+// it, in tree heights)), aSway (x: how far the wind can move the vertex, by its height and its
 // distance from the trunk, wood and leaf alike so that a spray stays on its twig; y: how
 // much it flutters: nothing where a spray is held, most at its tip).
 //
@@ -65,7 +66,7 @@ class Shape {
       for (let k = 0; k <= sides; k++) {
         const t = (k % sides) / sides * TAU, d = [e[0] * Math.cos(t) + f[0] * Math.sin(t), e[1] * Math.cos(t) + f[1] * Math.sin(t), e[2] * Math.cos(t) + f[2] * Math.sin(t)];
         const r = radii[i] * (i === 0 && lobes ? 1 + lobes * Math.sin(t * 3 + 1) + lobes * 0.5 * Math.sin(t * 5) : 1);
-        ring.push({ p: add(pts[i], d, r), n: d, uv: [-2 - k / sides * fur, along] });
+        ring.push({ p: add(pts[i], d, r), n: d, uv: [-2 - (2 * fur + k / sides), along] });
       }
       rings.push(ring);
     }

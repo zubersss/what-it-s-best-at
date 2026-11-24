@@ -165,6 +165,36 @@ problem": the shimmer measured at station 2 is 3.6 m over the ground, ordinary n
 parallax. The speed helper's last job (the Haven benchmark end to end, headless) runs
 here, detached, on a frozen build of 41705a3 (`scratchpad/haven_bench.log`).
 
+**22:15** (2026-11-24): head 7888455 (builds; every check without a browser passes; the
+opening view draws on the merged shaders). Done since 20:50:
+- the review is complete (`docs/briefs/haven-rich-review.md`): 31 findings, 26 held, 2
+  refuted (the grass's "open problem" was ordinary near parallax at 3.6 m; the canopy's
+  one green was a recorded decision), 3 fixed here before their check;
+- **grass** (three fixers in worktrees, each checked cold): a thinned field and the
+  tussocks fixed to the ground (they jumped at every anchor step with a saving on, and at
+  the 2 560 m line); the near ring's cells read at their middles (an odd grid read them on
+  their edges: a shimmer in the near grass, found by the fixer); far blades flower by a
+  fade over the single flowers' own stretch (a circle at 45 m before); pixel sizes by the
+  drawn picture; pollen's clock wraps without a jump; the light table works out only
+  what a pixel keeps and only the rows something reads. New checks: `grass-place-test`,
+  `grass-flowers-pixels-test`, `grass-light-test`;
+- **governor**: a probe trial that cured nothing no longer hands over to a minute of
+  savings; a saving that came back clean in Sharp is not taken back by a stale average;
+  the tree steps are not live in the air (three govsim cases, each failing before);
+- **ground**: the daisies' far thinning back; the vertex shading skipped in the
+  benchmark's flat tone, so its row sees all of the ground's shading;
+- **trees** (new helper): the make by the eye's distance (close and near lists every few
+  metres, `treeLod.js`), shadows from whole cards, petals kept over a relist and on the
+  drawn ground, out of flower petal texels are leaves, bark seamless and filtered;
+- **from above** (new helper): the far forest's findings (shadows a draw of their own,
+  strength by the tile's lowest tree, eased; curve; wood; bounds; blossom by day), the
+  ground's far look: domes varied, clumps and a broken edge from 3 km, the steppe;
+- the Haven benchmark ran end to end headless on 41705a3: names Sharp, every stop, the
+  cost test at all three views, every shader within a phone's limits, no error.
+Left: the two helpers' pictures and reports (T2-DONE, A2-DONE), then the final frozen
+build: `scratchpad/final10.sh` (pictures and tests), the visual critic
+(`scratchpad/critic_wf.js`), notes, pull request, checkpoint.
+
 ### The far view sent: trees, grass and rock as far as one can see
 
 *2026-11-24. Merged as pull request #34; the phone link shows build 6ac24ff (this line was

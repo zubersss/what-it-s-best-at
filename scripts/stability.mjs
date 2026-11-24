@@ -62,6 +62,10 @@ const MOVES = [
   // and the line where the trees one walks among take over from them must not show)
   // (0.4 m a frame: a tree or two crosses the 240 m line at every step, and the wood's
   // image hardly moves; the grass at one's feet does, so judge the strips' upper half)
+  // (Haven on foot in the north wood, the cost view "in the forest": trunks pass at 2 to 40 m,
+  // their bark's furrows, plates and bands, and the trees changing make as the walk goes on.
+  // Some twenty minutes a frame on the cloud machine: run it by name, alone)
+  { id: 'haven_wood_walk', world: 'haven', shot: 'ledge', query: 'lat=22.983&lon=129.507&heading=6&pitch=-4', step: { fwd: 0.055 }, stride: 160, slow: true },
   { id: 'haven_treeline', world: 'haven', shot: 'ledge', query: 'lat=-27.114&lon=51.987&heading=0&pitch=-3', step: { fwd: 0.4 }, stride: 100, slow: true },
   // (Haven from above, docs/briefs/from-above.md: level flight 1 km over the north wood
   // looking down at 45 degrees, the far trees' crown tops spreading and drawing in as the
