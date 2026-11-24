@@ -68,6 +68,17 @@ const FLOWERS = [
   { grid: 100, spacing: 0.32, seed: 91, table: 'near', out: [12, 15.5], petals: 14, leaves: 2, grow: 0.03, light: 1 },
   { grid: 128, spacing: 0.8, seed: 131, table: 'mid', in: [12, 15.5], out: [38, 50], petals: 6, leaves: 0, grow: 0.03, light: 3 },
 ];
+// The far blades in flower take over from the last single flowers wherever those are not
+// kept: over the stretch where they go out (its `out`), and as they go with the traveller's
+// height. By the rule they go by (keepOf, a number of each one's own against the share kept
+// there), so as many blades come into flower as single flowers go, each over a metre and
+// more of the eye's travel. (By distance alone, behind a test of "more than half", they all
+// came in at one line 45 m from the eye, where the single flowers had already thinned to a
+// third: a ring where the colour jumped, and from the air a disc without flowers under one.)
+// FLOWER_EDGE: how soft the edge is between the blades in flower and those not (their own
+// numbers against the drift's share): the share moves a little as the eye does, with how
+// squarely it sees the ground, and a blade at the edge turned whole in one step.
+const HANDOVER = FLOWERS[FLOWERS.length - 1].out, FLOWER_EDGE = 0.03;
 // How many blades may lie over each other along a line of sight before the rest are left
 // out, blade by blade (looked along at eye height a full field is twenty deep, and all but
 // the front few are hidden), and the share of a field that is kept whatever the angle.
@@ -260,9 +271,14 @@ const BLADE_VERT = /* glsl */`
     // (flowers: in a drift some blades are stalks in flower, their upper part the flower's colour:
     // fewer from above and far off: grass with a dusting, and no band of colour along the skyline)
     float fk = tableNearest(tTable, uTab, at).a, kind = floor(fk + 0.001);
+    vec2 hf = hash2(cell + 5.1 + aBlade);
     // (pale kinds on fewer blades: a white meadow seen from the air was frost)
-    float flowered = step(0.5, kind) * step(hash2(cell + 5.1 + aBlade).x, fract(fk + 0.001) * (KIND_PALE[clamp(int(kind + 0.5), 0, KIND_N - 1)] > 0.5 ? 0.35 : 0.7) * (1.0 - 0.5 * rise) * (1.0 - 0.7 * smoothstep(60.0, 400.0, dist))) * smoothstep(38.0, 52.0, dist);
-    if (flowered > 0.5) { alb = mix(alb, petalColour(kind, h.y), 0.3 + 0.7 * y); skyShare = 1.0; }
+    float bloom = step(0.5, kind) * fract(fk + 0.001) * (KIND_PALE[clamp(int(kind + 0.5), 0, KIND_N - 1)] > 0.5 ? 0.35 : 0.7) * (1.0 - 0.5 * rise) * (1.0 - 0.7 * smoothstep(60.0, 400.0, dist));
+    // (in flower: its own number under that share, over a soft edge that keeps the share as it
+    // was, and none where there is none; and only where the single flowers are not kept, by
+    // their own rule: HANDOVER and FLOWER_EDGE above)
+    float flowered = clamp((bloom - hf.x) * ${(1 / FLOWER_EDGE).toFixed(3)} + 0.5, 0.0, 1.0) * min(1.0, bloom * ${(2 / FLOWER_EDGE).toFixed(3)}) * (1.0 - keepOf((1.0 - smoothstep(${HANDOVER[0].toFixed(2)}, ${HANDOVER[1].toFixed(2)}, dist)) * uGrassKeep.x, hf.y));
+    if (flowered > 0.0) { alb = mix(alb, petalColour(kind, h.y), (0.3 + 0.7 * y) * flowered); skyShare = mix(skyShare, 1.0, flowered); }
     #endif
     vec3 sun, sky, air; lightAt(at, sun, sky, air);
     // (looked at toward the Sun a blade glows: the light comes through it)
@@ -575,6 +591,12 @@ export class Grass {
   // ... and of the clumps (those left are wider: the ground stays covered).
   setMidShare(f) { this.midShare = f; for (const fl of this.clumps) fl.geo.instanceCount = Math.round(fl.all * Math.min(1, f)); }
 
+  // Every frame, once the picture's size is set for it (after post.setScale): the height of
+  // the picture the grass and the pollen are drawn into (post.viewH), in which they measure a
+  // pixel. (Not the canvas's: the canvas follows the picture in coarse steps and is held three
+  // seconds on the way down, and blades and motes were judged by pixels up to half again too large.)
+  setView(viewH) { this.shared.uGrassView.value = 0.5 * viewH; }
+
   get triangles() { return this.mesh.visible ? [...this.fields, ...this.clumps].reduce((a, f) => a + (f.mesh.visible ? f.geo.instanceCount * f.tris : 0), 0) : 0; }
   get instances() { return this.mesh.visible ? [...this.fields, ...this.clumps].reduce((a, f) => a + (f.mesh.visible ? f.geo.instanceCount : 0), 0) : 0; }
   // True while the ground tables round the traveller are still being filled in (pictures wait for them).
@@ -730,7 +752,6 @@ export class Grass {
       const wx = (w.x - u[0] * wu) * k, wy = (w.y - u[1] * wu) * k, wz = (w.z - u[2] * wu) * k;
       this.waveU.value.set(wx, wy, wz, mod(wx * dx + wy * dy + wz * dz + this.phase, Math.PI * 2));
     }
-    S.uGrassView.value = 0.5 * renderer.getDrawingBufferSize(this._size || (this._size = new THREE.Vector2())).y;
     S.uGrassKeep.value.set(kb, kc, this.midShare, 1 / Math.sqrt(Math.max(0.25, this.midShare)));
     S.uGrassGov.value.set(Math.min(1, this.fraction), Math.min(1, this.midShare));
     for (const f of this.fields) f.mesh.visible = kb > 0;

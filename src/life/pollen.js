@@ -12,6 +12,12 @@ import * as THREE from 'three';
 import { GRASS_PRELUDE } from './grass.js';
 
 const COUNT = 3200, BOX = 40, NEAR_BOX = 10, TALL = 6;        // BOX divides the grass anchor's step (a step moves no mote), NEAR_BOX divides BOX
+// How fast each mote wanders about its place (radians a second, east, north, up): whole
+// hundredths, so that all three come round together after 200 pi seconds (70, 53 and 90
+// turns), and the clock of the wander wraps there without a mote moving. (It wrapped at an
+// hour once, which is no whole number of turns of any of them: every mote jumped as much as
+// 0.9 m in one frame.)
+const WANDER = [0.70, 0.53, 0.90], WANDER_PERIOD = 200 * Math.PI;
 
 export class Pollen {
   // grass: the Grass (its plane, tables and light); shared: the terrain's shared uniforms (wind, weather)
@@ -62,7 +68,7 @@ export class Pollen {
           float zf = fract(aSeed.z + uAir.z * (1.0 + floor(aSeed.w * 2.0)) / ${TALL.toFixed(1)}), t = uAir.w;
           float hgt = 0.15 + ${TALL.toFixed(1)} * zf * zf * (box < ${BOX.toFixed(1)} ? 0.45 : 1.0);
           // (and wandering a little, each its own way)
-          vec3 wander = vec3(sin(t * 0.7 + aSeed.x * 40.0), cos(t * 0.53 + aSeed.y * 40.0), sin(t * 0.9 + aSeed.z * 40.0) * 0.6) * (seed ? 0.5 : 0.22);
+          vec3 wander = vec3(sin(t * ${WANDER[0].toFixed(2)} + aSeed.x * 40.0), cos(t * ${WANDER[1].toFixed(2)} + aSeed.y * 40.0), sin(t * ${WANDER[2].toFixed(2)} + aSeed.z * 40.0) * 0.6) * (seed ? 0.5 : 0.22);
           vec3 rel = uGrassEast * (p.x + wander.x) + uGrassNorth * (p.y + wander.y) + uGrassUp * (ground + hgt + wander.z);
           // (fading at the box's sides and at the top and bottom of its rise: wrapping is never seen)
           float edge = (1.0 - smoothstep(0.38 * box, 0.5 * box, max(abs(p.x), abs(p.y)))) * smoothstep(0.0, 0.08, zf) * (1.0 - smoothstep(0.85, 1.0, zf));
@@ -120,7 +126,7 @@ export class Pollen {
     this.air[0] = mod(this.air[0] + (w.x * e[0] + w.y * e[1] + w.z * e[2]) * k, BOX);
     this.air[1] = mod(this.air[1] + (w.x * n[0] + w.y * n[1] + w.z * n[2]) * k, BOX);
     this.air[2] = mod(this.air[2] + 0.1 * dt, TALL);
-    this.time = mod(this.time + dt, 3600);
+    this.time = mod(this.time + dt, WANDER_PERIOD);
     const cam = g.shared.uGrassCam.value;
     this.uniforms.uAir.value.set(mod(cam.x + g.origin[0] - this.air[0], BOX), mod(cam.y + g.origin[1] - this.air[1], BOX), this.air[2], this.time);
     this.uniforms.uPollen.value.set(this.amount, this.gust, 0, 0);
