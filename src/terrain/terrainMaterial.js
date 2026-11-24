@@ -672,14 +672,8 @@ void main() {
     // where the land-cover map's soft steps were, broken along them. Gone where a clump is
     // under two pixels, and beyond 40 km.
     float kz = smoothstep(0.05, 0.16, fwC) * (1.0 - smoothstep(0.3, 0.9, fwC)) * (1.0 - smoothstep(20000.0, 40000.0, dist));
-    vec4 cz = vec4(0.0);
-    float shellW = vShell;
-    if (kz > 0.0) {
-      cz = crowns(vDetailUv + 0.71, 1.5);
-      // (the edge: where the canopy is thinning out by the map, the clumps' tops stay and
-      // their gaps go first)
-      shellW = mix(vShell, clamp((vShell - 0.5) * 2.2 + 0.5 + 1.1 * (cz.z - ${FAR_GROUND.clumpZ.toFixed(3)}), 0.0, 1.0), kz);
-    }
+    vec4 cz = vec4(0.0), cg = vec4(0.0), cr = vec4(0.0);
+    if (kz > 0.0) cz = crowns(vDetailUv + 0.71, 1.5);
     float nearC = 1.0 - smoothstep(0.03, 0.5, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
     vec2 cgn = farCanopyGrain(c1, c2, nearC);
     N = normalize(N + (uTanU * cgn.x + uTanV * cgn.y) * vShell);
@@ -699,19 +693,32 @@ void main() {
     {
       // (a crown fades out between five pixels and one and a half: 0.25 / fwC pixels across)
       float kc = (1.0 - smoothstep(0.05, 0.16, fwC)) * vShell * ownC, kg = (1.0 - smoothstep(0.14, 0.42, fwC)) * vShell * ownC;
+      // (seen at a low angle a dome is a flat oval, and a wood of them one dark oval stamped
+      // over and over, "like bubble wrap": the single crowns give way to the stands there)
+      kc *= smoothstep(0.12, 0.45, dot(V, up));
       if (kg > 0.0) {
-        vec4 cg = crowns(vDetailUv + 0.37, 3.0);
+        cg = crowns(vDetailUv + 0.37, 3.0);
         N = normalize(N + (uTanU * cg.x + uTanV * cg.y) * (farCrownTilt(true) * kg));
         leaves *= mix(1.0, farCrownShade(cg, true) / ${FAR_GROUND.standMean.toFixed(3)}, kg);
       }
       if (kc > 0.0) {
-        vec4 cr = crowns(vDetailUv, 8.0);
+        cr = crowns(vDetailUv, 8.0);
         // (strongly: at a phone's pixel a crown is a few pixels, and a faint one was a net
         // laid over the forest, not trees)
         N = normalize(N + (uTanU * cr.x + uTanV * cr.y) * (farCrownTilt(false) * kc));
         leaves *= mix(1.0, farCrownShade(cr, false) / ${FAR_GROUND.crownMean.toFixed(3)}, kc);
       }
     }
+    // The wood's edge: where the land-cover map thins the canopy out, it thins into scattered
+    // crowns, the tops of the finest crowns one can see standing longest, each with a clean
+    // edge (as a soft ramp the edge was an airbrushed blur, and its half-canopy half-ground
+    // colour a glowing yellow-olive fringe along every wood). (The domes' heights average
+    // FAR_GROUND.clumpZ at every scale: the edge stays where the map puts it.)
+    float kcE = (1.0 - smoothstep(0.05, 0.16, fwC)) * smoothstep(0.12, 0.45, dot(V, up)), kgE = 1.0 - smoothstep(0.14, 0.42, fwC);
+    // (where a pattern was not worked out, its weight is nought or the canopy is not drawn at all)
+    float patH = mix(mix(mix(${FAR_GROUND.clumpZ.toFixed(3)}, cz.z, kz), cg.z, kgE), cr.z, kcE);
+    float sharp = max(max(kz, kgE), kcE);
+    float shellW = mix(vShell, smoothstep(0.3, 0.7, clamp((vShell - 0.5) * 2.4 + 0.5 + 1.4 * (patH - ${FAR_GROUND.clumpZ.toFixed(3)}), 0.0, 1.0)), sharp * step(vShell, 0.999));
     albedo = mix(albedo, leaves, shellW * ownC);
     ao *= mix(1.0, 0.72 + 0.5 * clamp(c1.b + c2.b, -0.4, 0.5), vShell * ownC);
     // (the clumps: their light and shade on whatever colour the wood has there, its own or,
@@ -788,6 +795,27 @@ void main() {
     float pa = textureGrad(tDetail, uvA * kp, gx * kp, gy * kp).a, pb = textureGrad(tDetail, uvA * kp * 3.7 + 0.31, gx * kp * 3.7, gy * kp * 3.7).a;
     float lay = smoothstep(0.42, 0.58, 0.6 * pa + 0.4 * pb);
     albedo *= mix(vec3(1.0), mix(vec3(0.85, 0.90, 0.85), vec3(1.15, 1.11, 1.0), lay), uPaint.x * (1.0 - farW) * flatW * smoothstep(60.0, 400.0, length(vRel)));
+  }
+  // --- open grassland from the air: broad painted variation that follows the land (the
+  // critic: "a flat mustard felt", "a single ochre colour with soft blotches"). Greener in
+  // the hollows, sunlit gold on the slopes turned to the Sun and a cooler olive on those
+  // turned from it, and long swaths combed along the wind, some 60 m by 18. On ground whose
+  // colour is grass (gold or green, not rock, sand or snow) and not under the canopy; each
+  // a tint about the ground's own tone, the swaths faded where they are under a few pixels.
+  if (uPaint.x > 0.0 && flatW > 0.0 && dist > 30.0 && dist < 4000.0) {
+    float grassy = smoothstep(0.42, 0.24, albedo.b / max(albedo.r, 1e-4)) * smoothstep(0.62, 0.45, dot(albedo, vec3(0.2126, 0.7152, 0.0722))) * (1.0 - vShell) * flatW * (1.0 - smoothstep(2500.0, 4000.0, dist));
+    if (grassy > 0.0) {
+      vec3 n0 = normalize(nt.xyz);
+      float hollow = smoothstep(0.96, 0.78, nt.a);
+      albedo *= mix(vec3(1.0), vec3(0.84, 1.04, 0.92), 0.7 * hollow * grassy);
+      float toSun = clamp((dot(n0, uSunDir) - dot(up, uSunDir)) * 5.0, -1.0, 1.0);
+      albedo *= 1.0 + grassy * toSun * vec3(0.06, 0.02, -0.10) + grassy * min(toSun, 0.0) * vec3(0.06, 0.0, -0.12);
+      vec3 wd = uWind.xyz - up * dot(uWind.xyz, up); float wl = length(wd); wd = wl > 1e-3 ? wd / wl : uTanU;
+      vec3 q = planetPos / 18.0 + wd * (dot(planetPos, wd) * (1.0 / 60.0 - 1.0 / 18.0));
+      vec3 fq = fwidth(planetPos);
+      float kw = 1.0 - smoothstep(4.0, 9.0, max(fq.x, max(fq.y, fq.z)));
+      if (kw > 0.0) albedo *= 1.0 + 0.16 * kw * grassy * (flNoise(q) + 0.5 * flNoise(q * 2.3 + 7.1) - 0.75);
+    }
   }
 
   // --- the tide, and the wash of the waves up the shore. The map's shore is the highest
