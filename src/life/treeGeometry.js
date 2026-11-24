@@ -234,7 +234,7 @@ export function makeTreeGeometries() {
   make(0, 11, (v) => [SPRAYS.roseN, [0.2, 0.17, 0.22][v], 0.3, 0.5], (s, R, L, v, q) => {
     // (a tall narrow spire, as spruce and fir stand: a third as wide as it is tall at most.
     // It was half as wide as tall, the tree of a Christmas card.)
-    const tiers = [13, 11, 15][v], wide = [1, 0.84, 1.1][v], foot = [0.15, 0.25, 0.1][v], nV = 5, nH = 1;
+    const tiers = [13, 11, 15][v], wide = [1, 0.84, 1.1][v], foot = [0.15, 0.25, 0.1][v], nV = 5, nH = 3;          // (nH: fronds lying flat in a tier, three: looked down on, a tier with one was a paper star of its five boughs on edge)
     s.mid = 0.5;
     const tr = (y) => [0.016 * y * (1 - y), y, 0.012 * y * (1 - y)];
     if (q === 2) s.bole(tr, 0.016, 0.0025, 0.97); else s.trunk([tr(0), tr(0.5), tr(0.97)], 0.016, 0.003, 5);
@@ -279,7 +279,7 @@ export function makeTreeGeometries() {
       }
       for (let j = 0; j < nH; j++) {
         const a = turn + 0.6 + (j + 0.4 * (L() - 0.5)) / nH * TAU, len = rr * (0.85 + 0.3 * L());
-        s.card([0, y, 0], norm([Math.cos(a), -0.15, Math.sin(a)]), [-Math.sin(a), 0, Math.cos(a)], len, len * 0.9, SPRAYS.firTop, c, 0.5);
+        s.card([0, y, 0], norm([Math.cos(a), -0.3, Math.sin(a)]), [-Math.sin(a), 0, Math.cos(a)], len, len * 1.1, SPRAYS.firTop, c, 0.5);
       }
     }
     for (let j = 0; j < (q === 2 ? 3 : 2); j++) s.card([0, 0.88, 0], [0, 1, 0], [Math.cos(j * (q === 2 ? 1.05 : 1.57)), 0, Math.sin(j * (q === 2 ? 1.05 : 1.57))], 0.13, 0.085, SPRAYS.firTop, [0, 0.8, 0]);
