@@ -14,8 +14,10 @@ declare -A Q=(
   [region_300]="alt=1813&pitch=-60"
   [region_1k]="alt=2513&pitch=-60"
   [floor]="debug=floor"
+  [meadow_300]="$MEADOW&alt=1768&pitch=-60"
+  [meadow_1k]="$MEADOW&alt=2468&pitch=-60"
 )
-ORDER=(ledge region_300 region_1k meadow_a20 meadow ledge_phone floor)
+ORDER=(ledge region_300 region_1k meadow_300 meadow_1k meadow_a20 meadow ledge_phone floor)
 [ $# -gt 0 ] && ORDER=("$@")
 fail=0
 for v in "${ORDER[@]}"; do
