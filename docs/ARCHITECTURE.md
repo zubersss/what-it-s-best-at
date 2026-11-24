@@ -406,54 +406,101 @@ as before.
   tufts, cut lumps; their crowns carry a pattern of leaf bunches in three tones
   (`leafCells`, in the tree's own metres). Rocks are lit by their faces. Clouds are two
   octaves of puff with a clean edge and two tones.
-- **Grass and flowers** (`life/grass.js`, rules in `life/grassRules.js`): grass has no end.
-  Three kinds of thing carry it, each giving way to the next over a stretch of distance:
-  - *blades* on three lattices fixed to the ground that wrap round the camera: grass close
-    by (128 x 128 tufts 0.2 m apart, eight blades, to 12 m), grass farther out (144 x 144 at
-    0.5 m, seven blades, to 34 m), flowers (108 x 108 at 0.4 m: a stem, five petals, a
-    middle, to 20 m);
-  - *clumps* (`CLUMPS`): three more lattices of cards of two triangles (200 x 200 at 0.8 m
-    from 13-30 m to 50-74 m; 200 x 200 at 2 m to 135-188 m; 220 x 220 at 5 m to 360-520 m),
-    each card a cut-out of many blades from a picture made at start-up (`makeClumpPicture`:
-    cover, tone, flower heads; mip maps made on the CPU). A card faces the eye with a turn
-    of its own, leans back when looked down on, and grows from nothing where its field
-    comes in (`keepOf`). Far clumps take the light of the slope they stand on (from the
-    table's heights), near ones the light of level ground as the blades do;
-  - *the ground's own grass* (`terrainMaterial.js`, the block at `uGrassTone`): gentle
+- **Grass and flowers** (`life/grass.js`, rules in `life/grassRules.js`, `life/pollen.js`):
+  grass has no end, and all of it is blades: opaque triangles, no cut-out anywhere. (The
+  middle distance was cut-out cards once; on the phone they cost five times what every
+  blade did, lying twenty deep over each other toward the horizon.)
+  - *Rings* (`RINGS`): five lattices fixed to the ground that wrap round the camera, each
+    coming in where the one inside it goes out: 96 x 96 cells 0.125 m apart with fourteen
+    blades each (to 6 m), 160 x 160 at 0.32 m with twelve (to 24 m), 150 x 150 at 1 m with
+    nine (to 74 m), 160 x 160 at 2.5 m with five (to 195 m), 220 x 220 at 5 m with four (to
+    545 m). A blade is one triangle; the farther the ring, the broader it is (a thin leaf
+    at one's feet, a tooth a metre and more wide at 300 m: the same mass in fewer pixels).
+  - *Thrown out early*: a blade outside its ring or outside the picture is thrown out of
+    the picture after one table read (two blades in three of a field round the eye).
+  - *No more layers than the eye can use*: along a line of sight at eye height a full
+    field is twenty blades deep, and all but the front few are hidden. Each blade works out
+    how deep the field is at its place seen from the eye (its ring's blade area over a
+    square metre, by how squarely the ground is looked at) and beyond `LAYERS` deep (4)
+    blades are left out one by one, each by a number of its own; a tenth of a field stays
+    whatever the angle. From above, where nothing hides anything, every blade is drawn.
+    This depends on where the eye is in the way a level of detail does: a blade is always
+    the same blade at the same place, it only grows from nothing or shrinks to it.
+  - *How thick*: where the land has grass it is all there (`dens`, full from an `AMOUNT`
+    of 0.46); thin land is thin in tussocks half a metre across with bare ground between,
+    the same tussocks in every ring.
+  - *Lit once, not per pixel*: `GrassLight` (in `grass.js`) works the light out for a small
+    table of places on the ground before the main picture is begun (after the shadow maps
+    and the clouds' shade): for each ring 96 x 96 places over its stretch, three numbers
+    each: the Sun's light there (its shadows, the clouds', the land's and the slope's own
+    in it), the sky's, both already dimmed by the air between there and the eye, and the
+    air's own light. One half-float picture 288 x 480. A blade's three corners read it at
+    the blade's foot (`lightAt`: colour x (sun + sky x share) + air) and the fragment
+    shader writes the colour it is handed: no texture is read per pixel of grass. The
+    places are fixed to the ground (a stretch's middle moves in whole places), so a
+    shadow's edge does not crawl. Blades and petals looked at toward the Sun glow (the
+    light comes through them).
+  - *Flowers* (`KINDS`, `FLORAS` in `grassRules.js`): twenty-six kinds in six habits: turf
+    (tiny heads among the blades), cup (petals round a middle: daisies to poppies and the
+    big single heads), spike (florets up a tall stem), umbel (a flat-topped spray), globe
+    (a ball of florets; a dandelion's clock), cushion (a low mound on the ground). One
+    vertex shader shapes them all from a kind's row of numbers. Two lattices of single
+    plants: 100 x 100 at 0.32 m with leaves and fourteen petals (to 15 m), 128 x 128 at
+    0.8 m with six (to 50 m); beyond, some blades of the far rings are stalks in flower
+    (their upper part the kind's colour), and the ground has its dusting.
+  - *Which flowers where*: a world's `life.flowers` (floras by name for each land-cover
+    class, and rules by height, latitude or the tree line; without one, `DEFAULT_FLOWERS`)
+    gives the flora of a place (`floraAt`); `flowersAt` (JavaScript, and the same in GLSL
+    for the ground's dusting) gives what flowers there and how thickly: flower meadows
+    some hundreds of metres across (a share of the land the flora names) where one kind
+    after another carpets a patch of a hectare, plain grass between with a drift here and
+    there, and on some hillsides one kind alone over the whole slope (the grass knows the
+    slope; the ground's shader may pass its own as a third argument and does not yet).
+    `node scripts/flower-field.mjs` draws the rule from above without a browser;
+    `node scripts/flower-preview.mjs` takes every kind side by side in the real game.
+  - *Pollen* (`life/pollen.js`): 2 800 points in a box of air 40 m wide and 8 m tall that
+    goes with the traveller, each a place of its own fixed to the ground and carried by
+    the wind (added up frame by frame), wrapped as one point. A mote shows where the
+    ground under it flowers (the grass's middle table), in daylight and dry air, more
+    after a gust; it is lit from the grass's light table and throws the Sun's light
+    forward (a spark looked at toward the Sun). One in twenty is a floating seed. Drawn
+    with the weather, and again in a slice of its own near the eye when the terrain's
+    near plane has moved past it.
+  - *The ground's own grass* (`terrainMaterial.js`, the block at `uGrassTone`): gentle
     ground takes the grass's colour to 600 m and fades to the map's by 2.5 km, with the
     wind's waves running over it (`uGrassWave`, the same waves the blades bow to) and the
     flowers' drifts as a dusting (the same rule, in GLSL: no texture read).
-  A tuft or clump is its lattice number and a hash, nothing is kept per tuft; instances
-  are drawn in a scrambled order, so a share is a count. The ground under them is three
+  A blade is its lattice number and a hash, nothing is kept per blade; instances are drawn
+  in a scrambled order, so a share is a count. The ground under them is three
   tables kept on the CPU that wrap (64 x 64 at 1.25 m, 128 x 128 at 4 m, 128 x 128 at
   10 m; nearest places first, 300 a frame, all at once in screenshot mode), float textures
   sent between frames: height, how much grass, how dry, and the flowers there (whole part:
-  which of seven kinds; fraction: how many). Everything stands on a plane (the anchor)
+  which kind; fraction: how many). Everything stands on a plane (the anchor)
   that lies on the ground's own sphere under the traveller, never at the traveller's
   height (places are worked out along lines from the world's centre and drawn at plain
   metres: with the plane 1 km over the ground the whole field slid 0.8 m aside at every
   step on Haven; `scripts/grass-anchor-replay.mjs`), and that moves in whole steps of
   40 m when the traveller is 60 m from it, its axes carried along;
-  every spacing divides 40 m, so no tuft, table entry or pattern changes at a step, and
+  every spacing divides 40 m, so no blade, table entry or pattern changes at a step, and
   the shaders take off the world's curve (0.7 m at 600 m on Haven). `grassRules.js` holds
-  what the grass and the ground must agree on, once: `AMOUNT`, `DRY`, `FLORA` by land
-  cover, `flowersAt` in JavaScript and the same in GLSL, the grass's colour, the waves.
+  what the grass and the ground must agree on, once: `AMOUNT`, `DRY`, the kinds and
+  floras, `flowersAt` in JavaScript and the same in GLSL, the grass's colour, the waves.
   `uGrassTone`: x mean dryness, y the share of the ground round the traveller that is
-  grass, z the flora, w strength. By height the blades go between 45 and 90 m over the
-  ground and the clumps between 121 and 220 m (`grass.below`, `grass.mid` in a world's
-  file). Governor: `grass-mid` halves the clumps and widens the ones left; `grass`
-  thins the blades.
+  grass, z the flora, w strength. By height the two near rings and the flowers go between
+  45 and 90 m over the ground and the three far rings between 121 and 220 m
+  (`grass.below`, `grass.mid` in a world's file). Governor: `pollen` thins the motes,
+  `grass-mid` halves the two farthest rings and widens the blades left; `grass` halves
+  the near rings and the flowers.
   On slopes grass stands by ONE rule, `GRASS_GROUND.slope` in `grassRules.js` (all of it
   to 0.45, none by 0.75): the tables' amount fades by it and the ground's shader lays the
   grass's colour by the same numbers, so that no tuft stands on unpainted ground and no
-  steep meadow is bare. A clump takes the clouds' shadow from the trees' map
+  steep meadow is bare. The far grass takes the clouds' shadow from the trees' map
   (`life/treeShade.js`) and the land's cast shadow from a table of its own (`tLandShade`:
   36 x 36 places 40 m apart round the anchor, one worker job when the traveller has moved
   120 m, the Sun 1.5 degrees or the maps have changed), both eased in between 30 and
-  120 m; the blades have the near shadow map. A clump whose ground is looked at squarely
+  120 m; near the eye the near shadow map. A far blade whose ground is looked at squarely
   (against the world's up or its own slope's normal) from beyond 40 to 90 m is not drawn:
-  the ground wears the grass there, and on a hillside facing the eye the cards were a
-  brickwork of dashes.
+  the ground wears the grass there.
 - **The land from the air** (painted look): the tile worker draws each pixel of the colour
   ring part of the way to a clean colour of its land-cover class (`cover.paint`,
   `cover.colours` in the world file; classes not listed keep the satellite's colour).

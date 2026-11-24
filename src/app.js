@@ -10,13 +10,15 @@ import { PostPipeline } from './post/post.js';
 import { Profile, PARTS } from './perf/profile.js';
 import { Look } from './render/look.js';
 import { Grass } from './life/grass.js';
+import { Pollen } from './life/pollen.js';
 import { Governor, MODES, FRAME } from './perf/governor.js';
 import { Benchmark } from './perf/benchmark.js';
 import { waveHeightAt, waveScale } from './water/waves.js';
 import { Trees } from './life/trees.js';
 import { FarForest } from './life/farForest.js';
 import { TreeShade } from './life/treeShade.js';
-import { Leaves } from './life/leaves.js';
+import { Leaves, Petals } from './life/leaves.js';
+import { overdraw } from './perf/overdraw.js';
 import { CloudVolume } from './sky/cloudVolume.js';
 import { Weather } from './weather/weather.js';
 import { Rain } from './weather/rain.js';
@@ -301,10 +303,11 @@ export class App {
     // kilometres; they rise out of the forest the ground shader raises as a whole)
     this.farForest = new FarForest(this.trees, this.terrain); this.nearScene.add(this.farForest.mesh);
     this.treeShade = new TreeShade(this.terrain);
-    this.grass = new Grass(this.terrain, this.terrain.shared.uWind); this.grass.setWorld(world); this.grass.eager = this.shotMode;
+    this.grass = new Grass(this.terrain, this.terrain.shared.uWind); this.grass.setWorld(world); this.grass.eager = this.shotMode; this.grass.debugKinds = params.debug.includes('flowers');
     this.nearScene.add(this.grass.mesh);
     this.leaves = new Leaves(this.trees);
     this.nearScene.add(this.leaves.mesh);
+    this.petals = new Petals(this.trees); this.nearScene.add(this.petals.mesh);          // (what the trees in flower let go)
     // The order solid things are drawn in: what stands in front first, the ground last.
     // The ground's pixels are by far the dearest in the picture, and drawn first (as it
     // was, being the oldest object) all of it was shaded and then covered: under a meadow's
@@ -312,8 +315,8 @@ export class App {
     // only the ground that shows is shaded (the depth test throws the rest out unshaded).
     {
       const order = (o, n) => o.traverse((m) => { m.renderOrder = n; });
-      order(this.grass.mesh, -30); order(this.leaves.mesh, -30);
-      for (const set of this.trees.sets.flat(2)) order(set.mesh, -20);
+      order(this.grass.mesh, -30); order(this.leaves.mesh, -30); order(this.petals.mesh, -30);
+      for (const set of this.trees.sets.flat(2)) order(set.mesh, -20.3 + 0.1 * set.lod);          // (the nearest trees' meshes first: what they hide is not shaded)
       order(this.rocks.mesh, -10);
     }
     // (a picture must not depend on which frame it is; and at Sharp's 30 frames a second
@@ -330,6 +333,8 @@ export class App {
     // before it, rain ten metres away was painted over by cloud kilometres behind it)
     this.weatherScene = new THREE.Scene();
     this.weatherScene.add(this.rain.mesh, this.bolt.mesh, this.rainbow.mesh);
+    // (pollen and seed over the flowers: drawn with the weather, after the ground and the clouds)
+    this.pollen = new Pollen(this.grass, this.terrain.shared); this.weatherScene.add(this.pollen.mesh);
     this.placeLander(world, data.hs);
     this.hero = new Hero();
     this.heroScene.add(this.hero.group);
@@ -426,6 +431,9 @@ export class App {
   }
   // The clock set to a moment (milliseconds since 1970 UTC), kept inside the years the
   // orbits were fitted for.
+  // How many layers of a part are drawn over each pixel (perf/overdraw.js; scripts/overdraw.mjs).
+  overdraw(part) { return overdraw(this, part); }
+
   setDate(ms) {
     this.baseJD = Math.min(JD_MAX, Math.max(JD_MIN, dateToJD(ms))); this.timeOffsetHours = 0;
     this.toast?.show(new Date(jdToDate(this.baseJD)).toISOString().slice(0, 10));
@@ -1255,7 +1263,9 @@ export class App {
       // brown in a ring between the trees and the canopy)
       this.terrain.shared.uShell.value.set(drawn ? r * 0.62 : 0, drawn ? r * 0.98 : 1, tr.def ? 1 : 0);
       this.leaves.update(rig, this.post.viewH);
+      this.petals.update(rig, this.post.viewH, dt);
       this.grass.update(rig, dt, renderer);
+      { const up = rig.localUp, sd = G.uSunDir.value; this.pollen.update(dt, sd.x * up[0] + sd.y * up[1] + sd.z * up[2]); }
       // (fallen leaves on the ground under the trees, in their season)
       const se = tr.shared.uSeason.value; this.terrain.shared.uLitter.value = tr.def ? Math.min(1, se.x * 0.8 + se.y) : 0;
     }
@@ -1350,6 +1360,8 @@ export class App {
     if (vol) this.cloudVolume.render(post, rig, this.terrain.shared.uWave.value.z, this.clouds, this.terrain.shared.uWind, this.weather);
     // (the clouds' shadow on trees and on the grass's far clumps: a small map of it, before the main picture is begun)
     this.treeShade.render(renderer, rig, G.uSunDir.value, this.farForest.shown || this.trees.reach > 0 || this.grass.keepClumps > 0);
+    // (the light on the grass: a small table of it, worked out once here instead of in every pixel of every blade)
+    this.grass.renderLight(renderer, rig.camera);
     prof.mark(9);
     // 6. Scene into the HDR target: far pass, clear depth, near pass, then the hero.
     post.beginScene();
@@ -1372,7 +1384,7 @@ export class App {
     prof.mark(8);
     if (vol) this.cloudVolume.lay(near, far, rig);
     prof.mark(9);
-    if (this.rain.mesh.visible || this.bolt.mesh.visible || this.rainbow.mesh.visible) renderer.render(this.weatherScene, rig.camera);
+    if (this.rain.mesh.visible || this.bolt.mesh.visible || this.rainbow.mesh.visible || this.pollen.mesh.visible) renderer.render(this.weatherScene, rig.camera);
     // The rain nearer than the terrain's near plane (a few metres up that plane is past the
     // eye's own rain, and from 60 m in a hurricane not a streak was seen): drawn again in
     // a slice of its own, from the eye to that plane. Nothing else stands in that slice but
@@ -1380,6 +1392,12 @@ export class App {
     if (this.rain.mesh.visible && near > 1.0) {
       rig.finalize(aspect, 0.2, near * 1.02);
       this.rain.material.depthTest = false; renderer.render(this.rain.mesh, rig.camera); this.rain.material.depthTest = true;
+      rig.finalize(aspect, near, far);
+    }
+    // (the same for the pollen: the motes nearest the eye are the ones seen one by one)
+    if (this.pollen.mesh.visible && near > 1.0) {
+      rig.finalize(aspect, 0.2, near * 1.02);
+      this.pollen.material.depthTest = false; renderer.render(this.pollen.mesh, rig.camera); this.pollen.material.depthTest = true;
       rig.finalize(aspect, near, far);
     }
     if (this.hero.group.visible) {
