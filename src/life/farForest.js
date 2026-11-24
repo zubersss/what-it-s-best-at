@@ -261,7 +261,9 @@ export class FarForest {
         // canopy the ground raises beyond the trees)
         float dFar = length(vRel), farW = farGreenW(dFar);
         leafC = farGreen(leafC, dFar);
-        vec3 albedo = wood ? vTrunkC * 0.6 : leafC;
+        // (wood on a card is the near trees' twig colour, trees.js: grey-brown, darker than the
+        // trunk; as vTrunkC * 0.6 every bark pixel changed tone at the line, review farforest-6)
+        vec3 albedo = wood ? mix(vTrunkC, dot(vTrunkC, vec3(0.333)) * vec3(1.06, 1.0, 0.9), 0.75) * 0.4 : leafC;
         float nl = dot(N, uSunDir), lit = wood ? max(nl, 0.0) : max(nl * 0.7 + 0.3, 0.0);
         if (uPaint.x > 0.0) { lit = mix(lit, paintLit(wood ? nl : nl * 0.75 + 0.25) * PI, uPaint.x); albedo = paintColour(albedo); leafC = paintColour(leafC); }
         // (seen against the Sun, foliage glows: the light comes through needles and leaves)
