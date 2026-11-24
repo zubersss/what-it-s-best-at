@@ -195,6 +195,24 @@ Left: the two helpers' pictures and reports (T2-DONE, A2-DONE), then the final f
 build: `scratchpad/final10.sh` (pictures and tests), the visual critic
 (`scratchpad/critic_wf.js`), notes, pull request, checkpoint.
 
+**23:30** (2026-11-24): from above done (A2-DONE, merged); a second cold review of both
+helpers' second rounds (`haven-rich-review-2.md`: 14 of 16 held, two high on the new
+steppe from above: a lattice, seams) went back to them. Then the visual critic on the
+pictures so far (`docs/briefs/haven-rich-critic.md`), five gaps, three of them from above:
+near trees from 90 to 300 m flat stickers and pale scraps; a teal veil and near-black shade
+over everything from the air; bare land from above a blurred map (a seam under a plateau,
+a river of beads, pepper, flies for rocks); then the blossom tree a jumble of cards, and
+one kind of flower at one size in any view. That is not "perfect from a distance": a third
+round, four helpers on machines of their own: **trees** (`session_01XG1DZ4JBNV4DZkAnD1YRtX`,
+T3: near crowns from above, the cherry), **from above** (`session_01XG1DZ33bk1c9DExN4K4Gys`,
+A4: the far canopy, the steppe from above, the forest's edge), **the air and bare land from
+above** (`session_01XG1DZ4zdTCXDoaErSrFzxg`, `air-from-above.md`, branch
+`ccr-aa39490a-air-above`), **flowers** (`session_01XG1DZ6RaRhrHVsk7KKy5hp`, `flowers-3.md`,
+branch `ccr-aa39490a-flowers-3`). `terrainMaterial.js` is shared out by block: FAR 1 and 2
+and the helpers above `main` from above's, FAR 3 and the water the air helper's, the
+flowers' block the flowers helper's. Then the critic again on the new pictures, the final
+run, the pull request.
+
 ### The far view sent: trees, grass and rock as far as one can see
 
 *2026-11-24. Merged as pull request #34; the phone link shows build 6ac24ff (this line was
