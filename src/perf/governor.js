@@ -78,6 +78,8 @@ export const FEATURE_STEPS = [
   { id: 'bloom', buys: 1.1, label: 'glow around bright things', apply: (app, off) => { app.post.bloomEnabled = !off; } },
   // (1.6 ms in a wood)
   { id: 'grass', buys: 1.6, label: 'half the grass', live: (app) => (app.grass?.keepBlades ?? 0) > 0 && !!app.grass.mesh?.visible, apply: (app, off) => { app.grass?.setFraction(off ? 0.5 : 1); } },
+  // (pollen in the air over flowers: 3 200 points at most, a point each; not yet measured on the phone, a guess)
+  { id: 'pollen', buys: 0.3, label: 'less pollen in the air', live: (app) => !!app.pollen?.mesh?.visible, apply: (app, off) => { app.pollen?.setShare(off ? 0.4 : 1); } },
   // (the patches: the cost test cannot ask about them, the ground would have to settle
   // again each time; a guess. They are also what the governor gives up when the page's own
   // work is what is slow: see _down.)

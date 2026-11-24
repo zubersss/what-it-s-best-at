@@ -99,7 +99,34 @@ early push ("T-EARLY", "G-EARLY", "A-LOOK") and writes a report beside its brief
   ground from afar" (announced as "S1a"); when that is merged here, tell the from-above
   helper, who then changes the far look inside that block. Until then it works on the
   trees' side.
-- *Grass*, *speed*: no push yet at 08:00. Only the
+- *Grass*, *speed*: no push yet at 08:00.
+
+**09:40** (2026-11-24): the joined head is a1e621c and holds all of this, building, with
+`govsim`, `far-trees-test` and the cloth check passing:
+- *Speed*, "S-EARLY" and "S1a": the ground's shader in tiers (a far gentle pixel read 24
+  textures and ran an eight-raster loop, now 10 to 11 and no loop; near grass 30 to 34,
+  now 11 to 15; pictures within 1 to 3 levels of 255), the gusts and the near cloud shade
+  at the vertices, the governor's new ladder (steps carry what they buy and whether they
+  are live; a trial goes on to the proven steps), the cloth rewritten with the same
+  motion at half the work, the cloud volume's laying worked out once a frame. Its
+  measure is a count of work on software WebGL (`scripts/ground-cost-run.sh`), said as
+  such; report `docs/briefs/phone-speed-report.md`. Still to come from it: Sharp as the
+  default, cheaper noise, the ten-view table.
+- *Trees*, merged at "T-WOOD": the wood from inside (`docs/shots/trees-refined/wood_after.png`)
+  is the best picture the game has had. Owed: the old build's layers per pixel beside
+  the new (10.5 over the whole forest view, an upper bound), the blossom tree with petals,
+  the opening view, the 240 m line, near trees from 100 m up, the report.
+- *Grass*, merged: all blades (no cut-out cards), six rings to 545 m, lit from a table
+  drawn once a frame; layers per grass pixel 6.9 to about 4 on the steppe, 4.7 to 4.6
+  with flowers at the opening view; 26 flowers in six habits, meadows by place
+  (`scripts/find-meadow.mjs`), pollen (`src/life/pollen.js`, a governor step). Sent back:
+  the opening brow's yellow heads (flat discs, one size), more than one kind in the first
+  view, seed stalks and colour by place. Owed: its full set with numbers, the report.
+- *From above*: told at 09:40 that the far look in `terrainMaterial.js` is theirs inside
+  the marked blocks ("THE GROUND FROM AFAR, 1 to 3"); working on the trees' side until
+  then (crowns from above, no crosses, shadows).
+- This machine restarts when the session sleeps between turns: a picture run started
+  detached is lost then. Pictures here only while a turn is waiting on them. Only the
 speed helper may edit `terrainMaterial.js`.
 
 ### The far view sent: trees, grass and rock as far as one can see
