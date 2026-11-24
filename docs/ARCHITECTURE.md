@@ -456,8 +456,8 @@ as before.
     for the ground's dusting) gives what flowers there and how thickly: flower meadows
     some hundreds of metres across (a share of the land the flora names) where one kind
     after another carpets a patch of a hectare, plain grass between with a drift here and
-    there, and on some hillsides one kind alone over the whole slope (the grass knows the
-    slope; the ground's shader may pass its own as a third argument and does not yet).
+    there, and on some hillsides one kind alone over the whole slope (the ground passes its
+    own slope, and its two broad noises from its vertices).
     `node scripts/flower-field.mjs` draws the rule from above without a browser;
     `node scripts/flower-preview.mjs` takes every kind side by side in the real game.
   - *Pollen* (`life/pollen.js`): 3 200 points, half in a box of air 10 m wide round the eye and

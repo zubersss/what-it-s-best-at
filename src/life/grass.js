@@ -222,6 +222,10 @@ const BLADE_VERT = /* glsl */`
     float keep = keepOf(ring * share, fract(hb.x * 7.13 + hb.y * 3.71)) * clamp((dens - own) / 0.12, 0.0, 1.0);
     if (keep <= 0.0) OUT_OF_PICTURE
     tall *= keep;
+    // (never narrower than about a pixel at its foot: a blade thinner than that lands on a
+    // pixel's middle in one frame and misses it in the next, and a field of them crawled as
+    // one flew over it)
+    wide = max(wide, 0.6 * cc.w / (uGrassView * abs(projectionMatrix[1][1])));
     #ifdef FAR
     // (under a pixel tall: not drawn, where it was a dash; lower where the ground is looked at squarely)
     if (tall * abs(projectionMatrix[1][1]) * uGrassView < cc.w) OUT_OF_PICTURE

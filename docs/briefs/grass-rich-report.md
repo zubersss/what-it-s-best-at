@@ -174,6 +174,35 @@ How to read it:
   layer before).
 - From the air the counts are as before (about one layer: the field seen squarely).
 
+## Stability
+
+`node scripts/stability.mjs --dist --only haven_meadow_walk,haven_flower_walk,haven_grass_flight`
+(two new moves: a walk in the flower meadow, and low flight 40 m over it), settled frames:
+
+| move | station 0 | 1 | 2 | (changed / flicker) |
+|---|---|---|---|---|
+| steppe walk, before (far-grass report) | 25.6 / 6.5 | 26.8 / 7.1 | 25.5 / 5.9 | |
+| steppe walk, after | 27.1 / 6.6 | 28.6 / 6.8 | 29.2 / 6.8 | |
+| flower meadow walk | 31.7 / 8.0 | 31.8 / 7.4 | 33.0 / 7.8 | |
+| low flight, 40 m up | 7.9 / 1.2 | 13.8 / 3.6 | 36.2 / 8.8 | (before the fix below) |
+| low flight, after the fix | 10.5 / 1.2 | 14.5 / 3.7 | 36.2 / 8.8 | |
+
+Looking at the strips (`docs/shots/stability/haven_*`): no ring, pop or line where one
+ring gives way to the next. On foot the restless part is the nearest blades and flowers,
+as before and about as much. In the meadow walk the sky's "flicker" is the pollen, which
+drifts with the wind between frames: that is its movement, not a fault. **In low flight
+the far blades crawled**: thinner than a pixel, a blade landed on a pixel's middle in one
+frame and missed it in the next (36 % changed at the third station). Blades are now never
+narrower than about a pixel at the foot (`wide = max(wide, 0.6 px)`), which also makes the
+far field a little more opaque. **It did not cure it**: the third station gave the very
+same numbers to the last digit (36.2 / 8.795 / 112), which I cannot explain and did not
+have time to chase (the first two stations did change, so the new build was the one
+served). The step there is 0.5 m a frame over blades 1 to 2.5 m apart, so much of that
+change is the field's own parallax, but the difference picture is red all over: treat the
+grass seen from 20 to 60 m up in flight as **shimmering until shown otherwise**. Next
+things to try: fade the far rings' blades out by the pixel size of their spacing rather
+than widen them, or let the ground's own grass colour carry more of the field from above.
+
 ## Behaviour changes (for the checkpoint message)
 
 - The grass is denser where it grows: no ground shows between the tufts at eye height,
@@ -208,15 +237,16 @@ How to read it:
 
 Most visible first.
 
+0. **The far blades shimmer in low flight** (see Stability): the one thing here I would
+   look at before sending.
 1. **Not measured on the phone.** Fewer and far cheaper layers, but more than twice the
    vertex work (see Numbers). Ask for a benchmark: the cost test's grass row (11.7 ms on
    6ac24ff), and `grass-mid` / `grass` what they buy now.
 2. **Flower meadows from 20 m and more are blocks of colour** (`haven_meadow_a20_after.png`):
    a blue hectare beside a white one beside a gold one, with soft but plain edges. It is
    what was asked ("one kind after another carpets a hectare"), but the white kinds still
-   read a little like frost from the air even at half the flowered blades. The ground's
-   dusting under them does not know the hillsides of one kind (it needs the slope passed
-   in: asked of the owning session) and still thins the daisy a second time.
+   read a little like frost from the air even at half the flowered blades. (The ground's
+   dusting now knows the hillsides of one kind: the owning session passes the slope in.)
 3. **The far rings of blades from 30 m are one even olive** (`haven_steppe_a30_after.png`,
    as the cards were before): the field's own variety (the stretches of taller and drier
    grass) hardly shows from above. The ground's grass colour is the same for all ground in
