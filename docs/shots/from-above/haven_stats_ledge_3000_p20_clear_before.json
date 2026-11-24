@@ -11,18 +11,18 @@
     "rings": 3,
     "tileFails": 0,
     "busyW": 0,
-    "calls": 39,
-    "triangles": 323346,
+    "calls": 38,
+    "triangles": 323345,
     "chunks": 54,
     "loaded": 170,
     "visited": 170,
     "wanted": 0,
     "lodScale": 1,
-    "avgBuildMs": 43.6,
-    "exposure": 8.392,
+    "avgBuildMs": 46.5,
+    "exposure": 5.575,
     "surface": [
       0.665,
-      0.164
+      0.224
     ],
     "frame": 85,
     "wait": ""

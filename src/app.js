@@ -305,6 +305,7 @@ export class App {
     // (the far forest: the same trees as those near by, thinned with distance, out to some
     // kilometres; they rise out of the forest the ground shader raises as a whole)
     this.farForest = new FarForest(this.trees, this.terrain); this.nearScene.add(this.farForest.mesh);
+    if (params.debug.includes('treeshade')) this.farForest.shared.uShadow.value.y = 1;      // ?debug=treeshade: the far trees painted by how much of the Sun the land and the clouds leave them
     this.treeShade = new TreeShade(this.terrain);
     this.grass = new Grass(this.terrain, this.terrain.shared.uWind); this.grass.setWorld(world); this.grass.eager = this.shotMode; this.grass.debugKinds = params.debug.includes('flowers');
     this.nearScene.add(this.grass.mesh);
@@ -1357,7 +1358,7 @@ export class App {
     this.cloudVolume.place(rig.pos);
     const cloudFar = this.clouds.update(rig.pos, world.radius, this.cloudVolume);
     // (?debug=noclouds: a clear sky, for pictures of the land from high above; their shadows go with them)
-    if (this.noClouds) this.clouds.mesh.visible = false;
+    if (this.noClouds) { this.clouds.mesh.visible = false; this.clouds.shadow.x = 0; }
     const vol = !this.noClouds && this.cloudVolume.ready(rig.pos, this.clouds);
     this.clouds.uniforms.uNearFade.value = vol ? this.cloudVolume.reach : 0;
     if (vol) this.cloudVolume.render(post, rig, this.terrain.shared.uWave.value.z, this.clouds, this.terrain.shared.uWind, this.weather);

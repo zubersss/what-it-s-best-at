@@ -61,7 +61,8 @@ export const FEATURE_STEPS = [
   // (3.4 ms in a wood)
   { id: 'cloud-steps', buys: 3.4, label: 'coarser clouds near you', live: cloudVolume, apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.steps = off ? 22 : 36; } },
   // (2.7 ms in a wood)
-  { id: 'tree-shadows', buys: 2.7, label: 'shadows of the farther trees', live: nearTrees, apply: (app, off) => { if (app.trees) app.trees.shadowsFar = !off; } },
+  // (and the far forest's shadows on the ground, drawn for a traveller in the air: life/farForest.js; not yet measured on the phone)
+  { id: 'tree-shadows', buys: 2.7, label: 'shadows of the farther trees', live: (app) => nearTrees(app) || !!app.farForest?.shadowsShown, apply: (app, off) => { if (app.trees) app.trees.shadowsFar = !off; if (app.farForest) app.farForest.shadows = !off; } },
   // (5.0 ms at the opening view; the clumps left are wider: the ground stays covered)
   { id: 'grass-mid', buys: 5.0, label: 'thinner grass in the middle distance', live: (app) => (app.grass?.keepClumps ?? 0) > 0 && !!app.grass.mesh?.visible, apply: (app, off) => { app.grass?.setMidShare(off ? 0.5 : 1); } },
   // (7.0 ms in a wood)
