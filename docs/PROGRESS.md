@@ -45,13 +45,23 @@ transcript, the numbers that matter here):
   leaves are what a forest costs; (4) the grass is dear for what it shows; (5) the
   character's 2 to 3 ms of page work is paid everywhere.
 
+**The owner, an hour later (2026-11-24): "We can do 30 fps if the game looks much more
+beautiful as well which I would like more."** So the aim on the phone is a steady 30 with
+a sharp, rich picture, not 60: Sharp becomes the default mode (`CLAUDE.md`, "Resolution
+and the governor"), a frame has 33 ms, and what the speed work frees is spent on beauty
+and on resolution. The helpers were told (the briefs' "cost less than today" becomes "a
+steady 30 at a sharp picture; spend what is freed on the look"); the next benchmark is
+asked for in Sharp.
+
 **The plan** (one delivery; the helpers again, on the owner's word):
-1. *Here, first*: the governor's ladder by what a step buys on the phone (the dead steps
-   out of it, the ones that buy 3 ms and more first), checked in `govsim`.
-2. *Here*: the ground's shader made several times cheaper (tiers by distance, the
-   flowers' noise from a texture already bound, nothing worked out that is not seen);
-   the character's page work; then the land from high above where it is the ground's
-   doing (the forest beyond the far trees, the ground's grain, no ring at any height).
+1. and 2. *Helper, speed* (`docs/briefs/phone-speed.md`; the phone's whole text is
+   `docs/benchmarks/2026-11-24-haven-6ac24ff.txt`): the ground's shader several times
+   cheaper and looking the same (it owns `terrainMaterial.js` for this delivery), the
+   governor's ladder by what a step buys, the character's page work, the cloud volume
+   from the air. (First meant to be done here; given to a helper with a machine of its
+   own so that this session keeps its room for merging, reviewing and deciding.) What the
+   land needs from the ground's shader when seen from above (the forest beyond the far
+   trees, no ring) is passed to it from the "from above" helper's list.
 3. *Helper, trees* (`docs/briefs/trees-refined.md`): the near trees at the references'
    level of detail (limbs, twigs, finely cut leaves), blossom and petals on the wind,
    for less than a forest costs today.
@@ -62,6 +72,16 @@ transcript, the numbers that matter here):
    ring.
 6. Merge as they push, review their code cold as before, final pictures and tests, a
    new Haven benchmark asked for.
+
+**The helpers** (started 2026-11-24 06:12 UTC; sessions of the same account, reached with
+`send_message`; never `list_events`; look at their work with `git fetch origin <branch>`):
+trees `session_01XG1DZ6z4HnMC6bjsyXexux`, branch `ccr-aa39490a-trees-refined`; grass
+`session_01XG1DZ7F3Rxaid46abwPs1f`, branch `ccr-aa39490a-grass-rich`; from above
+`session_01XG1DZ4yJLFGhdSyRj3Cexf`, branch `ccr-aa39490a-from-above`; speed
+`session_01XG1DZ38BpdeY4LvbUGcmCq`, branch `ccr-aa39490a-phone-speed` (announces
+"S-EARLY", then "S1" to "S4"). Each announces an
+early push ("T-EARLY", "G-EARLY", "A-LOOK") and writes a report beside its brief. Only the
+speed helper may edit `terrainMaterial.js`.
 
 ### The far view sent: trees, grass and rock as far as one can see
 
