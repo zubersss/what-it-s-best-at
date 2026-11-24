@@ -1333,10 +1333,13 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   (`STRIDE_MS`), so a run of small steps is one stride. The savings that are on are a
   list (`governor.off`, in the order they went; `featureLevel` is its length), no longer a
   prefix of the order. **Coming back**: the ones that went first come back first, five at
-  a time; when what came back makes frames late again it goes off again and to the end
-  of the list, and the next few come back one at a time: what stays off in the end is
-  what the frames need (a trial takes steps until one cures the frames; the ones before
-  it bought nothing). `governor.toFloor()` switches all of them on, live or not. Every
+  a time; when several that came back together make frames late again they go off again,
+  to the front, and come back one at a time; the one that makes frames late by itself
+  goes to the end of the list and is marked as needed (`_alone`): what stays off in the
+  end is what the frames need (a trial takes steps until one cures the frames; the ones
+  before it bought nothing). While only needed savings are on, the resolution and they
+  take turns at coming back, so one saving that stays on does not hold the picture at
+  its fewest pixels for good. `governor.toFloor()` switches all of them on, live or not. Every
   new feature that costs frame time adds its step here, with what it buys once a
   benchmark has said.
 - **Measuring**: the display's refresh interval is estimated continuously from the
@@ -1371,13 +1374,22 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   start a trial of their own (one step, two seconds to see what it did); a step up
   followed by one within twelve seconds is taken back instead. Arriving at another place
   ends all of it. The benchmark prints `bg` and how often quality was put back.
+- **Pixels or savings.** A trial begins with fewer pixels. When that cures nothing (two
+  rounds with as many frames late; or, with most frames late, one stride of fewer pixels
+  and frames as long as before), the pixels come back and the next trial is of the savings
+  **at the resolution that stands** (`_featFirst`), while a live step known to buy
+  something is untried; then pixels again. Before, savings were only ever tried at the
+  fewest pixels: a view whose frames do not wait for pixels (the phone's opening view
+  costs the same at 2 MP as at 4.45) sat late at full size in Sharp, or was taken to the
+  fewest pixels first for nothing.
 - **Stepping up** needs a clean run of `holdUp` seconds (3 s to start) and, where the
   browser exposes GPU timer queries, GPU time under 72 % of the interval. If a step up
   has to be taken back within 4 s, `holdUp` doubles (up to 60 s); it halves again each
   time a step up holds. That is the hysteresis. The first eight frames after a step up
   are watched separately: if five of them are late the step is taken back at once.
-- **Modes**: Smooth (60 fps) and Sharp (30 fps), `M` / the MODE button / the start
-  screen, remembered in `localStorage`. Both modes start at native. Switching to Sharp
+- **Modes**: Sharp (30 fps; the default since 2026-11-24, the owner's word) and Smooth
+  (60 fps), `M` / the MODE button / the start screen, remembered in `localStorage`
+  (`sse.mode2`: a mode kept under the old key was the old default and is not read). Both modes start at native. Switching to Sharp
   jumps to native with every feature on and lets the governor come down; switching to
   Smooth keeps the current level and comes down from there if it has to.
 - `?scale=` and screenshot mode fix the scale and switch all of this off. `?debug=floor`

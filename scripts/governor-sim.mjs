@@ -161,29 +161,59 @@ const offNow = (g, id) => (g.isOff ? g.isOff(id) : FEATURE_STEPS.findIndex((f) =
 const ninth = (label, base, saves, scene, check) => {
   let seed = 4711, late = 0, n = 0, back = 0;
   const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
-  const g = run(label, { vsyncMs: 8.403, mode: 'smooth', native: NATIVE, seconds: 120, work: () => 6, scene,
+  const g = run(label, { vsyncMs: 8.403, mode: 'smooth', native: NATIVE, seconds: 240, work: () => 6, scene,
     // (under two million pixels the picture's size is hardly what a frame costs on this phone)
     cost: (p, t, gg) => { let c = base + 0.6 * p / 1e6 + 5 * rnd(); for (const id in saves) if (offNow(gg, id)) c -= saves[id]; if (t > 60) { n++; if (c > 16.67) late++; } return c; },
     events: (t, gg) => { if (t < 0.02 && gg.resLevel !== gg.maxResLevel) { gg.resLevel = gg.maxResLevel; gg._applyScale(); } } });
   back = g.log.filter((l) => /did not cure/.test(l.text)).length;
+  // (every saving that was switched on at any time in the run, by its label in the log)
+  const ever = FEATURE_STEPS.filter((f) => g.log.some((l) => l.text.includes('off: ' + f.label))).map((f) => f.id);
   const share = late / Math.max(1, n), ids = g.offIds || FEATURE_STEPS.slice(0, g.featureLevel).map((f) => f.id);
   console.log(`  late in the second minute ${(100 * share).toFixed(1)} %, savings on: ${ids.join(', ') || 'none'}; trials that ended with everything put back: ${back}`);
   if (share > 0.08) { console.log('FAILED: the late frames were not cured, though a step that cures them exists'); process.exitCode = 1; }
-  check?.(ids);
+  check?.(ids, ever, g);
 };
 ninth('Phone, ninth results, the opening view: frames up to 3.5 ms too long; grass-mid buys 5.0, far-trees 3.6, clouds 4.0, far-relief 3.5', 13.2,
   { 'grass-mid': 5.0, clouds: 4.0, 'far-trees': 3.6, 'far-relief': 3.5, 'cloud-volume': 2.8, bloom: 1.1, 'fine-shadows': 1.1 }, {},
-  (ids) => { if (ids.length > 4) { console.log(`FAILED: ${ids.length} savings left on where one or two cure the frames`); process.exitCode = 1; } });
+  (ids, ever, g) => {
+    if (ids.length > 4) { console.log(`FAILED: ${ids.length} savings left on where one or two cure the frames`); process.exitCode = 1; }
+    // (pixels are not what these frames wait for: with the one saving on, the picture's size comes back)
+    if (g.pixels < 2.0e6) { console.log(`FAILED: the picture stayed at ${(g.pixels / 1e6).toFixed(2)} MP behind a saving that stays on`); process.exitCode = 1; }
+  });
 ninth('Phone, ninth results, in a wood: tree-leaves buys 11.5, trees-far 7.0, cloud-steps 3.4, tree-shadows 2.7', 15.0,
   { 'tree-leaves': 11.5, 'trees-far': 7.0, 'cloud-steps': 3.4, 'tree-shadows': 2.7, grass: 1.6, cloak: 1.0 }, {},
   (ids) => { if (ids.length > 5) { console.log(`FAILED: ${ids.length} savings left on where two or three cure the frames`); process.exitCode = 1; } });
 // From the air nothing of the trees and the grass is drawn: their steps are passed over,
 // and the trial reaches the one step that buys anything there.
 ninth('Phone, ninth results, from the air: only cloud-volume cures (9.4); no near trees, no grass, no far forest drawn', 13.2,
-  { 'cloud-volume': 9.4 }, { trees: { count: 0 }, grass: { keepClumps: 0, keepBlades: 0, mesh: { visible: false }, setMidShare() {}, setFraction() {} }, farForest: { shown: false, count: 0, setFraction() {} } },
-  (ids) => {
+  { 'cloud-volume': 9.4 }, { trees: { count: 0, setFraction() {} }, grass: { keepClumps: 0, keepBlades: 0, mesh: { visible: false }, setMidShare() {}, setFraction() {} }, farForest: { shown: false, count: 0, setFraction() {} } },
+  (ids, ever) => {
     if (!ids.includes('cloud-volume')) { console.log('FAILED: the one step that cures the frames was not reached'); process.exitCode = 1; }
-    for (const id of ['tree-shadows', 'trees-far', 'tree-leaves', 'grass-mid', 'grass', 'far-trees']) if (ids.includes(id)) { console.log(`FAILED: ${id} switched off where nothing of it is drawn`); process.exitCode = 1; }
+    // (at any time in the run, not only at its end: what went first has come back by then)
+    for (const id of ['tree-shadows', 'trees-far', 'tree-leaves', 'grass-mid', 'grass', 'far-trees']) if (ever.includes(id)) { console.log(`FAILED: ${id} switched off where nothing of it is drawn`); process.exitCode = 1; }
     if (ids.length > 4) { console.log(`FAILED: ${ids.length} savings left on where one cures the frames`); process.exitCode = 1; }
   });
+// Sharp is the default since 2026-11-24 (a steady 30 with the sharpest picture that holds).
+// A GPU like the test phone's, from its ninth results: Sharp starts at the screen's own
+// size with everything on. (1) A view whose frames hardly depend on the picture's size (the
+// opening view: 62 ms at native, 64 at 2 MP in the cost test): fewer pixels cure nothing,
+// two savings do. It must not sit at native with its frames late, nor end at the fewest
+// pixels: the savings are tried at the size that stands. (2) A view that is pixels (the
+// wood: 104 ms at native, 72 at 2 MP): frames of 45 to 60 ms at native must settle at a
+// size that holds, without hunting.
+const sharp = (label, costAt, saves, check) => {
+  let seed = 99, late = 0, n = 0;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const g = run(label, { vsyncMs: 8.403, mode: 'sharp', native: NATIVE, seconds: 300, work: () => 8,
+    cost: (p, t, gg) => { let c = costAt(p / 1e6) + 4 * rnd(); for (const id in saves) if (offNow(gg, id)) c -= saves[id]; if (t > 180) { n++; if (c > 33.6) late++; } return c; } });
+  const share = late / Math.max(1, n), tail = g.log.filter((l) => l.t > 180).length;
+  console.log(`  late in the last two minutes ${(100 * share).toFixed(1)} %, ${(g.pixels / 1e6).toFixed(2)} MP, savings on: ${(g.offIds || []).join(', ') || 'none'}; steps in the last two minutes: ${tail}`);
+  if (share > 0.1) { console.log('FAILED: frames still late against 33 ms'); process.exitCode = 1; }
+  if (tail > 14) { console.log(`FAILED: still hunting (${tail} steps in the last two minutes)`); process.exitCode = 1; }
+  check?.(g);
+};
+sharp('Phone in Sharp, a view that is not pixels (frames 38 to 43 ms at any size; grass-mid buys 5.0, far-trees 3.6)', (mp) => 33.5 + 1.0 * mp,
+  { 'grass-mid': 5.0, 'far-trees': 3.6, clouds: 4.0, 'far-relief': 3.5 },
+  (g) => { if (g.pixels < 3.0e6) { console.log(`FAILED: ended at ${(g.pixels / 1e6).toFixed(2)} MP for frames that fewer pixels do not cure`); process.exitCode = 1; } });
+sharp('Phone in Sharp, a view that is pixels (frames 50 to 55 ms at native, 33 at 2 MP; must settle)', (mp) => 16 + 7.8 * mp, { 'tree-leaves': 6.0, 'trees-far': 3.5 });
 run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native: 1920 * 1080, seconds: 40, cost: (p) => 2 + 1.5 * p / 1e6 });

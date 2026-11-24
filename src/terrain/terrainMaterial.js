@@ -314,6 +314,29 @@ float coverLevel(float c) {
 
 ${ALBEDO_RANGE_GLSL}
 
+// ---- THE GROUND FROM AFAR: its look, one function a thing. Change the look in these; the
+// ---- branches that decide where each runs are in main and need not be touched.
+// The far canopy's own colour (the forest raised as a whole), before its crowns' light and
+// shade. tint: the land's colour map there over its mean; c1, c2: two reads of the detail
+// tile, about zero (five repeats a tile, and one); turn: the season's turning, 0..1.
+vec3 farCanopyColour(vec3 tint, vec3 c1, vec3 c2, float turn) {
+  vec3 leaves = vec3(0.040, 0.078, 0.028) * mix(vec3(1.0), tint, 0.6) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
+  // (in their season, in patches: the trees that turn among those that do not)
+  return mix(leaves, mix(vec3(0.17, 0.10, 0.02), vec3(0.13, 0.035, 0.015), smoothstep(-0.1, 0.25, c1.r)) * (0.8 + 0.6 * (c2.b + 0.5)), turn * 0.85 * smoothstep(-0.12, 0.1, c2.r + 0.5 * c1.g));
+}
+// The far canopy's grain: how it tilts the surface, along the tile's two axes, where a
+// pixel is narrower than the canopy's unevenness (nearC 1: all of it; 0: none).
+vec2 farCanopyGrain(vec3 c1, vec3 c2, float nearC) { return (c1.rg + 0.7 * c2.rg) * (1.6 * nearC); }
+// A crown's or a stand's share of the canopy's colour: cr from crowns(); stand: true for the
+// stands (21 m), false for single crowns (8 m). Its tilt is cr.xy times farCrownTilt.
+float farCrownShade(vec4 cr, bool stand) {
+  return stand ? (0.7 + 0.42 * smoothstep(0.0, 0.6, cr.z)) * (0.84 + 0.32 * cr.w) : (0.4 + 0.78 * smoothstep(0.0, 0.5, cr.z)) * (0.76 + 0.48 * cr.w);
+}
+float farCrownTilt(bool stand) { return stand ? 0.4 : 0.8; }
+// The grass the ground wears beyond its blades, and under them: dry 0..1, grain: a read of
+// the detail tile (0..1).
+vec3 farGrassColour(float dry, float grain) { return grassColour(dry, 0.62) * (0.82 + 0.36 * grain); }
+
 void main() {
   if (uPlain > 0.5) { fragColor = vec4(vec3(0.05), 1.0); return; }
   float vHeight = vHMS.x, vMorph = vHMS.y, vShell = vHMS.z;
@@ -551,20 +574,21 @@ void main() {
   // crowns. vShell: how much of the surface is canopy (0: none; the block is skipped).
   // It reads: N, V, up, dist, mapTint, vDetailUv, uLitter, uTanU / uTanV; it writes: N
   // (the crowns' shapes), albedo (the leaves' colour, by vShell * ownC) and ao.
-  // What a far wood looks like is decided in this block and nowhere else in this shader.
+  // What a far wood looks like is decided in this block and in the functions it calls
+  // (farCanopyColour, farCanopyGrain, farCrownShade, farCrownTilt, crowns; above main),
+  // and nowhere else in this shader.
   // (THE GROUND FROM AFAR, 2 is the land's painted patches, further down; 3 the relief
   // light, in the lighting.)
   // =====================================================================================
   if (canopyTall > 0.3 && vShell > 0.0) {
     vec3 c1 = texture(tDetail, vDetailUv * 5.0).rgb - 0.5, c2 = texture(tDetail, vDetailUv * 1.0).rgb - 0.5;
     float nearC = 1.0 - smoothstep(0.03, 0.5, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
-    N = normalize(N + (uTanU * (c1.r + 0.7 * c2.r) + uTanV * (c1.g + 0.7 * c2.g)) * (1.6 * vShell * nearC));
+    vec2 cgn = farCanopyGrain(c1, c2, nearC);
+    N = normalize(N + (uTanU * cgn.x + uTanV * cgn.y) * vShell);
     // (a canopy seen from the side shows the sides of its crowns: lit with the Sun behind
     // the eye, dark against it, as the trees drawn one by one are; from straight above, its top)
     N = normalize(N + (V - up * dot(V, up)) * (1.1 * vShell));
-    vec3 leaves = vec3(0.040, 0.078, 0.028) * mix(vec3(1.0), mapTint, 0.6) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
-    // (in their season, in patches: the trees that turn among those that do not)
-    leaves = mix(leaves, mix(vec3(0.17, 0.10, 0.02), vec3(0.13, 0.035, 0.015), smoothstep(-0.1, 0.25, c1.r)) * (0.8 + 0.6 * (c2.b + 0.5)), uLitter * 0.85 * smoothstep(-0.12, 0.1, c2.r + 0.5 * c1.g));
+    vec3 leaves = farCanopyColour(mapTint, c1, c2, uLitter);
     // (not from far off: there the forest is what the picture from space shows, not one
     // flat green laid over it in blocks: the canopy's map has pixels a kilometre wide)
     // (by distance, not by the patch's texel: a patch a step finer than its neighbours was
@@ -580,15 +604,15 @@ void main() {
       float kc = (1.0 - smoothstep(0.05, 0.16, fwC)) * vShell * ownC, kg = (1.0 - smoothstep(0.14, 0.42, fwC)) * vShell * ownC;
       if (kg > 0.0) {
         vec4 cg = crowns(vDetailUv + 0.37, 3.0);
-        N = normalize(N + (uTanU * cg.x + uTanV * cg.y) * (0.4 * kg));
-        leaves *= mix(1.0, (0.7 + 0.42 * smoothstep(0.0, 0.6, cg.z)) * (0.84 + 0.32 * cg.w), kg);
+        N = normalize(N + (uTanU * cg.x + uTanV * cg.y) * (farCrownTilt(true) * kg));
+        leaves *= mix(1.0, farCrownShade(cg, true), kg);
       }
       if (kc > 0.0) {
         vec4 cr = crowns(vDetailUv, 8.0);
         // (strongly: at a phone's pixel a crown is a few pixels, and a faint one was a net
         // laid over the forest, not trees)
-        N = normalize(N + (uTanU * cr.x + uTanV * cr.y) * (0.8 * kc));
-        leaves *= mix(1.0, (0.4 + 0.78 * smoothstep(0.0, 0.5, cr.z)) * (0.76 + 0.48 * cr.w), kc);
+        N = normalize(N + (uTanU * cr.x + uTanV * cr.y) * (farCrownTilt(false) * kc));
+        leaves *= mix(1.0, farCrownShade(cr, false), kc);
       }
     }
     albedo = mix(albedo, leaves, vShell * ownC);
@@ -608,7 +632,7 @@ void main() {
         // gold grass comes to 0.44 to 0.47, scrub 0.38, sand and snow 0.77)
         * (1.0 - smoothstep(0.52, 0.68, dot(albedo, vec3(0.2126, 0.7152, 0.0722))));
     if (gw > 0.0) {
-      vec3 gc = grassColour(uGrassTone.x, 0.62) * (0.82 + 0.36 * d1.g);
+      vec3 gc = farGrassColour(uGrassTone.x, d1.g);
       // (the waves: paler where they bow the grass; gone where a wave is narrower than a pixel or two)
       // (the wind over far grass: a few broad gusts with gaps between them, their lines bent,
       // and only a hint beyond 600 m. Everywhere and all alike, the waves ruled the land with stripes.)
@@ -619,7 +643,7 @@ void main() {
       }
       // (the drifts of flowers, where the clumps and blades have them)
       // (none beyond 900 m: their share of the colour there was a fiftieth, their cost the same as near)
-      vec2 fw = dG < 900.0 ? flowersAt(planetPos, int(uGrassTone.z + 0.5)) : vec2(0.0);
+      vec2 fw = dG < 900.0 ? flowersAt(planetPos, int(uGrassTone.z + 0.5), ts) : vec2(0.0);      // (by the ground's slope too: hillsides of one kind, as the blades have them)
       // (a tint, never a patch: its edge broken by the ground's own grain, less of it for
       // the pale kinds, from higher up and far off, where colour piles up along the skyline)
       if (fw.y > 0.0) {
@@ -638,8 +662,7 @@ void main() {
           float speck = smoothstep(0.45, 0.8, fn1 * (0.55 + 0.65 * fw.y));
           fk = mix(mix(speck, broken, smoothstep(0.35, 1.3, fpx)), 0.2 * dens, smoothstep(1.6, 5.0, fpx));
         }
-        // (pale flowers least: a white patch from the air is snow or stone)
-        fk *= (fw.x < 1.5 ? 0.4 : 1.0);
+        // (pale flowers least, a white patch from the air being snow or stone: flowersAt thins them itself)
         fk *= (1.0 - 0.6 * clamp(dot(V, up), 0.0, 1.0)) * (1.0 - 0.75 * smoothstep(150.0, 600.0, dG)) * (1.0 - smoothstep(600.0, 900.0, dG));
         gc = mix(gc, petalColour(fw.x, 0.5), fk * GRASS_FLOWER_SHARE);
       }
