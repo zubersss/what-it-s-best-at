@@ -8,11 +8,11 @@ changes behaviour.
 
 ### The far view sent: trees, grass and rock as far as one can see
 
-*2026-11-23/24. **NOT MERGED YET as this is written (00:20 on the 24th): the pictures are
-taken and good, the last tests are running on the frozen final build (a1fa9bd; the tests'
-log is `scratchpad/fin14.log`); when they pass: fill in "Tested" below, open and merge
-the pull request (`scratchpad/pr_body9.md`), send the checkpoint
-(`scratchpad/checkpoint9.md`, pictures in `scratchpad/send/`).** The owner, having flown Haven: "I need you to make it so I can see at least a mile in
+*2026-11-24. Merged as pull request #34; the phone link shows build 6ac24ff (this line was
+written after the merge and is on the session branch until the next delivery carries it).
+The Haven benchmark test was still measuring its second and third cost views on the final
+build when this was merged (its lap, its flight to the Moon and every switch at the
+opening view had passed): its log is `scratchpad/fin14.smokeh.log`. The owner, having flown Haven: "I need you to make it so I can see at least a mile in
 the ground worth of stuff. I want the trees and the grass rendered in further than I can
 see ... use as many agents as you want or need. This is a big ask and I need it to work
 really well." What was built and how is in "The far view: what was built" below.*
