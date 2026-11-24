@@ -933,7 +933,7 @@ I checked that edit. With uPlain 0 the values are the same as before, so the pic
 
 ### governor-1. A trickle of the device's own late frames now sets off a minute-long trial that switches off every large saving, the cloud volume included, at full resolution
 
-`src/perf/governor.js:523`, high; check: **not yet checked**
+`src/perf/governor.js:523`, high; check: **fixed (22dd61e) before it was checked; the check confirms the fault in the old code and the fix**
 
 **What goes wrong.** The new hand-off branch fires on `futile || notPixels`. A trial started by the probe path (`d.probe`: a few frames late, too few to trip the window) that fewer pixels do not cure is therefore not given the old verdict. That verdict learned `bg` (the device's own share) and set 30 s of immunity. Instead the branch sets `immune = 0` and `_featFirst = true`. The next probe starts a savings trial at the standing size. Probe trials take one stride per decision (`cool = 2.0`). For m0 < 0.6, `futile` cannot fire while `_bigLeft()` is true, and `_bigLeft()` counts `clouds`, `far-relief` and `cloud-volume`, which all have buys of 2.5 or more. So the trial walks the whole ladder, then resolution, before anything comes back. The report gives this price as 'some six seconds'. That is true of the trigger path; this path takes about a minute.
 
@@ -943,9 +943,15 @@ I checked that edit. With uPlain 0 the values are the same as before, so the pic
 
 **Suggested fix.** Hand off to the savings only for trials started by a trigger. On line 523 add `!d.probe`: `if ((futile || notPixels) && resTrial && !d.probe && !this._featFirst && this._bigLeft())`. A probe trial that cured nothing then takes the `futile` branch again, learning bg with immunity, as before. With this change `npm run govsim` passes every case (gov-fix3.js / govsim-fix3.mjs in the scratch folder), and sim6 gives the old two-step result in both modes.
 
+**The check.** The code as it stands already has this fix. HEAD is 22dd61e, which comes after b92ace8 ("Governor: three faults the cold review found (governor-1 to 3)"). The hand-off now sits at src/perf/governor.js:529 (old 523 is now a comment) and reads `if ((futile || notPixels) && resTrial && !d.probe && !this._featFirst && this._bigLeft()) { this._putBack(d, true); this.immune = 0; this._featFirst = true; }`. That is exactly the reviewer's fix, and `git show 22dd61e` shows it added along with a comment explaining it (lines 527-528). So a trial started by the probe path (`d.probe`, from `probe: !trigger` at line 538) that fewer pixels do not cure can no longer reach the hand-off. With d.m0 < 0.6 and two steps it takes the `futile` branch at line 530. That branch calls `_putBack(d, true)`, which sets `immune = time + immuneFor` and `_immuneAll` (line 620), clears `_featFirst` and learns `bg` as before. If the step did cut the late frames, line 533 ends the trial instead. `_featFirst` is now set only by a trial that a burst started.
+
+I checked by running. The reviewer's own replay /tmp/claude-0/-home-user-what-it-s-best-at/7f5a2798-c792-5715-aa56-df0c988ece7a/scratchpad/review/sim6.mjs imports the repository's governor.js. In Sharp it now gives "19.3 resolution down to 3.91 MP / 21.3 ... 3.44 MP / 23.3 back to 4.45 MP, everything on", with nothing in "seconds off" and bg learned at 0.035. That matches sim6old.mjs (origin/main's governor) line for line. In Smooth no saving is ever switched off.
+
+The same commit added a regression case to scripts/governor-sim.mjs (`ownLate('sharp'); ownLate('smooth')`, lines 222-235). It runs this input and fails if any saving stays off for more than 10 s. `node scripts/governor-sim.mjs` exits 0 with "savings off for more than 10 s: none" in both modes. The scenario cannot happen on the code as it stands.
+
 ### governor-2. Sharp only: a saving that comes back with no late frames at all is taken back by a stale lateEMA, kept as 'needed' and left off for a minute
 
-`src/perf/governor.js:433`, medium; check: **not yet checked**
+`src/perf/governor.js:433`, medium; check: **fixed (22dd61e) before it was checked; the check confirms the fault in the old code and the fix**
 
 **What goes wrong.** overTime grows while `lateEMA > tol + 0.01`. lateEMA is an average over 200 frames, which is 6.7 s at 30 fps. After the early late frames of a trial at native size (Sharp starts there with everything on), lateEMA stays above tol for some 15 s after the frames are on time again. So overTime passes 6 s, a probe decision comes up, and `tookBack` (sinceUp < 12) runs `_takeBack()` on the saving that just came back, with no late frame since. In the single-step case it also goes into `_alone` ('what the frames need') and to the end of the line, with holdUp doubled. Before this delivery, savings came back only at the floor, where overTime never grows; now they come back above it (trials at the standing size), so this path is new for savings. At 60 fps the average decays twice as fast and it does not happen.
 
@@ -955,9 +961,29 @@ I checked that edit. With uPlain 0 the values are the same as before, so the pic
 
 **Suggested fix.** Let overTime grow only while the late frames are recent, adding `this.lateFast > tol` on line 433: `if (this.lateEMA > tol + 0.01 && this.lateFast > tol && this.resLevel < this.maxResLevel && this._filled >= WINDOW) this.overTime += dt; else this.overTime = 0;`. With this change, sim3 in Sharp gives cloud-steps off 9 s and alone = grass-mid only, and `npm run govsim` passes every case (gov-fix.js / govsim-fix.mjs).
 
+**The check.** The branch head is 22dd61e, which already contains the reviewer's exact fix. The defect was real at b92ace8 but is not in the code as it stands.
+
+What the code says now:
+- src/perf/governor.js:437 reads `if (this.lateEMA > tol + 0.01 && this.lateFast > tol && this.resLevel < this.maxResLevel && this._filled >= WINDOW) this.overTime += dt; else this.overTime = 0;`.
+- The comment just above it, at lines 435-436, says: "only while the late frames are recent: the long average remembers a trial's first late frames for some 15 s at 30 a second, and would take back a saving that came back clean".
+- Commit 22dd61e ("Governor: three faults the cold review found (governor-1 to 3)") added this guard. Its message lists this exact fault: "in Sharp, a saving that came back with no late frame since was taken off again by the long average's memory of the trial's first frames, and kept off for a minute".
+
+Why the scenario cannot happen now:
+- lateFast is a 60-frame average, about 2 s at 30 fps.
+- When cloud-steps comes back at about 13 s, the trial's late frames ended about 6 s earlier, so lateFast has fallen to roughly 5 % of what it was. It is below tol.
+- overTime is therefore reset every frame. It never reaches 6, so the probe at line 468 never fires.
+- Without a probe, `tookBack` (sinceUp < 12) never calls `_takeBack()`, and the saving never goes into `_alone`.
+
+Checked by running it (no browser, under a second):
+- The same commits added a case for this scenario to scripts/governor-sim.mjs: "Sharp, the opening view: frames 35 to 38 ms at any size, grass-mid buys 6.0, nothing else buys anything".
+- At HEAD, `node scripts/governor-sim.mjs` exits 0 with no FAILED line. That case prints "off over the run: cloud-steps 9 s, tree-shadows 15 s, grass-mid 234 s, trees-far 25 s; savings on at the end: grass-mid".
+- I ran a scratch copy with only the `&& this.lateFast > tol` guard removed (under scratchpad/review/nofix/). It reproduces the reported fault: "cloud-steps 70 s, tree-shadows 22 s, grass-mid 234 s, trees-far 47 s" and "FAILED: cloud-steps, trees-far kept off for more than 30 s, buying nothing".
+
+So the guard at line 437 is what cures it, the simulation fails without it, and the code as it stands does not have the defect.
+
 ### governor-3. The tree steps stay 'live' in the air after taking off from a wood: trees.count is never cleared when the near trees stop being drawn
 
-`src/perf/governor.js:57`, medium; check: **not yet checked**
+`src/perf/governor.js:57`, medium; check: **fixed (22dd61e) before it was checked; the check confirms the fault in the old code and the fix**
 
 **What goes wrong.** `nearTrees` asks `trees.count > 0 && !trees.hidden`. Trees.update (src/life/trees.js line 375 onwards) only sets `reach = 0` and hides the meshes once the traveller is above `min(below, radius*ASK_ABOVE)`, which is 384 m on Haven, and then returns. `count` keeps the value from the last `_build`. So from 384 m to 6 km, `trees-far`, `tree-leaves` and `tree-shadows` count as live where nothing of them is drawn. Exactly what `live` was added to stop: from the air a trial spends whole strides on `trees-far` (7.0) and `tree-leaves` (11.5) for nothing. `_bigLeft()` stays true until they are taken, so the verdict waits for them too, and `trees.dirty` and thinner trees are left for when the traveller lands. The govsim case 'from the air' passes because it models `trees: { count: 0 }`, a state the game does not report after leaving a wood.
 
@@ -967,11 +993,17 @@ I checked that edit. With uPlain 0 the values are the same as before, so the pic
 
 **Suggested fix.** Use the trees' reach, which is 0 whenever none are drawn (app.js line 1366 already uses it this way): `const nearTrees = (app) => (app.trees?.count ?? 0) > 0 && app.trees.reach > 0 && !app.trees.hidden;`. Or set `this.count = 0` in Trees.update when `!show`. Then give the govsim 'from the air' case `trees: { count: 200, reach: 0 }` so it fails before the fix. govsim passes with this change combined with the two fixes above (gov-fix13.js).
 
+**The check.** This defect is already fixed in the checked-out head, so it cannot happen there. The branch is at b2108ee, and b92ace8 is one of its ancestors. Commit 22dd61e ("Governor: three faults the cold review found ... after a take-off from a wood the near trees' steps counted as live up to 6 km (the count of the last list is kept): live now asks the trees' reach") made the fix the reviewer proposes.
+
+src/perf/governor.js line 59 now reads `const nearTrees = (app) => (app.trees?.count ?? 0) > 0 && (app.trees.reach ?? 1) > 0 && !app.trees.hidden;`, with a comment above it on reach being 0 after a take-off. In src/life/trees.js, update() sets `if (!show) this.reach = 0;` before it returns early. `reach` is also set to 0 in the constructor and in setWorld, so the `?? 1` fallback never applies to the real Trees object. In the air above min(below, radius*1.6), `trees-far`, `tree-leaves` and the near-tree half of `tree-shadows` are therefore no longer live, whatever `count` holds.
+
+The same commit changed the govsim 'from the air' case to `trees: { count: 200, reach: 0, ... }`, the state the game reports after a take-off. That case fails if `trees-far`, `tree-leaves`, `tree-shadows`, `grass-mid`, `grass` or `far-trees` is ever switched off. `node scripts/governor-sim.mjs` passes at head (exit 0, no FAILED, and the air case ends with only cloud-volume on). I made a scratch copy with the old nearTrees line (without the reach test), at /tmp/claude-0/-home-user-what-it-s-best-at/7f5a2798-c792-5715-aa56-df0c988ece7a/scratchpad/review/oldnt. That copy prints "FAILED: tree-shadows / trees-far / tree-leaves switched off where nothing of it is drawn". The test does catch the fault, and the code as it stands no longer has it.
+
 ## wiring (see each)
 
 ### wiring-1. Fallen petals all vanish and fill back in a few at a time whenever the trees' lists are rebuilt (every 25 m), and falling petals jump to other trees
 
-`src/life/leaves.js:216`, medium; check: **not yet checked**
+`src/life/leaves.js:216`, medium; check: **holds**
 
 **What goes wrong.** Petals.update clears every lying petal when `tr.blooming` is a different array (`this.serial !== list`). Then it puts them back down at PER_FRAME = 6 a frame. Trees._build makes a new `blooming` array on every rebuild (trees.js:484 and :500). A rebuild happens whenever the traveller has moved REBUILD_M = 25 m (trees.js:28 and :449) and whenever `dirty` is set. `this.abs` and `this.put` were meant to carry the placed petals over a rebuild: they are written (leaves.js:247) but nothing ever reads them. The slots are also reassigned as `list[s % list.length]` from a list sorted nearest-first from the new anchor, so a slot can come to name a different tree.
 
@@ -981,9 +1013,31 @@ I checked that edit. With uPlain 0 the values are the same as before, so the pic
 
 **Suggested fix.** On a list change, match each new tree to an old one by its absolute foot (A + t.xyz, within about 0.5 m). Keep each slot on the same tree. For lying petals whose tree is still in the list, rewrite aLie.xyz = abs - A_new from the stored `this.abs` and leave w at 1. Clear and place again only the petals whose tree has left the list.
 
+**The check.** The defect is real in the code at HEAD (b2108ee), and nothing in the code prevents it.
+
+How it happens:
+- trees.js:484 makes a new array on every build (`const blooming = []`), and :500 stores it in `this.blooming`.
+- `_build` runs whenever `dirty` is set or the traveller has moved 25 m (trees.js:449). `dirty` is set on a new game day (:363), when a tree block arrives (:444), after a Sun sweep (:429), and by the governor's `setFraction` (:515).
+- Petals.update (leaves.js:216) compares the list by identity, so every build counts as a change. It then empties `put`, sets `next = 0`, and writes w = 0 into every one of the 480 `aLie` entries (:225).
+- The lying shader multiplies its fade by `aLie.w` (:193), and `place()` throws a vertex with fade 0 out of the picture (:146). So every lying petal disappears in the frame of the rebuild.
+- The loop at :231 puts them back at most 6 a frame. That is 80 frames or more (2.7 s at 30 fps), longer when `drawnHeight` returns null (:241).
+- `this.abs`, `this.put` and `this.anchor` are only ever written (:197, :198, :217, :226, :247). Nothing reads them, in leaves.js or anywhere else in src/ or scripts/.
+
+The falling petals:
+- Slots are given out again as `list[s % list.length]` (:220-221), from a list sorted nearest-first from the new anchor (trees.js:482), keeping the 8 nearest within 90 m (:497).
+- A falling petal sits at `uAnchorRel + tr.xyz` (:181). For a slot that keeps its tree that sum is the same world position, so it holds still. trees.update runs before petals.update (app.js:1262 and :1270), so there is no one-frame mismatch.
+- A slot whose tree changes, because the order or the count changed, moves all its airborne petals to another crown at once. They also take that tree's height, colour and rate of letting go.
+
+Is it known and accepted? No:
+- docs/briefs/phone-speed.md and phone-speed-report.md say nothing about petals.
+- This exact finding is already in docs/briefs/haven-rich-review.md, word for word as wiring-1, and as trees-3, where the second reader's check says "holds".
+- docs/briefs/trees-refined-2.md hands it to the second-round trees helper as a fault to prove and fix (job 1, item 3). It is not accepted, and the fix has not reached HEAD.
+
+So it holds, as a duplicate of trees-3 / wiring-1 that has already been assigned. Severity: medium, as trees-3 was judged. A walker among the trees in flower at the opening date sees the carpet blink out and creep back every 25 m, and at every block arrival or governor tree step. It is seasonal and close: lying petals are drawn only within 55 m and fade from 35 m, and only the share allowed by `step(aSeed.z, fall*1.3)` is drawn at all.
+
 ### wiring-2. Fallen petals are placed on the coarse parent ground, not the ground as drawn: the camera's distance from the planet's centre is passed as the distance from the camera
 
-`src/life/leaves.js:240`, low; check: **not yet checked**
+`src/life/leaves.js:240`, low; check: **holds**
 
 **What goes wrong.** `this.terrain.drawnHeight(d, rig.pos.length())`: drawnHeight's second argument is the distance from the camera to that point (terrain.js:166-172). It picks the morph `k = clamp((camDist / morphX - 0.72) / 0.24)` (terrain.js:187-188). rig.pos.length() is about the planet's radius (250 000 m on Haven, 6.4e6 on Earth), so k = 1 on every patch and each petal sits on the parent level's interpolated surface. Within 55 m the ground is drawn with k near 0, its own vertices (the terrain vertex shader uses length(rel)/morphX, terrainMaterial.js:106).
 
@@ -993,9 +1047,11 @@ I checked that edit. With uPlain 0 the values are the same as before, so the pic
 
 **Suggested fix.** Pass the petal's distance from the camera: `this.terrain.drawnHeight(d, Math.hypot(x - rig.pos.x, y - rig.pos.y, z - rig.pos.z))`, using the x, y, z already worked out just above.
 
+**The check.** The defect holds. src/life/leaves.js:240 (new in this delivery, commit 5e455f1) calls `this.terrain.drawnHeight(d, rig.pos.length())`. rig.pos is the camera's position measured from the planet's centre: cameraRig.js:51 starts it at (world.radius, 0, 0), and app.js:647 takes `p.length()` of it to get a direction. So the second argument is about 250 000 m on Haven. drawnHeight (terrain.js:172-192) needs that argument to be the distance from the camera. It computes `k = max(clamp((camDist/s.morphX - 0.72)/0.24), s.fade)`, and s.morphX is `splitIn * par.edge` (terrain.js:280). On the finest Haven level (maxLevel 14, 24 m patches) that is about 45 m, so k = 1 on every patch with a parent. The height returned is then `hv + hd*1 = hp`, the parent's surface (chunkBuilder.js:163 stores morph = hp - hv). The ground shader works out its own k from `length(rel)` with rel relative to the camera (terrainMaterial.js:106-107). Near the eye that k is 0, so the drawn ground uses the patch's own vertices. Lying petals are drawn only within 55 m and fade out from 35 m (leaves.js:193, `1 - smoothstep(35, 55, length(rel))`). That is exactly the range where the drawn ground has k near 0 (on the finest level the morph starts at about 33 m). So every visible lying petal is placed on a surface that is not the one drawn. The other callers pass a distance from the camera: app.js:649 passes `r.pos.distanceTo(p)` and the rig passes `groundAt(d, camDist)`. Nothing in docs/briefs/phone-speed*.md or docs/PROGRESS.md lists this as known. Size: I replayed chunkBuilder's hv/hp arithmetic (3x3 and 5x5 box averages, odd vertices interpolated) on Haven's height function at level 14 (/tmp/claude-0/-home-user-what-it-s-best-at/7f5a2798-c792-5715-aa56-df0c988ece7a/scratchpad/review/petal-morph.mjs). The gap between the parent surface and the own vertices averaged 3.2 cm, with a maximum of 22 cm, at the landing site; 23 % of vertices there differ by more than 3 cm. In the north wood it averaged 0.3 cm and on the east shore 0.5 cm (maxima 1.7 and 2.7 cm). On bare or thinly grassed ground a petal is lifted only 3 cm (leaves.js:245), so on rough ground some petals sink under the drawn ground and others float a few centimetres above it. Where grass grows, the 0.2 to 0.46 m lift hides the error. The petals stay where they were put until the list of trees in flower changes (leaves.js:216-226). Severity is low: the error is centimetres, on bare rough ground only, for petals 9 to 14 cm across. The code is plainly wrong, the fix is one line, and it costs nothing.
+
 ### wiring-3. The grass light pass is drawn every frame from 220 m to 3 km up, where nothing reads it
 
-`src/app.js:1368`, low; check: **not yet checked**
+`src/app.js:1368`, low; check: **holds**
 
 **What goes wrong.** app.js calls `this.grass.renderLight(renderer, rig.camera)` every frame. Grass.renderLight returns early only when `!this.mesh.visible`. Grass.update keeps the group visible up to 3 km (kg = 1 - smoothstep(1500, 3000, agl), grass.js:693-696 and :784) so that the ground keeps its grass tone. But the blade fields show only while keepBlades > 0 (90 m on Haven and Earth), the clumps only while keepClumps > 0 (220 m), and the pollen needs keepBlades > 0 (pollen.js:109). Only those three read tLight (grass.js:532, pollen.js:29).
 
@@ -1004,4 +1060,17 @@ I checked that edit. With uPlain 0 the values are the same as before, so the pic
 **Evidence.** grass.js:679-683 `renderLight(renderer, camera) { if (!this.mesh.visible) return; ... renderPass(renderer, this.lightMat, this.light); }`. grass.js:693-695 (kb, kc, kg). grass.js:746-747 `f.mesh.visible = kb > 0` and `kc > 0 && this.midShare > 0`. haven.js:120 `grass: { below: 90, mid: 220 }`. A search for tLight and grass.light finds only the grass fields and pollen.
 
 **Suggested fix.** In Grass.renderLight return when `!this.mesh.visible || (this.keepBlades <= 0 && this.keepClumps <= 0)`, or gate the call in app.js the same way.
+
+**The check.** The claim holds. I checked it against the code at HEAD b2108ee.
+
+- **app.js:1368** calls `this.grass.renderLight(renderer, rig.camera)` on every frame with no condition. The `treeShade.render` call just above it, at :1366, is gated on `this.grass.keepClumps > 0` and other things, so this pass was simply left out of that gating.
+- **grass.js:679-683**: `renderLight` returns early only when `!this.mesh.visible`. Otherwise it runs `renderPass`, which in fullscreen.js:32-38 means setRenderTarget, a clear and a full-screen draw into `this.light`.
+- **The target size**: `this.light` is `LIGHT_N*3` x `LIGHT_N*RINGS.length`. With LIGHT_N = 96 and the 6 RINGS at :55-62, that is 288 x 576, about 166,000 half-float texels.
+- **When the group stays visible**: grass.js:693-696 sets `kb = 1 - smoothstep(below*0.5, below, agl)`, `kc = 1 - smoothstep(mid*0.55, mid, agl)` and `kg = 1 - smoothstep(1500, 3000, agl)`. `show` needs only `kg > 0`, cover data and `fraction > 0`, and :784 then sets `this.mesh.visible = true`. Haven has `grass: { below: 90, mid: 220 }` (haven.js:120). Earth has `{ below: 90 }`, so `mid` falls back to 220. The group therefore stays visible up to 3 km.
+- **What reads the table**: a grep for `tLight`, `grass.light` and `lightU` in src and scripts finds only two readers. The grass and flower fields (grass.js:532) are drawn only when `kb > 0` (:736). The clumps are drawn only when `kc > 0 && midShare > 0` (:737). Pollen (pollen.js:29) gets an amount of 0 unless `keepBlades > 0` (pollen.js:109).
+- **Result**: from 220 m to 3 km, which is the usual cruising band, nothing reads the table, yet it is still worked out on every frame. Each texel does a table read, cloudShade, the land-shade texture, nearShadow taps, directSun (two LUT reads), skyLight (one or two reads) and two aerialPerspective calls. It is drawn in its own render pass.
+- **Not a known item**: docs/briefs/phone-speed.md and phone-speed-report.md say nothing about this light pass. It is new in this delivery (the diff adds both LIGHT_N and the renderLight call).
+- **Skipping it is safe**: `grass.update` (app.js:1271) runs unconditionally earlier in the same frame, so keepBlades and keepClumps are up to date when renderLight runs. The table is redrawn whole each frame and keeps nothing between frames, so the frame the clumps come back is the frame the table is drawn again.
+
+**Severity: medium.** It is about 166,000 fragments plus a render-pass switch, every frame in a common flight band. That is a modest GPU cost: small next to the 4.45 million-pixel main picture, but entirely wasted, and the benchmark's 5 km stop does not show it. The player sees nothing wrong on screen.
 
