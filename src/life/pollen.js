@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import { GRASS_PRELUDE } from './grass.js';
 
-const COUNT = 2800, BOX = 40, TALL = 8;        // BOX divides the grass anchor's step: a step moves no mote
+const COUNT = 3200, BOX = 40, NEAR_BOX = 10, TALL = 6;        // BOX divides the grass anchor's step (a step moves no mote), NEAR_BOX divides BOX
 
 export class Pollen {
   // grass: the Grass (its plane, tables and light); shared: the terrain's shared uniforms (wind, weather)
@@ -42,7 +42,10 @@ export class Pollen {
         out float vSeed;
         void main() {
           vSeed = 0.0;
-          vec2 p = mod(aSeed.xy * ${BOX.toFixed(1)} - uAir.xy, ${BOX.toFixed(1)}) - ${(BOX / 2).toFixed(1)}, at = p + uGrassCam.xy;
+          // (which box: half of them in a small one round the eye, where a mote is seen as a mote;
+          // its width divides the large one's, so both wrap with the same air)
+          float box = fract(aSeed.w * 7.31) < 0.5 ? ${NEAR_BOX.toFixed(1)} : ${BOX.toFixed(1)};
+          vec2 p = mod(aSeed.xy * ${BOX.toFixed(1)} - uAir.xy, box) - 0.5 * box, at = p + uGrassCam.xy;
           // (how many flowers the ground under it has: the four entries round it, blended)
           vec2 f = (at + uTab.xy) / uTab.z, i = floor(f), wq = f - i;
           ivec2 a = ivec2(mod(i, uTab.w)), b = ivec2(mod(i + 1.0, uTab.w));
@@ -57,22 +60,23 @@ export class Pollen {
           float ground = mix(mix(t00.r, t10.r, wq.x), mix(t01.r, t11.r, wq.x), wq.y) + uGrassCurve.x - dot(at, at) * uGrassCurve.y - uGrassCam.z;
           // (how high: most of them low over the flowers; rising slowly, some twice as fast)
           float zf = fract(aSeed.z + uAir.z * (1.0 + floor(aSeed.w * 2.0)) / ${TALL.toFixed(1)}), t = uAir.w;
-          float hgt = 0.3 + ${TALL.toFixed(1)} * zf * (0.35 + 0.65 * zf);
+          float hgt = 0.15 + ${TALL.toFixed(1)} * zf * zf * (box < ${BOX.toFixed(1)} ? 0.45 : 1.0);
           // (and wandering a little, each its own way)
           vec3 wander = vec3(sin(t * 0.7 + aSeed.x * 40.0), cos(t * 0.53 + aSeed.y * 40.0), sin(t * 0.9 + aSeed.z * 40.0) * 0.6) * (seed ? 0.5 : 0.22);
           vec3 rel = uGrassEast * (p.x + wander.x) + uGrassNorth * (p.y + wander.y) + uGrassUp * (ground + hgt + wander.z);
           // (fading at the box's sides and at the top and bottom of its rise: wrapping is never seen)
-          float edge = (1.0 - smoothstep(${(BOX * 0.38).toFixed(1)}, ${(BOX * 0.5).toFixed(1)}, max(abs(p.x), abs(p.y)))) * smoothstep(0.0, 0.08, zf) * (1.0 - smoothstep(0.85, 1.0, zf));
+          float edge = (1.0 - smoothstep(0.38 * box, 0.5 * box, max(abs(p.x), abs(p.y)))) * smoothstep(0.0, 0.08, zf) * (1.0 - smoothstep(0.85, 1.0, zf));
           vec4 clip = projectionMatrix * viewMatrix * vec4(rel, 1.0);
           if (clip.w < 0.05) OUT_OF_PICTURE
           // its size on the picture: never under a pixel and a third (a mote there is as bright as its true size would be)
-          float px = (seed ? 0.045 : 0.011) * uGrassView * abs(projectionMatrix[1][1]) / clip.w, drawn = clamp(px, 1.4, 22.0);
-          float dim = min(1.0, (px * px) / (drawn * drawn) * 2.5);
+          // (a grain of pollen in the Sun is a glint wider than itself: drawn as 2 cm)
+          float px = (seed ? 0.045 : 0.02) * uGrassView * abs(projectionMatrix[1][1]) / clip.w, drawn = clamp(px, 1.5, 22.0);
+          float dim = min(1.0, (px * px) / (drawn * drawn) * 6.0);
           vec3 sun, sky, air; lightAt(at, sun, sky, air);
           // (a mote throws the Sun's light forward: looked at toward the Sun it is a spark)
           float c = max(dot(normalize(rel), uSunDir), 0.0), c2 = c * c, phase = 0.5 + 1.2 * c2 + 7.0 * c2 * c2 * c2 * c2;
           vec3 tint = seed ? vec3(0.95, 0.95, 0.90) : mix(vec3(1.0, 0.80, 0.34), vec3(1.0, 0.92, 0.6), aSeed.w);
-          vCol = tint * (sun * phase * (seed ? 1.6 : 2.6) + sky * 0.35) * (keep * edge * dim);
+          vCol = tint * (sun * phase * (seed ? 1.6 : 3.5) + sky * 0.35) * (keep * edge * dim);
           vSeed = seed ? 1.0 + aSeed.x * 6.0 : 0.0;
           gl_Position = clip; gl_PointSize = drawn;
         }`,

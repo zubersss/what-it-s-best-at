@@ -65,13 +65,13 @@ export const RINGS = [
 // blades of the far grass are stalks in flower (BLADE_VERT), and the ground has its dusting.
 // light: which ring's stretch of the light table they read.
 const FLOWERS = [
-  { grid: 100, spacing: 0.32, seed: 91, table: 'near', out: [12, 15.5], petals: 14, leaves: 2, grow: 0.045, light: 1 },
-  { grid: 128, spacing: 0.8, seed: 131, table: 'mid', in: [12, 15.5], out: [38, 50], petals: 6, leaves: 0, grow: 0.045, light: 3 },
+  { grid: 100, spacing: 0.32, seed: 91, table: 'near', out: [12, 15.5], petals: 14, leaves: 2, grow: 0.03, light: 1 },
+  { grid: 128, spacing: 0.8, seed: 131, table: 'mid', in: [12, 15.5], out: [38, 50], petals: 6, leaves: 0, grow: 0.03, light: 3 },
 ];
 // How many blades may lie over each other along a line of sight before the rest are left
 // out, blade by blade (looked along at eye height a full field is twenty deep, and all but
 // the front few are hidden), and the share of a field that is kept whatever the angle.
-const LAYERS = 6, LAYERS_FLOOR = 0.12;
+const LAYERS = 5, LAYERS_FLOOR = 0.12;
 // The light on the ground round the traveller (GrassLight below): places a side for each ring.
 const LIGHT_N = 96;
 
@@ -286,7 +286,10 @@ const FLOWER_VERT = /* glsl */`
     // (which kind grows here is not something to blend: the nearest entry says)
     vec4 gn = tableNearest(tTable, uTab, at);
     float kind = floor(gn.a + 0.001);
-    if (kind < 0.5 || h2.x >= fract(gn.a + 0.001) * 1.1) OUT_OF_PICTURE
+    // (big heads stand wider apart: a lattice full of heads a hand across was a carpet that
+    // hid the grass. As many of a kind's heads to the square metre as cover the same ground.)
+    float headSize = KIND_SHAPE[clamp(int(kind + 0.5), 0, KIND_N - 1)].y;
+    if (kind < 0.5 || h2.x >= fract(gn.a + 0.001) * 1.1 * min(1.0, pow(0.036 / headSize, 2.0))) OUT_OF_PICTURE
     if (outside(projectionMatrix * viewMatrix * vec4(uGrassEast * rel2.x + uGrassNorth * rel2.y + uGrassUp * groundUp(gn, at), 1.0), 2.2)) OUT_OF_PICTURE
     vec2 grad; vec4 g = tableAt(tTable, uTab, at, grad);
     float keep = step(0.1, g.g) * keepOf(ring, h.x);
@@ -340,7 +343,7 @@ const FLOWER_VERT = /* glsl */`
       vec3 a = normalize(cross(nrm, uGrassEast + uGrassUp * 0.3)), b = cross(nrm, a);
       float ang = petal * 6.2831853 / n + h.x * 6.2831853, c = cos(ang), s = sin(ang);
       // (few petals: broad ones that overlap, a poppy's bowl; many: narrow rays, a daisy's)
-      float wx = n < 4.5 ? 1.05 : n < 6.5 ? 0.74 : 3.4 / n, big = shp.y > 0.08 ? 1.5 : 1.0;
+      float wx = n < 4.5 ? 1.05 : n < 6.5 ? 0.74 : 3.4 / n, big = shp.y > 0.08 ? 1.15 : 1.0;
       vec2 q0 = mid ? vec2(position.x * 0.55 * big, position.y * 0.34 * big - 0.17 * big) : vec2(position.x * wx, position.y), q = vec2(q0.x * c - q0.y * s, q0.x * s + q0.y * c);
       rel = top + (a * q.x + b * q.y + nrm * (mid ? 0.12 : (n < 4.5 ? 0.55 : 0.32) * position.y * position.y)) * size;
       col = mid ? KIND_MID[ki] : petalCol * (0.78 + 0.3 * position.y);

@@ -3,7 +3,7 @@
 // to its pixel (additive, no depth test), and the picture is read back.
 //
 //   node scripts/grass-layers.mjs [--world haven] [--shot ledge] [--query "lat=..&lon=.."]
-//        [--distdir build] [--size 660x309] [--timeout 1700] [--out layers.png]
+//        [--distdir build] [--size 660x309] [--timeout 1700] [--out layers.png] [--shot-out picture.png]
 //
 // Three counts, each a mean over the pixels that have any grass ("grass pixels"):
 //   raster: every fragment the triangles make, the ones a cut-out throws away included
@@ -14,18 +14,21 @@
 //           (what is shaded when the depth test can reject before shading).
 // ... for the whole grass and for each of its fields; and the share of the picture that is grass.
 // --out: the 'drawn' count as a picture (black none, white 32 layers and more).
+// --shot-out: the view itself, taken first (one load of the scene for both).
 import { open, opt } from './lib/browser.mjs';
+const shotOut = opt('shot-out', null);
 import { encodePNG } from './lib/png.mjs';
 import { writeFile } from 'node:fs/promises';
 
 const world = opt('world', 'haven'), shot = opt('shot', 'ledge'), query = opt('query', '');
 const timeout = +opt('timeout', 1700) * 1000, out = opt('out', null);
 const [W, H] = opt('size', '660x309').split('x').map(Number);
-const { base, page, goto, close, errors } = await open({ dist: true, width: W, height: H, dsf: 1 });
+const { base, page, goto, close, errors, snap } = await open({ dist: true, width: W, height: H, dsf: 1 });
 let failed = false;
 try {
   await goto(`${base}?world=${world}&shot=${shot}${query ? '&' + query : ''}`);
   await page.waitForFunction(() => window.__shotReady === true || window.__shotError, null, { timeout, polling: 500 });
+  if (shotOut && !(await snap(shotOut))) failed = true;
   const res = await page.evaluate(() => {
     const a = window.__app, g = a.grass, r = a.renderer, gl = r.getContext(), cam = a.rig.camera;
     const fields = [...(g.fields || []), ...(g.clumps || []), ...(g.mids || []), ...(g.flowers || [])].filter((f, i, all) => f && f.mesh && all.indexOf(f) === i);
