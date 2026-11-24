@@ -204,7 +204,9 @@ npm run lakes          # Earth's lakes and rivers against the real ones, without
 npm run rocks          # the far rocks' rule against its promises, without a browser (5 s): the same twice, none in water, on the ground, steep against level ground, a walker's footing
 npm run shadowturns    # the shadow tiles drawn in turns: a held tile must draw the same picture as a fresh one after a walk (headless, Moon)
 node scripts/play-profile.mjs [--world earth] [--at "21.7,284.7,40"] [--floor] [--seconds 120] [--shot out.png]   # the real game in play mode at a place: the page's work by part, the governor's level, patches built (--floor: every saving on)
-node scripts/tree-preview.mjs [--out dir] [--variant 1] [--only 0,2] [--below]   # every tree shape at its three distances, drawn without a browser in seconds (PNG sheets)
+node scripts/tree-preview.mjs [--out dir] [--variant 1] [--only 0,2] [--below] [--close [--from 4]] [--against <other checkout>]   # every tree shape at its three distances, drawn without a browser in seconds (PNG sheets); --close: the close mesh from 4 m at the phone's density (what a leaf looks like to a walker); --against: old beside new
+node scripts/find-tree.mjs --world haven --lat .. --lon .. [--from 4,12] [--species cherry]   # the trees standing nearest a place (as the game's workers place them), and where to put the camera to look at one from so many metres
+node scripts/overdraw.mjs [--part trees,farForest,grass,leaves] [--view "in the forest" | --query ..] [--distdir build] [--out dir]   # layers of a part drawn over each pixel and triangles handed over, in the real game (a forest is paid for in layers of cut-out pixels); also __app.overdraw('trees') at the console
 node scripts/make-world.mjs [--width 4096] [--seed 7] [--preview dir] [--only-preview]   # makes the small world's land (Haven): elevation with drainage, lakes, rain (a minute; --width 2048 --only-preview: nine seconds, with pictures to judge it by)
 node scripts/make-world-maps.mjs   # ... and from that its colour, slope, water and cloud maps (needs Python's PIL for the JPEGs); prints the albedo map's mean for the world file
 node scripts/find-haven-site.mjs [--open] [--lat 28,52]   # places on Haven to begin at: level ground over low ground and water, high ground near by
@@ -226,6 +228,8 @@ python3 scripts/fit-orbits.py      # orbits fitted to JPL Horizons (needs ssd.jp
 npm run assets         # re-download and convert the small NASA/Yale files into public/data/
 python3 scripts/fetch-maps.py   # the rest of public/data/ (needs: pip install rasterio numpy pillow), see docs/ASSETS.md
 node scripts/parts-out.mjs --world haven --shot ledge [--query ..] [--box 0.2,0.6,0.8,1] [--distdir build]   # who draws that? one view taken with one part out at a time (grass, clumps, trees, far forest, rocks, shadow casters), and how much of the picture each changes
+scripts/ground-cost-run.sh <scratch dir> [--only ledge,air3k] [--before old-terrainMaterial.js] [--save dir] [--parts file.mjs] [--size 880x412 --dsf 2.2]   # what the ground's shading costs, as a count of work on software WebGL (never a frame rate): the game's ground alone at ten views, the shader of an earlier commit beside the new one in the same browser session, and how far their pictures are apart (git show <commit>:src/terrain/terrainMaterial.js > old-terrainMaterial.js). Runs scripts/ground-cost.mjs from a copy of the tree: the dev server reloads the page at any source edit
+node scripts/hero-cost.mjs   # what the character costs the page each frame, without a browser (seconds): the cloth at 60 and 30 frames a second, the whole figure; fails if the cloth's points have moved from scripts/lib/robe-reference.json
 npm run probe          # top-down shaded relief of the height function (no browser)
 node scripts/sky-table.mjs [--lat .. --lon ..]   # where the sky bodies are from a place over time (no browser)
 node scripts/profile-chunks.mjs --world moon   # chunk build times per level (no browser)
@@ -680,5 +684,19 @@ finished benchmark leaves its text in `window.__benchResult`.
   scratchpad, the frozen build and the pictures survived, the processes did not. Start
   long runs detached (`nohup setsid script &`), as steps that each write a line to a log
   when done, and wait on the log: then a run is picked up from its last line.
+- Software WebGL (the headless browser) does not skip what follows an early `return` in
+  a shader, only what stands inside an `if` that is false for the whole 2 x 2 pixels: the
+  ground "in one flat tone" (`uPlain`) still cost a third of its shading there, and a
+  measure of "shaded minus flat" left that third out. A texture read costs it far more
+  against arithmetic than it costs a GPU, and its vertices cost as much as its pixels at
+  the reference pictures' size: work moved from pixels to vertices shows no gain there.
+  Believe it about what is skipped; measure at the phone's pixel count (`--dsf 2.2`).
+- The dev server reloads the page when a source file changes: a long headless run from
+  the working tree is spoilt by the next edit (a cost profile was, mid-way, without a
+  word). Long runs go from a frozen build (`--distdir`) or from a copy of the tree.
+- The phone's cost table shows work done at every pixel and then weighted zero as the
+  cost of the saving that happens to switch it off: `far-relief` bought 3.5 ms at the
+  opening view, where the relief is added to no pixel near by; what it bought was a loop
+  over the elevation rasters run before the test that makes it unnecessary.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

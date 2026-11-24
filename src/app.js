@@ -17,7 +17,8 @@ import { waveHeightAt, waveScale } from './water/waves.js';
 import { Trees } from './life/trees.js';
 import { FarForest } from './life/farForest.js';
 import { TreeShade } from './life/treeShade.js';
-import { Leaves } from './life/leaves.js';
+import { Leaves, Petals } from './life/leaves.js';
+import { overdraw } from './perf/overdraw.js';
 import { CloudVolume } from './sky/cloudVolume.js';
 import { Weather } from './weather/weather.js';
 import { Rain } from './weather/rain.js';
@@ -290,6 +291,7 @@ export class App {
     // (boulders and outcrops as far as they can be seen: the land's own, in tiles)
     this.farRocks = new FarRocks(world, this.terrain); this.nearScene.add(this.farRocks.group);
     this.addRockCasters();
+    this.noClouds = params.debug.includes('noclouds');
     this.farRocks.off = params.debug.includes('farrocksoff');      // ?debug=farrocksoff: none of them, for before/after pictures
     // Trees (worlds that have them): drawn with the ground, and they cast shadows
     this.trees = new Trees(world, this.terrain); this.trees.renderer = renderer;
@@ -305,6 +307,7 @@ export class App {
     this.nearScene.add(this.grass.mesh);
     this.leaves = new Leaves(this.trees);
     this.nearScene.add(this.leaves.mesh);
+    this.petals = new Petals(this.trees); this.nearScene.add(this.petals.mesh);          // (what the trees in flower let go)
     // The order solid things are drawn in: what stands in front first, the ground last.
     // The ground's pixels are by far the dearest in the picture, and drawn first (as it
     // was, being the oldest object) all of it was shaded and then covered: under a meadow's
@@ -312,8 +315,8 @@ export class App {
     // only the ground that shows is shaded (the depth test throws the rest out unshaded).
     {
       const order = (o, n) => o.traverse((m) => { m.renderOrder = n; });
-      order(this.grass.mesh, -30); order(this.leaves.mesh, -30);
-      for (const set of this.trees.sets.flat(2)) order(set.mesh, -20);
+      order(this.grass.mesh, -30); order(this.leaves.mesh, -30); order(this.petals.mesh, -30);
+      for (const set of this.trees.sets.flat(2)) order(set.mesh, -20.3 + 0.1 * set.lod);          // (the nearest trees' meshes first: what they hide is not shaded)
       order(this.rocks.mesh, -10);
     }
     // (a picture must not depend on which frame it is; and at Sharp's 30 frames a second
@@ -428,6 +431,9 @@ export class App {
   }
   // The clock set to a moment (milliseconds since 1970 UTC), kept inside the years the
   // orbits were fitted for.
+  // How many layers of a part are drawn over each pixel (perf/overdraw.js; scripts/overdraw.mjs).
+  overdraw(part) { return overdraw(this, part); }
+
   setDate(ms) {
     this.baseJD = Math.min(JD_MAX, Math.max(JD_MIN, dateToJD(ms))); this.timeOffsetHours = 0;
     this.toast?.show(new Date(jdToDate(this.baseJD)).toISOString().slice(0, 10));
@@ -1257,6 +1263,7 @@ export class App {
       // brown in a ring between the trees and the canopy)
       this.terrain.shared.uShell.value.set(drawn ? r * 0.62 : 0, drawn ? r * 0.98 : 1, tr.def ? 1 : 0);
       this.leaves.update(rig, this.post.viewH);
+      this.petals.update(rig, this.post.viewH, dt);
       this.grass.update(rig, dt, renderer);
       { const up = rig.localUp, sd = G.uSunDir.value; this.pollen.update(dt, sd.x * up[0] + sd.y * up[1] + sd.z * up[2]); }
       // (fallen leaves on the ground under the trees, in their season)
@@ -1346,7 +1353,9 @@ export class App {
     // interrupts the main picture, see sky/cloudVolume.js)
     this.cloudVolume.place(rig.pos);
     const cloudFar = this.clouds.update(rig.pos, world.radius, this.cloudVolume);
-    const vol = this.cloudVolume.ready(rig.pos, this.clouds);
+    // (?debug=noclouds: a clear sky, for pictures of the land from high above; their shadows go with them)
+    if (this.noClouds) this.clouds.mesh.visible = false;
+    const vol = !this.noClouds && this.cloudVolume.ready(rig.pos, this.clouds);
     this.clouds.uniforms.uNearFade.value = vol ? this.cloudVolume.reach : 0;
     if (vol) this.cloudVolume.render(post, rig, this.terrain.shared.uWave.value.z, this.clouds, this.terrain.shared.uWind, this.weather);
     // (the clouds' shadow on trees and on the grass's far clumps: a small map of it, before the main picture is begun)

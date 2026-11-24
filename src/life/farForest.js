@@ -35,7 +35,7 @@ import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
 import { VARIANTS } from './treeGeometry.js';
-import { SPECIES } from './cover.js';
+import { SPECIES, bloomOf } from './cover.js';
 import { TREE_FLOATS } from './treeBlock.js';
 import { BASE_BLOCKS, BAND, LEVELS, band, levelReach, wantedTiles, GROW } from './farTiles.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
@@ -55,6 +55,10 @@ const MARGIN = 1.5;           // a tile is filled with rather more trees than ar
 // that range, not 0 to 1, so that a far tree's green is the near one's to within a part in
 // three hundred and the two cannot differ at the line where they meet.
 const COLOUR_TOP = 0.75;
+// A tree in flower, far off: its leaf colour gone over to its petals' as far as it is in
+// flower (near by the picture says which texels are petals: life/trees.js; here the whole
+// crown takes the colour). own: the tree's own number (it flowers a few days before or after its neighbours).
+function inFlower(sp, day, own, south) { const k = bloomOf(sp, day + (own - 0.5) * 8, south ? -1 : 1).open * 0.8; return sp.leaf.map((v, i) => v + (sp.blossom.colour[i] * 0.5 - v) * k); }
 function pack(c) { const b = (v) => Math.round(Math.min(1, Math.max(0, v / COLOUR_TOP)) * 255); return b(c[0]) * 65536 + b(c[1]) * 256 + b(c[2]); }
 
 
@@ -160,7 +164,7 @@ export class FarForest {
         vec2 px = vUv * vec2(${ATLAS_W}.0, ${ATLAS_H}.0);
         float lod = 0.5 * log2(max(max(dot(dFdx(px), dFdx(px)), dot(dFdy(px), dFdy(px))), 1.0));
         if (cut.r < mix(0.42, 0.16, clamp(lod / 3.0, 0.0, 1.0))) discard;
-        bool wood = cut.b > 0.5;
+        bool wood = cut.b > 0.75;          // (0.5 is a petal in the picture: a tree in flower is its petals' colour all over from here, see inFlower)
         vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel), N = normalize(vN);
         // leaves in their season: green, then this tree's own gold, orange or red
         float turn = vOwn.y > 0.5 ? clamp(uSeason.x * 1.6 - vOwn.x * 0.6, 0.0, 1.0) : 0.0;
@@ -397,7 +401,7 @@ export class FarForest {
         const sp = SPECIES[T[q + 6]], own = T[q + 7];
         iA[n * 4] = x; iA[n * 4 + 1] = y; iA[n * 4 + 2] = z; iA[n * 4 + 3] = T[q + 3];
         iB[n * 4] = T[q + 4]; iB[n * 4 + 1] = T[q + 5]; iB[n * 4 + 2] = sp.arch * VARIANTS + Math.min(VARIANTS - 1, Math.floor(((own * 7.31) % 1) * VARIANTS)); iB[n * 4 + 3] = own;
-        iC[n * 4] = rank; iC[n * 4 + 1] = pack(sp.leaf); iC[n * 4 + 2] = pack(sp.trunk); iC[n * 4 + 3] = sp.fall * 4 + 3 * tile.vis[k];
+        iC[n * 4] = rank; iC[n * 4 + 1] = pack(sp.blossom ? inFlower(sp, this.trees.day, T[q + 7], this.trees.anchor.z < 0) : sp.leaf); iC[n * 4 + 2] = pack(sp.trunk); iC[n * 4 + 3] = sp.fall * 4 + 3 * tile.vis[k];
         const r2 = x * x + y * y + z * z + T[q + 3] * T[q + 3];
         if (r2 > bound2) bound2 = r2;
         n++;

@@ -80,7 +80,26 @@ trees `session_01XG1DZ6z4HnMC6bjsyXexux`, branch `ccr-aa39490a-trees-refined`; g
 `session_01XG1DZ4yJLFGhdSyRj3Cexf`, branch `ccr-aa39490a-from-above`; speed
 `session_01XG1DZ38BpdeY4LvbUGcmCq`, branch `ccr-aa39490a-phone-speed` (announces
 "S-EARLY", then "S1" to "S4"). Each announces an
-early push ("T-EARLY", "G-EARLY", "A-LOOK") and writes a report beside its brief. Only the
+early push ("T-EARLY", "G-EARLY", "A-LOOK") and writes a report beside its brief.
+
+**08:00, first results** (2026-11-24):
+- *Trees*: two sheets and the first game pictures (`docs/shots/trees-refined/` on its
+  branch): a whole skeleton, bark, fir boughs as fans of fronds, pine needles in tufts,
+  leaves in tones, a flowering tree with petals; close trees 2.5 to 3.5 thousand triangles,
+  and the near trees' count at the forest view fell from 265k to 143k. Sent back: no solid
+  dark lumps (done), bark too pale. Not merged here yet: to be merged when the wood from
+  inside has been seen.
+- *From above*: its list is `docs/briefs/from-above-look.md` on its branch, with 29
+  pictures. The worst: **two forests over one another in two colours** (the ground's
+  raised canopy is gold domes, the far trees on it green), from above the far trees are
+  specks and crosses (crowns cover 23 % of a closed wood at 1 km), from 3 km a wood is a
+  smooth blot, the steppe an even ochre. Decided: one forest, one green (the canopy takes
+  the trees' colour by a rule the far forest exports). **Order of work in
+  `terrainMaterial.js`**: the speed helper cuts it into tiers first and marks a block "the
+  ground from afar" (announced as "S1a"); when that is merged here, tell the from-above
+  helper, who then changes the far look inside that block. Until then it works on the
+  trees' side.
+- *Grass*, *speed*: no push yet at 08:00. Only the
 speed helper may edit `terrainMaterial.js`.
 
 ### The far view sent: trees, grass and rock as far as one can see

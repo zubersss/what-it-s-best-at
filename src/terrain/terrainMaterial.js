@@ -27,12 +27,42 @@ vec3 albedoRange(vec3 t, vec2 r) {
   return x * (1.0 + (t / L - 1.0) * trust * trust);
 }`;
 
+// The cloud that stands between a place on the ground and the Sun: x the day's map there,
+// y the heap the layer shows there (0..1), z the layer's cover (see sky/clouds.js,
+// HEAP_GLSL). One rule for the vertices of the near ground and the pixels of the far (the
+// shader below says which asks where). P: planet-centred metres; r: its length.
+const CLOUD_OVER_GLSL = /* glsl */`
+uniform sampler2D tClouds;      // the home world's cloud map (its shadow on the ground)
+uniform vec4 uCloud;           // x how dark the shadow is (0: no clouds), y the cloud layer's radius (m), z the map's longitude shift (turns)
+precision highp sampler3D;
+uniform sampler3D tCloudNoise; // the cloud volume's noise: the ground is shaded by the heaps the layer shows (sky/clouds.js, HEAP_GLSL)
+uniform vec4 uCloudHeap;       // x 1 - the layer's cover, y the fair-weather cover, w 1: shade by the heaps (0: by the day's map alone)
+uniform vec3 uCloudVol, uCloudWind;      // the heaps' scales, and where their noise has drifted to (the layer's uVol, uVolWind)
+${HEAP_GLSL}
+vec3 cloudOver(vec3 P, float r) {
+  vec3 uc = normalize(P + uSunDir * ((uCloud.y - r) / max(dot(P, uSunDir) / r, 0.08)));
+  float cd = textureLod(tClouds, vec2(atan(uc.y, uc.x) * 0.15915494 + uCloud.z, acos(clamp(uc.z, -1.0, 1.0)) * 0.31830989), 0.0).r;
+  float cc = 0.0, hp = 0.0;
+  if (uCloudHeap.w > 0.5) hp = cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudWind, 0.0, cc);
+  return vec3(cd, hp, cc);
+}`;
+// The near ground asks about the cloud over it at its vertices: patches up to this many
+// detail tiles across (their vertices are then at most 20 m apart, and the cloud's heaps
+// are cut from a noise whose cells are 80 m: between two vertices it is all but a straight
+// line). The shade's clean edge is still cut at every pixel, from the numbers handed on.
+const CLOUD_VERT_TILES = 12.5;
+
 // One instance per drawn chunk; its sixteen numbers (written in terrain.js):
 //   aI0 = xyz the chunk's centre relative to the camera, w the distance where it has fully become its parent
 //   aI1 = xyz the chunk's centre in planet axes, w the fade from the parent's look just after it first appeared (1 -> 0)
 //   aI2 = xy detail-texture offset in tiles, z the chunk's extent in tiles, w its layer in the texture arrays
 //   aI3 = x the parent's layer (-1: none loaded), y and z this chunk's corner inside the parent (0 or 0.5), w the cube face
+// (the lighting chunk is here for two things that hardly change over a triangle of the
+// ground and are worked out at its vertices, not at every pixel: the Sun's light through
+// the air above the place, and the air between the eye and it. See the end of main.)
 const VERT = /* glsl */`
+#define HAZE_UV 1
+${LIGHTING_PARS}
 in vec2 aGrid;
 in vec4 aI0, aI1, aI2, aI3;
 uniform highp sampler2DArray tVert;     // xyz = vertex relative to the chunk's centre, w = height above datum
@@ -42,15 +72,19 @@ uniform vec4 uSea;
 uniform sampler2D tRingColour;          // (its fourth number: how tall the canopy stands, 0.2 m a step)
 uniform vec4 uRingColour;
 uniform vec3 uShell;         // the forest raised as a whole: from x to y metres away it rises to its height; z: 1 if this world has forests
-out float vShell;            // how much of the canopy stands here (0: none, the ground is the ground)
+out vec3 vHMS;               // x the height above the datum, y the morph (0 = this chunk's own shape and shading, 1 = its parent's), z how much of the canopy stands here (0: none, the ground is the ground)
+out vec3 vSun;               // the Sun's light reaching the place (directSun)
+out vec3 vHazeT;             // the air between the eye and the place: colour * T + L + G * (rho - 1), see hazeAffine (lightingGlsl.js)
+out vec3 vHazeL;
+out vec3 vHazeG;
+out vec3 vCloud;             // the cloud between the place and the Sun (cloudOver), on the near ground (CLOUD_VERT_TILES)
+${CLOUD_OVER_GLSL}
 uniform vec4 uWind;          // xyz: where the wind blows to (unit, planet axes), w: its speed (m/s)
 uniform vec3 uWave;          // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
 uniform vec2 uTide;          // x: the sea's level against the level its shore is mapped at (m, 0 or below: the map is the highest tide)
 ${WAVE_GLSL}
 out vec2 vGrid;
-out float vMorph;            // 0 = this chunk's own shape and shading, 1 = its parent's
 out vec2 vDetailUv;
-out float vHeight;
 out vec3 vRel;
 flat out vec3 vTanU;         // the cube face's two axes laid on the ground at the chunk's centre
 flat out vec3 vTanV;
@@ -59,6 +93,7 @@ flat out vec2 vParentOff;
 const vec3 FACE_U[6] = vec3[6](${FACES.map((f) => `vec3(${f.u.map((x) => x.toFixed(1)).join(', ')})`).join(', ')});
 const vec3 FACE_V[6] = vec3[6](${FACES.map((f) => `vec3(${f.v.map((x) => x.toFixed(1)).join(', ')})`).join(', ')});
 void main() {
+  float vMorph, vHeight, vShell;           // (handed on as one: vHMS)
   ivec3 tc = ivec3(gl_VertexID % VERT_W, gl_VertexID / VERT_W, int(aI2.w + 0.5));
   vec4 pv = texelFetch(tVert, tc, 0);
   float dm = texelFetch(tMorph, tc, 0).r;
@@ -133,6 +168,16 @@ void main() {
   vChunk = vec4(aI2.w, aI3.x, aI2.z, 0.0);
   vParentOff = aI3.yz;
   gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
+  vHMS = vec3(vHeight, vMorph, vShell);
+  // The Sun's light here, and the air between the eye and here (from inside the air: from
+  // space the air is worked out pixel by pixel, the planet's edge needs it). Both were asked
+  // at every pixel: eight texture reads of the sixteen a pixel of far ground made.
+  vSun = directSun(uCamPlanetPos + rel);
+  vHazeT = vec3(1.0); vHazeL = vec3(0.0); vHazeG = vec3(0.0);
+  // (a vertex behind the eye has no place in the view: the edge of the view on its side)
+  vCloud = vec3(0.0);
+  if (uCloud.x > 0.0 && aI2.z <= float(CLOUD_VERT_TILES)) { vec3 P = uCamPlanetPos + rel; float rP = length(P); if (rP < uCloud.y) vCloud = cloudOver(P, rP); }
+  if (length(uCamPlanetPos) * 0.001 <= uRTop) hazeAffine(rel, gl_Position.xy / max(abs(gl_Position.w), 1e-6) * 0.5 + 0.5, vHazeT, vHazeL, vHazeG);
 }`;
 
 const FRAG = /* glsl */`
@@ -143,6 +188,7 @@ uniform lowp sampler2DArray tShadow;    // one layer per chunk: baked sun visibi
 // the vertices morph toward the parent's shape)
 uniform sampler2D tStrata;
 uniform sampler2D tDetail;
+uniform vec4 uDetailMean;        // the detail texture's last level: the one number it comes to seen from far enough
 uniform vec3 uDust, uSand, uScree, uRock, uBedrock;
 uniform vec4 uSlopes;          // dustMax, screeMin, screeMax, rockMin (tan slope)
 uniform vec4 uStrata;          // 1/period, contrast, 1/finePeriod, fine contrast
@@ -155,13 +201,7 @@ uniform float uCoverContrast;  // how pure the cover's patches are (1: all sand 
 uniform float uBedrockSlope;   // bedrock share on gentle slopes just short of scree (dust and sand slide off)
 uniform vec4 uRipple;          // xy = ripple wave vector (whole cycles per detail tile), z = strength, w = share on dust
 uniform float uRoughness;
-uniform sampler2D tClouds;      // the home world's cloud map (its shadow on the ground)
-uniform vec4 uCloud;           // x how dark the shadow is (0: no clouds), y the cloud layer's radius (m), z the map's longitude shift (turns)
-precision highp sampler3D;
-uniform sampler3D tCloudNoise; // the cloud volume's noise: the ground is shaded by the heaps the layer shows (sky/clouds.js, HEAP_GLSL)
-uniform vec4 uCloudHeap;       // x 1 - the layer's cover, y the fair-weather cover, w 1: shade by the heaps (0: by the day's map alone)
-uniform vec3 uCloudVol, uCloudWind;      // the heaps' scales, and where their noise has drifted to (the layer's uVol, uVolWind)
-${HEAP_GLSL}
+${CLOUD_OVER_GLSL}
 uniform vec4 uSea;             // water: x = 1 if the world has any, y the sea's level (m), z how tight the Sun's glint is, w how strong the ripples
 uniform vec3 uSeaColor;        // deep water's own colour
 uniform vec4 uGrassTone;       // the grass round the traveller (life/grass.js): x how dry, y how much of the ground it covers, z its flowers, w how strongly (0: none drawn)
@@ -169,7 +209,6 @@ ${GRASS_GLSL}
 ${FLOWERS_GLSL}
 uniform vec4 uWind;            // xyz: where the wind blows to (unit, planet axes), w: its speed (m/s)
 uniform vec3 uWave;            // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
-in float vShell;               // the forest raised as a whole (vertex shader): how much canopy stands here
 uniform float uLitter;         // fallen leaves under the trees, 0..1 by the season
 ${WAVE_GLSL}
 uniform float uTime;
@@ -224,9 +263,13 @@ vec2 reliefSlope(vec2 uv, float lod) {
 }
 in vec2 vGrid;
 in vec2 vDetailUv;
-in float vHeight;
 in vec3 vRel;
-in float vMorph;
+in vec3 vHMS;                  // x height above the datum, y the morph toward the parent, z the forest raised as a whole (vertex shader): how much canopy stands here
+in vec3 vSun;                  // the Sun's light reaching the place, and the air between the eye and it (worked out at the vertices)
+in vec3 vHazeT;
+in vec3 vHazeL;
+in vec3 vHazeG;
+in vec3 vCloud;                // the cloud between the place and the Sun (cloudOver), on the near ground
 flat in vec3 vTanU;
 flat in vec3 vTanV;
 flat in vec4 vChunk;           // x = layer, y = parent's layer (-1: none), z = extent in tiles of DETAIL_TILE metres
@@ -268,6 +311,7 @@ ${ALBEDO_RANGE_GLSL}
 
 void main() {
   if (uPlain > 0.5) { fragColor = vec4(vec3(0.05), 1.0); return; }
+  float vHeight = vHMS.x, vMorph = vHMS.y, vShell = vHMS.z;
   vec3 uTanU = vTanU, uTanV = vTanV;
   vec4 nt = texture(tNormal, vec3((vGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), vChunk.x));
   float shadow = texture(tShadow, vec3((vGrid * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1), vChunk.x)).r;
@@ -303,21 +347,32 @@ void main() {
     vec2 hg = vec2(dFdx(vHeight), dFdy(vHeight)) / float(DETAIL_TILE);
     vec3 w = max(abs(vec3(dot(N, uTanU), dot(N, uTanV), dot(N, up))) - 0.42, 0.0);
     w *= w; w /= w.x + w.y + w.z + 1e-8;
+    // (each of the two layers is read only where it can still show: where a pixel is so
+    // wide on the ground that the sampler would answer with the texture's last level, one
+    // number, that number is used and nothing is read. The picture is the same;
+    // seen at a low angle that is all the ground beyond some 90 m for the fine layer and
+    // 300 m for the coarse one. DETAIL_LAST: see makeTerrainMaterial.)
     vec4 a, b;
     if (w.z > 0.0) {
-      a = textureGrad(tDetail, vDetailUv * 9.0, gx * 9.0, gy * 9.0); b = textureGrad(tDetail, vDetailUv * 83.0, gx * 83.0, gy * 83.0);
+      float f2 = max(dot(gx, gx), dot(gy, gy));
+      a = uDetailMean; b = uDetailMean;
+      if (f2 < DETAIL_LAST / 81.0) { a = textureGrad(tDetail, vDetailUv * 9.0, gx * 9.0, gy * 9.0); if (f2 < DETAIL_LAST / 6889.0) b = textureGrad(tDetail, vDetailUv * 83.0, gx * 83.0, gy * 83.0); }
       d1 += (a - 0.5) * w.z; d2 += (b - 0.5) * w.z;
       grain += (uTanU * ((a.r - 0.5) * 0.9 + (b.r - 0.5) * 0.8) + uTanV * ((a.g - 0.5) * 0.9 + (b.g - 0.5) * 0.8)) * w.z;
     }
     if (w.x > 0.0) {             // a face looking along U: along V and up
       vec2 uv = vec2(vDetailUv.y, hy), sx = vec2(gx.y, hg.x), sy = vec2(gy.y, hg.y);
-      a = textureGrad(tDetail, uv * 9.0, sx * 9.0, sy * 9.0); b = textureGrad(tDetail, uv * 83.0, sx * 83.0, sy * 83.0);
+      float f2 = max(dot(sx, sx), dot(sy, sy));
+      a = uDetailMean; b = uDetailMean;
+      if (f2 < DETAIL_LAST / 81.0) { a = textureGrad(tDetail, uv * 9.0, sx * 9.0, sy * 9.0); if (f2 < DETAIL_LAST / 6889.0) b = textureGrad(tDetail, uv * 83.0, sx * 83.0, sy * 83.0); }
       d1 += (a - 0.5) * w.x; d2 += (b - 0.5) * w.x;
       grain += (uTanV * ((a.r - 0.5) * 0.9 + (b.r - 0.5) * 0.8) + up * ((a.g - 0.5) * 0.9 + (b.g - 0.5) * 0.8)) * w.x;
     }
     if (w.y > 0.0) {             // a face looking along V: along U and up
       vec2 uv = vec2(vDetailUv.x, hy), sx = vec2(gx.x, hg.x), sy = vec2(gy.x, hg.y);
-      a = textureGrad(tDetail, uv * 9.0, sx * 9.0, sy * 9.0); b = textureGrad(tDetail, uv * 83.0, sx * 83.0, sy * 83.0);
+      float f2 = max(dot(sx, sx), dot(sy, sy));
+      a = uDetailMean; b = uDetailMean;
+      if (f2 < DETAIL_LAST / 81.0) { a = textureGrad(tDetail, uv * 9.0, sx * 9.0, sy * 9.0); if (f2 < DETAIL_LAST / 6889.0) b = textureGrad(tDetail, uv * 83.0, sx * 83.0, sy * 83.0); }
       d1 += (a - 0.5) * w.y; d2 += (b - 0.5) * w.y;
       grain += (uTanU * ((a.r - 0.5) * 0.9 + (b.r - 0.5) * 0.8) + up * ((a.g - 0.5) * 0.9 + (b.g - 0.5) * 0.8)) * w.y;
     }
@@ -350,15 +405,19 @@ void main() {
   vec3 mapTint = vec3(1.0);
   float mapW = 0.0;
   if (uAlbedoMap.w > 0.0) {
-    vec3 raw = textureGrad(tAlbedo, vec2(uvA.x + uAlbedoShift, uvA.y), gx, gy).rgb;
+    // (the world's own map is read only where the finer one round the traveller does not
+    // cover the place whole: where it does, nothing of the world's map is left in the colour)
+    vec3 raw = vec3(0.0);
+    float ringW = 0.0;
     if (uRingColour.w > 0.0) {
       // (Mercator: columns even in longitude, rows in atanh(sin(latitude)))
       float oz = max(1.0 - up.z * up.z, 1e-6), kv = uRingColour.z * 0.15915494;
       vec2 uvR = vec2(fract(uvA.x - uRingColour.x) * uRingColour.z, (uRingColour.y - 0.5 * log((1.0 + up.z) / (1.0 - up.z))) * kv);
       vec2 e2 = min(uvR, 1.0 - uvR);
       float rw = smoothstep(0.0, 0.07, min(e2.x, e2.y)) * uRingColour.w;
-      if (rw > 0.0) { vec4 ring = textureGrad(tRingColour, uvR, vec2(gx.x * uRingColour.z, -upX.z / oz * kv), vec2(gy.x * uRingColour.z, -upY.z / oz * kv)); raw = mix(raw, ring.rgb, rw); canopyTall = ring.a * 51.0 * rw; }
+      if (rw > 0.0) { vec4 ring = textureGrad(tRingColour, uvR, vec2(gx.x * uRingColour.z, -upX.z / oz * kv), vec2(gy.x * uRingColour.z, -upY.z / oz * kv)); raw = ring.rgb; ringW = rw; canopyTall = ring.a * 51.0 * rw; }
     }
+    if (ringW < 1.0) raw = mix(textureGrad(tAlbedo, vec2(uvA.x + uAlbedoShift, uvA.y), gx, gy).rgb, raw, ringW);
     raw *= uAlbedoMap.rgb;
     vec3 t = mix(albedoRange(raw, uAlbedoRange), raw, farW);
     mapW = uAlbedoMap.w * (1.0 - smoothstep(uAlbedoFade.x, uAlbedoFade.y, abs(up.z)));
@@ -367,17 +426,11 @@ void main() {
 
   // --- colour
   float hs = vHeight + (d0.b - 0.5) * 24.0;
-  vec3 tint = texture(tStrata, vec2(hs * uStrata.x, 0.25)).rgb * 2.0;
-  vec3 tintFine = texture(tStrata, vec2(hs * uStrata.z, 0.75)).rgb * 2.0;
-  vec3 band = mix(vec3(1.0), tint, uStrata.y) * mix(vec3(1.0), tintFine, uStrata.w);
   // How dark the map is here: dark ground is bare rock and sand, bright ground is mantled in dust.
   float dark = clamp((uCover.x - dot(mapTint, vec3(0.3333))) / (uCover.x - uCover.y), 0.0, 1.0);
   // Where dust mantles everything, rock and scree wear its hue (at their own brightness).
   float hue = mix(uRockHue.x, uRockHue.y, dark);
   vec3 dustHue = uDust / luma(uDust);
-  vec3 rock = mix(uRock, dustHue * luma(uRock), hue) * band;
-  vec3 scree = mix(uScree, dustHue * luma(uScree), hue) * mix(vec3(1.0), band, 0.35);
-  vec3 bedrock = mix(uBedrock, dustHue * luma(uBedrock), hue);
 
   // What covers gentle ground: dust, dark sand and bare bedrock. How much of each comes
   // from the place (the map's darkness, the altitude); where, from one pattern of patches
@@ -397,8 +450,21 @@ void main() {
     float far = smoothstep(6.0, 48.0, (abs(dFdx(vDetailUv.x)) + abs(dFdy(vDetailUv.x)) + abs(dFdx(vDetailUv.y)) + abs(dFdy(vDetailUv.y))) * 128.0);
     sandM = mix(cSand, sandM, uCoverContrast * (1.0 - far)); bedM = mix(cBed, bedM, uCoverContrast * (1.0 - far));
   }
+  // The bands of the rock: read only where one can show (on rock and scree; on gentle ground
+  // only on worlds whose dust shows them, or where bedrock lies bare): most ground is gentle.
+  vec3 band = vec3(1.0);
+  if (rockW + screeW > 0.0 || uStrataFlat > 0.0 || bedM > 0.0) {
+    // (the strata's picture has one level: read as that, it needs no footprint, which
+    // inside a branch it could not have)
+    vec3 tint = textureLod(tStrata, vec2(hs * uStrata.x, 0.25), 0.0).rgb * 2.0;
+    vec3 tintFine = textureLod(tStrata, vec2(hs * uStrata.z, 0.75), 0.0).rgb * 2.0;
+    band = mix(vec3(1.0), tint, uStrata.y) * mix(vec3(1.0), tintFine, uStrata.w);
+  }
   // (on gentle ground the bands follow the height, so from far away they would draw
   // contour lines across the plains: they show near the ground only)
+  vec3 rock = mix(uRock, dustHue * luma(uRock), hue) * band;
+  vec3 scree = mix(uScree, dustHue * luma(uScree), hue) * mix(vec3(1.0), band, 0.35);
+  vec3 bedrock = mix(uBedrock, dustHue * luma(uBedrock), hue);
   vec3 bandFlat = mix(band, vec3(1.0), farW);
   vec3 dust = uDust * mix(vec3(1.0), bandFlat, uStrataFlat);
   vec3 flatC = dust * (1.0 - sandM - bedM) + uSand * sandM + bedrock * bandFlat * bedM;
@@ -429,11 +495,15 @@ void main() {
   // map, it fades out, so the shading never disagrees with the ground underfoot.
   if (uRelief.x * uQuality.w > 0.0) {
     float lodC = log2(chunkTexel * (1.0 + pk) / uRelief.y);
-    float demRes = exp2(demLog2Res(fract(uvA.x) * 360.0, 90.0 - uvA.y * 180.0));
-    float lodRef = max(lodC, log2(2.5 * demRes / uRelief.y));
-    vec2 ts = vec2(uRelief.z, uRelief.z * 0.5);
-    float lodF = max(0.5 * log2(max(dot(gx * ts, gx * ts), dot(gy * ts, gy * ts))), 0.0);
     float nearFade = smoothstep(-5.0, -3.0, lodC);
+    // (near the ground it adds nothing: none of the rest is worked out there)
+    float lodRef = lodC, lodF = 1e3;
+    if (nearFade > 0.0) {
+      float demRes = exp2(demLog2Res(fract(uvA.x) * 360.0, 90.0 - uvA.y * 180.0));
+      lodRef = max(lodC, log2(2.5 * demRes / uRelief.y));
+      vec2 ts = vec2(uRelief.z, uRelief.z * 0.5);
+      lodF = max(0.5 * log2(max(dot(gx * ts, gx * ts), dot(gy * ts, gy * ts))), 0.0);
+    }
     if (lodRef > lodF + 0.05 && nearFade > 0.0) {
       vec2 dS = reliefSlope(uvA, lodF) - reliefSlope(uvA, lodRef);
       vec3 east = normalize(vec3(-up.y, up.x, 0.0) + vec3(1e-6, 0.0, 0.0)), north = cross(up, east);
@@ -539,11 +609,17 @@ void main() {
         float fpx = max(fwP.x, max(fwP.y, fwP.z));
         // (from farther: broken patches some metres across, then the drift's mean; nothing with a hard edge)
         // (thickest in a drift's middle and nothing at its edge, the edge broken by the fine specks: no rim)
-        float fn1 = flNoise(planetPos / 1.3), dens = fw.y * smoothstep(0.0, 0.5, fw.y);
-        float broken = 0.8 * dens * smoothstep(0.32, 0.7, flNoise(planetPos / 4.5 + vec3(7.0, 0.0, 3.0))) * smoothstep(0.25, 0.75, fn1);
-        float speck = smoothstep(0.45, 0.8, fn1 * (0.55 + 0.65 * fw.y));
+        // (each of the two noises only where it has a share: none where a speck is far smaller
+        // than a pixel, and the broken patches not where single specks are seen)
+        float dens = fw.y * smoothstep(0.0, 0.5, fw.y), fk = 0.2 * dens;
+        if (fpx < 5.0) {
+          float fn1 = flNoise(planetPos / 1.3);
+          float broken = fpx > 0.35 ? 0.8 * dens * smoothstep(0.32, 0.7, flNoise(planetPos / 4.5 + vec3(7.0, 0.0, 3.0))) * smoothstep(0.25, 0.75, fn1) : 0.0;
+          float speck = smoothstep(0.45, 0.8, fn1 * (0.55 + 0.65 * fw.y));
+          fk = mix(mix(speck, broken, smoothstep(0.35, 1.3, fpx)), 0.2 * dens, smoothstep(1.6, 5.0, fpx));
+        }
         // (pale flowers least: a white patch from the air is snow or stone)
-        float fk = mix(mix(speck, broken, smoothstep(0.35, 1.3, fpx)), 0.2 * dens, smoothstep(1.6, 5.0, fpx)) * (fw.x < 1.5 ? 0.4 : 1.0);
+        fk *= (fw.x < 1.5 ? 0.4 : 1.0);
         fk *= (1.0 - 0.6 * clamp(dot(V, up), 0.0, 1.0)) * (1.0 - 0.75 * smoothstep(150.0, 600.0, dG)) * (1.0 - smoothstep(600.0, 900.0, dG));
         gc = mix(gc, petalColour(fw.x, 0.5), fk * GRASS_FLOWER_SHARE);
       }
@@ -558,7 +634,7 @@ void main() {
   // (so many repeats round the globe that a repeat is 2.9 km on a world of any size: with
   // Earth's count on a world 250 km in radius the stretches were ten metres across, and on a
   // mountain side seen from some kilometres off they were level streaks, like a wood's grain)
-  if (uPaint.x > 0.0 && farW < 1.0) {
+  if (uPaint.x > 0.0 && farW < 1.0 && flatW > 0.0 && dist > 60.0) {
     vec2 kp = vec2(10.0, 5.0) * floor(uPlanetRadius * 0.00021975 + 0.5);
     float pa = textureGrad(tDetail, uvA * kp, gx * kp, gy * kp).a, pb = textureGrad(tDetail, uvA * kp * 3.7 + 0.31, gx * kp * 3.7, gy * kp * 3.7).a;
     float lay = smoothstep(0.42, 0.58, 0.6 * pa + 0.4 * pb);
@@ -630,16 +706,17 @@ void main() {
 
   // --- light
   if (uCloud.x > 0.0 && length(planetPos) < uCloud.y) {
-    // the cloud that stands between this ground and the Sun
-    vec3 uc = normalize(planetPos + uSunDir * ((uCloud.y - length(planetPos)) / max(dot(up, uSunDir), 0.08)));
-    float cd = textureLod(tClouds, vec2(atan(uc.y, uc.x) * 0.15915494 + uCloud.z, acos(clamp(uc.z, -1.0, 1.0)) * 0.31830989), 0.0).r;
-    float shade = smoothstep(0.2, 0.7, cd);
+    // the cloud that stands between this ground and the Sun (asked at the vertices of the
+    // near ground, here for the far: see CLOUD_VERT_TILES)
+    vec3 co = vCloud;
+    if (vChunk.z > float(CLOUD_VERT_TILES)) co = cloudOver(planetPos, length(planetPos));
+    float shade = smoothstep(0.2, 0.7, co.x);
     // (and every heap the layer shows casts its own: a cloud with its shadow beside it on
     // the land stands above the land; without, the clouds were a picture laid over it)
     // (only what the layer shows: the day's map has faint cloud where the layer draws none,
     // and its shade lay on the land as dark stains with nothing above them. Far off, where
     // the heaps cannot be told apart, the mean shade of the field.)
-    if (uCloudHeap.w > 0.5) { float cc, hp = cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudWind, 0.0, cc); shade = mix(0.85 * smoothstep(0.06, 0.42, hp), 0.5 * cc, farW); }
+    if (uCloudHeap.w > 0.5) shade = mix(0.85 * smoothstep(0.06, 0.42, co.y), 0.5 * co.z, farW);
     shadow *= 1.0 - uCloud.x * shade;
   }
   shadow *= nearShadow(vRel, N);
@@ -647,10 +724,11 @@ void main() {
   // disc it kept the limb nearly as bright as the centre (71 % at 72 degrees off the
   // vertical; real Mars is about half). Far ground blends to the world's farRoughness.
   float sigma = mix(uRoughness, uFarRoughness, farW);
-  float diffuse = groundDiffuse(N, uSunDir, V, sigma);
   // (the painted look: two tones of light, cleaner colours; not from far off, where the
   // globe keeps its round shading)
   float paint = uPaint.x * (1.0 - farW);
+  // (where the painted light is all of it, the other is not worked out)
+  float diffuse = paint < 1.0 ? groundDiffuse(N, uSunDir, V, sigma) : 0.0;
   if (paint > 0.0) { diffuse = mix(diffuse, paintLit(dot(N, uSunDir)), paint); albedo = mix(albedo, paintColour(albedo), 1.0 - water); }
   // The relief light: far ground is lit as a relief map is drawn, by a Sun no higher than
   // 35 degrees (from the real Sun's side), so that a canyon or a range has its lit and its
@@ -672,7 +750,8 @@ void main() {
       diffuse = mix(diffuse, mix(max(su, 0.0) * 0.3183099, paintLit(su), paint) * slopeL, kr);
     }
   }
-  vec3 direct = directSun(planetPos) * shadow * diffuse;
+  vec3 sunHere = vSun;
+  vec3 direct = sunHere * shadow * diffuse;
   vec3 ambient = (skyLight(N, up) * ao + planetShine(N)) * contactSky(vRel, N) / PI;
   if (canopyShade > 0.0) ambient = mix(ambient, dot(ambient, vec3(0.3, 0.55, 0.15)) * mix(vec3(0.85, 1.1, 0.5), vec3(1.25, 0.95, 0.45), uLitter), 0.85 * canopyShade);
   vec3 col = albedo * (direct + ambient);
@@ -683,7 +762,7 @@ void main() {
     float nh = max(dot(N, Hh), 0.0), a2 = rough * rough, dd = nh * nh * (a2 - 1.0) + 1.0;
     float F = 0.02 + 0.98 * pow(1.0 - max(dot(V, Hh), 0.0), 5.0), Fv = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
     vec3 Rv = reflect(-V, N); Rv = normalize(Rv + up * max(0.0, 0.05 - dot(Rv, up)));
-    col += water * (1.0 - foam) * (directSun(planetPos) * shadow * (a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0) * 0.25 / max(dot(N, V), 0.2)) + Fv * skyLight(Rv, up) / PI);
+    col += water * (1.0 - foam) * (sunHere * shadow * (a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0) * 0.25 / max(dot(N, V), 0.2)) + Fv * skyLight(Rv, up) / PI);
   } else if (uGloss.x > 0.0 || uWeather.z > 0.01) {
     // the Sun's sheen on ice, and on ground the rain has wetted: a broad glint toward the
     // Sun, strongest at a grazing view; it fades with distance into the far ground's plain
@@ -692,11 +771,14 @@ void main() {
     vec3 Hh = normalize(uSunDir + V);
     float nh = max(dot(N, Hh), 0.0), a2 = gr * gr, dd = nh * nh * (a2 - 1.0) + 1.0;
     float F = 0.03 + 0.97 * pow(1.0 - max(dot(V, Hh), 0.0), 5.0);
-    col += directSun(planetPos) * shadow * (gl * (1.0 - farW) * a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0));
+    col += sunHere * shadow * (gl * (1.0 - farW) * a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0));
     if (wetK > 0.0) { vec3 Rw = reflect(-V, N); Rw = normalize(Rw + up * max(0.0, 0.05 - dot(Rw, up))); col += wetK * flatW * 0.5 * pow(1.0 - max(dot(N, V), 0.0), 4.0) * skyLight(Rw, up) / PI; }
   }
   if (woodAir > 0.0) col = forestAir(col, vRel, up, woodAir);
-  col = aerialPerspective(col, vRel, albedo);      // the haze above depends on how bright the ground is
+  // the air (the haze depends on how bright the ground is): from inside it by the numbers
+  // worked out at the vertices, from space pixel by pixel
+  if (length(uCamPlanetPos) * 0.001 <= uRTop) col = col * vHazeT + vHazeL + vHazeG * (clamp(albedo / max(uGroundAlbedo, vec3(1e-4)), 0.0, 2.5) - 1.0);
+  else col = aerialPerspective(col, vRel, albedo);
   fragColor = vec4(col * uExposure, 1.0);
 }`;
 
@@ -704,7 +786,7 @@ void main() {
 export function makeTerrainShared(world, textures) {
   const shared = {
     ...lightingUniforms(),
-    tStrata: { value: textures.strata }, tDetail: { value: textures.detail },
+    tStrata: { value: textures.strata }, tDetail: { value: textures.detail }, uDetailMean: { value: new THREE.Vector4(...(textures.detail.userData.mean || [0.5, 0.5, 0.5, 0.5])) },
     uDust: { value: new THREE.Vector3() }, uSand: { value: new THREE.Vector3() },
     uScree: { value: new THREE.Vector3() }, uRock: { value: new THREE.Vector3() }, uBedrock: { value: new THREE.Vector3() },
     uSlopes: { value: new THREE.Vector4() }, uStrata: { value: new THREE.Vector4() }, uStrataFlat: { value: 0 },
@@ -782,7 +864,9 @@ export const DETAIL_PERIOD = 16;
 export function makeTerrainMaterial(shared, pool) {
   return new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
-    defines: { ...atmosphereDefines(), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, DETAIL_TILE, DETAIL_PERIOD, VERT_W: pool.VW, MORPH_START: CONFIG.MORPH_START, GRASS_FAR0: GRASS_GROUND.far[0].toFixed(1), GRASS_FAR1: GRASS_GROUND.far[1].toFixed(1), GRASS_FLOWER_SHARE: GRASS_GROUND.flowers.toFixed(3), GRASS_SLOPE0: GRASS_GROUND.slope[0].toFixed(3), GRASS_SLOPE1: GRASS_GROUND.slope[1].toFixed(3) },
+    // DETAIL_LAST: the square of the footprint (in repeats of the texture a pixel) from which a
+    // sampler with at most 4 taps along the long side answers with the last level: (4 / 1)^2, and as much again in case a GPU chooses its level a step finer than the rule
+    defines: { ...atmosphereDefines(), DETAIL_LAST: '64.0', CLOUD_VERT_TILES: CLOUD_VERT_TILES.toFixed(1), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, DETAIL_TILE, DETAIL_PERIOD, VERT_W: pool.VW, MORPH_START: CONFIG.MORPH_START, GRASS_FAR0: GRASS_GROUND.far[0].toFixed(1), GRASS_FAR1: GRASS_GROUND.far[1].toFixed(1), GRASS_FLOWER_SHARE: GRASS_GROUND.flowers.toFixed(3), GRASS_SLOPE0: GRASS_GROUND.slope[0].toFixed(3), GRASS_SLOPE1: GRASS_GROUND.slope[1].toFixed(3) },
     vertexShader: VERT, fragmentShader: FRAG,
     uniforms: {
       ...shared,

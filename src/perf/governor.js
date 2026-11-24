@@ -8,8 +8,12 @@
 //     cure are not theirs to cure: what was given up is put back, and that lateness moves
 //     nothing for a while (see `_dip`, `immune`). A device's own steady trickle of late
 //     frames (`bg`) neither brings quality down nor keeps it from coming back.
-//   - Only when resolution is at its floor are features stepped down, in the fixed order
-//     below, cheapest visual loss first. Step-ups happen in the reverse order.
+//   - Only when resolution is at its floor are features stepped down, in the order below:
+//     by what a step has been shown to buy on the test phone, then by what the eye loses;
+//     steps that can buy nothing where the traveller is are passed over. A trial goes on
+//     until the steps known to buy something have been tried. What went first comes back
+//     first, and what makes frames late again when it comes back goes off again and to
+//     the end of the line: in the end only what the frames need stays off.
 //   - Steps up need sustained headroom, and a step up that had to be taken back makes the
 //     governor wait longer before trying again, so it settles instead of hunting.
 //   - Two modes: Smooth (60 fps target, default) and Sharp (30 fps target).
@@ -27,46 +31,102 @@ export const MODES = {
   sharp: { label: 'Sharp', fps: 30, patches: 1 },
 };
 
-// Fixed step-down order. `apply(app, off)` switches the saving on (off = true) or back.
+// The step-down order. `apply(app, off)` switches the saving on (off = true) or back.
+//
+// By what a step buys, then by what the eye loses (the phone's ninth results, build
+// 6ac24ff, docs/benchmarks/2026-11-24-haven-6ac24ff.txt; before that the order was "least
+// loss first" alone, and a trial of two to four steps ended among steps that buy nothing
+// on the phone, four times in one benchmark, with the steps that could have cured the late
+// frames behind them):
+//   1. what the phone has shown to buy 2.5 ms and more, least loss to the eye first;
+//   2. what buys a little (0.5 to 1.6 ms) for little loss;
+//   3. what gives the land and the sky their depth from the air (they buy much, 4.0, 3.5
+//      and 9.4 ms, and are the last things of worth to go);
+//   4. what bought nothing that could be measured on the phone in any of its three cost
+//      views (under 1 ms, most of them inside the noise): kept for devices unlike it and
+//      for the floor, where they can no longer end a trial early.
+// `buys`: milliseconds a frame where the phone measured it (the largest of the three
+// views; 0.3 where nothing could be measured; a guess where the cost test cannot ask, said
+// so). A stride of the governor takes steps until they are expected to buy STRIDE_MS.
+// `live(app)`: whether the step can buy anything where the traveller is (no near trees
+// drawn: the tree steps cannot; no clumps: `grass-mid` cannot). A step that is not live
+// is passed over: switching it on would lose nothing and buy nothing, and count as a step
+// of the trial. Without `live` a step is always live.
+// The last steps leave the scene what it is: a step thins, it does not remove what a place
+// is about (the cloud layer and the rain stay whatever is switched off).
+const nearTrees = (app) => (app.trees?.count ?? 0) > 0 && !app.trees.hidden;
+const cloudVolume = (app) => !!app.cloudVolume?.wanted;
 export const FEATURE_STEPS = [
-  { id: 'detail', label: 'close-up ground detail', apply: (app, off) => { app.quality.x = off ? 0 : 1; } },
-  { id: 'soft-shadows', label: 'soft edges on rock and ship shadows', apply: (app, off) => { app.quality.y = off ? 0 : 1; } },
-  { id: 'contact', label: 'darkening at the foot of rocks and the lander', apply: (app, off) => { app.contact = !off; } },
-  { id: 'edge-glow', label: "glow on a planet's edge at half detail", apply: (app, off) => { app.quality.z = off ? 0 : 1; } },
-  { id: 'dust', label: 'half the kicked-up dust, simpler cloud', apply: (app, off) => { app.dust.amount = off ? 0.5 : 1; } },
-  { id: 'rocks', label: 'half the rocks', apply: (app, off) => { app.rocks.setFraction(off ? 0.5 : 1); } },
-  { id: 'far-rock-shadows', label: 'shadows of far rocks', apply: (app, off) => { if (app.farRocks) app.farRocks.shadows = !off; } },
-  // (the rocks of the land itself, to a mile and more: the small ones are seen from two thirds as far; the large ones, which are the hillside, stay)
-  { id: 'far-rocks', label: 'small rocks from less far', apply: (app, off) => { app.farRocks?.setFraction(off ? 0.62 : 1); } },
-  { id: 'fine-shadows', label: 'coarser shadows of nearby rocks', apply: (app, off) => { app.nearShadow.fine = !off; } },
-  { id: 'rain', label: 'thinner rain and snow', apply: (app, off) => { if (app.rain) app.rain.share = off ? 0.5 : 1; } },      // (half of 5 600 streaks; thinning 1 400 to 560 saved nothing that could be measured on the phone)
-  { id: 'leaves', label: 'leaves in the wind', apply: (app, off) => { if (app.leaves) app.leaves.enabled = !off; } },
-  { id: 'pollen', label: 'less pollen in the air', apply: (app, off) => { app.pollen?.setShare(off ? 0.4 : 1); } },
-  { id: 'grass-mid', label: 'thinner grass in the middle distance', apply: (app, off) => { app.grass?.setMidShare(off ? 0.5 : 1); } },
-  { id: 'grass', label: 'half the grass', apply: (app, off) => { app.grass?.setFraction(off ? 0.5 : 1); } },
-  { id: 'tree-leaves', label: 'every leaf on the nearest trees', apply: (app, off) => { if (app.trees) { app.trees.closeOn = !off; app.trees.dirty = true; } } },
-  { id: 'tree-shadows', label: 'shadows of the farther trees', apply: (app, off) => { if (app.trees) app.trees.shadowsFar = !off; } },
-  { id: 'trees-far', label: "the trees' full shapes to two thirds of their distance", apply: (app, off) => { app.trees?.setFraction(off ? 0.66 : 1); } },
-  // (it thins the far forest and shortens its reach; a wood stays a wood: the thinned trees
-  // stand wider, see life/farForest.js)
-  { id: 'far-trees', label: 'the far forest thinned', apply: (app, off) => { app.farForest?.setFraction(off ? 0.45 : 1); } },
-  { id: 'sun-beams', label: "the Sun's beams through trees and cloud", apply: (app, off) => { app.post.shaftsOn = !off; } },
-  // (no step for the waves that lift the water: on the phone it saved nothing that could be
-  // measured, at sea in a hurricane (seventh results), and a sea that lies flat is not a sea)
-  { id: 'cloud-steps', label: 'coarser clouds near you', apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.steps = off ? 22 : 36; } },
-  { id: 'terrain-1', label: 'terrain detail (fewer patches)', apply: (app, off) => { app.terrainBudget(off ? 0.8 : 1, 'terrain-1'); } },
-  { id: 'bloom', label: 'glow around bright things', apply: (app, off) => { app.post.bloomEnabled = !off; } },
-  { id: 'terrain-2', label: 'terrain detail (fewer patches again)', apply: (app, off) => { app.terrainBudget(off ? 0.64 : 1, 'terrain-2'); } },
-  { id: 'cloak', label: 'robe and hair simulated more loosely', apply: (app, off) => { app.hero.robe.halfRate = off; } },
-  { id: 'air-shadow', label: 'terrain shadows in the haze', apply: (app, off) => { app.atmosphere.airEnabled = !off; } },
-  // (the last to go: what gives the land and the sky their depth seen from the air. With these
-  // off a traveller coming down from space saw a flat map under a flat picture of clouds.)
+  // --- 1. bought 2.5 ms and more on the phone
+  // (3.4 ms in a wood)
+  { id: 'cloud-steps', buys: 3.4, label: 'coarser clouds near you', live: cloudVolume, apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.steps = off ? 22 : 36; } },
+  // (2.7 ms in a wood)
+  { id: 'tree-shadows', buys: 2.7, label: 'shadows of the farther trees', live: nearTrees, apply: (app, off) => { if (app.trees) app.trees.shadowsFar = !off; } },
+  // (5.0 ms at the opening view; the clumps left are wider: the ground stays covered)
+  { id: 'grass-mid', buys: 5.0, label: 'thinner grass in the middle distance', live: (app) => (app.grass?.keepClumps ?? 0) > 0 && !!app.grass.mesh?.visible, apply: (app, off) => { app.grass?.setMidShare(off ? 0.5 : 1); } },
+  // (7.0 ms in a wood)
+  { id: 'trees-far', buys: 7.0, label: "the trees' full shapes to two thirds of their distance", live: nearTrees, apply: (app, off) => { app.trees?.setFraction(off ? 0.66 : 1); } },
+  // (3.6 ms at the opening view. It thins the far forest and shortens its reach; a wood
+  // stays a wood: the thinned trees stand wider, see life/farForest.js)
+  { id: 'far-trees', buys: 3.6, label: 'the far forest thinned', live: (app) => !!app.farForest?.shown && app.farForest.count > 0, apply: (app, off) => { app.farForest?.setFraction(off ? 0.45 : 1); } },
+  // (11.5 ms in a wood: the most of any step; after the others here because it is seen from nearest)
+  { id: 'tree-leaves', buys: 11.5, label: 'every leaf on the nearest trees', live: nearTrees, apply: (app, off) => { if (app.trees) { app.trees.closeOn = !off; app.trees.dirty = true; } } },
+  // --- 2. bought a little
+  // (0.5 to 1.5 ms of the page's own work)
+  { id: 'cloak', buys: 1.0, label: 'robe and hair simulated more loosely', live: (app) => !!app.hero?.group?.visible, apply: (app, off) => { app.hero.robe.halfRate = off; } },
+  { id: 'fine-shadows', buys: 1.1, label: 'coarser shadows of nearby rocks', apply: (app, off) => { app.nearShadow.fine = !off; } },
+  { id: 'bloom', buys: 1.1, label: 'glow around bright things', apply: (app, off) => { app.post.bloomEnabled = !off; } },
+  // (1.6 ms in a wood)
+  { id: 'grass', buys: 1.6, label: 'half the grass', live: (app) => (app.grass?.keepBlades ?? 0) > 0 && !!app.grass.mesh?.visible, apply: (app, off) => { app.grass?.setFraction(off ? 0.5 : 1); } },
+  // (pollen in the air over flowers: 3 200 points at most, a point each; not yet measured on the phone, a guess)
+  { id: 'pollen', buys: 0.3, label: 'less pollen in the air', live: (app) => !!app.pollen?.mesh?.visible, apply: (app, off) => { app.pollen?.setShare(off ? 0.4 : 1); } },
+  // (the patches: the cost test cannot ask about them, the ground would have to settle
+  // again each time; a guess. They are also what the governor gives up when the page's own
+  // work is what is slow: see _down.)
+  { id: 'terrain-1', buys: 1.5, label: 'terrain detail (fewer patches)', apply: (app, off) => { app.terrainBudget(off ? 0.8 : 1, 'terrain-1'); } },
+  { id: 'terrain-2', buys: 1.5, label: 'terrain detail (fewer patches again)', apply: (app, off) => { app.terrainBudget(off ? 0.64 : 1, 'terrain-2'); } },
+  // --- 3. the depth of the land and the sky seen from the air. With these off a traveller
+  // coming down from space saw a flat map under a flat picture of clouds.
   // (the layer itself is never switched off: a hurricane with a clear sky is not one, and the
   // layer is one texture on the sky)
-  { id: 'clouds', label: "the clouds' shadows on the ground", apply: (app, off) => { if (app.clouds) app.clouds.shadows = !off; } },
-  { id: 'far-relief', label: 'relief shading of far ground', apply: (app, off) => { app.quality.w = off ? 0 : 1; } },
-  { id: 'cloud-volume', label: 'clouds with depth (they stay as a layer)', apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.enabled = !off; } },
+  // (4.0 ms at the opening view)
+  { id: 'clouds', buys: 4.0, label: "the clouds' shadows on the ground", live: (app) => !!app.clouds?.mesh?.visible, apply: (app, off) => { if (app.clouds) app.clouds.shadows = !off; } },
+  // (3.5 ms at the opening view, 2.1 from the air)
+  { id: 'far-relief', buys: 3.5, label: 'relief shading of far ground', live: (app) => (app.terrain?.shared?.uRelief?.value.x ?? 1) > 0, apply: (app, off) => { app.quality.w = off ? 0 : 1; } },
+  // (9.4 ms from the air on build 6ac24ff)
+  { id: 'cloud-volume', buys: 9.4, label: 'clouds with depth (they stay as a layer)', live: cloudVolume, apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.enabled = !off; } },
+  // --- 4. nothing that could be measured on the phone (each line: its largest reading in the three views)
+  // (0.4 ms from the air, -2.3 and -7.9 elsewhere: noise. The ground's shader now reads
+  // its close-up layers only where they can show, which is what this step used to save.)
+  { id: 'detail', buys: 0.3, label: 'close-up ground detail', apply: (app, off) => { app.quality.x = off ? 0 : 1; } },
+  // (0.4 ms)
+  { id: 'soft-shadows', buys: 0.3, label: 'soft edges on rock and ship shadows', apply: (app, off) => { app.quality.y = off ? 0 : 1; } },
+  // (nothing: -3.6 from the air)
+  { id: 'contact', buys: 0.3, label: 'darkening at the foot of rocks and the lander', apply: (app, off) => { app.contact = !off; } },
+  // (nothing in any view from the ground or 5 km up: it is a thing of the view from space)
+  { id: 'edge-glow', buys: 0.3, label: "glow on a planet's edge at half detail", apply: (app, off) => { app.quality.z = off ? 0 : 1; } },
+  // (0.4 ms)
+  { id: 'dust', buys: 0.3, label: 'half the kicked-up dust, simpler cloud', apply: (app, off) => { app.dust.amount = off ? 0.5 : 1; } },
+  // (nothing: -1.5)
+  { id: 'rocks', buys: 0.3, label: 'half the rocks', apply: (app, off) => { app.rocks.setFraction(off ? 0.5 : 1); } },
+  // (nothing: -1.1)
+  { id: 'far-rock-shadows', buys: 0.3, label: 'shadows of far rocks', apply: (app, off) => { if (app.farRocks) app.farRocks.shadows = !off; } },
+  // (nothing: -1.1. The rocks of the land itself, to a mile and more: the small ones are
+  // seen from two thirds as far; the large ones, which are the hillside, stay)
+  { id: 'far-rocks', buys: 0.3, label: 'small rocks from less far', apply: (app, off) => { app.farRocks?.setFraction(off ? 0.62 : 1); } },
+  // (0.5 ms in dry weather, where there is none to thin; half of 5 600 streaks; thinning
+  // 1 400 to 560 saved nothing that could be measured on the phone in a storm either)
+  { id: 'rain', buys: 0.3, label: 'thinner rain and snow', live: (app) => !!app.rain?.mesh?.visible, apply: (app, off) => { if (app.rain) app.rain.share = off ? 0.5 : 1; } },
+  // (nothing: -0.4)
+  { id: 'leaves', buys: 0.3, label: 'leaves in the wind', apply: (app, off) => { if (app.leaves) app.leaves.enabled = !off; if (app.petals) app.petals.enabled = !off; } },          // (petals: thinned to a third, not taken away)
+  // (nothing: -0.7)
+  { id: 'sun-beams', buys: 0.3, label: "the Sun's beams through trees and cloud", apply: (app, off) => { app.post.shaftsOn = !off; } },
+  // (no step for the waves that lift the water: on the phone it saved nothing that could be
+  // measured, at sea in a hurricane (seventh results), and a sea that lies flat is not a sea)
+  // (nothing: -0.5 and -2.8)
+  { id: 'air-shadow', buys: 0.3, label: 'terrain shadows in the haze', apply: (app, off) => { app.atmosphere.airEnabled = !off; } },
 ];
+const STRIDE_MS = 2.5;          // a stride down takes steps until they are expected to buy this much
 
 const RES_STEP = 0.88;          // each resolution step keeps 88 % of the pixels (about 6 % per side)
 // (Eighth phone results, build f300e6f: a frame at 1.00 MP took 40.5 ms in the cost test, at
@@ -108,7 +168,8 @@ export class Governor {
     this.nativePixels = 1e6;
     this.resLevel = 0;            // 0 = native, k = native * RES_STEP^k
     this.maxResLevel = 0;
-    this.featureLevel = 0;        // how many FEATURE_STEPS are switched off
+    this.off = [];                // the FEATURE_STEPS switched off (their numbers, in the order they went)
+    this._single = 0;             // how many of the next returns bring one step back, not five (see _up)
     this.scale = fixedScale ?? 1;
     // Display refresh interval in ms: from the start-up probe if it ran, else assumed
     // 60 Hz; refined all the time from the animation-frame callbacks (see shouldRender).
@@ -190,7 +251,7 @@ export class Governor {
       // come down only if needed (coming down is quick, climbing is slow on purpose).
       // Smooth keeps the level it is at and comes down from there if it has to.
       if (mode === 'sharp') {
-        while (this.featureLevel > 0) FEATURE_STEPS[--this.featureLevel].apply(this.app, false);
+        this.allOn();
         this.resLevel = 0;
         if (this.loadLevel) { this.loadLevel = 0; this.app.terrainBudget?.(1, 'load'); }      // "everything on" includes the patches
       }
@@ -209,6 +270,41 @@ export class Governor {
     }
     this._note(`mode ${MODES[mode].label}, starting at ${(this.pixels / 1e6).toFixed(2)} MP`);
   }
+
+  // How many savings are on.
+  get featureLevel() { return this.off.length; }
+  // The names of the savings that are on.
+  get offIds() { return this.off.map((i) => FEATURE_STEPS[i].id); }
+  isOff(id) { return this.off.some((i) => FEATURE_STEPS[i].id === id); }
+  // The next step to take: the first in the order that is not off and can buy something
+  // where the traveller is (-1: none).
+  _nextStep() {
+    for (let i = 0; i < FEATURE_STEPS.length; i++) {
+      if (this.off.includes(i)) continue;
+      const f = FEATURE_STEPS[i];
+      let live = true;
+      if (f.live) { try { live = !!f.live(this.app); } catch { live = true; } }
+      if (live) return i;
+    }
+    return -1;
+  }
+  // True while a step known to buy a stride's worth by itself is live and not yet taken.
+  _bigLeft() {
+    for (let i = 0; i < FEATURE_STEPS.length; i++) {
+      const f = FEATURE_STEPS[i];
+      if ((f.buys ?? 1) < STRIDE_MS || this.off.includes(i)) continue;
+      let live = true;
+      if (f.live) { try { live = !!f.live(this.app); } catch { live = true; } }
+      if (live) return true;
+    }
+    return false;
+  }
+  _stepOff(i, note = true) { const f = FEATURE_STEPS[i]; f.apply(this.app, true); this.off.push(i); if (note) this._note(`off: ${f.label}`); return f; }
+  _stepOn(note = true) { const i = this.off.pop(), f = FEATURE_STEPS[i]; f.apply(this.app, false); if (note) this._note(`back on: ${f.label}`); return i; }
+  // Every saving off again, at once (the benchmark's cost test, a change of mode); returns
+  // what was on, for `restoreSavings`.
+  allOn() { const was = this.off.slice(); while (this.off.length) this._stepOn(false); return was; }
+  restoreSavings(list) { this.allOn(); for (const i of list) this._stepOff(i, false); }
 
   get targetFps() { return 1000 / this.interval; }
   get pixels() { return Math.round(this.nativePixels * this.scale * this.scale); }
@@ -387,7 +483,8 @@ export class Governor {
         // (how late: the window's share when it tripped, else the share over the last second)
         const m = trigger ? f : this.lateFast;
         let mean = 0; for (let i = 0; i < WINDOW; i++) mean += this._dts[i]; mean /= WINDOW;
-        const atFloor = this.resLevel >= this.maxResLevel && this.featureLevel >= FEATURE_STEPS.length;
+        // (the floor: the fewest pixels, and no step left that could buy anything here)
+        const atFloor = this.resLevel >= this.maxResLevel && this._nextStep() < 0;
         // Giving quality up is a trial. Some frames late (not most), two steps taken, and
         // about as many late as before: pixels are not why. Or everything given up and the
         // frames as long as they were. Then what was given up comes back, and for a while
@@ -395,7 +492,11 @@ export class Governor {
         // picture with the same late frames is the worse of the two.
         // (On the test phone every stop had its late frames at one million pixels with
         // every saving on, and it sat there for whole benchmarks.)
-        const futile = d && ((d.m0 < 0.6 && d.n >= 2 && m > 0.7 * d.m0) || (atFloor && d.n >= 2 && mean > 0.85 * d.dt0));
+        // (once the savings are being tried, the trial is not judged while a step that has
+        // been shown to buy a stride's worth by itself is still untried and live here: a
+        // trial that ends before the steps that could cure the frames has proved nothing.
+        // The small steps after them never hold a verdict up.)
+        const futile = d && ((d.m0 < 0.6 && d.n >= 2 && (this.resLevel < this.maxResLevel || !this._bigLeft()) && m > 0.7 * d.m0) || (atFloor && d.n >= 2 && mean > 0.85 * d.dt0));
         // (and the savings alone, when the resolution's steps did help: with every one of
         // them on and the frames as long as when the first was switched on, they come back
         // and the resolution stays where it holds)
@@ -408,11 +509,11 @@ export class Governor {
         else if (atFloor) { /* nothing left to give up */ }
         else if (this.time < this.featImmune && this.resLevel >= this.maxResLevel) { /* the savings were tried a moment ago, for nothing */ }
         else {
-          if (!d) this._dip = { res: this.resLevel, feat: this.featureLevel, m0: m, dt0: mean, n: 0, dtF: null, probe: !trigger };
+          if (!d) this._dip = { res: this.resLevel, feat: this.featureLevel, m0: m, dt0: mean, n: 0, dtF: null, probe: !trigger, bought: 0 };
           // (how long the frames are when the first saving is about to go)
           if (this._dip.dtF == null && this.resLevel >= this.maxResLevel) this._dip.dtF = mean;
           this._dip.n++;
-          this._down(f > 0.8 ? 4 : f > 0.6 ? 3 : f > 0.4 ? 2 : 1, work || streaming);
+          this._dip.bought += this._down(f > 0.8 ? 4 : f > 0.6 ? 3 : f > 0.4 ? 2 : 1, work || streaming);
           if (!trigger) cool = 2.0;        // (two seconds to see what the step did to a few late frames)
         }
       }
@@ -444,7 +545,8 @@ export class Governor {
 
   // Every saving switched on: where a device that cannot keep up ends. (For pictures and
   // tests of what is left then; the governor steps back up from it as usual.)
-  toFloor() { while (this.featureLevel < FEATURE_STEPS.length) FEATURE_STEPS[this.featureLevel++].apply(this.app, true); }
+  // (all of them, live or not: the floor is the same picture wherever it is asked for)
+  toFloor() { for (let i = 0; i < FEATURE_STEPS.length; i++) if (!this.off.includes(i)) this._stepOff(i, false); }
 
   // Lower resolution first, then features. But resolution only cures frames that are slow
   // because of pixels. When the page's own work fills most of the frame (draw calls, terrain
@@ -452,31 +554,38 @@ export class Governor {
   // of such frames once took the picture from 4.45 to 1.60 megapixels, eight steps, without
   // curing one. Then terrain patches go instead (fewer draw calls, less arriving), twice at
   // most; the other features cost pixels and would not help either.
+  // Returns what the steps taken are expected to buy (ms a frame; a resolution step counts
+  // as one stride's worth).
   _down(steps, work = false) {
     if (work) {
       if (this.loadLevel < LOAD.length - 1) {
         // (patches that came back and at once had to go again: wait longer before the next try)
         if (this.sinceLoadUp < 10) { this.loadHold = Math.min(120, this.loadHold * 2); this.loadUpFailed = true; }
         this.loadLevel++; this.app.terrainBudget?.(LOAD[this.loadLevel], 'load'); this._note(`fewer terrain patches (x${LOAD[this.loadLevel]}): the work per frame is what is slow`); this.sinceStep = 0; this.sinceDown = 0;
-        return;
+        return STRIDE_MS;
       }
-      if (this._hold) return;               // the work alone fills the frame: nothing here cures it
+      if (this._hold) return 0;             // the work alone fills the frame: nothing here cures it
     }
+    let bought = 0;
     for (let s = 0; s < steps; s++) {
-      if (this.resLevel < this.maxResLevel) { this.resLevel++; this._applyScale(); this._note(`resolution down to ${(this.pixels / 1e6).toFixed(2)} MP`); }
-      else if (this.featureLevel < FEATURE_STEPS.length) {
-        const f = FEATURE_STEPS[this.featureLevel++];
-        f.apply(this.app, true); this._note(`off: ${f.label}`);
-      } else return;                      // nothing left to give up
+      if (this.resLevel < this.maxResLevel) { this.resLevel++; this._applyScale(); this._note(`resolution down to ${(this.pixels / 1e6).toFixed(2)} MP`); bought += STRIDE_MS; }
+      else {
+        // a stride: steps that can buy something here, until they should have bought STRIDE_MS
+        let got = 0;
+        while (got < STRIDE_MS) { const i = this._nextStep(); if (i < 0) break; got += this._stepOff(i).buys ?? 1; }
+        if (got === 0) return bought;       // nothing left to give up
+        bought += got;
+      }
       this.sinceStep = 0; this.sinceDown = 0;
     }
+    return bought;
   }
 
   // A trial of steps down that cured nothing: the features and the resolution it began
   // with come back, and lateness of that kind is left alone for a while.
   // all: the resolution too (nothing helped); else only the savings (the resolution's steps did).
   _putBack(d, all) {
-    while (this.featureLevel > d.feat) FEATURE_STEPS[--this.featureLevel].apply(this.app, false);
+    while (this.featureLevel > d.feat) this._stepOn(false);
     if (all && this.resLevel > d.res) { this.resLevel = d.res; this._applyScale(); }
     this._note(all ? `back to ${(this.pixels / 1e6).toFixed(2)} MP${d.feat === 0 ? ', everything on' : ''}: giving quality up did not cure the late frames` : 'every saving off again: they did not cure the late frames');
     if (all) { this.immune = this.time + this.immuneFor; this._immuneAll = this.resLevel < this.maxResLevel && d.m0 >= 0.6; } else this.featImmune = this.time + this.immuneFor;
@@ -492,7 +601,10 @@ export class Governor {
       this._note(`resolution down to ${(this.pixels / 1e6).toFixed(2)} MP`);
       this.sinceStep = 0; this.sinceDown = 0;
     } else if (this._upFeat) {
-      for (let k = 0; k < this._upFeat && this.featureLevel < FEATURE_STEPS.length; k++) { const f = FEATURE_STEPS[this.featureLevel++]; f.apply(this.app, true); this._note(`off: ${f.label}`); }
+      // (the very steps that had come back, in the order they had gone)
+      for (const i of this._upList || []) if (!this.off.includes(i)) this._stepOff(i);
+      if ((this._upList || []).length > 1) this._single = this._upList.length;
+      this._upList = null;
       this.sinceStep = 0; this.sinceDown = 0;
     } else this._down(1);
     this.goodLevel = null; this._upFrom = null; this._upFeat = 0;
@@ -503,8 +615,15 @@ export class Governor {
       // (five at a time: after a passing dip, a burst of ground arriving, the way back up
       // through twenty savings one by one took two minutes of a picture with nothing in it)
       let n = 0;
-      for (; n < 5 && this.featureLevel > 0; n++) { const f = FEATURE_STEPS[--this.featureLevel]; f.apply(this.app, false); this._note(`back on: ${f.label}`); }
-      this._upFeat = n; this._upFrom = null;
+      // (the ones that went first come back first: a trial takes steps until one cures the
+      // frames, and the ones before it bought nothing. When what has come back makes frames
+      // late again it goes off again, to the end of the line (_takeBack), and the next to
+      // come back are others: what stays off in the end is what the frames need. After a
+      // return that failed, the next few come back one at a time, to find which it was.)
+      const back = [], many = this._single > 0 ? 1 : 5;
+      if (this._single > 0) this._single--;
+      for (; n < many && this.featureLevel > 0; n++) { const i = this.off.shift(), f = FEATURE_STEPS[i]; f.apply(this.app, false); this._note(`back on: ${f.label}`); back.push(i); }
+      this._upFeat = n; this._upList = back; this._upFrom = null;
     } else if (this.resLevel > 0) {
       this._upFeat = 0;
       this._upFrom = this.resLevel;

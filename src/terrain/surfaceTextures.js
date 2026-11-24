@@ -46,6 +46,18 @@ export function makeDetailTexture(size = 256) {
   const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.UnsignedByteType);
   const n = size * size;
   tex.userData.lowSpread = Math.sqrt(Math.max(0, s2 / n - (s1 / n) ** 2));
+  // The texture's last level (one texel: what a sampler answers from far enough): the
+  // ground's shader uses it in place of a read there (terrainMaterial.js, uDetailMean).
+  // Worked out as the GPU makes its levels: each the mean of four of the one before, in bytes.
+  {
+    let d = data, w = size;
+    while (w > 1) {
+      const h = w >> 1, e = new Uint8Array(h * h * 4);
+      for (let j = 0; j < h; j++) for (let i = 0; i < h; i++) for (let c = 0; c < 4; c++) e[(j * h + i) * 4 + c] = Math.round((d[(2 * j * w + 2 * i) * 4 + c] + d[(2 * j * w + 2 * i + 1) * 4 + c] + d[((2 * j + 1) * w + 2 * i) * 4 + c] + d[((2 * j + 1) * w + 2 * i + 1) * 4 + c]) / 4);
+      d = e; w = h;
+    }
+    tex.userData.mean = [d[0] / 255, d[1] / 255, d[2] / 255, d[3] / 255];
+  }
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter;
   tex.generateMipmaps = true; tex.anisotropy = 4;

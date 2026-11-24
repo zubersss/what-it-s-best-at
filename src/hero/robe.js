@@ -113,6 +113,33 @@ export class Robe {
       if (p.seam) for (let iy = 0; iy < p.ny; iy++) this.rest.push([idx(0, iy), idx(p.nx - 1, iy), p.seam, 1]);
     }
 
+    // The same links as flat tables for the solver (a link between two pinned points does
+    // nothing and is left out): ends, rest length, the share each end moves by, and whether
+    // it only resists folding. And each point's own numbers, worked out once: where it is
+    // in its patch, and the sines and cosines of its part of the flutter's phases (the
+    // step then needs no sine of its own for a point: see _step).
+    {
+      const live = this.rest.filter((r) => !(this.pinned[r[0]] && this.pinned[r[1]])), m = live.length;
+      this.cN = m; this.cA = new Uint16Array(m); this.cB = new Uint16Array(m); this.cLen = new Float64Array(m);
+      this.cKa = new Float64Array(m); this.cKb = new Float64Array(m); this.cBend = new Uint8Array(m);
+      live.forEach((r, c) => {
+        const pa = this.pinned[r[0]] ? 0 : 1, pb = this.pinned[r[1]] ? 0 : 1, w = pa + pb;
+        this.cA[c] = r[0] * 3; this.cB[c] = r[1] * 3; this.cLen[c] = r[2]; this.cBend[c] = r[3] < 0.5 ? 1 : 0;
+        this.cKa[c] = 0.5 * r[3] * (pa * 2 / w); this.cKb[c] = 0.5 * r[3] * (pb * 2 / w);
+      });
+      this.pIx = new Uint8Array(n); this.pFv = new Float64Array(n); this.ph = new Float64Array(n * 8);
+      this.maxNx = 0;
+      for (let i = 0; i < n; i++) {
+        const p = this.patches[this.owner[i]], li = i - p.base, ix = li % p.nx, iy = (li / p.nx) | 0;
+        this.pIx[i] = ix; this.pFv[i] = iy / (p.ny - 1); this.maxNx = Math.max(this.maxNx, p.nx);
+        const k = -iy * 0.9 + ix * 0.6, f = -iy * 0.75 + this.owner[i] * 1.7;
+        this.ph.set([Math.sin(k), Math.cos(k), Math.sin(0.83 * k + 1.7), Math.cos(0.83 * k + 1.7), Math.sin(1.31 * k + 0.5), Math.cos(1.31 * k + 0.5), Math.sin(f), Math.cos(f)], i * 8);
+      }
+      this._sd = new Float64Array(this.maxNx); this._cd = new Float64Array(this.maxNx);
+      // (what a patch's cloth is kept out of, as plain lists)
+      for (const p of this.patches) { p.sph = new Float64Array(p.spheres.flat()); p.limbList = new Uint8Array(p.limbs); }
+    }
+
     // The drawn mesh: every patch's fine grid in one geometry.
     const geo = new THREE.BufferGeometry(), indices = [];
     const col = new Float32Array(rn * 3), mat = new Float32Array(rn);
@@ -148,6 +175,18 @@ export class Robe {
     this.geometry = geo;
     this.triangles = indices.length / 3;
     this._row = new Float32Array(rn * 3); this._surf = new Float32Array(rn * 3);
+    // The smooth surface through the particles, as tables worked out once: for each drawn
+    // column (and row) the four simulated ones it lies between and their Catmull-Rom weights.
+    const table = (nSim, sub, R) => {
+      const idx = new Uint16Array(R * 4), w = new Float64Array(R * 4);
+      for (let r = 0; r < R; r++) {
+        const s0 = Math.min(nSim - 2, Math.floor(r / sub)), t = r / sub - s0, t2 = t * t, t3 = t2 * t;
+        idx.set([Math.max(0, s0 - 1), s0, s0 + 1, Math.min(nSim - 1, s0 + 2)], r * 4);
+        w.set([0.5 * (-t + 2 * t2 - t3), 0.5 * (2 - 5 * t2 + 3 * t3), 0.5 * (t + 4 * t2 - 3 * t3), 0.5 * (-t2 + t3)], r * 4);
+      }
+      return { idx, w };
+    };
+    for (const p of this.patches) { p.tx = table(p.nx, p.sx, p.RX); p.ty = table(p.ny, p.sy, p.RY); }
     this.reset(null);
   }
 
@@ -207,71 +246,76 @@ export class Robe {
   }
 
   _step(rot, gravity, accel, wind, air, h) {
-    const { pos, prev, restN, pinned, owner } = this, e = rot.elements, n = this.count, h2 = h * h;
+    const { pos, prev, restN, pinned, owner, ph, pIx, pFv } = this, e = rot.elements, n = this.count, h2 = h * h;
+    const e0 = e[0], e1 = e[1], e2 = e[2], e3 = e[3], e4 = e[4], e5 = e[5], e6 = e[6], e7 = e[7], e8 = e[8];
     this.time += h;
-    const t = this.time, wlen = Math.hypot(wind.x, wind.y, wind.z);
+    const t = this.time, wlen = Math.sqrt(wind.x * wind.x + wind.y * wind.y + wind.z * wind.z);
     const drag = 0.9 + 5.5 * air;                       // 1/s: how quickly cloth follows the air
     const damp = 0.992 - 0.01 * air;
     // Flutter: waves pushing along each piece's own normal that run down its length,
     // quicker and stronger with the flow (drag alone lines cloth up with the air into a
     // flat sheet, which seen from the side is a stick or a plank).
     const fl = (2.1 + 4.5 * air) * Math.min(2, wlen / 8), fw = Math.min(26, 4 + 0.9 * wlen);
+    // (each point's phase is a part that only the time moves plus a part of its own, whose
+    // sine and cosine are tables: sin(a + k) = sin a cos k + cos a sin k. Five sines a point
+    // and step were a third of the cloth's cost.)
+    const A = t * (5 + wlen * 0.5), sA = Math.sin(A), cA = Math.cos(A), sA2 = Math.sin(0.83 * A), cA2 = Math.cos(0.83 * A), sA3 = Math.sin(1.31 * A), cA3 = Math.cos(1.31 * A);
+    const sT = Math.sin(t * fw), cT = Math.cos(t * fw), sd = this._sd, cd = this._cd;
+    for (let ix = 0; ix < this.maxNx; ix++) { const d = 0.35 * Math.sin(ix * 0.9 + t * 1.3); sd[ix] = Math.sin(d); cd[ix] = Math.cos(d); }
+    const gustK = (0.45 + 2.0 * air) * Math.min(1, wlen / 12 + 0.10);
+    const fx = gravity.x - accel.x + wind.x * drag, fy = gravity.y - accel.y + wind.y * drag, fz = gravity.z - accel.z + wind.z * drag, ih = 1 / h;
     for (let i = 0; i < n; i++) {
       if (pinned[i]) continue;
-      const p = this.patches[owner[i]], li = i - p.base, ix = li % p.nx, iy = (li / p.nx) | 0, fv = iy / (p.ny - 1);
-      const o = i * 3;
-      const vx = (pos[o] - prev[o]) / h, vy = (pos[o + 1] - prev[o + 1]) / h, vz = (pos[o + 2] - prev[o + 2]) / h;
+      const o = i * 3, q = i * 8, fv = pFv[i], ix = pIx[i];
+      const px = pos[o], py = pos[o + 1], pz = pos[o + 2], dx = px - prev[o], dy = py - prev[o + 1], dz = pz - prev[o + 2];
       // the rest normal in world axes
       const rx = restN[o], ry = restN[o + 1], rz = restN[o + 2];
-      const bx = e[0] * rx + e[3] * ry + e[6] * rz, by = e[1] * rx + e[4] * ry + e[7] * rz, bz = e[2] * rx + e[5] * ry + e[8] * rz;
-      const ph = t * (5 + wlen * 0.5) - iy * 0.9 + ix * 0.6;
-      const gust = (0.45 + 2.0 * air) * Math.min(1, wlen / 12 + 0.10) * fv;
-      const flap = fl * fv * Math.sin(t * fw - iy * 0.75 + 0.35 * Math.sin(ix * 0.9 + t * 1.3) + owner[i] * 1.7);
-      const gx = Math.sin(ph) * gust * 6 + bx * flap * 6;
-      const gy = Math.cos(ph * 0.83 + 1.7) * gust * 4 + by * flap * 6;
-      const gz = Math.sin(ph * 1.31 + 0.5) * gust * 6 + bz * flap * 6;
-      const ax = gravity.x - accel.x + (wind.x - vx) * drag + gx;
-      const ay = gravity.y - accel.y + (wind.y - vy) * drag + gy;
-      const az = gravity.z - accel.z + (wind.z - vz) * drag + gz;
-      const nx = pos[o] + (pos[o] - prev[o]) * damp + ax * h2;
-      const ny = pos[o + 1] + (pos[o + 1] - prev[o + 1]) * damp + ay * h2;
-      const nz = pos[o + 2] + (pos[o + 2] - prev[o + 2]) * damp + az * h2;
-      prev[o] = pos[o]; prev[o + 1] = pos[o + 1]; prev[o + 2] = pos[o + 2];
-      pos[o] = nx; pos[o + 1] = ny; pos[o + 2] = nz;
+      const bx = e0 * rx + e3 * ry + e6 * rz, by = e1 * rx + e4 * ry + e7 * rz, bz = e2 * rx + e5 * ry + e8 * rz;
+      const gust = gustK * fv;
+      const sTF = sT * ph[q + 7] + cT * ph[q + 6], cTF = cT * ph[q + 7] - sT * ph[q + 6];
+      const flap = fl * fv * (sTF * cd[ix] + cTF * sd[ix]) * 6;
+      const gx = (sA * ph[q + 1] + cA * ph[q]) * gust * 6 + bx * flap;
+      const gy = (cA2 * ph[q + 3] - sA2 * ph[q + 2]) * gust * 4 + by * flap;
+      const gz = (sA3 * ph[q + 5] + cA3 * ph[q + 4]) * gust * 6 + bz * flap;
+      prev[o] = px; prev[o + 1] = py; prev[o + 2] = pz;
+      pos[o] = px + dx * damp + (fx - dx * ih * drag + gx) * h2;
+      pos[o + 1] = py + dy * damp + (fy - dy * ih * drag + gy) * h2;
+      pos[o + 2] = pz + dz * damp + (fz - dz * ih * drag + gz) * h2;
     }
     this._pin(rot);
-    const rest = this.rest, col = this.colliders, NIT = this.halfRate ? 2 : 4, up = this.up, ground = this.ground;
+    const col = this.colliders, NIT = this.halfRate ? 2 : 4, up = this.up, ground = this.ground;
+    const cN = this.cN, cA_ = this.cA, cB_ = this.cB, cLen = this.cLen, cKa = this.cKa, cKb = this.cKb, cBend = this.cBend;
     for (let it = 0; it < NIT; it++) {
-      for (let c = 0; c < rest.length; c++) {
-        const r = rest[c], a = r[0] * 3, b = r[1] * 3;
+      for (let c = 0; c < cN; c++) {
+        const a = cA_[c], b = cB_[c];
         const dx = pos[b] - pos[a], dy = pos[b + 1] - pos[a + 1], dz = pos[b + 2] - pos[a + 2];
-        const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;
-        let k = (d - r[2]) / d * 0.5 * r[3];
-        if (r[3] < 0.5 && d > r[2]) k = 0;              // bend links only resist folding
-        const pa = pinned[r[0]] ? 0 : 1, pb = pinned[r[1]] ? 0 : 1, w = pa + pb;
-        if (!w) continue;
-        const ka = k * (pa * 2 / w), kb = k * (pb * 2 / w);
+        const d2 = dx * dx + dy * dy + dz * dz, len = cLen[c];
+        if (cBend[c] && d2 > len * len) continue;       // bend links only resist folding (asked before the root is taken: most of them are not folded)
+        const d = Math.sqrt(d2) || 1e-6, k = (d - len) / d, ka = k * cKa[c], kb = k * cKb[c];
         pos[a] += dx * ka; pos[a + 1] += dy * ka; pos[a + 2] += dz * ka;
         pos[b] -= dx * kb; pos[b + 1] -= dy * kb; pos[b + 2] -= dz * kb;
       }
       // keep the cloth out of the body, the head and the limbs (in the wearer's frame);
       // on the last two passes only (half the cost, no visible difference)
       if (it < NIT - (NIT > 2 ? 2 : 1)) continue;
+      const hasGround = !!up && ground != null, ux = up ? up.x : 0, uy = up ? up.y : 0, uz = up ? up.z : 0, floor = hasGround ? ground + 0.03 : 0;
       for (let i = 0; i < n; i++) {
         if (pinned[i]) continue;
         const p = this.patches[owner[i]], o = i * 3, px = pos[o], py = pos[o + 1], pz = pos[o + 2];
-        let lx = e[0] * px + e[1] * py + e[2] * pz, ly = e[3] * px + e[4] * py + e[5] * pz, lz = e[6] * px + e[7] * py + e[8] * pz;
+        let lx = e0 * px + e1 * py + e2 * pz, ly = e3 * px + e4 * py + e5 * pz, lz = e6 * px + e7 * py + e8 * pz;
         const x0 = lx, y0 = ly, z0 = lz;
         const B = p.body, cy = ly < B[0] ? B[0] : ly > B[1] ? B[1] : ly;
         let dx = lx, dy = ly - cy, dz = lz, d2 = dx * dx + dy * dy + dz * dz;
         if (d2 < B[2] * B[2] && d2 > 1e-9) { const s = B[2] / Math.sqrt(d2) - 1; lx += dx * s; ly += dy * s; lz += dz * s; }
-        for (const S of p.spheres) {
-          dx = lx - S[0]; dy = ly - S[1]; dz = lz - S[2]; d2 = dx * dx + dy * dy + dz * dz;
-          if (d2 < S[3] * S[3] && d2 > 1e-9) { const s = S[3] / Math.sqrt(d2) - 1; lx += dx * s; ly += dy * s; lz += dz * s; }
+        const S = p.sph;
+        for (let k = 0; k < S.length; k += 4) {
+          dx = lx - S[k]; dy = ly - S[k + 1]; dz = lz - S[k + 2]; d2 = dx * dx + dy * dy + dz * dz;
+          if (d2 < S[k + 3] * S[k + 3] && d2 > 1e-9) { const s = S[k + 3] / Math.sqrt(d2) - 1; lx += dx * s; ly += dy * s; lz += dz * s; }
         }
         if (col) {
-          for (const li of p.limbs) {
-            const c = li * 7;
+          const L = p.limbList;
+          for (let k = 0; k < L.length; k++) {
+            const c = L[k] * 7;
             const ax = col[c], ay = col[c + 1], az = col[c + 2], qx0 = col[c + 3] - ax, qy0 = col[c + 4] - ay, qz0 = col[c + 5] - az, r = col[c + 6];
             let tt = ((lx - ax) * qx0 + (ly - ay) * qy0 + (lz - az) * qz0) / (qx0 * qx0 + qy0 * qy0 + qz0 * qz0 + 1e-9);
             tt = tt < 0 ? 0 : tt > 1 ? 1 : tt;
@@ -281,66 +325,66 @@ export class Robe {
         }
         const ox = lx - x0, oy = ly - y0, oz = lz - z0;
         if (ox !== 0 || oy !== 0 || oz !== 0) {
-          pos[o] += e[0] * ox + e[3] * oy + e[6] * oz; pos[o + 1] += e[1] * ox + e[4] * oy + e[7] * oz; pos[o + 2] += e[2] * ox + e[5] * oy + e[8] * oz;
+          pos[o] += e0 * ox + e3 * oy + e6 * oz; pos[o + 1] += e1 * ox + e4 * oy + e7 * oz; pos[o + 2] += e2 * ox + e5 * oy + e8 * oz;
         }
         // and above the ground (3 cm: the drawn folds reach that far past the points)
-        if (up && ground != null) {
-          const s = ground + 0.03 - (pos[o] * up.x + pos[o + 1] * up.y + pos[o + 2] * up.z);
-          if (s > 0) { pos[o] += up.x * s; pos[o + 1] += up.y * s; pos[o + 2] += up.z * s; }
+        if (hasGround) {
+          const s = floor - (pos[o] * ux + pos[o + 1] * uy + pos[o + 2] * uz);
+          if (s > 0) { pos[o] += ux * s; pos[o + 1] += uy * s; pos[o + 2] += uz * s; }
         }
       }
     }
   }
 
-  // The drawn surface of every patch from its particles.
+  // The drawn surface of every patch from its particles. (Tables and plain loops: nothing
+  // is made anew in here, it runs every frame.)
   _draw() {
     const P = this.pos, row = this._row, S = this._surf, out = this.positionAttr.array, tan = this.tanAttr.array, fold = this.fold;
-    const cr = (p0, p1, p2, p3, t) => {
-      const t2 = t * t, t3 = t2 * t;
-      return 0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (3 * p1 - p0 - 3 * p2 + p3) * t3);
-    };
-    for (const p of this.patches) {
-      const { nx, ny, sx, sy, RX, RY, base, rbase } = p;
+    const nrm = this.geometry.attributes.normal.array;
+    for (let pi = 0; pi < this.patches.length; pi++) {
+      const p = this.patches[pi], nx = p.nx, ny = p.ny, RX = p.RX, RY = p.RY, base = p.base, rbase = p.rbase;
+      const xi = p.tx.idx, xw = p.tx.w, yi = p.ty.idx, yw = p.ty.w;
       // across each simulated row
-      for (let iy = 0; iy < ny; iy++) for (let rx = 0; rx < RX; rx++) {
-        const s0 = Math.min(nx - 2, Math.floor(rx / sx)), t = rx / sx - s0;
-        const i0 = Math.max(0, s0 - 1), i1 = s0, i2 = s0 + 1, i3 = Math.min(nx - 1, s0 + 2);
-        const q = (rbase + iy * RX + rx) * 3;
-        for (let k = 0; k < 3; k++) row[q + k] = cr(P[(base + iy * nx + i0) * 3 + k], P[(base + iy * nx + i1) * 3 + k], P[(base + iy * nx + i2) * 3 + k], P[(base + iy * nx + i3) * 3 + k], t);
+      for (let iy = 0; iy < ny; iy++) {
+        const b = (base + iy * nx) * 3;
+        for (let rx = 0; rx < RX; rx++) {
+          const q = (rbase + iy * RX + rx) * 3, k = rx * 4;
+          const a0 = b + xi[k] * 3, a1 = b + xi[k + 1] * 3, a2 = b + xi[k + 2] * 3, a3 = b + xi[k + 3] * 3, w0 = xw[k], w1 = xw[k + 1], w2 = xw[k + 2], w3 = xw[k + 3];
+          row[q] = w0 * P[a0] + w1 * P[a1] + w2 * P[a2] + w3 * P[a3];
+          row[q + 1] = w0 * P[a0 + 1] + w1 * P[a1 + 1] + w2 * P[a2 + 1] + w3 * P[a3 + 1];
+          row[q + 2] = w0 * P[a0 + 2] + w1 * P[a1 + 2] + w2 * P[a2 + 2] + w3 * P[a3 + 2];
+        }
       }
       // then down each drawn column
-      for (let ry = 0; ry < RY; ry++) for (let rx = 0; rx < RX; rx++) {
-        const s0 = Math.min(ny - 2, Math.floor(ry / sy)), t = ry / sy - s0;
-        const j0 = Math.max(0, s0 - 1), j1 = s0, j2 = s0 + 1, j3 = Math.min(ny - 1, s0 + 2);
-        const q = (rbase + ry * RX + rx) * 3, rq = (j) => (rbase + j * RX + rx) * 3;
-        for (let k = 0; k < 3; k++) S[q + k] = cr(row[rq(j0) + k], row[rq(j1) + k], row[rq(j2) + k], row[rq(j3) + k], t);
+      for (let ry = 0; ry < RY; ry++) {
+        const k = ry * 4, w0 = yw[k], w1 = yw[k + 1], w2 = yw[k + 2], w3 = yw[k + 3];
+        const r0 = (rbase + yi[k] * RX) * 3, r1 = (rbase + yi[k + 1] * RX) * 3, r2 = (rbase + yi[k + 2] * RX) * 3, r3 = (rbase + yi[k + 3] * RX) * 3, q0 = (rbase + ry * RX) * 3;
+        for (let j = 0; j < RX * 3; j++) S[q0 + j] = w0 * row[r0 + j] + w1 * row[r1 + j] + w2 * row[r2 + j] + w3 * row[r3 + j];
       }
       // folds along the normal; the tangent down the cloth (the hair's strands)
-      for (let ry = 0; ry < RY; ry++) for (let rx = 0; rx < RX; rx++) {
-        const i = rbase + ry * RX + rx, o = i * 3;
-        const xa = (rbase + ry * RX + Math.max(0, rx - 1)) * 3, xb = (rbase + ry * RX + Math.min(RX - 1, rx + 1)) * 3;
-        const ya = (rbase + Math.max(0, ry - 1) * RX + rx) * 3, yb = (rbase + Math.min(RY - 1, ry + 1) * RX + rx) * 3;
-        const ux = S[xb] - S[xa], uy = S[xb + 1] - S[xa + 1], uz = S[xb + 2] - S[xa + 2];
-        const vx = S[yb] - S[ya], vy = S[yb + 1] - S[ya + 1], vz = S[yb + 2] - S[ya + 2];
-        const nX = uy * vz - uz * vy, nY = uz * vx - ux * vz, nZ = ux * vy - uy * vx;
-        const l = Math.hypot(nX, nY, nZ) || 1, d = fold[i] / l, lv = Math.hypot(vx, vy, vz) || 1;
-        out[o] = S[o] + nX * d; out[o + 1] = S[o + 1] + nY * d; out[o + 2] = S[o + 2] + nZ * d;
-        tan[o] = vx / lv; tan[o + 1] = vy / lv; tan[o + 2] = vz / lv;
+      for (let ry = 0; ry < RY; ry++) {
+        const ra = (rbase + (ry > 0 ? ry - 1 : 0) * RX) * 3, rb = (rbase + (ry < RY - 1 ? ry + 1 : ry) * RX) * 3, r0 = (rbase + ry * RX) * 3;
+        for (let rx = 0; rx < RX; rx++) {
+          const o = r0 + rx * 3, xa = r0 + (rx > 0 ? rx - 1 : 0) * 3, xb = r0 + (rx < RX - 1 ? rx + 1 : rx) * 3, ya = ra + rx * 3, yb = rb + rx * 3;
+          const ux = S[xb] - S[xa], uy = S[xb + 1] - S[xa + 1], uz = S[xb + 2] - S[xa + 2];
+          const vx = S[yb] - S[ya], vy = S[yb + 1] - S[ya + 1], vz = S[yb + 2] - S[ya + 2];
+          const nX = uy * vz - uz * vy, nY = uz * vx - ux * vz, nZ = ux * vy - uy * vx;
+          const l = Math.sqrt(nX * nX + nY * nY + nZ * nZ) || 1, d = fold[rbase + ry * RX + rx] / l, lv = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1;
+          out[o] = S[o] + nX * d; out[o + 1] = S[o + 1] + nY * d; out[o + 2] = S[o + 2] + nZ * d;
+          tan[o] = vx / lv; tan[o + 1] = vy / lv; tan[o + 2] = vz / lv;
+        }
       }
-    }
-    // normals of the folded surface, from each point's neighbours in its own grid (cheaper
-    // than a general pass over the triangles)
-    const nrm = this.geometry.attributes.normal.array;
-    for (const p of this.patches) {
-      const { RX, RY, rbase } = p;
-      for (let ry = 0; ry < RY; ry++) for (let rx = 0; rx < RX; rx++) {
-        const o = (rbase + ry * RX + rx) * 3;
-        const xa = (rbase + ry * RX + Math.max(0, rx - 1)) * 3, xb = (rbase + ry * RX + Math.min(RX - 1, rx + 1)) * 3;
-        const ya = (rbase + Math.max(0, ry - 1) * RX + rx) * 3, yb = (rbase + Math.min(RY - 1, ry + 1) * RX + rx) * 3;
-        const ux = out[xb] - out[xa], uy = out[xb + 1] - out[xa + 1], uz = out[xb + 2] - out[xa + 2];
-        const vx = out[yb] - out[ya], vy = out[yb + 1] - out[ya + 1], vz = out[yb + 2] - out[ya + 2];
-        const nX = uy * vz - uz * vy, nY = uz * vx - ux * vz, nZ = ux * vy - uy * vx, l = Math.hypot(nX, nY, nZ) || 1;
-        nrm[o] = nX / l; nrm[o + 1] = nY / l; nrm[o + 2] = nZ / l;
+      // normals of the folded surface, from each point's neighbours in its own grid (cheaper
+      // than a general pass over the triangles)
+      for (let ry = 0; ry < RY; ry++) {
+        const ra = (rbase + (ry > 0 ? ry - 1 : 0) * RX) * 3, rb = (rbase + (ry < RY - 1 ? ry + 1 : ry) * RX) * 3, r0 = (rbase + ry * RX) * 3;
+        for (let rx = 0; rx < RX; rx++) {
+          const o = r0 + rx * 3, xa = r0 + (rx > 0 ? rx - 1 : 0) * 3, xb = r0 + (rx < RX - 1 ? rx + 1 : rx) * 3, ya = ra + rx * 3, yb = rb + rx * 3;
+          const ux = out[xb] - out[xa], uy = out[xb + 1] - out[xa + 1], uz = out[xb + 2] - out[xa + 2];
+          const vx = out[yb] - out[ya], vy = out[yb + 1] - out[ya + 1], vz = out[yb + 2] - out[ya + 2];
+          const nX = uy * vz - uz * vy, nY = uz * vx - ux * vz, nZ = ux * vy - uy * vx, l = Math.sqrt(nX * nX + nY * nY + nZ * nZ) || 1;
+          nrm[o] = nX / l; nrm[o + 1] = nY / l; nrm[o + 2] = nZ / l;
+        }
       }
     }
     this.positionAttr.needsUpdate = true; this.tanAttr.needsUpdate = true; this.geometry.attributes.normal.needsUpdate = true;
