@@ -8,6 +8,7 @@
 //
 // One sheet per four shapes: columns are shapes, rows are close, near and far.
 // --below: seen from under the crown, looking up (what a walker in a forest sees).
+// --above: looked down on from 60 degrees (what one sees of a tree from the air).
 // --close: one picture a shape of the close mesh from `from` metres off its foliage, at
 //   eye height, at the density of the phone (1540 x 721 through a 30 degree lens is what
 //   a 1 440 pixel screen shows of it): what a walker sees of a leaf.
@@ -19,7 +20,7 @@ import { png } from './lib/png.mjs';
 import { camera, sideView, drawTree, sky } from './lib/treeDraw.mjs';
 
 const args = process.argv.slice(2), opt = (n, d) => { const i = args.indexOf('--' + n); return i >= 0 ? args[i + 1] : d; };
-const out = opt('out', '.'), variant = +opt('variant', 0), only = opt('only', null)?.split(',').map(Number), below = args.includes('--below'), close = args.includes('--close'), against = opt('against', null);
+const out = opt('out', '.'), variant = +opt('variant', 0), only = opt('only', null)?.split(',').map(Number), below = args.includes('--below'), above = args.includes('--above'), close = args.includes('--close'), against = opt('against', null);
 const NAMES = ['conifer', 'pine', 'broadleaf', 'tropical', 'umbrella', 'bush', 'palm', 'slender', 'blossom'];
 const TALL = [24, 22, 18, 30, 9, 4, 14, 16, 7], WIDE = [0.75, 0.9, 1.2, 1.2, 1.3, 1.1, 1, 0.8, 1.2];
 const LEAF = [[0.14, 0.3, 0.17], [0.19, 0.36, 0.15], [0.22, 0.42, 0.13], [0.16, 0.38, 0.12], [0.24, 0.38, 0.15], [0.2, 0.32, 0.17], [0.22, 0.4, 0.13], [0.3, 0.5, 0.15], [0.24, 0.42, 0.15]];
@@ -61,8 +62,8 @@ if (close) {
   for (const set of sets) for (let s0 = 0; s0 < list.length; s0 += 4) {
     const cols = list.slice(s0, s0 + 4).filter((a) => set.geos[a]), W = CW * cols.length, H = CH * 3, img = Buffer.alloc(W * H * 3);
     const counts = [];
-    cols.forEach((a, ci) => { for (let lod = 0; lod < 3; lod++) { sky(img, W, ci * CW, lod * CH, CW, CH); counts.push(`${NAMES[a]} ${['close', 'near', 'far'][lod]} ${drawTree(set.geos[a][variant][lod], set.atlas, img, W, ci * CW, lod * CH, CW, CH, below ? under : sideView(S, CW, CH), look(a))}`); } });
-    const file = `${out}/trees_${cols.map((a) => NAMES[a]).join('_')}${below ? '_below' : ''}_v${variant}${against && set !== here ? '_old' : ''}.png`;
+    cols.forEach((a, ci) => { for (let lod = 0; lod < 3; lod++) { sky(img, W, ci * CW, lod * CH, CW, CH); counts.push(`${NAMES[a]} ${['close', 'near', 'far'][lod]} ${drawTree(set.geos[a][variant][lod], set.atlas, img, W, ci * CW, lod * CH, CW, CH, below ? under : above ? camera([0, 0.55 + 2.6 * 0.866, 2.6 * 0.5], [0, 0.55, 0], 26, CW, CH) : sideView(S, CW, CH), look(a))}`); } });
+    const file = `${out}/trees_${cols.map((a) => NAMES[a]).join('_')}${below ? '_below' : above ? '_above' : ''}_v${variant}${against && set !== here ? '_old' : ''}.png`;
     fs.writeFileSync(file, png(W, H, img));
     console.log(file + '\n  ' + counts.join(' · '));
   }

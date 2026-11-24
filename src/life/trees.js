@@ -15,6 +15,7 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
 import { makeTreeGeometries, VARIANTS } from './treeGeometry.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
+import { EDGE0, EDGE1 } from './farTreeForm.js';
 import { SPECIES, bloomOf } from './cover.js';
 import { blockDeg, TREE_FLOATS, blockLon } from './treeBlock.js';
 
@@ -89,7 +90,11 @@ vec3 treePosition(out vec3 foot, out float leaf) {
   // (plain leaves and the dark lumps only: a spray's card stays on its twig, and its leaves
   // are left out of it one by one in the fragment shader, so the twigs drawn in it stay)
   float gone = (aLeaf > 0.5 && aLeaf < 2.5 ? 1.0 : 0.0) * min(iB.w, 1.0) * uSeason.y;         // (iB.w is 1 or 2 on trees that drop their leaves: which colour they turn)
-  p.xz *= iB.x * (1.0 - 0.85 * gone);
+  // A whole tree's upright pictures, looked down on: on edge they are bright slivers on the
+  // crown, so they draw in to nothing as the far forest's do, by its rule (life/farTreeForm.js:
+  // the same tree at 150 m and at 400 m), and the rosette in the crown is the tree from there.
+  float edge = aLeaf > 3.5 ? 1.0 - smoothstep(${EDGE0.toFixed(3)}, ${EDGE1.toFixed(3)}, dot(-normalize(foot + uTreeUp * (iA.w * 0.7)), uTreeUp)) : 1.0;
+  p.xz *= iB.x * (1.0 - 0.85 * gone) * edge;
   vec3 l = vec3(p.x * c - p.z * s, p.y, p.x * s + p.z * c) * iA.w;
   // wind: the whole tree leans a little and its crown swings, gust by gust, each tree in
   // its own time; more the higher and the farther out a leaf is
@@ -100,7 +105,7 @@ vec3 treePosition(out vec3 foot, out float leaf) {
   // the same picture at the same size: the two are cut against each other by distance from
   // the eye, and a tree is drawn by exactly one of them. (They used to shrink away over the
   // last 14 % of the radius, from when nothing stood beyond it.)
-  treeCull = length(foot) > uTreeRadius;
+  treeCull = length(foot) > uTreeRadius || edge <= 0.0;
   float fade = 1.0;
   leaf = aLeaf;
   // (single leaves flutter, each in its own time, harder the harder it blows)
@@ -476,16 +481,12 @@ export class Trees {
       }
     }
     list.length = n; list.sort((p, q) => p.d2 - q.d2);
-    const blooming = [], lat = Math.asin(A.z / A.length()) * 180 / Math.PI, up = u.uTreeUp.value;
+    const blooming = [], lat = Math.asin(A.z / A.length()) * 180 / Math.PI;
     for (const e of list) {
       const T = e.b.trees, q = e.q, d2 = e.d2;
-      // Looked down on, a tree's picture on two crossed cards is nothing (and the rosette in
-      // its crown a flat disc): from above a tree keeps its near mesh, limbs and bunches,
-      // out to four times as far when seen from straight overhead. On foot nothing changes.
-      const down = Math.max(0, -(e.x * up.x + e.y * up.y + e.z * up.z) / Math.sqrt(d2 || 1)), k = 1 - 0.75 * down, dn2 = d2 * k * k;
       const sp = SPECIES[T[q + 6]], own = T[q + 7], trio = this.sets[sp.arch][Math.min(VARIANTS - 1, Math.floor(((own * 7.31) % 1) * VARIANTS))];
       // (a list that is full hands the tree to the next simpler one: it was left out altogether)
-      let lod = d2 < close2 ? 0 : dn2 < near2 ? 1 : 2; while (lod < 2 && trio[lod].count >= trio[lod].cap) lod++;
+      let lod = d2 < close2 ? 0 : d2 < near2 ? 1 : 2; while (lod < 2 && trio[lod].count >= trio[lod].cap) lod++;
       const set = trio[lod];
       if (set.count >= set.cap) continue;
       const i = set.count++;
