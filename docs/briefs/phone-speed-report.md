@@ -202,6 +202,10 @@ half of its frames late (four times in the ninth benchmark).
   what the frames need: in the simulation one saving (`grass-mid` at the opening view,
   `trees-far` in a wood, `cloud-volume` from the air), where the old ladder left nine
   to fifteen on or cured nothing.
+- **The resolution is not held down by a saving that stays on**: while every saving
+  still on is one that made frames late when it came back alone, the resolution and they
+  take turns at coming back (before, no pixel came back while any saving was on; in the
+  simulation the picture sat at 1.60 MP for good behind one saving).
 - The savings that are on are a list (`governor.off`), no longer a count; `featureLevel`
   is its length; the benchmark's cost test uses `allOn()` / `restoreSavings()`.
 - `debug=floor` and `toFloor()` switch all of them on, live or not: the floor's picture is
@@ -216,6 +220,22 @@ half of its frames late (four times in the ninth benchmark).
 | from the air, no trees or grass drawn: only `cloud-volume` cures (9.4) | not reached | 0.6 % late, `cloud-volume` on, no tree or grass step touched |
 
 All the earlier cases pass unchanged.
+
+### Reviewed cold (a reviewer with the diff and Node, no browser; its replays reproduced each)
+
+Found and fixed: a list of savings just brought back survived a change of mode or place
+and was "taken back" there (Sharp gave up five savings at native resolution before a
+pixel); one step up could be taken back by every late window for four seconds; after a
+return of five failed, the one-at-a-time returns went to five other steps; the picture
+stayed at its fewest pixels for good behind one saving; the "from the air" case passed
+without `live` (it looked only at the end of the run: it now reads the log). Found and
+left, as the design's price: lateness that nothing cures now costs a trial through every
+live step known to buy something (some six seconds with up to eighteen savings on)
+before quality is put back, where the old ladder judged after two steps; it then leaves
+such lateness alone for 30 s, doubling to 240 s. Checked and sound: no step is ever
+applied twice or left applied outside the list (1 200 random runs with mode changes,
+arrivals, the floor and the cost test); the cloth old against new over all sixteen
+combinations of its options: 1.8e-5 m apart at most.
 
 ### Behaviour changes (for the checkpoint message)
 

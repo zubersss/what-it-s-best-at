@@ -170,6 +170,8 @@ export class Governor {
     this.maxResLevel = 0;
     this.off = [];                // the FEATURE_STEPS switched off (their numbers, in the order they went)
     this._single = 0;             // how many of the next returns bring one step back, not five (see _up)
+    this._alone = new Set();      // savings that made frames late again when they came back by themselves: what the frames need
+    this._resTurn = false;        // with only such savings on: the next step up is the resolution's (they take turns)
     this.scale = fixedScale ?? 1;
     // Display refresh interval in ms: from the start-up probe if it ran, else assumed
     // 60 Hz; refined all the time from the animation-frame callbacks (see shouldRender).
@@ -237,6 +239,8 @@ export class Governor {
     this.resLevel = Math.max(0, Math.min(this.maxResLevel, Math.round(level)));
     this._applyScale();
     this.holdUp = 3; this.cooldown = 1.0; this.cleanTime = 0; this._filled = 0; this.lastUpFailed = false; this._probeFrames = -1;
+    // (a step up taken before this is not this place's or this mode's to take back)
+    this._upList = null; this._upFeat = 0; this._upFrom = null; this.sinceUp = 1e9; this._single = 0; this._alone.clear(); this._resTurn = false;
     this.goodLevel = null; this.sinceDown = 0; this._learned = null;
     this._dip = null; this.immune = this.featImmune = 0; this.immuneFor = 30;
     this._note(`${place}: starting at ${(this.pixels / 1e6).toFixed(2)} MP`);
@@ -260,6 +264,8 @@ export class Governor {
     }
     // A new target: forget what was learned and look again from where we are.
     this.holdUp = 3; this.cooldown = 1.0; this.cleanTime = 0; this._filled = 0; this.lastUpFailed = false; this._probeFrames = -1;
+    // (a step up taken before this is not this place's or this mode's to take back)
+    this._upList = null; this._upFeat = 0; this._upFrom = null; this.sinceUp = 1e9; this._single = 0; this._alone.clear(); this._resTurn = false;
     this.goodLevel = null; this.sinceDown = 0; this.loadHold = 15; this.loadUpFailed = false; this.leverClean = 0;
     this._dip = null; this.immune = this.featImmune = 0; this.immuneFor = 30; this.lateEMA = 0;
     {
@@ -303,7 +309,7 @@ export class Governor {
   _stepOn(note = true) { const i = this.off.pop(), f = FEATURE_STEPS[i]; f.apply(this.app, false); if (note) this._note(`back on: ${f.label}`); return i; }
   // Every saving off again, at once (the benchmark's cost test, a change of mode); returns
   // what was on, for `restoreSavings`.
-  allOn() { const was = this.off.slice(); while (this.off.length) this._stepOn(false); return was; }
+  allOn() { const was = this.off.slice(); while (this.off.length) this._stepOn(false); this._alone.clear(); this._upList = null; this._upFeat = 0; return was; }
   restoreSavings(list) { this.allOn(); for (const i of list) this._stepOff(i, false); }
 
   get targetFps() { return 1000 / this.interval; }
@@ -471,7 +477,8 @@ export class Governor {
       const lateScript = nl ? sl / nl : 0, work = lateScript > this.interval * 0.9;
       this._hold = lateScript > this.interval;
       let cool = 0.7;
-      if (tookBack) { this.holdUp = Math.min(60, this.holdUp * 2); this.lastUpFailed = true; this._takeBack(); this.overTime = 0; }
+      // (once: the same step up is not taken back again by the next late window)
+      if (tookBack) { this.holdUp = Math.min(60, this.holdUp * 2); this.lastUpFailed = true; this._takeBack(); this.overTime = 0; this.sinceUp = 1e9; }
       else if (streaming && this.streamLevel < 2) { this.streamLevel++; this.app.terrainPace(this.streamLevel); this._note(`terrain let in more slowly (${this.streamLevel})`); this.sinceStep = 0; }
       // (still late with terrain at its slowest pace: the arriving ground is the work that
       // is slow, so patches go before pixels)
@@ -602,8 +609,13 @@ export class Governor {
       this.sinceStep = 0; this.sinceDown = 0;
     } else if (this._upFeat) {
       // (the very steps that had come back, in the order they had gone)
-      for (const i of this._upList || []) if (!this.off.includes(i)) this._stepOff(i);
-      if ((this._upList || []).length > 1) this._single = this._upList.length;
+      // (several came back together: they go to the front again and come back one at a
+      // time, to find which of them it was. One came back alone: it is what the frames
+      // need; to the end of the line, and the resolution may be tried while it stays off.)
+      const list = (this._upList || []).filter((i) => !this.off.includes(i));
+      for (const i of list) this._stepOff(i);
+      if (list.length > 1) { this.off = list.concat(this.off.filter((i) => !list.includes(i))); this._single = list.length; }
+      else if (list.length === 1) { this._alone.add(list[0]); this._resTurn = true; }
       this._upList = null;
       this.sinceStep = 0; this.sinceDown = 0;
     } else this._down(1);
@@ -611,7 +623,13 @@ export class Governor {
   }
 
   _up() {
-    if (this.featureLevel > 0) {
+    // (when every saving still on is one the frames need, the resolution is not held down
+    // by them for good: it and they take turns at coming back. A sharp picture with thinner
+    // grass in the middle distance is better than a soft one with the same.)
+    const needed = this.featureLevel > 0 && this.resLevel > 0 && this.off.every((i) => this._alone.has(i));
+    const res = needed && this._resTurn;
+    if (needed) this._resTurn = !this._resTurn;
+    if (this.featureLevel > 0 && !res) {
       // (five at a time: after a passing dip, a burst of ground arriving, the way back up
       // through twenty savings one by one took two minutes of a picture with nothing in it)
       let n = 0;
@@ -625,7 +643,7 @@ export class Governor {
       for (; n < many && this.featureLevel > 0; n++) { const i = this.off.shift(), f = FEATURE_STEPS[i]; f.apply(this.app, false); this._note(`back on: ${f.label}`); back.push(i); }
       this._upFeat = n; this._upList = back; this._upFrom = null;
     } else if (this.resLevel > 0) {
-      this._upFeat = 0;
+      this._upFeat = 0; this._upList = null;
       this._upFrom = this.resLevel;
       this.resLevel = this.goodLevel != null && this.goodLevel < this.resLevel ? this.goodLevel : this.resLevel - 1;
       this._applyScale(); this._note(`resolution up to ${(this.pixels / 1e6).toFixed(2)} MP`);

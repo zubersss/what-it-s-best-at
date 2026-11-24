@@ -1333,10 +1333,13 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   (`STRIDE_MS`), so a run of small steps is one stride. The savings that are on are a
   list (`governor.off`, in the order they went; `featureLevel` is its length), no longer a
   prefix of the order. **Coming back**: the ones that went first come back first, five at
-  a time; when what came back makes frames late again it goes off again and to the end
-  of the list, and the next few come back one at a time: what stays off in the end is
-  what the frames need (a trial takes steps until one cures the frames; the ones before
-  it bought nothing). `governor.toFloor()` switches all of them on, live or not. Every
+  a time; when several that came back together make frames late again they go off again,
+  to the front, and come back one at a time; the one that makes frames late by itself
+  goes to the end of the list and is marked as needed (`_alone`): what stays off in the
+  end is what the frames need (a trial takes steps until one cures the frames; the ones
+  before it bought nothing). While only needed savings are on, the resolution and they
+  take turns at coming back, so one saving that stays on does not hold the picture at
+  its fewest pixels for good. `governor.toFloor()` switches all of them on, live or not. Every
   new feature that costs frame time adds its step here, with what it buys once a
   benchmark has said.
 - **Measuring**: the display's refresh interval is estimated continuously from the
