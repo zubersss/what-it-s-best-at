@@ -27,7 +27,7 @@ export function drawTree(geo, A, img, W, ox, oy, cw, ch, proj, o = {}) {
     const o9 = t * 9, V = [0, 1, 2].map((k) => proj([P[o9 + k * 3] * wide * tall, P[o9 + k * 3 + 1] * tall, P[o9 + k * 3 + 2] * wide * tall]));
     if (!V[0] || !V[1] || !V[2]) continue;
     const [a, b, c] = V, leaf = L[t * 3], card = U[t * 6] >= 0, bark = U[t * 6] < -1.5, nls = [0, 1, 2].map((k) => N[o9 + k * 3] * sun[0] + N[o9 + k * 3 + 1] * sun[1] + N[o9 + k * 3 + 2] * sun[2]);
-    const flat = leaf < 0.5 ? trunkC : leaf > 1.5 ? leafC.map((v) => v * 1.3) : leaf > 1.1 ? leafC.map((v) => v * 0.45) : leafC;     // (1.25: the dark inside of a crown)
+    const twigC = trunkC.map(() => (trunkC[0] + trunkC[1] + trunkC[2]) / 3 * 0.62), flat = leaf < 0.1 ? trunkC : leaf < 0.5 ? twigC : leaf > 1.5 ? leafC.map((v) => v * 1.3) : leaf > 1.1 ? leafC.map((v) => v * 0.45) : leafC;     // (1.25: the dark inside of a crown)
     const x0 = Math.max(0, Math.floor(Math.min(a[0], b[0], c[0]))), x1 = Math.min(cw - 1, Math.ceil(Math.max(a[0], b[0], c[0])));
     const y0 = Math.max(0, Math.floor(Math.min(a[1], b[1], c[1]))), y1 = Math.min(ch - 1, Math.ceil(Math.max(a[1], b[1], c[1])));
     const den = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
@@ -45,7 +45,7 @@ export function drawTree(geo, A, img, W, ox, oy, cw, ch, proj, o = {}) {
         if (s[0] < 0.42) continue;
         const petal = o.petal ? Math.min(1, Math.max(0, s[2] > 0.5 ? 2 - s[2] * 2.2 : s[2] * 2)) : 0;
         if (!o.petal && s[2] > 0.25 && s[2] < 0.75 && A.W > 2048) continue;          // (a petal on a tree not in flower: nothing)
-        col = s[2] > 0.75 || (!o.petal && s[2] > 0.5) ? trunkC : leafC.map((c, k) => (c * (1 - petal) + (o.petal ? o.petal[k] : 0) * petal) * (0.6 + 0.5 * s[1]) * (leaf > 3.1 && leaf < 3.5 ? 0.5 : 1));     // (3.25: a crown's dark heart)
+        col = s[2] > 0.75 || (!o.petal && s[2] > 0.5) ? twigC : leafC.map((c, k) => (c * (1 - petal) + (o.petal ? o.petal[k] : 0) * petal) * (0.6 + 0.5 * s[1]) * (leaf > 3.1 && leaf < 3.5 ? 0.5 : 1));     // (3.25: a crown's dark heart)
         lit = 0.5 + 0.6 * Math.min(1, Math.max(0, (nl + 0.25) / 0.9));
       } else if (leaf < 0.5) {
         lit = 0.45 + 0.6 * Math.min(1, Math.max(0, nl + 0.2));

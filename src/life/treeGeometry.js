@@ -16,7 +16,7 @@
 //
 // Vertex data: position, normal (smooth over the whole crown: a tree is lit as one round
 // mass, light on the side to the Sun and dark away from it, whatever way its cards
-// face; a tube's is its own round), aLeaf (0 wood, 1 and 2 leaves drawn as plain faces: a
+// face; a tube's is its own round), aLeaf (0 wood, 0.25 a twig's wood, 1 and 2 leaves drawn as plain faces: a
 // palm's fronds; 1.25 the dark inside of a fir's tier, a plain face; 3 a card of foliage; 3.25 a
 // card of the dark heart of a bunch; 4 a whole tree's card), aUv (where in the picture; -1 on
 // plain faces; on a tube (-2 - how far round it, in furrows of its bark; how far along it,
@@ -56,6 +56,7 @@ class Shape {
   tube(pts, radii, sides = 5, lobes = 0) {
     const n = pts.length, fur = furrows(radii[Math.min(1, n - 1)] * (lobes ? 0.8 : 1)), rings = [];
     const w0 = norm([pts[1][0] - pts[0][0], pts[1][1] - pts[0][1], pts[1][2] - pts[0][2]]), ref = Math.abs(w0[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
+    const kind = radii[0] < 0.0045 ? 0.25 : 0;          // (aLeaf 0.25: a twig, grey-brown and darker than the limb it grows from)
     let along = 0;
     for (let i = 0; i < n; i++) {
       const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)], w = norm([b[0] - a[0], b[1] - a[1], b[2] - a[2]]), e = norm(cross(ref, w)), f = cross(w, e);
@@ -70,8 +71,8 @@ class Shape {
     }
     for (let i = 0; i + 1 < n; i++) for (let k = 0; k < sides; k++) {
       const a0 = rings[i][k], a1 = rings[i][k + 1], b0 = rings[i + 1][k], b1 = rings[i + 1][k + 1];
-      this.tri(a0.p, a1.p, b1.p, 0, 0, null, 0, a0.uv, a1.uv, b1.uv, [a0.n, a1.n, b1.n], [0, 0, 0]);
-      this.tri(a0.p, b1.p, b0.p, 0, 0, null, 0, a0.uv, b1.uv, b0.uv, [a0.n, b1.n, b0.n], [0, 0, 0]);
+      this.tri(a0.p, a1.p, b1.p, kind, 0, null, 0, a0.uv, a1.uv, b1.uv, [a0.n, a1.n, b1.n], [0, 0, 0]);
+      this.tri(a0.p, b1.p, b0.p, kind, 0, null, 0, a0.uv, b1.uv, b0.uv, [a0.n, b1.n, b0.n], [0, 0, 0]);
     }
   }
   // A trunk or a branch: a tapered tube from p0 to p1; a trunk through several points, tapering from r0 to r1.
@@ -237,6 +238,8 @@ export function makeTreeGeometries() {
     s.mid = 0.5;
     const tr = (y) => [0.016 * y * (1 - y), y, 0.012 * y * (1 - y)];
     if (q === 2) s.bole(tr, 0.016, 0.0025, 0.97); else s.trunk([tr(0), tr(0.5), tr(0.97)], 0.016, 0.003, 5);
+    // (the dead stubs of old boughs low on the trunk, as firs have)
+    if (q === 2) for (let k = 0; k < 9; k++) { const y = 0.035 + (foot - 0.03) * (k + L()) / 9, a = k * 2.4 + L() * 2, l = 0.012 + 0.03 * L(), p = tr(y); s.tube([p, [p[0] + Math.cos(a) * l, y + l * (0.25 - 0.5 * L()), p[2] + Math.sin(a) * l]], [0.0028, 0.0009], 3); }
     const bough = (y, a, len, c) => {
       const root = tr(y), dir = [Math.cos(a), 0, Math.sin(a)], side = [-Math.sin(a), 0, Math.cos(a)], droop = 0.2 + 0.2 * L();
       const P = (u) => [root[0] + dir[0] * len * u, y + len * (0.07 * u - droop * u * u), root[2] + dir[2] * len * u];

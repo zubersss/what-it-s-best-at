@@ -219,7 +219,10 @@ export class Trees {
           // (the heart of a bunch: the dark inside of the crown, see Shape.heart in treeGeometry.js)
           bool heart = (vLeaf > 3.1 && vLeaf < 3.5) || (vLeaf > 1.1 && vLeaf < 1.5);
           if (vLeaf > 3.1 && vLeaf < 3.5) leafC *= 0.5;
-          vec3 albedo = wood ? vTrunkC * 0.6 : leafC;
+          // (a twig, drawn in a spray or a thin tube of its own: grey-brown whatever the trunk's
+          // colour, and darker than the limb it grows from; a pine's red is its trunk's plates)
+          vec3 twigC = mix(vTrunkC, dot(vTrunkC, vec3(0.333)) * vec3(1.06, 1.0, 0.9), 0.75) * 0.4;
+          vec3 albedo = wood ? (card || vLeaf > 0.1 ? twigC : vTrunkC * 0.6) : leafC;
           // (bark near by: furrows running up the trunk, wandering a little; and a trunk is
           // round even in the shade of the wood, where no light says so: darker toward its edges)
           // Bark, by rule, on the tubes' own coordinates (vUv.x: -2 - furrows round the tube,
