@@ -84,6 +84,7 @@ ${CLOUD_OVER_GLSL}
 uniform vec4 uGrassTone;     // (w: how strongly the ground wears the grass; 0: none drawn)
 ${FLOWERS_GLSL}
 out vec2 vFlowerFields;      // the flower rule's two broad noises (grassRules.js: flowerMeadow, flowerHill), for the ground within 900 m
+uniform float uPlain;        // 1: the benchmark's flat tone (see the fragment shader): none of the shading below is done
 uniform vec4 uWind;          // xyz: where the wind blows to (unit, planet axes), w: its speed (m/s)
 uniform vec3 uWave;          // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
 uniform vec2 uTide;          // x: the sea's level against the level its shore is mapped at (m, 0 or below: the map is the highest tide)
@@ -177,17 +178,21 @@ void main() {
   // The Sun's light here, and the air between the eye and here (from inside the air: from
   // space the air is worked out pixel by pixel, the planet's edge needs it). Both were asked
   // at every pixel: eight texture reads of the sixteen a pixel of far ground made.
-  vSun = directSun(uCamPlanetPos + rel);
+  // (none of it in the benchmark's flat tone, uPlain: the cost test's row for the ground's
+  // shading must see the shading done here as well as the pixels')
+  vSun = vec3(0.0);
   vHazeT = vec3(1.0); vHazeL = vec3(0.0); vHazeG = vec3(0.0);
-  // (a vertex behind the eye has no place in the view: the edge of the view on its side)
   vCloud = vec4(0.0, 0.0, 0.0, 0.5);
+  vFlowerFields = vec2(0.0, 0.5);
+  if (uPlain > 0.5) return;
+  vSun = directSun(uCamPlanetPos + rel);
+  // (a vertex behind the eye has no place in the view: the edge of the view on its side)
   if (uCloud.x > 0.0 && aI2.z <= float(CLOUD_VERT_TILES)) { vec3 P = uCamPlanetPos + rel; float rP = length(P); if (rP < uCloud.y) vCloud.xyz = cloudOver(P, rP); }
   // (the gusts that send waves over the grass: broad, 240 m to a cell of their noise, and
   // seen to 900 m: the patches that near have vertices a few tens of metres apart at most)
   // (and where the meadows are and which hillsides flower: noises 260 and 420 m to the cell,
   // which every pixel of grass within 900 m used to work out for itself before it knew
   // whether a flower was near)
-  vFlowerFields = vec2(0.0, 0.5);
   if (uGrassTone.a > 0.0 && far < 1100.0) { vec3 Pg = uCamPlanetPos + rel; vCloud.w = flNoise(Pg / 240.0 + vec3(3.0, 11.0, 5.0)); vFlowerFields = vec2(flowerMeadow(Pg), flowerHill(Pg)); }
   if (length(uCamPlanetPos) * 0.001 <= uRTop) hazeAffine(rel, gl_Position.xy / max(abs(gl_Position.w), 1e-6) * 0.5 + 0.5, vHazeT, vHazeL, vHazeG);
 }`;
@@ -691,7 +696,9 @@ void main() {
           float speck = smoothstep(0.45, 0.8, fn1 * (0.55 + 0.65 * fw.y));
           fk = mix(mix(speck, broken, smoothstep(0.35, 1.3, fpx)), 0.2 * dens, smoothstep(1.6, 5.0, fpx));
         }
-        // (pale flowers least, a white patch from the air being snow or stone: flowersAt thins them itself)
+        // (pale flowers least, a white patch from the air being snow or stone: flowersAt thins
+        // them itself, all but the daisy, kind 1, whose thinning is the ground's own, as it was)
+        fk *= (fw.x < 1.5 ? 0.4 : 1.0);
         fk *= (1.0 - 0.6 * clamp(dot(V, up), 0.0, 1.0)) * (1.0 - 0.75 * smoothstep(150.0, 600.0, dG)) * (1.0 - smoothstep(600.0, 900.0, dG));
         gc = mix(gc, petalColour(fw.x, 0.5), fk * GRASS_FLOWER_SHARE);
       }
