@@ -41,7 +41,7 @@ import { BASE_BLOCKS, BAND, LEVELS, band, levelReach, wantedTiles, GROW } from '
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
 import { PAINT_LEAF, TREE_WOOD } from './trees.js';
 import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
-import { SHADOW0, FORM_GLSL, SHADOW_GLSL, FAR_GREEN_GLSL, DENS_STEPS, SHADOW_LONG, SHADOW_FAR0, SHADOW_FAR1, TOP0, TOP1, TOP_MAX, END_ABOVE } from './farTreeForm.js';
+import { SHADOW0, FORM_GLSL, SHADOW_GLSL, FAR_GREEN_GLSL, DENS_STEPS, SHADOW_LONG, SHADOW_FAR0, SHADOW_FAR1, TOP0, TOP1, TOP_MAX, TOP_POW, END_ABOVE } from './farTreeForm.js';
 
 // Trees one tile may hand the GPU (a fixed pool). A band of ranks of levels 0 to 2 has at
 // most 64 blocks x 256 sites x 3/4 = 12 288 sites, and a traveller in the thick of a wood
@@ -60,6 +60,22 @@ const SHADOW_REACH = 1.5 * Math.sqrt(1 / (SHADOW0 * SHADOW0) - 1);
 export function tileShadow(eyeLen, low, near) {
   const over = Math.max(0, eyeLen - low), a = Math.min(1, Math.max(0, (over - 60) / 100));
   return { over, air: a * a * (3 - 2 * a), reach: near < over * SHADOW_REACH + 400 };
+}
+// How steeply a tree is looked down on, as the vertex shader measures it (`down`): the sine
+// of the angle to its crown (its foot plus 0.7 of its height along up), 0 from the side, 1
+// from straight above. foot: the tree's foot from the eye (m); up: the tile's up.
+export function crownDown(fx, fy, fz, h, up) {
+  const cx = fx + up[0] * 0.7 * h, cy = fy + up[1] * 0.7 * h, cz = fz + up[2] * 0.7 * h;
+  return -(cx * up[0] + cy * up[1] + cz * up[2]) / Math.max(1e-6, Math.hypot(cx, cy, cz));
+}
+// Whether a tile is handed its shadows' draw: when the most steeply seen of its trees at its
+// last fill (maxDown) is near the angle shadows begin at. rise: how much higher the eye is
+// now than at that fill (m); near: the tile's nearest point along the ground (m). (By the
+// height over the tile's lowest tree alone, nearly every tile on Haven reaches down into a
+// valley or the sea, and on foot in a wood 32 of 33 tiles drew the shadows of trees none of
+// which could cast one: review farforest2-1.)
+export function shadowGate(maxDown, rise, near) {
+  return maxDown * 1.05 + Math.max(0, rise) / Math.max(50, near) > SHADOW0;
 }
 const MARGIN = 1.5;           // a tile is filled with rather more trees than are wanted now, so that coming nearer does not refill it at once
 
@@ -484,14 +500,16 @@ export class FarForest {
       // a tile of a valley's trees looked down on steeply from a rim had none (farforest-3).
       // They come in between 60 and 160 m over the tile, eased over a second.
       // (the governor's step `tree-shadows` takes them away with the trees' other far shadows)
-      const sh = tileShadow(len, tile.low, tile.near), wantAir = this.shadows === false ? 0 : sh.air;
-      tile.air = tile.air === undefined ? wantAir : tile.air + (wantAir - tile.air) * (1 - Math.exp(-dt / 0.8));
-      if (Math.abs(wantAir - tile.air) < 0.01) tile.air = wantAir;
+      // (The governor's switch acts at once: eased, the shadows stayed drawn for 3.7 s after
+      // it, and the benchmark's cost test, which measures from the sixth frame, saw nothing
+      // of what they cost: review farforest2-3. Only the height's part is eased.)
+      const sh = tileShadow(len, tile.low, tile.near);
+      tile.air = tile.air === undefined ? sh.air : tile.air + (sh.air - tile.air) * (1 - Math.exp(-dt / 0.8));
+      if (Math.abs(sh.air - tile.air) < 0.01) tile.air = sh.air;
       s.own.uTileShadow.value = tile.air;
       // (only for the tiles that can show one: near enough for a shadow to be drawn at all,
-      // and near enough under the traveller to be looked down on at the angle shadows begin
-      // at, with room to spare)
-      const shade = vis && tile.air > 0 && tile.far3 < SHADOW_FAR1 && sh.reach;
+      // and with a tree in them looked down on steeply enough to cast one)
+      const shade = vis && this.shadows !== false && tile.air > 0 && tile.far3 < SHADOW_FAR1 && sh.reach && shadowGate(tile.maxDown ?? 1, len - (tile.fillLen ?? len), tile.near);
       s.mesh.visible = vis; s.shadow.visible = shade;
       if (shade) shadowTiles++;
       if (vis) { drawn += tile.shown; given += tile.count; }
@@ -518,9 +536,11 @@ export class FarForest {
       tile.origin = new THREE.Vector3(...res.origin);
       tile.data = new Float32Array(res.trees);
       // (the tile's lowest tree: its foot's distance from the world's middle)
-      let low = Infinity; const T = tile.data;
-      for (let k = 0, q = 0; k < res.count; k++, q += TREE_FLOATS) low = Math.min(low, Math.hypot(res.origin[0] + T[q], res.origin[1] + T[q + 1], res.origin[2] + T[q + 2]));
-      tile.low = Number.isFinite(low) ? low : tile.origin.length();
+      // (squared lengths, one root: Math.hypot over every tree was more page work than all
+      // the fills together, review farforest2-5)
+      let low2 = Infinity; const T = tile.data, [ox, oy, oz] = res.origin;
+      for (let k = 0, q = 0; k < res.count; k++, q += TREE_FLOATS) { const x = ox + T[q], y = oy + T[q + 1], z = oz + T[q + 2], r2 = x * x + y * y + z * z; if (r2 < low2) low2 = r2; }
+      tile.low = Number.isFinite(low2) ? Math.sqrt(low2) : tile.origin.length();
       tile.vis = new Float32Array(res.vis); tile.lit = res.lit ? new Float32Array(res.lit) : null; tile.sun = sun; tile.at = performance.now(); tile.have = res.count; tile.state = 1;
       tile.stale = serialAt !== this.serial; tile.fillEye = null;
       this.lastMs = res.ms ?? 0;
@@ -540,9 +560,10 @@ export class FarForest {
     u.uTileEast.value.set(...this._e); u.uTileNorth.value.set(...this._n); u.uTileUp.value.set(...this._u);
     const uf = this.shared.uFar.value, full2 = uf.x ** 2, inner2 = uf.z ** 2, far2 = uf.y ** 2, thin = uf.w;
     const ex = eyeRel.x, ey = eyeRel.y, ez = eyeRel.z;
-    let n = 0, bound2 = 0, shown = 0, margin = MARGIN, tallest = 0, flowering = false;
+    const up = this._u, geoX = this.shared.uRoseGeo?.value || [], topPow = -0.25 - TOP_POW;
+    let n = 0, bound2 = 0, shown = 0, margin = MARGIN, tallest = 0, flowering = false, maxDown = -1, reach = 0;
     for (let pass = 0; pass < 3; pass++) {
-      n = 0; bound2 = 0; shown = 0; tallest = 0; flowering = false;
+      n = 0; bound2 = 0; shown = 0; tallest = 0; flowering = false; maxDown = -1; reach = 0;
       for (let k = 0, q = 0; k < tile.have; k++, q += TREE_FLOATS) {
         const x = T[q], y = T[q + 1], z = T[q + 2], rank = T[q + 8];
         const dx = x + ex, dy = y + ey, dz = z + ez, d2 = dx * dx + dy * dy + dz * dz;
@@ -557,6 +578,11 @@ export class FarForest {
         iC[n * 4] = rank + 2 * Math.round(Math.min(1, Math.max(0, T[q + 9])) * DENS_STEPS); iC[n * 4 + 1] = sp.blossom ? this.bloom.get(spi)[Math.round(own * OWN_STEPS)] : PACK_LEAF[spi]; iC[n * 4 + 2] = PACK_TRUNK[spi]; iC[n * 4 + 3] = sp.fall * 4 + 3 * tile.vis[k] + 16 * Math.round(15 * (tile.lit ? tile.lit[k] : 1)) + (sp.blossom ? 256 : 0);
         if (sp.blossom) flowering = true;
         if (T[q + 3] > tallest) tallest = T[q + 3];
+        // (how steeply it is seen, for its tile's shadows; and how far its parts reach out
+        // from its foot: the rosette spread from above, the upright pictures widened)
+        const dn = crownDown(dx, dy, dz, T[q + 3], up); if (dn > maxDown) maxDown = dn;
+        const g = geoX[iB[n * 4 + 2]] || { x: 0.5, z: 0.5 }, spread = Math.min(TOP_MAX, Math.max(1.5, Math.pow(Math.max(keep, 1e-4), topPow)));
+        const out = T[q + 3] * T[q + 4] * Math.max(g.x * spread * 1.1, 1.5 * g.z); if (out > reach) reach = out;
         const r2 = x * x + y * y + z * z + T[q + 3] * T[q + 3];
         if (r2 > bound2) bound2 = r2;
         n++;
@@ -567,14 +593,17 @@ export class FarForest {
       n = CAP; margin = pass === 0 ? 1.2 : 1.0;
     }
     n = Math.min(n, CAP);
-    tile.count = n; tile.shown = shown; tile.flowering = flowering;
+    tile.count = n; tile.shown = shown; tile.flowering = flowering; tile.maxDown = maxDown; tile.fillLen = eye.length();
     tile.fillEye = (tile.fillEye || new THREE.Vector3()).copy(eye);
     s.geo.instanceCount = n; s.shadowGeo.instanceCount = n;
-    s.geo.boundingSphere.center.set(0, 0, 0); s.geo.boundingSphere.radius = Math.sqrt(bound2) + 20;
-    // (the shadows reach out from the trees' feet by as much as SHADOW_LONG of their heights,
-    // or the rosette's spread from above: with the trees' own bounds the shadows near a
-    // tile's corner were culled with it at the screen's edge, review farforest-7)
-    s.shadowGeo.boundingSphere.center.set(0, 0, 0); s.shadowGeo.boundingSphere.radius = Math.sqrt(bound2) + 20 + tallest * Math.max(SHADOW_LONG, TOP_MAX * 0.3);
+    // (with the reach of its trees' parts: from above a closed wood's crown tops spread to
+    // several crown widths, and the corner trees' tops were culled with the tile at the
+    // screen's edge, review farforest2-4)
+    s.geo.boundingSphere.center.set(0, 0, 0); s.geo.boundingSphere.radius = Math.sqrt(bound2) + 20 + reach;
+    // (the shadows reach out from the trees' feet by as much as SHADOW_LONG of their heights:
+    // with the trees' own bounds the shadows near a tile's corner were culled with it at the
+    // screen's edge, review farforest-7)
+    s.shadowGeo.boundingSphere.center.set(0, 0, 0); s.shadowGeo.boundingSphere.radius = Math.sqrt(bound2) + 20 + tallest * SHADOW_LONG;
     for (const a of [s.iA, s.iB, s.iC]) { a.clearUpdateRanges?.(); a.addUpdateRange?.(0, Math.max(1, n) * 4); a.needsUpdate = true; }
   }
 }
