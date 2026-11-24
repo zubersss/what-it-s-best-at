@@ -129,7 +129,50 @@ over the pixels that have any grass. "Rasterised" counts every fragment the tria
 After, nothing is cut out, so the two are the same. Triangles: handed to the GPU
 (instances x triangles each; most are thrown out in the vertex shader).
 
-NUMBERS_TABLE
+| view | triangles before | after | layers before (rasterised / kept) | after |
+|---|---|---|---|---|
+| the opening view (eye height) | 0.61 M | 1.43 M | 5.32 / 4.72 | 4.55 |
+| the steppe, eye height | 0.61 M | 1.43 M | 8.79 / 6.89 | 4.70 |
+| the steppe from 30 m | 0.61 M | 1.43 M | 2.50 / 1.14 | 1.25 |
+| the steppe from 120 m | 0.26 M | 0.55 M | 2.63 / 1.00 | 1.05 |
+| a flower meadow, eye height | 0.61 M | 1.43 M | 9.06 / 7.21 | 5.00 |
+| the meadow from 20 m | 0.61 M | 1.43 M | 2.89 / 1.23 | 1.45 |
+| the meadow toward a low Sun | 0.61 M | 1.43 M | 10.10 / 7.88 | 5.23 |
+| the opening view, `debug=floor` | 0.31 M | 0.72 M | 3.25 / 2.75 | 3.26 |
+| the steppe at a phone's density | 0.61 M | 1.43 M | 13.23 / 8.00 | 5.33 |
+
+Each view's numbers by field are in `docs/shots/grass-rich/layers_<view>_<before|after>.txt`,
+its picture `haven_<view>_<before|after>.png` (660 x 309, one load of the scene for both).
+Views: the steppe `lat=-54.4271&lon=39.2697&t=5&heading=120` (30 m: `alt=1491&pitch=-8`,
+120 m: `alt=1581&pitch=-14`, phone: `fov=21.4`); the flower meadow
+`lat=-54.39501&lon=38.28479&t=5&heading=45` (found with `scripts/find-meadow.mjs`, 2.5 km
+west of the steppe; 20 m: `alt=1488&pitch=-10`; toward a low Sun: `t=0&heading=72&pitch=3`).
+
+How to read it:
+- **At eye height, about half the rasterised layers of before** (0.40 to 0.55 of them at
+  the steppe, the meadow, toward the Sun and at a phone's density), **0.65 to 0.73 of the
+  kept ones**. The brief's target, half of today's, is met against what the GPU ran
+  before (the cut-out cards' thrown-away fragments are shaded all the same), not against
+  what was kept. The opening view is 0.86: its slope is now carpeted with flowers, which
+  are a fifth of its layers.
+- **Each layer is far cheaper than before.** Before, every fragment of grass ran the whole
+  lighting (the Sun through the air, the near shadow map with four taps, the clouds' and
+  the land's shadow on the cards, the sky's light, the haze: some twenty texture reads),
+  and the cards' fragments could not be rejected before shading (a cut-out turns off the
+  GPU's early depth test). Now a fragment of grass writes the colour its triangle hands
+  it: no texture read, no discard, so the depth test rejects hidden grass before shading
+  ("shaded" in the files: 1.7 to 2.1 of the layers are shaded at eye height).
+- **The vertex work is larger**: 1.43 million triangles handed over against 0.61 (4.3
+  million vertex invocations against 1.8; most leave after one table read, out of their
+  ring or out of the picture, and those kept read the table four times, the light table
+  three times). This phone is said to be cheap in triangles, but **this is the number to
+  watch in the next benchmark**: if the grass row is not well under its 11.7 ms, the next
+  thing to cut is the blades a cell of the 0.5 m and 1 m rings (the governor's `grass` and
+  `grass-mid` halve them meanwhile).
+- The light table is one extra pass of 288 x 576 pixels a frame, each running the full
+  lighting once (165 888 pixels: about what 4 % of the grass on a phone's screen cost per
+  layer before).
+- From the air the counts are as before (about one layer: the field seen squarely).
 
 ## Behaviour changes (for the checkpoint message)
 
@@ -151,8 +194,10 @@ NUMBERS_TABLE
 - **Flower patches by the levels of one smooth noise**: the kinds lay in rings round each
   other, the middle ones as thin bands. Then blocks of 70 m pushed by a noise: a quilt of
   squares. Now blocks of 110 m pushed by a wave on each axis.
-- **A cap of four layers**: dense enough from eye height, but the field's own shading
-  came out flat; six was over the target; five.
+- **A cap of four layers**: 2.62 layers at the steppe and a dense field in its one picture;
+  raised to six for fear that the field would read thin further out (not checked in a
+  picture), which gave 4.03, over the target; five is where it stands. Four would meet the
+  target outright and is worth a look in the game.
 - **Big heads at the lattice's full density**: the opening brow was a carpet of yellow
   plates 35 cm across that hid the grass. Now fewer by size, smaller, growing less with distance.
 - **Pollen at its true size**: a grain of pollen 1 cm across is a twentieth of a pixel at
@@ -161,4 +206,32 @@ NUMBERS_TABLE
 
 ## Known problems
 
-KNOWN_PROBLEMS
+Most visible first.
+
+1. **Not measured on the phone.** Fewer and far cheaper layers, but more than twice the
+   vertex work (see Numbers). Ask for a benchmark: the cost test's grass row (11.7 ms on
+   6ac24ff), and `grass-mid` / `grass` what they buy now.
+2. **Flower meadows from 20 m and more are blocks of colour** (`haven_meadow_a20_after.png`):
+   a blue hectare beside a white one beside a gold one, with soft but plain edges. It is
+   what was asked ("one kind after another carpets a hectare"), but the white kinds still
+   read a little like frost from the air even at half the flowered blades. The ground's
+   dusting under them does not know the hillsides of one kind (it needs the slope passed
+   in: asked of the owning session) and still thins the daisy a second time.
+3. **The far rings of blades from 30 m are one even olive** (`haven_steppe_a30_after.png`,
+   as the cards were before): the field's own variety (the stretches of taller and drier
+   grass) hardly shows from above. The ground's grass colour is the same for all ground in
+   view (the mean round the traveller), as before.
+4. **Pollen is a thing of eye height**: the motes are drawn round the traveller to 6 m
+   up and only while the near grass is (below 90 m); a glint is 2 cm, wider than a real
+   grain, so that a phone shows it. Toward the Sun some read as small round orbs. In shot
+   mode the pool is as it would be after a while; in play it fades in over a few seconds.
+5. **The flower dandelion's clocks and the turf heads glint white toward a low Sun** like
+   the pollen does (`haven_pollen_after.png`, the white points low in the field): pretty,
+   but they can be taken for motes.
+6. The near shadow map still reaches only the light table's places, 13 cm apart at one's
+   feet and 30 cm to 20 m: a blade's own shadow on its neighbours is not there (it never
+   was), and a shadow's edge on the grass is as sharp as the table's spacing.
+7. **Earth** gets the new grass and `DEFAULT_FLOWERS` through its `grass` block; not looked at.
+8. `scripts/flower-preview.mjs` (every kind side by side in the game) was written and never
+   finished a run on this machine (a wooded or open view takes over ten minutes a frame of
+   it at 1320 x 618); try it with `--size 660x309`.
