@@ -126,7 +126,27 @@ early push ("T-EARLY", "G-EARLY", "A-LOOK") and writes a report beside its brief
   the marked blocks ("THE GROUND FROM AFAR, 1 to 3"); working on the trees' side until
   then (crowns from above, no crosses, shadows).
 - This machine restarts when the session sleeps between turns: a picture run started
-  detached is lost then. Pictures here only while a turn is waiting on them. Only the
+  detached is lost then. Pictures here only while a turn is waiting on them.
+
+**19:45** (2026-11-24): the joined head is b92ace8 (builds; govsim, far-trees-test,
+far-tree-form-test, flower-rule-test, the grass anchor replay, the cloth check and rocks
+pass). Merged since 09:40: the speed helper's second round (flowers on the ground at the
+vertices, shadow tiles in turns at 30 a second: in Sharp they had been drawn whole every
+frame), the far forest from above (crown tops lit as domes, a shadow beside each far
+tree, no crosses; and one forest in one green: the canopy's gold was the season turning
+evergreens), the trees' final pictures and report (`docs/briefs/trees-refined-report.md`:
+16 % fewer layers in a wood than before, 100k fewer triangles), the grass's final set and
+report (`docs/briefs/grass-rich-report.md`: half the rasterised layers, 1.43 M triangles
+handed over on the steppe, against 0.61 M). **All four helpers' turns ended in an error
+between 13:20 and 15:20** (a platform fault); each was sent its remaining job at 19:40:
+from above, items 2 to 4 (domes, grain from 3 to 30 km, the steppe) and ADONE; speed, the
+Haven benchmark end to end again; grass, the shimmer of far blades in low flight (its
+open problem); trees, two proof pictures from above and TDONE. The owner switched this
+session to another model and turned on multi-agent workflows ("ultracode"): a cold
+review of all of this delivery's code, every finding checked by a skeptic, is running
+(workflow `review-haven-rich`; results to be handed to the helpers or fixed here).
+Still to do after: the visual critic on the final pictures, the final tests here, the
+pull request, the checkpoint asking for a Haven benchmark in Sharp. Only the
 speed helper may edit `terrainMaterial.js`.
 
 ### The far view sent: trees, grass and rock as far as one can see
