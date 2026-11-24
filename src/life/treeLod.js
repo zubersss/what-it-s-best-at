@@ -25,10 +25,12 @@ export const radii = (fraction, closeOn = true) => ({ close: closeOn ? CLOSE_M *
 
 // How far the eye may move before the close and near lists are made again: a quarter of the
 // smallest radius in use, or of the height over the ground when that is more (from 40 m up
-// the nearest tree is 40 m off); 2 m at least, REBUILD_M at most.
-export const fineStep = (fraction, closeOn, agl) => {
+// the nearest tree is 40 m off), and no less than a fifth of a second's travel (at super
+// speed, 60 m/s, a tree is past in a third of a second: nobody sees its make); 2 m at least,
+// REBUILD_M at most.
+export const fineStep = (fraction, closeOn, agl, speed = 0) => {
   const r = radii(fraction, closeOn), small = r.close > 0 ? r.close : r.near;
-  return Math.min(REBUILD_M, Math.max(2, Math.max(small, agl || 0) / 4));
+  return Math.min(REBUILD_M, Math.max(2, Math.max(small, agl || 0) / 4, speed * 0.2));
 };
 
 // What to make this frame: 2 the whole list, 1 the close and near lists, 0 nothing.

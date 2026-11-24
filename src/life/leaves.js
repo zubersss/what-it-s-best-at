@@ -194,7 +194,7 @@ export class Petals {
       }`));
     for (const m of [this.falling, this.lying]) { m.frustumCulled = false; m.visible = false; }
     this.mesh = new THREE.Group(); this.mesh.add(this.falling, this.lying);
-    this.abs = new Float64Array(LYING * 3); this.put = new Uint8Array(LYING); this.next = 0; this.left = 0; this.feet = [];
+    this.abs = new Float64Array(LYING * 3); this.put = new Uint8Array(LYING); this.next = 0; this.left = 0; this.feet = []; this.lift = new Float32Array(LYING); this.again = 0;
     this.anchor = new THREE.Vector3(1e12, 0, 0); this.serial = null; this.enabled = true; this.count = 0;
     this._wind = new THREE.Vector3(); this._d = [0, 0, 0];
   }
@@ -241,9 +241,25 @@ export class Petals {
       // the grass's own rule for how much grows on this kind of land, and a share of a blade's
       // height: life/grass.js), each to a height of its own, so they lie in among the tips.
       const hs = this.terrain.hs, cover = hs?.coverAt ? hs.coverAt(d[0], d[1], d[2]) : -1, amount = cover < 0 ? 0 : (AMOUNT[cover & 255] || 0) * (1 - 0.4 * (cover >> 16) / 255);
-      const r = R + g + (amount > 0.05 ? (0.2 + 0.26 * seed[i * 4 + 3]) * (0.6 + 0.6 * amount) : 0.03);
+      const lift = this.lift[i] = amount > 0.05 ? (0.2 + 0.26 * seed[i * 4 + 3]) * (0.6 + 0.6 * amount) : 0.03, r = R + g + lift;
       this.abs[i * 3] = d[0] * r; this.abs[i * 3 + 1] = d[1] * r; this.abs[i * 3 + 2] = d[2] * r; this.put[i] = 1; this.left--;
       lie.array[i * 4] = d[0] * r - A.x; lie.array[i * 4 + 1] = d[1] * r - A.y; lie.array[i * 4 + 2] = d[2] * r - A.z; lie.array[i * 4 + 3] = 1; changed = true;
+    }
+    // Once all lie, a few a frame are set again on the ground as it is drawn now: finer ground
+    // comes in as one walks up to a tree, and a petal kept where it lies (it is no longer put
+    // down afresh at every making of the lists) would stay on the coarser ground's height.
+    for (let c = 0, scanned = 0; this.left === 0 && c < PER_FRAME && scanned < LYING; scanned++) {
+      const i = this.again; this.again = (this.again + 1) % LYING;
+      if (!this.put[i]) continue;
+      c++;
+      const x = this.abs[i * 3], y = this.abs[i * 3 + 1], z = this.abs[i * 3 + 2], l = Math.hypot(x, y, z);
+      d[0] = x / l; d[1] = y / l; d[2] = z / l;
+      const g = this.terrain.drawnHeight(d, Math.hypot(x - P.x, y - P.y, z - P.z));
+      if (g == null) continue;
+      const r = R + g + this.lift[i];
+      if (Math.abs(r - l) < 0.002) continue;
+      this.abs[i * 3] = d[0] * r; this.abs[i * 3 + 1] = d[1] * r; this.abs[i * 3 + 2] = d[2] * r;
+      lie.array[i * 4] = d[0] * r - A.x; lie.array[i * 4 + 1] = d[1] * r - A.y; lie.array[i * 4 + 2] = d[2] * r - A.z; changed = true;
     }
     if (changed) lie.needsUpdate = true;
   }

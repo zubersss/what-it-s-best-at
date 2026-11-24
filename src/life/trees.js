@@ -175,7 +175,7 @@ export class Trees {
     };
     // The trees' picture (made by scripts/make-tree-atlas.mjs). Until it has come, no tree is drawn.
     this.atlasReady = false;
-    loadAtlas(import.meta.env.BASE_URL + 'data/tree_atlas.png').then((t) => {
+    loadAtlas((import.meta.env?.BASE_URL ?? '/') + 'data/tree_atlas.png').then((t) => {
       this.renderer?.initTexture(t);              // (to the GPU now, between frames, if the renderer is known by then)
       this.shared.tTreeAtlas.value = t; this.atlasReady = true; this.dirty = true;
     }).catch((e) => console.error(e));
@@ -487,7 +487,7 @@ export class Trees {
     }
     if (this.frame % 600 === 0) for (const [key, b] of this.blocks) if (b.state === 1 && b.used < this.frame - 1200) this.blocks.delete(key);
     // the whole list when the eye has gone REBUILD_M, the close and near ones every few metres
-    const make = toMake(this.dirty, this.builtAt.distanceToSquared(p), this.fineAt.distanceToSquared(p), fineStep(this.fraction, this.closeOn !== false, rig.agl));
+    const make = toMake(this.dirty, this.builtAt.distanceToSquared(p), this.fineAt.distanceToSquared(p), fineStep(this.fraction, this.closeOn !== false, rig.agl, rig.onFoot ? (rig.footVel?.length() || 0) : rig.velocity.length()));
     if (make === 2) this._build(rig, radius); else if (make === 1) this._fine(p);
     // per frame: where the anchor is from the camera, the season, the wind's clock
     const u = this.shared;
