@@ -2,12 +2,15 @@
 // 60 and 120 Hz screens: does it settle, come down fast, climb back, and ignore terrain
 // uploads?   node scripts/governor-sim.mjs
 // Each line of the trace is time:megapixels (fN = N feature steps down), every 5 s.
-import { Governor, FRAME } from '../src/perf/governor.js';
+import { Governor, FRAME, FEATURE_STEPS } from '../src/perf/governor.js';
 const stubGl = { getExtension: () => null };
 // cost: what the GPU needs for the frame (ms); work (optional): what the page's own work
 // needs (ms). They run side by side: the frame takes the longer of the two.
-function run(label, { vsyncMs, mode, native, cost, work = () => 2, seconds, events = () => {}, uploadsEvery = 0 }) {
-  const app = { renderer: { getContext: () => stubGl }, quality: { x: 1, y: 1, z: 1, w: 1 }, dust: { amount: 1 }, rocks: { setFraction() {} }, terrainBudget(f, id) { this.budget = this.budget || {}; this.budget[id] = f; }, terrainPace(l) { this.pace = l; }, post: { bloomEnabled: true }, hero: { robe: {} }, atmosphere: { airEnabled: true }, nearShadow: { fine: true } };
+// scene (optional): what is drawn where the traveller is, for the steps that ask (`live`):
+// by default everything (near trees, grass, the far forest, the cloud volume, the figure).
+function run(label, { vsyncMs, mode, native, cost, work = () => 2, seconds, events = () => {}, uploadsEvery = 0, scene = {} }) {
+  const app = { renderer: { getContext: () => stubGl }, quality: { x: 1, y: 1, z: 1, w: 1 }, dust: { amount: 1 }, rocks: { setFraction() {} }, terrainBudget(f, id) { this.budget = this.budget || {}; this.budget[id] = f; }, terrainPace(l) { this.pace = l; }, post: { bloomEnabled: true }, hero: { robe: {}, group: { visible: true } }, atmosphere: { airEnabled: true }, nearShadow: { fine: true },
+    trees: { count: 200, setFraction() {} }, grass: { keepClumps: 1, keepBlades: 1, mesh: { visible: true }, setMidShare() {}, setFraction() {} }, farForest: { shown: true, count: 5000, setFraction() {} }, cloudVolume: { wanted: true }, clouds: { mesh: { visible: true } }, ...scene };
   const g = new Governor(app, mode); g.setNative(native);
   let prevSoft = false, lastWork = 2, bucket = -1, now = 0, last = 0, busyUntil = 0, frames = 0, lateFrames = 0, lastRender = -1, n = 0;
   const trace = [], byMode = {};           // per mode: [frames, late frames]
@@ -146,5 +149,106 @@ run('Phone-like: 10 s of slow work per frame that nothing cures', { vsyncMs: 8.3
   if (g.featureLevel !== 0) { console.log('FAILED: savings on for late frames that a resolution step cures'); process.exitCode = 1; }
   const tail = g.log.filter((l) => l.t > 120).length;
   if (tail > 12) { console.log(`FAILED: still hunting after two minutes (${tail} steps in the last two)`); process.exitCode = 1; }
+}
+// The test phone, ninth results (build 6ac24ff, Haven): at the fewest pixels a third to a
+// half of the frames late, and what cures them is a few steps that each buy milliseconds
+// (the cost test's own figures below), while most steps buy nothing. With those few behind
+// eight that buy nothing, a trial of two to four steps ended before it reached one, four
+// times in one benchmark, and the picture stayed at the floor with half its frames late.
+// Now a trial must reach a step that cures them, keep it, and give the rest back.
+// (each of these fails on the ladder as it was: "least loss first")
+const offNow = (g, id) => (g.isOff ? g.isOff(id) : FEATURE_STEPS.findIndex((f) => f.id === id) < g.featureLevel);
+const ninth = (label, base, saves, scene, check) => {
+  let seed = 4711, late = 0, n = 0, back = 0;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const g = run(label, { vsyncMs: 8.403, mode: 'smooth', native: NATIVE, seconds: 240, work: () => 6, scene,
+    // (under two million pixels the picture's size is hardly what a frame costs on this phone)
+    cost: (p, t, gg) => { let c = base + 0.6 * p / 1e6 + 5 * rnd(); for (const id in saves) if (offNow(gg, id)) c -= saves[id]; if (t > 60) { n++; if (c > 16.67) late++; } return c; },
+    events: (t, gg) => { if (t < 0.02 && gg.resLevel !== gg.maxResLevel) { gg.resLevel = gg.maxResLevel; gg._applyScale(); } } });
+  back = g.log.filter((l) => /did not cure/.test(l.text)).length;
+  // (every saving that was switched on at any time in the run, by its label in the log)
+  const ever = FEATURE_STEPS.filter((f) => g.log.some((l) => l.text.includes('off: ' + f.label))).map((f) => f.id);
+  const share = late / Math.max(1, n), ids = g.offIds || FEATURE_STEPS.slice(0, g.featureLevel).map((f) => f.id);
+  console.log(`  late in the second minute ${(100 * share).toFixed(1)} %, savings on: ${ids.join(', ') || 'none'}; trials that ended with everything put back: ${back}`);
+  if (share > 0.08) { console.log('FAILED: the late frames were not cured, though a step that cures them exists'); process.exitCode = 1; }
+  check?.(ids, ever, g);
+};
+ninth('Phone, ninth results, the opening view: frames up to 3.5 ms too long; grass-mid buys 5.0, far-trees 3.6, clouds 4.0, far-relief 3.5', 13.2,
+  { 'grass-mid': 5.0, clouds: 4.0, 'far-trees': 3.6, 'far-relief': 3.5, 'cloud-volume': 2.8, bloom: 1.1, 'fine-shadows': 1.1 }, {},
+  (ids, ever, g) => {
+    if (ids.length > 4) { console.log(`FAILED: ${ids.length} savings left on where one or two cure the frames`); process.exitCode = 1; }
+    // (pixels are not what these frames wait for: with the one saving on, the picture's size comes back)
+    if (g.pixels < 2.0e6) { console.log(`FAILED: the picture stayed at ${(g.pixels / 1e6).toFixed(2)} MP behind a saving that stays on`); process.exitCode = 1; }
+  });
+ninth('Phone, ninth results, in a wood: tree-leaves buys 11.5, trees-far 7.0, cloud-steps 3.4, tree-shadows 2.7', 15.0,
+  { 'tree-leaves': 11.5, 'trees-far': 7.0, 'cloud-steps': 3.4, 'tree-shadows': 2.7, grass: 1.6, cloak: 1.0 }, {},
+  (ids) => { if (ids.length > 5) { console.log(`FAILED: ${ids.length} savings left on where two or three cure the frames`); process.exitCode = 1; } });
+// From the air nothing of the trees and the grass is drawn: their steps are passed over,
+// and the trial reaches the one step that buys anything there.
+ninth('Phone, ninth results, from the air: only cloud-volume cures (9.4); no near trees, no grass, no far forest drawn', 13.2,
+  // (the near trees as the game leaves them after a take-off from a wood: the last list's count
+  // kept, nothing drawn, reach 0: their steps must not count as live up there)
+  { 'cloud-volume': 9.4 }, { trees: { count: 200, reach: 0, setFraction() {} }, grass: { keepClumps: 0, keepBlades: 0, mesh: { visible: false }, setMidShare() {}, setFraction() {} }, farForest: { shown: false, count: 0, setFraction() {} } },
+  (ids, ever) => {
+    if (!ids.includes('cloud-volume')) { console.log('FAILED: the one step that cures the frames was not reached'); process.exitCode = 1; }
+    // (at any time in the run, not only at its end: what went first has come back by then)
+    for (const id of ['tree-shadows', 'trees-far', 'tree-leaves', 'grass-mid', 'grass', 'far-trees']) if (ever.includes(id)) { console.log(`FAILED: ${id} switched off where nothing of it is drawn`); process.exitCode = 1; }
+    if (ids.length > 4) { console.log(`FAILED: ${ids.length} savings left on where one cures the frames`); process.exitCode = 1; }
+  });
+// Sharp is the default since 2026-11-24 (a steady 30 with the sharpest picture that holds).
+// A GPU like the test phone's, from its ninth results: Sharp starts at the screen's own
+// size with everything on. (1) A view whose frames hardly depend on the picture's size (the
+// opening view: 62 ms at native, 64 at 2 MP in the cost test): fewer pixels cure nothing,
+// two savings do. It must not sit at native with its frames late, nor end at the fewest
+// pixels: the savings are tried at the size that stands. (2) A view that is pixels (the
+// wood: 104 ms at native, 72 at 2 MP): frames of 45 to 60 ms at native must settle at a
+// size that holds, without hunting.
+const sharp = (label, costAt, saves, check) => {
+  let seed = 99, late = 0, n = 0;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const g = run(label, { vsyncMs: 8.403, mode: 'sharp', native: NATIVE, seconds: 300, work: () => 8,
+    cost: (p, t, gg) => { let c = costAt(p / 1e6) + 4 * rnd(); for (const id in saves) if (offNow(gg, id)) c -= saves[id]; if (t > 180) { n++; if (c > 33.6) late++; } return c; } });
+  const share = late / Math.max(1, n), tail = g.log.filter((l) => l.t > 180).length;
+  console.log(`  late in the last two minutes ${(100 * share).toFixed(1)} %, ${(g.pixels / 1e6).toFixed(2)} MP, savings on: ${(g.offIds || []).join(', ') || 'none'}; steps in the last two minutes: ${tail}`);
+  if (share > 0.1) { console.log('FAILED: frames still late against 33 ms'); process.exitCode = 1; }
+  if (tail > 14) { console.log(`FAILED: still hunting (${tail} steps in the last two minutes)`); process.exitCode = 1; }
+  check?.(g);
+};
+sharp('Phone in Sharp, a view that is not pixels (frames 38 to 43 ms at any size; grass-mid buys 5.0, far-trees 3.6)', (mp) => 33.5 + 1.0 * mp,
+  { 'grass-mid': 5.0, 'far-trees': 3.6, clouds: 4.0, 'far-relief': 3.5 },
+  (g) => { if (g.pixels < 3.0e6) { console.log(`FAILED: ended at ${(g.pixels / 1e6).toFixed(2)} MP for frames that fewer pixels do not cure`); process.exitCode = 1; } });
+sharp('Phone in Sharp, a view that is pixels (frames 50 to 55 ms at native, 33 at 2 MP; must settle)', (mp) => 16 + 7.8 * mp, { 'tree-leaves': 6.0, 'trees-far': 3.5 });
+// The cold review of 2026-11-24 (docs/briefs/haven-rich-review.md, governor-1 and -2), each
+// case failing on the governor as it was then.
+// (1) A device with late frames of its own (one in fifteen, whatever is drawn), frames that
+// fit at any size: a trial of fewer pixels that cures nothing must not hand over to a
+// minute of savings (it did, when the trial was started by the slow drift of the late share
+// rather than by a burst: every large saving off, the cloud volume first, for a minute).
+const ownLate = (mode) => {
+  let seed = 5; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const offFor = {}; let lastT = 0;
+  const g = run(`${mode === 'sharp' ? 'Sharp' : 'Smooth'}, late frames of the device's own (1 in 15 whatever is drawn), frames that fit at any size`, { vsyncMs: 8.403, mode, native: NATIVE, seconds: 300, work: () => 6,
+    cost: (p, t, gg) => (gg.mode === 'sharp' ? 20 : 10) + 1.0 * p / 1e6 + (rnd() < 1 / 15 ? 30 : 0),
+    events: (t, gg) => { for (const id of gg.offIds || []) offFor[id] = (offFor[id] || 0) + (t - lastT); lastT = t; } });
+  const long = Object.entries(offFor).filter(([, s]) => s > 10);
+  console.log(`  savings off for more than 10 s: ${long.map(([k, v]) => `${k} ${v.toFixed(0)} s`).join(', ') || 'none'}`);
+  if (long.length) { console.log('FAILED: savings switched off for late frames that no saving cures'); process.exitCode = 1; }
+};
+ownLate('sharp'); ownLate('smooth');
+// (2) Sharp at the opening view (frames 35 to 38 ms at native, grass-mid cures them): a saving
+// that buys nothing (cloud-steps), once back with no late frame since, must not be taken off
+// again by a late share that is only the memory of the trial's first frames.
+{
+  let seed = 7; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const offFor = {}; let lastT = 0;
+  const g = run('Sharp, the opening view: frames 35 to 38 ms at any size, grass-mid buys 6.0, nothing else buys anything', { vsyncMs: 8.403, mode: 'sharp', native: NATIVE, seconds: 240, work: () => 8,
+    cost: (p, t, gg) => 35 + 0.3 * p / 1e6 + 3 * rnd() - (gg.isOff('grass-mid') ? 6 : 0),
+    events: (t, gg) => { for (const id of gg.offIds || []) offFor[id] = (offFor[id] || 0) + (t - lastT); lastT = t; } });
+  // (a trial gives its savings back one at a time, some 6 s apart: up to half a minute off is
+  // the trial; the fault kept cloud-steps off 70 s and trees-far 47 s)
+  const kept = Object.entries(offFor).filter(([k, s]) => k !== 'grass-mid' && s > 30);
+  console.log(`  off over the run: ${Object.entries(offFor).map(([k, v]) => `${k} ${v.toFixed(0)} s`).join(', ') || 'none'}; savings on at the end: ${(g.offIds || []).join(', ') || 'none'}`);
+  if (kept.length) { console.log(`FAILED: ${kept.map(([k]) => k).join(', ')} kept off for more than 30 s, buying nothing`); process.exitCode = 1; }
+  if (!(g.offIds || []).includes('grass-mid')) { console.log('FAILED: the one saving that cures the frames is not on at the end'); process.exitCode = 1; }
 }
 run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native: 1920 * 1080, seconds: 40, cost: (p) => 2 + 1.5 * p / 1e6 });

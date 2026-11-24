@@ -140,30 +140,6 @@
     "worst": 134
   },
   {
-    "move": "haven_meadow_walk",
-    "pass": "settled",
-    "station": 0,
-    "changed": 25.56,
-    "flicker": 6.542,
-    "worst": 130
-  },
-  {
-    "move": "haven_meadow_walk",
-    "pass": "settled",
-    "station": 1,
-    "changed": 26.75,
-    "flicker": 7.126,
-    "worst": 127
-  },
-  {
-    "move": "haven_meadow_walk",
-    "pass": "settled",
-    "station": 2,
-    "changed": 25.5,
-    "flicker": 5.93,
-    "worst": 103
-  },
-  {
     "move": "haven_rocks_walk",
     "pass": "settled",
     "station": 0,
@@ -178,5 +154,77 @@
     "changed": 0.47,
     "flicker": 0.005,
     "worst": 135
+  },
+  {
+    "move": "haven_flower_walk",
+    "pass": "settled",
+    "station": 0,
+    "changed": 31.71,
+    "flicker": 8.044,
+    "worst": 159
+  },
+  {
+    "move": "haven_flower_walk",
+    "pass": "settled",
+    "station": 1,
+    "changed": 31.84,
+    "flicker": 7.378,
+    "worst": 172
+  },
+  {
+    "move": "haven_flower_walk",
+    "pass": "settled",
+    "station": 2,
+    "changed": 33.01,
+    "flicker": 7.775,
+    "worst": 160
+  },
+  {
+    "move": "haven_meadow_walk",
+    "pass": "settled",
+    "station": 0,
+    "changed": 27.14,
+    "flicker": 6.596,
+    "worst": 131
+  },
+  {
+    "move": "haven_meadow_walk",
+    "pass": "settled",
+    "station": 1,
+    "changed": 28.55,
+    "flicker": 6.758,
+    "worst": 108
+  },
+  {
+    "move": "haven_meadow_walk",
+    "pass": "settled",
+    "station": 2,
+    "changed": 29.15,
+    "flicker": 6.828,
+    "worst": 113
+  },
+  {
+    "move": "haven_grass_flight",
+    "pass": "settled",
+    "station": 0,
+    "changed": 10.45,
+    "flicker": 1.2,
+    "worst": 136
+  },
+  {
+    "move": "haven_grass_flight",
+    "pass": "settled",
+    "station": 1,
+    "changed": 14.48,
+    "flicker": 3.655,
+    "worst": 124
+  },
+  {
+    "move": "haven_grass_flight",
+    "pass": "settled",
+    "station": 2,
+    "changed": 36.2,
+    "flicker": 8.795,
+    "worst": 112
   }
 ]

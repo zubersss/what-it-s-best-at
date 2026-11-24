@@ -103,8 +103,11 @@ they have served it well; they are no longer rules.
   (3088 × 1440 on the phone). The governor keeps the frame rate: it lowers resolution
   when pixels are what is slow, lets terrain in more slowly or draws fewer patches when
   the page's own work is what is slow, then steps features down in a fixed order, and
-  steps back up when there is sustained headroom. Two modes on a button: **Smooth**
-  (60 fps, the default) and **Sharp** (30 fps, favouring detail and native resolution).
+  steps back up when there is sustained headroom. Two modes on a button: **Sharp**
+  (30 fps, favouring detail and native resolution; **the default since 2026-11-24**, the
+  owner's word after the ninth benchmark: "We can do 30 fps if the game looks much more
+  beautiful as well which I would like more") and **Smooth** (60 fps). "Without lag" is
+  then a steady 30: no frame late against 33 ms, and beauty before frame rate.
 - **No fixed budgets**: pools stay fixed-size so memory cannot creep; the phone's
   benchmark is the judge.
 - **Expensive effects** (anti-aliasing, soft shading in creases, clouds, reflections and
@@ -201,12 +204,18 @@ npm run lakes          # Earth's lakes and rivers against the real ones, without
 npm run rocks          # the far rocks' rule against its promises, without a browser (5 s): the same twice, none in water, on the ground, steep against level ground, a walker's footing
 npm run shadowturns    # the shadow tiles drawn in turns: a held tile must draw the same picture as a fresh one after a walk (headless, Moon)
 node scripts/play-profile.mjs [--world earth] [--at "21.7,284.7,40"] [--floor] [--seconds 120] [--shot out.png]   # the real game in play mode at a place: the page's work by part, the governor's level, patches built (--floor: every saving on)
-node scripts/tree-preview.mjs [--out dir] [--variant 1] [--only 0,2] [--below]   # every tree shape at its three distances, drawn without a browser in seconds (PNG sheets)
+node scripts/tree-preview.mjs [--out dir] [--variant 1] [--only 0,2] [--below] [--close [--from 4]] [--against <other checkout>]   # every tree shape at its three distances, drawn without a browser in seconds (PNG sheets); --close: the close mesh from 4 m at the phone's density (what a leaf looks like to a walker); --against: old beside new
+node scripts/find-tree.mjs --world haven --lat .. --lon .. [--from 4,12] [--species cherry]   # the trees standing nearest a place (as the game's workers place them), and where to put the camera to look at one from so many metres
+node scripts/overdraw.mjs [--part trees,farForest,grass,leaves] [--view "in the forest" | --query ..] [--distdir build] [--out dir]   # layers of a part drawn over each pixel and triangles handed over, in the real game (a forest is paid for in layers of cut-out pixels); also __app.overdraw('trees') at the console
 node scripts/make-world.mjs [--width 4096] [--seed 7] [--preview dir] [--only-preview]   # makes the small world's land (Haven): elevation with drainage, lakes, rain (a minute; --width 2048 --only-preview: nine seconds, with pictures to judge it by)
 node scripts/make-world-maps.mjs   # ... and from that its colour, slope, water and cloud maps (needs Python's PIL for the JPEGs); prints the albedo map's mean for the world file
 node scripts/find-haven-site.mjs [--open] [--lat 28,52]   # places on Haven to begin at: level ground over low ground and water, high ground near by
 node scripts/find-overlook.mjs --world haven --lat .. --lon .. --heading .. [--below 1500]   # the very spot: level underfoot, the ground falling away in front, mountains on the far skyline (then look with peek.mjs)
 node scripts/far-trees-test.mjs     # the far forest's trees are the near trees: a thinned tile is a subset of the full one, at the same places (no browser)
+node scripts/far-tree-above.mjs [--old] [--out file.png] [--dist 450,1200,3000] [--down 15,35,60,90] [--sun 25]   # the far trees seen from above, sketched without a browser in seconds: a closed wood and lone trees at three distances and four angles (the rule is life/farTreeForm.js)
+node scripts/far-tree-form-test.mjs  # that rule's promises (nothing changes from the ground, nothing switches, a wood's cover from above, a lone tree's size, shadows); node scripts/far-tree-shade-test.mjs [--was]   # the land's shadow on a far tile's trees against a ray from every tree (15 s)
+node scripts/far-forest-probe.mjs --distdir <build> --query "lat=..&lon=..&alt=..&pitch=.." [--out file.png] [--map file.png] [--eval ".."] [--print ".."]   # the far forest in the real game at a place: tiles, the land's shadow by tile, the clouds' shadow map the trees read, draw calls and triangles
+scripts/from-above-shots.sh <frozen build> <suffix> [view ...]   # Haven from above, the set of views (docs/shots/from-above; a view: <ledge|wood|steppe>_<metres over the ground>_p<degrees down>[_phone|_floor|_clear])
 npm run rocks                      # the rule that places boulders: steep against level, clusters, sizes, a walker's footing (no browser); node scripts/rig-over-rock.mjs   # flight over a boulder, without a browser in a second: the height over the ground stays the land's, the floor is the rock's
 node scripts/rock-field.mjs draws the field from above
 node scripts/cloud-field.mjs [--span 150] [--lat .. --lon ..] [--out file.png]   # the fair-weather cloud field from straight above, without a browser in seconds: rows, clusters, how much of the sky
@@ -223,6 +232,12 @@ python3 scripts/fit-orbits.py      # orbits fitted to JPL Horizons (needs ssd.jp
 npm run assets         # re-download and convert the small NASA/Yale files into public/data/
 python3 scripts/fetch-maps.py   # the rest of public/data/ (needs: pip install rasterio numpy pillow), see docs/ASSETS.md
 node scripts/parts-out.mjs --world haven --shot ledge [--query ..] [--box 0.2,0.6,0.8,1] [--distdir build]   # who draws that? one view taken with one part out at a time (grass, clumps, trees, far forest, rocks, shadow casters), and how much of the picture each changes
+scripts/ground-cost-run.sh <scratch dir> [--only ledge,air3k] [--before old-terrainMaterial.js] [--save dir] [--parts file.mjs] [--size 880x412 --dsf 2.2]   # what the ground's shading costs, as a count of work on software WebGL (never a frame rate): the game's ground alone at ten views, the shader of an earlier commit beside the new one in the same browser session, and how far their pictures are apart (git show <commit>:src/terrain/terrainMaterial.js > old-terrainMaterial.js). Runs scripts/ground-cost.mjs from a copy of the tree: the dev server reloads the page at any source edit
+node scripts/hero-cost.mjs   # what the character costs the page each frame, without a browser (seconds): the cloth at 60 and 30 frames a second, the whole figure; fails if the cloth's points have moved from scripts/lib/robe-reference.json
+node scripts/grass-place-test.mjs   # a place's blades and tussocks are the place's, never the anchor's: anchor steps, the 2 560 m wrap, a grass saving on (no browser, seconds)
+node scripts/grass-flowers-pixels-test.mjs   # the far blades' flowers fade in where the single flowers fade out (no circle), pixel sizes by the drawn picture, pollen's clock (no browser)
+node scripts/grass-light-test.mjs   # the grass's light table: each pixel works out only the number it keeps, and only the rows something drawn reads (no browser)
+node scripts/far-ground-test.mjs   # the ground from afar: patterns a whole number of cycles over the detail tile, the means the shader uses, no repeat of the steppe's shrubs (no browser)
 npm run probe          # top-down shaded relief of the height function (no browser)
 node scripts/sky-table.mjs [--lat .. --lon ..]   # where the sky bodies are from a place over time (no browser)
 node scripts/profile-chunks.mjs --world moon   # chunk build times per level (no browser)
@@ -261,6 +276,8 @@ body or `sun`, that many of its radii from its centre, looking at it; `round` de
 frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last footfalls), `debug=noair|airall` (haze shadows off / everywhere),
 `debug=contactx4` (the rocks' contact-darkening spheres four times larger, to see the effect),
 `debug=flash` (a stroke of lightning held at its brightest, on worlds with weather),
+`debug=noclouds` (a clear sky: no cloud layer, no cloud volume and none of their shadows; from 1.2 km over Haven's opening place one is in cloud),
+`debug=treeshade` (the far trees painted by how much of the Sun the land and the clouds leave them: red all, blue none),
 `debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
 `nofarrough`, `noboost`) for before/after pictures, `debug=farrocksoff` (none of the far rocks, for before/after pictures), `debug=floor` (every saving of the
 governor on and Smooth's share of the patches: what a phone that has given everything up
@@ -677,5 +694,37 @@ finished benchmark leaves its text in `window.__benchResult`.
   scratchpad, the frozen build and the pictures survived, the processes did not. Start
   long runs detached (`nohup setsid script &`), as steps that each write a line to a log
   when done, and wait on the log: then a run is picked up from its last line.
+- A debug switch that hides a thing must take away what the thing does to everything else:
+  `debug=noclouds` first hid the cloud layer and left its shadow on, with a white map for a
+  cloud, and every "clear" picture was taken under an even overcast. And a render target
+  of one byte a pixel read back into a buffer of four fills a quarter of it: "three
+  quarters in shade" was the part never written.
+- A card on edge is nothing: the far trees (upright cards) were specks and crosses from
+  above, a fir's rosette lay under the middle of its crown and was lit as its underside,
+  and a trunk drawn on an upright card shows through the crown. What is seen from above
+  needs a form, a light and a rule of its own, blended in by the angle it is looked down at
+  (`life/farTreeForm.js`), and a sketch of it alone from several angles before any picture.
+- Software WebGL (the headless browser) does not skip what follows an early `return` in
+  a shader, only what stands inside an `if` that is false for the whole 2 x 2 pixels: the
+  ground "in one flat tone" (`uPlain`) still cost a third of its shading there, and a
+  measure of "shaded minus flat" left that third out. A texture read costs it far more
+  against arithmetic than it costs a GPU, and its vertices cost as much as its pixels at
+  the reference pictures' size: work moved from pixels to vertices shows no gain there.
+  Believe it about what is skipped; measure at the phone's pixel count (`--dsf 2.2`).
+- The dev server reloads the page when a source file changes: a long headless run from
+  the working tree is spoilt by the next edit (a cost profile was, mid-way, without a
+  word). Long runs go from a frozen build (`--distdir`) or from a copy of the tree.
+- The phone's cost table shows work done at every pixel and then weighted zero as the
+  cost of the saving that happens to switch it off: `far-relief` bought 3.5 ms at the
+  opening view, where the relief is added to no pixel near by; what it bought was a loop
+  over the elevation rasters run before the test that makes it unnecessary.
+- A helper session whose turns keep ending in an error may have reached its model's usage
+  limit, not met a fault: `get_session` says so in `status_detail` ("You've hit your ...
+  limit"). Resending its job does nothing; a new session on a model with room takes over
+  from the brief and the report in the repository (that is what they are for), with a
+  second brief that says what is left.
+- A check of a finding reads the code as it is when the check runs: fixes landed while the
+  checks were running came back "refuted" (already fixed). Tell checkers the commit the
+  finding is about, and land fixes after the checks, or say in the brief which are fixed.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.

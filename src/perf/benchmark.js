@@ -290,8 +290,7 @@ class CostTest {
     this.views = [{ world: bench.first, name: `${w.name}, ${b0}`, bookmark: b0 }, ...(w.scene.costViews || []).map((v) => ({ world: bench.first, bookmark: b0, ...v, name: `${w.name}, ${v.name}` }))];
     // everything on, the governor still
     this.level = g.featureLevel; this.resLevel = g.resLevel; this.fixedBefore = g.fixed;
-    for (let i = this.level - 1; i >= 0; i--) FEATURE_STEPS[i].apply(app, false);
-    g.featureLevel = 0;
+    this.savings = g.allOn();
     const held = Math.min(1, Math.sqrt(HELD / g.nativePixels)), small = Math.min(1, Math.sqrt(1.0e6 / g.nativePixels));
     // [what is switched off (-1 nothing, -2 everything, else that step), the picture's scale]
     // (not the steps that draw fewer patches: the ground would have to settle again each time)
@@ -405,8 +404,7 @@ class CostTest {
     if (this.partOut != null) { PARTS_OUT[this.partOut][1](app, false); this.partOut = null; }
     g.fixed = this.fixedBefore ?? null; g.resLevel = this.resLevel; g._applyScale();
     app.canvasHold = null;
-    for (let i = 0; i < this.level; i++) FEATURE_STEPS[i].apply(app, true);
-    g.featureLevel = this.level;
+    g.restoreSavings(this.savings);
     this.state = 'done';
   }
 }

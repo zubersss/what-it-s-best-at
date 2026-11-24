@@ -66,7 +66,10 @@ export async function open({ dist = false, width = 880, height = 412, dsf = 1.25
   // errors: the same without the warnings (what a run of pictures must not have).
   const problems = [], errors = [];
   // The software GL driver's performance notes ("GPU stall due to ReadPixels") are not faults.
-  const benign = (t) => /GL Driver Message \(OpenGL, Performance/.test(t);
+  // Nor is a refused full screen: the game asks for it on the tap that starts play, and a
+  // browser grants it only within five seconds of the tap; a software-drawn frame can be
+  // longer than that (it failed a whole smoke run once, with every check passed).
+  const benign = (t) => /GL Driver Message \(OpenGL, Performance/.test(t) || /requestFullscreen.*user gesture/.test(t);
   page.on('console', (m) => {
     if ((m.type() !== 'error' && m.type() !== 'warning') || benign(m.text())) return;
     problems.push(m.text().slice(0, 400)); if (m.type() === 'error') errors.push(m.text().slice(0, 400));

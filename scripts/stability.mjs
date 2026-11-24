@@ -49,6 +49,9 @@ const MOVES = [
   { id: 'haven_flight', world: 'haven', shot: 'ledge', query: 'alt=9000&pitch=-16&t=2', step: { fwd: 6 }, stride: 300, slow: true },
   // (Haven on foot through the opening meadow: the blades, the clumps beyond them and the
   // ground's own grass, where each field gives way to the next, as the traveller walks)
+  // (a flower meadow, and low flight over grass: the flowers of every habit, the pollen, the far rings of blades; docs/briefs/grass-rich-report.md)
+  { id: 'haven_flower_walk', world: 'haven', shot: 'ledge', query: 'lat=-54.39501&lon=38.28479&heading=45&t=5&pitch=-3', step: { fwd: 0.055 }, stride: 160, slow: true },
+  { id: 'haven_grass_flight', world: 'haven', shot: 'ledge', query: 'lat=-54.39501&lon=38.28479&heading=45&t=5&alt=1508&pitch=-8', step: { fwd: 0.5 }, stride: 250, slow: true },
   { id: 'haven_meadow_walk', world: 'haven', shot: 'ledge', query: 'lat=-54.4271&lon=39.2697&heading=120&t=5&pitch=-3', step: { fwd: 0.055 }, stride: 160, slow: true },
   // (the land's own rocks, rocks/farRocks.js: walking toward a field of boulders on a steep
   // open slope, and flying low at it: rocks growing in with distance, the 80- and 20-triangle
@@ -59,7 +62,20 @@ const MOVES = [
   // and the line where the trees one walks among take over from them must not show)
   // (0.4 m a frame: a tree or two crosses the 240 m line at every step, and the wood's
   // image hardly moves; the grass at one's feet does, so judge the strips' upper half)
+  // (Haven on foot in the north wood, the cost view "in the forest": trunks pass at 2 to 40 m,
+  // their bark's furrows, plates and bands, and the trees changing make as the walk goes on.
+  // Some twenty minutes a frame on the cloud machine: run it by name, alone)
+  { id: 'haven_wood_walk', world: 'haven', shot: 'ledge', query: 'lat=22.983&lon=129.507&heading=6&pitch=-4', step: { fwd: 0.055 }, stride: 160, slow: true },
   { id: 'haven_treeline', world: 'haven', shot: 'ledge', query: 'lat=-27.114&lon=51.987&heading=0&pitch=-3', step: { fwd: 0.4 }, stride: 100, slow: true },
+  // (Haven from above, docs/briefs/from-above.md: level flight 1 km over the north wood
+  // looking down at 45 degrees, the far trees' crown tops spreading and drawing in as the
+  // distance to each changes; and a climb from 150 m over the opening place, looking down
+  // at 60 degrees: the forms of a far tree changing over with the angle, its shadow coming
+  // in, the forest's end. A step is a frame's flight at 240 and 120 m/s: fast, so that what
+  // changes with distance shows between frames. What it cannot show: a tile of trees
+  // arriving or being filled again while one flies, which --streaming shows.)
+  { id: 'haven_above_flight', world: 'haven', shot: 'ledge', query: 'lat=22.983&lon=129.507&alt=2190&pitch=-45', step: { level: 4 }, stride: 300, slow: true },
+  { id: 'haven_climb', world: 'haven', shot: 'ledge', query: 'alt=1663&pitch=-60', step: { up: 2 }, stride: 175, slow: true },      // (stations at 150, 500 and 850 m: from 1.2 km up the opening place is in cloud)
   { id: 'earth_forest_flight', world: 'earth', shot: 'ledge', query: 'lat=36.3&lon=247.9&alt=3000&heading=0&pitch=-25&t=5', step: { fwd: 1.5 }, stride: 300, slow: true },
 ];
 // The list above is tuned by hand for the worlds it names. A world in the registry that
@@ -121,6 +137,9 @@ const move = (step, times) => page.evaluate(({ step, times }) => {
     if (r.mode === 'walk') { const h = r.heading * Math.PI / 180; r.offsetMetres(Math.sin(h) * step.fwd * times, Math.cos(h) * step.fwd * times, 1.7); }
     else { r.pos.addScaledVector(r.forward, step.fwd * times); r.agl = 0; }
   }
+  // (in flight: straight up, and level along the way the view points whatever its pitch)
+  if (step.up) { const l = r.pos.length(); r.pos.multiplyScalar((l + step.up * times) / l); r.agl = 0; }
+  if (step.level) { const l = r.pos.length(), f = r.forward, k = (f.x * r.pos.x + f.y * r.pos.y + f.z * r.pos.z) / l, hx = f.x - r.pos.x / l * k, hy = f.y - r.pos.y / l * k, hz = f.z - r.pos.z / l * k, hl = Math.hypot(hx, hy, hz) || 1, d = step.level * times / hl; r.pos.set(r.pos.x + hx * d, r.pos.y + hy * d, r.pos.z + hz * d).setLength(l); r.agl = 0; }
   if (step.yaw) r.heading = (r.heading + step.yaw * times + 360) % 360;
   return a.frameCount;
 }, { step, times });

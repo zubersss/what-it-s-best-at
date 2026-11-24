@@ -143,6 +143,27 @@ vec3 homeShine(vec3 N, vec3 up) { float d = clamp(0.5 - 0.5 * dot(N, up), 0.0, 1
 vec2 gHazeUv;                       // this pixel's place in the main view (0..1), set by the pass before it asks for haze
 #endif
 vec3 hazeOverGroundFull(vec3 color, vec3 rel, vec3 rho);
+// What the froxels say of a place dk km along a line of sight that is in the air from pathA
+// to pathB km, seen at uv of the main view (0..1): the share of the light from there that
+// arrives (T), the air's own light over ground of the mean brightness (L0), and what ground
+// of another brightness adds to it or takes from it (Lg, times rho - 1).
+void froxelHaze(float dk, float pathA, float pathB, vec2 uvIn, float cosT, out vec3 T, out vec3 L0, out vec3 Lg) {
+  float s = float(FROX_D) * pow(clamp((dk - pathA) / max(pathB - pathA, 1e-4), 0.0, 1.0), 1.0 / uFroxelRange.x);
+  float c = max(s - 1.0, 0.0);
+  float k0 = min(floor(c), float(FROX_D) - 1.0), k1 = min(k0 + 1.0, float(FROX_D) - 1.0), f = c - k0;
+  vec2 uv = clamp(uvIn, vec2(0.5) / vec2(FROX_W, FROX_H), 1.0 - vec2(0.5) / vec2(FROX_W, FROX_H));
+  vec2 atlas = vec2(float(ATLAS_X), float(ATLAS_Y));
+  vec2 t0 = (vec2(mod(k0, atlas.x), floor(k0 / atlas.x)) + uv) / atlas;
+  vec2 t1 = (vec2(mod(k1, atlas.x), floor(k1 / atlas.x)) + uv) / atlas;
+  float near = clamp(s, 0.0, 1.0);
+  vec4 A = mix(texture(tFroxelA, t0), texture(tFroxelA, t1), f);
+  vec3 Ls = A.rgb * near;
+  vec3 Lm = mix(texture(tFroxelB, t0).rgb, texture(tFroxelB, t1).rgb, f) * near;
+  T = mix(vec3(1.0), mix(texture(tFroxelC, t0).rgb, texture(tFroxelC, t1).rgb, f), near);
+  vec3 k = uLutScaleInv.y * uSunIrradiance;
+  L0 = (Ls + Lm * phaseHG3(cosT, uMieG)) * k;
+  Lg = Ls * A.a * k;                                        // alpha: the ground's share of it
+}
 vec3 hazeOverGround(vec3 color, vec3 rel, vec3 rho) {
   vec3 h = hazeOverGroundFull(color, rel, rho);
   // (seen from high above, through less of the look's thick low air: see uHaze)
@@ -195,25 +216,16 @@ vec3 hazeOverGroundFull(vec3 color, vec3 rel, vec3 rho) {
     if (discB > 0.0) { float tg = -bq - sqrt(discB); if (tg > pathA) pathB = min(pathB, tg); }
   }
   pathB = min(pathB, uFroxelRange.y);
-  float s = float(FROX_D) * pow(clamp((dist * 0.001 - pathA) / max(pathB - pathA, 1e-4), 0.0, 1.0), 1.0 / uFroxelRange.x);
-  float c = max(s - 1.0, 0.0);
-  float k0 = min(floor(c), float(FROX_D) - 1.0), k1 = min(k0 + 1.0, float(FROX_D) - 1.0), f = c - k0;
   // (a pass that does not draw into the main view at its own size, the cloud volume's small
   // picture, says where its pixel is in the main view: HAZE_UV)
 #ifdef HAZE_UV
-  vec2 uv = clamp(gHazeUv, vec2(0.5) / vec2(FROX_W, FROX_H), 1.0 - vec2(0.5) / vec2(FROX_W, FROX_H));
+  vec2 uvS = gHazeUv;
 #else
-  vec2 uv = clamp(gl_FragCoord.xy / uViewport, vec2(0.5) / vec2(FROX_W, FROX_H), 1.0 - vec2(0.5) / vec2(FROX_W, FROX_H));
+  vec2 uvS = gl_FragCoord.xy / uViewport;
 #endif
-  vec2 atlas = vec2(float(ATLAS_X), float(ATLAS_Y));
-  vec2 t0 = (vec2(mod(k0, atlas.x), floor(k0 / atlas.x)) + uv) / atlas;
-  vec2 t1 = (vec2(mod(k1, atlas.x), floor(k1 / atlas.x)) + uv) / atlas;
-  float near = clamp(s, 0.0, 1.0);
-  vec4 A = mix(texture(tFroxelA, t0), texture(tFroxelA, t1), f);
-  vec3 Ls = A.rgb * near * (1.0 + A.a * (rhoW - 1.0));      // alpha: the ground's share of it
-  vec3 Lm = mix(texture(tFroxelB, t0).rgb, texture(tFroxelB, t1).rgb, f) * near;
-  vec3 T = mix(vec3(1.0), mix(texture(tFroxelC, t0).rgb, texture(tFroxelC, t1).rgb, f), near);
-  vec3 hazed = color * T + (Ls + Lm * phaseHG3(cosT, uMieG)) * (uLutScaleInv.y * uSunIrradiance);
+  vec3 T, L0, Lg;
+  froxelHaze(dist * 0.001, pathA, pathB, uvS, cosT, T, L0, Lg);
+  vec3 hazed = color * T + L0 + Lg * (rhoW - 1.0);
   return mix(hazed, marched, useMarch);
 }
 // Rain (or snow) falling in the air between the eye and a thing: a grey veil that thickens
@@ -223,6 +235,29 @@ vec3 rainVeil(vec3 color, vec3 rel) {
   if (uWeather.w <= 0.0) return color;
   vec3 up = normalize(uCamPlanetPos + rel);
   return mix(color, skyLight(up, up) * (0.7 / PI), 1.0 - exp(-length(rel) * uWeather.w));
+}
+// The whole of the air between the eye and a place as three numbers, for an eye inside the
+// air (the caller asks: length(uCamPlanetPos) * 0.001 <= uRTop): what aerialPerspective
+// does to a colour there is colour * T + L0 + Lg * (rho - 1), rho being the ground's albedo
+// over the mean (see aerialPerspective below). The ground works these out at its vertices
+// and not at every pixel: over a triangle of the ground the air changes by next to nothing.
+// uv: the place in the main view (0..1). The froxels, the look's thinner air from high
+// above (uHaze) and the rain's veil, as hazeOverGround, hazeOverGroundFull and rainVeil
+// have them: one rule, worked out in froxelHaze for both.
+void hazeAffine(vec3 rel, vec2 uv, out vec3 T, out vec3 L0, out vec3 Lg) {
+  float dist = length(rel);
+  vec3 ro = uCamPlanetPos * 0.001, rd = rel / dist;
+  float rc = length(ro), bq = dot(ro, rd);
+  float pathB = min(-bq + sqrt(max(bq * bq - (rc * rc - uRTop * uRTop), 0.0)), uFroxelRange.y);
+  vec3 pEnd = ro + rd * (dist * 0.001);
+  froxelHaze(dist * 0.001, 0.0, pathB, uv, dot(rd, uSunDir), T, L0, Lg);
+  Lg *= smoothstep(0.3, 0.6, -dot(rd, pEnd) / length(pEnd));
+  if (uHaze < 1.0) { T = mix(vec3(1.0), T, uHaze); L0 *= uHaze; Lg *= uHaze; }
+  if (uWeather.w > 0.0) {
+    vec3 up = normalize(uCamPlanetPos + rel);
+    float kv = 1.0 - exp(-dist * uWeather.w);
+    T *= 1.0 - kv; Lg *= 1.0 - kv; L0 = L0 * (1.0 - kv) + skyLight(up, up) * (0.7 / PI) * kv;
+  }
 }
 // Small things (rocks, the lander, the character): the haze of mean ground.
 // The air of a wood: a forest breathes a blue haze of its own, and row behind row of trees

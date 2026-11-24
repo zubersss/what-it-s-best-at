@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
+import { AMOUNT } from './grassRules.js';
 
 const COUNT = 420, BOX = 44;            // leaves, and the side of the square of ground they fall over (m)
 
@@ -95,5 +96,232 @@ export class Leaves {
     // the camera's height above the ground its figure stands on (the leaves' floor)
     t.z = rig.onFoot ? rig.pos.distanceTo(rig.feet) * 0 + (rig.pos.length() - rig.feet.length()) : Math.min(60, rig.agl);
     this.uniforms.uLeafPx.value = viewH / (2 * Math.tan(rig.fov * Math.PI / 360));
+  }
+}
+
+// Petals: what a tree in flower lets go. They come off the nearest flowering trees
+// themselves (Trees.blooming: up to eight of them), more in a gust than between gusts,
+// and ride the wind down, turning; and some lie on the ground under each tree and a
+// little down the wind of it. A fixed pool of points, like the leaves: a falling petal is
+// one sum in the vertex shader from a number of its own and the clock; a lying one is put
+// on the ground as it is drawn (a few of them a frame are asked where the ground is).
+// What carries a falling petal is the wind's velocity, eased over a few seconds here
+// (never the wind's speed times the clock: a change of wind would move every petal at once).
+const FALLING = 640, LYING = 480, SLOTS = 8, PER_FRAME = 6;
+
+export class Petals {
+  constructor(trees) {
+    this.trees = trees; this.terrain = trees.terrain;
+    const mk = (count, extra) => {
+      const seed = new Float32Array(count * 4), slot = new Float32Array(count);
+      for (let i = 0; i < count * 4; i++) seed[i] = Math.random();
+      for (let i = 0; i < count; i++) slot[i] = i % SLOTS;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+      geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 4)); geo.setAttribute('aSlot', new THREE.BufferAttribute(slot, 1));
+      if (extra) { const a = new THREE.BufferAttribute(new Float32Array(count * 4), 4); a.setUsage(THREE.DynamicDrawUsage); geo.setAttribute('aLie', a); }
+      geo.setDrawRange(0, 0);
+      return geo;
+    };
+    const vec4s = () => Array.from({ length: SLOTS }, () => new THREE.Vector4());
+    this.uniforms = {
+      ...lightingUniforms(),
+      uLeafEast: trees.shared.uTreeEast, uLeafNorth: trees.shared.uTreeNorth, uLeafUp: trees.shared.uTreeUp, uLeafSeason: trees.shared.uSeason, uAnchorRel: trees.shared.uAnchorRel,
+      uPetalTree: { value: vec4s() },        // xyz: a flowering tree's foot from the anchor (m), w: its crown's radius (m)
+      uPetalTop: { value: vec4s() },         // x: its height (m), y: how fast its petals come off (0..1), z: the slot's falling petals faded in (0..1: a slot moving to another tree fades out and in)
+      uPetalCol: { value: Array.from({ length: SLOTS }, () => new THREE.Vector3()) },
+      uPetalWind: { value: new THREE.Vector3() },      // the wind's velocity, eased (m/s, planet axes)
+      uLeafPx: { value: 1000 },
+    };
+    const HEAD = /* glsl */`
+      in vec4 aSeed; in float aSlot;
+      uniform vec3 uLeafEast, uLeafNorth, uLeafUp, uLeafSeason, uAnchorRel, uPetalWind; uniform float uLeafPx;
+      uniform vec4 uPetalTree[${SLOTS}]; uniform vec4 uPetalTop[${SLOTS}]; uniform vec3 uPetalCol[${SLOTS}];
+      out vec3 vRel; out vec4 vSeed; out float vSpin; out float vFade; out vec3 vCol;
+      void place(vec3 rel, float fade, float size) {
+        vRel = rel; vSeed = aSeed; vFade = fade;
+        vec4 clip = projectionMatrix * viewMatrix * vec4(rel, 1.0);
+        gl_PointSize = clamp(size * uLeafPx / max(clip.w, 0.3), 1.5, 56.0);          // (one that passes close to the eye is large on the screen: that is where petals are seen)
+        // (nothing of it: out of the picture, not a point of no size)
+        gl_Position = fade > 0.02 ? clip : vec4(2.0, 2.0, 2.0, 1.0);
+      }`;
+    const FRAG = /* glsl */`${LIGHTING_PARS}
+      in vec3 vRel; in vec4 vSeed; in float vSpin; in float vFade; in vec3 vCol;
+      layout(location = 0) out vec4 fragColor;
+      void main() {
+        // a petal seen at some angle of its tumble: a round thing that narrows and widens
+        vec2 q = gl_PointCoord * 2.0 - 1.0; float c = cos(vSpin), s = sin(vSpin);
+        q = vec2(q.x * c - q.y * s, q.x * s + q.y * c);
+        float thin = 0.3 + 0.7 * abs(cos(vSpin * 0.37 + vSeed.z * 6.0));
+        if (q.x * q.x + (q.y / thin) * (q.y / thin) > 1.0 || fract(vSeed.w * 91.0 + gl_FragCoord.x * 0.37 + gl_FragCoord.y * 0.61) > vFade) discard;
+        vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos);
+        // (thin and pale: lit from both sides, and the sky's light counts for much; a petal is
+        // drawn larger than life, as the meadow's flowers are, or it would be under a pixel from ten metres)
+        vec3 col = vCol * (0.85 + 0.3 * vSeed.x) * (directSun(planetPos) * nearShadow(vRel, up) * (0.45 + 0.55 * thin) + skyLight(up, up)) / PI;
+        col = aerialPerspective(col, vRel);
+        fragColor = vec4(col * uExposure, 1.0);
+      }`;
+    const material = (vertexShader) => new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: this.uniforms, vertexShader, fragmentShader: FRAG });
+    this.fallGeo = mk(FALLING, false);
+    this.falling = new THREE.Points(this.fallGeo, material(/* glsl */`${HEAD}
+      void main() {
+        int s = int(aSlot); vec4 tr = uPetalTree[s]; vec4 top = uPetalTop[s]; vCol = uPetalCol[s];
+        float T = 8.0 + 6.0 * aSeed.z, t = uLeafSeason.z / T + aSeed.w, cyc = fract(t), lap = floor(t), age = cyc * T;
+        // let go in a gust: the gust as it was when this petal came off (the trees sway to the same beat)
+        float gust = 0.5 + 0.5 * sin((lap - aSeed.w) * T * 0.7 + aSlot * 2.1);
+        // (a steady light fall always, a flurry when a gust passes)
+        float go = step(fract(aSeed.z * 13.0 + lap * 0.37), top.y * mix(0.6, 2.0, gust * gust));
+        // from somewhere in the crown
+        vec2 r = fract(aSeed.xy + lap * vec2(0.618034, 0.754878));
+        float ang = r.x * 6.2831853, rad = tr.w * sqrt(r.y) * 0.95, y0 = top.x * (0.42 + 0.5 * fract(aSeed.x * 7.0 + lap * 0.21));
+        float h = y0 - (0.55 + 0.5 * aSeed.y) * age;
+        // down the wind as it falls (the wind is slower in among the trees than over them), swinging side to side
+        vec3 drift = (uPetalWind - uLeafUp * dot(uPetalWind, uLeafUp)) * (0.75 * age);
+        vec2 swing = vec2(sin(t * 31.0 + aSeed.x * 9.0), cos(t * 23.0 + aSeed.y * 7.0)) * (0.25 + 0.06 * age);
+        vec3 rel = uAnchorRel + tr.xyz + uLeafEast * (cos(ang) * rad + swing.x) + uLeafNorth * (sin(ang) * rad + swing.y) + uLeafUp * (h + 0.03) + drift;
+        vSpin = t * (50.0 + 70.0 * aSeed.x);
+        place(rel, go * top.z * step(0.5, tr.w) * smoothstep(0.0, 0.04, cyc) * smoothstep(0.0, 0.35, h) * (1.0 - smoothstep(60.0, 90.0, length(rel))), 0.085 + 0.05 * aSeed.y);
+      }`));
+    this.lieGeo = mk(LYING, true);
+    this.lying = new THREE.Points(this.lieGeo, material(/* glsl */`${HEAD}
+      in vec4 aLie;          // xyz: where it lies, from the anchor (m); w: 1 when it has been put on the ground
+      void main() {
+        int s = int(aSlot); vCol = uPetalCol[s] * 0.9;
+        vec3 rel = uAnchorRel + aLie.xyz;
+        vSpin = aSeed.x * 40.0;
+        // (as many as the tree is letting go; none from far off, where a petal is under a pixel)
+        place(rel, aLie.w * step(aSeed.z, uPetalTop[s].y * 1.3) * (1.0 - smoothstep(35.0, 55.0, length(rel))), 0.09 + 0.05 * aSeed.y);
+      }`));
+    for (const m of [this.falling, this.lying]) { m.frustumCulled = false; m.visible = false; }
+    this.mesh = new THREE.Group(); this.mesh.add(this.falling, this.lying);
+    this.abs = new Float64Array(LYING * 3); this.put = new Uint8Array(LYING); this.next = 0; this.left = 0; this.feet = []; this.lift = new Float32Array(LYING); this.again = 0;
+    this.cur = new Array(SLOTS).fill(null); this.want = new Array(SLOTS).fill(null); this.fade = new Float32Array(SLOTS);
+    this.anchor = new THREE.Vector3(1e12, 0, 0); this.serial = null; this.enabled = true; this.count = 0;
+    this._wind = new THREE.Vector3(); this._d = [0, 0, 0];
+  }
+
+  // Every frame. rig: the camera rig; viewH: the picture's height in pixels; dt (s).
+  update(rig, viewH, dt) {
+    const tr = this.trees, list = tr.blooming || [], u = this.uniforms, show = !!tr.def && list.length > 0 && rig.agl < 150 && tr.reach > 0;
+    this.falling.visible = this.lying.visible = show; this.count = show ? list.length : 0;
+    // the wind's velocity, eased over some three seconds
+    const w = tr.shared.uTreeWind.value, k = Math.min(1, (dt || 0.016) / 3);
+    this._wind.x += (w.x * w.w - this._wind.x) * k; this._wind.y += (w.y * w.w - this._wind.y) * k; this._wind.z += (w.z * w.w - this._wind.z) * k;
+    u.uPetalWind.value.copy(this._wind);
+    u.uLeafPx.value = viewH / (2 * Math.tan(rig.fov * Math.PI / 360));
+    if (!show) return;
+    // (the governor's step thins them to a third; it does not take them away)
+    this.fallGeo.setDrawRange(0, this.enabled ? FALLING : Math.round(FALLING / 3)); this.lieGeo.setDrawRange(0, this.enabled ? LYING : Math.round(LYING / 3));
+    // The trees in flower are listed again at every making of the trees' lists, from a new
+    // anchor. A slot stays on its tree while the tree is still listed (found by its foot in
+    // the world) and its lying petals stay where they lie, only measured from the new anchor;
+    // only a slot whose tree has gone, or that the sharing out moves to a tree with too few,
+    // is put on another tree and its petals put down again. (Every making once cleared all
+    // the lying petals and moved the falling ones to other trees: every 25 m of a walk.)
+    const A = tr.anchor, lie = this.lieGeo.attributes.aLie;
+    if (this.serial !== list) { this.serial = list; this._relist(list, A, lie); }
+    this._slots(A, lie, dt || 1 / 30);
+    // a few a frame: where the ground is under each (the ground as it is drawn), in the world
+    const seed = this.lieGeo.attributes.aSeed.array, e = u.uLeafEast.value, n = u.uLeafNorth.value, R = this.terrain.radius, d = this._d, P = rig.pos;
+    let changed = false;
+    for (let c = 0, scanned = 0; c < PER_FRAME && this.left > 0 && scanned < LYING; scanned++) {
+      const i = this.next; this.next = (this.next + 1) % LYING;
+      if (this.put[i]) continue;
+      const f = this.feet[i % SLOTS];
+      if (!f) continue;
+      c++;
+      // under the crown and a little beyond it, more of them down the wind
+      // (thickest in a ring under the crown's edge: two in three lie there, the rest anywhere under it)
+      const ring = seed[i * 4 + 2] < 0.67, ang = seed[i * 4] * 6.2831853, rad = f[3] * (ring ? 1 + 0.4 * (seed[i * 4 + 1] + ((seed[i * 4 + 3] * 7) % 1) - 1) : 1.1 * Math.sqrt(seed[i * 4 + 1])), wl = this._wind.length() || 1, down = Math.min(1, wl / 6) * f[3] * 0.9 * seed[i * 4 + 3];
+      const ox = Math.cos(ang) * rad, oy = Math.sin(ang) * rad;
+      let x = f[0] + e.x * ox + n.x * oy + this._wind.x / wl * down, y = f[1] + e.y * ox + n.y * oy + this._wind.y / wl * down, z = f[2] + e.z * ox + n.z * oy + this._wind.z / wl * down;
+      const l = Math.hypot(x, y, z); d[0] = x / l; d[1] = y / l; d[2] = z / l;
+      // (the ground as drawn there: its morph is by the distance from the eye to that point)
+      const g = this.terrain.drawnHeight(d, Math.hypot(x - P.x, y - P.y, z - P.z));
+      if (g == null) { this.next = i; break; }          // (no ground drawn there yet: again next frame)
+      // Where grass grows a petal lies on the grass, not under it: lifted to the turf's top (by
+      // the grass's own rule for how much grows on this kind of land, and a share of a blade's
+      // height: life/grass.js), each to a height of its own, so they lie in among the tips.
+      const hs = this.terrain.hs, cover = hs?.coverAt ? hs.coverAt(d[0], d[1], d[2]) : -1, amount = cover < 0 ? 0 : (AMOUNT[cover & 255] || 0) * (1 - 0.4 * (cover >> 16) / 255);
+      const lift = this.lift[i] = amount > 0.05 ? (0.2 + 0.26 * seed[i * 4 + 3]) * (0.6 + 0.6 * amount) : 0.03, r = R + g + lift;
+      this.abs[i * 3] = d[0] * r; this.abs[i * 3 + 1] = d[1] * r; this.abs[i * 3 + 2] = d[2] * r; this.put[i] = 1; this.left--;
+      lie.array[i * 4] = d[0] * r - A.x; lie.array[i * 4 + 1] = d[1] * r - A.y; lie.array[i * 4 + 2] = d[2] * r - A.z; lie.array[i * 4 + 3] = 1; changed = true;
+    }
+    // Once all lie, a few a frame are set again on the ground as it is drawn now: finer ground
+    // comes in as one walks up to a tree, and a petal kept where it lies (it is no longer put
+    // down afresh at every making of the lists) would stay on the coarser ground's height.
+    for (let c = 0, scanned = 0; this.left === 0 && c < PER_FRAME && scanned < LYING; scanned++) {
+      const i = this.again; this.again = (this.again + 1) % LYING;
+      if (!this.put[i]) continue;
+      c++;
+      const x = this.abs[i * 3], y = this.abs[i * 3 + 1], z = this.abs[i * 3 + 2], l = Math.hypot(x, y, z);
+      d[0] = x / l; d[1] = y / l; d[2] = z / l;
+      const g = this.terrain.drawnHeight(d, Math.hypot(x - P.x, y - P.y, z - P.z));
+      if (g == null) continue;
+      const r = R + g + this.lift[i];
+      if (Math.abs(r - l) < 0.002) continue;
+      this.abs[i * 3] = d[0] * r; this.abs[i * 3 + 1] = d[1] * r; this.abs[i * 3 + 2] = d[2] * r;
+      lie.array[i * 4] = d[0] * r - A.x; lie.array[i * 4 + 1] = d[1] * r - A.y; lie.array[i * 4 + 2] = d[2] * r - A.z; changed = true;
+    }
+    if (changed) lie.needsUpdate = true;
+  }
+
+  // The flowering trees listed again (list: from the anchor A). Each slot is given the tree it
+  // should show (want): its own tree while that is listed, up to an even share; every listed
+  // tree at least one; the rest to the trees with fewest. What is lying is re-measured from
+  // the new anchor and stays where it lies.
+  _relist(list, A, lie) {
+    const k = list.length, abs = list.map((t) => [A.x + t.x, A.y + t.y, A.z + t.z]);
+    const owner = new Array(SLOTS).fill(-1), has = new Array(k).fill(0), most = k ? Math.ceil(SLOTS / k) : 0;
+    const same = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2 < 0.25;
+    // (keep: a slot whose tree is still listed, up to the tree's share)
+    for (let s = 0; s < SLOTS && k; s++) {
+      const w = this.want[s]; if (!w) continue;
+      const j = abs.findIndex((a) => same(a, w.abs));
+      if (j >= 0 && has[j] < most) { owner[s] = j; has[j]++; }
+    }
+    // (the slots left over to the trees with fewest)
+    for (let s = 0; s < SLOTS && k; s++) if (owner[s] < 0) { let j = 0; for (let m = 1; m < k; m++) if (has[m] < has[j]) j = m; owner[s] = j; has[j]++; }
+    // (every listed tree at least one: a slot of the tree with the most goes to a tree with none)
+    for (let guard = 0; guard < SLOTS; guard++) {
+      const bare = has.indexOf(0); if (bare < 0) break;
+      let rich = 0; for (let m = 1; m < k; m++) if (has[m] > has[rich]) rich = m;
+      if (has[rich] < 2) break;
+      const s = owner.lastIndexOf(rich); owner[s] = bare; has[rich]--; has[bare]++;
+    }
+    for (let s = 0; s < SLOTS; s++) {
+      const j = owner[s], t = j >= 0 ? list[j] : null;
+      this.want[s] = t ? { abs: abs[j], rad: Math.max(0.6, t.tall * t.wide * 0.42), tall: t.tall, fall: t.fall, colour: t.colour } : null;
+      // (a slot that keeps its tree takes the tree's news: how fast it lets go today)
+      if (this.cur[s] && this.want[s] && same(this.cur[s].abs, this.want[s].abs)) this.cur[s] = this.want[s];
+    }
+    // every lying petal where it lies, from the new anchor
+    for (let i = 0; i < LYING; i++) if (lie.array[i * 4 + 3] > 0) { lie.array[i * 4] = this.abs[i * 3] - A.x; lie.array[i * 4 + 1] = this.abs[i * 3 + 1] - A.y; lie.array[i * 4 + 2] = this.abs[i * 3 + 2] - A.z; }
+    lie.needsUpdate = true; this.anchor.copy(A);
+    for (let s = 0; s < SLOTS; s++) this._show(s, A);
+  }
+
+  // Every frame: a slot whose tree is to change fades its falling petals out (half a second),
+  // changes tree, lays its lying petals again one by one under the new one (they stay where
+  // they were until then) and fades back in.
+  _slots(A, lie, dt) {
+    const same = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2 < 0.25, top = this.uniforms.uPetalTop.value;
+    for (let s = 0; s < SLOTS; s++) {
+      const c = this.cur[s], w = this.want[s], moving = !(c === w || (c && w && same(c.abs, w.abs)));
+      if (moving && (!c || this.fade[s] <= 0)) {
+        this.cur[s] = w; this.fade[s] = 0; this._show(s, A);
+        for (let i = s; i < LYING; i += SLOTS) { if (this.put[i]) { this.put[i] = 0; this.left++; } if (!w) lie.array[i * 4 + 3] = 0; }
+        if (!w) lie.needsUpdate = true;
+        this.left = 0; for (let i = 0; i < LYING; i++) if (!this.put[i] && this.feet[i % SLOTS]) this.left++;          // (to be laid: under a slot that has a tree)
+      } else this.fade[s] = Math.min(1, Math.max(0, this.fade[s] + (moving ? -dt : dt) / 0.5));
+      top[s].z = this.fade[s];
+    }
+  }
+
+  // A slot's uniforms from the tree it shows now.
+  _show(s, A) {
+    const u = this.uniforms, c = this.cur[s];
+    if (c) { u.uPetalTree.value[s].set(c.abs[0] - A.x, c.abs[1] - A.y, c.abs[2] - A.z, c.rad); u.uPetalTop.value[s].set(c.tall, c.fall, this.fade[s], 0); u.uPetalCol.value[s].set(...c.colour); this.feet[s] = [...c.abs, c.rad]; }
+    else { u.uPetalTree.value[s].set(0, 0, 0, 0); u.uPetalTop.value[s].set(0, 0, 0, 0); this.feet[s] = null; }
   }
 }

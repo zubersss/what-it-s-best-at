@@ -6,13 +6,220 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
+### In hand: Haven rich and smooth (the owner's ninth phone results; read this first)
+
+*2026-11-24. The owner ran the Haven benchmark on build 6ac24ff and wrote: "this was a
+good job it looks a lot better but I need it perfect from a distance, specially when I'm
+flying high above it, and also the grass should be a lot denser in the areas that have
+it, and the flowers should be more diverse and abundant in certain areas and biomes,
+different flowers of different sizes that release pollen into the air that makes it
+beautiful, and trees with flower petals that bloom and ride the wind, and the trees
+should really be refined: the trunks and the leaves still don't look anything like the
+references when it comes to level of detail, specially the leaves and branches. Try as
+hard as you can, I gave you any access you need to accomplish this."*
+
+**What the phone said** (Smooth, 60 aimed at; the whole text is in the session's
+transcript, the numbers that matter here):
+- Haven 31.3 fps, the Moon 48.4; late frames at Haven's stops 25 to 52 %; the picture at
+  the floor (1.60 MP, 36 % of native) nearly throughout; four times the governor "put
+  quality back after steps that cured nothing".
+- The page's own work 7 to 10 ms a frame on Haven (a frame has 16.8): **the character
+  2.2 to 3.1 ms at every stop on both worlds**, the ground 1.2 to 2.0, rocks and trees
+  0.7 to 1.7, terrain 0.7 to 1.2.
+- What each thing costs (ms a frame until drawn, picture held at 2.07 MP; the measuring
+  itself is some 20 ms of each figure):
+  - opening view: everything on 64.5, every saving on 40.5, nothing drawn 21.7. Left out:
+    **the ground's shading 17.4**, **grass 11.7**, the far forest 4.6, the shadow maps
+    3.3, the figure 2.1, trees 0.8. One saving alone: grass-mid 5.0, clouds 4.0,
+    far-trees 3.6, far-relief 3.5, cloud-volume 2.8; every other under 1.2.
+  - in the forest: everything on 72.2 (104 at native: the forest is pixels), every saving
+    on 48.4. Left out: **trees 21.2**, **the far forest 10.7**, the shadow maps 7.3,
+    grass 5.9, the ground's shading 3.7. One saving: tree-leaves 11.5, trees-far 7.0,
+    cloud-steps 3.4, tree-shadows 2.7.
+  - from the air: everything on 55.5, every saving on 43.9. Left out: **the ground's
+    shading 18.1**. One saving: cloud-volume 9.4, far-relief 2.1.
+- Read: (1) the ground's fragment shader is the largest cost wherever the ground shows,
+  and no saving touches it; (2) the first eight or so steps of the governor's ladder buy
+  nothing on this phone (each under 1 ms), so its trials end before they reach a step
+  that does, and the picture sits at the floor for nothing; (3) near trees and their
+  leaves are what a forest costs; (4) the grass is dear for what it shows; (5) the
+  character's 2 to 3 ms of page work is paid everywhere.
+
+**The owner, an hour later (2026-11-24): "We can do 30 fps if the game looks much more
+beautiful as well which I would like more."** So the aim on the phone is a steady 30 with
+a sharp, rich picture, not 60: Sharp becomes the default mode (`CLAUDE.md`, "Resolution
+and the governor"), a frame has 33 ms, and what the speed work frees is spent on beauty
+and on resolution. The helpers were told (the briefs' "cost less than today" becomes "a
+steady 30 at a sharp picture; spend what is freed on the look"); the next benchmark is
+asked for in Sharp.
+
+**The plan** (one delivery; the helpers again, on the owner's word):
+1. and 2. *Helper, speed* (`docs/briefs/phone-speed.md`; the phone's whole text is
+   `docs/benchmarks/2026-11-24-haven-6ac24ff.txt`): the ground's shader several times
+   cheaper and looking the same (it owns `terrainMaterial.js` for this delivery), the
+   governor's ladder by what a step buys, the character's page work, the cloud volume
+   from the air. (First meant to be done here; given to a helper with a machine of its
+   own so that this session keeps its room for merging, reviewing and deciding.) What the
+   land needs from the ground's shader when seen from above (the forest beyond the far
+   trees, no ring) is passed to it from the "from above" helper's list.
+3. *Helper, trees* (`docs/briefs/trees-refined.md`): the near trees at the references'
+   level of detail (limbs, twigs, finely cut leaves), blossom and petals on the wind,
+   for less than a forest costs today.
+4. *Helper, grass* (`docs/briefs/grass-rich.md`): denser grass for less, flowers of more
+   kinds and sizes and abundant by place, pollen in the air.
+5. *Helper, from above* (`docs/briefs/from-above.md`): the far forest seen from high
+   above (a card on edge is nothing from above), pictures from 300 m to 30 km, no line or
+   ring.
+6. Merge as they push, review their code cold as before, final pictures and tests, a
+   new Haven benchmark asked for.
+
+**The helpers** (started 2026-11-24 06:12 UTC; sessions of the same account, reached with
+`send_message`; never `list_events`; look at their work with `git fetch origin <branch>`):
+trees `session_01XG1DZ6z4HnMC6bjsyXexux`, branch `ccr-aa39490a-trees-refined`; grass
+`session_01XG1DZ7F3Rxaid46abwPs1f`, branch `ccr-aa39490a-grass-rich`; from above
+`session_01XG1DZ4yJLFGhdSyRj3Cexf`, branch `ccr-aa39490a-from-above`; speed
+`session_01XG1DZ38BpdeY4LvbUGcmCq`, branch `ccr-aa39490a-phone-speed` (announces
+"S-EARLY", then "S1" to "S4"). Each announces an
+early push ("T-EARLY", "G-EARLY", "A-LOOK") and writes a report beside its brief.
+
+**08:00, first results** (2026-11-24):
+- *Trees*: two sheets and the first game pictures (`docs/shots/trees-refined/` on its
+  branch): a whole skeleton, bark, fir boughs as fans of fronds, pine needles in tufts,
+  leaves in tones, a flowering tree with petals; close trees 2.5 to 3.5 thousand triangles,
+  and the near trees' count at the forest view fell from 265k to 143k. Sent back: no solid
+  dark lumps (done), bark too pale. Not merged here yet: to be merged when the wood from
+  inside has been seen.
+- *From above*: its list is `docs/briefs/from-above-look.md` on its branch, with 29
+  pictures. The worst: **two forests over one another in two colours** (the ground's
+  raised canopy is gold domes, the far trees on it green), from above the far trees are
+  specks and crosses (crowns cover 23 % of a closed wood at 1 km), from 3 km a wood is a
+  smooth blot, the steppe an even ochre. Decided: one forest, one green (the canopy takes
+  the trees' colour by a rule the far forest exports). **Order of work in
+  `terrainMaterial.js`**: the speed helper cuts it into tiers first and marks a block "the
+  ground from afar" (announced as "S1a"); when that is merged here, tell the from-above
+  helper, who then changes the far look inside that block. Until then it works on the
+  trees' side.
+- *Grass*, *speed*: no push yet at 08:00.
+
+**09:40** (2026-11-24): the joined head is a1e621c and holds all of this, building, with
+`govsim`, `far-trees-test` and the cloth check passing:
+- *Speed*, "S-EARLY" and "S1a": the ground's shader in tiers (a far gentle pixel read 24
+  textures and ran an eight-raster loop, now 10 to 11 and no loop; near grass 30 to 34,
+  now 11 to 15; pictures within 1 to 3 levels of 255), the gusts and the near cloud shade
+  at the vertices, the governor's new ladder (steps carry what they buy and whether they
+  are live; a trial goes on to the proven steps), the cloth rewritten with the same
+  motion at half the work, the cloud volume's laying worked out once a frame. Its
+  measure is a count of work on software WebGL (`scripts/ground-cost-run.sh`), said as
+  such; report `docs/briefs/phone-speed-report.md`. Still to come from it: Sharp as the
+  default, cheaper noise, the ten-view table.
+- *Trees*, merged at "T-WOOD": the wood from inside (`docs/shots/trees-refined/wood_after.png`)
+  is the best picture the game has had. Owed: the old build's layers per pixel beside
+  the new (10.5 over the whole forest view, an upper bound), the blossom tree with petals,
+  the opening view, the 240 m line, near trees from 100 m up, the report.
+- *Grass*, merged: all blades (no cut-out cards), six rings to 545 m, lit from a table
+  drawn once a frame; layers per grass pixel 6.9 to about 4 on the steppe, 4.7 to 4.6
+  with flowers at the opening view; 26 flowers in six habits, meadows by place
+  (`scripts/find-meadow.mjs`), pollen (`src/life/pollen.js`, a governor step). Sent back:
+  the opening brow's yellow heads (flat discs, one size), more than one kind in the first
+  view, seed stalks and colour by place. Owed: its full set with numbers, the report.
+- *From above*: told at 09:40 that the far look in `terrainMaterial.js` is theirs inside
+  the marked blocks ("THE GROUND FROM AFAR, 1 to 3"); working on the trees' side until
+  then (crowns from above, no crosses, shadows).
+- This machine restarts when the session sleeps between turns: a picture run started
+  detached is lost then. Pictures here only while a turn is waiting on them.
+
+**19:45** (2026-11-24): the joined head is b92ace8 (builds; govsim, far-trees-test,
+far-tree-form-test, flower-rule-test, the grass anchor replay, the cloth check and rocks
+pass). Merged since 09:40: the speed helper's second round (flowers on the ground at the
+vertices, shadow tiles in turns at 30 a second: in Sharp they had been drawn whole every
+frame), the far forest from above (crown tops lit as domes, a shadow beside each far
+tree, no crosses; and one forest in one green: the canopy's gold was the season turning
+evergreens), the trees' final pictures and report (`docs/briefs/trees-refined-report.md`:
+16 % fewer layers in a wood than before, 100k fewer triangles), the grass's final set and
+report (`docs/briefs/grass-rich-report.md`: half the rasterised layers, 1.43 M triangles
+handed over on the steppe, against 0.61 M). **All four helpers' turns ended in an error
+between 13:20 and 15:20** (a platform fault); each was sent its remaining job at 19:40:
+from above, items 2 to 4 (domes, grain from 3 to 30 km, the steppe) and ADONE; speed, the
+Haven benchmark end to end again; grass, the shimmer of far blades in low flight (its
+open problem); trees, two proof pictures from above and TDONE. The owner switched this
+session to another model and turned on multi-agent workflows ("ultracode"): a cold
+review of all of this delivery's code, every finding checked by a skeptic, is running
+(workflow `review-haven-rich`; results to be handed to the helpers or fixed here).
+Still to do after: the visual critic on the final pictures, the final tests here, the
+pull request, the checkpoint asking for a Haven benchmark in Sharp. Only the
+speed helper may edit `terrainMaterial.js`.
+
+**20:50** (2026-11-24): the helpers' errors were their model's weekly limit (it resets
+28 November), not a fault: they cannot go on. Two new helpers on this session's model
+took over from the repository's briefs: **trees** (`session_01XG1DZ4JBNV4DZkAnD1YRtX`,
+`docs/briefs/trees-refined-2.md`: the review's seven tree findings, bark in motion, the
+owed pictures) and **from above** (`session_01XG1DZ33bk1c9DExN4K4Gys`,
+`from-above-2.md`: the review's far-forest findings, the ground's far look items 2 to 4,
+the after set; it owns the blocks "THE GROUND FROM AFAR" of `terrainMaterial.js`, this
+session the rest of that file). Grass, governor and ground are fixed here: workflow
+`fix-grass-findings` (three fixers in worktrees, `fix/grass-*` branches, each checked by
+a cold reader, no browser), then the governor's and the ground's findings once the review
+has checked them. The review's findings: `docs/briefs/haven-rich-review.md` (made from
+its journal by `scratchpad/tools/review_md.py`). Its check refuted the grass's "open
+problem": the shimmer measured at station 2 is 3.6 m over the ground, ordinary near
+parallax. The speed helper's last job (the Haven benchmark end to end, headless) runs
+here, detached, on a frozen build of 41705a3 (`scratchpad/haven_bench.log`).
+
+**22:15** (2026-11-24): head 7888455 (builds; every check without a browser passes; the
+opening view draws on the merged shaders). Done since 20:50:
+- the review is complete (`docs/briefs/haven-rich-review.md`): 31 findings, 26 held, 2
+  refuted (the grass's "open problem" was ordinary near parallax at 3.6 m; the canopy's
+  one green was a recorded decision), 3 fixed here before their check;
+- **grass** (three fixers in worktrees, each checked cold): a thinned field and the
+  tussocks fixed to the ground (they jumped at every anchor step with a saving on, and at
+  the 2 560 m line); the near ring's cells read at their middles (an odd grid read them on
+  their edges: a shimmer in the near grass, found by the fixer); far blades flower by a
+  fade over the single flowers' own stretch (a circle at 45 m before); pixel sizes by the
+  drawn picture; pollen's clock wraps without a jump; the light table works out only
+  what a pixel keeps and only the rows something reads. New checks: `grass-place-test`,
+  `grass-flowers-pixels-test`, `grass-light-test`;
+- **governor**: a probe trial that cured nothing no longer hands over to a minute of
+  savings; a saving that came back clean in Sharp is not taken back by a stale average;
+  the tree steps are not live in the air (three govsim cases, each failing before);
+- **ground**: the daisies' far thinning back; the vertex shading skipped in the
+  benchmark's flat tone, so its row sees all of the ground's shading;
+- **trees** (new helper): the make by the eye's distance (close and near lists every few
+  metres, `treeLod.js`), shadows from whole cards, petals kept over a relist and on the
+  drawn ground, out of flower petal texels are leaves, bark seamless and filtered;
+- **from above** (new helper): the far forest's findings (shadows a draw of their own,
+  strength by the tile's lowest tree, eased; curve; wood; bounds; blossom by day), the
+  ground's far look: domes varied, clumps and a broken edge from 3 km, the steppe;
+- the Haven benchmark ran end to end headless on 41705a3: names Sharp, every stop, the
+  cost test at all three views, every shader within a phone's limits, no error.
+Left: the two helpers' pictures and reports (T2-DONE, A2-DONE), then the final frozen
+build: `scratchpad/final10.sh` (pictures and tests), the visual critic
+(`scratchpad/critic_wf.js`), notes, pull request, checkpoint.
+
+**23:30** (2026-11-24): from above done (A2-DONE, merged); a second cold review of both
+helpers' second rounds (`haven-rich-review-2.md`: 14 of 16 held, two high on the new
+steppe from above: a lattice, seams) went back to them. Then the visual critic on the
+pictures so far (`docs/briefs/haven-rich-critic.md`), five gaps, three of them from above:
+near trees from 90 to 300 m flat stickers and pale scraps; a teal veil and near-black shade
+over everything from the air; bare land from above a blurred map (a seam under a plateau,
+a river of beads, pepper, flies for rocks); then the blossom tree a jumble of cards, and
+one kind of flower at one size in any view. That is not "perfect from a distance": a third
+round, four helpers on machines of their own: **trees** (`session_01XG1DZ4JBNV4DZkAnD1YRtX`,
+T3: near crowns from above, the cherry), **from above** (`session_01XG1DZ33bk1c9DExN4K4Gys`,
+A4: the far canopy, the steppe from above, the forest's edge), **the air and bare land from
+above** (`session_01XG1DZ4zdTCXDoaErSrFzxg`, `air-from-above.md`, branch
+`ccr-aa39490a-air-above`), **flowers** (`session_01XG1DZ6RaRhrHVsk7KKy5hp`, `flowers-3.md`,
+branch `ccr-aa39490a-flowers-3`). `terrainMaterial.js` is shared out by block: FAR 1 and 2
+and the helpers above `main` from above's, FAR 3 and the water the air helper's, the
+flowers' block the flowers helper's. Then the critic again on the new pictures, the final
+run, the pull request.
+
 ### The far view sent: trees, grass and rock as far as one can see
 
-*2026-11-23/24. **NOT MERGED YET as this is written (00:20 on the 24th): the pictures are
-taken and good, the last tests are running on the frozen final build (a1fa9bd; the tests'
-log is `scratchpad/fin14.log`); when they pass: fill in "Tested" below, open and merge
-the pull request (`scratchpad/pr_body9.md`), send the checkpoint
-(`scratchpad/checkpoint9.md`, pictures in `scratchpad/send/`).** The owner, having flown Haven: "I need you to make it so I can see at least a mile in
+*2026-11-24. Merged as pull request #34; the phone link shows build 6ac24ff (this line was
+written after the merge and is on the session branch until the next delivery carries it).
+The Haven benchmark test was still measuring its second and third cost views on the final
+build when this was merged (its lap, its flight to the Moon and every switch at the
+opening view had passed): its log is `scratchpad/fin14.smokeh.log`. The owner, having flown Haven: "I need you to make it so I can see at least a mile in
 the ground worth of stuff. I want the trees and the grass rendered in further than I can
 see ... use as many agents as you want or need. This is a big ask and I need it to work
 really well." What was built and how is in "The far view: what was built" below.*

@@ -1,0 +1,26 @@
+[
+  {
+    "move": "haven_above_flight",
+    "pass": "settled",
+    "station": 0,
+    "changed": 15.3,
+    "flicker": 1.659,
+    "worst": 107
+  },
+  {
+    "move": "haven_above_flight",
+    "pass": "settled",
+    "station": 1,
+    "changed": 11.99,
+    "flicker": 1.087,
+    "worst": 129
+  },
+  {
+    "move": "haven_above_flight",
+    "pass": "settled",
+    "station": 2,
+    "changed": 16.03,
+    "flicker": 1.584,
+    "worst": 106
+  }
+]

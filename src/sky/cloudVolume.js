@@ -203,29 +203,46 @@ void main() {
   fragColor = 0.25 * (TAP(vec2(1.2, 0.45)) + TAP(vec2(-0.45, 1.2)) + TAP(vec2(-1.2, -0.45)) + TAP(vec2(0.45, -1.2)));
 }`;
 
+// All the cloud along each line of sight, whatever slices it lies in: one small picture
+// (a slice's size), made once a frame from the six. The passes that lay the slices cut the
+// cloud's clean edge by it. (Each of the six passes used to work it out for itself at
+// every pixel it drew cloud on, six more looks each: forty-two texture reads on a pixel
+// with cloud in every slice, the view from inside the layer and from the air above it.
+// On the test phone the volume cost 9.4 ms a frame from the air, and the saving that
+// shortens the march bought nothing there: the cost was in the laying. Now twelve.)
+const ALL = /* glsl */`
+uniform sampler2D tCloudPass;
+uniform vec2 uPixel;           // a pixel of the part in use
+uniform vec2 uUsed;            // the part of the target that is in use
+in vec2 vUv;
+layout(location = 0) out vec4 fragColor;
+void main() {
+  vec2 cells = vec2(float(COLS), float(ROWS)), uv = clamp(vUv, 0.5 * uPixel * cells, 1.0 - 0.5 * uPixel * cells);
+  float through = 1.0;
+  for (int j = 0; j < SLICES; j++) through *= 1.0 - texture(tCloudPass, (vec2(mod(float(j), cells.x), floor(float(j) / cells.x)) + uv) / cells * uUsed).a;
+  fragColor = vec4(1.0 - through);
+}`;
+
 const LAY = /* glsl */`
 uniform sampler2D tCloudPass;
+uniform sampler2D tCloudAll;   // all the cloud along the line of sight (the ALL pass)
 uniform float uSlice;          // which slice this pass lays
 uniform vec2 uPixel;           // a pixel of the part in use
 uniform vec2 uUsed;            // the part of the target that is in use
 uniform float uCrisp;          // how clean the cloud's edge is cut (0: as marched, soft; 1: a clean shape)
 in vec2 vUv;
 layout(location = 0) out vec4 fragColor;
-vec4 look(float k) {
-  vec2 cells = vec2(float(COLS), float(ROWS)), cell = vec2(mod(k, cells.x), floor(k / cells.x));
-  return texture(tCloudPass, (cell + clamp(vUv, 0.5 * uPixel * cells, 1.0 - 0.5 * uPixel * cells)) / cells * uUsed);
-}
 void main() {
-  vec4 c = look(uSlice);
+  vec2 cells = vec2(float(COLS), float(ROWS)), cell = vec2(mod(uSlice, cells.x), floor(uSlice / cells.x));
+  vec2 uv = clamp(vUv, 0.5 * uPixel * cells, 1.0 - 0.5 * uPixel * cells);
+  vec4 c = texture(tCloudPass, (cell + uv) / cells * uUsed);
   if (c.a < 0.003) discard;
   // The painted look: a cloud is a shape with a clean edge, cut out of the soft mass the
   // march gives. The cut goes by all the cloud along the line of sight, in whatever slices
   // it lies: cut slice by slice, a cloud thinned and changed its outline as the boundary
   // between two slices passed through it, which is to say whenever the traveller moved.
   if (uCrisp > 0.0) {
-    float through = 1.0;
-    for (int j = 0; j < SLICES; j++) through *= 1.0 - look(float(j)).a;
-    float all = 1.0 - through;
+    float all = texture(tCloudAll, uv * uUsed).r;
     c *= mix(1.0, smoothstep(0.18, 0.5, all) / max(all, 0.003), uCrisp);
   }
   fragColor = c;
@@ -248,12 +265,13 @@ export class CloudVolume {
       tCloudTop: { value: null }, uTops: { value: new THREE.Vector3(1400, 1, 0) }, uBolt: { value: new THREE.Vector4() },
     };
     this.march = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, HAZE_UV: 1, SLICES, COLS, ROWS }, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: MARCH, depthTest: false, depthWrite: false });
+    this.allMat = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: { COLS, ROWS, SLICES }, uniforms: { tCloudPass: { value: null }, uPixel: { value: new THREE.Vector2() }, uUsed: { value: new THREE.Vector2(1, 1) } }, vertexShader: VERT, fragmentShader: ALL, depthTest: false, depthWrite: false });
     this.smoothMat = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: { COLS, ROWS }, uniforms: { tCloudPass: { value: null }, uPixel: { value: new THREE.Vector2() }, uUsed: { value: new THREE.Vector2(1, 1) } }, vertexShader: VERT, fragmentShader: SMOOTH, depthTest: false, depthWrite: false });
     // A slice is laid as a sheet at the distance where it begins: a grid over the view, each
     // corner at the depth that distance has along its own ray.
     this.layMat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: { COLS, ROWS, SLICES },
-      uniforms: { tCloudPass: { value: null }, uSlice: { value: 0 }, uPixel: { value: new THREE.Vector2() }, uUsed: { value: new THREE.Vector2(1, 1) }, uCrisp: { value: 0 }, uY: { value: new THREE.Vector2(-1, 1) }, uSheet: { value: new THREE.Vector4() }, uDist: { value: 0 } }, vertexShader: /* glsl */`
+      uniforms: { tCloudPass: { value: null }, tCloudAll: { value: null }, uSlice: { value: 0 }, uPixel: { value: new THREE.Vector2() }, uUsed: { value: new THREE.Vector2(1, 1) }, uCrisp: { value: 0 }, uY: { value: new THREE.Vector2(-1, 1) }, uSheet: { value: new THREE.Vector4() }, uDist: { value: 0 } }, vertexShader: /* glsl */`
         uniform vec2 uY;         // the part of the view's height this slice can show cloud in (-1 bottom .. 1 top)
         uniform vec4 uSheet;     // x: tan(half the view angle) across, y: up and down, z: near, w: far
         uniform float uDist;     // how far from the eye the slice begins (m)
@@ -313,7 +331,9 @@ export class CloudVolume {
   // layer: the cloud shell (clouds.js: its map and whether it is on).
   ready(cam, layer) {
     const v = this.def?.volume;
-    this.active = !!(v && this.enabled && this.noise && layer.mesh.visible && cam.length() - this.radius < (v.above ?? 30000));
+    // (wanted: it would be drawn here if the governor's saving were not on: the governor asks)
+    this.wanted = !!(v && this.noise && layer.mesh.visible && cam.length() - this.radius < (v.above ?? 30000));
+    this.active = this.wanted && this.enabled;
     return this.active;
   }
   get reach() { return this.def?.volume?.reach ?? 16000; }
@@ -362,7 +382,11 @@ export class CloudVolume {
     // the middle of the very frames that were late already.
     const fw = Math.max(8, Math.ceil(post.width / SMALL)) * COLS, fh = Math.max(4, Math.ceil(post.height / SMALL)) * ROWS;
     if (!this.target || this.fw !== fw || this.fh !== fh) {
-      this.target?.dispose(); this.smooth?.dispose();
+      this.target?.dispose(); this.smooth?.dispose(); this.all?.dispose();
+      // (all the cloud along each line of sight: one slice's size, one number a pixel, 16 bits:
+      // the clean edge is cut where it passes 0.18 to 0.5, and steps of a 255th would show in it)
+      this.all = new THREE.WebGLRenderTarget(fw / COLS, fh / ROWS, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false });
+      this.all.texture.wrapS = this.all.texture.wrapT = THREE.ClampToEdgeWrapping; this.all.scissorTest = true;
       const make = () => { const t = new THREE.WebGLRenderTarget(fw, fh, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false }); t.texture.wrapS = t.texture.wrapT = THREE.ClampToEdgeWrapping; t.scissorTest = true; return t; };
       this.target = make(); this.smooth = make();          // (as marched; and with the grain taken out)
       this.fw = fw; this.fh = fh;
@@ -404,6 +428,16 @@ export class CloudVolume {
     r.setRenderTarget(this.smooth);
     r.clear(true, false, false);
     r.render(this.scene, this.camera);
+    // (only where the cloud is cut to clean shapes: the painted look)
+    if (G.uPaint.value.x > 0) {
+      const au = this.allMat.uniforms;
+      au.tCloudPass.value = this.smooth.texture; au.uPixel.value.set(1 / tw, 1 / th); au.uUsed.value.set(tw / fw, th / fh);
+      this.all.viewport.set(0, 0, tw / COLS, th / ROWS); this.all.scissor.set(0, 0, tw / COLS, th / ROWS);
+      this.quad.material = this.allMat;
+      r.setRenderTarget(this.all);
+      r.clear(true, false, false);
+      r.render(this.scene, this.camera);
+    }
   }
 
   // The world's coarse elevation (its first bundled raster: whole-world, Int16 metres), for
@@ -435,7 +469,7 @@ export class CloudVolume {
     const U = rig.localUp, dot = (v) => v.x * U[0] + v.y * U[1] + v.z * U[2];
     const sp = dot(rig.forward), cp = dot(rig.up), level = Math.abs(dot(rig.right)) < 0.03 && cp > 0.2 && this.minDist > 0;
     const pitch = Math.atan2(sp, cp), ty = Math.tan(rig.fov * Math.PI / 360);
-    u.tCloudPass.value = this.smooth.texture;
+    u.tCloudPass.value = this.smooth.texture; u.tCloudAll.value = this.all.texture;
     u.uPixel.value.set(1 / this.tw, 1 / this.th); u.uUsed.value.set(this.tw / this.fw, this.th / this.fh);
     u.uSheet.value.set(ty * this.aspect, ty, near, far); u.uCrisp.value = G.uPaint.value.x;
     for (let k = SLICES - 1; k >= 0; k--) {

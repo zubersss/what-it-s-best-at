@@ -12,12 +12,15 @@ export const COVER_HEIGHT = [0, 18, 30, 16, 20, 18, 2.5, 1.5, 9, 7, 0, 6, 0, 0, 
 export const CLASS = { ENF: 1, EBF: 2, DNF: 3, DBF: 4, MIXED: 5, SHRUB: 6, OPEN_SHRUB: 7, WOODY_SAVANNA: 8, SAVANNA: 9, GRASS: 10, WETLAND: 11, CROP: 12, URBAN: 13, MOSAIC: 14, ICE: 15, BARREN: 16, WATER: 17 };
 
 // Shapes a tree can have (the meshes are in treeGeometry.js, in this order).
-export const ARCH = { CONIFER: 0, PINE: 1, BROADLEAF: 2, TROPICAL: 3, UMBRELLA: 4, BUSH: 5, PALM: 6, SLENDER: 7 };
+export const ARCH = { CONIFER: 0, PINE: 1, BROADLEAF: 2, TROPICAL: 3, UMBRELLA: 4, BUSH: 5, PALM: 6, SLENDER: 7, BLOSSOM: 8 };
 
 // Species: [name, shape, height against the measured canopy (x), crown width (x), leaf
 // colour (linear albedo), trunk colour, deciduous: 0 keeps its leaves, 1 turns and drops
 // them (2: turns gold, as larch and aspen do)].
-const S = (name, arch, tall, wide, leaf, trunk, fall = 0) => ({ name, arch, tall, wide, leaf, trunk, fall });
+// A tree that flowers has `blossom`: { colour (its petals, linear albedo), from, to (the
+// days of the year it is in flower in the northern half of a world; half a year later in
+// the southern) }: see bloomOf.
+const S = (name, arch, tall, wide, leaf, trunk, fall = 0, blossom = null) => ({ name, arch, tall, wide, leaf, trunk, fall, blossom });
 const BARK = [0.16, 0.12, 0.09], PALE = [0.42, 0.40, 0.36], RED = [0.24, 0.13, 0.08], GREY = [0.22, 0.21, 0.19];
 export const SPECIES = [
   /* 0 */ S('ponderosa pine', ARCH.PINE, 1.1, 0.9, [0.045, 0.085, 0.03], RED),
@@ -84,7 +87,20 @@ export const SPECIES = [
   /* 61 */ S('lodgepole pine', ARCH.PINE, 1.0, 0.6, [0.035, 0.075, 0.03], BARK),
   /* 62 */ S('Sitka spruce', ARCH.CONIFER, 1.25, 0.8, [0.025, 0.055, 0.035], BARK),
   /* 63 */ S('olive', ARCH.BROADLEAF, 0.7, 1.2, [0.08, 0.10, 0.07], GREY),
+  /* 64 */ S('wild cherry', ARCH.BLOSSOM, 0.8, 1.25, [0.07, 0.13, 0.035], [0.2, 0.13, 0.11], 1, { colour: [0.62, 0.34, 0.42], from: 62, to: 118 }),
+  /* 65 */ S('blackthorn', ARCH.BLOSSOM, 0.5, 1.35, [0.06, 0.11, 0.04], [0.12, 0.1, 0.09], 1, { colour: [0.66, 0.63, 0.56], from: 55, to: 105 }),
 ];
+
+// How far in flower a tree is on a day of the year (0..365.25) at a latitude: open (0..1:
+// how many of its flowers are out; they open over the first ten days and are gone over
+// the last twelve) and fall (0..1: how fast its petals come off: a few all the time it
+// is in flower, most toward the end).
+export function bloomOf(sp, day, lat) {
+  const b = sp.blossom; if (!b) return { open: 0, fall: 0 };
+  const d = (((day + (lat < 0 ? 182.6 : 0)) % 365.25) + 365.25) % 365.25, sm = (a, c, x) => { const k = Math.min(1, Math.max(0, (x - a) / (c - a))); return k * k * (3 - 2 * k); };
+  const open = sm(b.from, b.from + 10, d) * (1 - sm(b.to - 12, b.to, d));
+  return { open, fall: open > 0 ? Math.max(0.5 * open, sm(b.from + 12, b.to - 10, d) * open) : 0 };
+}
 
 // Which species a class means at a place: [species, weight] lists. lat, lon (east,
 // -180..180), alt (m), near (true beside a river or lake: the trees that follow water).

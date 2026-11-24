@@ -30,13 +30,13 @@ await snap(path.join(out, 'start_screen.png'));
 const before = await page.evaluate(() => window.__app.governor.mode);
 // (noWaitAfter: a click otherwise waits for the page to come to rest, which at a frame
 // every two seconds in a software renderer can take more than its 30 s)
-await page.click('#start button.mode', { noWaitAfter: true });
+await page.click('#start button.mode', { noWaitAfter: true, timeout: 240000 });
 await page.waitForFunction((b) => window.__app.governor.mode !== b, before, { timeout: 60000 }).catch(() => {});
 check('mode button switches Smooth <-> Sharp', (await page.evaluate(() => window.__app.governor.mode)) !== before);
-await page.click('#start button.mode', { noWaitAfter: true });
+await page.click('#start button.mode', { noWaitAfter: true, timeout: 240000 });
 await page.waitForFunction((b) => window.__app.governor.mode === b, before, { timeout: 60000 }).catch(() => {});
 await page.waitForSelector('#start button.primary:not([disabled])', { timeout: 300000 });   // (Play unlocks once the ground under the start is drawn)
-await page.click('#start button.primary', { noWaitAfter: true });
+await page.click('#start button.primary', { noWaitAfter: true, timeout: 240000 });
 check('Play hides the start screen', !(await page.isVisible('#start')));
 await page.waitForTimeout(6000);
 check('compact HUD shows frame rate, resolution, mode and build', /fps · [\d.]+ MP · (Smooth|Sharp) · build \w+/.test(await page.textContent('#hud')));
@@ -50,7 +50,7 @@ console.log(await page.evaluate(() => window.__app.governor.summary), '| steps s
 
 if (!flag('no-bench')) {
   // (--earth: the Earth benchmark; the cost test after the lap takes its time in a software renderer)
-  const soak = flag('soak'), haven = flag('haven'), earth = flag('earth') || haven, limit = soak ? 760000 : haven ? 4800000 : earth ? 2400000 : 1500000;
+  const soak = flag('soak'), haven = flag('haven'), earth = flag('earth') || haven, limit = opt('limit', null) ? +opt('limit', 0) * 1000 : soak ? 760000 : haven ? 4800000 : earth ? 2400000 : 1500000;      // (--limit <seconds>: on a slow machine the Haven run takes hours)
   await goto(base + (soak ? '?world=mars&bench=soak' : haven ? '?world=haven&bench=haven' : earth ? '?world=earth&bench=earth' : '?world=mars&bench=run'));
   await page.waitForFunction(() => window.__app?.benchmark?.active, null, { timeout: earth ? 900000 : 240000 });
   check(`benchmark starts from ?bench=${soak ? 'soak' : 'run'}`, true);
@@ -73,10 +73,12 @@ if (!flag('no-bench')) {
   check('results have every line the owner asked for', ['average fps', '1% low', 'worst frame', 'render resolution', 'quality steps', 'hitches over 100 ms', 'GPU:', 'pixel ratio', 'mode', 'build'].every((k) => text.includes(k)));
   await snap(path.join(out, 'results_screen.png'));
   console.log('\n' + text + '\n');
-  await page.click('#results button.primary', { noWaitAfter: true });
+  // (a click is three messages to the page, each answered between two frames, and a
+  // software-drawn frame after a benchmark can take ten seconds: the usual 30 s ran out once)
+  await page.click('#results button.primary', { noWaitAfter: true, timeout: 240000 });
   await page.waitForTimeout(500);
   console.log('copy button says:', await page.textContent('#results button.primary'));
-  await page.click('#results .row button:not(.primary)', { noWaitAfter: true });
+  await page.click('#results .row button:not(.primary)', { noWaitAfter: true, timeout: 240000 });
   check('closing the results returns to the start screen', await page.isVisible('#start'));
 }
 // Every shader linked so far (after the benchmark: both worlds, the flight, the sky)
