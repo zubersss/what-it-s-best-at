@@ -472,10 +472,17 @@ export class Trees {
       }
     }
     list.length = n; list.sort((p, q) => p.d2 - q.d2);
-    const blooming = [], lat = Math.asin(A.z / A.length()) * 180 / Math.PI;
+    const blooming = [], lat = Math.asin(A.z / A.length()) * 180 / Math.PI, up = u.uTreeUp.value;
     for (const e of list) {
       const T = e.b.trees, q = e.q, d2 = e.d2;
-      const sp = SPECIES[T[q + 6]], own = T[q + 7], set = this.sets[sp.arch][Math.min(VARIANTS - 1, Math.floor(((own * 7.31) % 1) * VARIANTS))][d2 < close2 ? 0 : d2 < near2 ? 1 : 2];
+      // Looked down on, a tree's picture on two crossed cards is nothing (and the rosette in
+      // its crown a flat disc): from above a tree keeps its near mesh, limbs and bunches,
+      // out to four times as far when seen from straight overhead. On foot nothing changes.
+      const down = Math.max(0, -(e.x * up.x + e.y * up.y + e.z * up.z) / Math.sqrt(d2 || 1)), k = 1 - 0.75 * down, dn2 = d2 * k * k;
+      const sp = SPECIES[T[q + 6]], own = T[q + 7], trio = this.sets[sp.arch][Math.min(VARIANTS - 1, Math.floor(((own * 7.31) % 1) * VARIANTS))];
+      // (a list that is full hands the tree to the next simpler one: it was left out altogether)
+      let lod = d2 < close2 ? 0 : dn2 < near2 ? 1 : 2; while (lod < 2 && trio[lod].count >= trio[lod].cap) lod++;
+      const set = trio[lod];
       if (set.count >= set.cap) continue;
       const i = set.count++;
       set.iA.array.set([e.x, e.y, e.z, T[q + 3]], i * 4);
