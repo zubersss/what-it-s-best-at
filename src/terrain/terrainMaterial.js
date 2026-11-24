@@ -736,31 +736,25 @@ void main() {
         gc *= 1.0 + 0.07 * sin(arg + 5.0 * (d1.g - 0.5)) * (1.0 - smoothstep(0.7, 1.8, fwidth(arg))) * smoothstep(0.52, 0.72, gustN) * (1.0 - 0.85 * smoothstep(250.0, 600.0, dG)) * (1.0 - smoothstep(600.0, 900.0, dG));
       }
       // (the drifts of flowers, where the clumps and blades have them)
-      // (none beyond 900 m: their share of the colour there was a fiftieth, their cost the same as near)
-      vec2 fw = dG < 900.0 ? flowersAt(planetPos, int(uGrassTone.z + 0.5), ts, vFlowerFields) : vec2(0.0);      // (by the ground's slope too: hillsides of one kind, as the blades have them)
-      // (a tint, never a patch: its edge broken by the ground's own grain, less of it for
-      // the pale kinds, from higher up and far off, where colour piles up along the skyline)
-      if (fw.y > 0.0) {
-        // (a dusting: specks a metre or so across, thicker toward the drift's heart; their
-        // mean where a speck is smaller than a pixel)
-        vec3 fwP = fwidth(planetPos);
-        float fpx = max(fwP.x, max(fwP.y, fwP.z));
-        // (from farther: broken patches some metres across, then the drift's mean; nothing with a hard edge)
-        // (thickest in a drift's middle and nothing at its edge, the edge broken by the fine specks: no rim)
-        // (each of the two noises only where it has a share: none where a speck is far smaller
-        // than a pixel, and the broken patches not where single specks are seen)
-        float dens = fw.y * smoothstep(0.0, 0.5, fw.y), fk = 0.2 * dens;
-        if (fpx < 5.0) {
-          float fn1 = flNoise(planetPos / 1.3);
-          float broken = fpx > 0.35 ? 0.8 * dens * smoothstep(0.32, 0.7, flNoise(planetPos / 4.5 + vec3(7.0, 0.0, 3.0))) * smoothstep(0.25, 0.75, fn1) : 0.0;
-          float speck = smoothstep(0.45, 0.8, fn1 * (0.55 + 0.65 * fw.y));
-          fk = mix(mix(speck, broken, smoothstep(0.35, 1.3, fpx)), 0.2 * dens, smoothstep(1.6, 5.0, fpx));
-        }
-        // (pale flowers least, a white patch from the air being snow or stone: flowersAt thins
-        // them itself, all but the daisy, kind 1, whose thinning is the ground's own, as it was)
-        fk *= (fw.x < 1.5 ? 0.4 : 1.0);
-        fk *= (1.0 - 0.6 * clamp(dot(V, up), 0.0, 1.0)) * (1.0 - 0.75 * smoothstep(150.0, 600.0, dG)) * (1.0 - smoothstep(600.0, 900.0, dG));
-        gc = mix(gc, petalColour(fw.x, 0.5), fk * GRASS_FLOWER_SHARE);
+      // (the flowers' tint: by the one rule (grassRules.js, flowerTint), the mean colour of what
+      // flowers at a place as wide as the pixel: from near by the companions' clumps among the
+      // leading kind, from the air soft drifts of a meadow's colours. Within 1 000 m the rule's
+      // two broad noises come from the vertices; beyond (looked down on from the air) the
+      // pixel asks them itself. Nothing finer than a few pixels: no specks.)
+      vec3 fwP = fwidth(planetPos);
+      float fpx = max(fwP.x, max(fwP.y, fwP.z));
+      vec4 fw = dG < 2500.0 ? flowerTint(planetPos, int(uGrassTone.z + 0.5), ts, dG < 1000.0 ? vFlowerFields : vec2(flowerMeadow(planetPos), ts > 0.16 ? flowerHill(planetPos) : 0.5), fpx) : vec4(0.0);
+      if (fw.a > 0.0) {
+        // (thickest in a drift's heart, nothing at its edge; near by broken softly by a noise
+        // some metres across, never single specks)
+        float fk = smoothstep(0.0, 0.55, fw.a);
+        if (fpx < 1.5) fk *= mix(0.55 + 0.9 * flNoise(planetPos / 4.5 + vec3(7.0, 0.0, 3.0)), 1.0, smoothstep(0.4, 1.5, fpx));
+        // (less where the ground is looked along far off, where colour piles up along the
+        // skyline; looked down on, the whole of it. Where the grass's own paint gives way to the
+        // map's colour far off, the tint keeps a little more of its own: a meadow seen from
+        // 1 to 2 km up is still a meadow)
+        fk *= mix(0.35, 1.0, smoothstep(0.06, 0.4, dot(V, up))) / max(gw, 0.4);
+        gc = mix(gc, fw.rgb, min(1.0, fk * GRASS_FLOWER_SHARE));
       }
       albedo = mix(albedo, gc, gw);
     }

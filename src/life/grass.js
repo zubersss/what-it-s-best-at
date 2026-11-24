@@ -281,7 +281,9 @@ const BLADE_VERT = /* glsl */`
     float skyShare = 0.55 + 0.45 * tone;
     #ifdef FAR
     // (flowers: in a drift some blades are stalks in flower, their upper part the flower's colour:
-    // fewer from above and far off: grass with a dusting, and no band of colour along the skyline)
+    // fewer far off: grass with a dusting, and no band of colour along the skyline. Looked down
+    // on, none: a far blade seen from above is a speck on the ground, and a meadow of them a
+    // cloud of single-pixel dots; the ground's own tint carries the flowers' colour there.)
     float fk = tableNearest(tTable, uTab, at).a, kind = floor(fk + 0.001);
     vec2 hf = hash2(cell + 5.1 + aBlade);
     // (pale kinds on fewer blades: a white meadow seen from the air was frost)
@@ -290,6 +292,8 @@ const BLADE_VERT = /* glsl */`
     // was, and none where there is none; and only where the single flowers are not kept, by
     // their own rule: HANDOVER and FLOWER_EDGE above)
     float flowered = clamp((bloom - hf.x) * ${(1 / FLOWER_EDGE).toFixed(3)} + 0.5, 0.0, 1.0) * min(1.0, bloom * ${(2 / FLOWER_EDGE).toFixed(3)}) * (1.0 - keepOf((1.0 - smoothstep(${HANDOVER[0].toFixed(2)}, ${HANDOVER[1].toFixed(2)}, dist)) * uGrassKeep.x, hf.y));
+    // (looked down on, its colour goes, blade by blade alike: no blade turns at once)
+    flowered *= 1.0 - smoothstep(0.1, 0.5, rise);
     if (flowered > 0.0) { alb = mix(alb, petalColour(kind, h.y), (0.3 + 0.7 * y) * flowered); skyShare = mix(skyShare, 1.0, flowered); }
     #endif
     vec3 sun, sky, air; lightAt(at, sun, sky, air);
@@ -299,18 +303,22 @@ const BLADE_VERT = /* glsl */`
     gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
   }`;
 
-// A flower: a stem (part 0), LEAVES leaves at its foot, NPET petals, a middle. What the
-// petals are depends on the kind's habit (grassRules.js): a cup's petals round its
-// middle, a spike's florets up the stem, an umbel's on a flat-topped spray, a globe's
-// round a ball, a turf flower's tiny heads scattered among the blades, a cushion's mound
-// on the ground. Near the eye fourteen petals and two leaves; farther out six and none.
+// A flower: a stem (part 0), LEAVES leaves at its foot, NPET petals, a middle; each part two
+// triangles (the stem a ribbon, the rest a kite: x across -0.5..0.5 at y 0.55, y out 0..1).
+// What the petals are depends on the kind's habit (grassRules.js): a cup's petals round its
+// middle as a shallow bowl, a spike's florets up the stem, an umbel's on a flat-topped spray,
+// a globe's round a ball, a turf flower's tiny heads scattered among the blades, a cushion's
+// mound on the ground. Nothing but the turf's tiny heads is turned to the eye: a head faces
+// up, tilted its own way and a little toward the Sun, and is seen from the side as a side
+// view (a bowl, its back, its stem); spikes and balls are set round their stems in the
+// ground's own axes. Near the eye fourteen petals and two leaves; farther out six and none.
 const FLOWER_VERT = /* glsl */`
   in float aPart;
   uniform sampler2D tTable; uniform vec4 uTab;
   ${GRASS_PRELUDE}
   ${FLOWERS_GLSL}
   void main() {
-    vec2 cell, rc = latticeCell(cell), h = hash2(cell), h2 = hash2(cell + 23.9);
+    vec2 cell, rc = latticeCell(cell), h = hash2(cell), h2 = hash2(cell + 23.9), h3 = hash2(cell + 57.1);
     vec2 rel2 = rc + (h - 0.5) * 0.9 * SPACING, at = rel2 + uGrassCam.xy;
     float dist = length(rel2);
     float ring = (1.0 - smoothstep(OUT0, OUT1, dist)) * uGrassKeep.x;
@@ -318,8 +326,9 @@ const FLOWER_VERT = /* glsl */`
     ring *= smoothstep(IN0, IN1, dist);
     #endif
     if (ring <= 0.0) OUT_OF_PICTURE
-    // (which kind grows here is not something to blend: the nearest entry says)
-    vec4 gn = tableNearest(tTable, uTab, at);
+    // (which kind grows here is not something to blend: the nearest entry says, asked a little
+    // off the plant's own place, so that a clump's edge is ragged, not the table's square)
+    vec4 gn = tableNearest(tTable, uTab, at + (h3 - 0.5) * uTab.z);
     float kind = floor(gn.a + 0.001);
     // (big heads stand wider apart: a lattice full of heads a hand across was a carpet that
     // hid the grass. As many of a kind's heads to the square metre as cover the same ground.)
@@ -335,92 +344,112 @@ const FLOWER_VERT = /* glsl */`
     // (a dandelion gone to seed: a white clock)
     bool clock = ki == 17 && h2.y > 0.62;
     if (clock) habit = 4.0;
-    // as tall as its kind in grass of middling height, taller in tall grass: the heads stand clear
-    float stem = shp.z * (0.85 + 0.3 * h2.y) * mix(1.0, (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) / 1.2, 0.7) * keep;
-    float size = shp.y * (0.8 + 0.4 * h.y) * (1.0 + dist * FGROW) * keep;
+    // as tall as its kind in grass of middling height, taller in tall grass: the heads stand clear;
+    // each plant a size of its own (young and old, small and large)
+    float stem = shp.z * (0.75 + 0.5 * h2.y) * mix(1.0, (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) / 1.2, 0.7) * keep;
+    float size = shp.y * (0.7 + 0.6 * h.y) * (1.0 + dist * FGROW) * keep;
     float base = groundUp(g, at);
     vec3 foot = uGrassEast * rel2.x + uGrassNorth * rel2.y + uGrassUp * base;
     vec3 w = windAt(foot, h.x);
     vec2 top2 = rel2 + ((h - 0.5) * 0.24 + w.xy * 1.3) * stem;
     vec3 top = uGrassEast * top2.x + uGrassNorth * top2.y + uGrassUp * (base + stem);
-    vec3 toCam = normalize(-top), side = normalize(cross(uGrassUp, toCam) + uGrassEast * 1e-4), fwd = cross(side, uGrassUp);
-    vec3 col, rel; float skyShare = 1.0;
+    vec3 toCam = normalize(-top), side = normalize(cross(uGrassUp, toCam) + uGrassEast * 1e-4);
+    // the plant's own axes on the ground (turned its own way: the same from wherever it is seen)
+    float turn = h3.x * 6.2831853;
+    vec3 ax = uGrassEast * cos(turn) + uGrassNorth * sin(turn), ay = cross(uGrassUp, ax);
+    // which way the head faces: up, tilted its own way, and a little toward the Sun
+    vec3 sunFlat = uSunDir - uGrassUp * dot(uSunDir, uGrassUp);
+    vec3 face = normalize(uGrassUp + ax * (0.25 + 0.45 * h3.y) + sunFlat * 0.3);
+    vec3 col, rel, pn = face; float skyShare = 1.0;
     float petal = aPart - 1.0 - float(LEAVES);          // which petal (0 .. NPET - 1); NPET: the middle
     vec3 petalCol = clock ? vec3(0.80, 0.80, 0.76) : petalColour(kind, fract(h2.y + (habit > 1.5 || habit < 0.5 ? petal * 0.37 : 0.0)));
+    // (a pixel at the head: stems and the like are never thinner than about one)
+    float px = length(top) / (uGrassView * abs(projectionMatrix[1][1]));
     if (aPart < 0.5) {
-      // the stem
+      // the stem: a ribbon from the foot to the head, never thinner than about a pixel
       if (habit < 0.5 || habit > 4.5) OUT_OF_PICTURE
-      rel = mix(foot, top, position.y) + side * position.x * 0.007 * (1.0 + dist * 0.07) * (1.0 - 0.5 * position.y);
-      col = grassColour(0.0, 0.35 + 0.55 * position.y); skyShare = 0.6 + 0.4 * position.y;
+      float sw = max(0.0045 * (1.0 + 0.4 * shp.z), 0.7 * px);
+      rel = mix(foot, top, position.y) + side * position.x * sw * (1.0 - 0.4 * position.y);
+      col = grassColour(0.0, 0.35 + 0.55 * position.y); skyShare = 0.6 + 0.4 * position.y; pn = uGrassUp;
     } else if (petal < 0.0) {
       // a leaf at the foot, out to one side and the other
       if (habit < 0.5 || habit > 4.5) OUT_OF_PICTURE
-      float a = h.x * 6.2831853 + aPart * 3.3, len = (0.10 + 0.5 * shp.y) * (1.0 + dist * 0.05) * keep;
+      float a = turn + aPart * 3.3, len = (0.10 + 0.5 * shp.y) * (1.0 + dist * 0.05) * keep;
       vec3 o = uGrassEast * cos(a) + uGrassNorth * sin(a), across = cross(o, uGrassUp);
-      rel = foot + (o * position.y + across * position.x * 0.22 * (1.0 - position.y)) * len + uGrassUp * (0.02 + 0.7 * len * position.y * (1.0 - 0.4 * position.y));
-      col = grassColour(0.05, 0.3 + 0.4 * position.y); skyShare = 0.6 + 0.3 * position.y;
+      rel = foot + (o * position.y + across * position.x * 0.4) * len + uGrassUp * (0.02 + 0.7 * len * position.y * (1.0 - 0.4 * position.y));
+      col = grassColour(0.05, 0.3 + 0.4 * position.y); skyShare = 0.6 + 0.3 * position.y; pn = normalize(uGrassUp - o * 0.6);
     } else if (habit < 0.5) {
       // turf: each petal a tiny head of its own, low among the blades, anywhere in the cell
+      // (a centimetre across: only these are turned partly toward the eye, or they would be nothing)
       if (petal > float(NPET) - 0.5) OUT_OF_PICTURE
       vec2 hp = hash2(cell + petal * 3.17 + 1.3), off = (hp - 0.5) * (1.7 * SPACING);
       vec3 c = uGrassEast * (rel2.x + off.x) + uGrassNorth * (rel2.y + off.y) + uGrassUp * (base + dot(grad, off) + stem * (0.6 + 0.8 * hp.x));
-      vec3 n = normalize(uGrassUp + toCam * 0.5), a = normalize(cross(n, uGrassEast + uGrassUp * 0.3)), b = cross(n, a);
-      float ang = hp.y * 6.2831853, s = size * 1.6;
+      vec3 n = normalize(uGrassUp + toCam * 0.4), a = normalize(cross(n, uGrassEast + uGrassUp * 0.3)), b = cross(n, a);
+      float ang = hp.y * 6.2831853, s = size * 2.2;
       vec2 q0 = vec2(position.x, position.y - 0.5), q = vec2(q0.x * cos(ang) - q0.y * sin(ang), q0.x * sin(ang) + q0.y * cos(ang));
       rel = c + (a * q.x + b * q.y) * s;
       col = petalCol * (0.85 + 0.2 * position.y);
     } else if (habit < 1.5) {
-      // a cup: its petals round the middle, turned up and toward whoever looks
+      // a cup: its petals round the middle as a shallow bowl on the head's own axes
       float n = min(shp.w, float(NPET));
       bool mid = petal > float(NPET) - 0.5;
       if (!mid && petal > n - 0.5) OUT_OF_PICTURE
-      vec3 nrm = normalize(uGrassUp * 0.8 + toCam * 0.55 + (uGrassEast * (h.x - 0.5) + uGrassNorth * (h.y - 0.5)) * 0.6);
-      vec3 a = normalize(cross(nrm, uGrassEast + uGrassUp * 0.3)), b = cross(nrm, a);
+      vec3 a = normalize(cross(face, ay)), b = cross(face, a);
       float ang = petal * 6.2831853 / n + h.x * 6.2831853, c = cos(ang), s = sin(ang);
-      // (few petals: broad ones that overlap, a poppy's bowl; many: narrow rays, a daisy's)
-      float wx = n < 4.5 ? 1.05 : n < 6.5 ? 0.74 : 3.4 / n, big = shp.y > 0.08 ? 1.15 : 1.0;
-      vec2 q0 = mid ? vec2(position.x * 0.55 * big, position.y * 0.34 * big - 0.17 * big) : vec2(position.x * wx, position.y), q = vec2(q0.x * c - q0.y * s, q0.x * s + q0.y * c);
-      rel = top + (a * q.x + b * q.y + nrm * (mid ? 0.12 : (n < 4.5 ? 0.55 : 0.32) * position.y * position.y)) * size;
-      col = mid ? KIND_MID[ki] : petalCol * (0.78 + 0.3 * position.y);
+      // (few petals: broad ones that overlap, a poppy's deep bowl; many: narrow rays, a daisy's, nearly flat)
+      float wx = (n < 4.5 ? 2.0 : n < 6.5 ? 1.45 : 6.6 / n), deep = n < 4.5 ? 0.62 : n < 6.5 ? 0.42 : 0.18, big = shp.y > 0.08 ? 1.15 : 1.0;
+      vec2 q0 = mid ? vec2(position.x * 1.1 * big, position.y * 0.34 * big - 0.17 * big) : vec2(position.x * wx, position.y), q = vec2(q0.x * c - q0.y * s, q0.x * s + q0.y * c);
+      float lift = mid ? 0.1 : deep * position.y * position.y;
+      rel = top + (a * q.x + b * q.y + face * lift) * size;
+      // (a petal's own lie: rising toward its tip, the bowl's inside facing in and up)
+      pn = mid ? face : normalize(face - (a * c + b * s) * (2.0 * deep * position.y));
+      col = mid ? KIND_MID[ki] : petalCol * (0.80 + 0.28 * position.y);
     } else if (habit < 2.5) {
       // a spike: florets one above another up the top of the stem, round it in turn, smaller toward the tip
       float n = min(shp.w, float(NPET));
       if (petal > n - 0.5) OUT_OF_PICTURE
-      float t = petal / max(n - 1.0, 1.0), a = petal * 2.39996 + h.x * 6.2831853, s = size * (1.35 - 0.75 * t) * (14.0 / (8.0 + float(NPET)));
-      vec3 c = mix(foot, top, 0.56 + 0.44 * t), o = side * cos(a) + fwd * sin(a);
+      float t = petal / max(n - 1.0, 1.0), a = petal * 2.39996 + turn, s = size * (1.35 - 0.75 * t) * (14.0 / (8.0 + float(NPET)));
+      vec3 c = mix(foot, top, 0.56 + 0.44 * t), o = ax * cos(a) + ay * sin(a);
       // (a foxglove's bells hang; a lupin's florets stand out and up)
       float droop = ki == 12 || ki == 22 ? -0.75 : 0.35;
-      rel = c + cross(o, uGrassUp) * (position.x * 0.5 * s) + (o * 0.95 + uGrassUp * droop) * (position.y * s);
+      rel = c + cross(o, uGrassUp) * (position.x * 1.0 * s) + (o * 0.95 + uGrassUp * droop) * (position.y * s);
+      pn = normalize(o + uGrassUp * 0.5);
       col = petalCol * (0.75 + 0.35 * position.y);
     } else if (habit < 3.5) {
-      // an umbel: tiny florets on a flat-topped spray
+      // an umbel: tiny florets on a flat-topped spray, tilted a little its own way
       if (petal > float(NPET) - 0.5) OUT_OF_PICTURE
-      vec3 n = normalize(uGrassUp + toCam * 0.35), a = normalize(cross(n, uGrassEast + uGrassUp * 0.3)), b = cross(n, a);
-      float r = sqrt((petal + 0.5) / float(NPET)), ang = petal * 2.39996 + h.x * 6.2831853, s = 0.52 * sqrt(14.0 / float(NPET));
-      vec2 q0 = vec2(position.x, position.y - 0.5) * s, q = vec2(r * cos(ang), r * sin(ang)) + vec2(q0.x * cos(ang) - q0.y * sin(ang), q0.x * sin(ang) + q0.y * cos(ang));
-      rel = top + (a * q.x + b * q.y + n * (0.3 * (1.0 - r))) * size;
+      vec3 n = normalize(uGrassUp + ax * 0.2 * h3.y), a = normalize(cross(n, ay)), b = cross(n, a);
+      float r = sqrt((petal + 0.5) / float(NPET)), ang = petal * 2.39996 + turn, s = 0.52 * sqrt(14.0 / float(NPET));
+      vec2 q0 = vec2(position.x * 2.0, position.y - 0.5) * s, q = vec2(r * cos(ang), r * sin(ang)) + vec2(q0.x * cos(ang) - q0.y * sin(ang), q0.x * sin(ang) + q0.y * cos(ang));
+      rel = top + (a * q.x + b * q.y + n * (0.3 * (1.0 - r * r))) * size;
+      pn = n;
       col = petalCol * (0.82 + 0.2 * position.y);
     } else if (habit < 4.5) {
       // a globe: florets standing out all round a ball
       if (petal > float(NPET) - 0.5) OUT_OF_PICTURE
-      float z = 1.0 - 2.0 * (petal + 0.5) / float(NPET), rr = sqrt(max(0.0, 1.0 - z * z)), ang = petal * 2.39996 + h.x * 6.2831853;
-      vec3 d = side * (rr * cos(ang)) + fwd * (rr * sin(ang)) + uGrassUp * z, e = normalize(cross(d, uGrassUp + side * 0.3));
-      rel = top + (d * (0.1 + 0.9 * position.y) + e * (position.x * 0.62 * (1.0 - position.y))) * size * (clock ? 1.25 : 1.0);
+      float z = 1.0 - 2.0 * (petal + 0.5) / float(NPET), rr = sqrt(max(0.0, 1.0 - z * z)), ang = petal * 2.39996 + turn;
+      vec3 d = ax * (rr * cos(ang)) + ay * (rr * sin(ang)) + uGrassUp * z, e = normalize(cross(d, uGrassUp + ax * 0.3));
+      rel = top + (d * (0.15 + 0.85 * position.y) + e * (position.x * 1.3)) * size * (clock ? 1.25 : 1.0);
+      pn = d;
       col = petalCol * (0.7 + 0.4 * position.y);
     } else {
       // a cushion: a low mound on the ground, green shards and flowered ones in turn
       if (petal > float(NPET) - 0.5) OUT_OF_PICTURE
-      float z = (petal + 0.5) / float(NPET), rr = sqrt(1.0 - z * z), ang = petal * 2.39996 + h.x * 6.2831853, R = size * (1.0 + 0.5 * h2.y);
+      float z = (petal + 0.5) / float(NPET), rr = sqrt(1.0 - z * z), ang = petal * 2.39996 + turn, R = size * (1.0 + 0.5 * h2.y);
       vec3 d = uGrassEast * (rr * cos(ang)) + uGrassNorth * (rr * sin(ang)) + uGrassUp * z, e = normalize(cross(d, uGrassUp + uGrassEast * 0.3)), f = cross(d, e);
-      vec2 q = vec2(position.x, position.y - 0.4) * 0.95;
-      rel = foot + (d * vec3(1.0) + e * q.x + f * q.y) * R - uGrassUp * (0.55 * R * dot(d, uGrassUp)) + (uGrassEast * grad.x + uGrassNorth * grad.y) * 0.0;
+      vec2 q = vec2(position.x * 2.0, position.y - 0.4) * 0.95;
+      rel = foot + (d + e * q.x + f * q.y) * R - uGrassUp * (0.55 * R * dot(d, uGrassUp));
       bool green = mod(petal, 2.0) < 0.5;
       col = green ? KIND_MID[ki] * (0.8 + 0.5 * z) : petalCol * (0.8 + 0.25 * position.y);
-      skyShare = 0.6 + 0.4 * z;
+      skyShare = 0.6 + 0.4 * z; pn = d;
     }
     vec3 sun, sky, air; lightAt(at, sun, sky, air);
-    // (a petal toward the Sun glows as a blade does)
-    vCol = col * (sun * (1.0 + 0.5 * pow(max(dot(normalize(rel), uSunDir), 0.0), 3.0)) + sky * skyShare) + air;
+    // (a head in light and shade: the side of a bowl or a spike turned to the Sun in the light,
+    // the far side in its coloured shade, as the painted look has every mass; a petal's back,
+    // seen from behind, a little darker. A petal toward the Sun glows as a blade does.)
+    float facing = dot(pn, uSunDir), lit = 0.55 + 0.6 * clamp(facing * 0.5 + 0.5, 0.0, 1.0);
+    float back = dot(pn, toCam) < 0.0 && aPart > float(LEAVES) + 0.5 ? 0.82 : 1.0;
+    vCol = col * back * (sun * lit * (1.0 + 0.5 * pow(max(dot(normalize(rel), uSunDir), 0.0), 3.0)) + sky * skyShare) + air;
     gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
   }`;
 
@@ -600,13 +629,14 @@ export class Grass {
       if (f.far) d.FAR = 1;
       return field(f, plain(p, 'aBlade', b), BLADE_VERT, d, f.blades, k);
     };
-    // a flower: the stem as a blade, leaves, each petal a triangle from the middle outward (x across, y out), the middle a triangle
+    // a flower: the stem, leaves, petals (each from the middle outward: x across, y out), the middle
     const flower = (f) => {
-      const p = [-1, 0, 0, 1, 0, 0, 0, 1, 0], b = [0, 0, 0], n = f.leaves + f.petals + 1;
-      for (let i = 1; i <= n; i++) { if (i <= f.leaves) p.push(-1, 0, 0, 1, 0, 0, 0, 1, 0); else p.push(0, 0, 0, -0.62, 1, 0, 0.62, 1, 0); b.push(i, i, i); }
+      // (the stem a ribbon of two triangles; every other part a kite of two: x across, y out)
+      const p = [-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 0, 0, 1, 1, 0, -1, 1, 0], b = [0, 0, 0, 0, 0, 0], n = f.leaves + f.petals + 1;
+      for (let i = 1; i <= n; i++) { p.push(0, 0, 0, -0.5, 0.55, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0.5, 0.55, 0); b.push(i, i, i, i, i, i); }
       const d = { NPET: f.petals, LEAVES: f.leaves, FGROW: f.grow.toFixed(4) };
       if (f.in) { d.IN0 = f.in[0].toFixed(2); d.IN1 = f.in[1].toFixed(2); }
-      return field(f, plain(p, 'aPart', b), FLOWER_VERT, d, n + 1, f.light);
+      return field(f, plain(p, 'aPart', b), FLOWER_VERT, d, 2 * (n + 1), f.light);
     };
     // (fields: what goes with the traveller's height first, the grass near by and the flowers;
     // clumps: the far grass, which stays to a greater height and has the governor's step of its own.

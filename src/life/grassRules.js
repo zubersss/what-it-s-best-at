@@ -57,25 +57,28 @@ const kindOf = (name) => { const i = KINDS.findIndex((k) => k && k.name === name
 // patch some 100 m across (up to six); `turf`: a low kind scattered among whichever leads;
 // `slope`: the kind that carpets a hillside by itself; `many`: how many of the lattice's
 // places flower at the heart of a meadow (0..1); `rich`: the share of the land that is
-// flower meadow (the rest is plain grass with a drift here and there).
-const F = (name, lead, turf, slope, many, rich) => ({ name, lead: lead.map(kindOf), turf: turf ? kindOf(turf) : 0, slope: kindOf(slope), many, rich });
+// flower meadow (the rest is plain grass with a drift here and there); `with`: the
+// companions (two to four kinds): in every patch two of them, of other habits and heights
+// than the kind that leads there if the list has such, stand among it in clumps and pool
+// into drifts of their own (tall spikes and umbels over cups, cups among spikes).
+const F = (name, lead, turf, slope, many, rich, comp) => ({ name, lead: lead.map(kindOf), turf: turf ? kindOf(turf) : 0, slope: kindOf(slope), many, rich, with: comp.map(kindOf) });
 export const FLORAS = [null,
-  F('conifer', ['fireweed', 'lupin', 'bluebell', 'foxglove'], 'speedwell', 'fireweed', 0.5, 0.28),
-  F('rainforest', ['pink mallow', 'ox-eye daisy', 'thrift', 'pink mallow'], 'clover', 'pink mallow', 0.5, 0.3),
-  F('larch', ['fireweed', 'lupin', 'paintbrush'], 'speedwell', 'fireweed', 0.45, 0.28),
-  F('broadleaf', ['bluebell', 'primrose', 'cow parsley', 'foxglove', 'buttercup'], 'speedwell', 'bluebell', 0.55, 0.35),
-  F('mixed', ['daisy', 'lupin', 'buttercup', 'foxglove', 'cow parsley'], 'clover', 'lupin', 0.5, 0.32),
-  F('shrub', ['orange poppy', 'sage', 'poppy', 'paintbrush'], 'dandelion', 'sage', 0.4, 0.25),
-  F('dry', ['orange poppy', 'sage', 'balsamroot', 'paintbrush', 'thistle'], 'dandelion', 'orange poppy', 0.4, 0.24),
-  F('glade', ['foxglove', 'lupin', 'cow parsley', 'fireweed', 'bluebell', 'balsamroot'], 'primrose', 'lupin', 0.55, 0.36),
-  F('parkland', ['lupin', 'balsamroot', 'ox-eye daisy', 'paintbrush', 'buttercup', 'cornflower'], 'clover', 'balsamroot', 0.6, 0.38),
-  F('steppe', ['poppy', 'cornflower', 'buttercup', 'daisy', 'yarrow', 'orange poppy'], 'clover', 'poppy', 0.8, 0.4),
-  F('wetland', ['fireweed', 'cotton grass', 'buttercup', 'cow parsley', 'thrift'], 'speedwell', 'cotton grass', 0.55, 0.35),
-  F('crop', ['poppy', 'cornflower', 'daisy'], 'clover', 'poppy', 0.45, 0.2),
-  F('farm', ['daisy', 'poppy', 'buttercup', 'cow parsley'], 'clover', 'buttercup', 0.7, 0.35),
-  F('barren', ['orange poppy', 'dandelion'], null, 'orange poppy', 0.15, 0.1),
-  F('tundra', ['cotton grass', 'fireweed', 'thrift', 'buttercup', 'moss campion'], 'saxifrage', 'moss campion', 0.5, 0.32),
-  F('alpine', ['gentian', 'moss campion', 'ox-eye daisy', 'buttercup', 'thrift', 'lupin'], 'saxifrage', 'moss campion', 0.65, 0.42),
+  F('conifer', ['fireweed', 'lupin', 'bluebell', 'foxglove'], 'speedwell', 'fireweed', 0.5, 0.28, ['foxglove', 'yarrow', 'primrose', 'lupin']),
+  F('rainforest', ['pink mallow', 'ox-eye daisy', 'thrift', 'pink mallow'], 'clover', 'pink mallow', 0.5, 0.3, ['foxglove', 'cow parsley', 'primrose', 'bluebell']),
+  F('larch', ['fireweed', 'lupin', 'paintbrush'], 'speedwell', 'fireweed', 0.45, 0.28, ['yarrow', 'thistle', 'lupin', 'primrose']),
+  F('broadleaf', ['bluebell', 'primrose', 'cow parsley', 'foxglove', 'buttercup'], 'speedwell', 'bluebell', 0.55, 0.35, ['foxglove', 'cow parsley', 'primrose', 'bluebell']),
+  F('mixed', ['daisy', 'lupin', 'buttercup', 'foxglove', 'cow parsley'], 'clover', 'lupin', 0.5, 0.32, ['lupin', 'cow parsley', 'daisy', 'foxglove']),
+  F('shrub', ['orange poppy', 'sage', 'poppy', 'paintbrush'], 'dandelion', 'sage', 0.4, 0.25, ['sage', 'thistle', 'yarrow', 'paintbrush']),
+  F('dry', ['orange poppy', 'sage', 'balsamroot', 'paintbrush', 'thistle'], 'dandelion', 'orange poppy', 0.4, 0.24, ['sage', 'thistle', 'yarrow', 'paintbrush']),
+  F('glade', ['foxglove', 'lupin', 'cow parsley', 'fireweed', 'bluebell', 'balsamroot'], 'primrose', 'lupin', 0.55, 0.36, ['foxglove', 'cow parsley', 'buttercup', 'bluebell']),
+  F('parkland', ['lupin', 'balsamroot', 'ox-eye daisy', 'paintbrush', 'buttercup', 'cornflower'], 'clover', 'balsamroot', 0.6, 0.38, ['lupin', 'yarrow', 'paintbrush', 'ox-eye daisy']),
+  F('steppe', ['poppy', 'cornflower', 'buttercup', 'daisy', 'yarrow', 'orange poppy'], 'clover', 'poppy', 0.8, 0.4, ['yarrow', 'sage', 'thistle', 'cornflower']),
+  F('wetland', ['fireweed', 'cotton grass', 'buttercup', 'cow parsley', 'thrift'], 'speedwell', 'cotton grass', 0.55, 0.35, ['foxglove', 'cow parsley', 'cotton grass', 'buttercup']),
+  F('crop', ['poppy', 'cornflower', 'daisy'], 'clover', 'poppy', 0.45, 0.2, ['cornflower', 'yarrow', 'daisy', 'poppy']),
+  F('farm', ['daisy', 'poppy', 'buttercup', 'cow parsley'], 'clover', 'buttercup', 0.7, 0.35, ['cow parsley', 'yarrow', 'daisy', 'buttercup']),
+  F('barren', ['orange poppy', 'dandelion'], null, 'orange poppy', 0.15, 0.1, ['thistle', 'sage', 'orange poppy']),
+  F('tundra', ['cotton grass', 'fireweed', 'thrift', 'buttercup', 'moss campion'], 'saxifrage', 'moss campion', 0.5, 0.32, ['cotton grass', 'thrift', 'fireweed', 'buttercup']),
+  F('alpine', ['gentian', 'moss campion', 'ox-eye daisy', 'buttercup', 'thrift', 'lupin'], 'saxifrage', 'moss campion', 0.65, 0.42, ['lupin', 'thrift', 'gentian', 'ox-eye daisy']),
 ];
 export const floraNamed = (name) => { const i = FLORAS.findIndex((f) => f && f.name === name); if (i < 0) throw new Error('no flora called ' + name); return i; };
 
@@ -122,15 +125,38 @@ function noise3(x, y, z) {
 }
 const sat = (x) => Math.min(1, Math.max(0, x));
 
+// The companions' clumps: a place is the first companion's where a noise of 6.5 m cells
+// passes `at` less `pool` times the drift noise (35 m cells), the second's where another
+// (4.7 m) passes it less `pool` times the other end of that drift; `hill`: how much harder
+// it is for them inside a hillside of one kind. (About a fifth of a meadow is each, in
+// clumps, more where one pools; see scripts/flower-rule-test.mjs.)
+export const COMPANY = { at: 0.77, pool: 0.24, hill: 0.16 };
+// Which two companions stand among `lead` in a patch (h1, h2: the patch's own numbers):
+// each from the flora's `with`, by the number, the first after it in the list that is not
+// the leading kind, not the other companion, and of another habit than the leading kind's
+// (if none is, the first that is not the leading kind or the other).
+function companions(fl, lead, h1, h2) {
+  const w = fl.with, n = w.length, habit = KINDS[lead].habit;
+  const pick = (h, not) => {
+    const i0 = Math.floor(h * n); let first = lead;
+    for (let s = 0; s < n; s++) { const k = w[(i0 + s) % n]; if (k === lead || k === not) continue; if (first === lead) first = k; if (KINDS[k].habit !== habit) return k; }
+    return first;
+  };
+  const a = pick(h1, -1); return [a, pick(h2, a)];
+}
+export { companions as flowerCompanions };
+
 // The flowers at a place (X, Y, Z: planet-fixed metres) of a flora: kind + how many
 // (0..0.9), or 0. How abundant they are varies by place on purpose:
 //   - flower meadows some hundreds of metres across (a share `rich` of the land), where one
-//     kind after another carpets a hectare: full at a meadow's heart, in drifts toward its edge;
+//     kind after another leads a hectare with two companions: full at a meadow's heart, in
+//     drifts toward its edge;
 //   - round each meadow a fringe of single drifts some metres across, and beyond it plain grass;
-//   - on some hillsides (slope: metres per metre) one kind alone over the whole slope.
-// Which kind leads changes from patch to patch (some 100 m, with bent edges). `turf`: also scatter the
-// flora's low kind among the leading one (the blades near the eye ask for this; the far
-// ground and the far grass wear the leading kind alone).
+//   - on some hillsides (slope: metres per metre) one kind over the whole slope, companions at its edges.
+// Which kind leads changes from patch to patch (some 100 m, with bent edges), and in every
+// patch two companions stand among it in clumps and drifts (`with`, COMPANY). `turf`: also
+// scatter the flora's low kind among them (the blades near the eye ask for this; the far
+// ground and the far grass do without).
 export function flowersAt(X, Y, Z, flora, slope = 0, turf = false) {
   const fl = FLORAS[flora]; if (!fl) return 0;
   const meadow = noise3(X / 260 + 17, Y / 260, Z / 260 + 5), t0 = 0.64 - 0.28 * fl.rich;
@@ -143,16 +169,20 @@ export function flowersAt(X, Y, Z, flora, slope = 0, turf = false) {
   const drift = noise3(X / 9 + 40, Y / 9, Z / 9);
   const many = fl.many * Math.max(rich * (0.45 + 0.75 * sat((drift - 0.25) / 0.4)), 0.5 * fringe * sat((drift - 0.6) / 0.15), 1.1 * hill);
   if (many <= 0.01) return 0;
-  let kind;
-  if (hill > 0.5) kind = fl.slope;
-  else {
-    // (patches with bent edges: blocks of 110 m, each of their three coordinates pushed about
-    // by a wave of its own. By the levels of one smooth noise, the kinds lay in rings round
-    // each other, the middle ones as thin bands; blocks unbent were a quilt of squares.)
-    const n = fl.lead.length;
-    kind = fl.lead[Math.min(n - 1, Math.floor(hash3(Math.floor(X / 110 + 0.45 * Math.sin(Y / 41 + Z / 67)), Math.floor(Y / 110 + 0.45 * Math.sin(Z / 37 + X / 59)), Math.floor(Z / 110 + 0.45 * Math.sin(X / 43 + Y / 61))) * n))];
-    if (turf && fl.turf && hash3(Math.floor(X / 1.3), Math.floor(Y / 1.3), Math.floor(Z / 1.3)) < 0.28) kind = fl.turf;
-  }
+  // (the patch: blocks of 110 m with bent edges, each of their three coordinates pushed about
+  // by a wave of its own. By the levels of one smooth noise, the kinds lay in rings round
+  // each other, the middle ones as thin bands; blocks unbent were a quilt of squares.)
+  const bx = Math.floor(X / 110 + 0.45 * Math.sin(Y / 41 + Z / 67)), by = Math.floor(Y / 110 + 0.45 * Math.sin(Z / 37 + X / 59)), bz = Math.floor(Z / 110 + 0.45 * Math.sin(X / 43 + Y / 61));
+  const n = fl.lead.length, lead = hill > 0.5 ? fl.slope : fl.lead[Math.min(n - 1, Math.floor(hash3(bx, by, bz) * n))];
+  let kind = lead;
+  // the companions: two to the patch, in clumps some metres across among the leading kind,
+  // pooling here and there into drifts of their own (where one pools the other is scarce);
+  // a hillside of one kind keeps its colour, with companions toward its edges
+  const [ca, cb] = companions(fl, lead, hash3(bx + 7, by + 3, bz), hash3(bx, by + 11, bz + 5));
+  const pool = noise3(X / 35 + 3, Y / 35 + 21, Z / 35), edge = COMPANY.hill * sat((hill - 0.55) / 0.35);
+  if (noise3(X / 6.5 + 61, Y / 6.5, Z / 6.5 + 13) > COMPANY.at - COMPANY.pool * pool + edge) kind = ca;
+  else if (noise3(X / 4.7 + 23, Y / 4.7 + 51, Z / 4.7) > COMPANY.at - COMPANY.pool * (1 - pool) + edge) kind = cb;
+  if (turf && fl.turf && hill <= 0.5 && hash3(Math.floor(X / 1.3), Math.floor(Y / 1.3), Math.floor(Z / 1.3)) < 0.28) kind = fl.turf;
   return kind + Math.min(0.9, many);
 }
 
@@ -163,12 +193,15 @@ const kinds = (fn) => KINDS.map((k) => (k ? fn(k) : fn(KINDS[1]))).join(', ');
 // The same in GLSL. flowersAt(P, flora): vec2(kind, how many); P: planet-fixed metres.
 // With a third argument, the ground's slope there (metres per metre): the hillsides of one
 // kind as well. (Without it the far ground does not know them: terrainMaterial.js may pass
-// its slope when it likes.) The leading kind only, and of a pale kind less (see KINDS).
+// its slope when it likes.) Of a pale kind less (see KINDS); no turf (that is the blades'
+// near the eye). flowerTint: the same rule as the mean colour a pixel of ground sees.
 export const FLOWERS_GLSL = /* glsl */`
   const int FLORA_N = ${FN};
   const int KIND_N = ${KN};
   const int FLORA_LEAD[${FN * 6}] = int[${FN * 6}](${FLORAS.map((f) => [0, 1, 2, 3, 4, 5].map((i) => (f ? f.lead[Math.min(i, f.lead.length - 1)] : 0)).join(', ')).join(', ')});
   const int FLORA_COUNT[FLORA_N] = int[FLORA_N](${FLORAS.map((f) => (f ? f.lead.length : 1)).join(', ')});
+  const int FLORA_WITH[${FN * 4}] = int[${FN * 4}](${FLORAS.map((f) => [0, 1, 2, 3].map((i) => (f ? f.with[Math.min(i, f.with.length - 1)] : 1)).join(', ')).join(', ')});
+  const int FLORA_WITHN[FLORA_N] = int[FLORA_N](${FLORAS.map((f) => (f ? f.with.length : 1)).join(', ')});
   const int FLORA_SLOPE[FLORA_N] = int[FLORA_N](${FLORAS.map((f) => (f ? f.slope : 0)).join(', ')});
   const float FLORA_MANY[FLORA_N] = float[FLORA_N](${FLORAS.map((f) => f1(f ? f.many : 0)).join(', ')});
   const float FLORA_RICH[FLORA_N] = float[FLORA_N](${FLORAS.map((f) => f1(f ? 0.64 - 0.28 * f.rich : 2)).join(', ')});
@@ -194,26 +227,81 @@ export const FLOWERS_GLSL = /* glsl */`
   // them as given, with three it works them out itself. One rule either way.
   float flowerMeadow(vec3 P) { return flNoise(P / 260.0 + vec3(17.0, 0.0, 5.0)); }
   float flowerHill(vec3 P) { return flNoise(P / 420.0 + vec3(5.0, 3.0, 11.0)); }
-  vec2 flowersAt(vec3 P, int flora, float slope, vec2 fields) {
-    if (flora <= 0 || flora >= FLORA_N) return vec2(0.0);
+  // The companions of a patch (companions() in JavaScript, step for step).
+  int flPick(int flora, int lead, float h, int other) {
+    int n = FLORA_WITHN[flora], i0 = int(h * float(n)), first = lead, habit = int(KIND_SHAPE[lead].x + 0.5);
+    for (int s = 0; s < 4; s++) {
+      if (s >= n) break;
+      int k = FLORA_WITH[flora * 4 + (i0 + s) % n];
+      if (k == lead || k == other) continue;
+      if (first == lead) first = k;
+      if (int(KIND_SHAPE[k].x + 0.5) != habit) return k;
+    }
+    return first;
+  }
+  // How many flowers a place has (0: none) and its patch: the kind that leads there, its
+  // two companions, how far the place is inside a hillside of one kind. blur (0..1): the
+  // fine drifts (9 m) by their mean, for a pixel too wide to tell them.
+  float flowerBase(vec3 P, int flora, float slope, vec2 fields, float blur, out int lead, out int ca, out int cb, out float hill) {
+    lead = 0; ca = 0; cb = 0; hill = 0.0;
+    if (flora <= 0 || flora >= FLORA_N) return 0.0;
     float meadow = fields.x, t0 = FLORA_RICH[flora];
     float rich = clamp((meadow - t0) / 0.07, 0.0, 1.0), fringe = clamp((meadow - t0 + 0.11) / 0.06, 0.0, 1.0);
-    float hill = 0.0;
     if (slope > 0.16) hill = clamp((slope - 0.16) / 0.12, 0.0, 1.0) * clamp((fields.y - 0.5) / 0.08, 0.0, 1.0);
-    if (fringe <= 0.0 && hill <= 0.0) return vec2(0.0);
-    float drift = flNoise(P / 9.0 + vec3(40.0, 0.0, 0.0));
-    float many = FLORA_MANY[flora] * max(max(rich * (0.45 + 0.75 * clamp((drift - 0.25) / 0.4, 0.0, 1.0)), 0.5 * fringe * clamp((drift - 0.6) / 0.15, 0.0, 1.0)), 1.1 * hill);
-    if (many <= 0.01) return vec2(0.0);
-    int kind;
-    if (hill > 0.5) kind = FLORA_SLOPE[flora];
-    else {
-      int n = FLORA_COUNT[flora];
-      kind = FLORA_LEAD[flora * 6 + min(n - 1, int(flHash(uvec3(ivec3(floor(P / 110.0 + 0.45 * sin(P.yzx / vec3(41.0, 37.0, 43.0) + P.zxy / vec3(67.0, 59.0, 61.0)))))) * float(n)))];
-    }
-    return vec2(float(kind), min(0.9, many) * (kind > 1 && KIND_PALE[kind] > 0.5 ? 0.45 : 1.0));
+    if (fringe <= 0.0 && hill <= 0.0) return 0.0;
+    float drift = blur < 1.0 ? flNoise(P / 9.0 + vec3(40.0, 0.0, 0.0)) : 0.5;
+    float inMeadow = mix(clamp((drift - 0.25) / 0.4, 0.0, 1.0), 0.587, blur), inFringe = mix(clamp((drift - 0.6) / 0.15, 0.0, 1.0), 0.192, blur);
+    float many = FLORA_MANY[flora] * max(max(rich * (0.45 + 0.75 * inMeadow), 0.5 * fringe * inFringe), 1.1 * hill);
+    if (many <= 0.01) return 0.0;
+    vec3 bc = floor(P / 110.0 + 0.45 * sin(P.yzx / vec3(41.0, 37.0, 43.0) + P.zxy / vec3(67.0, 59.0, 61.0)));
+    uvec3 bu = uvec3(ivec3(bc));
+    int n = FLORA_COUNT[flora];
+    lead = hill > 0.5 ? FLORA_SLOPE[flora] : FLORA_LEAD[flora * 6 + min(n - 1, int(flHash(bu) * float(n)))];
+    ca = flPick(flora, lead, flHash(bu + uvec3(7u, 3u, 0u)), -1);
+    cb = flPick(flora, lead, flHash(bu + uvec3(0u, 11u, 5u)), ca);
+    return min(0.9, many);
+  }
+  // the companions' thresholds (COMPANY in JavaScript): x the first's, y the second's
+  vec2 flowerCompany(vec3 P, float hill) {
+    float pool = flNoise(P / 35.0 + vec3(3.0, 21.0, 0.0)), edge = ${COMPANY.hill.toFixed(3)} * clamp((hill - 0.55) / 0.35, 0.0, 1.0);
+    return ${COMPANY.at.toFixed(3)} + edge - ${COMPANY.pool.toFixed(3)} * vec2(pool, 1.0 - pool);
+  }
+  // The flowers at a place, as JavaScript's flowersAt (without the turf): vec2(kind, how many),
+  // of a pale kind less (see KINDS).
+  vec2 flowersAt(vec3 P, int flora, float slope, vec2 fields) {
+    int lead, ca, cb; float hill;
+    float many = flowerBase(P, flora, slope, fields, 0.0, lead, ca, cb, hill);
+    if (many <= 0.0) return vec2(0.0);
+    vec2 thr = flowerCompany(P, hill);
+    int kind = flNoise(P / 6.5 + vec3(61.0, 0.0, 13.0)) > thr.x ? ca : flNoise(P / 4.7 + vec3(23.0, 51.0, 0.0)) > thr.y ? cb : lead;
+    return vec2(float(kind), many * (kind > 1 && KIND_PALE[kind] > 0.5 ? 0.45 : 1.0));
   }
   vec2 flowersAt(vec3 P, int flora, float slope) { return flowersAt(P, flora, slope, vec2(flowerMeadow(P), slope > 0.16 ? flowerHill(P) : 0.5)); }
   vec2 flowersAt(vec3 P, int flora) { return flowersAt(P, flora, 0.0); }
+  // The flowers' tint at a place for a pixel fpx metres wide (the ground's dusting): rgb the
+  // mean colour of what flowers there, a how many (pale kinds less). The same rule as
+  // flowersAt; where a pixel is too wide to tell the companions' clumps (6.5 and 4.7 m) or
+  // the fine drifts (9 m), their share is taken by its mean (a noise passes a level t over
+  // 0.5 on a share of about 0.5 (1 - (t - 0.5) / 0.45)^2 of the land): a meadow from the air
+  // is soft drifts of its colours, never specks.
+  vec4 flowerTint(vec3 P, int flora, float slope, vec2 fields, float fpx) {
+    int lead, ca, cb; float hill;
+    float many = flowerBase(P, flora, slope, fields, smoothstep(3.0, 8.0, fpx), lead, ca, cb, hill);
+    if (many <= 0.0) return vec4(0.0);
+    vec2 thr = flowerCompany(P, hill), mean = 0.5 * pow(1.0 - clamp((thr - 0.5) / 0.45, 0.0, 1.0), vec2(2.0));
+    float sharp = 1.0 - smoothstep(0.8, 2.5, fpx);
+    vec2 share = mean;
+    if (sharp > 0.0) {
+      // (a soft edge as wide as the pixel, in the noise's own units)
+      float wa = 0.03 + 0.08 * fpx;
+      vec2 own = vec2(smoothstep(thr.x - wa, thr.x + wa, flNoise(P / 6.5 + vec3(61.0, 0.0, 13.0))), smoothstep(thr.y - wa, thr.y + wa, flNoise(P / 4.7 + vec3(23.0, 51.0, 0.0))));
+      share = mix(mean, vec2(own.x, own.y * (1.0 - own.x)), sharp);
+    }
+    vec3 w = vec3(1.0 - share.x - share.y, share) * vec3(KIND_PALE[lead] > 0.5 ? 0.45 : 1.0, KIND_PALE[ca] > 0.5 ? 0.45 : 1.0, KIND_PALE[cb] > 0.5 ? 0.45 : 1.0);
+    float sw = max(w.x + w.y + w.z, 1e-4);
+    vec3 col = (w.x * mix(KIND_A[lead], KIND_B[lead], 0.5) + w.y * mix(KIND_A[ca], KIND_B[ca], 0.5) + w.z * mix(KIND_A[cb], KIND_B[cb], 0.5)) / sw;
+    return vec4(col, many * sw);
+  }
   // a flower's colour (own: 0..1, the flower's own number)
   vec3 petalColour(float kind, float own) { int k = clamp(int(kind + 0.5), 0, KIND_N - 1); return mix(KIND_A[k], KIND_B[k], own); }`;
 
