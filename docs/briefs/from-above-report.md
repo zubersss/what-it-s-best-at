@@ -6,6 +6,51 @@ ranked: `from-above-look.md`. Pictures: `docs/shots/from-above/`,
 `<place>_<metres over the ground>_p<degrees looked down>[_phone|_floor|_clear]`), taken with
 `scripts/from-above-shots.sh <frozen build> <suffix> [view ...]`.
 
+## Third round (2026-11-25, the second cold review: `haven-rich-review-2.md`)
+
+Each finding was proved against the code first; where a number can show it, a check that
+fails on 178b732 and passes now.
+
+- **groundfar2-1 (the steppe a lattice), -2 (soil at 0.7 a tile), -3 (a disc and a ring of
+  tone), -6 (a tussock grain that cannot show).** The steppe's colour is rewritten: shrubs
+  are crowns() in 4 m cells (a hash a cell, nothing repeats within a kilometre), gated into
+  clusters by the detail tile's largest blobs; bare soil is two level-4 reads turned
+  against each other and the face's axes, every coefficient a sixteenth of a tile. Both are
+  drawn as departures from their own means (`terrain/farGround.js`), so only the pattern
+  fades (by pixel size, and near the eye from 40 to 150 m, under the blades), never the
+  tone. The tussock read is gone. New check `scripts/far-ground-test.mjs`: every scale in
+  the far look's text a whole number of cycles over 16 tiles (178b732: fails on 0.7), the
+  means the shader uses measured again on a mirror of crowns() and the detail tile, and the
+  shrubs against themselves 21, 64 and 128 m on (178b732: correlation 1.00; now 0.03, 0.07,
+  0.01). It also prints two scales elsewhere in the shader that are not whole over 16
+  tiles (0.37 and 1.3, the tide's phase and the sea's foam: not the far look's; told to
+  the owning session).
+- **groundfar2-5 (the wood's tone by distance).** The stands', crowns' and clumps' shade
+  factors are divided by their means (0.886, 0.764, 0.843, measured), so a wood's tone is
+  the same where they are drawn and where they have faded; the broken edge uses the clumps'
+  mean height (0.317, was 0.45).
+- **farforest2-1 (the shadow draw on foot for nothing).** A tile is handed its shadows'
+  draw only when the most steeply seen of its trees at its last fill is within a twentieth
+  of the angle shadows begin at (`crownDown`, `shadowGate`, worked out in the fill; the eye's
+  rise since then counted). `far-tree-shade-test.mjs` now replays the real tiles on foot:
+  the north wood, 36 tiles, 1 with a tree that can cast; handed the draw 33 by the old rule
+  (32 for nothing), 3 now (2 for nothing, within the gate's margin); the opening ledge, 8
+  tiles that can cast, all handed it (27 by the old rule, 10 now).
+- **farforest2-3 (the governor's switch eased).** The switch acts at once (the shadows'
+  draw is not handed over while `shadows` is false); only the height's part is eased.
+- **farforest2-4 (bounds on the wrong mesh).** The trees' sphere grows by the farthest
+  reach of their parts (the rosette's spread from above x 1.1 for the refill's travel, or
+  the widened upright pictures); the shadows' sphere by SHADOW_LONG heights only.
+- **farforest2-5 (hypot per tree on the main thread).** Squared lengths and one root.
+- groundfar2-4 and farforest2-6 were refuted; farforest2-2 (the wood rule) is the trees
+  helper's, and its line was not touched.
+
+Pictures: `haven_ledge_<view>_after3.png` beside `_r2before` (steppe_300_p60,
+steppe_1000_p60, wood_1000_p60). From 300 m the steppe is soil patches of every shape and a
+scatter of shrubs, no row or repeat to be found; from 1 km the pattern is faint (it fades
+with the ground's grass from 600 m to 2.5 km); the wood from 1 km keeps its tone, its
+crowns a little clearer.
+
 ## Second round (2026-11-24/25, brief `from-above-2.md`)
 
 Pictures: `docs/shots/from-above/haven_ledge_<view>_r2before.png` (build 41705a3, the owning
