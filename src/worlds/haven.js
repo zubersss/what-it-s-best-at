@@ -46,10 +46,10 @@ export default {
       { op: 'fbm', seed: 3, maxWavelength: 60000, minWavelength: 0.8, roughness: 0.82, amp: 26, belowDem: 2.2, slopeGain: [0.04, 0.4, 0.15, 1.0], hetero: 0.5 },
       // Gullies and spurs on the mountain sides and canyon walls.
       { op: 'ridged', seed: 5, maxWavelength: 1400, minWavelength: 20, roughness: 0.9, amp: 260, slopeMask: [0.12, 0.4], warp: 0.3, belowDem: 4 },
-      // Layered rock: beds stand as small cliffs and benches where the ground is steep. (Only
-      // the fine ones, and only on steep ground: with beds 120 m thick as well, every hillside
-      // seen from the air was drawn in contour lines.)
-      { op: 'terrace', seed: 9, thickness: 24, cliff: 0.18, rise: 0.76, strength: 0.45, slopeMask: [0.3, 0.55], jitter: 0.4, warpAmp: 5, warpWavelength: 260 },
+      // (No layered rock: beds standing as benches, even only on the steepest ground, drew level
+      // streaks over every mountain side, a wood's grain from a few kilometres. The flanks
+      // the maker leaves stand at one slope for long stretches, so "only where it is steep"
+      // was everywhere on them. Rock on this world is blocks and outcrops, not benches.)
       // The sea: nothing lies below sea level (this layer stays last).
       { op: 'sea', level: 0 },
     ],
@@ -61,20 +61,25 @@ export default {
     reliefMap: { url: 'data/haven_slopes_4096.jpg', strength: 2.0, latFade: [84, 89] },
     // Its colours from the air, made by the same rule as the mosaics round the traveller
     // (scripts/make-world-maps.mjs prints `mean`: the land's mean, in linear light).
-    albedoMap: { url: 'data/haven_day_4096.jpg', encoding: 'srgb', mean: [0.1377, 0.1357, 0.0657], strength: 1.0, chroma: 1.0, range: [0.2, 4.5], steep: 0.35 },
+    albedoMap: { url: 'data/haven_day_4096.jpg', encoding: 'srgb', mean: [0.1299, 0.1272, 0.0560], strength: 1.0, chroma: 1.0, range: [0.2, 4.5], steep: 0.35 },
     meanAlbedo: [0.14, 0.12, 0.07],
     dust: [0.19, 0.17, 0.115],         // dry soil, warm
     sand: [0.32, 0.27, 0.18],
     scree: [0.20, 0.165, 0.125],
     rock: [0.19, 0.15, 0.105],         // warm rock (ochre, not red)
-    strata: { period: 260, contrast: 0.16, finePeriod: 30, fine: 0.1, flat: 0.05, colors: [[0.95, 0.80, 0.60], [0.74, 0.58, 0.44], [0.92, 0.84, 0.68], [0.62, 0.52, 0.44], [0.86, 0.68, 0.48]] },
+    strata: { period: 260, contrast: 0.1, finePeriod: 30, fine: 0.03, flat: 0, colors: [[0.95, 0.80, 0.60], [0.74, 0.58, 0.44], [0.92, 0.84, 0.68], [0.62, 0.52, 0.44], [0.86, 0.68, 0.48]] },
     slopes: { dustMax: 0.36, screeMin: 0.55, screeMax: 0.8, rockMin: 1.0 },
     sandBelow: -20000, sandFade: 1500,
     ripples: { wavelength: 1, strength: 0 },
     detailStrength: 0.25,
     // tide: its moon and the Sun (App.updateTide; metres an ocean over the whole world would rise, and a shore's gain)
     sea: { level: 0, color: [0.008, 0.030, 0.070], roughness: 0.10, ripples: 0.07, tide: { by: [['mira', 0.40], ['sun', 0.16]], gain: 3 } },
-    rocks: { count: 300, radius: 110, size: [0.3, 3.2], albedo: [0.24, 0.17, 0.12] },
+    // (far: boulders and outcrops as far as they can be seen, rocks/farRocks.js; the numbers'
+    // meaning and the defaults: rocks/rockBlock.js)
+    // (the stones underfoot stop at 1.4 m: from there up a rock is the land's own, `far`, the same
+    // block at the same place from kilometres off to arm's length; with both making 2 m
+    // rocks there were doubled ones, and near ones that shrank away as one walked off)
+    rocks: { count: 300, radius: 110, size: [0.3, 0.7], albedo: [0.24, 0.17, 0.12], far: { albedo: [0.25, 0.2, 0.145], clear: [[-48.54992, 49.05567, 60]], check: { steep: [-48.8066, 47.22265], level: [-54.4271, 39.2697] } } },
   },
 
   // Air like Earth's in what it does to light (the same Sun, the same blue), standing
@@ -107,8 +112,12 @@ export default {
   // rule's own tree line); flora: what grows, the first entry that fits (life/cover.js:
   // species by number; upTo: how far up toward the tree line).
   life: {
-    trees: { radius: 240, spacing: 7, below: 1500, far: { radius: 2000, spacing: 30, below: 5000 }, line: { base: 3548, perDeg: 38.7, from: 0 } },
-    grass: { below: 90 },
+    trees: { radius: 240, spacing: 7, below: 1500,
+      // The far forest (life/farForest.js): the same trees as those within `radius`, at the
+      // same places, out to `radius` of their own. `full`: full density out to here, then
+      // thinner as (full / distance)^2, the thinned ones standing a little wider.
+      far: { full: 450, radius: 5600, below: 6000 }, line: { base: 3548, perDeg: 38.7, from: 0 } },
+    grass: { below: 90, mid: 220 },
     flora: [
       { near: true, upTo: 0.6, mix: [[6, 2], [5, 2], [0, 1]] },                    // by water: cottonwood, aspen
       { classes: [7, 10, 16, 12], mix: [[2, 2], [1, 2], [9, 2], [0, 1]] },          // open dry country: juniper, pinyon, sage
@@ -133,18 +142,20 @@ export default {
     // kilometre to a lake in the south-east, and peaks stand 1 800 m higher round it, with
     // snow on them (scripts/find-haven-site.mjs --open --lat 28,52).
     // (the very spot: level ground at the lip of a slope, a range across the view beyond the low
-    // ground: scripts/find-overlook.mjs, then a sketch by scripts/peek.mjs)
-    start: { lat: -48.56367, lon: 49.04424, eye: 1.7, heading: 235, pitch: -2 },
+    // ground: scripts/find-overlook.mjs, then a sketch by scripts/peek.mjs; then moved 66 m to
+    // where no tree stands between the low Sun and the view: the pine beside the first spot
+    // laid its shadow across the whole foreground: scripts/tree-shadows-at.mjs --search 75)
+    start: { lat: -48.54992, lon: 49.05567, eye: 1.7, heading: 222, pitch: -2 },
     ship: { east: -30, north: -45, heading: 30 },
     // (coverFrom, globe: the small globe from space is held where its colours show: see post.js)
     exposure: { key: 0.18, min: 0.5, max: 2.0e5, speed: 1.6, shadowFloor: 0.2, highlight: 6, coverFrom: 0.0006, globe: 0.3 },
     // The heaviest views, for the benchmark's cost test: among the trees, and the land from the air.
     costViews: [
       { name: 'in the forest', lat: 22.983, lon: 129.507, heading: 6, pitch: -4 },
-      { name: 'from the air', lat: -48.56367, lon: 49.04424, alt: 5000, heading: 235, pitch: -14 },
+      { name: 'from the air', lat: -48.54992, lon: 49.05567, alt: 5000, heading: 235, pitch: -14 },
     ],
     bookmarks: {
-      ledge: { label: 'The first morning', heading: 235, pitch: -2, fov: 60 },
+      ledge: { label: 'The first morning', heading: 222, pitch: -2, fov: 60 },
       sun: { label: 'The Sun coming up', heading: 64, pitch: 12, fov: 40 },
       wall: { label: 'The range across the valley', heading: 250, pitch: 3, fov: 26 },
       ship: { label: 'The lander', east: -20, north: -12, heading: 230, pitch: 3, fov: 50 },
@@ -152,7 +163,7 @@ export default {
     },
   },
   places: [
-    { id: 'landing', name: 'The first morning', fact: 'Where the journey on Haven begins.', lat: -48.56367, lon: 49.04424 },
+    { id: 'landing', name: 'The first morning', fact: 'Where the journey on Haven begins.', lat: -48.54992, lon: 49.05567 },
     { id: 'eastshore', name: 'The golden shore', fact: 'Dry grassland running down to the eastern sea.', lat: 18.501, lon: 132.671 },
     { id: 'northwood', name: 'The north wood', fact: 'Tall forest on a shoulder of the northern range, over the sea.', lat: 22.983, lon: 129.507 },
     { id: 'crown', name: 'The Crown', fact: 'The highest ground on Haven: 4 314 m.', lat: 15.425, lon: 68.95 },

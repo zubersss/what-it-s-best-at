@@ -138,5 +138,45 @@
     "changed": 0.08,
     "flicker": 0.001,
     "worst": 134
+  },
+  {
+    "move": "haven_meadow_walk",
+    "pass": "settled",
+    "station": 0,
+    "changed": 25.56,
+    "flicker": 6.542,
+    "worst": 130
+  },
+  {
+    "move": "haven_meadow_walk",
+    "pass": "settled",
+    "station": 1,
+    "changed": 26.75,
+    "flicker": 7.126,
+    "worst": 127
+  },
+  {
+    "move": "haven_meadow_walk",
+    "pass": "settled",
+    "station": 2,
+    "changed": 25.5,
+    "flicker": 5.93,
+    "worst": 103
+  },
+  {
+    "move": "haven_rocks_walk",
+    "pass": "settled",
+    "station": 0,
+    "changed": 0.49,
+    "flicker": 0.029,
+    "worst": 141
+  },
+  {
+    "move": "haven_rocks_walk",
+    "pass": "settled",
+    "station": 1,
+    "changed": 0.47,
+    "flicker": 0.005,
+    "worst": 135
   }
 ]

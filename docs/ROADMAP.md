@@ -23,7 +23,7 @@ owner's reply or phone results), `done`.
 | 9 | Earth's surface | done |
 | 10 | A living Earth (owner, with the fourth phone results): the whole planet in real detail, seas, lakes and rivers, real forests, clouds to fly through, weather | done |
 | 11 | The painted look (owner: a new art direction for the whole game, Earth and its forests first) | seventh delivery sent (Earth from space to landing: the globe with its clouds, relief and cloud shadows from the air, a canopy of crowns and far trees; and a governor that no longer sinks to its floor). Before it: sixth delivery (Earth: trees as cut-out foliage on a skeleton with dark hearts, far trees as silhouettes, grass and flowers, a full sky of clouds that keep their place, the land from the air, ground loaded ahead and from high up, a tide, rain in strips, squalls; 57 fps on the phone at the third, 54 at the fifth with Earth at 48: the sixth is the answer to that and is not measured yet); the other worlds to follow |
-| 12 | **A small living world** (owner, 2026-11-23: "simply flying somewhere beautiful ... a living world": a made-up planet small enough to show its curve and its mountains from the air, water that follows the land, seasons, five biomes, in the look of the owner's reference pictures) | delivery 1 sent (the planet and its first biome: Haven, 250 km in radius, where the game now opens); a Haven benchmark asked for |
+| 12 | **A small living world** (owner, 2026-11-23: "simply flying somewhere beautiful ... a living world": a made-up planet small enough to show its curve and its mountains from the air, water that follows the land, seasons, five biomes, in the look of the owner's reference pictures) | delivery 1 sent (the planet and its first biome: Haven, 250 km in radius, where the game now opens); then, on the owner's word after flying it, **the far view**: trees to 5.6 km, grass and flowers without an end, boulders over the whole land (sent 2026-11-24); a Haven benchmark asked for |
 
 ## 1. Phone link and measurement
 
@@ -205,6 +205,10 @@ a benchmark when it adds cost.
    (`scripts/make-world.mjs`); rivers and lakes worked out from the land (the hydrology
    Earth uses); the first biome: mountain pine forest, the one in the owner's pictures.
    Flyable from space to the ground.
+   *Between 1 and 2, asked for by the owner after flying it*: **the far view** ("at least a
+   mile in the ground worth of stuff ... trees and grass rendered in further than I can
+   see"): the same trees near and far to 5.6 km, grass with no end, the land's own
+   boulders. `docs/PROGRESS.md`, "The far view: what was built".
 2. **The look on the ground**: big faceted rock, ridge behind ridge with trees on the
    skyline, mist over water, light shafts, a colour pair for each time of day.
 3. **Living water**: rivers with a current, rapids and falls, lakes, a tidal sea, rain

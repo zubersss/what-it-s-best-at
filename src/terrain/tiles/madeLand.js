@@ -80,8 +80,12 @@ export function landAt(L, h, slope, lat, rain, n1, n2, out, lake = false, depth 
   const strand = (1 - ss(2, 9, h)) * (1 - ss(0.1, 0.3, slope));
   r += (C.sand[0] - r) * strand; g += (C.sand[1] - g) * strand; b += (C.sand[2] - b) * strand;
   if (strand > 0.5) { cls = 16; closed = 0; tall = 0; }
-  // snow: on all but the steepest ground where it is cold enough, in patches at its edge
-  const snow = ss(L.snowLine + 2.5, L.snowLine - 1.5, tC + 1.2 * n2) * (1 - 0.75 * ss(0.8, 1.3, slope));
+  // snow: where it is cold enough, lower in some stretches of country than in others (some
+  // kilometres across), and off the steep ground, which stands out of it as ribs of rock.
+  // (Its edge was a band 650 m of height wide broken by fine noise: on a mountain side that
+  // is patches squeezed along the slope, level streaks like a wood's grain from a few
+  // kilometres off.)
+  const snow = ss(L.snowLine + 1.0, L.snowLine - 1.0, tC + 2.2 * n1 + 0.5 * n2 + 5.0 * ss(0.3, 0.85, slope));
   r += (C.snow[0] - r) * snow; g += (C.snow[1] - g) * snow; b += (C.snow[2] - b) * snow;
   if (snow > 0.5) { cls = 15; closed = 0; tall = 0; }
   // (a little of the patch noise in everything: no two hillsides one flat colour)

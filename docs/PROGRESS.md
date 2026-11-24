@@ -6,9 +6,47 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-### Milestone 12, a small living world: delivery 1 sent (read this first)
+### The far view sent: trees, grass and rock as far as one can see
 
-*2026-11-23. The owner's new direction is in `CLAUDE.md`, "What this game is"; the plan in
+*2026-11-23/24. **NOT MERGED YET as this is written (00:20 on the 24th): the pictures are
+taken and good, the last tests are running on the frozen final build (a1fa9bd; the tests'
+log is `scratchpad/fin14.log`); when they pass: fill in "Tested" below, open and merge
+the pull request (`scratchpad/pr_body9.md`), send the checkpoint
+(`scratchpad/checkpoint9.md`, pictures in `scratchpad/send/`).** The owner, having flown Haven: "I need you to make it so I can see at least a mile in
+the ground worth of stuff. I want the trees and the grass rendered in further than I can
+see ... use as many agents as you want or need. This is a big ask and I need it to work
+really well." What was built and how is in "The far view: what was built" below.*
+
+- **Asked of the owner**: a Haven benchmark in Smooth (nothing of this is measured on the
+  phone, and all of it costs: about twice the triangles in the opening view). Still owed
+  from before: the Earth benchmark asked with the seventh painted delivery; a word on the
+  four proposed biomes (red-rock canyon desert, broadleaf valley of lakes, tropical islands
+  with a lagoon, high snow peaks with fjords).
+- **Next** (on "continue"): delivery 2 of milestone 12, the look on the ground
+  (`docs/ROADMAP.md`). With pasted benchmark results: read the cost table first (the rows
+  `far-trees`, `grass-mid`, `far-rocks`, `far-rock-shadows`, `trees`), then tune.
+- **Known problems, most visible first**: 
+  1. nothing is measured on the phone; the opening view hands the GPU 1.70 million
+     triangles (0.95 before), and with every saving on 0.96;
+  2. the grass's tone near the traveller is that of the 500 m round them, not of each
+     place (it drifts flying from steppe into meadows);
+  3. a few far tufts stand gold in a mountain's shadow (their shade comes from 40 m cells);
+  4. far rocks on wooded hills can be swapped in fast flight when the land-cover picture
+     arrives (the review's finding 7, left open); a talus block grows in at 310 m;
+  5. nothing was seen in motion on this machine: single far tufts come and go along a
+     slope, and any pop at the hand-over lines is unproved either way;
+  6. Earth has the far forest and the far grass too, and no dusting of flowers on its
+     ground; only its opening view was looked at.
+- **The helper sessions** are finished and can be archived: trees
+  `session_01XG1DZ585vPB1kCXuxRvUFx`, grass `session_01XG1DZ6vKJWJCvxUHNSpiWP`, rocks
+  `session_01XG1DZ2zUUUfqwHvcWRJQNF`; their branches (`ccr-aa39490a-far-forest`,
+  `-far-grass`, `-far-rocks`) are merged whole.
+
+### Milestone 12, a small living world: delivery 1 sent
+
+*2026-11-23. Merged as pull request #33; the phone link shows build 9f98744 (this line was
+written after the merge and is on the session branch until the next delivery carries
+it). The owner's new direction is in `CLAUDE.md`, "What this game is"; the plan in
 `docs/ROADMAP.md`, "12. A small living world"; how a made world is built in
 `docs/ARCHITECTURE.md`, "A made world"; what was built and tried under "Milestone 12,
 delivery 1" below.*
@@ -560,6 +598,104 @@ close fir's blades are large flat faces when the camera is among the boughs; no 
 of the tropical, acacia and palm shapes in the game (only in the preview). Clouds: seen
 from below toward the Sun they are one cream tone; the far shell is flatter and dimmer
 than the volume it continues. Nothing here was measured on the phone.
+
+## The far view (milestone 12, after delivery 1): what was built
+
+*2026-11-23. The owner, an hour after Haven went out: "I need you to make it so I can see
+at least a mile in the ground worth of stuff. I want the trees and the grass rendered in
+further than I can see ... use as many agents as you want or need."*
+
+**What was there**: grass blades ended 36 m from the traveller; every tree was drawn to
+240 m, then one in eighteen (other trees, on another lattice) to 2 km; not one stone
+beyond 110 m.
+
+**How it was done**: three helper sessions on machines of their own (pictures are what is
+slow here), one part each, from a brief in `docs/briefs/`; each wrote a report beside its
+brief, and this session merged their branches as they pushed. Then three independent
+reviewers read the code cold (`docs/briefs/far-*-review.md`): 24 findings, nearly all true,
+each handed back to its builder with "prove it against the real code first". The reports
+say finding by finding what was done.
+
+- **Trees** (`src/life/farForest.js`, `farTiles.js`, `treeShade.js`; `groves.js` is gone;
+  `docs/briefs/far-forest-report.md`). The same trees near and far, to 5.6 km: every tree
+  site has a rank; tiles of blocks (four sizes, a fixed pool of 40 x 12 288 instances,
+  23.6 MB) are worked out in one worker job at a band of ranks and thinned per tree in the
+  vertex shader by rank against distance (full to 450 m), growing in as one comes nearer;
+  a clean hand-over at 240 m to the near trees, which reach only as far as their blocks
+  have come. The land's shadow on far trees per tile and on near trees tree by tree; the
+  clouds' shadow from a small map drawn once a frame before the main picture
+  (`treeShade.js`: the grass's far clumps read it too). From the review: tiles are rows of
+  blocks over a span of longitude (blocks taken by column across two latitude bands left
+  strips with no far trees: a third of the blocks at one level at the north wood); the cap
+  doubled; trees at the 240 m line no longer drawn by nobody; the far forest still asked
+  for with the clock run fast; fills two a frame.
+- **Grass** (`src/life/grass.js`, `grassRules.js`; `docs/briefs/far-grass-report.md`).
+  Blades near; clump cards on three coarser lattices to 545 m reading wrapped tables of
+  the ground (128 x 128 at 4 m and at 10 m, anchored on the ground's own sphere and moved
+  in whole steps); beyond and under them the ground's shader wears the same grass: its
+  colour, gusts of wind in patches, a dusting of flowers to 900 m, fading into the map's
+  colour by 2.5 km. No new texture in the ground's shader (it is full). One slope rule
+  for where grass stands and where the ground is painted (`GRASS_GROUND.slope`). Clumps
+  take the clouds' shadow and the land's cast shadow (a 36 x 36 table from one worker
+  job); a clump looked at squarely from beyond 60 m is not drawn (on a hillside facing
+  the eye the field was a brickwork of dashes). From the review: the anchor lay at the
+  traveller's height, so on Haven the whole field slid 0.8 m sideways every 200 m of
+  flight; the waves' phase flicked at every step (a sign); the ground's flowers flipped
+  with the way one last walked.
+- **Rock** (`src/rocks/farRocks.js`, `rockBlock.js`; `docs/briefs/far-rocks-report.md`).
+  The land's own boulders and outcrops, 0.7 to 20 m, by a rule of the land (talus on and
+  under steep ground, erratics in clusters, few in forest, none in water), in tiles from a
+  fixed pool, a tile handing the GPU only what can be seen from where the traveller is;
+  shadow patches on the ground beyond the shadow map, one small caster mesh inside it; the
+  traveller stands on the large ones, on the very mesh that is drawn. From the review:
+  flight's speed no longer dips over a tor (`rig.agl` is the height over the land,
+  `rig.floor` over what one would stand on); shadows whichever world the page opened on;
+  no tile cut by a cap; a shadow ray for each tile's first thousand rocks.
+- **Haven itself**: no bench layer (level streaks over every mountain side: three wrong
+  guesses before a picture said which); the painted look's stretches of lighter and
+  darker ground sized by the world's radius; snow in larger patches with bare ribs; the
+  opening place moved 66 m and turned 13 degrees (the pine beside the first spot laid its
+  shadow over the whole foreground).
+- **Tools**: `scripts/parts-out.mjs` (who draws that?), `tree-shadows-at.mjs`,
+  `far-trees-test.mjs`, `far-forest-clock.mjs`, `grass-anchor-replay.mjs`,
+  `rig-over-rock.mjs`, `rock-field.mjs`, `check-scripts.mjs`.
+
+**Governor**: new steps `far-rock-shadows`, `far-rocks`, `grass-mid`; `far-trees` thins
+and shortens the far forest; `trees-far` now brings the trees' full shapes nearer (it used
+to shorten their radius, which only moved the hand-over).
+
+**Tested** (on the final frozen build, a1fa9bd and later): `./scripts/build-check.sh`; `npm run smoke` (on Mars: 16 checks; 22 shaders, every one
+within a phone's limits, the ground's at 16 of 16 textures); `npm run foot`;
+`npm run shadowturns`; without a browser `govsim`, `lakes`, `check-ephemeris`,
+`transfer`, `far-trees-test`, `far-forest-clock`, `npm run rocks`, `rig-over-rock`,
+`grass-anchor-replay`. `node scripts/smoke.mjs --haven` (the Haven benchmark as the owner will run it): the start screen, the three-minute lap with the flight to the Moon, and every switch of the cost test at the opening view, without an error; its other two views (in the forest, from the air) were still being measured when this was merged, and on the build of four hours earlier the forest view had got through 50 of its 59 measures before the run was stopped for time.
+Pictures on that build (`scratchpad/fin14`; the helpers' own are in `docs/shots/far-*`):
+the opening view (158 draw calls, 1.70 M triangles handed over; 111 and 0.95 M before),
+87 m over it (144, 1.59 M), the steppe at eye
+height (68, 1.19 M), the steep rocky place from 100 m (71, 1.28 M), the opening view with
+every saving on (79, 0.96 M), Earth's opening view (138, 1.71 M: the same scene as before).
+The hillside that had hatched was looked at at a phone's pixel density (a lens of 21.4
+degrees at 309 pixels). The helpers' stability moves: a walk at a wood (the same numbers
+as the branch as found), a walk on the steppe, a walk among rocks (flicker 0.03 %).
+**Not run**: the full reference set, `flight`, `target`, `worlds`, any stability move on
+the final build. Nothing was seen in motion.
+
+**Left for later, known**:
+- The ground's grass colour, share and flower kinds within about a kilometre are those of
+  the 500 m round the traveller (`uGrassTone`), not of the place: flying from steppe into
+  meadows the tone of the near land drifts. The cure is the place's own share and dryness
+  in a map the ground's shader already reads (it is full at 16 textures).
+- On worlds over 840 km in radius (Earth) the ground gets no dusting of flowers (a 32-bit
+  float cannot place a speck there); blades and clumps keep theirs.
+- The land's cast shadow on clumps comes from 40 m cells: a soft edge up to 40 m off the
+  ground's own shadow; the nearest blades (to 34 m) have the near shadow map only.
+- Single far clumps appear and go as one flies along a slope (dropped by chance when
+  looked at squarely); not seen moving.
+- Nothing was seen in motion on this machine (the stability test's settled frames cannot
+  tell a small pop from the wind in the grass: it would need the clock stopped).
+- `weather/weather.js` and `rainbow.js` still take 111 200 m for a degree.
+- A few valleys of the made world are straight trenches (the maker's flow lines run in
+  eight directions): for the water delivery.
 
 ## Milestone 12, delivery 1: the plan
 

@@ -35,14 +35,20 @@ export const FEATURE_STEPS = [
   { id: 'edge-glow', label: "glow on a planet's edge at half detail", apply: (app, off) => { app.quality.z = off ? 0 : 1; } },
   { id: 'dust', label: 'half the kicked-up dust, simpler cloud', apply: (app, off) => { app.dust.amount = off ? 0.5 : 1; } },
   { id: 'rocks', label: 'half the rocks', apply: (app, off) => { app.rocks.setFraction(off ? 0.5 : 1); } },
+  { id: 'far-rock-shadows', label: 'shadows of far rocks', apply: (app, off) => { if (app.farRocks) app.farRocks.shadows = !off; } },
+  // (the rocks of the land itself, to a mile and more: the small ones are seen from two thirds as far; the large ones, which are the hillside, stay)
+  { id: 'far-rocks', label: 'small rocks from less far', apply: (app, off) => { app.farRocks?.setFraction(off ? 0.62 : 1); } },
   { id: 'fine-shadows', label: 'coarser shadows of nearby rocks', apply: (app, off) => { app.nearShadow.fine = !off; } },
   { id: 'rain', label: 'thinner rain and snow', apply: (app, off) => { if (app.rain) app.rain.share = off ? 0.5 : 1; } },      // (half of 5 600 streaks; thinning 1 400 to 560 saved nothing that could be measured on the phone)
   { id: 'leaves', label: 'leaves in the wind', apply: (app, off) => { if (app.leaves) app.leaves.enabled = !off; } },
+  { id: 'grass-mid', label: 'thinner grass in the middle distance', apply: (app, off) => { app.grass?.setMidShare(off ? 0.5 : 1); } },
   { id: 'grass', label: 'half the grass', apply: (app, off) => { app.grass?.setFraction(off ? 0.5 : 1); } },
   { id: 'tree-leaves', label: 'every leaf on the nearest trees', apply: (app, off) => { if (app.trees) { app.trees.closeOn = !off; app.trees.dirty = true; } } },
   { id: 'tree-shadows', label: 'shadows of the farther trees', apply: (app, off) => { if (app.trees) app.trees.shadowsFar = !off; } },
-  { id: 'trees-far', label: 'trees to two thirds of their distance', apply: (app, off) => { app.trees?.setFraction(off ? 0.66 : 1); } },
-  { id: 'far-trees', label: 'half the far trees', apply: (app, off) => { app.groves?.setFraction(off ? 0.5 : 1); } },
+  { id: 'trees-far', label: "the trees' full shapes to two thirds of their distance", apply: (app, off) => { app.trees?.setFraction(off ? 0.66 : 1); } },
+  // (it thins the far forest and shortens its reach; a wood stays a wood: the thinned trees
+  // stand wider, see life/farForest.js)
+  { id: 'far-trees', label: 'the far forest thinned', apply: (app, off) => { app.farForest?.setFraction(off ? 0.45 : 1); } },
   { id: 'sun-beams', label: "the Sun's beams through trees and cloud", apply: (app, off) => { app.post.shaftsOn = !off; } },
   // (no step for the waves that lift the water: on the phone it saved nothing that could be
   // measured, at sea in a hurricane (seventh results), and a sea that lies flat is not a sea)

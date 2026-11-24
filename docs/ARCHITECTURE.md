@@ -384,26 +384,61 @@ as before.
   tufts, cut lumps; their crowns carry a pattern of leaf bunches in three tones
   (`leafCells`, in the tree's own metres). Rocks are lit by their faces. Clouds are two
   octaves of puff with a clean edge and two tones.
-- **Grass and flowers** (`life/grass.js`): three lattices fixed to the ground that wrap
-  round the camera: grass close by (120 x 120 tufts 0.22 m apart, eight blades), grass
-  farther out (144 x 144 at 0.5 m, seven blades), flowers (96 x 96 at 0.45 m: a stem,
-  five petals, a middle). A tuft is its lattice number and a hash, nothing is kept per
-  tuft; instances are drawn in a scrambled order, so the governor's share is a count of
-  instances. The ground under them is a 64 x 64 table at 1.25 m kept on the CPU, also
-  wrapping (only the rows that come in ahead are worked out, 200 places a frame), sent as
-  a float texture between frames: height, how much grass, how dry, and the flowers there
-  (whole part: which of seven kinds; fraction: how many). Land cover decides the grass
-  (`AMOUNT`, `DRY` by IGBP class) and, with latitude and height, the kinds of flower
-  (`FLORA`); noise over the world's own coordinates makes patches of one kind some 40 m
-  across and drifts within them.
+- **Grass and flowers** (`life/grass.js`, rules in `life/grassRules.js`): grass has no end.
+  Three kinds of thing carry it, each giving way to the next over a stretch of distance:
+  - *blades* on three lattices fixed to the ground that wrap round the camera: grass close
+    by (128 x 128 tufts 0.2 m apart, eight blades, to 12 m), grass farther out (144 x 144 at
+    0.5 m, seven blades, to 34 m), flowers (108 x 108 at 0.4 m: a stem, five petals, a
+    middle, to 20 m);
+  - *clumps* (`CLUMPS`): three more lattices of cards of two triangles (200 x 200 at 0.8 m
+    from 13-30 m to 50-74 m; 200 x 200 at 2 m to 135-188 m; 220 x 220 at 5 m to 360-520 m),
+    each card a cut-out of many blades from a picture made at start-up (`makeClumpPicture`:
+    cover, tone, flower heads; mip maps made on the CPU). A card faces the eye with a turn
+    of its own, leans back when looked down on, and grows from nothing where its field
+    comes in (`keepOf`). Far clumps take the light of the slope they stand on (from the
+    table's heights), near ones the light of level ground as the blades do;
+  - *the ground's own grass* (`terrainMaterial.js`, the block at `uGrassTone`): gentle
+    ground takes the grass's colour to 600 m and fades to the map's by 2.5 km, with the
+    wind's waves running over it (`uGrassWave`, the same waves the blades bow to) and the
+    flowers' drifts as a dusting (the same rule, in GLSL: no texture read).
+  A tuft or clump is its lattice number and a hash, nothing is kept per tuft; instances
+  are drawn in a scrambled order, so a share is a count. The ground under them is three
+  tables kept on the CPU that wrap (64 x 64 at 1.25 m, 128 x 128 at 4 m, 128 x 128 at
+  10 m; nearest places first, 300 a frame, all at once in screenshot mode), float textures
+  sent between frames: height, how much grass, how dry, and the flowers there (whole part:
+  which of seven kinds; fraction: how many). Everything stands on a plane (the anchor)
+  that lies on the ground's own sphere under the traveller, never at the traveller's
+  height (places are worked out along lines from the world's centre and drawn at plain
+  metres: with the plane 1 km over the ground the whole field slid 0.8 m aside at every
+  step on Haven; `scripts/grass-anchor-replay.mjs`), and that moves in whole steps of
+  40 m when the traveller is 60 m from it, its axes carried along;
+  every spacing divides 40 m, so no tuft, table entry or pattern changes at a step, and
+  the shaders take off the world's curve (0.7 m at 600 m on Haven). `grassRules.js` holds
+  what the grass and the ground must agree on, once: `AMOUNT`, `DRY`, `FLORA` by land
+  cover, `flowersAt` in JavaScript and the same in GLSL, the grass's colour, the waves.
+  `uGrassTone`: x mean dryness, y the share of the ground round the traveller that is
+  grass, z the flora, w strength. By height the blades go between 45 and 90 m over the
+  ground and the clumps between 121 and 220 m (`grass.below`, `grass.mid` in a world's
+  file). Governor: `grass-mid` halves the clumps and widens the ones left; `grass`
+  thins the blades.
+  On slopes grass stands by ONE rule, `GRASS_GROUND.slope` in `grassRules.js` (all of it
+  to 0.45, none by 0.75): the tables' amount fades by it and the ground's shader lays the
+  grass's colour by the same numbers, so that no tuft stands on unpainted ground and no
+  steep meadow is bare. A clump takes the clouds' shadow from the trees' map
+  (`life/treeShade.js`) and the land's cast shadow from a table of its own (`tLandShade`:
+  36 x 36 places 40 m apart round the anchor, one worker job when the traveller has moved
+  120 m, the Sun 1.5 degrees or the maps have changed), both eased in between 30 and
+  120 m; the blades have the near shadow map. A clump whose ground is looked at squarely
+  (against the world's up or its own slope's normal) from beyond 40 to 90 m is not drawn:
+  the ground wears the grass there, and on a hillside facing the eye the cards were a
+  brickwork of dashes.
 - **The land from the air** (painted look): the tile worker draws each pixel of the colour
   ring part of the way to a clean colour of its land-cover class (`cover.paint`,
   `cover.colours` in the world file; classes not listed keep the satellite's colour).
   The ground shader adds stretches of lighter and darker ground with clean edges (two
   looks at the detail texture's fourth channel at 2.9 km and 780 m repeats, by the
-  direction's longitude and latitude: whole repeats round the globe), and out to 900 m
-  blends gentle ground toward `uGrassTone`, the mean colour of the grass drawn round the
-  traveller (written by `life/grass.js`).
+  direction's longitude and latitude: whole repeats round the globe), and lays the
+  grass's own colour on gentle ground (see "Grass and flowers").
 - **Tree shapes** (`life/treeGeometry.js`; `scripts/tree-preview.mjs` draws them all):
   eight shapes, each built three times over with other proportions (`VARIANTS`), each at
   three distances: close (within 42 m), near (115 m), far. Trunk and limbs are tubes; the
@@ -625,7 +660,8 @@ as Earth is; what differs is where the maps come from.
 - **`trees.js`**: keeps the blocks within `radius` (240 m) of the traveller, asks for the
   nearest missing one when a worker is idle, and builds instance lists: one mesh per
   shape and distance (near mesh under 110 m, far mesh beyond; `treeGeometry.js`), all
-  measured from an anchor at the traveller (rebuilt every 25 m of travel). One material:
+  measured from an anchor at the traveller (rebuilt every 25 m of travel; beyond the radius
+  a tree is thrown out of the picture, the far forest's to draw). One material:
   the shared lighting, light wrapped round and through crowns, shadows asked for a
   little outside the crown; wind (lean and swing by height and distance from the trunk);
   the seasons (leaves turn, then draw in to the branches, by the date and hemisphere,
@@ -652,17 +688,60 @@ as Earth is; what differs is where the maps come from.
 - **The air of a wood** (`forestAir` in the lighting chunk): trees, the forest's floor and
   the far canopy are mixed toward the sky's light by distance (to 38 % by some hundreds of
   metres): row behind row of trees paler, and the far forest lighter than the near.
-- **The far trees** (`groves.js`, `life.trees.far: { radius, spacing, below }`): beyond the
-  trees one walks among, one tree shape in every few out to 2 km, each the picture of a
-  whole tree on two crossed quads with a rosette in its crown (what a far mesh is), in
-  **one instanced draw** (the shape is a number of the instance's own; where each picture
-  is in the atlas is read off the far meshes). Placed by `treeBlock` itself on blocks of
-  0.01 degrees with a site every 30 m (job `trees` with `deg` and `salt`), so the same
-  land cover, slopes, water and tree line decide. They grow in where the nearer trees
-  end and are drawn after the ground: the raised canopy hides their lower part for
-  nothing, and their crowns stand out of it. From higher than the nearer trees are drawn
-  (1 500 m) they begin at the eye: they are the trees a traveller sees coming down.
-  Governor step `far-trees` (half of them); the cost test leaves them out as a part.
+- **The far forest** (`farForest.js`, `life.trees.far: { full, radius, below }`): beyond the
+  trees one walks among, **the same trees**, at the same places, thinned with distance, out
+  to `radius` (5.6 km on Haven and Earth). Each is the picture of a whole tree on two
+  crossed quads with a rosette in its crown (what a far mesh is; the shape is a number of
+  the instance's own and where each picture is in the atlas is read off the far meshes).
+  - **Rank.** Every tree site has one (`treeBlock.js`, `siteRank`): a hash of the site
+    alone, 0..1, of nothing else — not of the chance its class gives it, its species or its
+    shape. A **band** of ranks can therefore be asked for on its own, and a thinner band is
+    a subset of a thicker one, at the very same places.
+  - **How many stand at a distance.** `keep(d) = (full / d)^2`, capped at 1: full density
+    out to `full` (450 m), then thinner and thinner. A tree is drawn when its rank is under
+    `keep` at its own distance from the eye, and **grows in** from nothing as that distance
+    closes, so none pops. The thinned ones stand up to 1.5 times wider (`keep^-0.25`), so a
+    wood keeps its cover; beyond that the canopy the ground shader raises carries it.
+  - **Tiles.** `treeTile` works out a square of tree blocks in one worker job (`treeTile`
+    in the terrain workers), one band of ranks of it. Level 0 asks for the thickest band
+    (a quarter of the sites and up) over 8 x 8 blocks (889 m); each level after it asks for
+    a quarter of that band over twice the side, and is drawn twice as far out, so every
+    distance costs about the same number of tiles and of trees. Four levels: 889 m to
+    7.1 km, ranks 1 down to 1/64. Each tile is one instanced mesh from a **fixed pool**
+    (40 tiles, 6 144 trees each), filled when it arrives and again, from the same data,
+    when the traveller has come a tenth of the way nearer to it. A fill tests **each tree
+    by its own distance** and keeps half as many again as stand (by the tile's nearest
+    corner instead, a tile 889 m across handed the GPU four times the trees it drew).
+    Nothing is worked out per tree per frame. The mesh is put where its tile stands so that three culls it against the view
+    and sorts the tiles front to back; the vertices themselves come from the tile's own
+    uniform, camera-relative.
+  - **The join.** Inside the near trees' radius nothing of the far forest is drawn, and
+    beyond it `trees.js` draws nothing: a clean cut by distance from the eye in both
+    shaders, on the same tree, with the same picture, size, turn, season and colours (the
+    far forest's fragment shader is the card path of the near trees' own, and leaf and bark
+    colours are packed over their real range so the two cannot differ at the line).
+  - **The land's shadow.** Far trees are beyond every shadow map. The tile job asks the
+    shadow baker (`baker.visibility`) on a 20 x 20 grid over the tile at crown height and
+    each tree carries what it reads off between the grid's points (in `iC.w`, with its
+    autumn); a tile is asked for again when the Sun has moved a degree and a half. The
+    near trees get theirs from their block's job, tree by tree (`landShadow` in the worker,
+    `iD.w`): a grid over a block on a rim put the cliff's shade on the trees above it.
+  - **The clouds' shadow** on near and far trees is read from a small map of it
+    (`life/treeShade.js`: 256 x 256 points over 14 km round the traveller, drawn once a
+    frame before the main picture by the ground's rule from the ground's own uniform
+    objects). A tree reads it once per vertex, where the Sun's ray through its crown meets
+    the map's plane. One rule, and a saving on the ground is a saving on the trees.
+  - **The far green.** From 300 m to 1.3 km a far tree's leaf colour goes over to a dark
+    warm olive of the same brightness and its share of the sky's light loses most of its
+    blue; the wood's own air (`forestAir`) fades out between 300 m and 1 km, where the
+    air itself takes over. The rule: a far tree is never bluer or paler than the ground
+    behind it. All of it is nothing at the join, where the near trees' numbers hold.
+  - Drawn after the ground: the raised canopy hides a far tree's lower part for nothing and
+    its crown stands out of it. Governor step `far-trees`: it **thins** them (the widening
+    goes with it, so a wood is still a wood) and shortens their reach, never removes them.
+    The cost test leaves them out as a part. `window.__stats.farTrees` says how many stand
+    in the picture and how many instances the tiles hand the GPU (some are thrown out in
+    the vertex shader as too thin for their distance).
 - **The canopy's crowns** (`crowns()` in the ground shader): the raised forest is shaded as
   domes side by side, 8 m apart (and the stands they grow in, 21 m): each tilts the
   surface outward from its middle, is lighter on top and dark in the gaps, and has a green
@@ -680,7 +759,95 @@ as Earth is; what differs is where the maps come from.
   eye by how far from overhead one looks: the canopy shows the sides of its crowns, lit
   with the Sun behind the eye and dark against it, as the trees drawn one by one are.
 - Governor steps: `leaves`, `tree-shadows` (the far meshes stop casting), `trees-far`
-  (two thirds of the radius).
+  (two thirds of the radius), `far-trees` (the far forest thinned).
+
+## Rocks as far as they can be seen (`src/rocks/`)
+
+Two kinds, drawn together:
+
+- **The stones underfoot** (`rocks.js`, `surface.rocks`): 300 within 110 m of the
+  traveller, scattered by a lattice round the camera, shrinking away at its edge. On
+  Haven they stop at 0.7 m: anything larger is the land's own.
+- **The land's own rocks** (`farRocks.js`, `rockBlock.js`; `surface.rocks.far` in the world
+  file, defaults in `rockBlock.js`): blocks from 0.7 m to 20 m that are there whenever
+  anyone comes back, drawn to `reach` (420) metres for every metre of their size: a 4 m
+  block to a mile, a house-sized one to eight kilometres. The same block at the same
+  place from that far to arm's length.
+
+**Where rock lies** (`rockBlock.js`, plain arithmetic: workers and Node). A site holds a
+rock with the chance `density x rockField(cluster noise, rockiness)`. Rockiness is of the
+ground: its slope and how far it stands above its neighbours, both measured on ground
+16 m coarse with arms of 12 m (so the foot of a cliff counts as steep: talus), the
+water's edge, the tree line, less in closed forest (the land-cover picture; the largest
+level least: outcrops stand out of the trees), none in water. The cluster noise (260, 85
+and 27 m) keeps open ground to its highest few per cent (erratics) and rocky ground to
+about two thirds, so fields have bare ground between them; on all-rock ground (a talus
+slope) the fields run into each other and the noise only thins them. **How a block
+stands**: its middle a fifth of its height over the ground, lying on the slope. (The
+block's underside is not cut: sunk like a pebble only its top face showed, a slab level
+with the hillside, and for a day steep rock ground looked bare.) **From how far it is
+seen** is part of the rule (`seen`, a share of its size in a byte): under a closed
+canopy 180 m, and from afar only blocks of 9 m and more. `node scripts/rock-field.mjs` draws
+the result from above in seconds; `npm run rocks` fails if a promise of the rule is broken.
+
+**Levels and tiles.** Sizes come in three levels (1.4 to 3.4 m, 3.4 to 8 m, 8 to 20 m),
+and a fourth for the talus near the eye (0.7 to 2.6 m on tiles of 445 m, many, seen from
+310 m at most whatever their size: `seenTo`; no shadow patches).
+Each has its own tiles, **about as wide as its largest rock is seen from far** (1.3, 3.3
+and 8.3 km: `tileDeg`, the trees' lattice at other sizes), with 128 x 128 sites: so every
+level needs the same nine or so tiles round the traveller, and a view holds three or
+four of each. A tile is one worker job (`rocks`: 30 to 80 ms with the land's shadow on
+each rock) and comes back in the order of how far each rock is seen from. On the main
+thread the whole tile is kept, and the GPU's buffers (a **fixed pool**: 14 tiles a
+level, 16 for the talus; 52 bytes a rock) are **filled with the rocks that can be seen
+from where the traveller is** and those that will be before the next filling (`_fill`:
+again when the traveller has gone half the slack, two tiles a frame at most, and when
+the governor's step changes). A tile is as wide as its largest rocks are seen from
+far, so most of the tile one stands in is small rocks too far off to draw: handed over
+whole, the vertex shader ran over five times what it drew; now 1.3 times. It is drawn
+as **one instanced mesh** of one block (20 flat faces: the stones' lump at its coarsest,
+cut by the same fracture planes, `ROCK_SHAPE_GLSL`), and one more for the shadows.
+Nothing is done per rock per frame on the CPU (a filling is a pass over one tile, a few
+times a minute on foot); per tile, a binary search says how many
+of its first rocks can be seen from its nearest point (the instance count). **The draw
+calls are counted in tiles**: some twenty in a view, shadows included. (The first
+version had tiles of 333 m to 2.2 km and three meshes a tile, two block shapes and the
+shadow: 40 to 60 draw calls, and a rock that changed shape at 80 times its size.)
+
+**Per rock, in the vertex shader**: distance over size decides whether it is drawn
+(beyond `reach` it is thrown out of the picture); it grows in over the last fifth of its
+reach. Rocks of the smallest level have 0.82 of the reach, and 0.62 of that under the
+governor's step `far-rocks` (the largest level keeps all).
+
+**Light**: the shared chunk and the painted look as the stones (true faces, two tones);
+the rock's colour is `far.albedo` or the world's `surface.rock`, times the bed of
+coloured rock at its height (`tStrata`) and the land's colour under it (the albedo map's
+tint, read once per rock when the tile arrives: `Terrain.tintAt`; as bright as the
+country, half its hue: a rock of one colour everywhere was near black on golden grass);
+dust on top, or snow. The land's shadow comes with the tile and is asked again a tile at
+a time when the Sun has moved 1.1 degrees (`rockvis`: a ray a rock, or a 21 x 21 grid
+across the tile where there are more than 400). The clouds' shadow is worked out per
+rock as the ground does it. Within 150 m the near shadow map shades them and they cast
+into it; **beyond it each rock lays a soft dark patch on the ground** away from the Sun
+(a blended mesh drawn after the ground: the ground's colour times the sky's share of
+its light, less through haze; no slope-scaled depth offset, which at a low angle is
+metres and drew the patch over the rock itself). Governor step `far-rock-shadows` takes
+the patches away.
+
+**Walking**: `FarRocks.riseAt` gives how far a rock of the two larger levels stands over
+the ground at a place (its fracture planes, in JavaScript: `rockTop` in `rockBlock.js`),
+and the app's height function adds it (`_rise`): the traveller walks up and over a rock
+of 3.4 m and more, lands on it, and the camera rises to see over it. The world file keeps
+places clear (`far.clear`): where the journey begins. The rig asks how much of the last
+height was rock (`rig.riseAt`, set by the app beside `sunkAt`): in flight `rig.agl` stays
+the height over the LAND (the speed law must not dip over a tor) and `rig.floor` is the
+height over what one would stand on (the touch-down tests; the near plane goes by the
+lesser of the two). `scripts/rig-over-rock.mjs` fails if that comes back.
+
+**Workers**: one tile is asked for before the ground takes the workers each frame
+(`ask()` in `app.js`), so a traveller on the move is not left without rocks until the
+ground has settled; with the ground at rest, every free worker. A tile is asked again
+when the land cover changes and when a ring of water touches it (`Terrain._stale`).
 
 ## Clouds with depth (`src/sky/cloudVolume.js`)
 

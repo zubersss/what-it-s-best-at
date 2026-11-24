@@ -145,6 +145,7 @@ class Shape {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
     g.setAttribute('aLeaf', new THREE.BufferAttribute(leaf, 1)); g.setAttribute('aSway', new THREE.BufferAttribute(sway, 1)); g.setAttribute('aUv', new THREE.BufferAttribute(uv, 2));
+    g.userData.mid = this.mid;          // (the height the crown's light is reckoned from: the far forest lights its cards by the same rule)
     return g;
   }
 }

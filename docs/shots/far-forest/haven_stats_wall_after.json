@@ -1,0 +1,29 @@
+{
+  "wall": {
+    "weather": "",
+    "trees": "735 (28k triangles): lodgepole pine, Swiss stone pine, Engelmann spruce",
+    "farTrees": "28060 standing (46465 handed to the GPU)",
+    "water": "z2: 105 rivers, 499 m3/s (no inflow); z5: 38 rivers, 122 m3/s; z8: 15 rivers, 87 m3/s",
+    "stale": 0,
+    "tilesBusy": false,
+    "refreshQ": 0,
+    "rings": 3,
+    "tileFails": 0,
+    "busyW": 0,
+    "calls": 130,
+    "triangles": 1215763,
+    "chunks": 144,
+    "loaded": 478,
+    "visited": 478,
+    "wanted": 0,
+    "lodScale": 1,
+    "avgBuildMs": 48.1,
+    "exposure": 7.288,
+    "surface": [
+      0.899,
+      0.407
+    ],
+    "frame": 205,
+    "wait": ""
+  }
+}
