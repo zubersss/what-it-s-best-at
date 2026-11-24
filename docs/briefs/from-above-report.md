@@ -192,7 +192,10 @@ over only for tiles that can show a shadow: see below.)
     the same crown tops in the same pattern in every frame, moved by the flight; nothing
     comes or goes that can be found in them.
   - `haven_climb`: straight up over the opening place looking down at 60 degrees, 2 m a
-    frame: CLIMB-PENDING (the first run put its third station, 1 550 m up, inside the cloud; it is being taken again at 150, 500 and 850 m).
+    frame (120 m/s), stations 150, 500 and 850 m up (a first run with a station at
+    1 550 m was inside the cloud): changed 25, 33, 19 %, flicker 2.7, 4.0, 1.6 %. Strips:
+    `stability_haven_climb_<station>.png`. The picture's grain moves with the climb; the
+    shade's edge, the crown tops and the canopy keep their places from frame to frame.
   - What these cannot show: frames are taken settled, so a tile of trees arriving or
     being filled again in flight is not in them (`--streaming` shows that; not run); and
     three frames 4 m apart say nothing of a crown top shrinking over a kilometre of

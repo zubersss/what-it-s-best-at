@@ -32,116 +32,88 @@ import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
 import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
-import { AMOUNT, DRY, floraAt, flowersAt, FLOWERS_GLSL, GRASS_GLSL, GRASS_GROUND, WAVE_K } from './grassRules.js';
+import { renderPass } from '../render/fullscreen.js';
+import { AMOUNT, DRY, KINDS, floraAt, flowersAt, flowerTable, FLOWERS_GLSL, GRASS_GLSL, GRASS_GROUND, WAVE_K } from './grassRules.js';
 
-const SHADE_N = 36, SHADE_CELL = 40, SHADE_MOVE = 120;   // the land's shadow for the clumps: places a side, metres between them, how far the traveller goes before it is asked again
+const SHADE_N = 36, SHADE_CELL = 40, SHADE_MOVE = 120;   // the land's shadow for the far grass: places a side, metres between them, how far the traveller goes before it is asked again
 const SNAP = 40;                 // the anchor moves in steps of this (m)
 const RENEW = 60;                // ... when the traveller is this far from it
 const PERIOD = 2560;             // the stretches of taller and drier grass repeat after this (m; a multiple of SNAP)
 // The ground tables: places a side, metres between them.
 const TABLES = { near: { n: 64, cell: 1.25 }, mid: { n: 128, cell: 4 }, far: { n: 128, cell: 10 } };
-// The blades: tufts a side, metres between them, blades a tuft, a blade's width (m), and
-// where they thin out (m from the camera).
-const NEAR = { grid: 128, spacing: 0.2, blades: 8, wide: 0.012, seed: 0, out: [9.0, 12.2] };
-const FAR = { grid: 144, spacing: 0.5, blades: 7, wide: 0.02, seed: 37, out: [17, 34] };
-const FLOWERS = { grid: 108, spacing: 0.4, seed: 91, out: [15.5, 20.5] };
-// The clumps: clumps a side, metres between them, which table, where they come in and go
-// out (m), how tall and wide a clump is (m, before the grass's own height).
-export const CLUMPS = [
-  { grid: 200, spacing: 0.8, table: 'mid', in: [13, 30], out: [50, 74], tall: 0.5, wide: 1.3, seed: 11 },
-  { grid: 200, spacing: 2.0, table: 'mid', in: [50, 74], out: [135, 188], tall: 0.62, wide: 3.0, seed: 23 },
-  { grid: 220, spacing: 5.0, table: 'far', in: [135, 188], out: [320, 545], tall: 0.85, wide: 6.6, seed: 47 },
+// The grass, ring by ring outward. All of it is blades: opaque triangles, no cut-out
+// anywhere (on the phone the cut-out cards of the middle distance, lying twenty deep over
+// each other toward the horizon, cost five times what all the blades did). A ring: cells a
+// side, metres between them, blades a cell, a blade's half width at the eye (m) and how
+// much wider it is for every metre of distance (far blades are broad teeth: fewer pixels
+// across, the same mass), how tall against the nearest, which ground table, where it
+// comes in and goes out (m from the eye), how far its blades are turned from facing the
+// eye (radians, the whole spread), how far they lean back toward an eye above them, and
+// how far a blade can stand from where its cell's middle is taken to be (m: for throwing
+// out what is not in the picture).
+// (every spacing divides SNAP, so nothing changes when the anchor steps)
+export const RINGS = [
+  { id: 'feet', grid: 96, spacing: 0.125, blades: 14, wide: 0.013, grow: 0.06, tall: 1, table: 'near', out: [4, 6], yaw: 2.6, back: 0, reach: 1.5, seed: 0 },
+  { id: 'near', grid: 125, spacing: 0.32, blades: 12, wide: 0.015, grow: 0.05, tall: 1, table: 'near', in: [4, 6], out: [14, 20], yaw: 2.0, back: 0.5, reach: 1.8, seed: 37 },
+  { id: 'nearer', grid: 160, spacing: 0.5, blades: 10, wide: 0.016, grow: 0.05, tall: 1.05, table: 'near', in: [14, 20], out: [30, 39], yaw: 1.6, back: 0.8, reach: 2, seed: 59 },
+  { id: 'mid', grid: 150, spacing: 1.0, blades: 9, wide: 0.02, grow: 0.05, tall: 1.12, table: 'mid', in: [30, 39], out: [55, 74], yaw: 1.3, back: 1.2, reach: 3.5, seed: 11, far: true },
+  { id: 'far', grid: 160, spacing: 2.5, blades: 6, wide: 0.04, grow: 0.03, tall: 1.3, table: 'mid', in: [55, 74], out: [140, 195], yaw: 1.3, back: 1.2, reach: 5, seed: 23, far: true },
+  { id: 'farthest', grid: 220, spacing: 5.0, blades: 4, wide: 0.18, grow: 0.012, tall: 1.7, table: 'far', in: [140, 195], out: [320, 545], yaw: 1.3, back: 1.2, reach: 9, seed: 47, far: true },
 ];
-// The clumps' picture: blades side by side, repeating across (a card shows as much of it as it is wide).
-const PIC_W = 256, PIC_H = 64;
-
-// --- the clumps' picture, made by rule: R how much is covered, G how far up its blade
-// (0 at the foot), B the flower heads on some blades' tips. Mip levels made here (not on
-// the GPU in the middle of a frame), the tone and flowers weighted by what covers.
-function rngOf(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-export function makeClumpPicture() {
-  const SS = 4, W = PIC_W * SS, H = PIC_H * SS, cov = new Float32Array(W * H), tone = new Float32Array(W * H), fl = new Float32Array(W * H);
-  const R = rngOf(4242);
-  const blade = (x0, len, lean, w0, flower) => {
-    for (let y = 0; y < H; y++) {
-      const t = y / (len * H); if (t > 1) break;
-      const xc = x0 + lean * t * t, hw = Math.max(0.35, w0 * (1 - t) * SS * 0.5);
-      for (let x = Math.floor(xc - hw); x <= Math.ceil(xc + hw); x++) {
-        const c = Math.min(1, Math.max(0, hw + 0.5 - Math.abs(x + 0.5 - xc)));
-        if (c <= 0) continue;
-        const o = y * W + (((x % W) + W) % W);
-        if (c > cov[o] || t > tone[o]) { tone[o] = Math.max(tone[o] * cov[o], t * c) / Math.max(1e-6, Math.max(cov[o], c)); cov[o] = Math.max(cov[o], c); }
-      }
-    }
-    if (flower) {
-      const cx = x0 + lean, cy = len * H, r = 3.0 * SS;
-      for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
-        if (y < 0 || y >= H) continue;
-        const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy); if (d > r) continue;
-        const o = y * W + (((x % W) + W) % W); cov[o] = 1; tone[o] = 1; fl[o] = 1;
-      }
-    }
-  };
-  // (a mat of short blades at the foot, then the tall ones, some with a flower head)
-  for (let k = 0; k < 150; k++) blade(R() * W, 0.18 + 0.3 * R(), (R() - 0.5) * 0.5 * H * 0.3, 2.6 + 1.4 * R(), false);
-  for (let k = 0; k < 80; k++) { const len = 0.5 + 0.48 * R(); blade(R() * W, len, (R() - 0.5) * 2 * len * H * 0.38, 2.4 + 1.2 * R(), k % 2 === 0 && len > 0.58); }
-  // down to the picture's own size, then the mip levels
-  const levels = [];
-  let w = PIC_W, h = PIC_H, c0 = new Float32Array(w * h), t0 = new Float32Array(w * h), f0 = new Float32Array(w * h);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    let c = 0, t = 0, f = 0;
-    for (let j = 0; j < SS; j++) for (let i = 0; i < SS; i++) { const o = (y * SS + j) * W + x * SS + i; c += cov[o]; t += tone[o] * cov[o]; f += fl[o]; }
-    const q = y * w + x; c0[q] = c / (SS * SS); t0[q] = c > 0 ? t / c : 0; f0[q] = f / (SS * SS);
-  }
-  for (;;) {
-    const data = new Uint8Array(w * h * 4);
-    for (let q = 0; q < w * h; q++) { data[q * 4] = Math.round(c0[q] * 255); data[q * 4 + 1] = Math.round(t0[q] * 255); data[q * 4 + 2] = Math.round(Math.min(1, f0[q] / Math.max(c0[q], 1e-6)) * 255); data[q * 4 + 3] = 255; }
-    levels.push({ data, width: w, height: h });
-    if (w === 1 && h === 1) break;
-    const w2 = Math.max(1, w >> 1), h2 = Math.max(1, h >> 1), c1 = new Float32Array(w2 * h2), t1 = new Float32Array(w2 * h2), f1 = new Float32Array(w2 * h2);
-    for (let y = 0; y < h2; y++) for (let x = 0; x < w2; x++) {
-      let c = 0, t = 0, f = 0, n = 0;
-      for (let j = 0; j < (h > 1 ? 2 : 1); j++) for (let i = 0; i < (w > 1 ? 2 : 1); i++) { const o = (y * (h > 1 ? 2 : 1) + j) * w + x * (w > 1 ? 2 : 1) + i; c += c0[o]; t += t0[o] * c0[o]; f += f0[o]; n++; }
-      const q = y * w2 + x; c1[q] = c / n; t1[q] = c > 0 ? t / c : 0; f1[q] = f / n;
-    }
-    w = w2; h = h2; c0 = c1; t0 = t1; f0 = f1;
-  }
-  const tex = new THREE.DataTexture(levels[0].data, PIC_W, PIC_H, THREE.RGBAFormat, THREE.UnsignedByteType);
-  tex.mipmaps = levels; tex.generateMipmaps = false;
-  tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter;
-  tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.ClampToEdgeWrapping; tex.needsUpdate = true;
-  return tex;
-}
+// The flowers, as single plants: near the eye with leaves and fourteen petals; farther out six
+// petals and no leaves, larger, as far as a flower can be told from the grass. Beyond, some
+// blades of the far grass are stalks in flower (BLADE_VERT), and the ground has its dusting.
+// light: which ring's stretch of the light table they read.
+const FLOWERS = [
+  { grid: 100, spacing: 0.32, seed: 91, table: 'near', out: [12, 15.5], petals: 14, leaves: 2, grow: 0.03, light: 1 },
+  { grid: 128, spacing: 0.8, seed: 131, table: 'mid', in: [12, 15.5], out: [38, 50], petals: 6, leaves: 0, grow: 0.03, light: 3 },
+];
+// How many blades may lie over each other along a line of sight before the rest are left
+// out, blade by blade (looked along at eye height a full field is twenty deep, and all but
+// the front few are hidden), and the share of a field that is kept whatever the angle.
+const LAYERS = 5, LAYERS_FLOOR = 0.12;
+// The light on the ground round the traveller (GrassLight below): places a side for each ring.
+const LIGHT_N = 96;
 
 // --- shaders
-const PRELUDE = /* glsl */`
-  uniform vec3 uGrassCam, uGrassEast, uGrassNorth, uGrassUp;       // the camera on the anchor's plane: east, north, up (m)
-  uniform vec2 uGrassCurve;          // x: the datum's radius less the anchor's, y: 1 / (2 x the world's radius)
-  uniform vec4 uGrassWind;           // the wind: xyz where it blows (planet axes), w its speed (m/s)
-  uniform vec2 uGrassLie;            // the anchor on the plane counted from the grass's origin, modulo PERIOD (m)
-  uniform vec2 uLatOrigin;           // ... and in this lattice's cells, modulo 4096
-  uniform float uGrassView;          // the picture's height (pixels), halved
-  uniform vec4 uGrassKeep;           // how much is kept by the height of the traveller: x blades, y clumps; z the governor's share of the clumps, w how much wider they are for it
-  uniform vec4 uGrassTone;           // x: how dry the grass round the traveller is in the mean (the ground under it is painted with this)
-  ${GRASS_GLSL}
-  // how dry a tuft is: mostly what the ground under it is painted as, a little its own place's
-  // (by its own place's alone, a green stretch of blades stood on golden ground: a dark smear)
-  float dryHere(float own) { return mix(own, uGrassTone.x, 0.7); }
-  out vec3 vRel; out vec4 vAlb;      // the surface's colour, and how much of the sky's light it has
-  vec2 hash2(vec2 p) { vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); q += dot(q, q.yzx + 33.33); return fract((q.xx + q.yz) * q.zy); }
-  // a ground table at a place of the plane (at, m from the anchor): the four entries round it, blended
-  vec4 tableAt(sampler2D t, vec4 info, vec2 at) {
+// A ground table at a place of the plane (at, m from the anchor): the four entries round
+// it, blended, and the ground's lie there (metres up per metre east and north).
+const TABLE_GLSL = /* glsl */`
+  vec4 tableAt(sampler2D t, vec4 info, vec2 at, out vec2 grad) {
     vec2 f = (at + info.xy) / info.z, i = floor(f), w = f - i;
     ivec2 a = ivec2(mod(i, info.w)), b = ivec2(mod(i + 1.0, info.w));
     vec4 t00 = texelFetch(t, a, 0), t10 = texelFetch(t, ivec2(b.x, a.y), 0), t01 = texelFetch(t, ivec2(a.x, b.y), 0), t11 = texelFetch(t, b, 0);
     vec4 g = mix(mix(t00, t10, w.x), mix(t01, t11, w.x), w.y);
     // (the height from the entries that have grass: one without may hold another place's
     // height until it is worked out, and pulled the tufts beside it into the air)
-    vec4 k = vec4((1.0 - w.x) * (1.0 - w.y), w.x * (1.0 - w.y), (1.0 - w.x) * w.y, w.x * w.y) * (step(0.001, vec4(t00.g, t10.g, t01.g, t11.g)) + 0.001);
+    vec4 has = step(0.001, vec4(t00.g, t10.g, t01.g, t11.g));
+    vec4 k = vec4((1.0 - w.x) * (1.0 - w.y), w.x * (1.0 - w.y), (1.0 - w.x) * w.y, w.x * w.y) * (has + 0.001);
     g.r = dot(k, vec4(t00.r, t10.r, t01.r, t11.r)) / (k.x + k.y + k.z + k.w);
+    // (the lie from entries that all have grass; level otherwise)
+    grad = has.x * has.y * has.z * has.w > 0.5 ? vec2(mix(t10.r - t00.r, t11.r - t01.r, w.y), mix(t01.r - t00.r, t11.r - t10.r, w.x)) / info.z : vec2(0.0);
     return g;
   }
-  vec4 tableNearest(sampler2D t, vec4 info, vec2 at) { return texelFetch(t, ivec2(mod(floor((at + info.xy) / info.z + 0.5), info.w)), 0); }
+  vec4 tableNearest(sampler2D t, vec4 info, vec2 at) { return texelFetch(t, ivec2(mod(floor((at + info.xy) / info.z + 0.5), info.w)), 0); }`;
+
+export const GRASS_PRELUDE = /* glsl */`
+  uniform vec3 uGrassCam, uGrassEast, uGrassNorth, uGrassUp;       // the camera on the anchor's plane: east, north, up (m)
+  uniform vec2 uGrassCurve;          // x: the datum's radius less the anchor's, y: 1 / (2 x the world's radius)
+  uniform vec4 uGrassWind;           // the wind: xyz where it blows (planet axes), w its speed (m/s)
+  uniform vec2 uGrassLie;            // the anchor on the plane counted from the grass's origin, modulo PERIOD (m)
+  uniform vec2 uLatOrigin;           // ... and in this lattice's cells, modulo 4096
+  uniform float uGrassView;          // the picture's height (pixels), halved
+  uniform vec4 uGrassKeep;           // how much is kept by the height of the traveller: x near grass, y far grass; z the governor's share of the far grass, w how much wider it is for it
+  uniform vec2 uGrassGov;            // the governor's share of the near grass (x) and of the far grass (y) that is handed over at all
+  uniform vec4 uGrassTone;           // x: how dry the grass round the traveller is in the mean (the ground under it is painted with this)
+  uniform vec3 uSunDir;
+  uniform sampler2D tLight; uniform vec4 uLight;      // the light on the ground (GrassLight): this field's part of it: xy its middle from the anchor (m), z 1 / its span, w its row
+  ${GRASS_GLSL}
+  ${TABLE_GLSL}
+  // how dry a tuft is: mostly what the ground under it is painted as, a little its own place's
+  // (by its own place's alone, a green stretch of blades stood on golden ground: a dark smear)
+  float dryHere(float own) { return mix(own, uGrassTone.x, 0.7); }
+  out vec3 vCol;                     // the colour, lit and seen through the air: all of it worked out here
+  vec2 hash2(vec2 p) { vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); q += dot(q, q.yzx + 33.33); return fract((q.xx + q.yz) * q.zy); }
   // the ground's height at a place, measured up from the camera (g: its table entry)
   float groundUp(vec4 g, vec2 at) { return g.r + uGrassCurve.x - dot(at, at) * uGrassCurve.y - uGrassCam.z; }
   // this instance's cell: its middle from the camera (m), and its number on the ground
@@ -169,212 +141,304 @@ const PRELUDE = /* glsl */`
   }
   // kept (1), going (0..1) or gone (0): a share 'k' of a field, this one's own number 'own' (0..1)
   float keepOf(float k, float own) { return clamp((k - own * 0.85) / 0.15, 0.0, 1.0); }
-  #define OUT_OF_PICTURE { vRel = vec3(0.0); vAlb = vec4(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }`;
+  // The light at a place of the plane: the Sun's on the ground there (its shadows, the
+  // clouds', the land's and the slope's own in it), the sky's, and the air's own light
+  // between there and the eye; the first two already dimmed by that air. A thing of colour
+  // c that takes a share s of the sky is c * (sun + sky * s) + air.
+  void lightAt(vec2 at, out vec3 sun, out vec3 sky, out vec3 air) {
+    vec2 uv = clamp((at - uLight.xy) * uLight.z + 0.5, ${(0.5 / LIGHT_N).toFixed(6)}, ${(1 - 0.5 / LIGHT_N).toFixed(6)});
+    float v = (uv.y + uLight.w) * ${(1 / RINGS.length).toFixed(6)};
+    sun = textureLod(tLight, vec2(uv.x / 3.0, v), 0.0).rgb;
+    sky = textureLod(tLight, vec2((uv.x + 1.0) / 3.0, v), 0.0).rgb;
+    air = textureLod(tLight, vec2((uv.x + 2.0) / 3.0, v), 0.0).rgb;
+  }
+  #define OUT_OF_PICTURE { vCol = vec3(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  // (behind the eye or off the side of the picture, by more than m metres)
+  bool outside(vec4 cc, float m) { return cc.w < -m || abs(cc.x) > cc.w + m * (1.0 + projectionMatrix[0][0]) || abs(cc.y) > cc.w + m * (1.0 + abs(projectionMatrix[1][1])); }`;
 
-const GRASS_VERT = /* glsl */`
+// A blade: one triangle standing on the ground. Near the eye a thin leaf among hundreds
+// to the square metre; far off a broad tooth, a few to a cell some metres wide.
+const BLADE_VERT = /* glsl */`
   in float aBlade;
-  uniform sampler2D tGrass; uniform vec4 uTabNear;
-  ${PRELUDE}
+  uniform sampler2D tTable; uniform vec4 uTab;
+  ${GRASS_PRELUDE}
+  #ifdef FAR
+  ${FLOWERS_GLSL}
+  #endif
   void main() {
-    vec2 cell, rc = latticeCell(cell), h = hash2(cell), h2 = hash2(cell + 71.3 + aBlade * 7.7);
-    vec2 rel2 = rc + (h - 0.5) * 0.7 * SPACING, at = rel2 + uGrassCam.xy;
-    float dist = length(rel2);
-    vec4 g = tableAt(tGrass, uTabNear, at);
-    // (thinner where the map has less grass, tuft by tuft; and blade by blade out to the end of the field)
-    float keep = step(h.y, g.g * 1.15) * keepOf((1.0 - smoothstep(OUT0, OUT1, dist)) * uGrassKeep.x, h2.x);
-    // (no tuft here: out of the picture altogether. Left in, a blade of no height is a
-    // sliver lying on the ground that still lands on a pixel now and then: a sprinkle of
-    // dark specks on water, sand and rock, wherever there is no grass.)
-    if (keep <= 0.0) OUT_OF_PICTURE
-    float lie = lieAt(at);
-    float tall = (0.24 + 0.34 * h2.x) * (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) * (0.85 + 0.3 * lie) * keep;
-    // the blade: its foot somewhere in the tuft, turned its own way, leaning outward
-    float turn = h2.y * 6.2831853, c = cos(turn), s = sin(turn);
-    vec2 foot = rel2 + ((h2 - 0.5) * 0.5 + (hash2(cell + aBlade) - 0.5) * 0.4) * min(1.0, SPACING * 2.0);
-    float wide = WIDE * (0.8 + 0.9 * h2.x) * (1.0 + dist * 0.06);          // (wider far off: fewer pixels, the same mass)
-    vec2 across = vec2(c, s) * wide * position.x, lean = vec2(-s, c) * (0.10 + 0.22 * h2.y) * tall;
+    vec2 cell, rc = latticeCell(cell), h = hash2(cell), hb = hash2(cell + 71.3 + aBlade * 7.7), hc = hash2(cell * 1.7 + 5.3 + aBlade * 13.1);
+    // (each blade anywhere in its cell and a little beyond: an even field, no rows)
+    vec2 foot2 = rc + (hc - 0.5) * (1.15 * SPACING), at = foot2 + uGrassCam.xy;
+    float dist = length(foot2);
+    // (this ring: in over IN0..IN1 where the one inside it goes out, out over OUT0..OUT1; the traveller's height)
+    float ring = (1.0 - smoothstep(OUT0, OUT1, dist)) * KEEP;
+    #ifdef IN0
+    ring *= smoothstep(IN0, IN1, dist);
+    #endif
+    if (ring <= 0.0) OUT_OF_PICTURE
+    // (not in the picture: thrown out before anything dear is worked out. Two blades in
+    // three of a field round the eye are behind it or off to the side.)
+    vec4 cc = projectionMatrix * viewMatrix * vec4(uGrassEast * foot2.x + uGrassNorth * foot2.y + uGrassUp * groundUp(tableNearest(tTable, uTab, at), at), 1.0);
+    if (outside(cc, REACH)) OUT_OF_PICTURE
+    vec2 grad; vec4 g = tableAt(tTable, uTab, at, grad);
+    // How thick the grass stands here. Where the land has grass it is all there; only thin
+    // land (scrub, scree, the edge of a wood) is thin, and thin in tussocks half a metre
+    // across with bare ground between (the same tussocks in every ring), not as an even
+    // sprinkle of single blades.
+    float dens = clamp(g.g * 2.4 - 0.1, 0.0, 1.0);
+    #ifdef FAR
+    float own = hb.y;
+    #else
+    float own = hash2(floor((at + uGrassLie) * 2.0) + 3.3).x;
+    #endif
+    if (own >= dens) OUT_OF_PICTURE
+    vec3 nrm = normalize(uGrassUp - uGrassEast * grad.x - uGrassNorth * grad.y);
     float base = groundUp(g, at);
-    vec3 w = windAt(uGrassEast * rel2.x + uGrassNorth * rel2.y + uGrassUp * base, h.x);
+    vec3 foot = uGrassEast * foot2.x + uGrassNorth * foot2.y + uGrassUp * base, toCam = normalize(-foot);
+    // How squarely the ground is looked at here: from above, or a hillside that faces the eye.
+    float rise = clamp(max(dot(toCam, uGrassUp), dot(toCam, nrm)), 0.0, 1.0);
+    #ifdef FAR
+    // (looked at squarely from farther than some 60 m a blade adds nothing: the ground wears
+    // the grass there, and it was a scratch on it. They go one by one, by chance.)
+    float square = smoothstep(0.22, 0.5, rise);
+    if (hash2(cell + 3.7 + aBlade).y < square * smoothstep(40.0, 90.0, dist) * 1.02) OUT_OF_PICTURE
+    #endif
+    float lie = lieAt(at);
+    float wide = WIDE * (0.8 + 0.9 * hb.x) * (1.0 + GROW * dist);
+    #ifdef FAR
+    wide *= uGrassKeep.w;          // (the governor's step: half of them, each wider)
+    #endif
+    float tall = TALL * (0.24 + 0.34 * hb.x) * (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) * (0.85 + 0.3 * lie);
+    // How many blades lie over each other along the line of sight: the field's blade area
+    // over a square metre of ground, seen at this angle. Beyond LAYERS deep the rest are
+    // behind those in front: left out, blade by blade, each by its own number. (This is
+    // what bounds the layers the GPU fills: at eye height a full field is twenty deep.)
+    // (the governor's share of the ring counts: with half its blades handed over, a field
+    // looked along loses none that the eye could see)
+    float area = float(BLADES) * GOV * WIDE * 1.25 * (1.0 + GROW * dist) * TALL * 0.41 * (0.6 + 0.6 * g.g) / (SPACING * SPACING);
+    float share = clamp(${LAYERS.toFixed(1)} * rise / area, ${LAYERS_FLOOR.toFixed(2)}, 1.0);
+    float keep = keepOf(ring * share, hb.x) * clamp((dens - own) / 0.12, 0.0, 1.0);
+    if (keep <= 0.0) OUT_OF_PICTURE
+    tall *= keep;
+    #ifdef FAR
+    // (under a pixel tall: not drawn, where it was a dash; lower where the ground is looked at squarely)
+    if (tall * abs(projectionMatrix[1][1]) * uGrassView < cc.w) OUT_OF_PICTURE
+    tall *= 1.0 - 0.45 * smoothstep(0.15, 0.6, rise);
+    #endif
+    // the blade: facing the eye give or take a turn of its own, leaning its own way, bowed by the wind
+    vec2 flat2 = dist > 1e-3 ? -foot2 / dist : vec2(0.0, 1.0);
+    float yaw = (hb.y - 0.5) * YAW, turn = hc.x * 6.2831853;
+    vec2 across = (vec2(-flat2.y, flat2.x) * cos(yaw) + flat2 * sin(yaw)) * wide * position.x;
+    vec2 lean = vec2(cos(turn), sin(turn)) * (0.10 + 0.22 * hb.y) * tall + flat2 * (BACK * rise * tall);
+    vec3 w = windAt(foot, h.x);
     vec2 blow = w.xy * tall;
     float y = position.y;
-    vec2 p2 = foot + across * (1.0 - y) + (lean + blow) * y * y;
+    vec2 p2 = foot2 + across * (1.0 - y) + (lean + blow) * y * y;
     float up = base + tall * y * (1.0 - 0.25 * length(lean + blow) / max(tall, 0.01));
-    vRel = uGrassEast * p2.x + uGrassNorth * p2.y + uGrassUp * up;
+    vec3 rel = uGrassEast * p2.x + uGrassNorth * p2.y + uGrassUp * up;
     // green grass and dry grass, each darker at the foot (the blades shade each other
     // there); paler where the wind's wave bows them
-    vAlb = vec4(grassColour(dryHere(g.b) + (h.x - 0.5) * 0.16 - 0.10 * lie, y) * (0.85 + 0.3 * h.x) * (0.92 + 0.12 * lie) * (0.94 + 0.12 * w.z), 0.55 + 0.45 * y);
-    gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
+    float tone = y, shade = (0.85 + 0.3 * h.x) * (0.92 + 0.12 * lie) * (0.94 + 0.12 * w.z), dry = dryHere(g.b) + (h.x - 0.5) * 0.16;
+    #ifdef FAR
+    // (looked down on, or far off, a blade is the ground's own grass colour: its dark foot
+    // showing from above was a field of dark specks that ended in an arc)
+    tone = mix(y, 0.62, 0.9 * max(smoothstep(0.05, 0.35, rise), smoothstep(120.0, 420.0, dist)));
+    shade = mix(shade, 1.0, 0.8 * smoothstep(0.05, 0.35, rise));
+    dry -= mix(0.10, 0.2, smoothstep(30.0, 120.0, dist)) * lie;
+    #else
+    dry -= 0.10 * lie;
+    #endif
+    vec3 alb = grassColour(dry, tone) * shade;
+    float skyShare = 0.55 + 0.45 * tone;
+    #ifdef FAR
+    // (flowers: in a drift some blades are stalks in flower, their upper part the flower's colour:
+    // fewer from above and far off: grass with a dusting, and no band of colour along the skyline)
+    float fk = tableNearest(tTable, uTab, at).a, kind = floor(fk + 0.001);
+    float flowered = step(0.5, kind) * step(hash2(cell + 5.1 + aBlade).x, fract(fk + 0.001) * 0.7 * (1.0 - 0.5 * rise) * (1.0 - 0.7 * smoothstep(60.0, 400.0, dist))) * smoothstep(38.0, 52.0, dist);
+    if (flowered > 0.5) { alb = mix(alb, petalColour(kind, h.y), 0.3 + 0.7 * y); skyShare = 1.0; }
+    #endif
+    vec3 sun, sky, air; lightAt(at, sun, sky, air);
+    // (looked at toward the Sun a blade glows: the light comes through it)
+    float through = pow(max(dot(normalize(rel), uSunDir), 0.0), 3.0);
+    vCol = alb * (sun * (1.0 + 0.7 * through * y) + sky * skyShare) + air;
+    gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
   }`;
 
-// A flower: a stem (part 0), five petals (1..5) round a middle (6). Daisies, poppies and
-// the like hold the petals as a cup turned up and toward whoever looks; lupins and
-// fireweed stack them up the top of the stem.
+// A flower: a stem (part 0), LEAVES leaves at its foot, NPET petals, a middle. What the
+// petals are depends on the kind's habit (grassRules.js): a cup's petals round its
+// middle, a spike's florets up the stem, an umbel's on a flat-topped spray, a globe's
+// round a ball, a turf flower's tiny heads scattered among the blades, a cushion's mound
+// on the ground. Near the eye fourteen petals and two leaves; farther out six and none.
 const FLOWER_VERT = /* glsl */`
   in float aPart;
-  uniform sampler2D tGrass; uniform vec4 uTabNear;
-  ${PRELUDE}
+  uniform sampler2D tTable; uniform vec4 uTab;
+  ${GRASS_PRELUDE}
   ${FLOWERS_GLSL}
   void main() {
     vec2 cell, rc = latticeCell(cell), h = hash2(cell), h2 = hash2(cell + 23.9);
-    vec2 rel2 = rc + (h - 0.5) * 0.8 * SPACING, at = rel2 + uGrassCam.xy;
-    vec4 g = tableAt(tGrass, uTabNear, at);
+    vec2 rel2 = rc + (h - 0.5) * 0.9 * SPACING, at = rel2 + uGrassCam.xy;
+    float dist = length(rel2);
+    float ring = (1.0 - smoothstep(OUT0, OUT1, dist)) * uGrassKeep.x;
+    #ifdef IN0
+    ring *= smoothstep(IN0, IN1, dist);
+    #endif
+    if (ring <= 0.0) OUT_OF_PICTURE
     // (which kind grows here is not something to blend: the nearest entry says)
-    float fl = tableNearest(tGrass, uTabNear, at).a, kind = floor(fl + 0.001), dist = length(rel2);
-    float keep = step(0.5, kind) * step(h2.x, fract(fl + 0.001) * 1.1) * step(0.1, g.g) * keepOf((1.0 - smoothstep(OUT0, OUT1, dist)) * uGrassKeep.x, h.x);
+    vec4 gn = tableNearest(tTable, uTab, at);
+    float kind = floor(gn.a + 0.001);
+    // (big heads stand wider apart: a lattice full of heads a hand across was a carpet that
+    // hid the grass. As many of a kind's heads to the square metre as cover the same ground.)
+    float headSize = KIND_SHAPE[clamp(int(kind + 0.5), 0, KIND_N - 1)].y;
+    if (kind < 0.5 || h2.x >= fract(gn.a + 0.001) * 1.1 * min(1.0, pow(0.036 / headSize, 2.0))) OUT_OF_PICTURE
+    if (outside(projectionMatrix * viewMatrix * vec4(uGrassEast * rel2.x + uGrassNorth * rel2.y + uGrassUp * groundUp(gn, at), 1.0), 2.2)) OUT_OF_PICTURE
+    vec2 grad; vec4 g = tableAt(tTable, uTab, at, grad);
+    float keep = step(0.1, g.g) * keepOf(ring, h.x);
     if (keep <= 0.0) OUT_OF_PICTURE
-    float spike = (abs(kind - 3.0) < 0.5 || abs(kind - 5.0) < 0.5) ? 1.0 : 0.0;
-    // the stem: as tall as the grass round it and a little more, so the heads stand clear
-    float stem = (0.50 + 0.22 * h2.y) * (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) * (1.0 + 0.3 * spike) * keep;
-    float size = (kind > 6.5 ? 0.065 : (abs(kind - 2.0) < 0.5 || kind > 5.5) ? 0.044 : 0.034) * (0.8 + 0.4 * h.y) * (1.0 + dist * 0.045) * keep;
+    int ki = clamp(int(kind + 0.5), 0, KIND_N - 1);
+    vec4 shp = KIND_SHAPE[ki];
+    float habit = shp.x;
+    // (a dandelion gone to seed: a white clock)
+    bool clock = ki == 17 && h2.y > 0.62;
+    if (clock) habit = 4.0;
+    // as tall as its kind in grass of middling height, taller in tall grass: the heads stand clear
+    float stem = shp.z * (0.85 + 0.3 * h2.y) * mix(1.0, (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) / 1.2, 0.7) * keep;
+    float size = shp.y * (0.8 + 0.4 * h.y) * (1.0 + dist * FGROW) * keep;
     float base = groundUp(g, at);
     vec3 foot = uGrassEast * rel2.x + uGrassNorth * rel2.y + uGrassUp * base;
     vec3 w = windAt(foot, h.x);
     vec2 top2 = rel2 + ((h - 0.5) * 0.24 + w.xy * 1.3) * stem;
     vec3 top = uGrassEast * top2.x + uGrassNorth * top2.y + uGrassUp * (base + stem);
-    vec3 toCam = normalize(-top), side = normalize(cross(uGrassUp, toCam) + uGrassEast * 1e-4);
-    vec3 col; float sky = 1.0;
+    vec3 toCam = normalize(-top), side = normalize(cross(uGrassUp, toCam) + uGrassEast * 1e-4), fwd = cross(side, uGrassUp);
+    vec3 col, rel; float skyShare = 1.0;
+    float petal = aPart - 1.0 - float(LEAVES);          // which petal (0 .. NPET - 1); NPET: the middle
+    vec3 petalCol = clock ? vec3(0.80, 0.80, 0.76) : petalColour(kind, fract(h2.y + (habit > 1.5 || habit < 0.5 ? petal * 0.37 : 0.0)));
     if (aPart < 0.5) {
-      vRel = mix(foot, top, position.y) + side * position.x * 0.007 * (1.0 + dist * 0.07) * (1.0 - 0.5 * position.y);
-      col = grassColour(0.0, 0.35 + 0.55 * position.y); sky = 0.6 + 0.4 * position.y;
-    } else if (spike > 0.5) {
-      // a spike: the petals one above another down from the tip, left and right in turn, smaller toward the tip
-      float k = aPart - 1.0, sgn = mod(k, 2.0) < 0.5 ? 1.0 : -1.0, shrink = 1.0 - 0.12 * k;
-      vec2 q = aPart > 5.5 ? vec2(0.0, 0.3) : vec2(position.x * 0.9 * sgn + 0.25 * sgn * position.y, -position.y * 0.55 - (4.0 - k) * 0.62) * shrink;
-      vRel = top + (side * q.x + uGrassUp * q.y) * size * 1.5;
-      col = petalColour(kind, h2.y) * (0.8 + 0.25 * position.y);
-    } else {
-      // a cup of five petals, turned up and toward whoever looks
+      // the stem
+      if (habit < 0.5 || habit > 4.5) OUT_OF_PICTURE
+      rel = mix(foot, top, position.y) + side * position.x * 0.007 * (1.0 + dist * 0.07) * (1.0 - 0.5 * position.y);
+      col = grassColour(0.0, 0.35 + 0.55 * position.y); skyShare = 0.6 + 0.4 * position.y;
+    } else if (petal < 0.0) {
+      // a leaf at the foot, out to one side and the other
+      if (habit < 0.5 || habit > 4.5) OUT_OF_PICTURE
+      float a = h.x * 6.2831853 + aPart * 3.3, len = (0.10 + 0.5 * shp.y) * (1.0 + dist * 0.05) * keep;
+      vec3 o = uGrassEast * cos(a) + uGrassNorth * sin(a), across = cross(o, uGrassUp);
+      rel = foot + (o * position.y + across * position.x * 0.22 * (1.0 - position.y)) * len + uGrassUp * (0.02 + 0.7 * len * position.y * (1.0 - 0.4 * position.y));
+      col = grassColour(0.05, 0.3 + 0.4 * position.y); skyShare = 0.6 + 0.3 * position.y;
+    } else if (habit < 0.5) {
+      // turf: each petal a tiny head of its own, low among the blades, anywhere in the cell
+      if (petal > float(NPET) - 0.5) OUT_OF_PICTURE
+      vec2 hp = hash2(cell + petal * 3.17 + 1.3), off = (hp - 0.5) * (1.7 * SPACING);
+      vec3 c = uGrassEast * (rel2.x + off.x) + uGrassNorth * (rel2.y + off.y) + uGrassUp * (base + dot(grad, off) + stem * (0.6 + 0.8 * hp.x));
+      vec3 n = normalize(uGrassUp + toCam * 0.5), a = normalize(cross(n, uGrassEast + uGrassUp * 0.3)), b = cross(n, a);
+      float ang = hp.y * 6.2831853, s = size * 1.6;
+      vec2 q0 = vec2(position.x, position.y - 0.5), q = vec2(q0.x * cos(ang) - q0.y * sin(ang), q0.x * sin(ang) + q0.y * cos(ang));
+      rel = c + (a * q.x + b * q.y) * s;
+      col = petalCol * (0.85 + 0.2 * position.y);
+    } else if (habit < 1.5) {
+      // a cup: its petals round the middle, turned up and toward whoever looks
+      float n = min(shp.w, float(NPET));
+      bool mid = petal > float(NPET) - 0.5;
+      if (!mid && petal > n - 0.5) OUT_OF_PICTURE
       vec3 nrm = normalize(uGrassUp * 0.8 + toCam * 0.55 + (uGrassEast * (h.x - 0.5) + uGrassNorth * (h.y - 0.5)) * 0.6);
       vec3 a = normalize(cross(nrm, uGrassEast + uGrassUp * 0.3)), b = cross(nrm, a);
-      bool mid = aPart > 5.5;
-      float ang = (aPart - 1.0) * 1.2566371 + h.x * 6.2831853, c = cos(ang), s = sin(ang);
-      vec2 q0 = position.xy * (mid ? vec2(0.55, 0.34) : vec2(1.0)) - (mid ? vec2(0.0, 0.17) : vec2(0.0)), q = vec2(q0.x * c - q0.y * s, q0.x * s + q0.y * c);
-      vRel = top + (a * q.x + b * q.y + nrm * (mid ? 0.12 : 0.32 * position.y * position.y)) * size;
-      col = mid ? (abs(kind - 2.0) < 0.5 ? vec3(0.03, 0.02, 0.03) : kind > 6.5 ? vec3(0.85, 0.70, 0.10) : vec3(0.80, 0.52, 0.03)) : petalColour(kind, h2.y) * (0.78 + 0.3 * position.y);
+      float ang = petal * 6.2831853 / n + h.x * 6.2831853, c = cos(ang), s = sin(ang);
+      // (few petals: broad ones that overlap, a poppy's bowl; many: narrow rays, a daisy's)
+      float wx = n < 4.5 ? 1.05 : n < 6.5 ? 0.74 : 3.4 / n, big = shp.y > 0.08 ? 1.15 : 1.0;
+      vec2 q0 = mid ? vec2(position.x * 0.55 * big, position.y * 0.34 * big - 0.17 * big) : vec2(position.x * wx, position.y), q = vec2(q0.x * c - q0.y * s, q0.x * s + q0.y * c);
+      rel = top + (a * q.x + b * q.y + nrm * (mid ? 0.12 : (n < 4.5 ? 0.55 : 0.32) * position.y * position.y)) * size;
+      col = mid ? KIND_MID[ki] : petalCol * (0.78 + 0.3 * position.y);
+    } else if (habit < 2.5) {
+      // a spike: florets one above another up the top of the stem, round it in turn, smaller toward the tip
+      float n = min(shp.w, float(NPET));
+      if (petal > n - 0.5) OUT_OF_PICTURE
+      float t = petal / max(n - 1.0, 1.0), a = petal * 2.39996 + h.x * 6.2831853, s = size * (1.35 - 0.75 * t) * (14.0 / (8.0 + float(NPET)));
+      vec3 c = mix(foot, top, 0.56 + 0.44 * t), o = side * cos(a) + fwd * sin(a);
+      // (a foxglove's bells hang; a lupin's florets stand out and up)
+      float droop = ki == 12 || ki == 22 ? -0.75 : 0.35;
+      rel = c + cross(o, uGrassUp) * (position.x * 0.5 * s) + (o * 0.95 + uGrassUp * droop) * (position.y * s);
+      col = petalCol * (0.75 + 0.35 * position.y);
+    } else if (habit < 3.5) {
+      // an umbel: tiny florets on a flat-topped spray
+      if (petal > float(NPET) - 0.5) OUT_OF_PICTURE
+      vec3 n = normalize(uGrassUp + toCam * 0.35), a = normalize(cross(n, uGrassEast + uGrassUp * 0.3)), b = cross(n, a);
+      float r = sqrt((petal + 0.5) / float(NPET)), ang = petal * 2.39996 + h.x * 6.2831853, s = 0.52 * sqrt(14.0 / float(NPET));
+      vec2 q0 = vec2(position.x, position.y - 0.5) * s, q = vec2(r * cos(ang), r * sin(ang)) + vec2(q0.x * cos(ang) - q0.y * sin(ang), q0.x * sin(ang) + q0.y * cos(ang));
+      rel = top + (a * q.x + b * q.y + n * (0.3 * (1.0 - r))) * size;
+      col = petalCol * (0.82 + 0.2 * position.y);
+    } else if (habit < 4.5) {
+      // a globe: florets standing out all round a ball
+      if (petal > float(NPET) - 0.5) OUT_OF_PICTURE
+      float z = 1.0 - 2.0 * (petal + 0.5) / float(NPET), rr = sqrt(max(0.0, 1.0 - z * z)), ang = petal * 2.39996 + h.x * 6.2831853;
+      vec3 d = side * (rr * cos(ang)) + fwd * (rr * sin(ang)) + uGrassUp * z, e = normalize(cross(d, uGrassUp + side * 0.3));
+      rel = top + (d * (0.1 + 0.9 * position.y) + e * (position.x * 0.62 * (1.0 - position.y))) * size * (clock ? 1.25 : 1.0);
+      col = petalCol * (0.7 + 0.4 * position.y);
+    } else {
+      // a cushion: a low mound on the ground, green shards and flowered ones in turn
+      if (petal > float(NPET) - 0.5) OUT_OF_PICTURE
+      float z = (petal + 0.5) / float(NPET), rr = sqrt(1.0 - z * z), ang = petal * 2.39996 + h.x * 6.2831853, R = size * (1.0 + 0.5 * h2.y);
+      vec3 d = uGrassEast * (rr * cos(ang)) + uGrassNorth * (rr * sin(ang)) + uGrassUp * z, e = normalize(cross(d, uGrassUp + uGrassEast * 0.3)), f = cross(d, e);
+      vec2 q = vec2(position.x, position.y - 0.4) * 0.95;
+      rel = foot + (d * vec3(1.0) + e * q.x + f * q.y) * R - uGrassUp * (0.55 * R * dot(d, uGrassUp)) + (uGrassEast * grad.x + uGrassNorth * grad.y) * 0.0;
+      bool green = mod(petal, 2.0) < 0.5;
+      col = green ? KIND_MID[ki] * (0.8 + 0.5 * z) : petalCol * (0.8 + 0.25 * position.y);
+      skyShare = 0.6 + 0.4 * z;
     }
-    vAlb = vec4(col, sky);
-    gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
+    vec3 sun, sky, air; lightAt(at, sun, sky, air);
+    // (a petal toward the Sun glows as a blade does)
+    vCol = col * (sun * (1.0 + 0.5 * pow(max(dot(normalize(rel), uSunDir), 0.0), 3.0)) + sky * skyShare) + air;
+    gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
   }`;
 
-// A clump: one card standing on the ground, turned to the camera (and leaning back toward
-// it as one looks down from higher up), showing as much of the picture as it is wide.
-const CLUMP_VERT = /* glsl */`
-  in vec2 aCorner;                   // x across the card (-1..1), y up it (0..1)
-  uniform sampler2D tTable; uniform vec4 uTab;
-  ${PRELUDE}
-  ${FLOWERS_GLSL}
-  ${TREE_SHADE_VERT}
-  uniform vec4 uWeather;
-  uniform sampler2D tLandShade; uniform vec4 uLandShade;   // the land's own shadow round the traveller: xy its middle from the anchor (m), z 1 / its span, w 1 when there is one
-  out float vCloud;                  // the cloud between this clump and the Sun (1: none)
-  out vec3 vUv;                      // the picture (u, v), and how far across the card (-1..1)
-  out vec3 vFoot, vTip; out vec4 vFlower; out vec4 vSlope; out float vEven;
-  void main() {
-    vec2 cell, rc = latticeCell(cell), h = hash2(cell), h2 = hash2(cell + 17.31);
-    vec2 rel2 = rc + (h - 0.5) * 0.98 * SPACING, at = rel2 + uGrassCam.xy;
-    float dist = length(rel2);
-    // (this field's ring: in over IN0..IN1, out over OUT0..OUT1; the traveller's height; the governor)
-    float ring = smoothstep(IN0, IN1, dist) * (1.0 - smoothstep(OUT0, OUT1, dist)) * uGrassKeep.y;
-    if (ring <= 0.0) OUT_OF_PICTURE
-    vec4 g = tableAt(tTable, uTab, at);
-    float keep = step(h.y, g.g * 1.15) * keepOf(ring, h2.x);
-    if (keep <= 0.0) OUT_OF_PICTURE
-    float lie = lieAt(at), base = groundUp(g, at);
-    // (the lie of the ground under the clump, from the table)
-    vec2 fc = floor((at + uTab.xy) / uTab.z);
-    float h00 = texelFetch(tTable, ivec2(mod(fc, uTab.w)), 0).r;
-    vec2 dh = (vec2(texelFetch(tTable, ivec2(mod(fc + vec2(1.0, 0.0), uTab.w)), 0).r, texelFetch(tTable, ivec2(mod(fc + vec2(0.0, 1.0), uTab.w)), 0).r) - h00) / uTab.z;
-    vec3 nrm = normalize(uGrassUp - uGrassEast * dh.x - uGrassNorth * dh.y);
-    vec3 foot = uGrassEast * rel2.x + uGrassNorth * rel2.y + uGrassUp * base, toCam = normalize(-foot);
-    // How squarely the ground is looked at here: from above, or a hillside that faces the
-    // eye at a level gaze (judged by the world's up alone, such a hillside was hatched with
-    // level dashes in rows). The more squarely, the lower a clump stands and the more it is
-    // the ground's own colour with a tufted edge.
-    float rise = clamp(max(dot(toCam, uGrassUp), dot(toCam, nrm)), 0.0, 1.0);
-    // (looked at squarely from farther than some 60 m a clump adds nothing: the ground wears
-    // the grass there, and the card was a scratch on it. They go one by one, by chance,
-    // over a band of that measure and of distance; clumps stay where the ground is seen at
-    // a grazing angle, the level steppe and a brow against the sky, where they do their work.)
-    float square = smoothstep(0.22, 0.5, rise);
-    if (hash2(cell + 3.7).y < square * smoothstep(40.0, 90.0, dist) * 1.02) OUT_OF_PICTURE
-    float tall = TALL * (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) * (0.85 + 0.3 * lie) * (0.8 + 0.4 * h2.y) * keep * (1.0 - 0.45 * smoothstep(0.15, 0.6, rise));
-    float wide = WIDE * (0.45 + 1.1 * h.x * h.x) * uGrassKeep.w * keep;
-    // (behind the camera or far off the side of the picture: nothing to draw)
-    vec4 cc = projectionMatrix * viewMatrix * vec4(foot + uGrassUp * (0.5 * tall), 1.0);
-    float m = wide + tall;
-    // (smaller than a pixel and a half on the screen: not drawn, where it was a one-pixel dash)
-    if (tall * abs(projectionMatrix[1][1]) * uGrassView < 1.5 * cc.w) OUT_OF_PICTURE
-    if (cc.w < -m || abs(cc.x) > cc.w + m * (1.0 + projectionMatrix[0][0]) || abs(cc.y) > cc.w + m * (1.0 + abs(projectionMatrix[1][1]))) OUT_OF_PICTURE
-    vec3 flat3 = toCam - uGrassUp * dot(toCam, uGrassUp);
-    float fl = length(flat3); flat3 = fl > 1e-4 ? flat3 / fl : uGrassNorth;
-    // (turned a little its own way: cards all square to the eye were a hatching of level strokes from above)
-    float yaw = (h2.y - 0.5) * 1.3;
-    vec3 side = cross(uGrassUp, flat3) * cos(yaw) + flat3 * sin(yaw);
-    // (and rolled a little its own way where the ground is looked at squarely: no two dashes level)
-    float roll = (h.x - 0.5) * 1.4 * smoothstep(0.1, 0.5, rise);
-    side = side * cos(roll) + uGrassUp * sin(roll);
-    vec3 cup = normalize(uGrassUp + flat3 * rise * 2.0);
-    vec3 w = windAt(foot, h.x);
-    float y = aCorner.y;
-    vRel = foot + side * (aCorner.x * 0.5 * wide) + cup * (y * tall) + (uGrassEast * w.x + uGrassNorth * w.y) * (tall * 1.4 * y * y);
-    vUv = vec3((aCorner.x * 0.5 + 0.5) * wide / (4.0 * tall / ${(PIC_W / PIC_H / 4).toFixed(3)}) + h2.x * 7.0, y, aCorner.x);
-    float dry = dryHere(g.b) + (h.x - 0.5) * 0.16 - mix(0.10, 0.2, smoothstep(30.0, 120.0, dist)) * lie, shade = (0.85 + 0.3 * h2.y) * (0.92 + 0.12 * lie) * (0.94 + 0.12 * w.z);
-    shade = mix(shade, 1.0, 0.8 * smoothstep(0.05, 0.35, rise));
-    vFoot = grassColour(dry, 0.0) * shade; vTip = grassColour(dry, 1.0) * shade;
-    // (flowers: the drift this clump stands in says what kind and how many clumps carry some)
-    float fk = tableNearest(tTable, uTab, at).a, kind = floor(fk + 0.001);
-    // (fewer heads show from above and far off: grass with a dusting, and no band of colour along the skyline)
-    vFlower = vec4(petalColour(kind, h.y), step(0.5, kind) * step(hash2(cell + 5.1).x, fract(fk + 0.001) * 0.6) * (1.0 - 0.5 * rise) * (1.0 - 0.7 * smoothstep(60.0, 400.0, dist)));
-    // (the lie of the ground under the clump, from the table: far off a clump takes the
-    // light of the slope it stands on, as the ground between the clumps does. Lit as level
-    // ground, a hillside turned from the Sun was bright scales on a dark slope.)
-    vSlope = vec4(nrm, max(smoothstep(12.0, 45.0, dist), square));       // (seen squarely: the ground's own light at any distance)
-    // (looked down on, or far off, a clump is the ground's own grass colour with a tufted
-    // edge: its dark foot showing from above was a field of dark specks that ended in an arc)
-    // (the clouds' shadow where the clump stands, by the ground's own rule: with the shade at
-    // the traveller for every clump, stepping under a cloud dimmed half a kilometre of grass
-    // on sunlit ground. Close by it is the traveller's, as the blades have it.)
-    vCloud = mix(uWeather.x, cloudShade(foot), smoothstep(30.0, 120.0, dist));       // (from the map of it: life/treeShade.js)
-    // (and the land's: a ridge between the clump and the Sun. Beyond the shadow maps the
-    // clumps of a meadow in a ridge's shadow stood sunlit on dark ground.)
-    vCloud *= mix(1.0, texture(tLandShade, (at - uLandShade.xy) * uLandShade.z + 0.5).r, uLandShade.w * smoothstep(30.0, 120.0, dist));
-    vEven = 0.9 * max(smoothstep(0.05, 0.35, rise), smoothstep(120.0, 420.0, dist));
-    vAlb = vec4(0.0, 0.0, 0.0, 1.0);
-    gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
-  }`;
-
-const FRAG = /* glsl */`${LIGHTING_PARS}
-  in vec3 vRel; in vec4 vAlb;
+// Nothing is worked out per pixel: a blade's three corners carry its colour.
+const FRAG = /* glsl */`
+  in vec3 vCol;
   layout(location = 0) out vec4 fragColor;
-  vec3 grassLit(vec3 alb, float skyShare, vec4 slope, float cloud) {
-    vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos);
-    // (a field is lit as the ground it stands on: by the Sun's height over it, in the shade of whatever stands near)
-    float nl = dot(up, uSunDir), lit = uPaint.x > 0.0 ? paintLit(nl * 0.7 + 0.3) * PI : max(nl, 0.0);
-    // (slope: the ground's own lie and how much of its light the grass takes)
-    if (slope.w > 0.0) { float ns = dot(slope.xyz, uSunDir); lit = mix(lit, uPaint.x > 0.0 ? paintLit(ns) * PI : max(ns, 0.0), slope.w); }
-    vec3 col = alb * (directSun(planetPos) * cloud * nearShadow(vRel + up * 0.15, up) * lit + skyLight(up, up) * skyShare) / PI;
-    return aerialPerspective(col, vRel);
-  }
-  #ifdef CLUMP
-  uniform sampler2D tClump;
-  in vec3 vUv; in vec3 vFoot, vTip; in vec4 vFlower; in vec4 vSlope; in float vEven; in float vCloud;
+  void main() { fragColor = vec4(vCol, 1.0); }`;
+
+// --- the light on the ground round the traveller. Every blade once worked its own light
+// out pixel by pixel: the Sun through the air, three shadows, the sky's light, the haze
+// between it and the eye, some twenty looks into textures for each of the layers of grass
+// over a pixel. Here it is worked out once for a small table of places on the ground,
+// before the main picture is begun: for each ring LIGHT_N x LIGHT_N places over its
+// stretch (the nearest 14 cm apart, the farthest 12 m), three numbers each (see lightAt).
+// A blade reads it at its foot. The places are fixed to the ground (their middle moves in
+// whole places), so a shadow's edge does not crawl as the traveller walks.
+const LIGHT_FRAG = /* glsl */`
+  ${LIGHTING_PARS}
+  ${TREE_SHADE_VERT}
+  ${TABLE_GLSL}
+  uniform sampler2D tNear, tMid, tFar; uniform vec4 uTabNear, uTabMid, uTabFar;
+  uniform vec4 uCasc[${RINGS.length}];     // each ring's stretch: xy its middle from the anchor (m), z its span (m), w which table
+  uniform vec3 uGrassCam, uGrassEast, uGrassNorth, uGrassUp; uniform vec2 uGrassCurve;
+  uniform sampler2D tLandShade; uniform vec4 uLandShade;   // the land's own shadow round the traveller: xy its middle from the anchor (m), z 1 / its span, w 1 when there is one
+  uniform mat4 uViewProj;
+  layout(location = 0) out vec4 fragColor;
   void main() {
-    vec4 p = texture(tClump, vUv.xy);
-    // (the card's ends rounded off; and the cut kept as sharp far off as near, where the
-    // picture's coarser levels hold less cover per texel)
-    float e = abs(vUv.z) / (1.0 - 0.45 * vUv.y), cov = p.r * (1.0 - smoothstep(0.55, 1.0, e)) * (1.0 - p.b * (1.0 - vFlower.a));
-    vec2 tp = vUv.xy * vec2(${PIC_W}.0, ${PIC_H}.0);
-    float lod = 0.5 * log2(max(dot(dFdx(tp), dFdx(tp)), dot(dFdy(tp), dFdy(tp))));
-    cov *= 1.0 + 0.28 * clamp(lod, 0.0, 5.0);
-    if (cov < 0.5) discard;
-    float tone = mix(p.g, 0.62, vEven);
-    vec3 alb = mix(vFoot, vTip, tone);
-    alb = mix(alb, vFlower.rgb, p.b * vFlower.a);
-    fragColor = vec4(grassLit(alb, 0.55 + 0.45 * tone, vSlope, vCloud) * uExposure, 1.0);
-  }
-  #else
-  void main() { fragColor = vec4(grassLit(vAlb.rgb, vAlb.a, vec4(0.0), 1.0) * uExposure, 1.0); }
-  #endif`;
+    float third = floor(gl_FragCoord.x / ${LIGHT_N}.0), row = floor(gl_FragCoord.y / ${LIGHT_N}.0);
+    vec4 c = uCasc[int(row)];
+    vec2 at = c.xy + ((gl_FragCoord.xy - vec2(third, row) * ${LIGHT_N}.0) / ${LIGHT_N}.0 - 0.5) * c.z, rel2 = at - uGrassCam.xy, grad;
+    vec4 g = c.w < 0.5 ? tableAt(tNear, uTabNear, at, grad) : c.w < 1.5 ? tableAt(tMid, uTabMid, at, grad) : tableAt(tFar, uTabFar, at, grad);
+    float dist = length(rel2);
+    vec3 rel = uGrassEast * rel2.x + uGrassNorth * rel2.y + uGrassUp * (g.r + uGrassCurve.x - dot(at, at) * uGrassCurve.y - uGrassCam.z + 0.15);
+    vec3 planetPos = uCamPlanetPos + rel, up = normalize(planetPos);
+    // (a field is lit as the ground it stands on: by the Sun's height over it close by, where
+    // the blades are seen one by one; farther off by the lie of its slope, as the ground
+    // between the blades is. Lit as level ground, a far hillside turned from the Sun was
+    // bright scales on a dark slope.)
+    float nl = dot(up, uSunDir), lit = uPaint.x > 0.0 ? paintLit(nl * 0.7 + 0.3) * PI : max(nl, 0.0);
+    float ns = dot(normalize(uGrassUp - uGrassEast * grad.x - uGrassNorth * grad.y), uSunDir);
+    lit = mix(lit, uPaint.x > 0.0 ? paintLit(ns) * PI : max(ns, 0.0), smoothstep(12.0, 45.0, dist));
+    // (the clouds' shadow where the grass stands, by the ground's own rule, and the land's:
+    // a ridge between it and the Sun. Close by, the shade at the traveller.)
+    float far = smoothstep(30.0, 120.0, dist);
+    float cloud = mix(uWeather.x, cloudShade(rel), far) * mix(1.0, texture(tLandShade, (at - uLandShade.xy) * uLandShade.z + 0.5).r, uLandShade.w * far);
+    vec3 sun = directSun(planetPos) * (cloud * nearShadow(rel, up) * lit / PI), sky = skyLight(up, up) / PI;
+    // (the air between: what it adds, and how much of the thing's own light it lets through)
+    vec4 clip = uViewProj * vec4(rel, 1.0);
+    gHazeUv = clip.w > 0.0 ? clamp(clip.xy / clip.w * 0.5 + 0.5, 0.0, 1.0) : vec2(0.5);
+    vec3 air = aerialPerspective(vec3(0.0), rel), through = aerialPerspective(vec3(1.0), rel) - air;
+    fragColor = vec4((third < 0.5 ? sun * through : third < 1.5 ? sky * through : air) * uExposure, 1.0);
+  }`;
 
 // --- the ground tables
 class Table {
@@ -428,11 +492,10 @@ export class Grass {
       ...lightingUniforms(),
       uGrassCam: { value: new THREE.Vector3() }, uGrassCurve: { value: new THREE.Vector2() }, uGrassLie: { value: new THREE.Vector2() },
       uGrassEast: { value: new THREE.Vector3(1, 0, 0) }, uGrassNorth: { value: new THREE.Vector3(0, 1, 0) }, uGrassUp: { value: new THREE.Vector3(0, 0, 1) },
-      uGrassWind: wind, uGrassWave: this.waveU, uGrassKeep: { value: new THREE.Vector4(1, 1, 1, 1) }, uGrassView: { value: 500 }, uGrassTone: terrain.shared.uGrassTone,
+      uGrassWind: wind, uGrassWave: this.waveU, uGrassKeep: { value: new THREE.Vector4(1, 1, 1, 1) }, uGrassGov: { value: new THREE.Vector2(1, 1) }, uGrassView: { value: 500 }, uGrassTone: terrain.shared.uGrassTone,
     };
-    this.clumpTex = makeClumpPicture();
     // The land's own shadow on the ground round the traveller (a mountain between a place
-    // and the Sun), for the clumps: SHADE_N x SHADE_N places SHADE_CELL apart, asked of the
+    // and the Sun), for the far grass: SHADE_N x SHADE_N places SHADE_CELL apart, asked of the
     // shadow baker in one worker job when the traveller has gone SHADE_MOVE from its middle,
     // the Sun has turned a degree and a half or maps have arrived. Sunlit until the first answer.
     this.shade = new Uint8Array(SHADE_N * SHADE_N).fill(255);
@@ -441,35 +504,54 @@ export class Grass {
     this.shadeU = { value: new THREE.Vector4(0, 0, 1 / (SHADE_N * SHADE_CELL), 0) };
     this._shade = null; this._shadeAsking = false; this._shadeNew = null;
     this._seen = new Float64Array(32);
-    // a field: one tuft (or flower, or clump) of triangles, drawn once for every place of its lattice
-    const field = (f, geo, vertexShader, own, defines, tris) => {
+    // The light on the ground (see LIGHT_FRAG): one picture, a row for each ring, three parts across.
+    this.light = new THREE.WebGLRenderTarget(LIGHT_N * 3, LIGHT_N * RINGS.length, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, stencilBuffer: false, generateMipmaps: false });
+    this.light.texture.wrapS = this.light.texture.wrapT = THREE.ClampToEdgeWrapping;
+    this.casc = RINGS.map(() => new THREE.Vector4());
+    this.lightU = RINGS.map((r, k) => ({ value: new THREE.Vector4(0, 0, 1, k) }));
+    const T = this.tables;
+    this.lightMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3, depthTest: false, depthWrite: false, vertexShader: 'void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: LIGHT_FRAG,
+      defines: { ...atmosphereDefines(), OWN_CLOUD_SHADOW: 1, HAZE_UV: 1 },
+      uniforms: { ...this.shared, ...TREE_SHADE_UNIFORMS, tNear: { value: T.near.tex }, tMid: { value: T.mid.tex }, tFar: { value: T.far.tex }, uTabNear: T.near.info, uTabMid: T.mid.info, uTabFar: T.far.info,
+        uCasc: { value: this.casc }, tLandShade: { value: this.shadeTex }, uLandShade: this.shadeU, uViewProj: { value: new THREE.Matrix4() } },
+    });
+    // a field: one cell's triangles, drawn once for every place of its lattice
+    const field = (f, geo, vertexShader, defines, tris, light) => {
       geo.instanceCount = f.grid * f.grid;
-      const lat = { value: new THREE.Vector2() };
+      const lat = { value: new THREE.Vector2() }, t = this.tables[f.table];
       const material = new THREE.ShaderMaterial({
-        glslVersion: THREE.GLSL3, side: THREE.DoubleSide, uniforms: { ...this.shared, ...own, uLatOrigin: lat }, vertexShader, fragmentShader: FRAG,
-        defines: { ...atmosphereDefines(), GRID: f.grid, SPACING: f.spacing.toFixed(3), BOX: (f.grid * f.spacing).toFixed(2), SEED: f.seed.toFixed(1), WIDE: (f.wide || 0).toFixed(4), ...defines },
+        glslVersion: THREE.GLSL3, side: THREE.DoubleSide, vertexShader, fragmentShader: FRAG,
+        uniforms: { ...this.shared, uLatOrigin: lat, tTable: { value: t.tex }, uTab: t.info, tLight: { value: this.light.texture }, uLight: this.lightU[light] },
+        defines: { GRID: f.grid, SPACING: f.spacing.toFixed(4), BOX: (f.grid * f.spacing).toFixed(3), SEED: f.seed.toFixed(1), OUT0: f.out[0].toFixed(2), OUT1: f.out[1].toFixed(2), ...defines },
       });
       const mesh = new THREE.Mesh(geo, material); mesh.frustumCulled = false;
       return { f, geo, mesh, lat, all: f.grid * f.grid, tris };
     };
-    const near = { tGrass: { value: this.tables.near.tex }, uTabNear: this.tables.near.info };
     const plain = (pos, attr, values) => { const g = new THREE.InstancedBufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3)); g.setAttribute(attr, new THREE.BufferAttribute(new Float32Array(values), 1)); return g; };
-    // a tuft: each blade a triangle; x: across the blade (-1, 1, 0 at the tip), y: up it, and which blade it is
-    const tuft = (f) => { const p = [], b = []; for (let i = 0; i < f.blades; i++) { p.push(-1, 0, 0, 1, 0, 0, 0, 1, 0); b.push(i, i, i); } return field(f, plain(p, 'aBlade', b), GRASS_VERT, near, { OUT0: f.out[0].toFixed(2), OUT1: f.out[1].toFixed(2) }, f.blades); };
-    // a flower: the stem as a blade, each petal a triangle from the middle outward (x across, y out), the middle a triangle
-    const flower = (f) => { const p = [-1, 0, 0, 1, 0, 0, 0, 1, 0], b = [0, 0, 0]; for (let i = 1; i <= 6; i++) { p.push(0, 0, 0, -0.62, 1, 0, 0.62, 1, 0); b.push(i, i, i); } return field(f, plain(p, 'aPart', b), FLOWER_VERT, near, { OUT0: f.out[0].toFixed(2), OUT1: f.out[1].toFixed(2) }, 7); };
-    // a clump: one card, two triangles
-    const clump = (f) => {
-      const g = new THREE.InstancedBufferGeometry();
-      g.setAttribute('aCorner', new THREE.BufferAttribute(new Float32Array([-1, 0, 1, 0, 1, 1, -1, 1]), 2));
-      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(12), 3));       // (three wants one; the shader does not read it)
-      g.setIndex([0, 1, 2, 0, 2, 3]);
-      const t = this.tables[f.table];
-      return field(f, g, CLUMP_VERT, { tTable: { value: t.tex }, uTab: t.info, tClump: { value: this.clumpTex }, ...TREE_SHADE_UNIFORMS, tLandShade: { value: this.shadeTex }, uLandShade: this.shadeU },
-        { CLUMP: 1, OWN_CLOUD_SHADOW: 1, IN0: f.in[0].toFixed(2), IN1: f.in[1].toFixed(2), OUT0: f.out[0].toFixed(2), OUT1: f.out[1].toFixed(2), TALL: f.tall.toFixed(3) }, 2);
+    // a ring of grass: each blade a triangle; x: across the blade (-1, 1, 0 at the tip), y: up it, and which blade it is
+    const ring = (f, k) => {
+      const p = [], b = []; for (let i = 0; i < f.blades; i++) { p.push(-1, 0, 0, 1, 0, 0, 0, 1, 0); b.push(i, i, i); }
+      const d = { BLADES: f.blades, WIDE: f.wide.toFixed(4), GROW: f.grow.toFixed(4), TALL: f.tall.toFixed(3), YAW: f.yaw.toFixed(2), BACK: f.back.toFixed(2), REACH: f.reach.toFixed(1), KEEP: f.far ? 'uGrassKeep.y' : 'uGrassKeep.x', GOV: f.far ? '(uGrassGov.y * uGrassKeep.w)' : 'uGrassGov.x' };
+      if (f.in) { d.IN0 = f.in[0].toFixed(2); d.IN1 = f.in[1].toFixed(2); }
+      if (f.far) d.FAR = 1;
+      return field(f, plain(p, 'aBlade', b), BLADE_VERT, d, f.blades, k);
     };
-    this.fields = [tuft(NEAR), tuft(FAR), flower(FLOWERS)];
-    this.clumps = CLUMPS.map((f) => clump({ ...f, wide: f.wide }));
+    // a flower: the stem as a blade, leaves, each petal a triangle from the middle outward (x across, y out), the middle a triangle
+    const flower = (f) => {
+      const p = [-1, 0, 0, 1, 0, 0, 0, 1, 0], b = [0, 0, 0], n = f.leaves + f.petals + 1;
+      for (let i = 1; i <= n; i++) { if (i <= f.leaves) p.push(-1, 0, 0, 1, 0, 0, 0, 1, 0); else p.push(0, 0, 0, -0.62, 1, 0, 0.62, 1, 0); b.push(i, i, i); }
+      const d = { NPET: f.petals, LEAVES: f.leaves, FGROW: f.grow.toFixed(4) };
+      if (f.in) { d.IN0 = f.in[0].toFixed(2); d.IN1 = f.in[1].toFixed(2); }
+      return field(f, plain(p, 'aPart', b), FLOWER_VERT, d, n + 1, f.light);
+    };
+    // (fields: what goes with the traveller's height first, the grass near by and the flowers;
+    // clumps: the far grass, which stays to a greater height and has the governor's step of its own.
+    // Nearest first: what is in front is drawn first, and hides what is behind before it is filled.)
+    this.rings = RINGS.map(ring);
+    this.flowers = FLOWERS.map(flower);
+    this.fields = [...this.rings.filter((r) => !r.f.far), ...this.flowers];
+    this.clumps = this.rings.filter((r) => r.f.far);
     this.mesh = new THREE.Group(); for (const f of [...this.fields, ...this.clumps]) this.mesh.add(f.mesh);
     this.mesh.visible = false;
     this.anchor = new THREE.Vector3(); this.anchorR = 0; this.has = false; this.def = null; this.serial = -1; this.gen = 0;
@@ -479,7 +561,7 @@ export class Grass {
     this.keepBlades = 0; this.keepClumps = 0;
   }
 
-  setWorld(world) { this.def = world.life?.grass || null; this.has = false; this.mesh.visible = false; this.seaLevel = world.surface.sea ? (world.surface.sea.level ?? 0) : null; }
+  setWorld(world) { this.def = world.life?.grass || null; this.flowerTable = flowerTable(world.life?.flowers, world.life?.trees?.line || null); this.has = false; this.mesh.visible = false; this.seaLevel = world.surface.sea ? (world.surface.sea.level ?? 0) : null; }
 
   // The governor: draw this share of the tufts and flowers ...
   setFraction(f) { this.fraction = f; for (const fl of this.fields) fl.geo.instanceCount = Math.round(fl.all * Math.min(1, f)); }
@@ -513,9 +595,13 @@ export class Grass {
     const D = T.data;
     D[o] = h; D[o + 1] = amount; D[o + 2] = DRY[cls] ?? 0.5;
     // the flowers: the kinds of this land, in drifts (grassRules.js: the far ground has the same)
-    const R = hs.radius + h, flora = floraAt(cls, Math.abs(Math.asin(d[2])) * 57.29578, h, amount);
-    D[o + 3] = flora ? flowersAt(d[0] * R, d[1] * R, d[2] * R, flora) : 0;
+    // (the low kinds of the turf only where single flowers are drawn: the near table)
+    const R = hs.radius + h, flora = floraAt(cls, Math.abs(Math.asin(d[2])) * 57.29578, h, amount, this.flowerTable);
+    D[o + 3] = flora ? flowersAt(d[0] * R, d[1] * R, d[2] * R, flora, slope, T === this.tables.near) : 0;
     T.flora[o >> 2] = flora;
+    // (?debug=flowers: every kind there is, each in its own slice of the compass round where the
+    // grass began, thick: scripts/flower-preview.mjs takes pictures of them side by side)
+    if (this.debugKinds && amount > 0.1) D[o + 3] = 1 + Math.min(KINDS.length - 2, Math.floor(((Math.atan2(i * cell, j * cell) / (2 * Math.PI) + 1) % 1) * (KINDS.length - 1))) + 0.9;
   }
 
   // The land's shadow for the clumps (see the constructor). ce, cn: the traveller on the plane.
@@ -581,6 +667,15 @@ export class Grass {
     this.origin[0] += se; this.origin[1] += sn;
   }
 
+  // The light on the ground round the traveller, for this frame: before the main picture is
+  // begun (after the shadow maps and the clouds' shade are made).
+  renderLight(renderer, camera) {
+    if (!this.mesh.visible) return;
+    camera.updateMatrixWorld();
+    this.lightMat.uniforms.uViewProj.value.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    renderPass(renderer, this.lightMat, this.light);
+  }
+
   // Every frame. rig: the camera rig; dt (s); renderer (the tables go to the GPU between frames).
   update(rig, dt, renderer) {
     const def = this.def, t = this.terrain, tone = t.shared.uGrassTone.value;
@@ -630,6 +725,7 @@ export class Grass {
     }
     S.uGrassView.value = 0.5 * renderer.getDrawingBufferSize(this._size || (this._size = new THREE.Vector2())).y;
     S.uGrassKeep.value.set(kb, kc, this.midShare, 1 / Math.sqrt(Math.max(0.25, this.midShare)));
+    S.uGrassGov.value.set(Math.min(1, this.fraction), Math.min(1, this.midShare));
     for (const f of this.fields) f.mesh.visible = kb > 0;
     for (const f of this.clumps) f.mesh.visible = kc > 0 && this.midShare > 0;
     // The tables: every entry should hold the place nearest the camera among those it
@@ -649,7 +745,13 @@ export class Grass {
       if (T.changed) { T.changed = false; T.tex.needsUpdate = true; renderer.initTexture(T.tex); if (k === 'mid') this._toneDirty = true; }
     }
     this._landShadow(ce, cn, kc, renderer);
-    if (!this._clumpUp) { renderer.initTexture(this.clumpTex); this._clumpUp = true; }
+    // The light table's stretches: each ring's, its middle on a place of its own grid nearest the traveller.
+    RINGS.forEach((r, k) => {
+      const span = 2 * r.out[1] + 6 * r.spacing + 2, cell = span / LIGHT_N;
+      const x = Math.round((ce + this.origin[0]) / cell) * cell - this.origin[0], y = Math.round((cn + this.origin[1]) / cell) * cell - this.origin[1];
+      this.casc[k].set(x, y, span, r.table === 'near' ? 0 : r.table === 'mid' ? 1 : 2);
+      this.lightU[k].value.set(x, y, 1 / span, k);
+    });
     // What the ground under and beyond the grass should wear: the grass of the middle field
     // (its mean dryness and how much of it there is), and the flowers that grow most here.
     if (this._toneDirty) {

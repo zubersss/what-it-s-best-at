@@ -215,16 +215,16 @@
     "move": "haven_climb",
     "pass": "settled",
     "station": 1,
-    "changed": 19.16,
-    "flicker": 1.658,
-    "worst": 164
+    "changed": 33.33,
+    "flicker": 4.002,
+    "worst": 138
   },
   {
     "move": "haven_climb",
     "pass": "settled",
     "station": 2,
-    "changed": 0,
-    "flicker": 0,
-    "worst": 2
+    "changed": 19.02,
+    "flicker": 1.623,
+    "worst": 116
   }
 ]
