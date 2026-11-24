@@ -45,6 +45,14 @@ transcript, the numbers that matter here):
   leaves are what a forest costs; (4) the grass is dear for what it shows; (5) the
   character's 2 to 3 ms of page work is paid everywhere.
 
+**The owner, an hour later (2026-11-24): "We can do 30 fps if the game looks much more
+beautiful as well which I would like more."** So the aim on the phone is a steady 30 with
+a sharp, rich picture, not 60: Sharp becomes the default mode (`CLAUDE.md`, "Resolution
+and the governor"), a frame has 33 ms, and what the speed work frees is spent on beauty
+and on resolution. The helpers were told (the briefs' "cost less than today" becomes "a
+steady 30 at a sharp picture; spend what is freed on the look"); the next benchmark is
+asked for in Sharp.
+
 **The plan** (one delivery; the helpers again, on the owner's word):
 1. and 2. *Helper, speed* (`docs/briefs/phone-speed.md`; the phone's whole text is
    `docs/benchmarks/2026-11-24-haven-6ac24ff.txt`): the ground's shader several times

@@ -103,8 +103,11 @@ they have served it well; they are no longer rules.
   (3088 × 1440 on the phone). The governor keeps the frame rate: it lowers resolution
   when pixels are what is slow, lets terrain in more slowly or draws fewer patches when
   the page's own work is what is slow, then steps features down in a fixed order, and
-  steps back up when there is sustained headroom. Two modes on a button: **Smooth**
-  (60 fps, the default) and **Sharp** (30 fps, favouring detail and native resolution).
+  steps back up when there is sustained headroom. Two modes on a button: **Sharp**
+  (30 fps, favouring detail and native resolution; **the default since 2026-11-24**, the
+  owner's word after the ninth benchmark: "We can do 30 fps if the game looks much more
+  beautiful as well which I would like more") and **Smooth** (60 fps). "Without lag" is
+  then a steady 30: no frame late against 33 ms, and beauty before frame rate.
 - **No fixed budgets**: pools stay fixed-size so memory cannot creep; the phone's
   benchmark is the judge.
 - **Expensive effects** (anti-aliasing, soft shading in creases, clouds, reflections and
