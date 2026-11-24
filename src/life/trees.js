@@ -225,7 +225,7 @@ export class Trees {
           // (bark is dark: a fir's or a pine's trunk in the Sun is grey-brown to red-brown, never a
           // pale peeled pole; only the pale trunks, birch and aspen, keep their tone)
           float paleT = step(0.4, dot(vTrunkC, vec3(0.333)));
-          vec3 albedo = wood ? (card || vLeaf > 0.1 ? twigC : vTrunkC * mix(0.22, 0.6, paleT)) : leafC;
+          vec3 albedo = wood ? (card || vLeaf > 0.1 ? twigC : vTrunkC * mix(0.28, 0.6, paleT)) : leafC;
           // (bark near by: furrows running up the trunk, wandering a little; and a trunk is
           // round even in the shade of the wood, where no light says so: darker toward its edges)
           // Bark, by rule, on the tubes' own coordinates (vUv.x: -2 - furrows round the tube,

@@ -19,8 +19,10 @@ export function overdraw(app, part) {
     if (!(o.isMesh || o.isPoints) || !shown(o) || !o.material?.fragmentShader) return;
     let m = mats.get(o.material);
     if (!m) {
-      m = o.material.clone(); m.uniforms = o.material.uniforms;          // (the very uniforms: where things are this frame)
-      m.fragmentShader = o.material.fragmentShader.replace(/fragColor\s*=\s*[^;]+;/g, 'fragColor = vec4(1.0 / 255.0);');
+      // (the very uniforms: where things are this frame; a new material, not a clone: cloning copies every uniform)
+      const src = o.material;
+      m = new THREE.ShaderMaterial({ glslVersion: src.glslVersion, defines: src.defines, uniforms: src.uniforms, vertexShader: src.vertexShader, side: src.side,
+        fragmentShader: src.fragmentShader.replace(/fragColor\s*=\s*[^;]+;/g, 'fragColor = vec4(1.0 / 255.0);') });
       m.blending = THREE.CustomBlending; m.blendSrc = THREE.OneFactor; m.blendDst = THREE.OneFactor; m.blendEquation = THREE.AddEquation;
       m.transparent = true; m.depthTest = false; m.depthWrite = false; mats.set(o.material, m); made.push(m);
     }
