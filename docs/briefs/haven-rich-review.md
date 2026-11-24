@@ -47,6 +47,28 @@ Severity is high. The player sees it in normal play: walking through the opening
 
 One part of the scenario is not new: from the air, the ring where near trees become cards jumping by 25 m at each rebuild was already so with 115 m.
 
+**Second look.** The claim holds, and the player sees it more than the report says. In src/life/trees.js, update() at line 449 rebuilds only on `dirty` or after REBUILD_M = 25 m of travel. _build (460-477) measures d2 from `A = this.anchor.copy(p)`, and line 489 picks the mesh from that d2. Nothing in the vertex shader picks the mesh again: treeCull only cuts at uTreeRadius and at `edge`. With CLOSE_M = 20 and NEAR_M = 60 (line 27), no tree near the eye is sure of the close mesh. The near mesh is a different make (treeGeometry.js `bunch` against `twigs`): the same spray pictures on 2.5-4 m cards, no twigs, no flare. On the phone (48 degrees vertical, 1440 px), a tree 10 m off is about 160 px a metre, so the leaves look two to three times too big.
+
+Through my lens, a walker looks forward, and the anchor lies behind. My replay (scratchpad/review/lodview.mjs) uses 7 m spacing as in haven.js, 4.5 m/s and a view 50 degrees either side:
+- Of the trees in view within 20 m, 71 % are the near mesh, not the close mesh.
+- The nearest near-mesh tree in view is 10.6 m away at the median, and 4.3 m one time in ten.
+- With `trees-far` on (fraction 0.66), 91 % are not close, the median is 7.1 m, and 3 % of the trees in view within 20 m are two crossed cards.
+- The old 42/115 left 1 % not close.
+- So the close meshes are mostly behind the walker, and the band that changes make every 25 m lies in view.
+- From the air it does not matter: above about 60 m over the ground no tree's foot is within NEAR_M, and above 384 m no near tree is drawn.
+
+So the defect is seen in normal play on foot and in low flight, and still pictures hide it because they build the lists at the eye.
+
+The proposed fix (a shorter step when low) is the right direction, and it keeps nearListReach valid because the step never exceeds REBUILD_M. As written, though, it is incomplete and makes a visible problem worse.
+
+(a) Another place must change in the same edit: src/life/leaves.js:216-227. Every _build makes a new `blooming` array, and Petals.update resets on `this.serial !== list`. That hides all 480 lying petals at once (`lie.array[i*4+3] = 0`) and lays them again 6 a frame (PER_FRAME), which takes 80 frames, 2.7 s at 30 fps. The list is sorted from the new anchor, so slots are re-dealt and petals already in the air jump to another tree. With a 5 m step at walking pace there is a rebuild every 33 frames, so under the opening place's flowering trees (in flower on the opening date) at most about 200 of the 480 ever lie, and they all blink out every 1.1 s. Today this happens every 25 m.
+
+(b) The finder's cost frequency is too low. Walking is 4.5 m/s at full stick (cameraRig.js FOOT.walk), not 1.4, so a 5 m step means a build every 1.1 s, not every 3-4 s. Super speed on foot is 60 m/s and always under the agl guard, so it would build every 2-3 frames. Low flight is 7 m/s, 21 m/s boosted. I replayed _build's JS with the real SPECIES and bloomOf (scratchpad/review/buildcost.mjs): 2.8 ms a build on this machine, 4 764 trees sorted and 360 KB to upload.
+
+(c) Arithmetic: with `tree-leaves` off the guard's radius is 60, so the step is 15 m (9.9 m at 0.66), not 10 m (6.6 m).
+
+Not affected: farForest (it uses trees.reach), the shadow tiles (redrawn every 2-4 frames anyway), and the falling leaves (they use counts only).
+
 ### trees-2. The shadow pass collapses the trees' upright cards by the eye's angle, so shadows shrink to small discs in a ring round anyone looking down
 
 `src/life/trees.js:96`, medium; check: **holds**
@@ -126,6 +148,25 @@ Falling petals:
 Unused fields: `this.abs` (line 247) and `this.put` (lines 217, 247) are written but read nowhere, and neither is `this.anchor` (lines 198, 226). The re-anchoring they were kept for was never written, so a full reset is the only way the code deals with an anchor move.
 
 Briefs: `docs/briefs/trees-refined-report.md` lists only these petal problems: a still scatter, lying petals sitting on the land class's grass tips, and a ground-drawn carpet being better. The blink and the jumps are not listed. This is the "moves when I move" kind of defect in the hard-won lessons. A walker among the opening place's cherries sees every carpet vanish and grow back every 25 m and at each block arrival.
+
+**Second look.** The claim holds. Code read: src/life/trees.js 363, 429, 444, 449, 459-460, 484, 497, 500, 515; src/life/leaves.js 196-251; app.js 1262-1270 (trees.update runs before petals.update in the same frame); cover.js bloomOf; haven.js dateUTC and species mixes.
+
+Mechanism. `_build` makes a new `blooming` array every time, so `this.serial !== list` is true after every build. Each time, all 480 `aLie.w` are set to 0 in one frame and put back 6 a frame (80 frames: 2.7 s at Sharp's 30 fps), round-robin over the slots, so every tree's carpet empties and refills at once. Slot s goes to `list[s % n]` of a list sorted nearest-first from the new anchor. `abs`, `put` and `anchor` are written but never read.
+
+Would the player see it? Yes, at the opening place in its own season:
+- On 2024-09-22 at lat -48.5, `bloomOf` gives d ≈ 83, so cherry and blackthorn are fully open with fall 0.5-0.63. About 65 % of the lying petals show.
+- `node scripts/find-tree.mjs` at the opening place finds exactly 8 flowering trees within 90 m, which fills the list: cherries at 43.6, 62.7 (straight down the 222° opening heading), 71.6, 87.6 and 88.1 m, and blackthorns at 66.8, 80.3 and 84.0 m.
+- Builds come every 25 m (15.6 s at the 1.6 m/s walk, 4.5 s at the 5.5 m/s run), at each Sun sweep (about every 6 min at real time, about every second with a fast clock), at block replies, at governor tree steps and at day changes.
+- A Node replay of the slot rule (scratchpad/review/petal-slots.mjs) on a parkland with 8 flowering trees listed moved 7-8 of the 8 slots to another tree at nearly every 25 m step (117 moves in 16 rebuilds). Each move makes the falling petals around a crown jump in one frame to another crown, often with a colour swap (cherry pink against blackthorn white).
+- The lying carpet under a cherry 10 m away is about 39 petals of 12-14 px. It vanishes and regrows on every build, including while standing still at each Sun sweep.
+- This is the "moves when I move" kind of defect from the lessons. It costs the phone nothing that matters (a 7.7 KB attribute upload and 6 `drawnHeight` calls a frame), so it is purely visual.
+
+The proposed fix is not right as written:
+1. "No slot that kept its tree may move" starves trees. A tree that once held all 8 slots keeps them, and trees in flower that join the list later get no petals at all, falling or lying. This happens whenever the first build sees few flowering trees: at start-up, where blocks arrive one by one, and when walking from a lone tree toward others. The replay with sparser flowering trees (scratchpad/review/petal-sparse.mjs) left up to 4 listed trees with no slot, in 8-10 of about 20 rebuilds. Slots must be rebalanced with the fewest moves instead.
+2. Step 6 re-places kept petals only when the tree's foot moves. But the petals sit on `terrain.drawnHeight`, which changes when finer patches replace coarser ones as the walker approaches. Petals are placed from up to about 90 m away, often on a coarser patch. Today the reset re-samples them by accident every 25 m. With the fix they would stay at the coarse height, buried or floating on bare ground where the lift is 3 cm.
+3. Step 5 fades only the falling petals. A slot that does change tree (rebalancing near by) still blinks its share of the carpet.
+
+Adjacent, already there before this delivery: leaves.js:240 passes `rig.pos.length()` (about 250 km, the distance from the planet's centre) as `camDist`. The morph factor k is therefore always 1, and petals lie on the parent patch's surface rather than the fine ground drawn near the walker. app.js:649 passes the distance from the camera, which is correct.
 
 ### trees-4. A flowering tree out of flower keeps only a quarter of its foliage near by, while the far forest draws it full: the same tree changes at 240 m for ten months of the year
 
