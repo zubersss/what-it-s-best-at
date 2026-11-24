@@ -302,15 +302,25 @@ float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 // squares, seen from the air. Returns xy: the surface's tilt (outward from the
 // middle of the nearest crown, along the tile's two axes); z: how high in the crown (0 in a
 // gap, 1 on its top); w: a number of the crown's own.
+// Not a net (the first thing one saw of a wood from 300 m at a phone's density was the
+// lattice: domes all of a size in straight rows): the rows are bent by two long waves (a
+// whole number of them across the tile, so patches agree), the crowns are from a quarter to
+// two thirds of a cell across, and one cell in five has none (a gap where the ground shows
+// dark). (The block searched is 2 x 2 cells: a crown's centre is at most 0.33 of a cell from
+// its cell's middle and its radius at most 0.66, so no crown of a cell outside the block can
+// reach the point: 0.66 <= 1 - 0.33. Larger, and a crown would be cut along a lattice line.)
 vec4 crowns(vec2 uv, float cells) {
-  vec2 p = uv * cells, b = floor(p - 0.5);
+  vec2 p = uv * cells;
+  p += 0.42 * vec2(sin(6.2831853 * (uv.y * 2.0 + uv.x)), sin(6.2831853 * (uv.x * 2.0 - uv.y)));
+  vec2 b = floor(p - 0.5);
   vec4 best = vec4(0.0, 0.0, 0.0, 0.5); float hb = -1e3;
   for (int j = 0; j < 2; j++) for (int i = 0; i < 2; i++) {
     vec2 c = b + vec2(float(i), float(j)), w = mod(c, cells * float(DETAIL_PERIOD));
     vec3 h = fract(sin(vec3(dot(w, vec2(127.1, 311.7)), dot(w, vec2(269.5, 183.3)), dot(w, vec2(419.2, 371.9)))) * 43758.5453);
-    vec2 d = p - (c + 0.5 + (h.xy - 0.5) * 0.62);
-    float r = 0.36 + 0.28 * h.z, hgt = 1.0 - dot(d, d) / (r * r);
-    if (hgt > hb) { hb = hgt; best = vec4(d / (r * r), max(hgt, 0.0), h.z); }
+    if (fract(h.z * 17.31) < 0.2) continue;
+    vec2 d = p - (c + 0.5 + (h.xy - 0.5) * 0.66);
+    float r = 0.24 + 0.42 * h.z, hgt = 1.0 - dot(d, d) / (r * r);
+    if (hgt > hb) { hb = hgt; best = vec4(d / (r * r), max(hgt, 0.0), fract(h.z * 7.31)); }
   }
   return best;
 }
@@ -369,7 +379,32 @@ float farCrownShade(vec4 cr, bool stand) {
 float farCrownTilt(bool stand) { return stand ? 0.2 : 0.3; }
 // The grass the ground wears beyond its blades, and under them: dry 0..1, grain: a read of
 // the detail tile (0..1).
-vec3 farGrassColour(float dry, float grain) { return grassColour(dry, 0.62) * (0.82 + 0.36 * grain); }
+// THE STEPPE FROM ABOVE: from 90 m up no blade is drawn, and the grass was one even ochre.
+// Open grassland from the air is a grain of tussocks, a scatter of dark shrubs a few metres
+// across, and paler patches of bare soil where it is dry: each where it is two pixels and
+// more, and its mean where it is less, so that the land's tone does not change with height.
+// (Reads the detail tile at three more scales, each only where it can be seen.)
+vec3 farGrassColour(float dry, float grain) {
+  vec3 c = grassColour(dry, 0.62) * (0.82 + 0.36 * grain);
+  float fw = fwidth(vDetailUv.x) + fwidth(vDetailUv.y);          // (detail tiles, 64 m, a pixel)
+  // (beyond the blades only: under them the ground keeps the blades' own tone, grassRules.js)
+  float beyond = smoothstep(250.0, 500.0, length(vRel));
+  if (beyond <= 0.0) return c;
+  // bare soil, in patches some 6 to 18 m across, more of it the drier; shrubs, dark clumps
+  // some 1.5 to 4 m across, one place in ten. (Both from the detail tile's large blobs, read
+  // at a fixed level of its smaller copies, 16 texels a texel: the pattern is the same at
+  // every height, and where a patch would be under two pixels it gives way to its mean.)
+  float kB = 1.0 - smoothstep(0.09, 0.18, fw), bare = 0.21;
+  if (kB > 0.0) bare = mix(bare, smoothstep(0.6, 0.65, textureLod(tDetail, vDetailUv * 0.7 + 0.13, 4.0).b), kB);
+  c = mix(c, vec3(0.36, 0.28, 0.17) * (0.85 + 0.3 * grain), 0.5 * bare * smoothstep(0.2, 0.8, dry) * beyond);
+  float kS = 1.0 - smoothstep(0.021, 0.042, fw), shrub = 0.106;
+  if (kS > 0.0) shrub = mix(shrub, smoothstep(0.665, 0.695, textureLod(tDetail, vDetailUv * 3.0 + 0.37, 4.0).b), kS);
+  c = mix(c, vec3(0.045, 0.055, 0.03), 0.7 * shrub * beyond);
+  // tussocks: a grain a metre across, light and dark
+  float kT = 1.0 - smoothstep(0.004, 0.012, fw);
+  if (kT > 0.0) c *= 1.0 + 0.3 * kT * beyond * (texture(tDetail, vDetailUv * 61.0 + 0.71).g - 0.5);
+  return c;
+}
 
 void main() {
   if (uPlain > 0.5) { fragColor = vec4(vec3(0.05), 1.0); return; }
@@ -616,6 +651,22 @@ void main() {
   // =====================================================================================
   if (canopyTall > 0.3 && vShell > 0.0) {
     vec3 c1 = texture(tDetail, vDetailUv * 5.0).rgb - 0.5, c2 = texture(tDetail, vDetailUv * 1.0).rgb - 0.5;
+    float fwC = fwidth(vDetailUv.x) + fwidth(vDetailUv.y);
+    // Where the crowns are under a pixel (from 3 km up, and out to some tens of km), the wood
+    // is clumps: domes some 43 m across (one and a half to a tile), a dome each, as the far
+    // trees' spread crown tops are where they end (6 to 8 crown widths, a quarter of a
+    // closed wood's ground), lighter toward the Sun, dark in the gaps; and the wood's edge,
+    // where the land-cover map's soft steps were, broken along them. Gone where a clump is
+    // under two pixels, and beyond 40 km.
+    float kz = smoothstep(0.05, 0.16, fwC) * (1.0 - smoothstep(0.3, 0.9, fwC)) * (1.0 - smoothstep(20000.0, 40000.0, dist));
+    vec4 cz = vec4(0.0);
+    float shellW = vShell;
+    if (kz > 0.0) {
+      cz = crowns(vDetailUv + 0.71, 1.5);
+      // (the edge: where the canopy is thinning out by the map, the clumps' tops stay and
+      // their gaps go first)
+      shellW = mix(vShell, clamp((vShell - 0.5) * 2.2 + 0.5 + 1.1 * (cz.z - 0.45), 0.0, 1.0), kz);
+    }
     float nearC = 1.0 - smoothstep(0.03, 0.5, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
     vec2 cgn = farCanopyGrain(c1, c2, nearC);
     N = normalize(N + (uTanU * cgn.x + uTanV * cgn.y) * vShell);
@@ -633,7 +684,6 @@ void main() {
     // gaps between are dark. (Without them the far forest was one even green from the
     // air: "a green plot of land", the owner said, and no trees.)
     {
-      float fwC = fwidth(vDetailUv.x) + fwidth(vDetailUv.y);
       // (a crown fades out between five pixels and one and a half: 0.25 / fwC pixels across)
       float kc = (1.0 - smoothstep(0.05, 0.16, fwC)) * vShell * ownC, kg = (1.0 - smoothstep(0.14, 0.42, fwC)) * vShell * ownC;
       if (kg > 0.0) {
@@ -649,8 +699,14 @@ void main() {
         leaves *= mix(1.0, farCrownShade(cr, false), kc);
       }
     }
-    albedo = mix(albedo, leaves, vShell * ownC);
+    albedo = mix(albedo, leaves, shellW * ownC);
     ao *= mix(1.0, 0.72 + 0.5 * clamp(c1.b + c2.b, -0.4, 0.5), vShell * ownC);
+    // (the clumps: their light and shade on whatever colour the wood has there, its own or,
+    // beyond 19 km, the map's; tilted a little toward their own light)
+    if (kz > 0.0) {
+      N = normalize(N + (uTanU * cz.x + uTanV * cz.y) * (0.12 * kz * shellW));
+      albedo *= mix(1.0, (0.62 + 0.55 * smoothstep(0.0, 0.55, cz.z)) * (0.85 + 0.3 * cz.w), kz * shellW);
+    }
   }
   // ===================================== end of THE GROUND FROM AFAR, 1 ================
 
