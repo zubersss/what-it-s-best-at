@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { GRASS_PRELUDE } from './grass.js';
 
 const COUNT = 3200, BOX = 40, NEAR_BOX = 10, TALL = 6;        // BOX divides the grass anchor's step (a step moves no mote), NEAR_BOX divides BOX
+const ROW = 2;                   // the row of the grass's light table the motes read (the ring of blades out to 39 m)
 
 export class Pollen {
   // grass: the Grass (its plane, tables and light); shared: the terrain's shared uniforms (wind, weather)
@@ -26,7 +27,7 @@ export class Pollen {
     this.geo = geo; this.share = 1;
     const mid = grass.tables.mid;
     this.uniforms = {
-      ...grass.shared, uLatOrigin: { value: new THREE.Vector2() }, tTable: { value: mid.tex }, uTab: mid.info, tLight: { value: grass.light.texture }, uLight: grass.lightU[2],
+      ...grass.shared, uLatOrigin: { value: new THREE.Vector2() }, tTable: { value: mid.tex }, uTab: mid.info, tLight: { value: grass.light.texture }, uLight: grass.lightU[ROW],
       uAir: { value: new THREE.Vector4() },          // xy: the traveller in the box less how far the wind has carried the air (m, wrapped), z: how far the air has risen (m, wrapped), w: time (s)
       uPollen: { value: new THREE.Vector4() },       // x: how much (0..1), y: a gust (0..1)
     };
@@ -96,6 +97,9 @@ export class Pollen {
         }`,
     });
     this.mesh = new THREE.Points(geo, this.material); this.mesh.frustumCulled = false; this.mesh.visible = false;
+    // (the grass draws its light table only where something reads it: the motes read their row while they are drawn,
+    // also while they drift on for some seconds after a climb has left the blades behind)
+    grass.lightReaders.push({ row: ROW, drawn: () => this.mesh.visible });
     this.air = [0, 0, 0]; this.time = 0; this.amount = 0; this.gust = 0; this.windSlow = null;
   }
 
