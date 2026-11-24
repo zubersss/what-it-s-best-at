@@ -160,7 +160,7 @@ function leafy(c, R, o) {
     for (let d = o.step * (0.4 + 0.4 * R()); d < l; d += o.step * (0.8 + 0.4 * R())) {
       const t = d / l, x = x0 + dx * t, y = y0 + dy * t;
       leaves.push([x, y, dir + sd * (0.45 + 0.9 * R()), o.leaf * (0.6 + 0.7 * R())]); sd = -sd;
-      if (o.flowers) for (let k = 0; k < o.flowers; k++) flowers.push([x + (R() - 0.5) * 0.07, y + (R() - 0.5) * 0.07, 0.028 + 0.014 * R(), R() * 6.28, 0.8 + 0.2 * R()]);
+      if (o.flowers) for (let k = 0; k < o.flowers; k++) flowers.push([x + (R() - 0.5) * 0.07, y + (R() - 0.5) * 0.07, 0.028 + 0.014 * R(), R() * 6.28, 0.42 + 0.3 * R() + 0.28 * t]);          // (deeper near the twig's root, paler toward its end)
     }
     leaves.push([x1, y1, dir + (R() - 0.5) * 0.4, o.leaf * (0.9 + 0.3 * R())]);
     if (o.flowers) flowers.push([x1, y1, 0.036, R() * 6.28, 1]);
@@ -192,7 +192,7 @@ function rosette(c, R, draw, n) {
   c.xf = null;
 }
 
-const BLOSSOM = { leaf: 0.06, ratio: 0.5, step: 0.07, twigs: 7, flowers: 3 };
+const BLOSSOM = { leaf: 0.085, ratio: 0.5, step: 0.07, twigs: 7, flowers: 2 };          // (a few young leaves among the flowers)
 const DRAW = {
   fir: (c, R) => fir(c, R), firTop: (c, R) => firTop(c, R), firHang: (c, R) => firHang(c, R),
   pine: (c, R) => burst(c, R, 150, 2.0, 0.44), pine2: (c, R) => burst(c, R, 190, 2.5, 0.4), pineTwig: (c, R) => pineTwig(c, R),

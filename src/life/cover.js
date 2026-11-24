@@ -99,7 +99,7 @@ export function bloomOf(sp, day, lat) {
   const b = sp.blossom; if (!b) return { open: 0, fall: 0 };
   const d = (((day + (lat < 0 ? 182.6 : 0)) % 365.25) + 365.25) % 365.25, sm = (a, c, x) => { const k = Math.min(1, Math.max(0, (x - a) / (c - a))); return k * k * (3 - 2 * k); };
   const open = sm(b.from, b.from + 10, d) * (1 - sm(b.to - 12, b.to, d));
-  return { open, fall: open > 0 ? Math.max(0.25 * open, sm(b.from + 12, b.to - 10, d) * open) : 0 };
+  return { open, fall: open > 0 ? Math.max(0.5 * open, sm(b.from + 12, b.to - 10, d) * open) : 0 };
 }
 
 // Which species a class means at a place: [species, weight] lists. lat, lon (east,

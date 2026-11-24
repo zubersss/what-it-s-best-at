@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
+import { AMOUNT } from './grassRules.js';
 
 const COUNT = 420, BOX = 44;            // leaves, and the side of the square of ground they fall over (m)
 
@@ -106,7 +107,7 @@ export class Leaves {
 // on the ground as it is drawn (a few of them a frame are asked where the ground is).
 // What carries a falling petal is the wind's velocity, eased over a few seconds here
 // (never the wind's speed times the clock: a change of wind would move every petal at once).
-const FALLING = 640, LYING = 320, SLOTS = 8, PER_FRAME = 8;
+const FALLING = 640, LYING = 480, SLOTS = 8, PER_FRAME = 6;
 
 export class Petals {
   constructor(trees) {
@@ -140,7 +141,7 @@ export class Petals {
       void place(vec3 rel, float fade, float size) {
         vRel = rel; vSeed = aSeed; vFade = fade;
         vec4 clip = projectionMatrix * viewMatrix * vec4(rel, 1.0);
-        gl_PointSize = clamp(size * uLeafPx / max(clip.w, 0.3), 1.5, 28.0);
+        gl_PointSize = clamp(size * uLeafPx / max(clip.w, 0.3), 1.5, 56.0);          // (one that passes close to the eye is large on the screen: that is where petals are seen)
         // (nothing of it: out of the picture, not a point of no size)
         gl_Position = fade > 0.02 ? clip : vec4(2.0, 2.0, 2.0, 1.0);
       }`;
@@ -154,7 +155,8 @@ export class Petals {
         float thin = 0.3 + 0.7 * abs(cos(vSpin * 0.37 + vSeed.z * 6.0));
         if (q.x * q.x + (q.y / thin) * (q.y / thin) > 1.0 || fract(vSeed.w * 91.0 + gl_FragCoord.x * 0.37 + gl_FragCoord.y * 0.61) > vFade) discard;
         vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos);
-        // (thin and pale: lit from both sides, and the sky's light counts for much)
+        // (thin and pale: lit from both sides, and the sky's light counts for much; a petal is
+        // drawn larger than life, as the meadow's flowers are, or it would be under a pixel from ten metres)
         vec3 col = vCol * (0.85 + 0.3 * vSeed.x) * (directSun(planetPos) * nearShadow(vRel, up) * (0.45 + 0.55 * thin) + skyLight(up, up)) / PI;
         col = aerialPerspective(col, vRel);
         fragColor = vec4(col * uExposure, 1.0);
@@ -167,17 +169,17 @@ export class Petals {
         float T = 8.0 + 6.0 * aSeed.z, t = uLeafSeason.z / T + aSeed.w, cyc = fract(t), lap = floor(t), age = cyc * T;
         // let go in a gust: the gust as it was when this petal came off (the trees sway to the same beat)
         float gust = 0.5 + 0.5 * sin((lap - aSeed.w) * T * 0.7 + aSlot * 2.1);
-        float go = step(fract(aSeed.z * 13.0 + lap * 0.37), top.y * mix(0.12, 1.5, gust * gust));
+        float go = step(fract(aSeed.z * 13.0 + lap * 0.37), top.y * mix(0.25, 1.6, gust * gust));
         // from somewhere in the crown
         vec2 r = fract(aSeed.xy + lap * vec2(0.618034, 0.754878));
         float ang = r.x * 6.2831853, rad = tr.w * sqrt(r.y) * 0.95, y0 = top.x * (0.42 + 0.5 * fract(aSeed.x * 7.0 + lap * 0.21));
-        float h = y0 - (0.8 + 0.6 * aSeed.y) * age;
+        float h = y0 - (0.55 + 0.5 * aSeed.y) * age;
         // down the wind as it falls (the wind is slower in among the trees than over them), swinging side to side
-        vec3 drift = (uPetalWind - uLeafUp * dot(uPetalWind, uLeafUp)) * (0.55 * age);
+        vec3 drift = (uPetalWind - uLeafUp * dot(uPetalWind, uLeafUp)) * (0.75 * age);
         vec2 swing = vec2(sin(t * 31.0 + aSeed.x * 9.0), cos(t * 23.0 + aSeed.y * 7.0)) * (0.25 + 0.06 * age);
         vec3 rel = uAnchorRel + tr.xyz + uLeafEast * (cos(ang) * rad + swing.x) + uLeafNorth * (sin(ang) * rad + swing.y) + uLeafUp * (h + 0.03) + drift;
         vSpin = t * (50.0 + 70.0 * aSeed.x);
-        place(rel, go * step(0.5, tr.w) * smoothstep(0.0, 0.04, cyc) * smoothstep(0.0, 0.35, h) * (1.0 - smoothstep(60.0, 90.0, length(rel))), 0.04 + 0.03 * aSeed.y);
+        place(rel, go * step(0.5, tr.w) * smoothstep(0.0, 0.04, cyc) * smoothstep(0.0, 0.35, h) * (1.0 - smoothstep(60.0, 90.0, length(rel))), 0.085 + 0.05 * aSeed.y);
       }`));
     this.lieGeo = mk(LYING, true);
     this.lying = new THREE.Points(this.lieGeo, material(/* glsl */`${HEAD}
@@ -187,7 +189,7 @@ export class Petals {
         vec3 rel = uAnchorRel + aLie.xyz;
         vSpin = aSeed.x * 40.0;
         // (as many as the tree is letting go; none from far off, where a petal is under a pixel)
-        place(rel, aLie.w * step(aSeed.z, uPetalTop[s].y * 1.3) * (1.0 - smoothstep(35.0, 55.0, length(rel))), 0.045 + 0.03 * aSeed.y);
+        place(rel, aLie.w * step(aSeed.z, uPetalTop[s].y * 1.3) * (1.0 - smoothstep(35.0, 55.0, length(rel))), 0.09 + 0.05 * aSeed.y);
       }`));
     for (const m of [this.falling, this.lying]) { m.frustumCulled = false; m.visible = false; }
     this.mesh = new THREE.Group(); this.mesh.add(this.falling, this.lying);
@@ -212,12 +214,13 @@ export class Petals {
     const A = tr.anchor, lie = this.lieGeo.attributes.aLie;
     if (this.serial !== list) {
       this.serial = list; this.put.fill(0); this.next = 0;
+      // (the pool is shared out among the trees there are: one tree alone has all of it)
       for (let s = 0; s < SLOTS; s++) {
-        const t = list[s];
+        const t = list.length ? list[s % list.length] : null;
         if (t) { u.uPetalTree.value[s].set(t.x, t.y, t.z, Math.max(0.6, t.tall * t.wide * 0.42)); u.uPetalTop.value[s].set(t.tall, t.fall, 0, 0); u.uPetalCol.value[s].set(...t.colour); } else { u.uPetalTree.value[s].set(0, 0, 0, 0); u.uPetalTop.value[s].set(0, 0, 0, 0); }
       }
       // (their feet in the world, to find again when the anchor moves)
-      this.feet = list.map((t) => [A.x + t.x, A.y + t.y, A.z + t.z, Math.max(0.6, t.tall * t.wide * 0.42)]);
+      this.feet = Array.from({ length: list.length ? SLOTS : 0 }, (_, s) => { const t = list[s % list.length]; return [A.x + t.x, A.y + t.y, A.z + t.z, Math.max(0.6, t.tall * t.wide * 0.42)]; });
       for (let i = 0; i < LYING; i++) lie.array[i * 4 + 3] = 0;
       lie.needsUpdate = true; this.anchor.copy(A);
     }
@@ -228,13 +231,18 @@ export class Petals {
       const i = this.next++, f = this.feet[i % SLOTS];
       if (!f) continue;
       // under the crown and a little beyond it, more of them down the wind
-      const ang = seed[i * 4] * 6.2831853, rad = f[3] * 1.25 * Math.sqrt(seed[i * 4 + 1]), wl = this._wind.length() || 1, down = Math.min(1, wl / 6) * f[3] * 0.6 * seed[i * 4 + 3];
+      // (thickest in a ring under the crown's edge: two in three lie there, the rest anywhere under it)
+      const ring = seed[i * 4 + 2] < 0.67, ang = seed[i * 4] * 6.2831853, rad = f[3] * (ring ? 1 + 0.4 * (seed[i * 4 + 1] + ((seed[i * 4 + 3] * 7) % 1) - 1) : 1.1 * Math.sqrt(seed[i * 4 + 1])), wl = this._wind.length() || 1, down = Math.min(1, wl / 6) * f[3] * 0.9 * seed[i * 4 + 3];
       const ox = Math.cos(ang) * rad, oy = Math.sin(ang) * rad;
       let x = f[0] + e.x * ox + n.x * oy + this._wind.x / wl * down, y = f[1] + e.y * ox + n.y * oy + this._wind.y / wl * down, z = f[2] + e.z * ox + n.z * oy + this._wind.z / wl * down;
       const l = Math.hypot(x, y, z); d[0] = x / l; d[1] = y / l; d[2] = z / l;
       const g = this.terrain.drawnHeight(d, rig.pos.length());
       if (g == null) { this.next--; break; }          // (no ground drawn there yet: again next frame)
-      const r = R + g + 0.03;
+      // Where grass grows a petal lies on the grass, not under it: lifted to the turf's top (by
+      // the grass's own rule for how much grows on this kind of land, and a share of a blade's
+      // height: life/grass.js), each to a height of its own, so they lie in among the tips.
+      const hs = this.terrain.hs, cover = hs?.coverAt ? hs.coverAt(d[0], d[1], d[2]) : -1, amount = cover < 0 ? 0 : (AMOUNT[cover & 255] || 0) * (1 - 0.4 * (cover >> 16) / 255);
+      const r = R + g + (amount > 0.05 ? (0.2 + 0.26 * seed[i * 4 + 3]) * (0.6 + 0.6 * amount) : 0.03);
       this.abs[i * 3] = d[0] * r; this.abs[i * 3 + 1] = d[1] * r; this.abs[i * 3 + 2] = d[2] * r; this.put[i] = 1;
       lie.array[i * 4] = d[0] * r - A.x; lie.array[i * 4 + 1] = d[1] * r - A.y; lie.array[i * 4 + 2] = d[2] * r - A.z; lie.array[i * 4 + 3] = 1; changed = true;
     }
