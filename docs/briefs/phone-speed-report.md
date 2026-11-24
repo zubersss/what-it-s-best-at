@@ -427,6 +427,55 @@ low angles: it needs pictures and the owner's eye).
   cloud along the line of sight (edges within a pixel of where they were).
 - `scripts/smoke.mjs`: the two clicks after the benchmark wait up to four minutes.
 
+## Round two (asked by the owning session after the four jobs were merged)
+
+### The flower rule at the ground
+
+Found: every pixel of grass within 900 m ran the rule's meadow noise (260 m to the cell)
+before it knew whether a flower was near, and on a slope the hillside noise (420 m) too.
+Done: both are asked at the ground's vertices within 1 100 m (`vFlowerFields`) and
+handed on; `grassRules.js` got `flowerMeadow(P)`, `flowerHill(P)` and a `flowersAt` that
+takes them as given (the three-argument form calls it: one rule; nothing the old forms
+return has changed). A grass pixel outside a meadow now runs no noise; inside one, the
+9 m drift noise and the kind's hash, which must match the blades, and the two speck
+noises where specks show. Pictures, the shader before against after in one session:
+opening view 0.00 levels apart (largest 0), the cornflower meadow 0.00 (largest 1).
+The proxy: meadow 3 203 -> 2 951 ms shaded; the opening view 3 734 -> 4 012 (its vertices
+cost it more than the pixels saved, as before: see what the proxy is worth). Varyings: 14
+rows of 15. Not done: the 26-kind tables are still indexed per pixel where a flower is.
+
+### The shadow maps
+
+Found: the turns (the wide tile every fourth frame, the fine one every other) were only
+for the 60-a-second mode; at 30 a second all three tiles were drawn every frame, and
+Sharp is now the default. The phone's 3.3 and 7.3 ms were measured in Smooth, with turns:
+in Sharp the maps would have cost about twice that a frame. Done: in the 30-a-second mode
+the wide and the fine tile take the frames in turn, the character's own is drawn every
+frame: no frame draws more than one of the two, neither is older than a fifteenth of a
+second, and a tile that is not drawn stays on the ground where it was drawn (the
+mechanism that was there for 60). `npm run shadowturns` passes (a held tile after a 4 m
+walk: 0.000 % of pixels differ from tiles drawn afresh). Clean by that test; what it does
+not show is a bough's shadow a fifteenth of a second behind the bough, which I take to be
+invisible and have not seen in motion.
+
+### The Haven benchmark end to end
+
+(below, when it has run: it takes hours on software drawing)
+
+### Round one's last checks
+
+- The clouds' six laying passes alone (`scripts/cloud-cost.mjs`, old build and new):
+  222 -> 77 ms.
+- The figure's `fly` and `stand` poses on Mars, old build against new: 0.01 levels apart
+  (largest 3 and 2). The floor picture (`debug=floor`) from 5 km: largest 1.
+- `play-profile` could not give the character's before and after: its click on Play timed
+  out on both builds (a software-drawn Haven frame outlasts the click's 30 s; the click
+  now waits four minutes). The Mars benchmark in `npm run smoke` names the character at
+  0.8 to 3.3 ms a stop on this machine at one frame a second, which says nothing.
+- `npm run smoke` on the last build of round one passed every check and still exited 1:
+  a "full screen refused" warning (the tap that starts play was more than five seconds
+  old by the time the page asked). Now counted as benign in the test browser.
+
 ## What was not done
 
 - "Several times cheaper" for the ground's shader: not reached by the proxy's measure
