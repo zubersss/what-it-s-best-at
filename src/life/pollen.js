@@ -32,14 +32,14 @@ export class Pollen {
     this.geo = geo; this.share = 1;
     const mid = grass.tables.mid;
     this.uniforms = {
-      ...grass.shared, uLatOrigin: { value: new THREE.Vector2() }, tTable: { value: mid.tex }, uTab: mid.info, tLight: { value: grass.light.texture }, uLight: grass.lightU[2],
+      ...grass.shared, uLatOrigin: { value: new THREE.Vector4() }, tTable: { value: mid.tex }, uTab: mid.info, tLight: { value: grass.light.texture }, uLight: grass.lightU[2],
       uAir: { value: new THREE.Vector4() },          // xy: the traveller in the box less how far the wind has carried the air (m, wrapped), z: how far the air has risen (m, wrapped), w: time (s)
       uPollen: { value: new THREE.Vector4() },       // x: how much (0..1), y: a gust (0..1)
     };
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, uniforms: this.uniforms, transparent: true, depthWrite: false, depthTest: true,
       blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
-      defines: { GRID: 1, SPACING: '1.0', BOX: '1.0', SEED: '0.0' },
+      defines: { GRID: 1, SPACING: '1.0', BOX: '1.0', HALF: '0.0', SEED: '0.0' },          // (the grass's lattice is not used here, but its prelude is compiled)
       vertexShader: /* glsl */`
         in vec4 aSeed;
         uniform sampler2D tTable; uniform vec4 uTab;

@@ -20,8 +20,9 @@
 // All of it is measured on a plane through an anchor near the traveller (east, north, up).
 // The anchor moves in whole steps of SNAP metres, which every lattice spacing and table
 // cell divides, and its axes are carried over rather than worked out afresh, so a move of
-// the anchor changes nothing that is drawn (places, hashes and tables are counted from an
-// origin carried along with it). Heights are put where the round world has them: the plane
+// the anchor changes nothing that is drawn (places, hashes, which instance draws a place,
+// the tussocks and the tables are counted from an origin carried along with it:
+// scripts/grass-place-test.mjs). Heights are put where the round world has them: the plane
 // falls away from the ground as d^2 / 2R (0.7 m at 600 m on Haven).
 //
 // A world has grass if it lists `life.grass` ({ below: metres above the ground under which
@@ -111,7 +112,7 @@ export const GRASS_PRELUDE = /* glsl */`
   uniform vec2 uGrassCurve;          // x: the datum's radius less the anchor's, y: 1 / (2 x the world's radius)
   uniform vec4 uGrassWind;           // the wind: xyz where it blows (planet axes), w its speed (m/s)
   uniform vec2 uGrassLie;            // the anchor on the plane counted from the grass's origin, modulo PERIOD (m)
-  uniform vec2 uLatOrigin;           // ... and in this lattice's cells, modulo 4096
+  uniform vec4 uLatOrigin;           // ... and in this lattice's cells: xy modulo 4096 (the cells' numbers), zw modulo GRID (which instance draws which cell)
   uniform float uGrassView;          // the picture's height (pixels), halved
   uniform vec4 uGrassKeep;           // how much is kept by the height of the traveller: x near grass, y far grass; z the governor's share of the far grass, w how much wider it is for it
   uniform vec2 uGrassGov;            // the governor's share of the near grass (x) and of the far grass (y) that is handed over at all
@@ -129,11 +130,17 @@ export const GRASS_PRELUDE = /* glsl */`
   float groundUp(vec4 g, vec2 at) { return g.r + uGrassCurve.x - dot(at, at) * uGrassCurve.y - uGrassCam.z; }
   // this instance's cell: its middle from the camera (m), and its number on the ground
   // (instances are drawn in a scrambled order: a smaller count thins the field evenly)
+  // Instance c draws the cells whose number counted from where the grass began is c modulo
+  // GRID, whatever the anchor: the cells a thinned field keeps are the ground's. (Counted from
+  // the anchor, with a saving on, half the field was dealt afresh at every step of it.) The
+  // window round the eye starts HALF behind it, a whole number of cells: with an odd GRID half
+  // the box was half a cell, every middle fell on an edge between two cells, and rounding chose
+  // the cell's number afresh as the eye moved.
   vec2 latticeCell(out vec2 own) {
     int id = (gl_InstanceID * 7919) % (GRID * GRID);
     vec2 c = vec2(float(id % GRID), float(id / GRID));
-    vec2 rc = mod((c + 0.5) * SPACING - uGrassCam.xy, BOX) - 0.5 * BOX;
-    own = mod(floor((rc + uGrassCam.xy) / SPACING) + uLatOrigin, 4096.0) + SEED;
+    vec2 rc = mod((c - uLatOrigin.zw + 0.5) * SPACING - uGrassCam.xy, BOX) - HALF;
+    own = mod(floor((rc + uGrassCam.xy) / SPACING) + uLatOrigin.xy, 4096.0) + SEED;
     return rc;
   }
   // stretches of taller and shorter, greener and drier grass, some metres across (in the
@@ -200,7 +207,12 @@ const BLADE_VERT = /* glsl */`
     #ifdef FAR
     float own = hb.y;
     #else
-    float own = hash2(floor((at + uGrassLie) * 2.0) + 3.3).x;
+    // (which tussock: half-metre squares counted from where the grass began, modulo twice
+    // PERIOD; uGrassLie is a whole number of metres. Counted from the anchor's place modulo
+    // PERIOD and no further, every tussock was dealt afresh when the anchor crossed a line of
+    // PERIOD. The foot's own small number is floored before the whole metres are added: less
+    // rounding to carry a foot over an edge.)
+    float own = hash2(mod(floor(at * 2.0) + uGrassLie * 2.0, ${2 * PERIOD}.0) + 3.3).x;
     #endif
     if (own >= dens) OUT_OF_PICTURE
     vec3 nrm = normalize(uGrassUp - uGrassEast * grad.x - uGrassNorth * grad.y);
@@ -542,11 +554,11 @@ export class Grass {
     // a field: one cell's triangles, drawn once for every place of its lattice
     const field = (f, geo, vertexShader, defines, tris, light) => {
       geo.instanceCount = f.grid * f.grid;
-      const lat = { value: new THREE.Vector2() }, t = this.tables[f.table];
+      const lat = { value: new THREE.Vector4() }, t = this.tables[f.table];
       const material = new THREE.ShaderMaterial({
         glslVersion: THREE.GLSL3, side: THREE.DoubleSide, vertexShader, fragmentShader: FRAG,
         uniforms: { ...this.shared, uLatOrigin: lat, tTable: { value: t.tex }, uTab: t.info, tLight: { value: this.light.texture }, uLight: this.lightU[light] },
-        defines: { GRID: f.grid, SPACING: f.spacing.toFixed(4), BOX: (f.grid * f.spacing).toFixed(3), SEED: f.seed.toFixed(1), OUT0: f.out[0].toFixed(2), OUT1: f.out[1].toFixed(2), ...defines },
+        defines: { GRID: f.grid, SPACING: f.spacing.toFixed(4), BOX: (f.grid * f.spacing).toFixed(3), HALF: (Math.floor(f.grid / 2) * f.spacing).toFixed(4), SEED: f.seed.toFixed(1), OUT0: f.out[0].toFixed(2), OUT1: f.out[1].toFixed(2), ...defines },
       });
       const mesh = new THREE.Mesh(geo, material); mesh.frustumCulled = false;
       return { f, geo, mesh, lat, all: f.grid * f.grid, tris };
@@ -742,7 +754,10 @@ export class Grass {
     S.uGrassCurve.value.set(t.hs.radius - this.anchorR, 0.5 / t.hs.radius);
     const mod = (a, m) => ((a % m) + m) % m;
     S.uGrassLie.value.set(mod(this.origin[0], PERIOD), mod(this.origin[1], PERIOD));
-    for (const f of [...this.fields, ...this.clumps]) f.lat.value.set(mod(Math.round(this.origin[0] / f.f.spacing), 4096), mod(Math.round(this.origin[1] / f.f.spacing), 4096));
+    for (const f of [...this.fields, ...this.clumps]) {
+      const x = Math.round(this.origin[0] / f.f.spacing), y = Math.round(this.origin[1] / f.f.spacing);
+      f.lat.value.set(mod(x, 4096), mod(y, 4096), mod(x, f.f.grid), mod(y, f.f.grid));
+    }
     for (const k in this.tables) { const T = this.tables[k], span = T.n * T.cell; T.info.value.set(mod(this.origin[0], span), mod(this.origin[1], span), T.cell, T.n); }
     // The wind's waves: where they are is added up frame by frame (their speed changes with the wind's).
     this.phase = mod(this.phase - dt * (1.2 + 0.12 * w.w), Math.PI * 2);
