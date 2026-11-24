@@ -236,6 +236,7 @@ scripts/ground-cost-run.sh <scratch dir> [--only ledge,air3k] [--before old-terr
 node scripts/hero-cost.mjs   # what the character costs the page each frame, without a browser (seconds): the cloth at 60 and 30 frames a second, the whole figure; fails if the cloth's points have moved from scripts/lib/robe-reference.json
 node scripts/grass-place-test.mjs   # a place's blades and tussocks are the place's, never the anchor's: anchor steps, the 2 560 m wrap, a grass saving on (no browser, seconds)
 node scripts/grass-flowers-pixels-test.mjs   # the far blades' flowers fade in where the single flowers fade out (no circle), pixel sizes by the drawn picture, pollen's clock (no browser)
+node scripts/grass-light-test.mjs   # the grass's light table: each pixel works out only the number it keeps, and only the rows something drawn reads (no browser)
 npm run probe          # top-down shaded relief of the height function (no browser)
 node scripts/sky-table.mjs [--lat .. --lon ..]   # where the sky bodies are from a place over time (no browser)
 node scripts/profile-chunks.mjs --world moon   # chunk build times per level (no browser)
