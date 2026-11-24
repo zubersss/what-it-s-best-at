@@ -214,7 +214,11 @@ export class Trees {
             if (uPaint.x > 0.0) leafC = paintLeaf(leafC) * mix(0.5, 1.12, smoothstep(-0.5, 0.6, dot(N, up)));
             leafC *= 0.46 + 0.6 * cut.g;
             // (petals: their own colour, pale and bright whatever the leaf's green is)
-            leafC = mix(leafC, vBloom.rgb * (0.62 + 0.38 * cut.g), petal);
+            // From a deep tone of it inside the crown and on its under side to near white on the
+            // flowers at the sprays' tips and where the crown looks up at the sky (the picture's
+            // tone says which flower: the last of a twig is its lightest).
+            float pale = clamp(smoothstep(0.45, 1.0, cut.g) * 0.75 + smoothstep(-0.3, 0.7, dot(N, up)) * 0.5 - (vLeaf > 3.1 && vLeaf < 3.5 ? 0.5 : 0.0), 0.0, 1.0);
+            leafC = mix(leafC, mix(vBloom.rgb * vec3(0.62, 0.5, 0.56), mix(vBloom.rgb, vec3(0.8, 0.78, 0.76), 0.72), pale), petal);
           }
           // (the heart of a bunch: the dark inside of the crown, see Shape.heart in treeGeometry.js)
           bool heart = (vLeaf > 3.1 && vLeaf < 3.5) || (vLeaf > 1.1 && vLeaf < 1.5);
