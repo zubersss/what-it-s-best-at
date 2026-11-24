@@ -249,7 +249,7 @@ export function makeTreeGeometries() {
       for (let u = 0.22 + 0.1 * L(); u < 0.86; u += gap * (0.8 + 0.4 * L()), sd = -sd) {
         const fl = Math.min(0.085, len * (0.68 * (1 - u) + 0.24)) * (0.85 + 0.3 * L()), sw = 0.85 + 0.3 * L();
         const f = norm([dir[0] * Math.cos(sw) + side[0] * sd * Math.sin(sw), -0.2 - 0.15 * L(), dir[2] * Math.cos(sw) + side[2] * sd * Math.sin(sw)]), nrm = norm([dir[0] * 0.1 - side[0] * sd * 0.3, 1, dir[2] * 0.1 - side[2] * sd * 0.3]);
-        s.card(P(u), f, norm(cross(nrm, f)), fl, fl * 0.95, SPRAYS.firTop, c, 0.5, fl > 0.05 ? [0, -fl * 0.22, 0] : null);
+        s.card(P(u), f, norm(cross(nrm, f)), fl, fl * 0.95, SPRAYS.firTop, c, 0.5, [0, -fl * 0.3, 0]);
       }
       // the frond the bough ends in
       { const e = norm([dir[0], 0.07 - 2 * droop * 0.75, dir[2]]), fl = Math.max(0.03, len * 0.42); s.card(P(0.72), e, side, fl, fl * 0.85, SPRAYS.firTop, c, 0.5, [0, -fl * 0.15, 0]); }
@@ -263,12 +263,15 @@ export function makeTreeGeometries() {
     };
     for (let k = 0; k < tiers; k++) {
       const t = k / (tiers - 1), y = foot + (0.93 - foot) * Math.pow(t, 0.9), rr = (0.185 * Math.pow(1 - t, 0.85) + 0.024) * (0.8 + 0.36 * R()) * wide, turn = R() * TAU, c = [0, y - rr * 0.4, 0];
-      // The tier's dark inside, so that the tree is not seen through: a rosette of fronds lying
-      // under the boughs, drawn dark (a cut edge; a solid cone here showed as a black pyramid
-      // from every side on the nearest trees). At the middle distance a small cone inside it too.
-      s.plate([0, y - rr * 0.22, 0], [Math.cos(turn), -0.12, Math.sin(turn)], [-Math.sin(turn), 0.12, Math.cos(turn)], rr * 1.5, rr * 1.5, sprayRect(SPRAYS.roseN), 0.5, 0.5, c, 3.25);
-      if (q === 2) s.plate([0, y - rr * 0.45, 0], [Math.cos(turn + 0.6), 0.1, Math.sin(turn + 0.6)], [-Math.sin(turn + 0.6), -0.1, Math.cos(turn + 0.6)], rr * 1.1, rr * 1.1, sprayRect(SPRAYS.roseN), 0.5, 0.5, c, 3.25);
-      else s.skirt(y + rr * 0.1, rr * 0.5, rr * 0.5, turn);
+      // The tier's dark inside, so that the tree is not seen through: short fronds close to the
+      // trunk, hanging outward under the boughs, drawn dark. (A solid cone here showed as a
+      // black pyramid on the nearest trees, and one rosette lying flat as a shelf that cut
+      // the trunk off, seen from under it.) At the middle distance a small cone inside them too.
+      for (let j = 0, nD = q === 2 ? 4 : 3; j < nD; j++) {
+        const a = turn + 0.5 + j / nD * TAU, ax = norm([Math.cos(a), -0.55, Math.sin(a)]), len = rr * 0.8;
+        s.plate([0, y + rr * 0.05, 0], ax, norm(cross(ax, [-Math.sin(a), 0, Math.cos(a)])).map((v) => -v), len, len * 1.1, sprayRect(SPRAYS.firTop), 0, 0.5, c, 3.25, [0, -len * 0.25, 0]);
+      }
+      if (q !== 2) s.skirt(y + rr * 0.1, rr * 0.45, rr * 0.5, turn);
       if (q === 2) { const nB = t > 0.7 ? 5 : 7; for (let j = 0; j < nB; j++) bough(y - rr * 0.1 * L(), turn + (j + 0.6 * (L() - 0.5)) / nB * TAU, rr * (0.85 + 0.35 * L()), c); continue; }
       for (let j = 0; j < nV; j++) {
         const a = turn + (j + 0.5 * (L() - 0.5)) / nV * TAU, len = rr * (0.85 + 0.35 * L()), ax = norm([Math.cos(a), -0.18 - 0.2 * L(), Math.sin(a)]), d = -ax[1], ay = norm([-d * ax[0], -1 - d * ax[1], -d * ax[2]]);
