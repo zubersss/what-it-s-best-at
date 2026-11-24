@@ -234,6 +234,8 @@ python3 scripts/fetch-maps.py   # the rest of public/data/ (needs: pip install r
 node scripts/parts-out.mjs --world haven --shot ledge [--query ..] [--box 0.2,0.6,0.8,1] [--distdir build]   # who draws that? one view taken with one part out at a time (grass, clumps, trees, far forest, rocks, shadow casters), and how much of the picture each changes
 scripts/ground-cost-run.sh <scratch dir> [--only ledge,air3k] [--before old-terrainMaterial.js] [--save dir] [--parts file.mjs] [--size 880x412 --dsf 2.2]   # what the ground's shading costs, as a count of work on software WebGL (never a frame rate): the game's ground alone at ten views, the shader of an earlier commit beside the new one in the same browser session, and how far their pictures are apart (git show <commit>:src/terrain/terrainMaterial.js > old-terrainMaterial.js). Runs scripts/ground-cost.mjs from a copy of the tree: the dev server reloads the page at any source edit
 node scripts/hero-cost.mjs   # what the character costs the page each frame, without a browser (seconds): the cloth at 60 and 30 frames a second, the whole figure; fails if the cloth's points have moved from scripts/lib/robe-reference.json
+node scripts/grass-place-test.mjs   # a place's blades and tussocks are the place's, never the anchor's: anchor steps, the 2 560 m wrap, a grass saving on (no browser, seconds)
+node scripts/grass-flowers-pixels-test.mjs   # the far blades' flowers fade in where the single flowers fade out (no circle), pixel sizes by the drawn picture, pollen's clock (no browser)
 npm run probe          # top-down shaded relief of the height function (no browser)
 node scripts/sky-table.mjs [--lat .. --lon ..]   # where the sky bodies are from a place over time (no browser)
 node scripts/profile-chunks.mjs --world moon   # chunk build times per level (no browser)
@@ -714,5 +716,13 @@ finished benchmark leaves its text in `window.__benchResult`.
   cost of the saving that happens to switch it off: `far-relief` bought 3.5 ms at the
   opening view, where the relief is added to no pixel near by; what it bought was a loop
   over the elevation rasters run before the test that makes it unnecessary.
+- A helper session whose turns keep ending in an error may have reached its model's usage
+  limit, not met a fault: `get_session` says so in `status_detail` ("You've hit your ...
+  limit"). Resending its job does nothing; a new session on a model with room takes over
+  from the brief and the report in the repository (that is what they are for), with a
+  second brief that says what is left.
+- A check of a finding reads the code as it is when the check runs: fixes landed while the
+  checks were running came back "refuted" (already fixed). Tell checkers the commit the
+  finding is about, and land fixes after the checks, or say in the brief which are fixed.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.
