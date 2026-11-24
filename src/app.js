@@ -1286,6 +1286,7 @@ export class App {
     post.setScale(this.photoWanted ? 1 : governor.scale);
     this.fitCanvas(now);
     G.uViewport.value.set(post.viewW, post.viewH);
+    this.grass.setView(post.viewH);                 // (blades and pollen measure a pixel of this picture, not of the canvas)
     G.uExposure.value = post.exposure;
     const aspect = post.viewW / post.viewH;
     const th = Math.tan(rig.fov * Math.PI / 360);
