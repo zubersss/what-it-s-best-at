@@ -289,6 +289,7 @@ export class App {
     // (boulders and outcrops as far as they can be seen: the land's own, in tiles)
     this.farRocks = new FarRocks(world, this.terrain); this.nearScene.add(this.farRocks.group);
     this.addRockCasters();
+    this.noClouds = params.debug.includes('noclouds');
     this.farRocks.off = params.debug.includes('farrocksoff');      // ?debug=farrocksoff: none of them, for before/after pictures
     // Trees (worlds that have them): drawn with the ground, and they cast shadows
     this.trees = new Trees(world, this.terrain); this.trees.renderer = renderer;
@@ -1342,7 +1343,9 @@ export class App {
     // interrupts the main picture, see sky/cloudVolume.js)
     this.cloudVolume.place(rig.pos);
     const cloudFar = this.clouds.update(rig.pos, world.radius, this.cloudVolume);
-    const vol = this.cloudVolume.ready(rig.pos, this.clouds);
+    // (?debug=noclouds: a clear sky, for pictures of the land from high above; their shadows go with them)
+    if (this.noClouds) this.clouds.mesh.visible = false;
+    const vol = !this.noClouds && this.cloudVolume.ready(rig.pos, this.clouds);
     this.clouds.uniforms.uNearFade.value = vol ? this.cloudVolume.reach : 0;
     if (vol) this.cloudVolume.render(post, rig, this.terrain.shared.uWave.value.z, this.clouds, this.terrain.shared.uWind, this.weather);
     // (the clouds' shadow on trees and on the grass's far clumps: a small map of it, before the main picture is begun)

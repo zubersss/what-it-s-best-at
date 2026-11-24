@@ -45,6 +45,14 @@ transcript, the numbers that matter here):
   leaves are what a forest costs; (4) the grass is dear for what it shows; (5) the
   character's 2 to 3 ms of page work is paid everywhere.
 
+**The owner, an hour later (2026-11-24): "We can do 30 fps if the game looks much more
+beautiful as well which I would like more."** So the aim on the phone is a steady 30 with
+a sharp, rich picture, not 60: Sharp becomes the default mode (`CLAUDE.md`, "Resolution
+and the governor"), a frame has 33 ms, and what the speed work frees is spent on beauty
+and on resolution. The helpers were told (the briefs' "cost less than today" becomes "a
+steady 30 at a sharp picture; spend what is freed on the look"); the next benchmark is
+asked for in Sharp.
+
 **The plan** (one delivery; the helpers again, on the owner's word):
 1. and 2. *Helper, speed* (`docs/briefs/phone-speed.md`; the phone's whole text is
    `docs/benchmarks/2026-11-24-haven-6ac24ff.txt`): the ground's shader several times
@@ -69,9 +77,30 @@ transcript, the numbers that matter here):
 `send_message`; never `list_events`; look at their work with `git fetch origin <branch>`):
 trees `session_01XG1DZ6z4HnMC6bjsyXexux`, branch `ccr-aa39490a-trees-refined`; grass
 `session_01XG1DZ7F3Rxaid46abwPs1f`, branch `ccr-aa39490a-grass-rich`; from above
-`session_01XG1DZ4yJLFGhdSyRj3Cexf`, branch `ccr-aa39490a-from-above`. Each announces an
-early push ("T-EARLY", "G-EARLY", "A-LOOK") and writes a report beside its brief. None of
-them may edit `terrainMaterial.js`: the ground's shader is being rewritten here.
+`session_01XG1DZ4yJLFGhdSyRj3Cexf`, branch `ccr-aa39490a-from-above`; speed
+`session_01XG1DZ38BpdeY4LvbUGcmCq`, branch `ccr-aa39490a-phone-speed` (announces
+"S-EARLY", then "S1" to "S4"). Each announces an
+early push ("T-EARLY", "G-EARLY", "A-LOOK") and writes a report beside its brief.
+
+**08:00, first results** (2026-11-24):
+- *Trees*: two sheets and the first game pictures (`docs/shots/trees-refined/` on its
+  branch): a whole skeleton, bark, fir boughs as fans of fronds, pine needles in tufts,
+  leaves in tones, a flowering tree with petals; close trees 2.5 to 3.5 thousand triangles,
+  and the near trees' count at the forest view fell from 265k to 143k. Sent back: no solid
+  dark lumps (done), bark too pale. Not merged here yet: to be merged when the wood from
+  inside has been seen.
+- *From above*: its list is `docs/briefs/from-above-look.md` on its branch, with 29
+  pictures. The worst: **two forests over one another in two colours** (the ground's
+  raised canopy is gold domes, the far trees on it green), from above the far trees are
+  specks and crosses (crowns cover 23 % of a closed wood at 1 km), from 3 km a wood is a
+  smooth blot, the steppe an even ochre. Decided: one forest, one green (the canopy takes
+  the trees' colour by a rule the far forest exports). **Order of work in
+  `terrainMaterial.js`**: the speed helper cuts it into tiers first and marks a block "the
+  ground from afar" (announced as "S1a"); when that is merged here, tell the from-above
+  helper, who then changes the far look inside that block. Until then it works on the
+  trees' side.
+- *Grass*, *speed*: no push yet at 08:00. Only the
+speed helper may edit `terrainMaterial.js`.
 
 ### The far view sent: trees, grass and rock as far as one can see
 
