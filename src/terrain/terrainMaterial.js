@@ -194,7 +194,9 @@ void main() {
   // (and where the meadows are and which hillsides flower: noises 260 and 420 m to the cell,
   // which every pixel of grass within 900 m used to work out for itself before it knew
   // whether a flower was near)
-  if (uGrassTone.a > 0.0 && far < 1100.0) { vec3 Pg = uCamPlanetPos + rel; vCloud.w = flNoise(Pg / 240.0 + vec3(3.0, 11.0, 5.0)); vFlowerFields = vec2(flowerMeadow(Pg), flowerHill(Pg)); }
+  // (the meadows' two noises to 2.6 km, where the ground's tint of flowers is seen from the
+  // air; the gusts only to 1.1 km)
+  if (uGrassTone.a > 0.0 && far < 2600.0) { vec3 Pg = uCamPlanetPos + rel; if (far < 1100.0) vCloud.w = flNoise(Pg / 240.0 + vec3(3.0, 11.0, 5.0)); vFlowerFields = vec2(flowerMeadow(Pg), flowerHill(Pg)); }
   if (length(uCamPlanetPos) * 0.001 <= uRTop) hazeAffine(rel, gl_Position.xy / max(abs(gl_Position.w), 1e-6) * 0.5 + 0.5, vHazeT, vHazeL, vHazeG);
 }`;
 
