@@ -386,15 +386,18 @@ vec3 farGrassColour(float dry, float grain) {
   float beyond = smoothstep(250.0, 500.0, length(vRel));
   if (beyond <= 0.0) return c;
   // bare soil, in patches some 6 to 18 m across, more of it the drier; shrubs, dark clumps
-  // some 1.5 to 4 m across, one place in ten. (Both from the detail tile's large blobs, read
+  // some 2 to 5 m across, one place in ten. (Both from the detail tile's large blobs, read
   // at a fixed level of its smaller copies, 16 texels a texel: the pattern is the same at
-  // every height, and where a patch would be under two pixels it gives way to its mean.)
+  // every height, and where a patch would be under two pixels it gives way to its mean. The
+  // scales are sixteenths of a tile, which the patches agree on (DETAIL_PERIOD); the soil's
+  // two reads, 85 m and 205 m apart, so that no repeat of it shows: with one, the land was
+  // a stencilled wallpaper.)
   float kB = 1.0 - smoothstep(0.09, 0.18, fw), bare = 0.21;
-  if (kB > 0.0) bare = mix(bare, smoothstep(0.6, 0.65, textureLod(tDetail, vDetailUv * 0.7 + 0.13, 4.0).b), kB);
-  c = mix(c, vec3(0.36, 0.28, 0.17) * (0.85 + 0.3 * grain), 0.5 * bare * smoothstep(0.2, 0.8, dry) * beyond);
-  float kS = 1.0 - smoothstep(0.021, 0.042, fw), shrub = 0.106;
-  if (kS > 0.0) shrub = mix(shrub, smoothstep(0.665, 0.695, textureLod(tDetail, vDetailUv * 3.0 + 0.37, 4.0).b), kS);
-  c = mix(c, vec3(0.045, 0.055, 0.03), 0.7 * shrub * beyond);
+  if (kB > 0.0) bare = mix(bare, smoothstep(0.56, 0.7, 0.6 * textureLod(tDetail, vDetailUv * 0.75 + 0.13, 4.0).b + 0.4 * textureLod(tDetail, vDetailUv * 0.3125 + 0.61, 4.0).b + 0.04), kB);
+  c = mix(c, vec3(0.30, 0.22, 0.11) * (0.85 + 0.3 * grain), 0.3 * bare * smoothstep(0.2, 0.8, dry) * beyond);
+  float kS = 1.0 - smoothstep(0.03, 0.06, fw), shrub = 0.106;
+  if (kS > 0.0) shrub = mix(shrub, smoothstep(0.66, 0.7, textureLod(tDetail, vDetailUv * 2.0 + 0.37, 4.0).b), kS);
+  c = mix(c, vec3(0.04, 0.05, 0.025), 0.8 * shrub * beyond);
   // tussocks: a grain a metre across, light and dark
   float kT = 1.0 - smoothstep(0.004, 0.012, fw);
   if (kT > 0.0) c *= 1.0 + 0.3 * kT * beyond * (texture(tDetail, vDetailUv * 61.0 + 0.71).g - 0.5);
