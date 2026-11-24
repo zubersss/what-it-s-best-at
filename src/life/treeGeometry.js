@@ -244,7 +244,7 @@ export function makeTreeGeometries() {
       // fronds off the bough to both sides, swept forward, their outer edges hanging a little
       const gap = 0.027 / len; let sd = L() < 0.5 ? 1 : -1;
       for (let u = 0.22 + 0.1 * L(); u < 0.86; u += gap * (0.8 + 0.4 * L()), sd = -sd) {
-        const fl = Math.min(0.08, len * (0.6 * (1 - u) + 0.2)) * (0.85 + 0.3 * L()), sw = 0.85 + 0.3 * L();
+        const fl = Math.min(0.085, len * (0.68 * (1 - u) + 0.24)) * (0.85 + 0.3 * L()), sw = 0.85 + 0.3 * L();
         const f = norm([dir[0] * Math.cos(sw) + side[0] * sd * Math.sin(sw), -0.2 - 0.15 * L(), dir[2] * Math.cos(sw) + side[2] * sd * Math.sin(sw)]), nrm = norm([dir[0] * 0.1 - side[0] * sd * 0.3, 1, dir[2] * 0.1 - side[2] * sd * 0.3]);
         s.card(P(u), f, norm(cross(nrm, f)), fl, fl * 0.95, SPRAYS.firTop, c, 0.5, fl > 0.05 ? [0, -fl * 0.22, 0] : null);
       }
@@ -255,13 +255,17 @@ export function makeTreeGeometries() {
       for (let i = 0; i < m; i++) {
         const u0 = 0.12 + 0.88 * i / m, u1 = 0.12 + 0.88 * (i + 1) / m, p0 = P(u0), p1 = P(u1), d = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], l = Math.hypot(...d), ax = [d[0] / l, d[1] / l, d[2] / l];
         const down = norm([side[0] * (L() - 0.5) * 0.5, -1, side[2] * (L() - 0.5) * 0.5]), ay = norm(add(down, ax, -(down[0] * ax[0] + down[1] * ax[1] + down[2] * ax[2])));
-        s.card(p0, ax, ay, l * 1.04, Math.min(0.075, len * 0.5) * (0.75 + 0.5 * L()) * (1 - 0.3 * i / m), SPRAYS.firHang, c, 0.07);
+        s.card(p0, ax, ay, l * 1.04, Math.min(0.06, len * 0.42) * (0.75 + 0.5 * L()) * (1 - 0.3 * i / m), SPRAYS.firHang, c, 0.07);
       }
     };
     for (let k = 0; k < tiers; k++) {
       const t = k / (tiers - 1), y = foot + (0.93 - foot) * Math.pow(t, 0.9), rr = (0.185 * Math.pow(1 - t, 0.85) + 0.024) * (0.8 + 0.36 * R()) * wide, turn = R() * TAU, c = [0, y - rr * 0.4, 0];
-      // (the tier's dark heart: a skirt under the boughs, so that the tree is not seen through)
-      s.skirt(y + rr * 0.1, rr * (q === 2 ? 0.3 : 0.7), rr * (q === 2 ? 0.34 : 0.62), turn);
+      // The tier's dark inside, so that the tree is not seen through: a rosette of fronds lying
+      // under the boughs, drawn dark (a cut edge; a solid cone here showed as a black pyramid
+      // from every side on the nearest trees). At the middle distance a small cone inside it too.
+      s.plate([0, y - rr * 0.22, 0], [Math.cos(turn), -0.12, Math.sin(turn)], [-Math.sin(turn), 0.12, Math.cos(turn)], rr * 1.5, rr * 1.5, sprayRect(SPRAYS.roseN), 0.5, 0.5, c, 3.25);
+      if (q === 2) s.plate([0, y - rr * 0.45, 0], [Math.cos(turn + 0.6), 0.1, Math.sin(turn + 0.6)], [-Math.sin(turn + 0.6), -0.1, Math.cos(turn + 0.6)], rr * 1.1, rr * 1.1, sprayRect(SPRAYS.roseN), 0.5, 0.5, c, 3.25);
+      else s.skirt(y + rr * 0.1, rr * 0.5, rr * 0.5, turn);
       if (q === 2) { const nB = t > 0.7 ? 5 : 7; for (let j = 0; j < nB; j++) bough(y - rr * 0.1 * L(), turn + (j + 0.6 * (L() - 0.5)) / nB * TAU, rr * (0.85 + 0.35 * L()), c); continue; }
       for (let j = 0; j < nV; j++) {
         const a = turn + (j + 0.5 * (L() - 0.5)) / nV * TAU, len = rr * (0.85 + 0.35 * L()), ax = norm([Math.cos(a), -0.18 - 0.2 * L(), Math.sin(a)]), d = -ax[1], ay = norm([-d * ax[0], -1 - d * ax[1], -d * ax[2]]);
@@ -285,12 +289,11 @@ export function makeTreeGeometries() {
     const tr = (y) => [lean * (y < 0.5 ? y * 1.6 : 0.8 + (y - 0.5) * 0.9) + 0.012 * Math.sin(y * 7), y, 0.01 * Math.sin(y * 5 + 1)];
     if (q === 2) s.bole(tr, 0.016, 0.004, 0.93); else s.trunk([tr(0), tr(0.3), tr(0.62), tr(0.93)], 0.016, 0.004, 5);
     // a burst: crossed cards standing on the point, the needles upward and outward
-    const burst = (c, r, n) => { s.heart(c[0], c[1] + r * 0.7, c[2], r * 0.74, r * 0.66, SPRAYS.roseN); for (let j = 0; j < n; j++) { const a = L() * TAU + j * (3.1416 / n), tilt = (L() - 0.5) * 0.7; s.plate(c, [Math.cos(a), 0, Math.sin(a)], norm([-Math.sin(a) * tilt, 1, Math.cos(a) * tilt]), r * 2.3, r * 2.3, sprayRect(j % 2 ? SPRAYS.pine2 : SPRAYS.pine), 0.5, 0.56, [c[0], c[1] - r * 0.6, c[2]]); } };
+    const burst = (c, r, n) => { s.heart(c[0], c[1] + r * 0.7, c[2], r * 0.74, r * 0.66, SPRAYS.roseN); for (let j = 0; j < n; j++) { const a = L() * TAU + j * (3.1416 / n), tilt = (L() - 0.5) * 0.7; s.plate(c, [Math.cos(a), 0, Math.sin(a)], norm([-Math.sin(a) * tilt, 1, Math.cos(a) * tilt]), r * 2.5, r * 2.5, sprayRect(SPRAYS.pineTwig), 0.5, 0.8, [c[0], c[1] - r * 0.6, c[2]]); } };
     // a head, close by: twigs up and out of the branch's end, a branch end's tufts on each
     const head = (c, r, n) => {
-      s.heart(c[0], c[1] + r * 0.6, c[2], r * 0.5, r * 0.42, SPRAYS.roseN, false);
       for (let j = 0; j < n; j++) {
-        const a = j / n * TAU + L() * 1.2, out = j === 0 ? 0 : 0.5 + 0.5 * L(), d = norm([Math.cos(a) * out, 0.55 + 0.6 * L(), Math.sin(a) * out]), tip = add(c, d, r * (0.45 + 0.35 * L())), size = Math.min(0.12, r * 1.15) * (0.85 + 0.3 * L());
+        const a = j / n * TAU + L() * 1.2, out = j === 0 ? 0 : 0.5 + 0.5 * L(), d = norm([Math.cos(a) * out, 0.55 + 0.6 * L(), Math.sin(a) * out]), tip = add(c, d, r * (0.45 + 0.35 * L())), size = Math.min(0.13, r * 1.25) * (0.85 + 0.3 * L());
         s.tube([c, tip], [0.0024, 0.0012], 3);
         const b = L() * TAU;
         for (let i = 0; i < 2; i++) { const e = [Math.cos(b + i * 1.5708), 0, Math.sin(b + i * 1.5708)], rt = norm(add(e, d, -(e[0] * d[0] + e[1] * d[1] + e[2] * d[2]))); s.plate(tip, rt, d, size, size, sprayRect(SPRAYS.pineTwig), 0.5, 0.97, [c[0], c[1] + r * 0.2, c[2]]); }

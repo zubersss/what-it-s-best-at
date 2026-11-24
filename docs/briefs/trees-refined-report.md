@@ -43,7 +43,7 @@ six tenths of that).
   spruce, oak), large plates each its own tone with dark cracks (red trunks: pine), smooth
   with bands part of the way round and black scars (pale trunks: aspen, birch). No new
   sampler.
-- *The dark inside*: two crossed rosette cards in a bunch (three at the middle distance),
+- *The dark inside*: foliage, never a solid: crossed rosette cards in a bunch, a dark rosette of fronds under each tier of a fir,
   and the sprays nearest the middle of a bunch drawn dark.
 - Distances: **close to 20 m, near to 60 m**, then the cards. The atlas is 4096 x 2048
   (2.7 MB; sprays 512, whole trees 256 x 512: they were 256 and 160 x 320), its mip maps

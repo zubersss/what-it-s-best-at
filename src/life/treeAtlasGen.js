@@ -120,9 +120,9 @@ function firTop(c, R, reach = 0.36, nlen = 0.034) {
 function firHang(c, R) {
   c.line(0.0, 0.07, 1.0, 0.075, 0.007, 0.005, 0.5);
   for (let x = 0.03; x < 0.97; x += 0.035 + 0.02 * R()) {
-    const L = (0.3 + 0.55 * R()) * (1 - 0.35 * x), a = 1.5708 - 0.3 + 0.35 * R(), ex = IN(x + Math.cos(a) * L), ey = IN(0.07 + Math.sin(a) * L);
+    const L = (0.14 + 0.36 * R() * R()) * (1 - 0.35 * x), a = 1.5708 - 0.75 + 0.6 * R(), ex = IN(x + Math.cos(a) * L), ey = IN(0.07 + Math.sin(a) * L);
     needled(c, R, x, 0.07, ex, ey, 0.03, 0.0065);
-    for (let k = 0; k < 4; k++) { const u = 0.2 + 0.2 * k + 0.08 * R(), sx = x + (ex - x) * u, sy = 0.07 + (ey - 0.07) * u, b = a + (k % 2 ? 0.6 : -0.6), l2 = L * 0.3 * (0.6 + 0.6 * R()); needled(c, R, sx, sy, IN(sx + Math.cos(b) * l2), IN(sy + Math.sin(b) * l2), 0.025, 0.008); }
+    for (let k = 0; k < 4; k++) { const u = 0.2 + 0.2 * k + 0.08 * R(), sx = x + (ex - x) * u, sy = 0.07 + (ey - 0.07) * u, b = a + (k % 2 ? 0.8 : -0.8), l2 = L * 0.45 * (0.6 + 0.6 * R()); needled(c, R, sx, sy, IN(sx + Math.cos(b) * l2), IN(sy + Math.sin(b) * l2), 0.025, 0.008); }
     if (R() < 0.5) { const l2 = 0.03 + 0.04 * R(); needled(c, R, x, 0.07, IN(x + 0.02), IN(0.07 - l2), 0.022, 0.008); }
   }
 }
@@ -136,28 +136,30 @@ function burst(c, R, n, spread, len) {
 // The end of a pine's branch: a forked twig standing on the middle of the cell's bottom
 // edge, a tuft of long needles on every end of it.
 function pineTwig(c, R) {
-  const tuftAt = (x, y, dir, n, len, dark) => { for (let k = 0; k < n; k++) c.needle(x + (R() - 0.5) * 0.015, y + (R() - 0.5) * 0.015, dir + (R() - 0.5) * 3.6, len * (0.65 + 0.5 * R()), 0.006, (0.55 + 0.45 * R()) * dark); };
+  // a tuft: a round brush of needles from one point, most of them forward of it
+  const tuftAt = (x, y, dir, n, len, dark) => { for (let k = 0; k < n; k++) { const off = (R() - 0.5) * 5.2; c.needle(x + (R() - 0.5) * 0.012, y + (R() - 0.5) * 0.012, dir + off, len * (0.7 + 0.4 * R()) * (1 - 0.35 * Math.abs(off) / 2.6), 0.0048, (0.55 + 0.45 * R()) * dark); } };
   // [the end's x, y, the way its needles point, where on the stem its twig leaves]
-  const ends = [[0.5, 0.36, -1.57, 0.52], [0.25, 0.5, -2.3, 0.7], [0.76, 0.48, -0.85, 0.66], [0.35, 0.25, -1.9, 0.52], [0.67, 0.23, -1.2, 0.52], [0.2, 0.74, -2.7, 0.86], [0.8, 0.72, -0.45, 0.82]];
-  c.line(0.5, 0.985, 0.5, 0.5, 0.011, 0.006, 0.5);
-  for (const e of ends) { e[0] += (R() - 0.5) * 0.05; e[1] += (R() - 0.5) * 0.05; c.line(0.5, e[3], e[0], e[1], 0.005, 0.003, 0.5); }
-  // (the tufts behind first, darker; then those in front)
-  for (const [x, y, dir] of ends) tuftAt(x, y, dir, 120, 0.3, 0.8);
-  for (const [x, y, dir] of ends) tuftAt(x, y, dir, 60, 0.22, 1);
+  const ends = [[0.5, 0.3, -1.57, 0.55], [0.22, 0.47, -2.3, 0.72], [0.79, 0.45, -0.85, 0.68], [0.33, 0.2, -1.95, 0.55], [0.69, 0.19, -1.15, 0.55], [0.17, 0.76, -2.8, 0.88], [0.83, 0.74, -0.35, 0.84]];
+  c.line(0.5, 0.985, 0.5, 0.52, 0.011, 0.006, 0.5);
+  for (const e of ends) { e[0] += (R() - 0.5) * 0.04; e[1] += (R() - 0.5) * 0.04; c.line(0.5, e[3], e[0], e[1], 0.006, 0.0035, 0.5); }
+  // (last year's tufts part way along each twig, smaller and darker; then this year's at the ends)
+  for (const [x, y, dir, j] of ends) { const u = 0.55 + 0.15 * R(); tuftAt(0.5 + (x - 0.5) * u, j + (y - j) * u, dir, 50, 0.12, 0.72); }
+  for (const [x, y, dir] of ends) tuftAt(x, y, dir, 110, 0.185, 0.85);
+  for (const [x, y, dir] of ends) tuftAt(x, y, dir, 55, 0.14, 1);
 }
 
 // A twig of leaves: side twigs to both sides, a leaf at every joint and at every end, in
 // three tones. o: { leaf (length), ratio (width over length), step (between leaves), twigs,
 // flowers (a twig in flower: clusters of this many at the joints, few and small leaves) }
 function leafy(c, R, o) {
-  const tones = [0.6, 0.8, 1.0], leaves = [], flowers = [];
+  const tones = [0.52, 0.66, 0.8, 0.9, 1.0], leaves = [], flowers = [];
   const along = (x0, y0, x1, y1) => {
     const dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy), dir = Math.atan2(dy, dx);
     c.line(x0, y0, x1, y1, 0.0045, 0.002, 0.45);
     let sd = R() < 0.5 ? 1 : -1;
     for (let d = o.step * (0.4 + 0.4 * R()); d < l; d += o.step * (0.8 + 0.4 * R())) {
       const t = d / l, x = x0 + dx * t, y = y0 + dy * t;
-      leaves.push([x, y, dir + sd * (0.65 + 0.5 * R()), o.leaf * (0.8 + 0.4 * R())]); sd = -sd;
+      leaves.push([x, y, dir + sd * (0.45 + 0.9 * R()), o.leaf * (0.6 + 0.7 * R())]); sd = -sd;
       if (o.flowers) for (let k = 0; k < o.flowers; k++) flowers.push([x + (R() - 0.5) * 0.07, y + (R() - 0.5) * 0.07, 0.028 + 0.014 * R(), R() * 6.28, 0.8 + 0.2 * R()]);
     }
     leaves.push([x1, y1, dir + (R() - 0.5) * 0.4, o.leaf * (0.9 + 0.3 * R())]);
@@ -170,7 +172,7 @@ function leafy(c, R, o) {
   }
   for (let k = 0; k < 6; k++) { const a = P(k / 6), b = P((k + 1) / 6); along(a[0], a[1], b[0], b[1]); }
   // (leaves over the twigs; those whose point would leave the cell are left out)
-  for (const [x, y, a, len] of leaves) { const tx = x + Math.cos(a) * len, ty = y + Math.sin(a) * len; if (tx > 0.985 || tx < 0.015 || ty > 0.985 || ty < 0.015) continue; c.leaf(x, y, a, len, o.ratio, tones[Math.floor(R() * 3)]); }
+  for (const [x, y, a, len] of leaves) { const tx = x + Math.cos(a) * len, ty = y + Math.sin(a) * len; if (tx > 0.985 || tx < 0.015 || ty > 0.985 || ty < 0.015) continue; c.leaf(x, y, a, len, o.ratio, tones[Math.floor(R() * 5)]); }
   for (const [x, y, r, a, tone] of flowers) { if (x > 0.955 || x < 0.045 || y > 0.955 || y < 0.045) continue; c.flower(x, y, r, a, tone); }
 }
 
