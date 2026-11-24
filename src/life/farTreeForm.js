@@ -85,26 +85,3 @@ export const FAR_GREEN_GLSL = /* glsl */`
 float farGreenW(float dist) { return smoothstep(300.0, 1300.0, dist); }
 vec3 farGreen(vec3 leaf, float dist) { return mix(leaf, dot(leaf, vec3(0.3, 0.6, 0.1)) * vec3(0.72, 0.88, 0.38), 0.7 * farGreenW(dist)); }
 `;
-
-// The canopy the ground raises under and beyond the far trees (terrain/terrainMaterial.js,
-// farCanopyColour): its leaf colour before the light, and how much of the land's colour map
-// it wears, **from the world's own data** (review farforest-4: a constant here was one
-// world's flora written into every world's ground). A world says it in
-// `life.trees.far.canopy: { leaf: [r, g, b], tint }`; without `leaf`, it is the mean leaf of
-// the flora that grows where no land class is named (`life.flora`, the forest's entries), as
-// the far trees have it: a species' leaf albedo x 0.61, x 1.12 for a crown's top, x 0.76 for
-// the tone of the trees' cut-out. Gives [r, g, b, tint]; null for a world with no trees.
-export const CANOPY_TONE = 0.61 * 1.12 * 0.76;
-export function canopyLeaf(world, species) {
-  const life = world.life, c = life?.trees?.far?.canopy || {};
-  if (!life?.trees) return null;
-  let leaf = c.leaf;
-  if (!leaf) {
-    const forest = (life.flora || []).filter((f) => !f.classes && !f.near), from = forest.length ? forest : (life.flora || []);
-    const sum = [0, 0, 0]; let w = 0;
-    for (const f of from) for (const [k, wk] of f.mix) { const sp = species[k]; if (!sp) continue; for (let i = 0; i < 3; i++) sum[i] += sp.leaf[i] * wk; w += wk; }
-    if (!w) for (const sp of species) { for (let i = 0; i < 3; i++) sum[i] += sp.leaf[i]; w++; }
-    leaf = sum.map((v) => v / w * CANOPY_TONE);
-  }
-  return [leaf[0], leaf[1], leaf[2], c.tint ?? 0];
-}
