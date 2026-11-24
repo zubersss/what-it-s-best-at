@@ -8,9 +8,8 @@
 // foliage is small cards (a metre or so), each showing one spray cut out of the trees'
 // picture (life/treeAtlasGen.js: a fir's frond, the twigs hanging under a bough, a pine's
 // branch end with its tufts, a twig of leaves or of blossom), in bunches at the twigs
-// with sky between. Inside every bunch is a small dark lump (plain faces, nothing cut
-// out): cards alone are a lace one sees through, and the lump hides what is behind it
-// for nothing. At the middle distance the same skeleton carries a few large cards (a whole
+// with sky between. Inside every bunch is a dark heart (crossed cards of a rosette, and
+// the sprays nearest the middle drawn dark): cards alone are a lace one sees through. At the middle distance the same skeleton carries a few large cards (a whole
 // bough, a whole bunch); far off a tree is its own silhouette on two crossed cards (the
 // picture has every shape seen whole, drawn from these very meshes) and a rosette lying
 // flat in its crown for whoever looks down on it.
@@ -18,15 +17,15 @@
 // Vertex data: position, normal (smooth over the whole crown: a tree is lit as one round
 // mass, light on the side to the Sun and dark away from it, whatever way its cards
 // face; a tube's is its own round), aLeaf (0 wood, 1 and 2 leaves drawn as plain faces: a
-// palm's fronds; 1.25 the dark inside of a crown, a plain face; 3 a card of foliage; 3.25 a
+// palm's fronds; 1.25 the dark inside of a fir's tier, a plain face; 3 a card of foliage; 3.25 a
 // card of the dark heart of a bunch; 4 a whole tree's card), aUv (where in the picture; -1 on
 // plain faces; on a tube (-2 - how far round it, in furrows of its bark; how far along it,
 // in tree heights)), aSway (x: how far the wind can move the vertex, by its height and its
 // distance from the trunk, wood and leaf alike so that a spray stays on its twig; y: how
 // much it flutters: nothing where a spray is held, most at its tip).
 //
-// In a mesh the wood and the dark lumps come first, the cards after: drawn in that order
-// the cards hidden behind them are never shaded.
+// In a mesh the wood and the firs' dark skirts (plain faces, nothing cut out) come first,
+// the cards after: drawn in that order the cards hidden behind them are never shaded.
 //
 // node scripts/tree-preview.mjs draws them all without a browser;
 // node scripts/make-tree-atlas.mjs draws the picture (run it after changing a shape).
@@ -107,20 +106,17 @@ class Shape {
   // picture's downward goes); its root `off` of the way down the card's root edge.
   card(p, ax, ay, len, wid, cell, c, off = 0.5, bend = null) { this.plate(p, ax, [-ay[0], -ay[1], -ay[2]], len, wid, sprayRect(cell), 0, off, c, 3, bend); }
 
-  // The heart of a mass of foliage: a dark lump at its middle, plain faces (aLeaf 1.25),
-  // round in its light and uneven in its outline. Sprays alone are a lace one sees
-  // straight through: a forest of them was a green noise with no tree in it. With a heart
-  // a crown is a dark mass with a cut edge, and the light catches the sprays that stand
-  // out of it. (It was three crossed cards of a rosette: nine more layers of cut-out in
-  // every bunch, where a lump is one layer that hides the rest.) rx: its radius, ry: its half height.
-  lump(cx, cy, cz, rx, ry) {
-    const seed = cx * 37 + cz * 53 + cy * 11, h = (k) => { const v = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); };
-    const N = 6, ringY = [0.5, -0.45], pts = [[0, 1, 0]], c = [cx, cy, cz];
-    for (let j = 0; j < 2; j++) for (let k = 0; k < N; k++) { const a = (k + 0.5 * j) / N * TAU + seed, r = Math.sqrt(1 - ringY[j] * ringY[j]) * (0.8 + 0.4 * h(j * N + k)); pts.push([Math.cos(a) * r, ringY[j], Math.sin(a) * r]); }
-    pts.push([0, -1, 0]);
-    const P = pts.map((p) => [cx + p[0] * rx, cy + p[1] * ry, cz + p[2] * rx]), Nn = pts.map((p) => norm([p[0], p[1] + 0.25, p[2]]));
-    const face = (i, j, k) => this.tri(P[i], P[j], P[k], 1.25, ...c, NOUV, NOUV, NOUV, [Nn[i], Nn[j], Nn[k]], [0, 0, 0]);
-    for (let k = 0; k < N; k++) { const k1 = (k + 1) % N; face(0, 1 + k1, 1 + k); face(1 + k, 1 + k1, 1 + N + k); face(1 + k1, 1 + N + k1, 1 + N + k); face(1 + N + k, 1 + N + k1, 1 + 2 * N); }
+  // The heart of a mass of foliage: crossed cards of a rosette at its middle, drawn dark
+  // (aLeaf 3.25). Sprays alone are a lace one sees straight through: a forest of them was a
+  // green noise with no tree in it. With a heart a crown is a dark mass with a cut edge,
+  // and the light catches the sprays that stand out of it. (A plain lump does the same for
+  // fewer layers of cut-out, and shows its flat faces from every side: tried twice.)
+  // rx: its radius, ry: its half height; flatToo: a third card lying flat (for whoever looks up or down into it).
+  heart(cx, cy, cz, rx, ry, rose, flatToo = true) {
+    const c = [cx, cy, cz], rect = sprayRect(rose), t = cx * 37 + cz * 53 + cy * 11, a = [Math.cos(t), 0, Math.sin(t)], b = [-Math.sin(t), 0, Math.cos(t)];
+    this.plate(c, a, [0, 1, 0], 2 * rx, 2 * ry, rect, 0.5, 0.5, c, 3.25);
+    this.plate(c, b, [0, 1, 0], 2 * rx, 2 * ry, rect, 0.5, 0.5, c, 3.25);
+    if (flatToo) this.plate(c, a, b, 2 * rx, 2 * rx, rect, 0.5, 0.5, c, 3.25);
   }
 
   // A skirt: the heart of one tier of a fir's boughs, a cone hanging from the trunk at
@@ -132,9 +128,9 @@ class Shape {
 
   // A bunch of large sprays at a limb's end (the middle distance): `n` of them growing out of
   // (cx, cy, cz) every way (more up and out than down), each about `r` long, flatter than
-  // round by `flat`, round a dark lump.
-  bunch(cx, cy, cz, r, n, cells, R, flat = 1, low = -0.45) {
-    this.lump(cx, cy + r * 0.1, cz, r * 0.62, r * 0.55 * Math.min(1, flat + 0.25));
+  // round by `flat`, round a dark heart.
+  bunch(cx, cy, cz, r, n, cells, R, flat = 1, low = -0.45, rose = SPRAYS.roseL) {
+    this.heart(cx, cy + r * 0.12, cz, r * 0.95, r * 0.8 * Math.min(1, flat + 0.25), rose);
     for (let k = 0; k < n; k++) {
       const u = low + (1 - low) * (k + R()) / n, a = k * 2.4 + R() * 1.2, h = Math.sqrt(Math.max(0, 1 - u * u));
       const d = norm([Math.cos(a) * h, u * flat, Math.sin(a) * h]), e = norm(cross(d, norm([R() - 0.5, R() - 0.5, R() - 0.5]))), len = r * (1.15 + 0.5 * R());
@@ -146,9 +142,9 @@ class Shape {
   // each a thin tube, and on every twig sprays a metre or so long (`size`, tree heights):
   // two part way along it, standing off to its sides, two at its end. from: where the limb
   // that carries the bunch ends (the twigs start there, not in the air).
-  twigs(cx, cy, cz, r, n, cells, R, size, flat = 1, low = -0.45, from = null) {
+  twigs(cx, cy, cz, r, n, cells, R, size, flat = 1, low = -0.45, from = null, rose = SPRAYS.roseL) {
     const c = [cx, cy, cz], f = from || c;
-    this.lump(cx, cy + r * 0.05, cz, r * 0.27, r * 0.24 * Math.min(1, flat + 0.25));
+    this.heart(cx, cy + r * 0.05, cz, r * 0.6, r * 0.5 * Math.min(1, flat + 0.25), rose);
     for (let k = 0; k < n; k++) {
       const u = low + (1 - low) * (k + R()) / n, a = k * 2.4 + R() * 1.2, h = Math.sqrt(Math.max(0, 1 - u * u));
       const d = norm([Math.cos(a) * h, u * flat, Math.sin(a) * h]), reach = r * (0.62 + 0.3 * R()), tip = add(c, [d[0], d[1] * flat, d[2]], reach), knee = add(add(f, [tip[0] - f[0], tip[1] - f[1], tip[2] - f[2]], 0.5), [0, 1, 0], reach * 0.08);
@@ -263,7 +259,7 @@ export function makeTreeGeometries() {
     for (let k = 0; k < tiers; k++) {
       const t = k / (tiers - 1), y = foot + (0.93 - foot) * Math.pow(t, 0.9), rr = (0.185 * Math.pow(1 - t, 0.85) + 0.024) * (0.8 + 0.36 * R()) * wide, turn = R() * TAU, c = [0, y - rr * 0.4, 0];
       // (the tier's dark heart: a skirt under the boughs, so that the tree is not seen through)
-      s.skirt(y + rr * 0.1, rr * (q === 2 ? 0.42 : 0.7), rr * (q === 2 ? 0.45 : 0.62), turn);
+      s.skirt(y + rr * 0.1, rr * (q === 2 ? 0.3 : 0.7), rr * (q === 2 ? 0.34 : 0.62), turn);
       if (q === 2) { const nB = t > 0.7 ? 5 : 7; for (let j = 0; j < nB; j++) bough(y - rr * 0.1 * L(), turn + (j + 0.6 * (L() - 0.5)) / nB * TAU, rr * (0.85 + 0.35 * L()), c); continue; }
       for (let j = 0; j < nV; j++) {
         const a = turn + (j + 0.5 * (L() - 0.5)) / nV * TAU, len = rr * (0.85 + 0.35 * L()), ax = norm([Math.cos(a), -0.18 - 0.2 * L(), Math.sin(a)]), d = -ax[1], ay = norm([-d * ax[0], -1 - d * ax[1], -d * ax[2]]);
@@ -287,10 +283,10 @@ export function makeTreeGeometries() {
     const tr = (y) => [lean * (y < 0.5 ? y * 1.6 : 0.8 + (y - 0.5) * 0.9) + 0.012 * Math.sin(y * 7), y, 0.01 * Math.sin(y * 5 + 1)];
     if (q === 2) s.bole(tr, 0.016, 0.004, 0.93); else s.trunk([tr(0), tr(0.3), tr(0.62), tr(0.93)], 0.016, 0.004, 5);
     // a burst: crossed cards standing on the point, the needles upward and outward
-    const burst = (c, r, n) => { s.lump(c[0], c[1] + r * 0.7, c[2], r * 0.5, r * 0.42); for (let j = 0; j < n; j++) { const a = L() * TAU + j * (3.1416 / n), tilt = (L() - 0.5) * 0.7; s.plate(c, [Math.cos(a), 0, Math.sin(a)], norm([-Math.sin(a) * tilt, 1, Math.cos(a) * tilt]), r * 2.3, r * 2.3, sprayRect(j % 2 ? SPRAYS.pine2 : SPRAYS.pine), 0.5, 0.56, [c[0], c[1] - r * 0.6, c[2]]); } };
+    const burst = (c, r, n) => { s.heart(c[0], c[1] + r * 0.7, c[2], r * 0.74, r * 0.66, SPRAYS.roseN); for (let j = 0; j < n; j++) { const a = L() * TAU + j * (3.1416 / n), tilt = (L() - 0.5) * 0.7; s.plate(c, [Math.cos(a), 0, Math.sin(a)], norm([-Math.sin(a) * tilt, 1, Math.cos(a) * tilt]), r * 2.3, r * 2.3, sprayRect(j % 2 ? SPRAYS.pine2 : SPRAYS.pine), 0.5, 0.56, [c[0], c[1] - r * 0.6, c[2]]); } };
     // a head, close by: twigs up and out of the branch's end, a branch end's tufts on each
     const head = (c, r, n) => {
-      s.lump(c[0], c[1] + r * 0.6, c[2], r * 0.22, r * 0.2);
+      s.heart(c[0], c[1] + r * 0.6, c[2], r * 0.5, r * 0.42, SPRAYS.roseN, false);
       for (let j = 0; j < n; j++) {
         const a = j / n * TAU + L() * 1.2, out = j === 0 ? 0 : 0.5 + 0.5 * L(), d = norm([Math.cos(a) * out, 0.55 + 0.6 * L(), Math.sin(a) * out]), tip = add(c, d, r * (0.45 + 0.35 * L())), size = Math.min(0.12, r * 1.15) * (0.85 + 0.3 * L());
         s.tube([c, tip], [0.0024, 0.0012], 3);
@@ -315,8 +311,8 @@ export function makeTreeGeometries() {
   // What the broad crowns share: bunches [x, y, z, r, where the limb that carries it ends]
   // at the limbs' ends. Close by each is twigs with small sprays (`size`: how long a spray
   // is, in tree heights); at the middle distance a few large ones.
-  const bunches = (s, L, list, n, cells, flat = 1, low = -0.45, size = 0.09) => {
-    for (const [x, y, z, r, from] of list) { if (s.q === 2) s.twigs(x, y, z, r, Math.max(5, Math.round(n * 1.2)), cells, L, Math.min(size, r * 0.7), flat, low, from); else s.bunch(x, y, z, r, Math.ceil(n * 0.55), cells, L, flat, low); }
+  const bunches = (s, L, list, n, cells, flat = 1, low = -0.45, size = 0.09, rose = SPRAYS.roseL) => {
+    for (const [x, y, z, r, from] of list) { if (s.q === 2) s.twigs(x, y, z, r, Math.max(5, Math.round(n * 1.2)), cells, L, Math.min(size, r * 0.7), flat, low, from, rose); else s.bunch(x, y, z, r, Math.ceil(n * 0.55), cells, L, flat, low, rose); }
   };
 
   // 2 broadleaf: a trunk that parts into limbs, each limb into two, twigs of leaves all round
@@ -396,7 +392,7 @@ export function makeTreeGeometries() {
       list.push([Math.cos(a) * d, y, Math.sin(a) * d, 0.17 + 0.07 * R(), e]);
     }
     list.push([0.04, 0.68 + 0.05 * v, -0.03, 0.16, t0]);
-    bunches(s, L, list, 8, [SPRAYS.tuft], 1, -0.2, 0.13);
+    bunches(s, L, list, 8, [SPRAYS.tuft], 1, -0.2, 0.13, SPRAYS.roseN);
   });
 
   // 6 palm: a thin leaning trunk and a crown of fronds, each a bent blade with leaflets down
@@ -433,9 +429,9 @@ export function makeTreeGeometries() {
       if (q === 2) {
         // (close by: twigs of leaves off the branch to every side all along it, and one from its end)
         s.tube([root, at(0.5), end], [0.0038, 0.0024, 0.001], 4);
-        const m = Math.max(2, Math.round(len / 0.028));
+        const m = Math.max(3, Math.round(len / 0.02));
         for (let j = 0; j <= m; j++) {
-          const u = 0.25 + 0.75 * j / m, tw = j * 2.4 + L() * 2, sp = j === m ? 0.2 : 0.9, f = norm([dir[0] + (e1[0] * Math.cos(tw) + e2[0] * Math.sin(tw)) * sp, dir[1] + (e1[1] * Math.cos(tw) + e2[1] * Math.sin(tw)) * sp - 0.15, dir[2] + (e1[2] * Math.cos(tw) + e2[2] * Math.sin(tw)) * sp]), ln = 0.05 * (0.8 + 0.5 * L());
+          const u = 0.25 + 0.75 * j / m, tw = j * 2.4 + L() * 2, sp = j === m ? 0.2 : 0.9, f = norm([dir[0] + (e1[0] * Math.cos(tw) + e2[0] * Math.sin(tw)) * sp, dir[1] + (e1[1] * Math.cos(tw) + e2[1] * Math.sin(tw)) * sp - 0.15, dir[2] + (e1[2] * Math.cos(tw) + e2[2] * Math.sin(tw)) * sp]), ln = 0.1 * (0.8 + 0.5 * L());
           s.card(at(u), f, norm(cross(f, norm([L() - 0.5, L() - 0.5, L() - 0.5]))), ln, ln * 0.9, SPRAYS.aspen, c);
         }
         continue;
@@ -446,7 +442,33 @@ export function makeTreeGeometries() {
       s.card(at(0.35), dir, e2, L2 * 0.9, L2 * 0.8, SPRAYS.aspen, c);
     }
     const top = tr(0.97);
-    if (q === 2) s.twigs(top[0], top[1] - 0.03, top[2], 0.06, 5, [SPRAYS.aspen], L, 0.045, 1, 0); else s.bunch(top[0], top[1] - 0.02, top[2], 0.07, 3, [SPRAYS.aspen], L, 1, 0);
+    if (q === 2) s.twigs(top[0], top[1] - 0.03, top[2], 0.07, 5, [SPRAYS.aspen], L, 0.07, 1, 0); else s.bunch(top[0], top[1] - 0.02, top[2], 0.07, 3, [SPRAYS.aspen], L, 1, 0);
+  });
+
+  // 8 blossom: a small tree that flowers before its leaves are out (cherry, plum, thorn): a
+  // short trunk that parts low into rising limbs, each forking, a wide round crown of
+  // twigs thick with flowers. Its sprays show petals only while the tree is in flower
+  // (trees.js); the rest of the year it is a small round-leaved tree.
+  make(8, 97, (v) => [SPRAYS.roseB, [0.44, 0.5, 0.4][v], [0.74, 0.68, 0.8][v], 0.62], (s, R, L, v, q) => {
+    const fork = [0.24, 0.2, 0.3][v], wide = [1, 1.15, 0.9][v], M = [5, 5, 4][v];
+    s.mid = 0.62;
+    const tr = (y) => [0.03 * Math.sin(y / fork * 2), y, 0.02 * y / fork];
+    if (q === 2) s.bole(tr, 0.022, 0.017, fork); else s.trunk([tr(0), tr(fork * 0.5), tr(fork)], 0.022, 0.016, 5);
+    const f0 = tr(fork), list = [];
+    for (let i = 0; i < M; i++) {
+      const a = i / M * TAU + R() * 0.8, d = (0.17 + 0.07 * R()) * wide, e1 = [f0[0] + Math.cos(a) * d, fork + 0.2 + 0.08 * R(), f0[2] + Math.sin(a) * d];
+      s.tube([[f0[0], fork - 0.02, f0[2]], [f0[0] + Math.cos(a) * d * 0.6, fork + 0.07, f0[2] + Math.sin(a) * d * 0.6], e1], [0.012, 0.0085, 0.005], q === 2 ? 5 : 4);
+      list.push([e1[0] * 1.15, e1[1] - 0.03, e1[2] * 1.15, (0.16 + 0.04 * R()) * wide, e1]);
+      for (const da of [-0.7, 0.7]) {
+        const b = a + da + (R() - 0.5) * 0.3, d2 = (0.12 + 0.06 * R()) * wide, e2 = [e1[0] + Math.cos(b) * d2, e1[1] + 0.1 + 0.1 * R(), e1[2] + Math.sin(b) * d2];
+        s.tube([e1, e2], [0.005, 0.0025], q === 2 ? 4 : 3);
+        list.push([e2[0], e2[1] + 0.02, e2[2], (0.15 + 0.04 * R()) * wide, e2]);
+      }
+    }
+    const lead = [f0[0], fork + 0.42, f0[2]];
+    s.tube([f0, lead], [0.011, 0.004], q === 2 ? 5 : 4);
+    list.push([lead[0], lead[1] + 0.1, lead[2], 0.2 * wide, lead], [lead[0] + 0.03, fork + 0.24, lead[2] - 0.02, 0.17 * wide, f0]);
+    bunches(s, L, list, 8, [SPRAYS.blossom], 0.85, -0.4, 0.14, SPRAYS.roseB);
   });
   return out;
 }

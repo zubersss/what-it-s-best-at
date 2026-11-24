@@ -119,9 +119,10 @@ export default {
       far: { full: 450, radius: 5600, below: 6000 }, line: { base: 3548, perDeg: 38.7, from: 0 } },
     grass: { below: 90, mid: 220 },
     flora: [
-      { near: true, upTo: 0.6, mix: [[6, 2], [5, 2], [0, 1]] },                    // by water: cottonwood, aspen
-      { classes: [7, 10, 16, 12], mix: [[2, 2], [1, 2], [9, 2], [0, 1]] },          // open dry country: juniper, pinyon, sage
-      { classes: [8, 9], upTo: 0.55, mix: [[0, 5], [2, 1], [5, 0.5]] },             // parkland: ponderosa
+      { near: true, upTo: 0.6, mix: [[6, 2], [5, 2], [0, 1], [64, 1.2], [65, 0.6]] },   // by water: cottonwood, aspen, and cherry and thorn in flower
+      { classes: [7, 10, 16, 12], upTo: 0.5, mix: [[2, 2], [1, 2], [9, 2], [0, 1], [64, 1.4], [65, 1.2]] },   // meadows and open dry country: juniper, pinyon, sage; the flowering trees stand here
+      { classes: [7, 10, 16, 12], mix: [[2, 2], [1, 2], [9, 2], [0, 1]] },
+      { classes: [8, 9], upTo: 0.55, mix: [[0, 5], [2, 1], [5, 0.5], [64, 1.3], [65, 0.5]] },   // parkland and wood edges: ponderosa, cherry
       { classes: [8, 9], mix: [[61, 2], [4, 2], [27, 1], [5, 1]] },
       { upTo: 0.35, mix: [[0, 3], [3, 2], [5, 0.4]] },                              // forest, low: ponderosa, Douglas fir
       { upTo: 0.7, mix: [[3, 3], [61, 2], [4, 1], [5, 0.6]] },                      // middle: Douglas fir, lodgepole
