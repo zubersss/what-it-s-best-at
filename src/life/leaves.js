@@ -154,7 +154,8 @@ export class Petals {
         float thin = 0.3 + 0.7 * abs(cos(vSpin * 0.37 + vSeed.z * 6.0));
         if (q.x * q.x + (q.y / thin) * (q.y / thin) > 1.0 || fract(vSeed.w * 91.0 + gl_FragCoord.x * 0.37 + gl_FragCoord.y * 0.61) > vFade) discard;
         vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos);
-        // (thin and pale: lit from both sides, and the sky's light counts for much)
+        // (thin and pale: lit from both sides, and the sky's light counts for much; a petal is
+        // drawn larger than life, as the meadow's flowers are, or it would be under a pixel from ten metres)
         vec3 col = vCol * (0.85 + 0.3 * vSeed.x) * (directSun(planetPos) * nearShadow(vRel, up) * (0.45 + 0.55 * thin) + skyLight(up, up)) / PI;
         col = aerialPerspective(col, vRel);
         fragColor = vec4(col * uExposure, 1.0);
@@ -167,7 +168,7 @@ export class Petals {
         float T = 8.0 + 6.0 * aSeed.z, t = uLeafSeason.z / T + aSeed.w, cyc = fract(t), lap = floor(t), age = cyc * T;
         // let go in a gust: the gust as it was when this petal came off (the trees sway to the same beat)
         float gust = 0.5 + 0.5 * sin((lap - aSeed.w) * T * 0.7 + aSlot * 2.1);
-        float go = step(fract(aSeed.z * 13.0 + lap * 0.37), top.y * mix(0.12, 1.5, gust * gust));
+        float go = step(fract(aSeed.z * 13.0 + lap * 0.37), top.y * mix(0.25, 1.6, gust * gust));
         // from somewhere in the crown
         vec2 r = fract(aSeed.xy + lap * vec2(0.618034, 0.754878));
         float ang = r.x * 6.2831853, rad = tr.w * sqrt(r.y) * 0.95, y0 = top.x * (0.42 + 0.5 * fract(aSeed.x * 7.0 + lap * 0.21));
@@ -177,7 +178,7 @@ export class Petals {
         vec2 swing = vec2(sin(t * 31.0 + aSeed.x * 9.0), cos(t * 23.0 + aSeed.y * 7.0)) * (0.25 + 0.06 * age);
         vec3 rel = uAnchorRel + tr.xyz + uLeafEast * (cos(ang) * rad + swing.x) + uLeafNorth * (sin(ang) * rad + swing.y) + uLeafUp * (h + 0.03) + drift;
         vSpin = t * (50.0 + 70.0 * aSeed.x);
-        place(rel, go * step(0.5, tr.w) * smoothstep(0.0, 0.04, cyc) * smoothstep(0.0, 0.35, h) * (1.0 - smoothstep(60.0, 90.0, length(rel))), 0.04 + 0.03 * aSeed.y);
+        place(rel, go * step(0.5, tr.w) * smoothstep(0.0, 0.04, cyc) * smoothstep(0.0, 0.35, h) * (1.0 - smoothstep(60.0, 90.0, length(rel))), 0.085 + 0.05 * aSeed.y);
       }`));
     this.lieGeo = mk(LYING, true);
     this.lying = new THREE.Points(this.lieGeo, material(/* glsl */`${HEAD}
@@ -187,7 +188,7 @@ export class Petals {
         vec3 rel = uAnchorRel + aLie.xyz;
         vSpin = aSeed.x * 40.0;
         // (as many as the tree is letting go; none from far off, where a petal is under a pixel)
-        place(rel, aLie.w * step(aSeed.z, uPetalTop[s].y * 1.3) * (1.0 - smoothstep(35.0, 55.0, length(rel))), 0.045 + 0.03 * aSeed.y);
+        place(rel, aLie.w * step(aSeed.z, uPetalTop[s].y * 1.3) * (1.0 - smoothstep(35.0, 55.0, length(rel))), 0.09 + 0.05 * aSeed.y);
       }`));
     for (const m of [this.falling, this.lying]) { m.frustumCulled = false; m.visible = false; }
     this.mesh = new THREE.Group(); this.mesh.add(this.falling, this.lying);
@@ -212,12 +213,13 @@ export class Petals {
     const A = tr.anchor, lie = this.lieGeo.attributes.aLie;
     if (this.serial !== list) {
       this.serial = list; this.put.fill(0); this.next = 0;
+      // (the pool is shared out among the trees there are: one tree alone has all of it)
       for (let s = 0; s < SLOTS; s++) {
-        const t = list[s];
+        const t = list.length ? list[s % list.length] : null;
         if (t) { u.uPetalTree.value[s].set(t.x, t.y, t.z, Math.max(0.6, t.tall * t.wide * 0.42)); u.uPetalTop.value[s].set(t.tall, t.fall, 0, 0); u.uPetalCol.value[s].set(...t.colour); } else { u.uPetalTree.value[s].set(0, 0, 0, 0); u.uPetalTop.value[s].set(0, 0, 0, 0); }
       }
       // (their feet in the world, to find again when the anchor moves)
-      this.feet = list.map((t) => [A.x + t.x, A.y + t.y, A.z + t.z, Math.max(0.6, t.tall * t.wide * 0.42)]);
+      this.feet = Array.from({ length: list.length ? SLOTS : 0 }, (_, s) => { const t = list[s % list.length]; return [A.x + t.x, A.y + t.y, A.z + t.z, Math.max(0.6, t.tall * t.wide * 0.42)]; });
       for (let i = 0; i < LYING; i++) lie.array[i * 4 + 3] = 0;
       lie.needsUpdate = true; this.anchor.copy(A);
     }
