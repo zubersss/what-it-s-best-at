@@ -441,7 +441,16 @@ as before.
     shader writes the colour it is handed: no texture is read per pixel of grass. The
     places are fixed to the ground (a stretch's middle moves in whole places), so a
     shadow's edge does not crawl. Blades and petals looked at toward the Sun glow (the
-    light comes through them).
+    light comes through them). Each third of the table (Sun, sky, air) is drawn by its own
+    small program, and only the rows something drawn reads: none from some 220 m up to
+    3 km, the clumps' alone from 90 m (`lightRows`; `node scripts/grass-light-test.mjs`).
+  - *A place's grass is the place's*: which cell an instance draws, and every number a
+    blade takes from its cell (place in the cell, height, lean, its tussock), is counted
+    from where the grass began, never from the anchor: with a grass saving on, the half of
+    the field that stays is the same half after every anchor step, and nothing changes at
+    the 2 560 m line where the anchor's place wraps. Lattices with an odd count of cells are
+    offset by whole cells (`HALF`), so no blade's cell is read on its edge.
+    `node scripts/grass-place-test.mjs` replays the shader's own lines across steps.
   - *Flowers* (`KINDS`, `FLORAS` in `grassRules.js`): twenty-six kinds in six habits: turf
     (tiny heads among the blades), cup (petals round a middle: daisies to poppies and the
     big single heads), spike (florets up a tall stem), umbel (a flat-topped spray), globe
@@ -449,7 +458,10 @@ as before.
     vertex shader shapes them all from a kind's row of numbers. Two lattices of single
     plants: 100 x 100 at 0.32 m with leaves and fourteen petals (to 15 m), 128 x 128 at
     0.8 m with six (to 50 m); beyond, some blades of the far rings are stalks in flower
-    (their upper part the kind's colour), and the ground has its dusting.
+    (their upper part the kind's colour), and the ground has its dusting. The far blades
+    come into flower over 38 to 50 m as the single flowers go out over the same stretch
+    (one stretch, `HANDOVER`), each blade by a soft edge of its own: no circle, no blade
+    switching whole between frames (`node scripts/grass-flowers-pixels-test.mjs`).
   - *Which flowers where*: a world's `life.flowers` (floras by name for each land-cover
     class, and rules by height, latitude or the tree line; without one, `DEFAULT_FLOWERS`)
     gives the flora of a place (`floraAt`); `flowersAt` (JavaScript, and the same in GLSL
@@ -730,9 +742,20 @@ as Earth is; what differs is where the maps come from.
   in water or above the tree line; beside rivers and lakes the trees that follow water.
 - **`trees.js`**: keeps the blocks within `radius` (240 m) of the traveller, asks for the
   nearest missing one when a worker is idle, and builds instance lists: one mesh per
-  shape and distance (near mesh under 110 m, far mesh beyond; `treeGeometry.js`), all
-  measured from an anchor at the traveller (rebuilt every 25 m of travel; beyond the radius
-  a tree is thrown out of the picture, the far forest's to draw). One material:
+  shape and make (`treeGeometry.js`: the close make, a skeleton of tapering limbs and
+  twigs with sprays at their ends, to 20 m; the near make, bunches of larger sprays, to
+  60 m; two crossed cards beyond), all measured from an anchor at the traveller. The whole
+  list is made every 25 m of travel; the close and near lists are chosen again by each
+  tree's distance from the eye every few metres (`treeLod.js`, `fineStep`: a quarter of
+  the close radius, never more often than a fifth of a second of travel), and a tree's far
+  card inside the near radius is cut in the vertex shader, so no tree near the eye is ever
+  given a coarser make than its distance asks (`node scripts/trees-near-test.mjs`;
+  `node scripts/tree-build-cost.mjs` times a making). Beyond the radius a tree is thrown
+  out of the picture, the far forest's to draw. Bark is a rule on each tube's own
+  coordinates, filtered to its mean where a furrow is smaller than a pixel; the shadow
+  pass draws a tree's cards whole whatever the eye's angle (a shadow is the tree seen
+  from the Sun). A species with `blossom` flowers by the date (`bloomOf` in `cover.js`);
+  out of flower its petal texels are leaves, near and far alike. One material:
   the shared lighting, light wrapped round and through crowns, shadows asked for a
   little outside the crown; wind (lean and swing by height and distance from the trunk);
   the seasons (leaves turn, then draw in to the branches, by the date and hemisphere,
@@ -746,6 +769,10 @@ as Earth is; what differs is where the maps come from.
 - **`leaves.js`**: 420 points that come loose overhead, ride the wind down turning, and
   lie a moment; worked out in the vertex shader from a number of their own and the
   clock; they stay put in the world as the camera moves.
+  Its `Petals`: points that come off the nearest trees in flower in gusts and ride the
+  wind, and lie under them on the ground as drawn; each slot keeps its tree and each
+  lying petal its place in the world when the lists are made again (only rebased to the
+  new anchor), and a tree that joins the list takes its share of slots.
 - **What casts a tree's shadow** is the next simpler mesh of the same tree (`set.cast`):
   the nearest trees cast as their near mesh, the others as their far mesh (two crossed
   pictures of the tree and a rosette in its crown, 6 triangles). A whole tree's card keeps
@@ -832,7 +859,12 @@ as Earth is; what differs is where the maps come from.
       from a tree in the land's or a cloud's shadow, none on ground the Sun does not reach
       by its slope (the tile job hands that over with the land's shadow:
       `treeLandShade.js`, `lit`), none beyond 4.2 km. Under the canopy the ground raises
-      they are hidden, which is right: they are for trees on open ground;
+      they are hidden, which is right: they are for trees on open ground. The shadows are
+      a draw of their own per tile (after the ground, before the far trees; no depth
+      written, so overlapping shadows darken together and never hide a tree's foot), their
+      strength set by the eye's height over the tile's lowest tree and eased over 0.8 s
+      (`tileShadow`; it once followed the ground under the traveller and popped at every
+      rim), and a tile's bounds take in its shadows;
     - the upright pictures draw in to nothing from 49 to 68 degrees (steeper, they are
       bright slivers beside the crown's top, and from straight above a cross on it);
     - the forest's end: seen from above its trees draw in over the last two fifths of its
