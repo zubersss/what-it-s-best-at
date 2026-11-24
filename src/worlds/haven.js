@@ -123,7 +123,7 @@ export default {
       { classes: [7, 10, 16, 12], upTo: 0.5, mix: [[2, 2], [1, 2], [9, 2], [0, 1], [64, 1.4], [65, 1.2]] },   // meadows and open dry country: juniper, pinyon, sage; the flowering trees stand here
       { classes: [7, 10, 16, 12], mix: [[2, 2], [1, 2], [9, 2], [0, 1]] },
       { classes: [8, 9], upTo: 0.55, mix: [[0, 5], [2, 1], [5, 0.5], [64, 1.3], [65, 0.5]] },   // parkland and wood edges: ponderosa, cherry
-      { classes: [8, 9], mix: [[61, 2], [4, 2], [27, 1], [5, 1]] },
+      { classes: [8, 9], mix: [[61, 2], [4, 2], [27, 1], [5, 1], [64, 0.8], [65, 0.4]] },   // high parkland (the opening place): lodgepole, spruce, stone pine, aspen, and the flowering trees among them
       { upTo: 0.35, mix: [[0, 3], [3, 2], [5, 0.4]] },                              // forest, low: ponderosa, Douglas fir
       { upTo: 0.7, mix: [[3, 3], [61, 2], [4, 1], [5, 0.6]] },                      // middle: Douglas fir, lodgepole
       { mix: [[4, 3], [27, 2], [61, 1]] },                                          // high: spruce, stone pine

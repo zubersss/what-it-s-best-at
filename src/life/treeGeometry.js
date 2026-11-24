@@ -133,8 +133,10 @@ class Shape {
     this.heart(cx, cy + r * 0.12, cz, r * 0.95, r * 0.8 * Math.min(1, flat + 0.25), rose);
     for (let k = 0; k < n; k++) {
       const u = low + (1 - low) * (k + R()) / n, a = k * 2.4 + R() * 1.2, h = Math.sqrt(Math.max(0, 1 - u * u));
-      const d = norm([Math.cos(a) * h, u * flat, Math.sin(a) * h]), e = norm(cross(d, norm([R() - 0.5, R() - 0.5, R() - 0.5]))), len = r * (1.15 + 0.5 * R());
-      this.card([cx - d[0] * r * 0.12, cy - d[1] * r * 0.12, cz - d[2] * r * 0.12], d, e, len, len * 0.9, cells[k % cells.length], [cx, cy, cz]);
+      // (sprays two thirds the size they were here and twice as many, standing a little out from
+      // the middle: the leaves are nearer the size they have on the nearest trees, for fewer pixels)
+      const d = norm([Math.cos(a) * h, u * flat, Math.sin(a) * h]), e = norm(cross(d, norm([R() - 0.5, R() - 0.5, R() - 0.5]))), len = r * (0.82 + 0.3 * R());
+      this.card([cx + d[0] * r * 0.2, cy + d[1] * r * 0.2 * flat, cz + d[2] * r * 0.2], d, e, len, len * 0.9, cells[k % cells.length], [cx, cy, cz]);
     }
   }
 
@@ -312,7 +314,7 @@ export function makeTreeGeometries() {
   // at the limbs' ends. Close by each is twigs with small sprays (`size`: how long a spray
   // is, in tree heights); at the middle distance a few large ones.
   const bunches = (s, L, list, n, cells, flat = 1, low = -0.45, size = 0.09, rose = SPRAYS.roseL) => {
-    for (const [x, y, z, r, from] of list) { if (s.q === 2) s.twigs(x, y, z, r, Math.max(5, Math.round(n * 1.2)), cells, L, Math.min(size, r * 0.7), flat, low, from, rose); else s.bunch(x, y, z, r, Math.ceil(n * 0.55), cells, L, flat, low, rose); }
+    for (const [x, y, z, r, from] of list) { if (s.q === 2) s.twigs(x, y, z, r, Math.max(5, Math.round(n * 1.2)), cells, L, Math.min(size, r * 0.7), flat, low, from, rose); else s.bunch(x, y, z, r, Math.ceil(n * 1.1), cells, L, flat, low, rose); }
   };
 
   // 2 broadleaf: a trunk that parts into limbs, each limb into two, twigs of leaves all round
