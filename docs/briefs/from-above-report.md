@@ -6,6 +6,129 @@ ranked: `from-above-look.md`. Pictures: `docs/shots/from-above/`,
 `<place>_<metres over the ground>_p<degrees looked down>[_phone|_floor|_clear]`), taken with
 `scripts/from-above-shots.sh <frozen build> <suffix> [view ...]`.
 
+## Second round (2026-11-24/25, brief `from-above-2.md`)
+
+Pictures: `docs/shots/from-above/haven_ledge_<view>_r2before.png` (build 41705a3, the owning
+branch when this round began) beside `_after2.png` (this branch); `_r2a1.png`: the review's
+fixes alone; `earth_ledge_earth_3000_after2.png`; the flight from the air in
+`docs/shots/from-above/stability2/`.
+
+### The review's findings on the far forest (farforest-1 to 8)
+
+- **farforest-1 (held), fixed.** A tile's trees' shadows are a draw of their own (a second
+  mesh on the same buffers: the fourth quad only), writing no depth, drawn after the ground
+  and before every far tree (renderOrder 3). Shadows lying over one another now multiply
+  as `shadowAlpha` means them to, and no shadow cuts the lower part off a tree standing in
+  it. The trees' own material never blends now.
+- **farforest-2 and 3 (held), fixed.** How much of a tile's shadows is drawn, and whether
+  the tile is handed them at all, go by the eye's height over **the tile's lowest tree**
+  (worked out once when the tile arrives), eased over 0.8 s; no longer by the height over
+  the ground underfoot. A rim is not a switch, and a valley's trees seen steeply from a
+  rim have their shadows. `tileShadow()` (farForest.js) is the rule;
+  `far-tree-form-test.mjs` check 7 is the rim (the old rule: 3 % on the rim, 100 % a metre
+  on, and the tile not handed its shadows; now 100 % on both, handed over).
+- **farforest-4: refuted** by the owning session's check, and its decision is kept: the
+  canopy's one leaf (ponderosa, Earth's opening place's tree too). A version taking each
+  world's leaf and map tint from its data was written and taken out again.
+- **farforest-5 (held), fixed.** The height over a far tile's middle plane is
+  `(R + h) ol / l - ol`. `far-tree-shade-test.mjs` has a new check, level ground on a round
+  world with a Sun 6 degrees up: off by 0.10 on the 7 km tiles before, 0.001 now.
+- **farforest-6 (held), fixed**, both halves: wood on a far card is cut at 0.5, or 0.75 in a
+  tree that flowers (a flag carried per tree in `iC.w`, + 256), and it is coloured as the
+  near cards' twigs (`mix(trunk, grey trunk, 0.75) x 0.4`, was `trunk x 0.6`).
+- **farforest-7 (held), fixed.** The shadows' mesh has its own bounds: the trees' plus their
+  tallest tree x max(SHADOW_LONG, TOP_MAX x 0.3).
+- **farforest-8 (held), fixed.** Leaf and bark colours packed once per species; a flowering
+  species' crown in 64 steps of its tree's own number, worked out again when the day (or
+  the hemisphere) changes, and then only the tiles that hold flowering trees are filled
+  again.
+
+### The ground's far look (my blocks of `terrainMaterial.js` only)
+
+- **(a) Domes, not a net.** `crowns()`: rows bent by one long wave each way (a whole number
+  across the tile, stretching a dome by at most a fifth: a first try at 0.4 of a cell, two to a
+  tile, turned the domes to streaks), radii 0.30 to 0.66 of a cell, one cell in ten empty.
+  The 2 x 2 search stays exact (centre at most 0.33 from its cell's middle, radius at most
+  0.66). Pair: `ledge_300_p20_phone`.
+- **(b) Grain and a broken edge from 3 to 30 km.** Where the 8 m crowns go under a pixel a
+  third level of domes comes in: clumps 43 m across (1.5 to a tile), lighter toward the Sun,
+  dark in their gaps, on whatever colour the wood has there (its own, or the map's beyond
+  19 km), gone where a clump is under two pixels and beyond 40 km. Where the land-cover map
+  thins the canopy out, the clumps' tops stay and their gaps go first: the wood's edge is
+  broken along them. Pairs: `wood_3000_p60`, `ledge_3000_p60_clear`, `ledge_10000_p60_clear`.
+- **(c) The steppe from above** (`farGrassColour`): beyond the blades (from 250 to 500 m
+  from the eye) the grass ground has patches of bare soil 6 to 18 m across, more of them the
+  drier, dark shrubs 2 to 5 m across in clusters, and a tussock grain a metre across. Each
+  is read at a fixed level of the detail tile's smaller copies and gives way to its own mean
+  where it would be under two pixels (the means measured on the tile: soil 0.21, shrubs
+  0.10), so the land's tone does not change with height. Scales are sixteenths of a tile
+  (patches agree). Two failures on the way, seen in pictures and fixed: one read for the soil
+  was a stencilled wallpaper (now two reads 85 and 205 m apart), and the shrubs alone stood
+  in a grid (now clustered by a second read). Pairs: `steppe_300_p60`, `steppe_1000_p60`.
+
+### Numbers
+
+Draw calls and triangles (the pictures' own read-out):
+
+| view | calls before | after | triangles before | after |
+| --- | --- | --- | --- | --- |
+| ledge_300_p60 | 76 | 98 | 807 444 | 816 802 |
+| ledge_300_p20_phone | 66 | 84 | 940 118 | 949 600 |
+| wood_300_p20 | 65 | 87 | 971 682 | 979 590 |
+| wood_1000_p60 | 67 | 86 | 642 728 | 647 478 |
+| wood_3000_p60 | 46 | 53 | 416 484 | 416 484 |
+| ledge_3000_p60_clear | 42 | 50 | 395 195 | 395 195 |
+| ledge_10000_p60_clear | 18 | 18 | 231 171 | 231 171 |
+| steppe_300_p60 | 66 | 70 | 311 194 | 317 928 |
+| ledge_300_p60_floor | (43, round one) | 44 | (489 599) | 489 600 |
+| ledge_3000_p60_floor | | 27 | | 338 347 |
+
+The shadows' own draw is one call per tile that shows shadows (7 to 22 from the air, none
+on the ground, none at the floor: the governor's `tree-shadows` step). A few more triangles
+at low heights: tiles of trees below the ground underfoot are now handed their shadows.
+
+The ground's shading, as a count of work on software WebGL (`scripts/ground-cost-run.sh`,
+1100 x 515, the shader of 41705a3 beside this one in the same session; never a frame rate;
+"before" is the owning branch at 41705a3, so the owning session's later changes outside my
+blocks are in the "after" too):
+
+| view | before (ms) | after (ms) | after / before |
+| --- | --- | --- | --- |
+| ledge (opening view) | 1690 | 1734 | 103 % |
+| steppe, 40 m up | 1618 | 1657 | 102 % |
+| air300 | 1197 | 1192 | 100 % |
+| air3k | 704 | 762 | 108 % |
+| air30k | 485 | 558 | 115 % |
+
+The clumps are the cost from 3 km up (a fourth `crowns()` call where the 8 m crowns are
+gone: at most two `crowns()` a pixel anywhere). No texture added (16 of 16 still).
+
+Flight 1 km over the north wood, 4 m a frame (`stability.mjs --only haven_above_flight`):
+changed 15.3, 12.0, 16.0 % of pixels, flicker 1.7, 1.1, 1.6 % (round one: 3.8, 1.8, 3.9 %).
+What it cannot show: settled frames only (no tile arriving in flight), and a rim crossing
+(farforest-2) is not among its moves; the rim is checked in Node only.
+
+### Behaviour changes (for the checkpoint message)
+
+- From the air, far trees' shadows over one another darken as they should, and come and go
+  smoothly by height over the trees themselves (no pop at a rim; valley trees seen from a
+  rim have shadows).
+- Far trunks and limbs keep their tone and thickness across the 240 m line.
+- A wood seen from 300 m: domes of varied size, no lattice. From 3 to 30 km: a grain of
+  clumps and a broken edge where it was a smooth blot.
+- The steppe from above: soil patches, shrubs, a grain, where it was one ochre.
+- One draw call more per far tile with shadows, from the air.
+
+### Known problems, most visible first
+
+1. From 3 km over the opening place one is in cloud (the floor pictures there are of the
+   cloud); the `_clear` views are the ones to judge.
+2. The clumps cost 8 to 15 % more of the ground's shading from 3 km up (software count).
+3. The steppe's grain is subtle at 1 km (the far grass fades to the map's colour from 600 m
+   to 2.5 km, and the soil and shrubs go with it).
+4. Shadows are still under the raised canopy inside woods, and laid level on slopes.
+5. Nothing measured on the phone.
+
 ## In one paragraph
 
 Looked down on, a far tree was two cards on edge: a wood from above was specks and
