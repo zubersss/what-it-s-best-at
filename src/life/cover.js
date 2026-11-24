@@ -88,7 +88,7 @@ export const SPECIES = [
   /* 62 */ S('Sitka spruce', ARCH.CONIFER, 1.25, 0.8, [0.025, 0.055, 0.035], BARK),
   /* 63 */ S('olive', ARCH.BROADLEAF, 0.7, 1.2, [0.08, 0.10, 0.07], GREY),
   /* 64 */ S('wild cherry', ARCH.BLOSSOM, 0.8, 1.25, [0.07, 0.13, 0.035], [0.2, 0.13, 0.11], 1, { colour: [0.62, 0.34, 0.42], from: 62, to: 118 }),
-  /* 65 */ S('blackthorn', ARCH.BLOSSOM, 0.5, 1.35, [0.06, 0.11, 0.04], [0.12, 0.1, 0.09], 1, { colour: [0.66, 0.63, 0.56], from: 55, to: 105 }),
+  /* 65 */ S('blackthorn', ARCH.BLOSSOM, 0.5, 1.35, [0.06, 0.11, 0.04], [0.12, 0.1, 0.09], 1, { colour: [0.74, 0.72, 0.72], from: 55, to: 105 }),
 ];
 
 // How far in flower a tree is on a day of the year (0..365.25) at a latitude: open (0..1:
