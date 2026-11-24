@@ -169,7 +169,8 @@ export class Petals {
         float T = 8.0 + 6.0 * aSeed.z, t = uLeafSeason.z / T + aSeed.w, cyc = fract(t), lap = floor(t), age = cyc * T;
         // let go in a gust: the gust as it was when this petal came off (the trees sway to the same beat)
         float gust = 0.5 + 0.5 * sin((lap - aSeed.w) * T * 0.7 + aSlot * 2.1);
-        float go = step(fract(aSeed.z * 13.0 + lap * 0.37), top.y * mix(0.25, 1.6, gust * gust));
+        // (a steady light fall always, a flurry when a gust passes)
+        float go = step(fract(aSeed.z * 13.0 + lap * 0.37), top.y * mix(0.6, 2.0, gust * gust));
         // from somewhere in the crown
         vec2 r = fract(aSeed.xy + lap * vec2(0.618034, 0.754878));
         float ang = r.x * 6.2831853, rad = tr.w * sqrt(r.y) * 0.95, y0 = top.x * (0.42 + 0.5 * fract(aSeed.x * 7.0 + lap * 0.21));
