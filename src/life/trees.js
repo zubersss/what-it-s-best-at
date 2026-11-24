@@ -222,7 +222,10 @@ export class Trees {
           // (a twig, drawn in a spray or a thin tube of its own: grey-brown whatever the trunk's
           // colour, and darker than the limb it grows from; a pine's red is its trunk's plates)
           vec3 twigC = mix(vTrunkC, dot(vTrunkC, vec3(0.333)) * vec3(1.06, 1.0, 0.9), 0.75) * 0.4;
-          vec3 albedo = wood ? (card || vLeaf > 0.1 ? twigC : vTrunkC * 0.6) : leafC;
+          // (bark is dark: a fir's or a pine's trunk in the Sun is grey-brown to red-brown, never a
+          // pale peeled pole; only the pale trunks, birch and aspen, keep their tone)
+          float paleT = step(0.4, dot(vTrunkC, vec3(0.333)));
+          vec3 albedo = wood ? (card || vLeaf > 0.1 ? twigC : vTrunkC * mix(0.34, 0.6, paleT)) : leafC;
           // (bark near by: furrows running up the trunk, wandering a little; and a trunk is
           // round even in the shade of the wood, where no light says so: darker toward its edges)
           // Bark, by rule, on the tubes' own coordinates (vUv.x: -2 - furrows round the tube,
@@ -232,7 +235,7 @@ export class Trees {
           // one is large plates, each its own tone, with dark cracks between (pine); any other
           // is furrowed, the ridges broken into lengths (fir, spruce, oak).
           if (wood && !card) {
-            albedo *= mix(0.66, 1.0, smoothstep(0.1, 0.65, abs(dot(N, V))));
+            albedo *= mix(0.42, 1.0, smoothstep(0.05, 0.75, abs(dot(N, V))));          // (round: darker toward its two edges)
             float dW = length(vRel);
             if (vUv.x < -1.5 && dW < 70.0) {
               float bu = -vUv.x - 2.0, bv = vUv.y * vTall.x, near = 1.0 - smoothstep(30.0, 70.0, dW), pale = step(0.4, dot(vTrunkC, vec3(0.333))), red = (1.0 - pale) * smoothstep(1.7, 2.3, vTrunkC.r / max(vTrunkC.b, 1e-3));
@@ -241,7 +244,7 @@ export class Trees {
               float row = bv * mix(1.5, 0.9, red) + fract(sin(col * 12.9898) * 43758.5453) * 7.0, across = smoothstep(0.82, 0.95, abs(fract(row) - 0.5) * 2.0);
               float plate = fract(sin(dot(vec2(col, floor(row + 0.5)), vec2(127.1, 311.7))) * 43758.5453);
               float furrow = max(smoothstep(mix(0.45, 0.72, red), mix(0.8, 0.92, red), f), across * mix(0.7, 1.0, red));
-              float rough = (1.0 - mix(0.66, 0.7, red) * furrow) * (1.0 + mix(0.3, 0.5, red) * (plate - 0.5)) * mix(0.8, 1.0, red);
+              float rough = (1.0 - 0.86 * furrow) * (1.0 + mix(0.45, 0.6, red) * (plate - 0.4));          // (furrows near black, the plates' faces catching the light)
               // a pale trunk: bands a little way round it, a black scar now and then
               float band = floor(bv * 9.0), bh = fract(sin(band * 91.7 + vOwn.x * 31.0) * 43758.5453), bandOn = step(0.45, bh) * step(abs(fract(bu * 0.31 + bh * 5.0) - 0.5), 0.12 + 0.2 * bh) * step(0.55, fract(bv * 9.0));
               float scar = step(0.9, fract(sin(floor(bv * 1.3) * 17.3 + vOwn.x * 9.0) * 43758.5453)) * step(abs(fract(bu * 0.2 + bh) - 0.5), 0.1) * step(abs(fract(bv * 1.3) - 0.5), 0.2);
