@@ -5,6 +5,12 @@
 //
 // In a vacuum nothing outside the suit is heard: wind needs air (its loudness follows the
 // world's air density), and footsteps are dull thuds through the boots everywhere.
+// How loud a clap of thunder is: by the stroke's power and how far off it struck, to nothing by
+// fifty kilometres. (Pure, so that scripts/weather-test.mjs can print a thunder log.)
+export function thunderLoudness(power, dist) {
+  return Math.min(1, power * 1.8 / (1 + dist / 3000)) * Math.max(0, 1 - dist / 50000);
+}
+
 export class Audio {
   constructor() { this.ctx = null; this.on = true; this.awake = true; this.steps = 0; this.lastAir = false; this.warp = 0; }
 
@@ -38,13 +44,19 @@ export class Audio {
     this.air = voice('bandpass', 1800, 0.5);
     this.rainV = voice('highpass', 2200, 0.2);         // rain on the suit and the ground
     this.rainLow = voice('bandpass', 500, 0.4);        // ... and its body, in a downpour
+    this.rumble = voice('lowpass', 95, 1.1);           // the low rumble of a storm that is near and striking
   }
 
   // Thunder: a crack if it is near, then the long roll. power 0..1.5; dist (m).
+  // (the stroke's own moment plus its distance over 343 m/s is the weather's: weather.js queues
+  // each one and sky/skySystem.js calls this when it arrives, below 20 km over the ground)
   thunder(power, dist) {
     const c = this.ctx; if (!c || !this.on) return;
-    // (fainter with distance, to nothing by fifty kilometres)
-    const t = c.currentTime, near = Math.max(0, 1 - dist / 4000), loud = Math.min(1, power * 1.8 / (1 + dist / 3000)) * Math.max(0, 1 - dist / 50000);
+    const t = c.currentTime, near = Math.max(0, 1 - dist / 4000), loud = thunderLoudness(power, dist);
+    // A storm that is near and striking leaves a rumble between its claps: each one that
+    // arrives raises a low bed that dies away over some fifteen seconds, so while a cell is
+    // within thirty kilometres (two to twelve strokes a minute) the air never goes quiet.
+    this.rumbleLevel = Math.min(1, (this.rumbleLevel || 0) + loud * (dist < 30000 ? 0.5 : 0.15));
     if (loud < 0.01) return;
     const roll = (freq, q, peak, at, len) => {
       const src = c.createBufferSource(); src.buffer = this.noise; src.loop = true; src.playbackRate.value = 0.35 + Math.random() * 0.25;
@@ -113,6 +125,9 @@ export class Audio {
     set(this.gust.g.gain, air * 0.06 * (0.5 + 0.5 * Math.sin(t * 0.17) * Math.sin(t * 0.059)) * (1 + 2.5 * blow));
     const rn = Math.min(1, (s.rain || 0) / 9);
     set(this.rainV.g.gain, 0.11 * Math.sqrt(rn), 0.4); set(this.rainLow.g.gain, 0.10 * rn, 0.4);
+    // the storm's rumble, dying away between the claps
+    this.rumbleLevel = (this.rumbleLevel || 0) * Math.exp(-dt / 14);
+    if (this.rumble) { set(this.rumble.g.gain, air * 0.085 * this.rumbleLevel, 0.8); set(this.rumble.f.frequency, 80 + 40 * this.rumbleLevel); }
     // flight: the suit's thrust, heard through the suit (so in vacuum too), louder with the stick
     const fly = s.flying ? 0.05 + 0.22 * s.throttle + (s.boost ? 0.12 : 0) : 0;
     set(this.rush.g.gain, fly); set(this.rush.f.frequency, 160 + 500 * s.throttle + (s.boost ? 500 : 0));

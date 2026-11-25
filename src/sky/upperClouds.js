@@ -24,7 +24,7 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { G } from '../render/globals.js';
 import { SKY_FIELD_GLSL, SKY_UNIFORMS } from './skyGlsl.js';
 import { STEER_GLSL } from '../weather/sky/steer.js';
-import { CELL_GLSL, ANVIL_GLSL, CELL_MAX, ANVIL_MAX } from '../weather/sky/cellShape.js';
+import { CELL_GLSL, ANVIL_GLSL, CELL_MAX, ANVIL_MAX, ANVIL_VEC4, CELL_UNIFORMS } from '../weather/sky/cellShape.js';
 
 // the look's numbers (the report lists them; the world file may pin them)
 export const UPPER_LOOK = Object.freeze({
@@ -33,10 +33,14 @@ export const UPPER_LOOK = Object.freeze({
   MID_CELL: 520,                  // m: a cloudlet of the mackerel sky (what counts as smaller than a pixel)
   MID_ALPHA: 0.92,                // the most a thick altostratus veil takes
   MID_SHADE: 0.72,                // its shaded side (two tones, as the heaps have)
+  MID_PATCH: 0.28,                // how much the field clumps into patches and lanes (0: an even screen)
+  MID_PATCH_K: 0.21,              // how large those patches are, against a cloudlet
+  ANVIL_TORN: 0.26,               // how far the cirrus strokes move an anvil's edge (a torn fringe)
   HIGH_STRETCH: 7,                // how far the high noise is drawn out along its own wind
   HIGH_ALPHA: 0.5,                // cirrus is never more than half there ...
   HIGH_ANVIL: 0.97,               // ... but an anvil is solid
-  HIGH_UNDER: 0.45,               // an anvil's underside, against its top
+  HIGH_UNDER: 0.32,               // an anvil's underside, against its top (grey, not white: it is shut out of the Sun by its own depth)
+  ANVIL_GRAIN: 0.18,              // how much the strokes thin and thicken its sheet
   HALO: 0.062,                    // how strong the 22-degree halo is
 });
 const U = UPPER_LOOK;
@@ -64,6 +68,17 @@ layout(location = 0) out vec4 fragColor;
 // the layer's pattern at a point of its own frame (one read)
 float upperNoise(vec3 q) { return skyTex3(tCloudNoise, q).r; }
 
+// Where the ray o + t d crosses the sphere this anvil lies on (its own height, which is the
+// tower's business, not the shell's). Zero where it does not cross it in front of the eye.
+vec3 anvilRayDir(int k, vec3 o, vec3 d) {
+  float ra = length(${CELL_UNIFORMS.anvils}[k * ${ANVIL_VEC4}].xyz);
+  float b = dot(o, d), c = dot(o, o) - ra * ra, h = b * b - c;
+  if (h < 0.0) return vec3(0.0);
+  float sh = sqrt(h), t0 = -b - sh, t1 = -b + sh, t = t0 > 0.0 ? t0 : t1;
+  if (t <= 0.0) return vec3(0.0);
+  return normalize(o + d * t);
+}
+
 void main() {
   vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos);
   float dist = length(vRel);
@@ -72,11 +87,30 @@ void main() {
   vec4 B = wxRead(tWxB, up);
   float cover = high ? wxHigh(B) : wxMid(B);
   if (cover < 0.015) discard;
+  // Its own anvil, worked out first because the cut below must not take it: an anvil is
+  // thickest exactly over the tower that made it. (It was cut there, so every anvil had a hole
+  // in it where its own tower passed through, and the sheet floated round the stalk.)
+  // Each is asked for where THIS RAY crosses ITS OWN height, not where it crosses the shell:
+  // an anvil stands between 6.7 and 9.5 km by the height of the tower that made it, and the
+  // shell is at 9. Drawn at the shell's height, a small storm's anvil floated two kilometres
+  // over its own tower.
+  float an = 0.0;
+  if (high) {
+    vec3 ray = normalize(vRel);
+    for (int k2 = 0; k2 < ANVIL_MAX; k2++) {
+      if (k2 >= uAnvilCount) break;
+      vec3 ad = anvilRayDir(k2, uCamPlanetPos, ray);
+      if (ad.x == 0.0 && ad.y == 0.0 && ad.z == 0.0) continue;
+      an = max(an, anvilCover(k2, ad));
+    }
+  }
   // A tower stands through both layers: where one does, this shell is not drawn (the march
   // draws the tower itself, with its own depth).
-  for (int k = 0; k < CELL_MAX; k++) {
-    if (k >= uCellCount) break;
-    if (cellDensity(k, planetPos) > 0.08) discard;
+  if (an < 0.05) {
+    for (int k = 0; k < CELL_MAX; k++) {
+      if (k >= uCellCount) break;
+      if (cellDensity(k, planetPos) > 0.08) discard;
+    }
   }
   float px = length(dFdx(up)) + length(dFdy(up));          // radians a pixel
   float alpha, shade = 1.0;
@@ -94,24 +128,28 @@ void main() {
     if (uUpper.w < 0.5) n = 0.75 * n + 0.25 * upperNoise(qs * (k * 2.7));
     float streak = smoothstep(0.42, 0.78, n * (0.6 + 0.6 * cover));
     alpha = min(${glf(U.HIGH_ALPHA)}, streak * cover * 1.6);
-    // an anvil: the same height, but solid, and dark underneath
-    float an = 0.0;
-    for (int k2 = 0; k2 < ANVIL_MAX; k2++) {
-      if (k2 >= uAnvilCount) break;
-      an = max(an, anvilCover(k2, up));
-    }
+    // an anvil: the same height, but solid, and dark underneath (worked out above)
     if (an > 0.0) {
-      alpha = max(alpha, ${glf(U.HIGH_ANVIL)} * smoothstep(0.05, 0.35, an));
-      shade = mix(shade, uUpper.z > 0.5 ? ${glf(U.HIGH_UNDER)} : 1.12, smoothstep(0.05, 0.5, an));
+      // (its edge is torn and fibrous, not a cut line: the same strokes the cirrus is made of
+      // move the line where it ends, so it ends in streaks drawn out downwind. And its sheet is
+      // ice drawn out by the same wind, not a plate: the strokes thin and thicken it.)
+      float e = smoothstep(0.05 + ${glf(U.ANVIL_TORN)} * n, 0.35 + ${glf(U.ANVIL_TORN)} * n, an);
+      alpha = max(alpha, min(${glf(U.HIGH_ANVIL)}, ${glf(U.HIGH_ANVIL)} * e * (${glf(1 - U.ANVIL_GRAIN)} + ${glf(2 * U.ANVIL_GRAIN)} * n)));
+      shade = mix(shade, (uUpper.z > 0.5 ? ${glf(U.HIGH_UNDER)} : 1.12) * (0.93 + 0.14 * n), smoothstep(0.05, 0.5, an));
     }
   } else {
     // Altocumulus: rows of small rounded cloudlets, each with a lit and a shaded side; thick, it
     // is a grey-white veil with the Sun a pale disc behind it.
     float k = uUpper.y * uSkyLow.x * ${glf(U.MID_K)};
     float n = upperNoise(q * k);
-    if (uUpper.w < 0.5) n = 0.78 * n + 0.22 * upperNoise(q * (k * 2.3));
+    // (a mackerel sky comes in patches and lanes, not as an even screen of dots: a coarse look
+    // at the same noise thickens the cloudlets here and thins them there. It takes the place of
+    // the finer octave, which at this size is smaller than a pixel from anywhere: the same
+    // number of reads.)
+    float lumpN = n;
+    if (uUpper.w < 0.5) lumpN = n * (${glf(1 - U.MID_PATCH)} + ${glf(2 * U.MID_PATCH)} * upperNoise(q * (k * ${glf(U.MID_PATCH_K)})));
     float veil = smoothstep(0.45, 0.85, cover);                 // thick: altostratus
-    float lump = smoothstep(0.46, 0.62, n + 0.35 * cover);
+    float lump = smoothstep(0.46, 0.62, lumpN + 0.35 * cover);
     alpha = min(${glf(U.MID_ALPHA)}, mix(lump * cover * 1.8, 0.75 + 0.25 * cover, veil));
     // (its two tones: the side of each cloudlet turned from the Sun. Not in a veil, which is flat.)
     if (uUpper.w < 0.5 && veil < 1.0) {

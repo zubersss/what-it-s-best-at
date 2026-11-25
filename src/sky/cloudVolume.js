@@ -71,7 +71,6 @@ export const CLOUD_LOOK = Object.freeze({
   FLOOR_DECK: 0.3,              // the least light a deck's base keeps (coloured shade, never black)
   GROUND_HALF: 0.5,         // under a storm the light from the ground below is halved
   MID_K: 1.2, HIGH_K: 0.35, // the Sun left by the layers above: exp(-MID_K mid - HIGH_K high)
-  SCUD: 400,                // m under a raining base that ragged scud hangs
   SHAFT_K: 0.00014, SHAFT_P: 0.85,   // the rain's optical depth a metre: K rate^P
   SHAFT_FALL: 9,            // m/s a drop falls (its foot is offset downwind by this)
   SHAFT_NEAR: 600,          // m: nearer than this the shafts fade out (D's streaks take over)
@@ -715,10 +714,11 @@ export class CloudVolume {
     const v = this.def?.volume;
     // (wanted: it would be drawn here if the governor's saving were not on: the governor asks)
     this.wanted = !!(v && this.noise && layer.mesh.visible && cam.length() - this.radius < (v.above ?? 30000));
-    // (with the layer off, the cells are still marched while one stands within reach: the last
-    // frame's list, since this is asked before the sky's frame reaches us)
-    const cells = this._sky?.cells || [];
-    this.cellsOnly = this.wanted && !this._enabled && cells.some((c) => c.dist < CELL_FAR);
+    // (with the layer off, the cells are still marched while one stands within reach: by the
+    // cells the sky system has already packed for the shaders this frame, which is what the
+    // march will read. By the frame's own list this could never start: the frame reaches the
+    // volume in render(), which does not run while the volume is off.)
+    this.cellsOnly = this.wanted && !this._enabled && SKY_UNIFORMS.uCellCount.value > 0;
     this.active = this.wanted && (this._enabled || this.cellsOnly);
     return this.active;
   }
@@ -729,6 +729,13 @@ export class CloudVolume {
   // march and nothing else: no value of a cloud comes from them). With no field, the world's own
   // base over the sea.
   place(cam, sky = this._sky || null) {
+    // (the frame is kept here as well as in render(): `ready()` is asked before the frame
+    // reaches the volume, and it needs the cells to say whether the storms alone are to be
+    // marched. With it kept only in render(), a traveller who began with the volume switched
+    // off — the governor's floor — had no frame, so no cells, so the volume never ran, so no
+    // frame: the storms were never drawn, and the shells kept the hole cut for a tower that
+    // was not there.)
+    if (sky) this._sky = sky;
     const v = this.def?.volume;
     if (!v) { this.base = null; return; }
     const field = sky?.field, R = this.radius;
@@ -742,11 +749,11 @@ export class CloudVolume {
       this.bounds.base = this.base; this.bounds.baseHi = this.base; this.bounds.top = this.top; this.rainNear = false;
       return;
     }
-    // (nine places: under the traveller and eight round it at the reach, which is as far as the
-    // layer is marched; a base is a thing of the country, smoothed over kilometres, so the
-    // lowest and highest within reach are not missed between them. Asked again only when the
-    // traveller has gone a good way or the clock has moved on: the field is smooth over
-    // kilometres and the bounds are snapped to 250 m, and this is page work in every frame.)
+    // (a square of 25 places over the reach, which is as far as the layer is marched: the lowest
+    // base and the highest top among them bound the march. A ring of eight at the reach looked
+    // past everything between them. Asked again only when the traveller has gone a good way or
+    // the clock has moved on: the field is smooth over kilometres and the bounds are snapped to
+    // 250 m, so this is 0.2 ms every 800 m, not page work in every frame.)
     const a0 = this._placeAt;
     if (a0 && Math.abs(sky.t - this._placeT) < 20 && (cam.x - a0[0]) ** 2 + (cam.y - a0[1]) ** 2 + (cam.z - a0[2]) ** 2 < 800 * 800) return;
     this._placeAt = [cam.x, cam.y, cam.z]; this._placeT = sky.t;
@@ -764,9 +771,8 @@ export class CloudVolume {
     const up = [cam.x / r, cam.y / r, cam.z / r];
     const north = [up[1] * east[2] - up[2] * east[1], up[2] * east[0] - up[0] * east[2], up[0] * east[1] - up[1] * east[0]];
     const p = [0, 0, 0];
-    look([cam.x, cam.y, cam.z]);
-    for (let i = 0; i < 8; i++) {
-      const a = i * Math.PI / 4, ce = Math.cos(a) * reach, cn = Math.sin(a) * reach;
+    for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) {
+      const ce = i * reach * 0.5, cn = j * reach * 0.5;
       for (let k = 0; k < 3; k++) p[k] = cam.getComponent(k) + east[k] * ce + north[k] * cn;
       look(p);
     }

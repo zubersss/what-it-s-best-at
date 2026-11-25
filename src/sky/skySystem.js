@@ -234,12 +234,14 @@ export class SkySystem {
     u[0] = 1 / (v?.scale ?? 5200); u[1] = world.radius; u[2] = world.clouds?.shadow ?? 0.6;
     setCellUniforms(SKY_UNIFORMS, [], []);
     Object.assign(this.frame, { world, R: world.radius, steer: this.steer, tPrev: null, here: null, cells: NONE, strikes: NONE });
-    // The field: a world whose weather is made by rule, under a debug switch (step 0: nothing on
-    // screen reads it yet). Made at the first frame, when the place the view opens at is known.
+    // The field: a world whose weather is made by rule (the clouds, their shade and the weather at
+    // the traveller all read it). Made at the first frame, when the place the view opens at is known.
     const made = world.weather?.recipe === 'made', d = this.debug;
     // (sky B: the field is always on where the weather is made by rule: the volume, the shells,
-    // the fog and the lenses all draw from it)
-    this.fieldWanted = made && !this.noClouds;
+    // the fog and the lenses all draw from it; sky A: a world of a day's maps - Earth - makes its
+    // field from them under sky:model alone, its storm and flash switches stay weather.js's)
+    const maps = world.weather?.recipe === 'maps';
+    this.fieldWanted = !this.noClouds && (made || (maps && d.preset === 'model'));
     this.raster = data?.rasters?.[0] || null;
     this.field.setWorld(null, null);
   }
@@ -259,8 +261,10 @@ export class SkySystem {
     // (the elevation as the stub reads it: rows from latitude 90, columns from longitude 0)
     const land = r && r.wrap && (r.lon0 ?? 0) === 0 && (r.lat0 ?? 90) === 90 && (r.lat1 ?? -90) === -90 ? { data: r.data, width: r.width, height: r.height, scale: r.scale ?? 1 } : null;
     const stormAt = d.storm ? offsetLatLon(rig.pos, Math.PI / 4, 8000) : null;
-    // (debug=flash alone: the stub's storm, which has a mature cell within 40 km of the opening place at every moment)
-    this.field.setWorld(w, { preset: d.preset || (d.flash && !d.storm ? 'storm' : 'fair'), stormAt, land });
+    // (debug=flash alone: the stub's storm, which has a mature cell within 40 km of the opening place
+    // at every moment; with no switch, the world's own weather: the model. It was the stub's 'fair'
+    // test pattern, so that no storm of the day's weather was ever drawn without debug=sky:model)
+    this.field.setWorld(w, { preset: d.preset || (d.flash && !d.storm ? 'storm' : 'model'), stormAt, land });
     this.fieldWanted = false;
   }
 

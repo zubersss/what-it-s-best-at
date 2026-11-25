@@ -111,8 +111,11 @@ export function createEarthSky(opts = {}) {
     putC(C, j * CW + i, 0, 0);
   }
   let snap = null;
+  // (each call hands back maps of its own: the day is one snapshot, made once, but a worker
+  // transfers what it is given, and a second reply with the same buffers found them detached)
+  const own = (s, t) => ({ ...s, t, A: s.A.slice(), B: s.B.slice(), C: s.C.slice(), cells: s.cells.slice(), lenses: s.lenses.slice() });
   function snapshot(t = 0) {
-    if (snap) return { ...snap, t };
+    if (snap) return own(snap, t);
     const s = makeSnapshot(layout, t);
     if (ready) {
       for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) texelAB(i, j, s.A, s.B);
@@ -120,7 +123,7 @@ export function createEarthSky(opts = {}) {
     }
     s.cells = records(0, 0);
     snap = s;
-    return { ...s, t };
+    return own(s, t);
   }
 
   // ---- the cells: the day's storms ---------------------------------------------------------

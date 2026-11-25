@@ -42,6 +42,7 @@ import * as THREE from 'three';
 import { SNAP_STEP, STRIPS, fieldLayout, blendByte, checkSnapshot, makeSkyAt, makeSnapshot } from '../weather/sky/format.js';
 import { makeProducer } from '../weather/sky/producer.js';
 import { readWxLand } from '../weather/sky/land.js';
+import { ListClock } from '../weather/sky/listClock.js';
 import { SKY_UNIFORMS } from './skyGlsl.js';
 import { makePassMaterial, fullscreenGeometry } from '../render/fullscreen.js';
 
@@ -76,7 +77,7 @@ export class SkyField {
 
   setWorld(world, opts) {
     this.id++;
-    this.producer = null; this.opts = null; this.slots = []; this.asking = null;
+    this.producer = null; this.opts = null; this.slots = []; this.asking = null; this._listsOf = null;
     this.uploaded = false; this.strip = 0; this.pair = null; this.fade = 1;
     this.lastT = null; this.bytesThisFrame = 0; this.loading = false;
     SKY_UNIFORMS.uSkyLow.value[3] = 0;
@@ -111,6 +112,40 @@ export class SkyField {
         this._make(po);
       }).catch(() => { this.loading = false; });
     }
+    // A world of a day's maps (Earth: fromMaps.js): its three grey maps and its storms, decoded as
+    // weather.js decodes them (the red of each pixel, longitude -180 at the left, latitude 90 at
+    // the top). Until they are here the field is the clear sky, and busy.
+    if ((w.recipe ?? 'made') === 'maps' && !po.maps && typeof document !== 'undefined' && typeof Image !== 'undefined') {
+      this.loading = true;
+      const id = this.id, base = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '';
+      const grey = (url) => (url ? new Promise((ok) => {
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+          const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0);
+          const d = g.getImageData(0, 0, img.width, img.height).data, out = new Uint8Array(img.width * img.height);
+          for (let i = 0; i < out.length; i++) out[i] = d[i * 4];
+          ok({ data: out, w: img.width, h: img.height });
+        };
+        img.onerror = () => ok(null);
+        img.src = base + url;
+      }) : Promise.resolve(null));
+      Promise.all([
+        grey(w.rain), grey(w.tops), grey(w.cloud),
+        w.storms ? fetch(base + w.storms).then((r) => r.json()).then((j) => j.storms || []).catch(() => []) : Promise.resolve([]),
+      ]).then(([rain, tops, cloud, storms]) => {
+        if (this.id !== id) return;
+        po.maps = {};
+        if (rain) po.maps.rain = rain;
+        if (tops) po.maps.tops = tops;
+        if (cloud) po.maps.cloud = cloud;
+        po.storms = storms;
+        this.loading = false;
+        this.slots = []; this.uploaded = false; this.strip = 0; this.pair = null;
+        SKY_UNIFORMS.uSkyLow.value[3] = 0;
+        this._make(po);
+      });
+    }
   }
 
   // the producer here (at(), cells(), strikes()) and its twin in the worker (the snapshots)
@@ -124,10 +159,11 @@ export class SkyField {
     if (typeof Worker === 'undefined') return;
     try {
       this.worker = new Worker(new URL('../weather/sky/skyWorker.js', import.meta.url), { type: 'module' });
-      const id = this.id;
+      const id = this.id, gen = this.gen = (this.gen || 0) + 1;
       this.worker.onmessage = (ev) => {
         const m = ev.data;
-        if (m.id !== this.id || m.id !== id) return;
+        // (and never from a worker since replaced: an Earth made before its maps came answers clear sky)
+        if (m.id !== this.id || m.id !== id || gen !== this.gen) return;
         this.asking = null;
         this._take(m.t, checkSnapshot(m.s));
       };
@@ -380,9 +416,15 @@ export class SkyField {
   // ---- what a place has ------------------------------------------------------------------------
 
   at(place, t, out = makeSkyAt()) { return this.producer ? this.producer.at(place, t, out) : Object.assign(out, CLEAR, { field: { ...CLEAR.field } }); }
-  cells(t) { return this.producer ? this.producer.cells(t) : []; }
+  // (the cells and the anvils every frame from moments two seconds apart, by the producer of the
+  // moment: listClock.js)
+  _lists() {
+    const p = this.producer;
+    if (this._listsOf !== p) { this._listsOf = p; this._cells = new ListClock((t) => p.cells(t)); this._anvils = p.anvils ? new ListClock((t) => p.anvils(t)) : null; }
+  }
+  cells(t) { if (!this.producer) return []; this._lists(); return this._cells.at(t); }
   strikes(t0, t1) { return this.producer ? this.producer.strikes(t0, t1) : []; }
-  anvils(t) { return this.producer?.anvils ? this.producer.anvils(t) : []; }
+  anvils(t) { if (!this.producer?.anvils) return []; this._lists(); return this._anvils.at(t); }
   lenses(t) { return this.producer?.lenses ? this.producer.lenses(t) : []; }
   systems(t) { return this.producer?.systems ? this.producer.systems(t) : []; }
   // The 'now' bytes (Node only: what the GPU's maps hold), and the snapshots by their time: what

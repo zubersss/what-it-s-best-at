@@ -122,8 +122,15 @@ The `weather` block is in the branch (seed 23, chosen by `find-weather --seeds` 
 mist in the basin on the opening morning, heaps over the ranges by noon, a storm in view of the
 ledge in the afternoon, a front the next day, wind and a cap on the Crown the day after).
 
-The bookmarks and cost views are now in `haven.js` too, marked "(sky A)" (the main session asked
-for them on this branch). `timeOffsetHours` counts from the scene's own moment (2024-09-22T17:00Z,
+The bookmarks and cost views below are the main session's to add once B's clouds can be seen in
+the game (three more cost views lengthen the owner's benchmark). Written as code they were:
+`mist: { label: 'Morning mist', heading: 240, pitch: -14, fov: 55, timeOffsetHours: -0.5 }`,
+`storm: { label: 'Afternoon storm', heading: 243, pitch: 4, fov: 45, timeOffsetHours: 8.25 }`,
+`front: { label: 'A front coming', heading: 280, pitch: 4, fov: 55, timeOffsetHours: 33 }`,
+`crown: { label: 'Wind on the Crown', lat: 13.362, lon: 68.95, heading: 0, pitch: 8, fov: 45, timeOffsetHours: 53 }`;
+cost views `{ name: 'beside the storm', lat: -53.154, lon: 30.536, alt: 2900, heading: 270, pitch: 6, timeOffsetHours: 8.25 }`,
+`{ name: 'a storm from afar', lat: -48.54992, lon: 49.05567, alt: 2500, heading: 243, pitch: 2, timeOffsetHours: 8.25 }`,
+`{ name: 'over the morning mist', lat: -48.54992, lon: 49.05567, alt: 1700, heading: 240, pitch: -14, timeOffsetHours: -0.5 }`. `timeOffsetHours` counts from the scene's own moment (2024-09-22T17:00Z,
 08:00 at the opening place); the hours come from `find-weather --scene`, and the places and
 headings from asking the model itself, not from reading its maps (the first guesses in this
 report had the storm to the north-west; it is 64 km to the west-south-west):
@@ -179,9 +186,8 @@ report had the storm to the north-west; it is 64 km to the west-south-west):
 
 ## Asked of the main session
 
-Items 1 and 3 are done on this branch (the main session's word): `?debug=sky:model` is let through
-`skyDebug` (and `skyField` fetches the land's planes for it), and the bookmarks and cost views are
-in `haven.js`. Seen in the browser with `?debug=sky:model` on Haven: both snapshots made by the
+Item 1 is done (`?debug=sky:model` goes through `skyDebug`, and `skyField` fetches the land's
+planes for it); item 3 waits for B's clouds (the main session's word). Seen in the browser with `?debug=sky:model` on Haven: both snapshots made by the
 model in the worker and uploaded within ten seconds of the start, no problems reported. (The
 first try waited for ever: when the land's file arrives the field starts a fresh worker, and it
 still thought its question to the ended one was pending. Fixed, with a check in
@@ -195,6 +201,19 @@ still thought its question to the ended one was pending. Fixed, with a check in
    `weather.land` and `weather.peaks`, so nothing is needed there, but the field is `busy` until
    they arrive (a picture waits for them, as it does for the first maps).
 3. **The bookmarks and cost views** above (they change the benchmark's route).
-4. **Earth's field** is not wired: `fromMaps` needs its three maps as bytes
+4. **Earth's field** (done, A2): `skyField` decodes Earth's three grey maps and `earth_storms.json`
+   as `weather.js` does and hands them to `fromMaps`; `?debug=sky:model` makes Earth's field (its
+   storm and flash switches stay `weather.js`'s). In the browser: both snapshots arrive, and the
+   field's rain at Jose, Katia, Irma, the Sahara and the North Atlantic is `weather.js`'s to the
+   hundredth of a mm/h. Two faults found on the way, each with a check that fails without its fix:
+   Earth's day was one snapshot handed out twice, and the worker's transfer of the first left the
+   second with nothing (sky-model-test 10); and on Haven the storm cells' cached list went out
+   with each snapshot uncopied, so the transfer emptied it and **every snapshot after the first in
+   a half-hour slot had no storm cells** (sky-model-test 8).
+   Earth's opening view, today and with Earth's field on (`docs/shots/sky/A2-earth-ledge-today.png`,
+   `-field.png`, from one frozen build): sky, clouds, land and trees the same to the pixel; only
+   grass blades differ, caught at another moment of their sway (nothing on screen reads the field
+   yet). Both pictures waited out their 900 s on Earth's terrain workers, as Earth pictures do here.
+   (Was: Earth's field is not wired: `fromMaps` needs its three maps as bytes
    (`{ data, w, h }` each) and `data/earth_storms.json`, which the page must decode as
-   `weather.js` does. Say the word and I will write that loader into `skyField`.
+   `weather.js` does. Say the word and I will write that loader into `skyField`.)

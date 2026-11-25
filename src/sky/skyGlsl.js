@@ -17,7 +17,7 @@
 //    shade map (life/treeShade.js) and the far rocks (rocks/farRocks.js), all through the one
 //    uniform SKY_UNIFORMS.uCloudSteer, filled once a frame by sky/skySystem.js.
 //
-// 2. The field's rule, version 0 (nothing on screen reads it yet): the low cloud from the
+// 2. The field's rule (the clouds, their shade and the ground read it): the low cloud from the
 //    snapshot's maps (weather/sky/format.js, decoded by its FIELD_GLSL), carved by the same
 //    noise in the same steering frame; and the cloud-shade atlas's four channels (skyShade) with
 //    the reader that turns a texel into sunlight and skylight (skyShadeLight).
