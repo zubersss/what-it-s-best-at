@@ -264,7 +264,6 @@ what the pictures were tuned with. The main session moves whichever the world sh
 | CELL_FACE0 / CELL_FACE1 | 250 / 700 m | the chord over which a tower's own face turns from the Sun's tone to its shade |
 | CELL_LIT / CELL_DEEP | 300 / 2600 m | the chord toward the Sun over which a tower goes from white to dark |
 | CELL_SKY | 0.2 | the share of the sky's light that reaches the heart of a tower |
-| SCUD | 400 m | how far under a raining base ragged scud hangs |
 | CELL_FLOOR | 0.11 | the light its base keeps (the plan's 0.08–0.15) |
 | CELL_TINT | 0.62, 0.66, 1.0 | the slate-indigo its shade is pulled toward |
 | CELL_BOIL | 5.5 m/s | how fast its noise boils up through it (the plan's 3–8) |
@@ -511,6 +510,10 @@ t=3 and t=9, with the heaps' bases at 1 250 m and their tops at 2 575.
   put aside and the body's own comes back), so a picture of Haven from space with the switch on
   still has painted clouds on it. Nothing in the brief asks for that view, and the switch is for
   pictures of the land from above, so it was left as it is.
+- **Scud was not built.** The brief asks for ragged fragments hanging under a raining base; what
+  is there is the wisps — the great soft patches torn out of a cloud within a kilometre of the
+  eye, which cost no read of their own. A raining base keeps its clean line. Its constant was
+  taken out rather than left dead.
 - **The rise's fades** cost one more read of the masses and one of the look toward the Sun (16 %
   of the game clock). The alternative — reading the look toward the Sun at one phase — makes the
   two tones speckle while the phases blend, so it was not taken.
