@@ -166,29 +166,33 @@ now moves that uniform and fails if the four pictures are identical.
 
 All at 880 x 412, dsf 1.25, from frozen builds, in
 `/tmp/claude-0/-home-user-what-it-s-best-at/fa086d69-ff44-5069-99a3-fdab3300646a/scratchpad/shots/`
-(this machine's scratchpad; the ones worth keeping are copied into `docs/shots/sky/`).
+(the ones worth keeping are copied into `docs/shots/sky/`).
 
-| picture | what it shows |
-| --- | --- |
-| `haven_ledge_B0_noon.png`, `..._B0_noon60.png` | step 0's build, the opening view 60 s of game time apart: the heaps move downwind at the day's speed and nothing else changes (B0) |
-| `haven_ledge_storm12.png` | the first storm picture, which showed the three faults of commit 9478d38 |
-| `haven_ledge_tower8.png` | a mature cell 8 km off from 5 km up: the tower stands, its cauliflower cut, its dome |
-| `haven_ledge_tower_dark.png`, `..._tower_dark_hi.png` | the same with the sky's light shut out of it |
-| `haven_ledge_tower_floor.png` | and with every saving the governor has (`?debug=floor`) |
-| `haven_ledge_tower_noclouds.png` | and with `?debug=noclouds` |
-| `haven_ledge_fair09.png`, `..._fair09_before.png` | fair-weather heaps over the opening place, this branch and step 0's |
-| `haven_ledge_storm58.png` | a day of storms, the nearest 58 km off: the two far slices |
-| `haven_ledge_fog_basin.png` | the fog sheet in a basin |
-| `haven_ledge_deck_below.png`, `..._deck_above.png` | a rain deck from below and above, with its shafts |
-| `haven_ledge_steppe_sun.png`, `..._steppe_away.png` | over flat country at noon, toward the Sun and away |
-| `haven_ledge_up30.png`, `..._globe.png` | from 30 km up, and the globe wearing the field |
-| `earth_ledge_B0_earth.png`, `earth_ledge_B_earth.png` | Earth, step 0's build and this one (no field there yet) |
-| `haven_ledge_heaps_after.png`, `..._heaps_before.png` | the fair heaps where the stub lays them (a third of the sky over the low country 36 km west), this branch and step 0's |
-| `haven_ledge_heaps_under.png` | the same heaps from 100 m under their bases |
-| `haven_ledge_ridge_hides.png` | check 6: a ridge 17 km off, 2.3 degrees up, in front of a cell 38.8 km off whose foot is at -5.5 and whose top is at +7.1 |
-| `haven_ledge_ridge_behind.png` | and the other way: a cell 18.9 km off drawn over a ridge 29.3 km off |
-| `haven_ledge_lens.png`, `..._lens_near.png` | the lenticulars, 18 and 4 km from the stub's nearer lens (7.0 x 2.6 km, two plates, base 1 500 m) |
+**Before and after.** Since package A landed, "before" is the owning branch's own head
+(`ccr-aa39490a-qiw63x`, built as `buildQ`) and "after" is this branch (`buildB6`, with the four
+lines of "Asked of the main session" patched in). The same query goes to both, with
+`debug=sky:model` so that each uses the world's own weather: the only difference is package B.
+The hours are the ones `scripts/find-weather.mjs --scene` names, as a `t=` offset from the
+scene's own moment.
 
+| picture (`haven_ledge_*`) | the view | what it is for |
+| --- | --- | --- |
+| `_M_storm20`, `_Q_storm20` | a tower 20 km off, its top 20 degrees up, raining 39 mm/h (t=8.25) | the cells, their two tones, their rain shafts |
+| `_M_storm35` | the same cell from 35 km | the hand-over at 16 km, the far slices |
+| `_M_ridge`, `_Q_ridge` | a ridge 17.6 km off (1.1 deg up) in front of a cell 35.4 km off (foot -2.1, top +9.0 deg) | check 6: the ridge must hide the foot |
+| `_M_lens`, `_Q_lens` | a lenticular 9 km off, 11 km long, three plates (t=53) | the lenses |
+| `_M_floor` | the storm with every saving the governor has | a step thins, it does not remove |
+| `_M_noclouds` | the storm view with `debug=noclouds` | the switch takes every kind |
+| `_M_up30`, `_M_globe` | from 30 km up; the globe from three radii off | the shells and the globe from far |
+| `_M_mist` | the opening place at first light, looking into the low ground (t=-0.5) | the fog sheet |
+| `_M_storm`, `_Q_storm` | the opening place, the storm 64 km off (t=8.25) | the far cell sheets from the ground |
+| `_M_front` | the opening place, a cell 25 km off raining 26 mm/h (t=33) | a rain deck and its shafts |
+| `earth_ledge_B0_earth.png`, `earth_ledge_B_earth.png` | Earth's ledge, step 0's build and this one | Earth has no field yet: what changed there anyway |
+
+**The stub's own pictures** (before the model landed) are kept for the record:
+`haven_ledge_storm12.png` (the first storm picture, which showed the three faults of 9478d38),
+`haven_ledge_tower8.png` (a cell 8 km off), `haven_ledge_B0_noon*.png` (B0's pair),
+`haven_ledge_fair_air.png`.
 
 ## Numbers for src/worlds/haven.js
 
