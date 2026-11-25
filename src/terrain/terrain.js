@@ -84,7 +84,7 @@ export class Terrain {
     for (let i = 0; i < pool.slots.length; i++) { pool.slots[i].node = null; pool.free.push(i); }
     pool.setCount(0);
     this.roots = FACES.map((_, f) => new Node(f, 0, 0, 0, null, hs, this.relief));
-    this.drawList.length = 0; this.wanted.length = 0; this.ready.length = 0; this.readyShadows.length = 0;
+    this.drawList.length = 0; this.wanted.length = 0; this.ready.length = 0; this.readyShadows.length = 0; this._bakeSun = null;
     this.regions.length = 0; this.ringBoxes.length = 0; this.readyRefresh.length = 0; this.staleData = 0; this.ringWet = [];
     this.setRingPicture('colour', null);
     this.tiles.setWorld(world); this.worldAt = performance.now(); this.ringAt = [];
@@ -224,7 +224,7 @@ export class Terrain {
       this._burstAt = this.now;
       for (let k = 0; k < 16 && this.readyRefresh.length; k++) this._uploadRefresh(this.readyRefresh.shift());
     }
-    this._sun = [sunDir.x, sunDir.y, sunDir.z]; this._sunHalf = sunHalf;
+    this._setSun(sunDir, sunHalf);
     const cam = this._cam.copy(rig.pos), R = this.radius;
     const camLen = cam.length();
     this._camDir[0] = cam.x / camLen; this._camDir[1] = cam.y / camLen; this._camDir[2] = cam.z / camLen;
@@ -301,6 +301,19 @@ export class Terrain {
     // Idle = nothing left to build, or nothing more can be built (pool exhausted).
     this.idleFrames = (this.workers.busy === 0 && this.ready.length === 0 && this.readyRefresh.length === 0 && this.staleData === 0 && this.staleShadows === 0 && this.readyShadows.length === 0 && this.fading === 0 && (this.wanted.length === 0 || this.stalled)) ? this.idleFrames + 1 : 0;
     if (this.frame % 240 === 0) for (const root of this.roots) this._prune(root);
+  }
+
+  // The Sun the land's own shadow is baked for (_bakeSun): one for every patch. It moves on
+  // only when the Sun of the moment has left it by SHADOW_REBAKE_DEG, and then every patch
+  // drawn, and every parent a drawn patch blends into, is baked again for it, nearest first
+  // (_rebakeShadows); a patch built or built again meanwhile is baked for it too, not for the
+  // Sun of the moment. Baked for the Sun of the moment, as they were, a patch made while
+  // walking disagreed with its neighbours by up to the degree they wait for (a seam: at a
+  // Sun 19.5 degrees up the shadow of a 50 m rise moves 7.9 m a degree), and a parent no
+  // longer drawn kept the Sun of when it was.
+  _setSun(sunDir, sunHalf) {
+    const s = this._sun = [sunDir.x, sunDir.y, sunDir.z], b = this._bakeSun; this._sunHalf = sunHalf;
+    if (!b || b[0] * s[0] + b[1] * s[1] + b[2] * s[2] < Math.cos(CONFIG.SHADOW_REBAKE_DEG * Math.PI / 180)) this._bakeSun = s;
   }
 
   _persp(fovDeg, aspect) {
@@ -391,31 +404,36 @@ export class Terrain {
       const slot = this._reserveSlot();
       if (slot < 0) { if (node.prio < 400 || node.prio >= 1000) this.stalled = true; break; }          // (ground built ahead of need does not count as running out)
       node.loading = true; node.reserved = slot;
-      node.shadowSun = this._sun; node.serial = this.ringSerial; node.box = null;
+      node.shadowSun = this._bakeSun; node.serial = this.ringSerial; node.box = null;
       const epoch = this.epoch;
-      this.workers.run({ type: 'chunk', face: node.face, level: node.level, ix: node.ix, iy: node.iy, sun: this._sun, sunHalf: this._sunHalf })
+      this.workers.run({ type: 'chunk', face: node.face, level: node.level, ix: node.ix, iy: node.iy, sun: this._bakeSun, sunHalf: this._sunHalf })
         .then((res) => { if (epoch === this.epoch) this._onChunk(node, res); })
         .catch((e) => { if (epoch === this.epoch) { node.loading = false; this.pool.free.push(node.reserved); } console.error(e); });
     }
     this.wanted.splice(0, k);
   }
 
-  // Re-bakes baked shadows of drawn chunks whose Sun direction is stale by more than
-  // SHADOW_REBAKE_DEG. Nearest first; chunk builds always take priority (they ran above).
+  // Re-bakes the baked shadows of drawn chunks, and of the parents they blend into, that were
+  // baked for another Sun than the baking Sun (_setSun). Nearest first; chunk builds always
+  // take priority (they ran above).
   _rebakeShadows() {
     this.staleShadows = 0;
     if (!this.workers.idle && this.frame % 4) return;
-    const cosLimit = Math.cos(CONFIG.SHADOW_REBAKE_DEG * Math.PI / 180), sun = this._sun;
-    for (const node of this.drawList) {
-      const s = node.shadowSun;
-      if (node.shadowBusy || !s || s[0] * sun[0] + s[1] * sun[1] + s[2] * sun[2] >= cosLimit) continue;
-      this.staleShadows++;
-      if (!this.workers.idle) continue;
-      node.shadowBusy = true;
-      const want = sun, epoch = this.epoch;
-      this.workers.run({ type: 'shadow', face: node.face, level: node.level, ix: node.ix, iy: node.iy, sun: want, sunHalf: this._sunHalf })
-        .then((res) => { node.shadowBusy = false; if (epoch === this.epoch && node.slot >= 0 && !node.dead) this.readyShadows.push({ node, shadow: res.shadow, sun: want }); })
-        .catch((e) => { node.shadowBusy = false; console.error(e); });
+    const sun = this._bakeSun;
+    for (const drawn of this.drawList) {
+      for (let node = drawn, k = 0; k < 2 && node; node = drawn.parent, k++) {
+        // (a parent counts while it is loaded: the shader blends a child into its map)
+        if (k && (node.slot < 0 || node.dead)) continue;
+        const s = node.shadowSun;
+        if (node.shadowBusy || !s || s === sun) continue;
+        this.staleShadows++;
+        if (!this.workers.idle) continue;
+        node.shadowBusy = true;
+        const want = sun, epoch = this.epoch, n = node;
+        this.workers.run({ type: 'shadow', face: n.face, level: n.level, ix: n.ix, iy: n.iy, sun: want, sunHalf: this._sunHalf })
+          .then((res) => { n.shadowBusy = false; if (epoch === this.epoch && n.slot >= 0 && !n.dead) this.readyShadows.push({ node: n, shadow: res.shadow, sun: want }); })
+          .catch((e) => { n.shadowBusy = false; console.error(e); });
+      }
     }
   }
 
@@ -558,7 +576,7 @@ export class Terrain {
       }
       first = false;
       if (!best || hold || !this.workers.idle) return;
-      const node = best, epoch = this.epoch, serial = this.ringSerial, sun = this._sun;
+      const node = best, epoch = this.epoch, serial = this.ringSerial, sun = this._bakeSun;
       // (it counts as up to date from now on: its new build is on the way, and asking again
       // while that waits to be uploaded built the same ground over and over)
       node.refreshBusy = true; node.serial = serial; this.staleData--;
