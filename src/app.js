@@ -1239,7 +1239,7 @@ export class App {
     }
     G.uPlanetRadius.value = world.radius;
     G.uCamPlanetPos.value.copy(rig.pos);
-    { const r = rig.pos.length(); this.look.update(Math.asin(Math.max(-1, Math.min(1, (rig.pos.x * eph.sunDir[0] + rig.pos.y * eph.sunDir[1] + rig.pos.z * eph.sunDir[2]) / r))) * 57.29578, r - world.radius, post.compositeMat.uniforms, post); }
+    { const r = rig.pos.length(); this.look.update(Math.asin(Math.max(-1, Math.min(1, (rig.pos.x * eph.sunDir[0] + rig.pos.y * eph.sunDir[1] + rig.pos.z * eph.sunDir[2]) / r))) * 57.29578, r - world.radius, post.compositeMat.uniforms, post, rig.agl); }
     this.terrain.tintAt(rig.pos, G.uGroundTint.value);
 
     prof.mark(1);

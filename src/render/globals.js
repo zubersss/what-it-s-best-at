@@ -37,6 +37,11 @@ export const G = {
   // haze is for the layers of a landscape, and from orbit it was a milky veil over the
   // whole globe (render/look.js sets it by the camera's height).
   uHaze: { value: 1 },
+  // How far the eye is up in the air, for a world whose look thins its haze from above
+  // (`look.aloft`): 0 on foot and up to 20 m over the ground, 1 from 150 m (render/look.js).
+  // Times the look's `aloft.clear`: x how much of the haze a line of sight straight down is
+  // spared (a grazing one keeps it all).
+  uAloft: { value: 0 },
   // How the world's ground scatters sunlight: 0 = matte dust under air, 1 = airless regolith.
   uPhotometry: { value: 0 },
   // The world's albedo map at the camera, relative to its mean (1 when there is no map):
