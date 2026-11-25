@@ -311,8 +311,10 @@ RIM 0.35, EDGE 0.22.
 ## Cost (headless work counts; the phone decides)
 
 What is paid for a fair day, and what a storm adds, counted on software WebGL by
-`scripts/cloud-cost.mjs` (a count of work, never a frame rate; the same view on step 0's build
-and on this one, at the phone's pixel count):
+`scripts/cloud-cost.mjs` (a count of work, never a frame rate; the same view on the owning head
+and on this branch, at the phone's pixel count — `--size 880x412 --dsf 2.2`). Each run measures
+itself: the march and the lay are the difference from a frame with the clouds left out, taken in
+the same browser session, so the two runs can be set side by side:
 
 *(the numbers land as the runs finish)*
 
