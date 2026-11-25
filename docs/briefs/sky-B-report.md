@@ -5,7 +5,60 @@ work goes: the main session reads this file and the branch, not the transcript.
 
 ## B0 (the job before the package): step 0's GLSL on a GPU
 
-*(filled in below as each run lands)*
+All of this is `f3a1eb7` (step 0's head), built once and served frozen from
+`scratchpad/build0`, so nothing here is about my branch.
+
+**Shaders.** Every program the sky draws with compiles and is inside a phone's limits.
+The table, read off the live page (`scripts/cloud-cost.mjs`, which asks the browser for
+each program's texture units and varyings):
+
+| program | textures (fragment + vertex) | varyings |
+| --- | --- | --- |
+| the sky | 9 + 2 | 1 |
+| the air's march | 11 + 0 | 1 |
+| the ground | 16 + 13 | 14 |
+| the cloud volume | 8 + 0 | 1 |
+| the cloud layer | 2 + 0 | 1 |
+| the globe from space | 7 + 0 | 1 |
+
+A phone allows 16 in the fragment shader and 15 varyings. The ground sits at 16 of 16, as
+`CLAUDE.md` says it does; nothing of the sky adds to it. No shader error in any run.
+
+**The opening view** (`shot=ledge&world=haven&t=4`): drawn, clouds and all —
+`scratchpad/shots/haven_ledge_B0_noon.png`. See "the one thing to fix" below: the picture
+is right, but the run never counts as settled.
+
+**The drift, 60 s of game time apart** (the same view at `t=4` and `t=4.0166667`; the game
+clock is paused in screenshot mode, so the only difference is the hour asked for).
+Measured by matching the two pictures (a high-pass filter, then the best shift):
+
+- the heaps near the top of the view moved **28 px across the picture to the left and 21 px
+  up** — at 8.58 px per degree (60° over 515 px) that is 3.3° and 2.5°;
+- the day's wind there is **12.1 m/s toward 83°**, so 726 m in that minute. The view looks
+  toward 222°, so the wind crosses it from right to left and carries the heaps behind the
+  camera: leftward and rising in the picture is exactly the direction it demands, and 3.3°
+  of it puts those heaps a few kilometres off, which is where heaps that high in the
+  frame stand. **The heaps move downwind at the day's speed.**
+- the land is the same land: below the horizon the two pictures differ by 3–4 of 255 on
+  average, which is the grass moving in the wind and the clouds' shadows going with the
+  clouds.
+- **one thing does not move**: the big mass at the top right, which is the far cloud shell
+  (`src/sky/clouds.js`), matches itself best at a shift of exactly zero (a sharp peak:
+  0.41 at no shift, 0.13 at the heaps' shift). The shell reads its pattern in *direction*
+  space, so the wind turns it as if it were infinitely far away. On this branch the shell
+  is tied to the field and its deck moves with it, but on step 0's head it stands still.
+
+**Earth** and **`npm run stability --only haven_climb`**: queued on the same frozen build
+(this machine runs one browser at a time); filled in here when they land.
+
+**The one thing to fix (step 0's, not mine).** At the opening view the run never counts as
+settled: `window.__shotReady` waits for `post.stableReads >= 3` (the exposure meter's
+target within 2 % of what the frame used, three frames running) and after 137 frames and
+900 s it was still waiting on the exposure. Both pictures of the pair had to be saved
+"not ready", and every ground-level Haven picture on this machine therefore costs the full
+time limit — 17 minutes each instead of 7. The air views settle normally. A probe that
+prints the exposure frame by frame, with the clouds in the picture and with them taken
+out, is queued to say whether the clouds are what keeps it moving.
 
 ## What was built
 
