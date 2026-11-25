@@ -36,7 +36,7 @@ head: B takes its pictures and the climb, crossing and storm-pass runs from it. 
 walk before and after (`docs/shots/trees-refined/wood_walk_shadows_before_after11.md`):
 the middle ground where the trees' shadows lie changed 63 -> 55 % and flickered 10 -> 7.9 %;
 the wind dominates, so "calmer", not proof (the proof is the Node replays).
-**08:40**: **all four sky packages merged** on this branch (dfbf8c1: A 3fda6d3 Earth's field from
+**08:05**: **all four sky packages merged** on this branch (dfbf8c1: A 3fda6d3 Earth's field from
 its maps and storm cells kept between snapshots; C 4e7c2fc one map of the clouds' shade fixed
 to the world, read by the ground, the trees and the rocks, the ground's fragment shader down to
 15 of 16 textures; B bd3e9e6 the anvil frayed and darker underneath, the mackerel sky in
