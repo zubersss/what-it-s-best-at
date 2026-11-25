@@ -225,6 +225,9 @@ it on**. So "before" is this work with the field unplugged — the volume falls 
 the world file gives plus the ground under the traveller, and nothing of `upperClouds.js`,
 `fogSheet.js` or `lenticulars.js` is ever built. That is exactly the state the owner would see
 today, which is what makes the pair worth looking at; it is not package B against nothing.
+(That was `buildQ`, the owning head before it took the four lines. The later pairs are against
+`buildQ2`, the owning head WITH them: there the difference is only this branch's eleven newest
+commits — the lenses, the anvils, the governor's floor.)
 The hours are the ones `scripts/find-weather.mjs --scene` names, as a `t=` offset from the
 scene's own moment.
 
