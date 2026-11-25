@@ -12,7 +12,8 @@
 //    software WebGL: a count of work to set one build against another, never a frame rate.
 //
 //   node scripts/cloud-cost.mjs [--distdir <build>] [--query "world=haven&shot=ledge&..."]
-//                               [--frames 5] [--out picture.png] [--break read]
+//                               [--size 880x412] [--dsf 2.2] [--frames 5] [--out picture.png]
+//                               [--break read]
 // --break read puts one more read into the march's loop, to see the check fail.
 import { writeFile } from 'node:fs/promises';
 import { open, opt, flag } from './lib/browser.mjs';
@@ -21,7 +22,8 @@ import { shaderUse, overPhone } from './lib/glLimits.mjs';
 
 const query = opt('query', 'world=haven&shot=ledge&alt=5000&heading=235&pitch=-14&debug=sky:fair'), frames = +opt('frames', 5);
 const BREAK = opt('break', null);
-const { base, page, errors, goto, close } = await open({ dist: flag('dist') });
+const size = (opt('size', '880x412').match(/^(\d+)x(\d+)$/) || [0, 880, 412]).slice(1).map(Number);
+const { base, page, errors, goto, close } = await open({ dist: flag('dist'), width: size[0], height: size[1], dsf: +opt('dsf', 1.25) });
 await goto(`${base}?${query}`);
 await page.waitForFunction(() => window.__shotReady === true || window.__shotError, null, { timeout: 900000, polling: 500 });
 
