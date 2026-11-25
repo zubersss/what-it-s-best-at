@@ -128,7 +128,7 @@ export class Petals {
       ...lightingUniforms(),
       uLeafEast: trees.shared.uTreeEast, uLeafNorth: trees.shared.uTreeNorth, uLeafUp: trees.shared.uTreeUp, uLeafSeason: trees.shared.uSeason, uAnchorRel: trees.shared.uAnchorRel,
       uPetalTree: { value: vec4s() },        // xyz: a flowering tree's foot from the anchor (m), w: its crown's radius (m)
-      uPetalTop: { value: vec4s() },         // x: its height (m), y: how fast its petals come off (0..1)
+      uPetalTop: { value: vec4s() },         // x: its height (m), y: how fast its petals come off (0..1), z: the slot's falling petals faded in (0..1: a slot moving to another tree fades out and in)
       uPetalCol: { value: Array.from({ length: SLOTS }, () => new THREE.Vector3()) },
       uPetalWind: { value: new THREE.Vector3() },      // the wind's velocity, eased (m/s, planet axes)
       uLeafPx: { value: 1000 },
@@ -180,7 +180,7 @@ export class Petals {
         vec2 swing = vec2(sin(t * 31.0 + aSeed.x * 9.0), cos(t * 23.0 + aSeed.y * 7.0)) * (0.25 + 0.06 * age);
         vec3 rel = uAnchorRel + tr.xyz + uLeafEast * (cos(ang) * rad + swing.x) + uLeafNorth * (sin(ang) * rad + swing.y) + uLeafUp * (h + 0.03) + drift;
         vSpin = t * (50.0 + 70.0 * aSeed.x);
-        place(rel, go * step(0.5, tr.w) * smoothstep(0.0, 0.04, cyc) * smoothstep(0.0, 0.35, h) * (1.0 - smoothstep(60.0, 90.0, length(rel))), 0.085 + 0.05 * aSeed.y);
+        place(rel, go * top.z * step(0.5, tr.w) * smoothstep(0.0, 0.04, cyc) * smoothstep(0.0, 0.35, h) * (1.0 - smoothstep(60.0, 90.0, length(rel))), 0.085 + 0.05 * aSeed.y);
       }`));
     this.lieGeo = mk(LYING, true);
     this.lying = new THREE.Points(this.lieGeo, material(/* glsl */`${HEAD}
@@ -195,6 +195,7 @@ export class Petals {
     for (const m of [this.falling, this.lying]) { m.frustumCulled = false; m.visible = false; }
     this.mesh = new THREE.Group(); this.mesh.add(this.falling, this.lying);
     this.abs = new Float64Array(LYING * 3); this.put = new Uint8Array(LYING); this.next = 0; this.left = 0; this.feet = []; this.lift = new Float32Array(LYING); this.again = 0;
+    this.cur = new Array(SLOTS).fill(null); this.want = new Array(SLOTS).fill(null); this.fade = new Float32Array(SLOTS);
     this.anchor = new THREE.Vector3(1e12, 0, 0); this.serial = null; this.enabled = true; this.count = 0;
     this._wind = new THREE.Vector3(); this._d = [0, 0, 0];
   }
@@ -219,6 +220,7 @@ export class Petals {
     // the lying petals and moved the falling ones to other trees: every 25 m of a walk.)
     const A = tr.anchor, lie = this.lieGeo.attributes.aLie;
     if (this.serial !== list) { this.serial = list; this._relist(list, A, lie); }
+    this._slots(A, lie, dt || 1 / 30);
     // a few a frame: where the ground is under each (the ground as it is drawn), in the world
     const seed = this.lieGeo.attributes.aSeed.array, e = u.uLeafEast.value, n = u.uLeafNorth.value, R = this.terrain.radius, d = this._d, P = rig.pos;
     let changed = false;
@@ -264,31 +266,62 @@ export class Petals {
     if (changed) lie.needsUpdate = true;
   }
 
-  // The flowering trees listed again (list: from the anchor A). Slots are shared out evenly
-  // (one tree alone has all of them); each keeps its tree while it can.
+  // The flowering trees listed again (list: from the anchor A). Each slot is given the tree it
+  // should show (want): its own tree while that is listed, up to an even share; every listed
+  // tree at least one; the rest to the trees with fewest. What is lying is re-measured from
+  // the new anchor and stays where it lies.
   _relist(list, A, lie) {
-    const u = this.uniforms, old = this.feet, feet = [], k = list.length, abs = list.map((t) => [A.x + t.x, A.y + t.y, A.z + t.z]);
+    const k = list.length, abs = list.map((t) => [A.x + t.x, A.y + t.y, A.z + t.z]);
     const owner = new Array(SLOTS).fill(-1), has = new Array(k).fill(0), most = k ? Math.ceil(SLOTS / k) : 0;
+    const same = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2 < 0.25;
     // (keep: a slot whose tree is still listed, up to the tree's share)
     for (let s = 0; s < SLOTS && k; s++) {
-      const f = old[s]; if (!f) continue;
-      let best = -1, bd = 0.25;
-      for (let j = 0; j < k; j++) { const dd = (abs[j][0] - f[0]) ** 2 + (abs[j][1] - f[1]) ** 2 + (abs[j][2] - f[2]) ** 2; if (dd < bd) { bd = dd; best = j; } }
-      if (best >= 0 && has[best] < most) { owner[s] = best; has[best]++; }
+      const w = this.want[s]; if (!w) continue;
+      const j = abs.findIndex((a) => same(a, w.abs));
+      if (j >= 0 && has[j] < most) { owner[s] = j; has[j]++; }
     }
-    // (and the slots left over to the trees with fewest)
+    // (the slots left over to the trees with fewest)
     for (let s = 0; s < SLOTS && k; s++) if (owner[s] < 0) { let j = 0; for (let m = 1; m < k; m++) if (has[m] < has[j]) j = m; owner[s] = j; has[j]++; }
-    for (let s = 0; s < SLOTS; s++) {
-      const j = owner[s], t = j >= 0 ? list[j] : null, kept = !!(t && old[s] && (abs[j][0] - old[s][0]) ** 2 + (abs[j][1] - old[s][1]) ** 2 + (abs[j][2] - old[s][2]) ** 2 < 0.25);
-      if (t) { u.uPetalTree.value[s].set(t.x, t.y, t.z, Math.max(0.6, t.tall * t.wide * 0.42)); u.uPetalTop.value[s].set(t.tall, t.fall, 0, 0); u.uPetalCol.value[s].set(...t.colour); feet[s] = [...abs[j], Math.max(0.6, t.tall * t.wide * 0.42)]; }
-      else { u.uPetalTree.value[s].set(0, 0, 0, 0); u.uPetalTop.value[s].set(0, 0, 0, 0); feet[s] = null; }
-      // its lying petals: where they lie, from the new anchor; or put down again
-      for (let i = s; i < LYING; i += SLOTS) {
-        if (kept && this.put[i]) { lie.array[i * 4] = this.abs[i * 3] - A.x; lie.array[i * 4 + 1] = this.abs[i * 3 + 1] - A.y; lie.array[i * 4 + 2] = this.abs[i * 3 + 2] - A.z; }
-        else { this.put[i] = 0; lie.array[i * 4 + 3] = 0; }
-      }
+    // (every listed tree at least one: a slot of the tree with the most goes to a tree with none)
+    for (let guard = 0; guard < SLOTS; guard++) {
+      const bare = has.indexOf(0); if (bare < 0) break;
+      let rich = 0; for (let m = 1; m < k; m++) if (has[m] > has[rich]) rich = m;
+      if (has[rich] < 2) break;
+      const s = owner.lastIndexOf(rich); owner[s] = bare; has[rich]--; has[bare]++;
     }
-    this.feet = feet; this.left = 0; for (let i = 0; i < LYING; i++) if (!this.put[i]) this.left++;
+    for (let s = 0; s < SLOTS; s++) {
+      const j = owner[s], t = j >= 0 ? list[j] : null;
+      this.want[s] = t ? { abs: abs[j], rad: Math.max(0.6, t.tall * t.wide * 0.42), tall: t.tall, fall: t.fall, colour: t.colour } : null;
+      // (a slot that keeps its tree takes the tree's news: how fast it lets go today)
+      if (this.cur[s] && this.want[s] && same(this.cur[s].abs, this.want[s].abs)) this.cur[s] = this.want[s];
+    }
+    // every lying petal where it lies, from the new anchor
+    for (let i = 0; i < LYING; i++) if (lie.array[i * 4 + 3] > 0) { lie.array[i * 4] = this.abs[i * 3] - A.x; lie.array[i * 4 + 1] = this.abs[i * 3 + 1] - A.y; lie.array[i * 4 + 2] = this.abs[i * 3 + 2] - A.z; }
     lie.needsUpdate = true; this.anchor.copy(A);
+    for (let s = 0; s < SLOTS; s++) this._show(s, A);
+  }
+
+  // Every frame: a slot whose tree is to change fades its falling petals out (half a second),
+  // changes tree, lays its lying petals again one by one under the new one (they stay where
+  // they were until then) and fades back in.
+  _slots(A, lie, dt) {
+    const same = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2 < 0.25, top = this.uniforms.uPetalTop.value;
+    for (let s = 0; s < SLOTS; s++) {
+      const c = this.cur[s], w = this.want[s], moving = !(c === w || (c && w && same(c.abs, w.abs)));
+      if (moving && (!c || this.fade[s] <= 0)) {
+        this.cur[s] = w; this.fade[s] = 0; this._show(s, A);
+        for (let i = s; i < LYING; i += SLOTS) { if (this.put[i]) { this.put[i] = 0; this.left++; } if (!w) lie.array[i * 4 + 3] = 0; }
+        if (!w) lie.needsUpdate = true;
+        this.left = 0; for (let i = 0; i < LYING; i++) if (!this.put[i] && this.feet[i % SLOTS]) this.left++;          // (to be laid: under a slot that has a tree)
+      } else this.fade[s] = Math.min(1, Math.max(0, this.fade[s] + (moving ? -dt : dt) / 0.5));
+      top[s].z = this.fade[s];
+    }
+  }
+
+  // A slot's uniforms from the tree it shows now.
+  _show(s, A) {
+    const u = this.uniforms, c = this.cur[s];
+    if (c) { u.uPetalTree.value[s].set(c.abs[0] - A.x, c.abs[1] - A.y, c.abs[2] - A.z, c.rad); u.uPetalTop.value[s].set(c.tall, c.fall, this.fade[s], 0); u.uPetalCol.value[s].set(...c.colour); this.feet[s] = [...c.abs, c.rad]; }
+    else { u.uPetalTree.value[s].set(0, 0, 0, 0); u.uPetalTop.value[s].set(0, 0, 0, 0); this.feet[s] = null; }
   }
 }

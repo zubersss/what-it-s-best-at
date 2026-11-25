@@ -12,7 +12,9 @@ import { ShadowBaker } from '../src/terrain/shadowBake.js';
 import { CONFIG } from '../src/config.js';
 import { treeTile, blockDeg, tileOf, blockLon, TREE_FLOATS } from '../src/life/treeBlock.js';
 import { landShadow, tileGrid } from '../src/life/treeLandShade.js';
-import { band, LEVELS, BASE_BLOCKS } from '../src/life/farForest.js';
+import { band, LEVELS, BASE_BLOCKS, MARGIN, CAP, tileShadow, crownDown, shadowGate } from '../src/life/farForest.js';
+import { wantedTiles } from '../src/life/farTiles.js';
+import { SHADOW0 } from '../src/life/farTreeForm.js';
 
 const args = process.argv.slice(2), opt = (n, d) => { const i = args.indexOf('--' + n); return i >= 0 ? args[i + 1] : d; };
 const was = args.includes('--was'), [sunEl, sunAz] = opt('sun', '19.5,64').split(',').map(Number);
@@ -58,5 +60,40 @@ for (let L = 0; L < LEVELS; L++) {
     if (!ok) failed = true;
   }
 }
+// Which tiles are handed the shadows' draw (review farforest2-1), on the real tiles of two
+// places, as the game asks for them (wantedTiles, treeTile, the fill's rank rule): a walker
+// in the north wood (hardly a tree can be looked down on steeply enough to cast a shadow: at
+// most a tenth of the tiles may be handed the draw for nothing) and the opening ledge (every tile with a tree that can cast must
+// be handed it). --was: by the eye's height over the tile's lowest tree alone, as it was.
+for (const [name, pl] of [['the north wood', { lat: 22.983, lon: 129.507, none: true }], ['the opening ledge', { lat, lon, none: false }]]) {
+  await setMadeCover(hs, world, pl.lat, pl.lon);
+  const c = Math.cos(pl.lat * rad), dir = [c * Math.cos(pl.lon * rad), c * Math.sin(pl.lon * rad), Math.sin(pl.lat * rad)];
+  const eyeLen = R + hs.height(dir[0], dir[1], dir[2], 1) + 1.7, eye = dir.map((v) => v * eyeLen), far = world.life.trees.far;
+  let handed = 0, can = 0, wrongOn = 0, wrongOff = 0, tiles = 0;
+  for (const w of wantedTiles(pl.lat, pl.lon, R, far.full, far.radius, 0)) {
+    const [lo, hi] = band(w.level), b = treeTile(hs, w.ti, w.tj, w.blocks, spacing, lo, hi), T = b.trees, o = b.origin;
+    if (!b.count) continue;
+    tiles++;
+    const ol = Math.hypot(...o), tu = o.map((v) => v / ol);
+    let low2 = Infinity, maxDown = -1, cast = false, n = 0;
+    for (let k = 0, q = 0; k < b.count; k++, q += TREE_FLOATS) {
+      const x = o[0] + T[q], y = o[1] + T[q + 1], z = o[2] + T[q + 2]; low2 = Math.min(low2, x * x + y * y + z * z);
+      const fx = x - eye[0], fy = y - eye[1], fz = z - eye[2], d2 = fx * fx + fy * fy + fz * fz, keep = Math.min(1, far.full * far.full / Math.max(d2, 1));
+      if (T[q + 8] >= MARGIN * keep || n >= CAP) continue;
+      n++;
+      const dn = crownDown(fx, fy, fz, T[q + 3], tu); if (dn > maxDown) maxDown = dn;
+      if (T[q + 8] < keep && d2 > 240 * 240 && d2 < 4200 * 4200 && dn > SHADOW0) cast = true;
+    }
+    const sh = tileShadow(eyeLen, Math.sqrt(low2), w.near), on = sh.air > 0 && sh.reach && (was || shadowGate(maxDown, 0, w.near));
+    if (on) handed++; if (cast) can++;
+    if (on && !cast && pl.none) wrongOn++;
+    if (cast && !on) wrongOff++;
+  }
+  // (a few tiles whose steepest tree is within a twentieth of the angle are handed it ahead of
+  // time: the gate keeps that margin for the eye's coming nearer before the next fill)
+  const ok = wrongOn <= Math.ceil(0.1 * tiles) && wrongOff === 0;
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}, on foot: ${tiles} tiles, ${can} with a tree that can cast a shadow, ${handed} handed the shadows' draw${wrongOn ? `, ${wrongOn} for nothing` : ''}${wrongOff ? `, ${wrongOff} missing` : ''}`);
+  if (!ok) failed = true;
+}
 console.log(failed ? '\nfar trees, the land\'s shadow: FAILED' : '\nfar trees, the land\'s shadow: every check passed');
-process.exit(failed && !was ? 1 : 0);
+process.exit(failed ? 1 : 0);

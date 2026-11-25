@@ -11,6 +11,7 @@ import { HEAP_GLSL } from '../sky/clouds.js';
 import { GRASS_GLSL, FLOWERS_GLSL, GRASS_GROUND } from '../life/grassRules.js';
 import { PAINT_LEAF } from '../life/trees.js';
 import { FAR_GREEN_GLSL } from '../life/farTreeForm.js';
+import { FAR_GROUND } from './farGround.js';
 
 // Holds an albedo map's brightness (relative to its mean) inside the range the real ground
 // spans, with soft knees: a mosaic also records the shading of steep slopes, haze and
@@ -211,7 +212,9 @@ void main() {
   // (and where the meadows are and which hillsides flower: noises 260 and 420 m to the cell,
   // which every pixel of grass within 900 m used to work out for itself before it knew
   // whether a flower was near)
-  if (uGrassTone.a > 0.0 && far < 1100.0) { vec3 Pg = uCamPlanetPos + rel; vCloud.w = flNoise(Pg / 240.0 + vec3(3.0, 11.0, 5.0)); vFlowerFields = vec2(flowerMeadow(Pg), flowerHill(Pg)); }
+  // (the meadows' two noises to 2.6 km, where the ground's tint of flowers is seen from the
+  // air; the gusts only to 1.1 km)
+  if (uGrassTone.a > 0.0 && far < 2600.0) { vec3 Pg = uCamPlanetPos + rel; if (far < 1100.0) vCloud.w = flNoise(Pg / 240.0 + vec3(3.0, 11.0, 5.0)); vFlowerFields = vec2(flowerMeadow(Pg), flowerHill(Pg)); }
   if (length(uCamPlanetPos) * 0.001 <= uRTop) hazeAffine(rel, gl_Position.xy / max(abs(gl_Position.w), 1e-6) * 0.5 + 0.5, vHazeT, vHazeL, vHazeG);
 }`;
 
@@ -398,33 +401,41 @@ float farCrownTilt(bool stand) { return stand ? 0.2 : 0.3; }
 // The grass the ground wears beyond its blades, and under them: dry 0..1, grain: a read of
 // the detail tile (0..1).
 // THE STEPPE FROM ABOVE: from 90 m up no blade is drawn, and the grass was one even ochre.
-// Open grassland from the air is a grain of tussocks, a scatter of dark shrubs a few metres
-// across, and paler patches of bare soil where it is dry: each where it is two pixels and
-// more, and its mean where it is less, so that the land's tone does not change with height.
-// (Reads the detail tile at three more scales, each only where it can be seen.)
+// Open grassland from the air is a scatter of dark shrubs a few metres across and paler
+// patches of bare soil where it is dry. Each is drawn as a departure from its own mean
+// (terrain/farGround.js), so that the land's tone is the same at every height and every
+// distance, and only the pattern fades: where a patch would be under two pixels, and near
+// the eye, under the blades (on foot; from 150 m up nothing of the ground is that near).
+// (Review groundfar2: a fade of the whole colour by distance from the eye was a plain disc
+// under the traveller and a ring of tone at 250-500 m; one picture of the detail tile tiled
+// every 21 m and 91 m was a lattice from the air; a scale of 0.7 a tile broke along the
+// patches' edges; a grain a metre across read from a texture whose largest feature is 26 cm
+// could not show, and is gone.)
 vec3 farGrassColour(float dry, float grain) {
   vec3 c = grassColour(dry, 0.62) * (0.82 + 0.36 * grain);
   float fw = fwidth(vDetailUv.x) + fwidth(vDetailUv.y);          // (detail tiles, 64 m, a pixel)
-  // (beyond the blades only: under them the ground keeps the blades' own tone, grassRules.js)
-  float beyond = smoothstep(250.0, 500.0, length(vRel));
-  if (beyond <= 0.0) return c;
-  // bare soil, in patches some 6 to 18 m across, more of it the drier; shrubs, dark clumps
-  // some 2 to 5 m across, one place in ten. (Both from the detail tile's large blobs, read
-  // at a fixed level of its smaller copies, 16 texels a texel: the pattern is the same at
-  // every height, and where a patch would be under two pixels it gives way to its mean. The
-  // scales are sixteenths of a tile, which the patches agree on (DETAIL_PERIOD); the soil's
-  // two reads, 85 m and 205 m apart, so that no repeat of it shows: with one, the land was
-  // a stencilled wallpaper.)
-  float kB = 1.0 - smoothstep(0.09, 0.18, fw), bare = 0.21;
-  if (kB > 0.0) bare = mix(bare, smoothstep(0.56, 0.7, 0.6 * textureLod(tDetail, vDetailUv * 0.75 + 0.13, 4.0).b + 0.4 * textureLod(tDetail, vDetailUv * 0.3125 + 0.61, 4.0).b + 0.04), kB);
-  c = mix(c, vec3(0.30, 0.22, 0.11) * (0.85 + 0.3 * grain), 0.42 * bare * smoothstep(0.2, 0.8, dry) * beyond);
-  float kS = 1.0 - smoothstep(0.03, 0.06, fw), shrub = 0.101;
-  // (in clusters and gaps by a second read 205 m apart: by one alone the shrubs stood in a grid)
-  if (kS > 0.0) shrub = mix(shrub, smoothstep(0.618, 0.648, 0.6 * textureLod(tDetail, vDetailUv * 2.0 + 0.37, 4.0).b + 0.4 * textureLod(tDetail, vDetailUv * 0.3125 + vec2(0.29, 0.83), 4.0).b), kS);
-  c = mix(c, vec3(0.04, 0.05, 0.025), 0.8 * shrub * beyond);
-  // tussocks: a grain a metre across, light and dark
-  float kT = 1.0 - smoothstep(0.004, 0.012, fw);
-  if (kT > 0.0) c *= 1.0 + 0.3 * kT * beyond * (texture(tDetail, vDetailUv * 61.0 + 0.71).g - 0.5);
+  float show = smoothstep(40.0, 150.0, length(vRel));
+  // Bare soil, in patches some 6 to 18 m across, more of it the drier: the detail tile's
+  // large blobs at a fixed level of its smaller copies, two reads turned against each other
+  // and against the cube face's axes (every number a sixteenth of a tile, which the patches
+  // agree on), so no repeat lines up into rows.
+  float kB = (1.0 - smoothstep(0.09, 0.18, fw)) * show;
+  if (kB > 0.0) {
+    vec2 uA = vec2(dot(vDetailUv, vec2(0.75, 0.25)), dot(vDetailUv, vec2(-0.25, 0.75))) + 0.13;
+    vec2 uB = vec2(dot(vDetailUv, vec2(0.3125, -0.125)), dot(vDetailUv, vec2(0.125, 0.3125))) + 0.61;
+    float bare = smoothstep(0.545, 0.605, 0.6 * textureLod(tDetail, uA, 4.0).b + 0.4 * textureLod(tDetail, uB, 4.0).b);
+    c = mix(c, vec3(0.30, 0.22, 0.11) * (0.85 + 0.3 * grain), 0.42 * smoothstep(0.2, 0.8, dry) * kB * (bare - ${FAR_GROUND.soilMean.toFixed(3)}));
+  }
+  // Shrubs: dark rounded clumps 2 to 5 m across, each in a place of its own (crowns() in
+  // 4 m cells: a hash a cell, nothing repeats within a kilometre), in clusters and gaps by
+  // the detail tile's largest blobs (205 m apart).
+  float kS = (1.0 - smoothstep(0.03, 0.06, fw)) * show;
+  if (kS > 0.0) {
+    vec4 sb = crowns(vDetailUv + vec2(0.19, 0.53), 16.0);
+    float gate = clamp(0.12 + 0.8 * (textureLod(tDetail, vDetailUv * 0.3125 + vec2(0.29, 0.83), 4.0).b - 0.5), 0.0, 0.4);
+    float shrub = smoothstep(0.05, 0.35, sb.z) * step(sb.w, gate);
+    c = mix(c, vec3(0.04, 0.05, 0.025), 0.8 * kS * (shrub - ${FAR_GROUND.shrubMean.toFixed(3)}));
+  }
   return c;
 }
 
@@ -687,7 +698,7 @@ void main() {
       cz = crowns(vDetailUv + 0.71, 1.5);
       // (the edge: where the canopy is thinning out by the map, the clumps' tops stay and
       // their gaps go first)
-      shellW = mix(vShell, clamp((vShell - 0.5) * 2.2 + 0.5 + 1.1 * (cz.z - 0.45), 0.0, 1.0), kz);
+      shellW = mix(vShell, clamp((vShell - 0.5) * 2.2 + 0.5 + 1.1 * (cz.z - ${FAR_GROUND.clumpZ.toFixed(3)}), 0.0, 1.0), kz);
     }
     float nearC = 1.0 - smoothstep(0.03, 0.5, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
     vec2 cgn = farCanopyGrain(c1, c2, nearC);
@@ -711,14 +722,14 @@ void main() {
       if (kg > 0.0) {
         vec4 cg = crowns(vDetailUv + 0.37, 3.0);
         N = normalize(N + (uTanU * cg.x + uTanV * cg.y) * (farCrownTilt(true) * kg));
-        leaves *= mix(1.0, farCrownShade(cg, true), kg);
+        leaves *= mix(1.0, farCrownShade(cg, true) / ${FAR_GROUND.standMean.toFixed(3)}, kg);
       }
       if (kc > 0.0) {
         vec4 cr = crowns(vDetailUv, 8.0);
         // (strongly: at a phone's pixel a crown is a few pixels, and a faint one was a net
         // laid over the forest, not trees)
         N = normalize(N + (uTanU * cr.x + uTanV * cr.y) * (farCrownTilt(false) * kc));
-        leaves *= mix(1.0, farCrownShade(cr, false), kc);
+        leaves *= mix(1.0, farCrownShade(cr, false) / ${FAR_GROUND.crownMean.toFixed(3)}, kc);
       }
     }
     albedo = mix(albedo, leaves, shellW * ownC);
@@ -727,7 +738,7 @@ void main() {
     // beyond 19 km, the map's; tilted a little toward their own light)
     if (kz > 0.0) {
       N = normalize(N + (uTanU * cz.x + uTanV * cz.y) * (0.25 * kz * shellW));
-      albedo *= mix(1.0, (0.48 + 0.8 * smoothstep(0.0, 0.55, cz.z)) * (0.8 + 0.4 * cz.w), kz * shellW);
+      albedo *= mix(1.0, (0.48 + 0.8 * smoothstep(0.0, 0.55, cz.z)) * (0.8 + 0.4 * cz.w) / ${FAR_GROUND.clumpMean.toFixed(3)}, kz * shellW);
     }
   }
   // ===================================== end of THE GROUND FROM AFAR, 1 ================

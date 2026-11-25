@@ -38,11 +38,13 @@ const check = (ok, what) => { if (!ok) fail.push(what); return ok; };
   const RADIUS = 240, trees = [];
   let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   for (let i = -70; i <= 70; i++) for (let j = -70; j <= 70; j++) trees.push([i * 7 + (rnd() - 0.5) * 4, j * 7 + (rnd() - 0.5) * 4]);
-  const d2 = (t, p) => (t[0] - p[0]) ** 2 + (t[1] - p[1]) ** 2;
+  let H = 0;          // (the eye's height over the trees' feet)
+  const d2 = (t, p) => (t[0] - p[0]) ** 2 + (t[1] - p[1]) ** 2 + H * H;
 
   // path: a straight walk, then a bend (the eye at 1.7 m over the ground), at `speed` m/s, 30 frames a second
-  const run = (name, fraction, closeOn, speed) => {
-    const { close, near } = radii(fraction, closeOn), dt = 1 / 30, agl = 1.7;
+  const run = (name, fraction, closeOn, speed, { h = 1.7, rim = false } = {}) => {
+    H = h; const { close, near } = radii(fraction, closeOn), dt = 1 / 30;
+    let nearest = 0;          // (the nearest tree's distance at the last choice, as trees.js keeps it)
     const st = { built: null, fine: null, A: null, farSet: null, closeSet: new Set(), nearSet: new Set(), dirty: true };
     let worstNotClose = 1e9, worstCard = 1e9, farthestClose = 0, missing = 0, twice = 0, frames = 0, wholes = 0, fines = 0, notCloseInside = 0, inside = 0;
     const fine = (p) => {
@@ -51,8 +53,10 @@ const check = (ok, what) => { if (!ok) fail.push(what); return ok; };
         trees.forEach((t, i) => { const m = makeOf(d2(t, st.A), close, near); if (m === 0) st.closeSet.add(i); else if (m === 1) st.nearSet.add(i); });
         return;
       }
+      nearest = nearCandidates(near);
       trees.forEach((t, i) => {
         if (d2(t, st.A) >= nearCandidates(near) ** 2) return;
+        nearest = Math.min(nearest, Math.sqrt(d2(t, p)));
         const m = makeOf(d2(t, p), close, near);
         if (m === 0) st.closeSet.add(i); else if (m === 1) st.nearSet.add(i);
       });
@@ -63,15 +67,16 @@ const check = (ok, what) => { if (!ok) fail.push(what); return ok; };
       trees.forEach((t, i) => { const a = d2(t, p); if (a > (RADIUS + REBUILD_M + 5) ** 2) return; if (OLD ? makeOf(a, close, near) === 2 : inFarList(a, near)) st.farSet.add(i); });
       fine(p);
     };
-    let p = [-150, -3], heading = 0;
+    let p = rim ? [-150, 4] : [-150, -3], heading = 0;          // (beside a rim: along the wood's edge, 4 m out)
     for (let s = 0; s < 400 / speed; s += dt) {
-      if (s > 150 / speed) heading += 0.4 * dt * speed / 20;          // (a bend after 150 m)
+      if (s > 150 / speed && !rim) heading += 0.4 * dt * speed / 20;          // (a bend after 150 m)
       p = [p[0] + Math.cos(heading) * speed * dt, p[1] + Math.sin(heading) * speed * dt];
-      const step = OLD ? REBUILD_M : fineStep(fraction, closeOn, agl, speed);
+      const step = OLD ? REBUILD_M : fineStep(fraction, closeOn, nearest, speed);
       const make = toMake(st.dirty, st.built ? d2(p, st.built) : 1e12, st.fine ? d2(p, st.fine) : 1e12, step);
       if (OLD ? (st.dirty || !st.built || d2(p, st.built) > REBUILD_M ** 2) : make === 2) whole(p); else if (!OLD && make === 1) fine(p);
       frames++;
       trees.forEach((t, i) => {
+        if (rim && t[1] > 0) return;          // (beyond the rim: no trees, the ground far below)
         const de = Math.sqrt(d2(t, p));
         if (de > RADIUS - 1) return;
         const c = st.closeSet.has(i), nr = st.nearSet.has(i), f = st.farSet.has(i) && (OLD || !farCut(d2(t, st.fine), near));
@@ -84,12 +89,12 @@ const check = (ok, what) => { if (!ok) fail.push(what); return ok; };
         if (de < close * 0.75) { inside++; if (!c) notCloseInside++; }
       });
     };
-    const step = OLD ? REBUILD_M : fineStep(fraction, closeOn, agl, speed);
+    const step = OLD ? REBUILD_M : fineStep(fraction, closeOn, nearest, speed);
     const share = inside ? (100 * notCloseInside / inside).toFixed(1) : '-';
     console.log(`${name} (close ${close.toFixed(1)} m, near ${near.toFixed(1)} m, ${speed} m/s, lists every ${step.toFixed(1)} m): ${frames} frames, ${wholes} whole lists, ${fines} choices of makes;`
       + ` nearest tree not close ${closeOn ? worstNotClose.toFixed(1) + ' m' : '-'}, farthest close ${farthestClose.toFixed(1)} m, nearest card ${worstCard.toFixed(1)} m;`
       + ` within ${(close * 0.75).toFixed(0)} m ${share} % not close; drawn by nobody ${missing}, twice ${twice}`);
-    const slack = fineStep(fraction, closeOn, agl, speed) + speed / 30 + 0.01;          // (what the rule promises, whatever it did)
+    const slack = fineStep(fraction, closeOn, nearest, speed) + speed / 30 + 0.01;          // (what the rule promises, whatever it did)
     check(missing === 0, `${name}: ${missing} tree-frames inside the radius drawn by nobody`);
     check(twice === 0, `${name}: ${twice} tree-frames drawn twice`);
     if (closeOn) check(worstNotClose >= close - slack, `${name}: a tree ${worstNotClose.toFixed(1)} m from the eye is not the close mesh (close radius ${close.toFixed(1)} m, allowed ${slack.toFixed(1)} m short)`);
@@ -102,6 +107,9 @@ const check = (ok, what) => { if (!ok) fail.push(what); return ok; };
   run('walking, trees-far', 0.66, true, 4.5);
   run('walking, close mesh off', 1, false, 4.5);
   run('super speed, full shapes', 1, true, 60);
+  // (flying at 10 m/s along a wood's edge at tree height, the ground under the eye far below:
+  // the nearest tree, not the height over the ground, sets the pace)
+  run('flying beside a rim', 1, true, 10, { h: 2, rim: true });
 }
 
 // ---- 2. the shadow pass sees the tree whole ---------------------------------------------
@@ -114,6 +122,14 @@ const check = (ok, what) => { if (!ok) fail.push(what); return ok; };
   const byEye = /foot|uAnchorRel/.test(edge);
   console.log(`\nthe shadow pass: the cards' width ${byEye ? 'by the eye\'s angle' : 'whole'} (${edge.trim().slice(0, 60)})`);
   check(!byEye, 'the shadow pass draws the trees\' cards in by the eye\'s angle');
+  // one rule for what a texel is, near and far (reviews trees2-4, farforest2-2: written in two
+  // places, it crossed over twice): every pass decides wood by TREE_WOOD and nothing else
+  const far = readFileSync(new URL('../src/life/farForest.js', import.meta.url), 'utf8');
+  const own = (t) => (t.match(/cut\.b\s*>\s*\(?[^;]*/g) || []).filter((m) => !/0\.25/.test(m));
+  const loose = [...own(src.replace(/export const TREE_WOOD[\s\S]*?`;/, '')), ...own(far)];
+  const uses = (src.match(/treeWood\(cut\)/g) || []).length, farUses = (far.match(/treeWood\(cut\)/g) || []).length;
+  console.log(`what a texel is: treeWood in the near trees' passes ${uses} times, in the far forest ${farUses}; thresholds of their own: ${loose.length ? loose.join(' | ') : 'none'}`);
+  check(uses >= 2 && farUses >= 1 && loose.length === 0, `the near trees and the far forest do not take wood by one rule (${loose.join(' | ')})`);
 }
 
 // ---- 3 and 5. petals over a making of the lists -------------------------------------------
@@ -157,6 +173,7 @@ const check = (ok, what) => { if (!ok) fail.push(what); return ok; };
   console.log(`petals: one tree gone and one come: of the slots on the trees that stayed ${keptTree} kept their tree, ${keptLying} of ${wasLying} lying petals kept`);
   check(keptLying === wasLying && keptTree > 0, 'petals: the trees that stayed lost petals when another tree went');
   // finer ground arrives under them (the drawn height changes by 8 cm): they follow it, none hidden
+  for (let f = 0; f < 40; f++) pet.update(rig, 412, 1 / 30);          // (the slots that moved to the new tree: faded over, their petals laid there)
   const before3 = snap(trees.anchor);
   trees.terrain.drawnHeight = (d, camDist) => { asked.push(camDist); return 0.08; };
   let hidden = 0;
@@ -171,6 +188,26 @@ const check = (ok, what) => { if (!ok) fail.push(what); return ok; };
     const per = [0, 1, 2, k0].map((k) => p2.uniforms.uPetalTree.value.filter((v) => Math.hypot(trees.anchor.x + v.x - feetAbs[k][0], trees.anchor.y + v.y - feetAbs[k][1], trees.anchor.z + v.z - feetAbs[k][2]) < 1e-3).length);
     console.log(`petals: one tree alone, then four: slots ${per.join(', ')}`);
     check(Math.min(...per) >= 2, `petals: a tree that came into the list later has ${Math.min(...per)} slots (${per.join(', ')})`); }
+  // flowering trees come into the list one at a time, 1 to 8 (a walk into the parkland): every
+  // listed tree has a slot once the slots have faded over, and no lying petal vanishes in a frame
+  { const p3 = new Petals(trees), A = trees.anchor, more = [];
+    for (let k = 0; k < 8; k++) more.push(feetAbs.push([R, -60 + 17 * k, 35 - 9 * k]) - 1);
+    let starved = 0, vanished = 0, worst = '';
+    const lie3 = p3.lieGeo.attributes.aLie.array;
+    for (let k = 1; k <= 8; k++) {
+      trees.blooming = listFrom(A, more.slice(0, k));
+      for (let f = 0; f < 45; f++) {
+        const w0 = Array.from({ length: lie3.length / 4 }, (_, i) => lie3[i * 4 + 3]);
+        p3.update(rig, 412, 1 / 30);
+        for (let i = 0; i < w0.length; i++) if (w0[i] === 1 && lie3[i * 4 + 3] !== 1) vanished++;
+      }
+      const per = more.slice(0, k).map((j) => p3.uniforms.uPetalTree.value.filter((v) => Math.hypot(A.x + v.x - feetAbs[j][0], A.y + v.y - feetAbs[j][1], A.z + v.z - feetAbs[j][2]) < 1e-3).length);
+      if (Math.min(...per) < 1) { starved++; worst += ` ${k}: ${per.join(',')}`; }
+      if (k === 5 || k === 8) console.log(`petals: ${k} trees in flower come one at a time: slots ${per.join(', ')}`);
+    }
+    console.log(`petals: 1 to 8 trees one at a time: ${starved} steps with a tree with no slot${worst}; ${vanished} lying petals vanished in a frame`);
+    check(starved === 0, `petals: a listed tree in flower has no slot (${worst.trim()})`);
+    check(vanished === 0, `petals: ${vanished} lying petals vanished in one frame as trees came into flower near by`); }
   const far = Math.max(...asked);
   console.log(`petals: the ground asked for with a distance from the eye of at most ${far.toFixed(1)} m`);
   check(far < 200, `petals: the ground's height asked for with a distance of ${far.toFixed(0)} m (the eye's distance from the planet's centre?)`);
