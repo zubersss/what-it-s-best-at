@@ -168,3 +168,21 @@ so its weather is not the model's; these are the hours where there is something 
 At the scene's own hour (t=0) the stub's fair preset has almost no cloud at the opening place
 (cover 0.02–0.13), so a picture taken there shows an empty sky: that is the test pattern, not the
 renderer. A's model paints the real cover.
+
+## What the pictures showed, and what each one changed
+
+1. **The first storm picture** (`haven_ledge_storm12.png`, a cell 12.6 km off whose top stands at
+   9.2 km) showed three faults at once, all now fixed (commit 9478d38):
+   - the march's stretch was `min(t0, cellEntry)` with `t0 = 1.0` standing for "the ray misses
+     the layer", so where it did the march began a metre from the eye;
+   - the steps were shared out over the hull of layer and cell alike, so a tower five kilometres
+     deep was crossed in two: the ray is now marched in up to three stretches, the cell's with
+     its own 6 to 14 steps;
+   - the tower was white all over: its cauliflower now takes the two tones from the chord toward
+     the Sun at its own surface, and the slate of the whole tower's depth under them.
+2. **The same view again** showed the near cloud as a white wall — which is what the stub's storm
+   preset is at 3.2 km over that place (0.82 cover, base 2.66 km: the camera was inside the
+   layer). The storm portraits are taken from above the heaps instead.
+3. **Inside a storm the sky's own light was never dimmed** (commit 5b90f1f): a base with almost
+   no Sun on it was still a bright grey. The share of the sky a sample gets is now part of the
+   march's one light rule.
