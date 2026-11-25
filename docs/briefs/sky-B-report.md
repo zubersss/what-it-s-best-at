@@ -722,6 +722,14 @@ case or a benchmark view from a Node scan.
   put aside and the body's own comes back), so a picture of Haven from space with the switch on
   still has painted clouds on it. Nothing in the brief asks for that view, and the switch is for
   pictures of the land from above, so it was left as it is.
+- **The painted cut now falls on the rain as well.** The clean edge is cut by all the cloud along
+  the line of sight (`ALL` -> `LAY`): a pixel whose total comes to less than 0.18 is erased, which
+  is the look's own rule for faint wisps. Until this morning the rain was drawn almost only where
+  cloud stood on the same ray, so it rode in on the cloud's total; now that a shaft is drawn
+  whole, a LIGHT veil of rain alone (alpha under about 0.2 — virga, the far edge of a shower) is
+  cut away by that rule, while a heavy core (alpha near 1) is untouched. To spare it, the march
+  would have to hand the rain's share back apart from the cloud's, and its four channels are
+  full. Worth a look in `haven_ledge_M_cell9.png` at the shaft's outer edge.
 - **Scud was not built.** The brief asks for ragged fragments hanging under a raining base; what
   is there is the wisps — the great soft patches torn out of a cloud within a kilometre of the
   eye, which cost no read of their own. A raining base keeps its clean line. Its constant was
