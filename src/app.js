@@ -420,6 +420,7 @@ export class App {
     if (this.hero) this.hero.started = false;
     this.heroVisKnown = false;            // (its terrain shadow is asked again for the new place)
     this.jumpedAt = performance.now();
+    this.governor?.jumped();              // (a trial or a step up begun at the view left behind is not this view's to judge)
   }
 
   // --- the clock ----------------------------------------------------------------------
@@ -1203,7 +1204,7 @@ export class App {
       // (under the flying figure too: no dust is raised from water)
       this.updateTide(dt);
       if (this.world.surface.sea) {
-        const f = rig.onFoot ? rig.feet : rig.pos, l = f.length(), h = this.terrain.hs.height(f.x / l, f.y / l, f.z / l, 1), up = h - (this.world.surface.sea.level ?? 0);
+        const f = rig.travellerAt, l = f.length(), h = this.terrain.hs.height(f.x / l, f.y / l, f.z / l, 1), up = h - (this.world.surface.sea.level ?? 0);
         // (what the tide has left of it; lakes and rivers keep theirs)
         rig.water = Math.max(0, this.terrain.hs.waterDepth + (up < 4 ? this.tide || 0 : 0));
       } else rig.water = 0;
