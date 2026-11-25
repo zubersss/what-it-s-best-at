@@ -83,8 +83,10 @@ the package's own pictures instead.
 ### The march (src/sky/cloudVolume.js)
 
 - **The cloud comes from the field.** One read of map A at every step gives the heap cover, the
-  sheet cover, the base and the sheet's thickness AT THAT PLACE. `place()`'s country-smoothing and
-  `setGround()` are gone, with the lift and the frame drift: the base is a thing of the place.
+  sheet cover, the base and the sheet's thickness AT THAT PLACE: the base is a thing of the
+  place, not of where the traveller stands. (`place()`'s country-smoothing, `setGround()` and the
+  frame drift are still there, but only on the path for a world that has no field — Earth, until
+  A's `fromMaps` is wired. On a world with a field none of them is read.)
 - **One rule for the shapes.** `sky/skyGlsl.js` now holds the forms the cover is cut into
   (`skyHeapTop`, `skyHeapBody`, `skyHeapAt`, `skySheetAt`, `skyEdgeEat`, `skyFormQ`, and
   `skyLowAt`, which is all of them from one read). The volume marches them, the far shell reads
