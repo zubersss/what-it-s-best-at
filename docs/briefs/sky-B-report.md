@@ -333,7 +333,8 @@ are not crossed at all.
   `haven_ledge_M_storm20.png` and `haven_ledge_Q_storm20.png` is this change alone: at 3 km over
   the country west of the opening place, the owning branch draws a grey wall — the camera inside
   a cloud whose base followed it — and this branch draws the storm, the mackerel sky and the
-  mountains.)
+  mountains. Since the main session has taken those lines, that is the owner's "before" too: it
+  is what the phone drew until today.)
 - **Storms are things in the world**: a tower with its own shape, lit on the side the Sun is on,
   slate where it is deep, with an anvil at the top and rain falling out of its base in shafts
   that you can see slanting downwind. They are drawn out to 200 km, so a storm stands on the
