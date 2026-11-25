@@ -1,0 +1,30 @@
+{
+  "ledge": {
+    "weather": "wind 6 m/s, rain 0.0 mm/h, snow 0.0, 11 C, sun 0.98, sky 1.00, top 11297 m",
+    "trees": "1958 (67k triangles): ponderosa pine, pinyon pine, quaking aspen",
+    "farTrees": "36931 standing (64072 handed to the GPU)",
+    "farRocks": "0 in view of 0 all round, in 0 tiles (0 draw calls, 0k triangles; 0 handed to the GPU)",
+    "water": "z6: 2 rivers, 2222 m3/s (no inflow); z9: 1 rivers, 651 m3/s; z12: 2 rivers, 627 m3/s",
+    "stale": 0,
+    "tilesBusy": false,
+    "refreshQ": 0,
+    "rings": 3,
+    "tileFails": 0,
+    "busyW": 0,
+    "calls": 156,
+    "triangles": 2524461,
+    "chunks": 139,
+    "loaded": 418,
+    "visited": 418,
+    "wanted": 0,
+    "lodScale": 1,
+    "avgBuildMs": 42.8,
+    "exposure": 5.485,
+    "surface": [
+      0.753,
+      0.47
+    ],
+    "frame": 220,
+    "wait": ""
+  }
+}
