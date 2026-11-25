@@ -186,6 +186,13 @@ All at 880 x 412, dsf 1.25, from frozen builds, in
 `/tmp/claude-0/-home-user-what-it-s-best-at/fa086d69-ff44-5069-99a3-fdab3300646a/scratchpad/shots/`
 (the ones worth keeping are copied into `docs/shots/sky/`).
 
+**Which build each picture came from.** The frozen builds step with the fixes below:
+`buildB6` was the first from A's model, `buildB8` adds the anvil's torn edge and the patchy
+mackerel sky, `buildB10` the lenses that are drawn at all, `buildB11` merges package C (the
+clouds' shadow on the land, the trees and the rocks: from here the pictures show B and C
+together, which is what the traveller will see), and `buildB12` the storms at the governor's
+floor. Each picture's build is named beside it when it matters.
+
 **Before and after.** Since package A landed, "before" is the owning branch's own head
 (`ccr-aa39490a-qiw63x`, built as `buildQ`) and "after" is this branch (`buildB6`, with the four
 lines of "Asked of the main session" patched in). The same query goes to both, with
@@ -386,7 +393,15 @@ renderer. A's model paints the real cover.
    under it, and the one nine kilometres ahead never got a plate. They are sorted by distance
    now, and anything beyond the horizon for its own height is dropped (the check is in
    `scripts/lens-list-test.mjs`).
-8. **The anvil from 35 km** (`haven_ledge_M_storm35.png`) was the brightest thing in the frame —
+8. **At the governor's floor the sky had a hole in it** (`haven_ledge_M_floor.png`): a dark ring
+   of clear sky in the mackerel field where the tower should have stood. The shells cut
+   themselves where a tower passes through — and the tower was never marched. "The volume off
+   near the traveller, the cells still marched" asked the LAST frame's cell list, which only
+   `render()` sets, and `render()` does not run while the volume is off: it could never start.
+   It now asks the cells the sky system has already packed for the shaders this frame, which is
+   what the march reads anyway (bd3e9e6). The floor is the picture that found it, which is the
+   lesson about looking at `?debug=floor` after adding steps.
+9. **The anvil from 35 km** (`haven_ledge_M_storm35.png`) was the brightest thing in the frame —
    a smooth cream disc on a stalk, at 209/180/152 against a sky at 71/94/131. Seen from below an
    anvil is grey: 0.45 of its sunlit top became 0.32, and the cirrus strokes now thin and thicken
    the sheet itself, so it is drawn-out ice rather than a plate (225dcd2). What stays, and is not
