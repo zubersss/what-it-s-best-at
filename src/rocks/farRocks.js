@@ -38,6 +38,14 @@ const CASTER_STEP = 20;               // metres the traveller goes before they a
 const VIS_TURN = 0.9998;              // the land's shadow on the rocks is asked again when the Sun has moved 1.1 degrees
 const COLLIDE_FROM = 3.4;             // levels whose rocks are this large and more carry a walker (m)
 
+// Seen from above, a rock far off is a speck: a dark pixel on the land ("flies on the
+// lens", from 1 km up). Its reach is cut to under half where the line of sight to it looks
+// steeply down (a thing of where the eye is, not of where it looks: the rock grows in and
+// out as it does with distance), so that from the air the rocks drawn are big enough to be
+// rocks. From the ground the lines of sight are grazing and nothing changes.
+const ABOVE_GLSL = /* glsl */`
+float aboveReach(vec3 c) { return mix(1.0, 0.45, smoothstep(0.35, 0.75, -dot(normalize(c), normalize(uCamPlanetPos + c)))); }`;
+
 const VERT = /* glsl */`
 in vec4 aOff;            // xyz: the rock's middle from the tile's origin (m, planet axes), w: its size (m)
 in vec4 aQuat; in vec3 aScale;
@@ -46,11 +54,14 @@ in vec4 aMisc;           // x: sunlight on it (the land's shadow), y: its tone (
 in vec4 aTint;           // rgb: the land's colour at its place over the world's mean (the albedo map's tint, a fifth of it); a: the share of its size it is seen as from afar (less under trees)
 uniform vec4 uFar;       // x: metres a rock is seen from per metre of its size, z: the share of x left to small rocks (the governor), w: where the near shadow map ends (m)
 uniform vec2 uShareSize; // the size up to which a rock is small, and from which it has all its reach (m)
+#define HAS_CAM_U
+uniform vec3 uCamPlanetPos, uSunDir; uniform float uPlanetRadius;
+${ABOVE_GLSL}
 ${ROCK_SHAPE_GLSL}
 // A rock's place and size; false when this mesh does not draw it.
 bool rockPlace(out vec3 centre, out float grow) {
   centre = (modelMatrix * vec4(aOff.xyz, 1.0)).xyz;
-  float seen = aOff.w * aTint.a, key = length(centre) / seen, reach = uFar.x * mix(uFar.z, 1.0, smoothstep(uShareSize.x, uShareSize.y, seen));
+  float seen = aOff.w * aTint.a, key = length(centre) / seen, reach = uFar.x * mix(uFar.z, 1.0, smoothstep(uShareSize.x, uShareSize.y, seen)) * aboveReach(centre);
   grow = 1.0 - smoothstep(0.78, 1.0, key / reach);
   return grow > 0.0;
 }`;
@@ -59,7 +70,9 @@ bool rockPlace(out vec3 centre, out float grow) {
 // Sunlight on a rock (vertex shader): the land's shadow from the worker, and the cloud that
 // stands between it and the Sun, as the ground has it (terrainMaterial.js).
 const SUN_VERT = /* glsl */`
+#ifndef HAS_CAM_U
 uniform vec3 uCamPlanetPos, uSunDir; uniform float uPlanetRadius;
+#endif
 uniform sampler2D tClouds; uniform vec4 uCloud; uniform highp sampler3D tCloudNoise; uniform vec4 uCloudHeap; uniform vec3 uCloudVol, uCloudWind;
 ${HEAP_GLSL}
 float rockSun(vec3 planetPos, vec3 up) {
@@ -169,10 +182,11 @@ export class FarRocks {
         in vec4 aOff; in vec4 aQuat; in vec3 aScale; in vec4 aMisc; in vec4 aTint;
         uniform vec4 uFar; uniform vec2 uShareSize;
         ${SUN_VERT}
+        ${ABOVE_GLSL}
         out vec3 vRel; out vec2 vDisc; flat out vec4 vSh;          // vSh: xyz the ground's normal, w how dark
         void main() {
           vec3 c = (modelMatrix * vec4(aOff.xyz, 1.0)).xyz;
-          float d = length(c), size = aOff.w, seen = size * aTint.a, key = d / seen, reach = uFar.x * mix(uFar.z, 1.0, smoothstep(uShareSize.x, uShareSize.y, seen));
+          float d = length(c), size = aOff.w, seen = size * aTint.a, key = d / seen, reach = uFar.x * mix(uFar.z, 1.0, smoothstep(uShareSize.x, uShareSize.y, seen)) * aboveReach(c);
           // (not for a rock that is a pixel or two: its shadow would be less)
           float show = (1.0 - smoothstep(0.5, 0.72, key / reach));
           vec3 planetPos = uCamPlanetPos + c, up = normalize(planetPos);

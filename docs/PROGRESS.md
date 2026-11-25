@@ -213,6 +213,30 @@ and the helpers above `main` from above's, FAR 3 and the water the air helper's,
 flowers' block the flowers helper's. Then the critic again on the new pictures, the final
 run, the pull request.
 
+**23:40**: the owner asked for a playable link of what was in so far: PR #35, main at
+e9d4888 (the interim build; its checkpoint text is in the session's transcript).
+
+**00:05 (2026-11-25), the owner's tenth phone results** (build e9d4888, Sharp; whole
+text in `docs/benchmarks/2026-11-25-haven-e9d4888.txt`):
+- **28.5 fps, 0.86 % late frames** against 33 ms (the ninth: 31 fps in Smooth with 25 to
+  52 % late). Haven 28.3, flight 29.0, the Moon 28.3. Page work 7.6 ms (the character
+  1.3 to 2.0).
+- Haven sat at **1.60 to 1.65 MP** (36 % of native) at every stop; the Moon at 3.44.
+- The governor **hunted**: 74 steps (savings off 30, back on 24), five savings put back at
+  18.3 s and off again at 18.9 s; "late frames taken as the device's own" 7.0 %.
+- Cost table (2.07 MP; the measuring alone some 23 to 26 ms): **the ground's shading 31.1 at
+  the opening view and 21.6 from the air** (now with its vertex work counted, ground-2);
+  the far forest 5.9; savings that buy at more than one view: far-relief 3.9 and 5.2,
+  far-rock-shadows 3.0 and 4.1, clouds 2.7 and 5.5; cloud-volume 3.7 from the air. The rest
+  is noise (signs change between views).
+- The owner: the shadows "get jumpy when I'm moving around near them"; the clouds must move
+  like real clouds, form where real ones do (near mountains), be of many kinds from high
+  thin ones to dark storm clouds, move with the day's wind at its speed, rain where it
+  rains, and storms be dark with lightning and thunder; "as many agents as you need".
+- Begun: workflow `clouds-shadows-understand-design` (readers of the clouds, the weather
+  and the shadows, a reader of the governor in this benchmark, three designers from three
+  angles and a judge); its plan becomes the cloud helpers' briefs.
+
 ### The far view sent: trees, grass and rock as far as one can see
 
 *2026-11-24. Merged as pull request #34; the phone link shows build 6ac24ff (this line was

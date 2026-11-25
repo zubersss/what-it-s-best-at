@@ -138,6 +138,24 @@ void main() {
       // life/treeBlock.js: all of them up to a slope of 0.5, none from 0.95; the canopy
       // used to end at 39 degrees where trees stand to 43, and they stood on bare ground.)
       vec4 nv = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), clamp(log2(187.0 / max(aI2.z, 1.0)), 1.0, 3.0));
+      // (but a coarse level of a patch's own map knows only its own side of an edge: at
+      // the patch's edge its texel is the mean of that side alone, and two neighbours
+      // disagreed by enough to cross the test below, a straight cut through a wood seen
+      // from 3 km. Toward an edge the slope is taken instead from the fine map along the
+      // edge's own line, every 60 m for 240 m, which both neighbours read alike.)
+      vec2 ge = min(aGrid, 1.0 - aGrid);
+      float wx = 1.0 - smoothstep(0.0, 0.12, ge.x), wy = 1.0 - smoothstep(0.0, 0.12, ge.y), wE = wx + wy - wx * wy;
+      if (wE > 0.0) {
+        float dg = 60.0 / (aI2.z * float(DETAIL_TILE));
+        vec3 ax = vec3(0.0), ay = vec3(0.0);
+        for (int i = -2; i <= 2; i++) {
+          ax += textureLod(tNormal, vec3((vec2(aGrid.x, clamp(aGrid.y + float(i) * dg, 0.0, 1.0)) * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 0.0).xyz;
+          ay += textureLod(tNormal, vec3((vec2(clamp(aGrid.x + float(i) * dg, 0.0, 1.0), aGrid.y) * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 0.0).xyz;
+        }
+        vec3 c0 = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 0.0).xyz;
+        vec3 ne = (c0 * (wx * wy) + normalize(ax) * (wx * (1.0 - wy)) + normalize(ay) * (wy * (1.0 - wx))) / wE;
+        nv.xyz = mix(normalize(nv.xyz), normalize(ne), wE);
+      }
       // (a little short of the trees' 43 degrees: the canyon's walls must not go green again)
       k *= smoothstep(0.76, 0.885, dot(normalize(nv.xyz), up)) * (1.0 - step(1.02, textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 1.0).a));
       // (crowns: a whole number of them across the detail tile, so patches agree; only near
@@ -194,7 +212,9 @@ void main() {
   // (and where the meadows are and which hillsides flower: noises 260 and 420 m to the cell,
   // which every pixel of grass within 900 m used to work out for itself before it knew
   // whether a flower was near)
-  if (uGrassTone.a > 0.0 && far < 1100.0) { vec3 Pg = uCamPlanetPos + rel; vCloud.w = flNoise(Pg / 240.0 + vec3(3.0, 11.0, 5.0)); vFlowerFields = vec2(flowerMeadow(Pg), flowerHill(Pg)); }
+  // (the meadows' two noises to 2.6 km, where the ground's tint of flowers is seen from the
+  // air; the gusts only to 1.1 km)
+  if (uGrassTone.a > 0.0 && far < 2600.0) { vec3 Pg = uCamPlanetPos + rel; if (far < 1100.0) vCloud.w = flNoise(Pg / 240.0 + vec3(3.0, 11.0, 5.0)); vFlowerFields = vec2(flowerMeadow(Pg), flowerHill(Pg)); }
   if (length(uCamPlanetPos) * 0.001 <= uRTop) hazeAffine(rel, gl_Position.xy / max(abs(gl_Position.w), 1e-6) * 0.5 + 0.5, vHazeT, vHazeL, vHazeG);
 }`;
 
@@ -882,7 +902,13 @@ void main() {
     // colour: light goes down to the bed and comes back, red lost first; what is left of
     // it shows the bed (pale sand), the rest is the water's own blue
     vec3 through = exp(-vec3(0.42, 0.07, 0.035) * (waterDepth * 2.3));
-    vec3 body = vec3(0.30, 0.27, 0.20) * through + uSeaColor * (1.0 - through.b);
+    // (far off, where a texel of the ground's maps is as wide as a river and its banks (by
+    // distance, not by pixels: the phone has five times as many), the
+    // shallows are a lighter, greener water and not the pale sand of the bed: a pixel there
+    // is part water and part bank, and the bed's sand drew every river as a dashed line of
+    // pale beads and every lake with a pale dotted rim. Seen from the air: uAloft)
+    vec3 bed = mix(vec3(0.30, 0.27, 0.20), vec3(0.12, 0.25, 0.23), smoothstep(1500.0, 6000.0, dist) * smoothstep(0.0, 0.4, uAloft));
+    vec3 body = bed * through + uSeaColor * (1.0 - through.b);
     albedo = mix(albedo, mix(body, vec3(0.75), foam), water);
     ao = mix(ao, 1.0, water);
   }
