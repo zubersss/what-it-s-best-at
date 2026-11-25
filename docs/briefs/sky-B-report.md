@@ -126,8 +126,11 @@ by the shared forms, and it throws near pixels out FIRST. With no field it is th
 - `UpperClouds`: the mid shell at 5 km (altocumulus cloudlets in two tones, altostratus as a veil)
   and the high shell at 9 km (cirrus brushed along the high wind, a faint 22-degree halo, anvils
   solid and dark beneath). Each is cut where a tower passes through it, and they are drawn above
-  or below the camera by their height. 1 read where the sky is clear (then the pixel is thrown
-  out), 2–3 where there is cloud.
+  or below the camera by their height. One read of the field where the sky is clear, and then the
+  pixel is thrown out; on a covered pixel three more for the mid shell (its cloudlets, the coarse
+  look that puts them in patches, and the look toward the Sun that gives them two tones) and one
+  or two for the high shell (its strokes, and a finer octave while the governor leaves it on).
+  An anvil costs no read at all: it is the cells' own shape.
 - `FogSheet`: 129 x 129 points over 60 km on a lattice fixed to the world (snapped in whole
   steps, so its points stay on the same places as one flies), each lifted to field C's fog top,
   depth-tested, one noise read a pixel. Whether there is any fog within reach is asked of the
