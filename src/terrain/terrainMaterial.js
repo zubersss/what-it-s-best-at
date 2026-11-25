@@ -779,12 +779,11 @@ void main() {
       // (the drifts of flowers, where the clumps and blades have them)
       // (the flowers' tint: by the one rule (grassRules.js, flowerTint), the mean colour of what
       // flowers at a place as wide as the pixel: from near by the companions' clumps among the
-      // leading kind, from the air soft drifts of a meadow's colours. Within 1 000 m the rule's
-      // two broad noises come from the vertices; beyond (looked down on from the air) the
-      // pixel asks them itself. Nothing finer than a few pixels: no specks.)
+      // leading kind, from the air soft drifts of a meadow's colours. The rule's two broad
+      // noises come from the vertices (to 2 600 m). Nothing finer than a few pixels: no specks.)
       vec3 fwP = fwidth(planetPos);
       float fpx = max(fwP.x, max(fwP.y, fwP.z));
-      vec4 fw = dG < 2500.0 ? flowerTint(planetPos, int(uGrassTone.z + 0.5), ts, dG < 1000.0 ? vFlowerFields : vec2(flowerMeadow(planetPos), ts > 0.16 ? flowerHill(planetPos) : 0.5), fpx) : vec4(0.0);
+      vec4 fw = dG < 2500.0 ? flowerTint(planetPos, int(uGrassTone.z + 0.5), ts, vFlowerFields, fpx) : vec4(0.0);
       if (fw.a > 0.0) {
         // (thickest in a drift's heart, nothing at its edge; near by broken softly by a noise
         // some metres across, never single specks)
