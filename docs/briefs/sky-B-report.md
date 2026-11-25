@@ -386,6 +386,9 @@ scene's own moment.
 | `_M_up30`, `_M_globe` | from 30 km up; the globe from three radii off | the shells and the globe from far |
 | `_M_mist` | the opening place at first light, looking into the low ground (t=-0.5) | the fog sheet |
 | `_M_storm`, `_Q_storm` | the opening place, the storm 64 km off (t=8.25) | the far cell sheets from the ground |
+| `_M_cirrus_sun`, `_M_cirrus_away` | the steppe at dusk, the Sun 2.5 deg up at azimuth 277, high cloud 0.80 (t=34.5) | the cirrus, the 22-deg halo and the Sun-side rim — the view check 11's sign fix shows in |
+| `_M_deck_below` | under a deck: sheet 0.89 over the opening place, its base 2 043 m, the camera at 1 800 (t=30) | a deck's grey underside |
+| `_M_flash` | a storm 12 km west at night, the Sun 14 deg down, a stroke held at its brightest (t=13.4) | the flash inside the cloud (`uBolt`) |
 | `_M_front` | the opening place, a cell 25 km off raining 26 mm/h (t=33) | a rain deck and its shafts |
 | `earth_ledge_B0_earth.png`, `earth_ledge_B_earth.png` | Earth's ledge, step 0's build and this one | Earth has no field yet: what changed there anyway |
 
@@ -793,6 +796,7 @@ was this morning, `buildD1` = this branch with the rain's six fixes and the lens
 | M4 | stability: the climb on the owning head (B0), then the climb, the crossing under heaps and a storm pass on this branch; then `npm run smoke` on a tree |
 | M8 | the reads check again, now that it proves its own numbers, and the same with four reads a step put in on purpose (it must fail) |
 | M9 | what the rain's fixes cost at the phone's pixel count, against `buildC1`'s 209 / 2 006 ms |
+| M10 | four of the brief's pictures that were still missing: the cirrus and the mackerel sky at dusk with the Sun two degrees up (toward it and away — the view that shows check 11's fix), a deck from below, and a storm at night with a stroke held at its brightest |
 
 The pictures of the cells, their rain and the lenses (M5, M6) are taken from `buildD1`: the six
 faults of checks 8 to 11 were found while the chains ran, and a picture from `buildC1` would show
