@@ -17,6 +17,7 @@ export const STORM = {
   storm: 0,        // 0 .. 1: the storm darkness overhead (a cell's, from at())
   overcast: 0,     // 0 .. 1: how much of the sky's light the cloud overhead takes (at()'s)
   grade: 0,        // 0 .. 1: how much of the storm grade the picture takes (look.js)
+  flash: 0,        // the light of the strokes alight now (0: none): the meter must not chase them
   u: { value: [1, 0, 0, 0] },      // the same for a shader: x light, y storm, z overcast, w grade
 };
 
@@ -24,6 +25,7 @@ export const STORM = {
 // ?debug=noclouds).
 export function setStorm(light = 1, storm = 0, overcast = 0, grade = 0) {
   STORM.light = light; STORM.storm = storm; STORM.overcast = overcast; STORM.grade = grade;
+  STORM.flash = 0;                 // (the strokes set it again, below, where there are any)
   const u = STORM.u.value;
   u[0] = light; u[1] = storm; u[2] = overcast; u[3] = grade;
 }
@@ -31,12 +33,14 @@ export function setStorm(light = 1, storm = 0, overcast = 0, grade = 0) {
 // THE DARKNESS OVERHEAD, as a share of the light left (the plan's D). From the cloud overhead
 // alone — never from the Sun at the traveller's feet, so that a heap's shadow passing over the
 // figure cannot dim the whole frame. A single heap overhead takes an overcast of about 0.55 and
-// leaves almost all of the light; a closed deck leaves about 0.15; a storm cell's base, 0.06.
+// leaves almost all of the light; a closed deck leaves about 0.15; a storm cell's base, 0.12,
+// which is 1.4 stops of hold at the meter (the plan's "1.2 to 1.4 stops darker than full
+// compensation") and no more: at 0.06 the exposure ran into its own floor under a storm.
 export function stormLight(here) {
   if (!here) return 1;
   const storm = here.storm > 0 ? here.storm : 0;
   const deck = ss(0.35, 0.95, here.overcast > 0 ? here.overcast : 0);
-  return Math.max(0.06, (1 - 0.85 * deck) * (1 - 0.88 * storm));
+  return Math.max(0.12, (1 - 0.85 * deck) * (1 - 0.88 * storm));
 }
 
 // How much of the storm grade (look.js) the picture takes: a storm overhead, or a rain deck.

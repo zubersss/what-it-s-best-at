@@ -387,7 +387,7 @@ export class PostPipeline {
       const bright = this._readBuf[2] / used, cover = this._readBuf[3], peak = this._readBuf[1] / used;
       // The storm overhead holds the picture dark (weather/storm.js, written by weather.js from
       // the cloud over the traveller). Nothing else of the weather reaches the meter.
-      const target = meterTarget(s, this.measuredLog2, peak, bright, cover, STORM.light);
+      const target = meterTarget(s, this.measuredLog2, peak, bright, cover, STORM.light, STORM.flash);
       this.surfaceCover = cover; this.surfaceBright = bright * target;
       this.stableReads = Math.abs(Math.log2(target / used)) < 0.03 ? this.stableReads + 1 : 0;
       this.targetExposure = target;
@@ -405,13 +405,16 @@ export const METER_HOLD = 0.45;
 // it (check 6). s: the world's exposure settings; measuredLog2: the scene's luminance (log2);
 // peak: the brightest part of the frame; bright, cover: how bright lit surfaces are and how much
 // of the frame they fill; light: the share of the day's light the cloud overhead leaves (1: clear).
-export function meterTarget(s, measuredLog2, peak, bright, cover, light = 1) {
+export function meterTarget(s, measuredLog2, peak, bright, cover, light = 1, flash = 0) {
   let target = s.key / Math.pow(2, measuredLog2);
   // Highlight priority: a sunlit surface (the hero in space, a planet filling the view)
   // may not be pushed more than `highlight` times over white, however dark the rest is.
   // (The peak comes from a blurred copy of the frame: the texels around the Sun's disc
   // are left out of it in the shader, see setSun.)
-  if (peak > 0) target = Math.min(target, s.highlight / peak);
+  // (not while a stroke of lightning is alight: a channel 60 times as bright as sunlight lies
+  // over lit ground, so alpha 0 does not keep it out of this, and chasing it took two stops off
+  // a sunlit landscape with a storm on the horizon)
+  if (peak > 0 && !(flash > 0)) target = Math.min(target, s.highlight / peak);
   // Subject priority: once lit surfaces are more than a small part of the frame (a
   // planet from space, not a figure against the stars) their bright parts may not go
   // above `surface`, however much black surrounds them.

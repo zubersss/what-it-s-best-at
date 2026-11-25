@@ -37,7 +37,7 @@
 import * as THREE from 'three';
 import { localFrame } from '../core/ephemeris.js';
 import { makeSkyAt } from './sky/format.js';
-import { setStorm, stormLight, stormGrade, boltFlicker, boltReturns, FLASH_CEILING } from './storm.js';
+import { STORM, setStorm, stormLight, stormGrade, boltFlicker, boltReturns, FLASH_CEILING } from './storm.js';
 
 const RAD = Math.PI / 180;
 const SOUND = 343;                   // m/s
@@ -260,6 +260,10 @@ export class Weather {
     }
     this.flash = best;
     this.flashLight.set(0.82 * sum, 0.88 * sum, 1.0 * sum);
+    // (the picture is told a stroke is alight: the exposure meter must not stop down for a
+    // channel 60 times as bright as sunlight, which lies over lit ground and so is not kept out
+    // of its highlight by alpha 0)
+    STORM.flash = sum;
     this.bolts = this._bolts.length ? this._bolts : null;
   }
 
@@ -389,6 +393,7 @@ export class Weather {
       const e = f.power * flick * 1.3 * sunE / (1 + (f.dist / 3000) * (f.dist / 3000));
       this.flashLight.set(0.82 * e, 0.88 * e, 1.0 * e);
     } else this.flashLight.set(0, 0, 0);
+    STORM.flash = f ? this.flashLight.z : 0;
     this.bolts = null;
   }
   // A sequence of numbers of the place and the moment (0.7 s slots), not of chance.

@@ -21,8 +21,10 @@
 //     taken from the code as it stood).
 //  6. THE METER HOLDS THE DARK. Replayed: with the cloud overhead leaving 0.15 of the light the
 //     exposure is at least 1.2 stops darker than full compensation; a clear sky is within 0.05
-//     stops of what the meter did before; and a heap's shadow over the figure (the Sun at the
-//     traveller's feet gone, the sky overhead the same) moves it by at most 0.05 stops.
+//     stops of what the meter did before; a heap's shadow over the figure (the Sun at the
+//     traveller's feet gone, the sky overhead the same) moves it by at most 0.05 stops; and a
+//     stroke of lightning alight, 60 times as bright as sunlight over lit ground, moves it by at
+//     most 0.05 stops.
 //  7. THE GUST FRONT. At a place a raining cell is about to reach, the wind rises to 6 m/s or
 //     more, blowing outward from the cell, before its rain arrives.
 // (Check 4 is scripts/bolt-test.mjs: the strokes themselves.)
@@ -320,9 +322,14 @@ function earthWeather() {
     const shaded = { ...makeSkyAt(), overcast: 0.1, storm: 0, sunShade: 0.22 };
     // (a case the exposure's floor does not swallow: a dim scene, where a hold of a stop shows)
     const heap = stops(target(s, -4, 0.05, 0.03, 0.6, light(sunny)), target(s, -4, 0.05, 0.03, 0.6, light(shaded)));
-    note(`a clear sky is within ${clear.toFixed(3)} stops of the old meter; a heap's shadow over the figure moves it ${heap.toFixed(3)} stops`);
-    check(dark >= 1.2 && clear <= 0.05 && heap <= 0.05,
-      `the meter makes up only part of the darkness: ${dark === Infinity ? '-' : dark.toFixed(2)} stops held at 0.15 of the light, clear days unmoved (${clear.toFixed(3)} stops), a heap's shadow over the figure ${heap.toFixed(3)} stops`);
+    // a stroke alight: 60 times sunlight over lit ground, so the frame's brightest part is the
+    // stroke. It must not take the exposure with it (it took two stops off a sunlit landscape
+    // with a storm on the horizon).
+    const quiet = target(s, -2.3, 0.3, 0.1, 0.45, 1, 0), struck = target(s, -2.3, 24, 0.1, 0.45, 1, BREAK === 'meter-stroke' ? 0 : 3.2);
+    const bolt = stops(quiet, struck);
+    note(`a clear sky is within ${clear.toFixed(3)} stops of the old meter; a heap's shadow over the figure moves it ${heap.toFixed(3)} stops; a stroke alight moves it ${bolt.toFixed(3)} stops`);
+    check(dark >= 1.2 && clear <= 0.05 && heap <= 0.05 && bolt <= 0.05,
+      `the meter makes up only part of the darkness: ${dark === Infinity ? '-' : dark.toFixed(2)} stops held at 0.15 of the light, clear days unmoved (${clear.toFixed(3)} stops), a heap's shadow over the figure ${heap.toFixed(3)} stops, a stroke alight ${bolt.toFixed(3)} stops`);
   }
 }
 
