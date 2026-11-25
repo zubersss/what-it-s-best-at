@@ -562,6 +562,11 @@ are not crossed at all.
   slate where it is deep, with an anvil at the top and rain falling out of its base in shafts
   that you can see slanting downwind. They are drawn out to 200 km, so a storm stands on the
   far skyline.
+- **And the rain is there to be seen.** Until this morning a shaft was drawn only under a storm
+  one was looking INTO — which is the one place from which rain cannot be seen — so from the side,
+  which is how a storm is usually watched, the rain was missing: at the cell seen from 9 km it
+  stands on 9 % of the picture, and 8.5 of those were blank or cut off in mid-air. The pair is
+  `haven_ledge_Q_cell9.png` (before) and `haven_ledge_M_cell9.png` (after).
 - **New in the sky**: altocumulus and cirrus overhead (with the 22-degree halo round the Sun),
   mist lying in the basins at first light, and lenticular plates standing over the ranges on a
   windy day.
