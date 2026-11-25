@@ -584,12 +584,14 @@ this.cloudVolume.place(rig.pos, this.frame);                // beforeScene
 Nothing of B's own files was changed upstream, so the merge was clean and the frozen builds no
 longer need a patch of their own.
 
-## Asked of the main session — **still wanted** (two lists in `src/sky/skySystem.js`)
+## Asked of the main session — **done** (the owning head `e63d72e`, merged back here)
 
-The fog sheet and the lenses are now the only drawn things of the sky with no step in the
-governor's ladder and no part the benchmark's cost test can leave out. Their module side is
-built and tested (`scripts/fog-sheet-test.mjs`, `scripts/lens-list-test.mjs`); what is wanted is
-the wiring, which is in a file that is not mine:
+The fog sheet and the lenses were the only drawn things of the sky with no step in the governor's
+ladder and no part the benchmark's cost test could leave out. Their module side was built and
+tested here (`scripts/fog-sheet-test.mjs`, `scripts/lens-list-test.mjs`) and the main session put
+the wiring in within the hour: `skyStep('lenses', 0.2, ...)` and `skyStep('fog-sheet', 0.3, ...)`
+in the ladder, both savings in `SKY_SAVINGS`, `'lenses'` in `SKY_PARTS`, and the four `case` lines.
+What was asked for was this:
 
 ```js
 // SKY_SAVINGS (sky/skySystem.js)
@@ -607,13 +609,12 @@ case 'lenses': return !!this.lenses.live(id);
 else if (id === 'lenses') this.lenses.partOut(id, out);
 ```
 
-and then a step for each in `src/perf/governor.js`, cheapest visual loss first: the lenses
-before the fog (a lens is a small thing high up; the fog is what a valley at first light is
-about). Each thins and leaves the thing itself: with both steps on there is still a lens over
-every near summit and fog in every basin (`scripts/fog-sheet-test.mjs` and
-`scripts/lens-list-test.mjs` hold them to that). Until the wiring lands they are not in the
-ladder, so the `?debug=floor` pictures in this report do NOT have them on: a floor picture with
-the fog and the lenses thinned is one to take after that line is in.
+and a step for each in `src/perf/governor.js`, cheapest visual loss first: the lenses before the
+fog (a lens is a small thing high up; the fog is what a valley at first light is about), which is
+the order it went in at. Each thins and leaves the thing itself: with both steps on there is still
+a lens over every near summit and fog in every basin (the two tests hold them to that). The
+`?debug=floor` pictures taken before `e63d72e` do not have them on; `_M2_floor`, from `buildD2`,
+does.
 
 ## Views on Haven with weather in them (the model, found in Node in seconds)
 
@@ -804,8 +805,9 @@ case or a benchmark view from a Node scan.
 One browser at a time on this machine, as detached chains in
 `/tmp/claude-0/-home-user-what-it-s-best-at/fa086d69-ff44-5069-99a3-fdab3300646a/scratchpad`
 (`chainM*.sh`, logs in `logs/`, pictures in `shots/`, frozen builds `buildC1` = this branch as it
-was this morning, `buildD1` = this branch with the rain's six fixes and the lenses' order,
-`buildQ2` = the owning head):
+was this morning, `buildD2` = this branch merged with the owning head at `e63d72e`, which is where
+every picture from the storm cells onward is taken, `buildQ2` = the owning head of this morning,
+which is the "before" of the pairs):
 
 | chain | what |
 | --- | --- |
