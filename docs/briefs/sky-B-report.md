@@ -10,10 +10,25 @@ shape, their two tones, their slate depth, their anvils and their rain shafts, o
 altocumulus and cirrus on shells above, mist lying in the basins, lenticular plates standing
 over the ranges, and Haven's globe wearing the weather of the hour. The four lines
 `src/sky/skySystem.js` needed are in the owning branch now, and this branch has merged it back,
-so what is left here is **eleven commits the model's own pictures found**: the lenses (never
-drawn at all, twice over), the anvils (a hole over every tower, and all of them at the shell's
-height instead of their own), the storms at the governor's floor (a ring of clear sky where a
-tower should be), and the three cadences that keep the page's work down.
+so what is left here is what the model's own pictures found — the lenses (never drawn at all,
+twice over), the anvils (a hole over every tower, and all of them at the shell's height instead
+of their own), the storms at the governor's floor (a ring of clear sky where a tower should be),
+and the three cadences that keep the page's work down — and then **seven more faults that a cold
+read of the code found while those pictures were being taken** (checks 8 to 11 below):
+
+1. the rain shafts were drawn nowhere but under a cell one was looking into — of the nine per
+   cent of a storm view that stands in rain, eight and a half were missing or cut off in mid-air
+   (three places had the same fault: the march's cell search, the slices, and the far sheets);
+2. the fog sheet's 60 km lattice swung about its anchor as the traveller flew, because its axes
+   were taken at the traveller and not at the anchor;
+3. the lenticular plates were drawn nearest first, so a lens 25 km off was laid over one 5 km
+   off and a lens's own plates were stacked bottom over top;
+4. the cirrus's bright rim and its 22-degree halo were put opposite the Sun (a sign);
+5. the fog sheet and the lenses had no step in the governor's ladder and no part the benchmark
+   could leave out — the fog's `saving()` was empty and the lenses answered to nothing.
+
+That is what the brief's "have work that others built reviewed this way before it ships" is for:
+every one of them was found by reading, in files that had already passed a day of pictures.
 
 ## B0 (the job before the package): step 0's GLSL on a GPU
 
