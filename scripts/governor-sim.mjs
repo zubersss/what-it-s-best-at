@@ -7,6 +7,7 @@ import * as GovModule from '../src/perf/governor.js';
 import { Benchmark } from '../src/perf/benchmark.js';
 import { PARTS } from '../src/perf/profile.js';
 import { run as route, where as routeWhere } from './lib/governor-route.mjs';
+import { CameraRig } from '../src/controls/cameraRig.js';
 const { Governor, FRAME, FEATURE_STEPS } = GovModule;
 const stubGl = { getExtension: () => null };
 // cost: what the GPU needs for the frame (ms); work (optional): what the page's own work
@@ -364,8 +365,8 @@ run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native
     if (sw / 8 > 30) fail(`${(sw / 8).toFixed(0)} savings switched a run at Haven`);
   }
   // (5) governor-2: a visit in Sharp never starts below 2.67 MP (60 % of native), whatever was
-  // remembered, nor does a change of mode to Sharp; a level held with savings on is not what
-  // the place is remembered by; and a benchmark begins from a governor as at the page's start.
+  // remembered, nor does a change of mode to Sharp; and a benchmark begins from a governor as
+  // at the page's start. (A level held with savings on is remembered too: see review-3 below.)
   {
     const app = makeApp10(), g = new Governor(app, 'sharp');
     g.remember({ 'sharp:haven:2': 7 }, () => {}); g.place = 'haven'; g.setNative(NATIVE);
@@ -376,18 +377,23 @@ run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native
     if (g.pixels < 2.6e6) fail(`a change of mode to Sharp began at ${(g.pixels / 1e6).toFixed(2)} MP`);
   }
   {
-    // (frames on time, no slack for a step up: 25 s at one level, with a saving on and without)
-    const learnt = (withSaving) => {
-      const known = {}, app = makeApp10(), g = new Governor(app, 'sharp');
+    // (frames on time, no slack for a step up: 25 s at one level, with a saving on and without;
+    // then where the next visit starts. The review of 1eb21e3, review-3: learnt only with every
+    // saving off, a heavy place in Smooth was never remembered, and every visit began at 2.35 MP
+    // and dived to the floor again. What keeps a Sharp visit off the floor is where it starts.)
+    const learnt = (mode, level, withSaving) => {
+      const known = {}, app = makeApp10(), g = new Governor(app, mode), ms = 1000 / GovModule.MODES[mode].fps;
       g.remember(known, () => {}); g.place = 'haven'; g.setNative(NATIVE);
-      g.resLevel = 6; g._applyScale(); if (withSaving) g._stepOff(idx('grass-mid'), false); g.gpuMs = 40;
-      for (let t = 0; t < 25; t += 1 / 30) g.update(1000 / 30, FRAME.NORMAL, 9);
-      return known['sharp:haven:2'];
+      g.resLevel = level; g._applyScale(); if (withSaving) g._stepOff(idx('grass-mid'), false); g.gpuMs = 40;
+      for (let t = 0; t < 25; t += ms / 1000) g.update(ms, FRAME.NORMAL, 9);
+      const next = new Governor(makeApp10(), mode); next.remember(known, () => {}); next.place = 'haven'; next.setNative(NATIVE);
+      return { k: known[`${mode}:haven:2`], start: next.pixels / 1e6 };
     };
-    const a = learnt(true), b = learnt(false);
-    console.log(`  remembered after 25 s at 2.07 MP: with a saving on ${a ?? 'nothing'}, with none ${b ?? 'nothing'}`);
-    if (a != null) fail('a level held with a saving on was remembered as the place\'s');
-    if (b !== 6) fail('a level held with every saving off was not remembered');
+    const a = learnt('sharp', 6, true), b = learnt('sharp', 6, false), c = learnt('smooth', 8, true);
+    console.log(`  remembered after 25 s: Sharp at 2.07 MP with a saving on ${a.k ?? 'nothing'} (next visit at ${a.start.toFixed(2)} MP), with none ${b.k ?? 'nothing'}; Smooth at the floor with a saving on ${c.k ?? 'nothing'} (next visit at ${c.start.toFixed(2)} MP)`);
+    if (b.k !== 6) fail('a level held with every saving off was not remembered');
+    if (c.k !== 8 || c.start > 1.7) fail(`Smooth: a heavy place held at the floor with a saving on starts its next visit at ${c.start.toFixed(2)} MP`);
+    if (a.start < 2.6) fail(`Sharp: a place held at 2.07 MP with a saving on starts its next visit at ${a.start.toFixed(2)} MP`);
   }
   {
     const app = makeApp10(), g = new Governor(app, 'sharp');
@@ -478,21 +484,21 @@ run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native
   // standing, they come back.
   {
     const HOLD = ['trees-far', 'tree-leaves', 'tree-shadows', 'fine-shadows', 'soft-shadows'];
-    const wood = { trees: { count: 200, reach: 1, setFraction() {} }, grass: { keepClumps: 0, keepBlades: 0, mesh: { visible: false }, setMidShare() {}, setFraction() {} }, cloudVolume: { wanted: false, enabled: true }, clouds: { mesh: { visible: false } }, pollen: { mesh: { visible: false }, setShare() {} }, rig: { pos: { x: 0, y: 0, z: 0 } } };
+    const wood = { trees: { count: 200, reach: 1, setFraction() {} }, grass: { keepClumps: 0, keepBlades: 0, mesh: { visible: false }, setMidShare() {}, setFraction() {} }, cloudVolume: { wanted: false, enabled: true }, clouds: { mesh: { visible: false } }, pollen: { mesh: { visible: false }, setShare() {} }, rig: { travellerAt: { x: 0, y: 0, z: 0 } } };
     const was = {}, takenAt = {}; let flips = 0, switches = 0, lastT = 0;
     const walking = (t) => t < 150;
     const { g } = sharp10({ seconds: 180, scene: wood, known: { 'sharp:haven:2': 4 },
       cost: (mp, g, t, gauss) => 29 + 0.3 * mp + 1.0 * gauss() + (t % 30 > 18 && t % 30 < 28 && t < 150 ? 8 : 0) - (g.isOff('trees-far') ? 6 : 0) - (g.isOff('tree-leaves') ? 9 : 0),
       events: (t, g, app) => {
         // (1.4 m/s back and forth along 80 m)
-        if (walking(t)) { const s = (1.4 * t) % 160; app.rig.pos.x = s < 80 ? s : 160 - s; }
+        if (walking(t)) { const s = (1.4 * t) % 160; app.rig.travellerAt.x = s < 80 ? s : 160 - s; }
         lastT = t;
         for (const id of HOLD) {
           const off = g.isOff(id);
           if (was[id] != null && off !== was[id]) {
             switches++;
-            if (off) takenAt[id] = app.rig.pos.x;
-            else if (walking(t) && Math.abs(app.rig.pos.x - (takenAt[id] ?? 1e9)) < 150) flips++;
+            if (off) takenAt[id] = app.rig.travellerAt.x;
+            else if (walking(t) && Math.abs(app.rig.travellerAt.x - (takenAt[id] ?? 1e9)) < 150) flips++;
           }
           was[id] = off;
         }
@@ -504,4 +510,149 @@ run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native
   }
   console.log(failed10 ? `\nTenth results: ${failed10} FAILED` : '\nTenth results: all passed');
   if (failed10) process.exitCode = 1;
+}
+
+// ---------------------------------------------------------------------------------------
+// The cold review of 1eb21e3 (the first fix of the tenth results, docs/briefs/shadows-governor-10.md):
+// each case fails on it. (review-3, where a place's level is learned, is in (5) above.)
+{
+  let failedR = 0;
+  const fail = (msg) => { console.log('  FAILED: ' + msg); failedR++; };
+  const KEEP = GovModule.KEEP ?? 4;
+  const idx = (id) => FEATURE_STEPS.findIndex((f) => f.id === id);
+  const appR = (scene = {}) => ({ renderer: { getContext: () => stubGl }, quality: { x: 1, y: 1, z: 1, w: 1 }, dust: { amount: 1 }, rocks: { setFraction() {} }, terrainBudget() {}, terrainPace() {}, post: { bloomEnabled: true }, hero: { robe: {}, group: { visible: true } }, atmosphere: { airEnabled: true }, nearShadow: { fine: true },
+    trees: { count: 200, setFraction() {} }, grass: { keepClumps: 1, keepBlades: 1, mesh: { visible: true }, setMidShare() {}, setFraction() {} }, farForest: { shown: true, count: 5000, setFraction() {} }, cloudVolume: { wanted: true }, clouds: { mesh: { visible: true } }, ...scene });
+
+  // (review-1) A view whose frames are pixels alone (16 ms + 7.8 a megapixel + up to 4; no saving
+  // buys anything; 1.60 MP holds, at 1.82 one frame in seven is late). In Sharp the savings go
+  // first at KEEP and under it, and under it the resolution came back first with no way out:
+  // each of its steps up was taken back, and the ten savings taken on the way down stayed on
+  // for good, buying nothing. Four screens and costs, and Haven remembered at 1.82 MP: every
+  // saving must come back, and the frames stay on time.
+  {
+    const rows = [];
+    for (const [vs, A, S, start] of [[8.403, 16, 7.8], [16.667, 16, 7.8], [8.333, 20, 5], [8.333, 22, 4], [8.403, 16, 7.8, 7]]) {
+      let seed = 99; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+      const g = new Governor(appR(), 'sharp');
+      if (start != null) { g.remember({ 'sharp:haven:2': start }, () => {}); g.place = 'haven'; }
+      g.setNative(NATIVE);
+      let now = 0, busy = 0, last = -1, onT = 0, T = 0, late = 0, n = 0;
+      while (now < 300000) {
+        now += vs; if (now < busy) continue; if (!g.shouldRender(now)) continue;
+        const dt = last < 0 ? vs : now - last; last = now;
+        busy = now + Math.max(A + S * g.pixels / 1e6 + 4 * rnd(), 8);
+        g.update(dt, FRAME.NORMAL, 8);
+        if (now > 180000) { T += dt; onT += dt * g.featureLevel; n++; if (dt > 1000 / 30 * 1.2) late++; }
+      }
+      rows.push({ label: `${Math.round(1000 / vs)} Hz, ${A} + ${S} ms/MP${start != null ? ', from 1.82 MP' : ''}`, mp: g.pixels / 1e6, on: g.offIds, avgOn: onT / T, late: late / n });
+    }
+    console.log(`\nReview of 1eb21e3 (1): a view that is pixels alone, in Sharp, after 5 minutes: ${rows.map((r) => `${r.label}: ${r.mp.toFixed(2)} MP, ${r.on.length} savings on, ${(100 * r.late).toFixed(1)} % late`).join('; ')}`);
+    for (const r of rows) {
+      if (r.on.length || r.avgOn > 0.5) fail(`${r.label}: ${r.on.join(', ') || `${r.avgOn.toFixed(1)} savings on over the last two minutes`}, buying nothing`);
+      if (r.late > 0.05) fail(`${r.label}: ${(100 * r.late).toFixed(1)} % of the frames late`);
+    }
+  }
+  // ... and the benchmark's flight from Haven (the route's replay, mixed reading, 8 runs): the
+  // savings Haven's heavy stops took stayed on through it, the from-the-air ones the ladder
+  // keeps for last among them (on 1eb21e3: 2.18 MP with 9.9 savings on, the clouds with depth
+  // off 87 % of the flight; on 5024b61: 3.15 MP with 0.5 on, off 3 %).
+  {
+    let T = 0, offCV = 0, mp = 0, on = 0, n = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+      route(GovModule, { model: 'mixed', seed, start: 7, onFrame: (t, g, dt) => { if (t < 60 || t >= 99.5) return; T += dt; n++; mp += g.pixels / 1e6; on += g.featureLevel; if (g.isOff('cloud-volume')) offCV += dt; } });
+    }
+    console.log(`Review of 1eb21e3 (1): the flight from Haven, 8 runs: ${(mp / n).toFixed(2)} MP, ${(on / n).toFixed(1)} savings on, the clouds with depth off ${(100 * offCV / T).toFixed(0)} % of it`);
+    if (mp / n < 2.6) fail(`the flight at ${(mp / n).toFixed(2)} MP`);
+    if (on / n > 6) fail(`${(on / n).toFixed(1)} savings on through the flight`);
+    if (offCV / T > 0.6) fail(`the clouds with depth off ${(100 * offCV / T).toFixed(0)} % of the flight`);
+  }
+  // (review-2) A jump left the late share counted at the view behind it (it fades only over
+  // frames that take in no ground, most of a stop's): a trial began at the light dusk stop
+  // with no late frame of its own, on the ship stop's share, and took the picture to the floor
+  // for the flight. The route, 8 runs in each reading: no trial may begin at a stop that has
+  // had no late frame since its jump.
+  {
+    const out = [];
+    for (const model of ['mixed', 'pixels', 'own']) {
+      let stale = 0;
+      for (let seed = 1; seed <= 8; seed++) {
+        const ctx = { key: '', jump: 0, t: 0, late: 0 }; let watched = null;
+        route(GovModule, { model, seed, start: 7,
+          events: (t, g, app, w) => {
+            if (watched !== g) {
+              watched = g; const down = g._down.bind(g);
+              g._down = (s, wk) => { if (g._dip && g._dip.n === 1 && ctx.late === 0 && ctx.t - ctx.jump > 2.5) stale++; return down(s, wk); };
+            }
+            if (w.key !== ctx.key) { ctx.key = w.key; ctx.jump = t; ctx.late = 0; }
+            ctx.t = t;
+          },
+          onFrame: (t, g, dt) => { if (t - ctx.jump > 2.5 && dt > 40) ctx.late++; } });
+      }
+      out.push(`${model} ${stale}`);
+      if (stale) fail(`${model} reading: ${stale} trials begun at a stop with no late frame of its own`);
+    }
+    console.log(`Review of 1eb21e3 (2): trials begun at a stop with no late frame since its jump, 8 runs: ${out.join(', ')}`);
+  }
+  // (review-4) In Sharp at KEEP and under it a trial takes savings first, and it was judged as a
+  // trial of pixels: put back after two strides with a saving that buys a stride untried. The
+  // route, 8 runs in each reading: no trial of savings at KEEP or under it is put back while
+  // one is left.
+  {
+    const out = [];
+    for (const model of ['mixed', 'own', 'pixels']) {
+      let early = 0;
+      for (let seed = 1; seed <= 8; seed++) {
+        let watched = null;
+        route(GovModule, { model, seed, start: 7, events: (t, g) => {
+          if (watched === g) return;
+          watched = g; const putBack = g._putBack.bind(g);
+          g._putBack = (d, all) => { if (g._bigLeft() && g.resLevel >= KEEP && g.resLevel < g.maxResLevel && g.featureLevel > d.feat) early++; return putBack(d, all); };
+        } });
+      }
+      out.push(`${model} ${early}`);
+      if (early) fail(`${model} reading: ${early} trials of savings put back with one that buys a stride untried`);
+    }
+    console.log(`Review of 1eb21e3 (4): trials of savings at KEEP or under it put back with one that buys a stride untried, 8 runs: ${out.join(', ')}`);
+  }
+  // (review-6) A saving that changes shadows in view waits while the traveller moves, and the
+  // governor took the camera for the traveller: on foot it circles the figure 6 m behind it as
+  // the view turns, and a traveller standing and looking round at 20 degrees a second moved at
+  // 2.1 m/s. The real rig, on foot: turning in place for 20 s with frames on time at full size,
+  // the leaves of the nearest trees (given up just before) must come back; walking (1.35 m/s)
+  // for 20 s, they must not.
+  {
+    const once = (turn, walk) => {
+      const rig = new CameraRig({ radius: 250000, gravity: 9.8 }, () => 0);
+      rig.setMode('hero'); rig.setLatLon(30, 10, 2, 0, 0); rig.standUp();
+      const input = { dx: turn / 30 / 0.12, dy: 0, moveX: 0, moveY: walk, wheel: 0, down: () => false, hit: () => false };
+      const g = new Governor(appR({ rig }), 'sharp'); g.setNative(NATIVE);
+      g._stepOff(idx('tree-leaves'), false);
+      const feet = rig.feet.clone(), cam = rig.pos.clone(); let backAt = null;
+      for (let k = 1; k <= 600; k++) { rig.update(1 / 30, input, false); g.update(1000 / 30, FRAME.NORMAL, 8); if (backAt == null && !g.isOff('tree-leaves')) backAt = k / 30; }
+      return { backAt, feet: rig.feet.distanceTo(feet), cam: rig.pos.distanceTo(cam) };
+    };
+    const a = once(20, 0), b = once(0, 0.3);
+    console.log(`Review of 1eb21e3 (6): on foot, turning in place at 20 deg/s (the feet moved ${a.feet.toFixed(2)} m, the camera ${a.cam.toFixed(1)} m): the nearest trees' leaves back ${a.backAt == null ? 'never' : `after ${a.backAt.toFixed(1)} s`}; walking ${b.feet.toFixed(0)} m: back ${b.backAt == null ? 'never' : `after ${b.backAt.toFixed(1)} s`}`);
+    if (a.backAt == null) fail('a traveller standing and looking round was taken for one walking among the shadows');
+    if (b.backAt != null) fail('a saving that changes shadows came back while the traveller walked among them');
+  }
+  // (review-7) While the frames are on time at full size and a saving that changes shadows waits
+  // for the traveller, a step up is asked for every frame and cannot be taken: each asking made
+  // arrays (the savings free to come back, a copy of where the traveller is for each one held,
+  // and one more for the speed). Walking 10 s at full size with one held: none may be made.
+  {
+    let made = 0;
+    class Counted extends Array { filter(...a) { made++; return super.filter(...a); } map(...a) { made++; return super.map(...a); } slice(...a) { made++; return super.slice(...a); } }
+    // (both names: the rig's own, and the camera that 1eb21e3 read)
+    const rig = { travellerAt: { x: 0, y: 0, z: 0 }, pos: { x: 0, y: 0, z: 0 } };
+    const g = new Governor(appR({ rig }), 'sharp'); g.setNative(NATIVE);
+    g._stepOff(idx('tree-leaves'), false);
+    g.off = Counted.from(g.off);
+    if (g._here) { const here = g._here.bind(g); g._here = () => { made++; return here(); }; }
+    for (let k = 0; k < 300; k++) { rig.travellerAt.x += 1.4 / 30; rig.pos.x = rig.travellerAt.x; g.update(1000 / 30, FRAME.NORMAL, 8); }
+    console.log(`Review of 1eb21e3 (7): 300 frames on time at full size, walking with a saving held: ${made} arrays made (${g.isOff('tree-leaves') ? 'still held' : 'it came back'})`);
+    if (made > 5) fail(`${made} arrays made in 300 frames with nothing to do`);
+  }
+  console.log(failedR ? `\nReview of 1eb21e3: ${failedR} FAILED` : '\nReview of 1eb21e3: all passed');
+  if (failedR) process.exitCode = 1;
 }

@@ -8,21 +8,25 @@
 //     left, and below KEEP it comes back before the savings (the tenth phone results: pixels
 //     went first all the way down, came back only after every saving, and Haven sat at the
 //     floor at every stop while savings that each bought more than its last megapixel
-//     were left on and off).
+//     were left on and off). Below KEEP they take turns: a step of the resolution up that is
+//     taken back hands the turn to the savings, so that where the picture cannot hold more
+//     pixels, savings that bought nothing do not stay on for good.
 //   - A step down is a trial. Late frames that fewer pixels and fewer features do not
 //     cure are not theirs to cure: what was given up is put back, and that lateness moves
 //     nothing for a while (see `_dip`, `immune`). A device's own steady trickle of late
 //     frames (`bg`) neither brings quality down nor keeps it from coming back.
 //   - Only when resolution is at its floor are features stepped down, in the order below:
 //     by what a step has been shown to buy on the test phone, then by what the eye loses;
-//     steps that can buy nothing where the traveller is are passed over. A trial goes on
-//     until the steps known to buy something have been tried. What went first comes back
+//     steps that can buy nothing where the traveller is are passed over (and come back with
+//     the next step up, whatever it is). A trial goes on until the steps known to buy
+//     something, and then the resolution, have been tried. What went first comes back
 //     first, and what makes frames late again when it comes back goes off again and to
 //     the end of the line: in the end only what the frames need stays off.
 //   - Steps up need sustained headroom, and a step up that had to be taken back makes the
 //     governor wait longer before trying again, so it settles instead of hunting.
-//   - A saving that changes shadows in view (`hold`) comes back only when the traveller is
-//     still or has gone HOLD_M from where it was taken, and by itself. The governor's
+//   - A saving that changes shadows in view (`hold`) comes back only when the traveller (on
+//     foot the figure, not the camera that circles it) is still or has gone HOLD_M from
+//     where it was taken, and by itself. The governor's
 //     hunting switched every shadow near the traveller between sharp and blurred three
 //     times in 11 s of the tenth benchmark.
 //   - Two modes: Smooth (60 fps target, default) and Sharp (30 fps target).
@@ -163,7 +167,7 @@ const START_SMOOTH = 5;         // Smooth at a place never seen starts this many
 // the savings; a visit never starts below it. (The tenth phone results: under it, a step
 // bought about 0.45 ms on Haven, while far relief, the far rocks' shadows and the clouds'
 // shadows each bought more than the whole way from 2.67 MP down to 1.60.)
-const KEEP = 4;
+export const KEEP = 4;
 const WINDOW = 24;              // frames looked at for "are we missing the target"
 const GOOD_AFTER = 20;           // seconds without a step down that make a resolution level "known good"
 const MAX_VSYNC = 1000 / 57;    // no screen we care about refreshes slower than this
@@ -207,7 +211,10 @@ export class Governor {
     this.off = [];                // the FEATURE_STEPS switched off (their numbers, in the order they went)
     this._single = 0;             // how many of the next returns bring one step back, not five (see _up)
     this._alone = new Set();      // savings that made frames late again when they came back by themselves: what the frames need
-    this._resTurn = false;        // with only such savings on: the next step up is the resolution's (they take turns)
+    // Whose turn it is to come back where the resolution comes back first (with only such
+    // savings on; in Sharp under KEEP): the resolution's, until a step of it up is taken back;
+    // then the savings', until one that came back by itself is taken back (see _up).
+    this._featTurn = false;
     // Fewer pixels were tried here and cured nothing: the next trial is of the savings, at the
     // resolution that stands (before, they were only ever tried at the fewest pixels, and a
     // view whose frames wait for something other than pixels stayed late at full size for good:
@@ -250,8 +257,9 @@ export class Governor {
     this._dts = new Float32Array(WINDOW);      // the window's frame lengths (ms)
     // The savings that change shadows in view, while on: where each was taken ([x, y, z], or
     // null where the app does not say; see _released); where the traveller was at the last
-    // frame, and how fast it has been going (m/s, over about a second).
-    this._held = new Map(); this._at = null; this.speed = 0;
+    // frame (_atOk: whether it is known), and how fast it has been going (m/s, over about a
+    // second).
+    this._held = new Map(); this._at = [0, 0, 0]; this._atOk = false; this.speed = 0;
     this._setInterval();
   }
 
@@ -290,10 +298,10 @@ export class Governor {
     if (this.fixed != null || !this._started) return;
     this.resLevel = this._startLevel(this.known?.[this._key(place)]);
     this._applyScale();
-    this._held.clear(); this._at = null;       // (a new world: none of the shadows in view was here)
+    this.jumped();                             // (a new world is a new view: what jumped() leaves behind, and more)
     this.holdUp = 3; this.cooldown = 1.0; this.cleanTime = 0; this._filled = 0; this.lastUpFailed = false; this._probeFrames = -1;
     // (a step up taken before this is not this place's or this mode's to take back)
-    this._upList = null; this._upFeat = 0; this._upFrom = null; this.sinceUp = 1e9; this._single = 0; this._alone.clear(); this._resTurn = false; this._featFirst = false;
+    this._upList = null; this._upFeat = 0; this._upFrom = null; this.sinceUp = 1e9; this._single = 0; this._alone.clear(); this._featTurn = false; this._featFirst = false;
     this.goodLevel = null; this.sinceDown = 0; this._learned = null;
     this._dip = null; this.immune = this.featImmune = 0; this.immuneFor = 30;
     this._note(`${place}: starting at ${(this.pixels / 1e6).toFixed(2)} MP`);
@@ -304,14 +312,23 @@ export class Governor {
   // at a heavy view was closed at a light one as a cure, and savings that came back at a
   // light view were taken back by the late frames of the next heavy one (the tenth phone
   // results, the ledge's trial: closed at the next stop, its savings back and off again).
-  // The trial, the watch on the last step up and the late frames counted are left behind;
-  // what was given up stays given up, and the new view's own frames decide from here. (The
-  // shadows in view are all new: none waits for the traveller to move on.)
+  // The trial, the watch on the last step up, whose turn it is to come back and the late
+  // frames counted are left behind; what was given up stays given up, and the new view's own
+  // frames decide from here. (The shadows in view are all new: none waits for the traveller
+  // to move on.)
+  // (The late share is let down to what is left alone as nothing here cures it, bg, which
+  // stays learned. It fades only over frames that take in no ground, and most frames at a
+  // new view do: the heavy ship stop's share started a trial at the light dusk stop after
+  // it, with no late frame of its own, and took the picture to the floor for the flight.)
+  // (What failures taught, the wait before a step up and the savings the frames need, is
+  // kept: left behind as well, Haven's heavy stops found them again each time, a third more
+  // savings switched and late frames from 12 to 13-16 % in the route's replay.)
   jumped() {
     if (this.fixed != null) return;
     this._dip = null; this._probeFrames = -1; this.overTime = 0; this._filled = 0; this.cleanTime = 0;
-    this.sinceUp = 1e9; this._upList = null; this._upFeat = 0; this._upFrom = null;
-    this._held.clear(); this._at = null;
+    this.sinceUp = 1e9; this._upList = null; this._upFeat = 0; this._upFrom = null; this._featTurn = false;
+    this.lateEMA = this.bg; this.lateFast = Math.min(this.lateFast, this.bg);
+    this._held.clear(); this._atOk = false;
   }
 
   // A fresh start at a place, as at the page's own start: every saving off, the terrain
@@ -351,7 +368,7 @@ export class Governor {
     // A new target: forget what was learned and look again from where we are.
     this.holdUp = 3; this.cooldown = 1.0; this.cleanTime = 0; this._filled = 0; this.lastUpFailed = false; this._probeFrames = -1;
     // (a step up taken before this is not this place's or this mode's to take back)
-    this._upList = null; this._upFeat = 0; this._upFrom = null; this.sinceUp = 1e9; this._single = 0; this._alone.clear(); this._resTurn = false; this._featFirst = false;
+    this._upList = null; this._upFeat = 0; this._upFrom = null; this.sinceUp = 1e9; this._single = 0; this._alone.clear(); this._featTurn = false; this._featFirst = false;
     this.goodLevel = null; this.sinceDown = 0; this.loadHold = 15; this.loadUpFailed = false; this.leverClean = 0;
     this._dip = null; this.immune = this.featImmune = 0; this.immuneFor = 30; this.lateEMA = 0;
     {
@@ -371,35 +388,33 @@ export class Governor {
   // The next step to take: the first in the order that is not off and can buy something
   // where the traveller is (-1: none).
   _nextStep() {
-    for (let i = 0; i < FEATURE_STEPS.length; i++) {
-      if (this.off.includes(i)) continue;
-      const f = FEATURE_STEPS[i];
-      let live = true;
-      if (f.live) { try { live = !!f.live(this.app); } catch { live = true; } }
-      if (live) return i;
-    }
+    for (let i = 0; i < FEATURE_STEPS.length; i++) if (!this.off.includes(i) && this._live(i)) return i;
     return -1;
   }
   // True while a step known to buy a stride's worth by itself is live and not yet taken.
   _bigLeft() {
-    for (let i = 0; i < FEATURE_STEPS.length; i++) {
-      const f = FEATURE_STEPS[i];
-      if ((f.buys ?? 1) < STRIDE_MS || this.off.includes(i)) continue;
-      let live = true;
-      if (f.live) { try { live = !!f.live(this.app); } catch { live = true; } }
-      if (live) return true;
-    }
+    for (let i = 0; i < FEATURE_STEPS.length; i++) if ((FEATURE_STEPS[i].buys ?? 1) >= STRIDE_MS && !this.off.includes(i) && this._live(i)) return true;
     return false;
+  }
+  // Whether step i can buy anything where the traveller is (its `live`; without one, always).
+  _live(i) {
+    const f = FEATURE_STEPS[i];
+    if (!f.live) return true;
+    try { return !!f.live(this.app); } catch { return true; }
   }
   _stepOff(i, note = true) {
     const f = FEATURE_STEPS[i]; f.apply(this.app, true); this.off.push(i);
-    if (f.hold) this._held.set(i, this._here());
+    if (f.hold) { const p = this._pos(); this._held.set(i, p ? [p.x, p.y, p.z] : null); }
     if (note) this._note(`off: ${f.label}`);
     return f;
   }
   _stepOn(note = true) { const i = this.off.pop(), f = FEATURE_STEPS[i]; f.apply(this.app, false); this._held.delete(i); if (note) this._note(`back on: ${f.label}`); return i; }
-  // Where the traveller is ([x, y, z] in metres, a copy), or null where the app does not say.
-  _here() { const p = this.app.rig?.pos; return p && Number.isFinite(p.x) ? [p.x, p.y, p.z] : null; }
+  // Where the traveller is (metres, planet-fixed: the rig's own vector, read at once and never
+  // kept), or null where the app does not say. The rig says (`travellerAt`): on foot the
+  // figure's soles, not the camera, which circles the figure 6 m behind it as the view turns
+  // (turning in place faster than 5 degrees a second moved it faster than STILL); in flight
+  // the camera, which the figure is drawn just ahead of.
+  _pos() { const p = this.app.rig?.travellerAt; return p && Number.isFinite(p.x) ? p : null; }
   // Whether saving i may come back now. One that changes shadows in view waits for the
   // traveller to stand still or to be HOLD_M from where it was taken: coming back while one
   // walks among the shadows it changed, it changes them a second time in view, and a third
@@ -408,9 +423,9 @@ export class Governor {
   // rest may come back at any time. (Where the app says nothing of where the traveller is,
   // nothing is waited for.)
   _released(i) {
-    const at = this._held.get(i), p = at && this._here();
+    const at = this._held.get(i), p = at && this._pos();
     if (!p) return true;
-    return this.speed < STILL || Math.hypot(p[0] - at[0], p[1] - at[1], p[2] - at[2]) > HOLD_M;
+    return this.speed < STILL || Math.hypot(p.x - at[0], p.y - at[1], p.z - at[2]) > HOLD_M;
   }
   // Every saving off again, at once (the benchmark's cost test, a change of mode); returns
   // what was on, for `restoreSavings`.
@@ -504,9 +519,10 @@ export class Governor {
     this.time += dt; this.sinceStep += dt; this.sinceUp += dt; this.sinceDown += dt; this.cooldown -= dt; this.sinceLoadUp += dt;
     // (how fast the traveller goes, for the savings that wait for it to stand still: _released)
     {
-      const p = this._here();
-      if (p && this._at && dt > 0) { const v = Math.hypot(p[0] - this._at[0], p[1] - this._at[1], p[2] - this._at[2]) / dt; this.speed += (v - this.speed) * Math.min(1, dt); }
-      this._at = p;
+      const p = this._pos(), a = this._at;
+      if (p && this._atOk && dt > 0) { const v = Math.hypot(p.x - a[0], p.y - a[1], p.z - a[2]) / dt; this.speed += (v - this.speed) * Math.min(1, dt); }
+      if (p) { a[0] = p.x; a[1] = p.y; a[2] = p.z; }
+      this._atOk = !!p;
     }
     if (kind === FRAME.IGNORE) return;
     this._script[this._ri] = scriptMs;
@@ -515,10 +531,13 @@ export class Governor {
     if (this.featureLevel === 0 && this.sinceDown > GOOD_AFTER && (this.goodLevel == null || this.resLevel < this.goodLevel)) this.goodLevel = this.resLevel;
     // ... and it is what this place is remembered by.
     // (not while a step up is still on trial: one that is taken back must not be remembered)
-    // (and only with every saving off, as goodLevel: a level held with savings on is not what
-    // the place holds. Learned so, Haven was remembered at the floor in Sharp, and every
-    // later visit began there: the tenth phone results)
-    if (this.place && this.known && this.featureLevel === 0 && this.sinceDown > GOOD_AFTER && this.sinceUp > 8 && this._probeFrames < 0 && this._learned !== this.resLevel) {
+    // (with savings on as well: a place that needs them needs at least this few pixels, and a
+    // visit that starts there is spared a dive. Haven was remembered at the floor in Sharp, and
+    // every later visit began there, on the tenth phone results; what keeps a visit in Sharp
+    // off the floor is the one rule of where it starts, _startLevel. Learning only with every
+    // saving off left a heavy place in Smooth unremembered, and every visit began at 2.35 MP
+    // and dived to the floor again.)
+    if (this.place && this.known && this.sinceDown > GOOD_AFTER && this.sinceUp > 8 && this._probeFrames < 0 && this._learned !== this.resLevel) {
       this._learned = this.resLevel; this.known[this._key(this.place)] = this.resLevel; this.onLearn?.();
     }
     // Late is judged against the interval itself, not the measured refresh: if every
@@ -575,7 +594,12 @@ export class Governor {
     if (trigger || probe) {
       // Missing the target. If we only just stepped up, that step was a mistake: take it
       // back and wait longer before trying again.
-      const tookBack = this.sinceUp < (trigger ? 4 : 12) && !this._dip;
+      // (A step of the resolution up to KEEP or under it, in Sharp, is suspected for as long
+      // as a slow drift is, whatever noticed the late frames: a trial there takes savings
+      // first, not the pixels that came back. A step that made one frame in seven late tripped
+      // the window 4.2 s after it, and the trial gave up ten savings that bought nothing.)
+      const resUp = this._upFrom != null && this.mode === 'sharp' && this.resLevel >= KEEP;
+      const tookBack = this.sinceUp < (trigger && !resUp ? 4 : 12) && !this._dip;
       // Late only while terrain is arriving (the late frames are the "soft" ones): the
       // picture is not what is slow. Terrain is let in more slowly instead (it sharpens a
       // little later); only if that is already at its slowest does quality give way.
@@ -619,8 +643,16 @@ export class Governor {
         // been shown to buy a stride's worth by itself is still untried and live here: a
         // trial that ends before the steps that could cure the frames has proved nothing.
         // The small steps after them never hold a verdict up.)
-        const resTrial = d && !d.feat1 && this.resLevel < this.maxResLevel;       // (a trial of fewer pixels, not yet of savings)
-        const futile = d && ((d.m0 < 0.6 && d.n >= 2 && (resTrial || !this._bigLeft()) && m > 0.7 * d.m0) || (atFloor && d.n >= 2 && mean > 0.85 * d.dt0));
+        // (a trial of fewer pixels, not yet of savings: what its strides took, as _down chose them.
+        // In Sharp at KEEP the savings go before the pixels; such a trial judged as one of pixels
+        // was put back after two strides with a saving that buys a stride still untried.)
+        const resTrial = d && !d.feat1 && !d.feats && this.resLevel < this.maxResLevel;
+        // (a trial of savings has spent its levers when none that buys a stride is left and,
+        // unless fewer pixels were shown to cure nothing (feat1), a step of the resolution has
+        // been tried after them: in Sharp at KEEP and under it the savings go first, and such a
+        // trial judged when they ran out put everything back without the one step that cured)
+        const spent = d && !this._bigLeft() && (d.feat1 || this.resLevel > d.res || this.resLevel >= this.maxResLevel);
+        const futile = d && ((d.m0 < 0.6 && d.n >= 2 && (resTrial || spent) && m > 0.7 * d.m0) || (atFloor && d.n >= 2 && mean > 0.85 * d.dt0));
         // (and the savings alone, when the resolution's steps did help: with every one of
         // them on and the frames as long as when the first was switched on, they come back
         // and the resolution stays where it holds)
@@ -641,7 +673,7 @@ export class Governor {
         else if (atFloor) { /* nothing left to give up */ }
         else if (this.time < this.featImmune && this.resLevel >= this.maxResLevel) { /* the savings were tried a moment ago, for nothing */ }
         else {
-          if (!d) this._dip = { res: this.resLevel, feat: this.featureLevel, m0: m, dt0: mean, n: 0, dtF: null, probe: !trigger, bought: 0, feat1: this._featFirst };
+          if (!d) this._dip = { res: this.resLevel, feat: this.featureLevel, m0: m, dt0: mean, n: 0, dtF: null, probe: !trigger, bought: 0, feat1: this._featFirst, feats: false };
           // (how long the frames are when the first saving is about to go)
           if (this._dip.dtF == null && this.resLevel >= this.maxResLevel) this._dip.dtF = mean;
           this._dip.n++;
@@ -713,6 +745,7 @@ export class Governor {
         while (got < STRIDE_MS) { const i = this._nextStep(); if (i < 0) break; got += this._stepOff(i).buys ?? 1; }
         if (got === 0) return bought;       // nothing left to give up
         bought += got;
+        if (this._dip) this._dip.feats = true;        // (the trial is one of savings now: its verdict, see update)
       }
       this.sinceStep = 0; this.sinceDown = 0;
     }
@@ -737,7 +770,7 @@ export class Governor {
     if (this._upFrom != null && this._upFrom > this.resLevel) {
       this.resLevel = Math.min(this.maxResLevel, this._upFrom); this._applyScale();
       this._note(`resolution down to ${(this.pixels / 1e6).toFixed(2)} MP`);
-      this.sinceStep = 0; this.sinceDown = 0; this._resTurn = false;
+      this.sinceStep = 0; this.sinceDown = 0; this._featTurn = true;
     } else if (this._upFeat) {
       // (the very steps that had come back, in the order they had gone)
       // (several came back together: they go to the front again and come back one at a
@@ -746,27 +779,50 @@ export class Governor {
       const list = (this._upList || []).filter((i) => !this.off.includes(i));
       for (const i of list) this._stepOff(i);
       if (list.length > 1) { this.off = list.concat(this.off.filter((i) => !list.includes(i))); this._single = list.length; }
-      else if (list.length === 1) { this._alone.add(list[0]); this._resTurn = true; }
+      else if (list.length === 1) { this._alone.add(list[0]); this._featTurn = false; }
       this._upList = null;
       this.sinceStep = 0; this.sinceDown = 0;
     } else this._down(1);
     this.goodLevel = null; this._upFrom = null; this._upFeat = 0;
   }
 
-  // A step up: savings back, or resolution. Returns false when there was nothing it may do now.
+  // A step up: savings back, or resolution. Returns whether it took a step, to be watched
+  // (false: there was nothing it may do now, or only savings that change nothing here came back).
   _up() {
-    // (the savings that may come back now: one that changes shadows in view waits, _released)
-    const free = this.off.filter((i) => this._released(i));
+    // (how many savings may come back now: one that changes shadows in view waits, _released;
+    // and how many can buy nothing where the traveller is)
+    let nFree = 0, nIdle = 0;
+    for (let k = 0; k < this.off.length; k++) { const i = this.off[k]; if (!this._live(i)) nIdle++; else if (this._released(i)) nFree++; }
+    // (nothing may come back and the picture is whole: no step. This is asked every frame
+    // while it lasts, so it is answered before anything is made)
+    if (!nFree && !nIdle && this.resLevel === 0) return false;
+    // (the savings that can buy nothing here come back with this step, whatever it is, and are
+    // not among what it may take back: they change nothing here, as they were passed over on
+    // the way down. Coming back first gone, first back, one step each, from the air the
+    // ground's savings went before the clouds with depth and far relief, which were off for
+    // half the flight from Haven)
+    if (nIdle) {
+      const idle = this.off.filter((i) => !this._live(i));
+      this.off = this.off.filter((i) => this._live(i));
+      for (const i of idle) { const f = FEATURE_STEPS[i]; f.apply(this.app, false); this._held.delete(i); this._note(`back on: ${f.label}`); }
+      if (!nFree && this.resLevel === 0) return false;        // (no step to watch: nothing here has changed)
+    }
     // (when every saving still on is one the frames need, the resolution is not held down
     // by them for good: it and they take turns at coming back. A sharp picture with thinner
     // grass in the middle distance is better than a soft one with the same.)
     const needed = this.featureLevel > 0 && this.resLevel > 0 && this.off.every((i) => this._alone.has(i));
+    // (in Sharp under KEEP the resolution comes back first, as it went last (_down), by the
+    // same turns: where it cannot hold more pixels, the savings come back while it waits.
+    // Without the turns, in a view whose frames are pixels alone, every saving taken on the
+    // way down stayed on for good, buying nothing, while each step of the resolution up was
+    // taken back)
+    const under = this.mode === 'sharp' && this.resLevel > KEEP;
     // (the resolution keeps the turn while its steps hold; a step of it that fails hands the
-    // turn to the savings: _takeBack)
-    // (in Sharp under KEEP the resolution comes back first, as it went last: _down. And while
-    // every saving on waits, the resolution does not wait with them.)
-    const res = (needed && this._resTurn) || (this.mode === 'sharp' && this.resLevel > KEEP) || (this.resLevel > 0 && !free.length);
-    if (free.length && !res) {
+    // turn to the savings, and one of them that came back by itself and fails hands it back:
+    // _takeBack. And while every saving on waits, the resolution does not wait with them.)
+    const res = ((needed || under) && !this._featTurn) || (this.resLevel > 0 && !nFree);
+    if (nFree && !res) {
+      const free = this.off.filter((i) => this._released(i));
       // (five at a time: after a passing dip, a burst of ground arriving, the way back up
       // through twenty savings one by one took two minutes of a picture with nothing in it)
       // (the ones that went first come back first: a trial takes steps until one cures the
@@ -775,7 +831,12 @@ export class Governor {
       // come back are others: what stays off in the end is what the frames need. After a
       // return that failed, the next few come back one at a time, to find which it was.)
       // (one that changes shadows in view comes back by itself: if the frames cannot bear it,
-      // only its shadows change twice, and it is known at once to be the one)
+      // only its shadows change twice, and it is known at once to be the one. Wherever the
+      // traveller is, said or not: the app always says, and the simulations are its pace.
+      // It costs steps on the way back from the floor (every saving off again after 36 s
+      // against 18), and saves them where a hold saving follows one the frames need: on the
+      // opening view the thinner grass then came back alone and was known at once; in groups
+      // of five the trees' savings stayed off 34 and 40 s, buying nothing)
       const back = [], many = this._single > 0 ? 1 : 5;
       if (this._single > 0) this._single--;
       for (const i of free) {
