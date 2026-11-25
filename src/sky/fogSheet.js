@@ -20,8 +20,8 @@ export const FOG_LOOK = Object.freeze({
   SPAN: 60000,       // m across the whole sheet
   N: 129,            // points a side
   EDGE: 40,          // m of fog over the country at which the sheet is fully there
-  LUMP: 900,         // m: the soft lumps of its top
-  LIFT: 18,          // m the lumps raise and lower it
+  LUMP: 900,         // m: the soft lumps of its top (in what it takes of the light behind it;
+                     // its top itself is level, as a lake of mist is)
   ALPHA: 0.97,       // the most it takes of what is behind it
   BRIGHT: 1.06,      // mist is bright: it takes the Sun and the sky and keeps them
 });

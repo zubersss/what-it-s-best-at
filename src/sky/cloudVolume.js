@@ -182,6 +182,10 @@ void cloudAdd(float d, float dt, float lit, float skyK, float y, vec3 tint, floa
 int gCellK[2];
 vec2 gCellT[2];
 int gCells;
+// the cells whose RAIN this ray crosses: not the same two (a ray aimed at the rain passes under
+// the cloud and meets no body), and found with the shaft's own chord where the stretch is worked out
+int gShaftK[2];
+int gShafts;
 void cloudFindCells(vec3 o, vec3 dir, float t0, float t1) {
   gCells = 0;
   gCellK[0] = -1; gCellK[1] = -1; gCellT[0] = vec2(0.0); gCellT[1] = vec2(0.0);
@@ -256,8 +260,8 @@ void cloudShafts(float t0, float t1, float country) {
     float rate = 0.0;
     if (h < base) rate = fieldRain * (1.0 - smoothstep(0.35, 1.0, (base - country) / ${glf(K.VIRGA)}) * (1.0 - smoothstep(2.0, 6.0, fieldRain)));
     for (int c = 0; c < 2; c++) {
-      if (c >= gCells) break;
-      rate = max(rate, cellRain(gCellK[c], p));
+      if (c >= gShafts) break;
+      rate = max(rate, cellRain(gShaftK[c], p));
     }
     if (rate <= 0.02) continue;
     // (a misty foot over the country, and nothing within 600 m of the eye: there D's streaks are)
@@ -430,10 +434,21 @@ void main() {
   if (uShaft.x > 0.0) {
     // Where the rain is on this ray: each raining cell's own shaft (an exact chord, no read),
     // and, where a deck is raining within reach, the stretch under the highest base there.
-    for (int c = 0; c < 2; c++) {
-      if (c >= gCells) break;
-      vec2 q = cellShaftChord(gCellK[c], uCamPlanetPos, dir);
-      if (q.y > q.x) { sA = min(sA > sB ? q.x : sA, q.x); sB = max(sB, q.y); }
+    // (Every cell, not the two the march found: a ray that passes UNDER a storm — which is
+    // every ray aimed at the rain itself, seen from the side — never meets the cell's own body,
+    // and the shafts were then drawn nowhere but under a cell one was looking into.)
+    gShafts = 0; gShaftK[0] = -1; gShaftK[1] = -1;
+    float s0 = 1e30, s1 = 1e30;
+    for (int k = 0; k < CELL_MAX; k++) {
+      if (k >= uCellCount) break;
+      vec2 q = cellShaftChord(k, uCamPlanetPos, dir);
+      if (q.y <= q.x) continue;
+      sA = min(sA > sB ? q.x : sA, q.x); sB = max(sB, q.y);
+      // (the two nearest, as the body's chords are kept: the stepping under the rain then pays
+      // for two cells however many stand in the line of sight)
+      if (gShafts == 0) { gShaftK[0] = k; s0 = q.x; gShafts = 1; }
+      else if (q.x < s0) { gShaftK[1] = gShaftK[0]; s1 = s0; gShaftK[0] = k; s0 = q.x; gShafts = 2; }
+      else if (gShafts == 1 || q.x < s1) { gShaftK[1] = k; s1 = q.x; gShafts = 2; }
     }
     if (uShaft.x > 1.5) {
       float rr = uSkyLow.y + uShaft.w, qr = disc + rr * rr;

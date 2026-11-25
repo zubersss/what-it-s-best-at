@@ -8,10 +8,12 @@ at each place (so the sky no longer follows the traveller), heaps and decks cut 
 rule that the volume, the far shell and C's shade atlas all read, storm cells with their own
 shape, their two tones, their slate depth, their anvils and their rain shafts, out to 200 km;
 altocumulus and cirrus on shells above, mist lying in the basins, lenticular plates standing
-over the ranges, and Haven's globe wearing the weather of the hour. **Four lines in
-`src/sky/skySystem.js` are the main session's to add** ("Asked of the main session"): without
-them nothing of `upperClouds.js`, `fogSheet.js` or `lenticulars.js` is ever built, and Haven's
-field is only on under `?debug=sky:...`.
+over the ranges, and Haven's globe wearing the weather of the hour. The four lines
+`src/sky/skySystem.js` needed are in the owning branch now, and this branch has merged it back,
+so what is left here is **eleven commits the model's own pictures found**: the lenses (never
+drawn at all, twice over), the anvils (a hole over every tower, and all of them at the shell's
+height instead of their own), the storms at the governor's floor (a ring of clear sky where a
+tower should be), and the three cadences that keep the page's work down.
 
 ## B0 (the job before the package): step 0's GLSL on a GPU
 
@@ -108,7 +110,9 @@ the package's own pictures instead.
   core is nearly solid. So a ridge in front hides a storm behind it and the shells behind a tower
   are hidden by it. (The plan's alpha-weighted mean distance would have needed a second target or
   a channel of the ALL pass; the entry of the chord is the same rule and cheaper.)
-- **Rain shafts** below the raining base: the cells' chords and the field's rain under decks,
+- **Rain shafts** below the raining base: every live cell's shaft chord, of which the two the ray
+  is really in are kept for the stepping (NOT the two the body's chords found: a ray aimed at the
+  rain goes under the cloud and meets no body — check 8) and the field's rain under decks,
   2 looks into the field and one into the noise for the falling streaks, virga where the base
   stands high over the land, a misty foot over field C's country height, grey-blue sky light with
   a silver glow toward a low Sun, and nothing within 600 m of the eye (D's streaks take over).
@@ -126,8 +130,11 @@ by the shared forms, and it throws near pixels out FIRST. With no field it is th
 - `UpperClouds`: the mid shell at 5 km (altocumulus cloudlets in two tones, altostratus as a veil)
   and the high shell at 9 km (cirrus brushed along the high wind, a faint 22-degree halo, anvils
   solid and dark beneath). Each is cut where a tower passes through it, and they are drawn above
-  or below the camera by their height. 1 read where the sky is clear (then the pixel is thrown
-  out), 2–3 where there is cloud.
+  or below the camera by their height. One read of the field where the sky is clear, and then the
+  pixel is thrown out; on a covered pixel three more for the mid shell (its cloudlets, the coarse
+  look that puts them in patches, and the look toward the Sun that gives them two tones) and one
+  or two for the high shell (its strokes, and a finer octave while the governor leaves it on).
+  An anvil costs no read at all: it is the cells' own shape.
 - `FogSheet`: 129 x 129 points over 60 km on a lattice fixed to the world (snapped in whole
   steps, so its points stay on the same places as one flies), each lifted to field C's fog top,
   depth-tested, one noise read a pixel. Whether there is any fog within reach is asked of the
@@ -141,15 +148,41 @@ by the shared forms, and it throws near pixels out FIRST. With no field it is th
 
 ## Checks (each with its numbers, and how it was seen to fail)
 
-**1. The reads a step (`node scripts/cloud-cost.mjs`).** The march is compiled a second time with
-`CLOUD_READS`, and every read of the noise and of the field adds one to a running total that the
-pixel hands back, so this is the count on real rays. First run, at an air view with no cloud in
-it, it read 1 a step; the run at a storm is below. `--break read` puts one more read into the
-loop, to see the check fail.
+**1. The reads a step — PASSED (`node scripts/cloud-cost.mjs`, the merged build).** The march is
+compiled a second time with `CLOUD_READS`, and every read of the noise and of the field adds one
+to a running total that the pixel hands back, so this is the count on real rays, counted over
+the stepping alone (the per-ray reads are reported apart).
 
-**2. The motion (`node scripts/cloud-motion.mjs`).** Its first run showed a fault of its own: the
-view looked ALONG the day's wind, so the clouds came toward the eye and the picture moved one
-pixel in twenty seconds — nothing to measure. It looks across the wind now.
+At the storm 20 km off (`t=8.25`, the far slices on):
+
+> the march's reads a step, out of the rise's fade — slice 6: **1 a step over 8 steps, 0 a ray**
+> ok   at most 4 reads a step out of the rise's fade (1.00 beyond the first kilometre, 0.00 within it)
+> ok   at most 6 in the fade, when the masses and the look toward the Sun are each read twice (1.00 / 0.00)
+
+One read a step is the cell's own boiling noise: in the far slices the layer is not marched at
+all, so nothing else is read there.
+
+And the break taught its own lesson. `--break read` put its extra read inside the LAYER's path —
+which this view never takes, since its cloud is all storm cells — so **the check passed on a
+build broken on purpose**. The break now adds four reads at the top of `cloudStep`, whichever
+path the step takes (817c129); the run that shows the check failing is below.
+
+**2. The motion (`node scripts/cloud-motion.mjs`).** Three runs of this check found three faults
+of the check, not of the clouds, and each is worth knowing:
+
+1. its first view looked ALONG the day's wind, so the clouds came toward the eye and the picture
+   moved one pixel in twenty seconds — nothing to measure;
+2. the second stood 3 km up at ten degrees above the horizon, over a layer whose top was
+   2 575 m: the slice it correlated was empty sky;
+3. the third was chosen from a Node scan that read the stub's `t` as hours since the weather's
+   epoch, while the game counts `?t=` from the scene's own moment, 521 hours later — so the hour
+   that had cloud in Node had none in the game. Both runs failed with "cover 0.000": **a
+   correlation of nothing moves nothing**, which is what a check that cannot fail looks like
+   from the other side.
+
+It now stands under the model's own broken heaps (t=32: 0.55 cover, no deck, their bases 2 101 m
+over ground at 1 444, the day's low wind 11.8 m/s toward 86 degrees), 300 m under them, looking
+across that wind. Its numbers are below as the run lands.
 
 **3. Anchoring (`node scripts/cloud-motion.mjs`).** The march is drawn from the camera's place,
 from 100 m away and from 10 km away, each aimed at the same point of the world, and every uniform
@@ -163,8 +196,9 @@ be the same sky. The camera the shaders read is the app's own uniform, so the ch
 one and says how far it moved (100 and 10 000 m): a test that moves the camera must check that
 the camera moved.
 
-**4. A phone's limits (`scripts/cloud-cost.mjs`, which runs `lib/glLimits.mjs` on every program
-three has linked).** Every program of the sky is inside them:
+**4. A phone's limits — PASSED (`scripts/cloud-cost.mjs`, which runs `lib/glLimits.mjs` on every
+program three has linked; run again on the merged build: "ok every program of the sky is inside
+a phone's limits (6 of them)").** They are:
 
 | program | textures (fragment + vertex) | varyings |
 | --- | --- | --- |
@@ -198,7 +232,26 @@ either side. Its first run drew the SAME picture four times (34 007 pixels, cove
 0.439, to four decimals) and passed: it moved rig.pos but not the camera the shaders read. It
 now moves that uniform and fails if the four pictures are identical.
 
-*(the rest as they run)*
+**8. The rain shafts, seen from the side — a fault found and fixed late (89fb6a5,
+`node scripts/cloud-volume-test.mjs`).** A ray aimed at a storm's rain passes UNDER the cloud: it
+does not meet the cell's own body. The march finds the two cells its stepping needs by the body's
+chord, and the shaft's stretch was built from those two — so the rain was drawn nowhere but under
+a cell one was looking into, which is the one place from which a shaft cannot be seen. In the new
+check, of 241 rays fanned across a storm 20 km off from 2 km up, **61 crossed the rain without
+crossing the cloud** (a quarter of the fan, from 1.7 degrees below the horizontal to 3.3 above)
+and one crossed both. The shafts are now looked for over every live cell, and the two the ray's
+rain is actually in are kept (`gShaftK`) exactly as the body's two are, so the stepping under the
+rain still pays for two cells however many storms stand in the line of sight. Both halves were
+seen to fail with the old loops put back ("FAIL the march looks for the shafts over every live
+cell", "FAIL and the rain under it is the shafts' own cells, at most two").
+
+The pictures of a cell and its shaft (`_M_cell9`, `_M_cellsun`) are therefore taken from a build
+made after the fix, not from the merged build the rest of them come from.
+
+**The parity of every JS twin with its GLSL** (`scripts/sky-system-test.mjs`, which runs the
+shared texts through `scripts/lib/glslRun.mjs` at a grid of points): passes on the merged build,
+as do `sky-steer-test`, `sky-format-test`, `sky-cell-test`, `sky-model-test`, `governor-sim`,
+`cloud-volume-test` and `lens-list-test`.
 
 ## Pictures (paths; before and after)
 
@@ -208,10 +261,11 @@ All at 880 x 412, dsf 1.25, from frozen builds, in
 
 **Which build each picture came from.** The frozen builds step with the fixes below:
 `buildB6` was the first from A's model, `buildB8` adds the anvil's torn edge and the patchy
-mackerel sky, `buildB10` the lenses that are drawn at all, `buildB11` merges package C (the
-clouds' shadow on the land, the trees and the rocks: from here the pictures show B and C
-together, which is what the traveller will see), and `buildB12` the storms at the governor's
-floor. Each picture's build is named beside it when it matters.
+mackerel sky, `buildB10` the lenses that are drawn at all, `buildB12` the storms at the
+governor's floor, `buildB14` the anvils at their own height and whole over their towers. From
+then on the owning branch had merged all four sky packages and B's four lines, so the last
+pictures are `buildC1` — that merge with this branch's eleven newer commits on top — against
+`buildQ2`, the owning head alone. Each picture's build is named beside it when it matters.
 
 **Before and after.** "Before" is the owning branch's own head (`ccr-aa39490a-qiw63x`, built as
 `buildQ`) and "after" is this branch, with the four lines of "Asked of the main session" patched
@@ -224,6 +278,9 @@ it on**. So "before" is this work with the field unplugged — the volume falls 
 the world file gives plus the ground under the traveller, and nothing of `upperClouds.js`,
 `fogSheet.js` or `lenticulars.js` is ever built. That is exactly the state the owner would see
 today, which is what makes the pair worth looking at; it is not package B against nothing.
+(That was `buildQ`, the owning head before it took the four lines. The later pairs are against
+`buildQ2`, the owning head WITH them: there the difference is only this branch's eleven newest
+commits — the lenses, the anvils, the governor's floor.)
 The hours are the ones `scripts/find-weather.mjs --scene` names, as a `t=` offset from the
 scene's own moment.
 
@@ -240,6 +297,13 @@ scene's own moment.
 | `_M_storm`, `_Q_storm` | the opening place, the storm 64 km off (t=8.25) | the far cell sheets from the ground |
 | `_M_front` | the opening place, a cell 25 km off raining 26 mm/h (t=33) | a rain deck and its shafts |
 | `earth_ledge_B0_earth.png`, `earth_ledge_B_earth.png` | Earth's ledge, step 0's build and this one | Earth has no field yet: what changed there anyway |
+
+**Kept in the repository.** The ones worth keeping are copied into `docs/shots/sky/` as
+`B-*.png` (package A's are `A-*`): `B-storm-20km-before/after/first`, `B-storm-35km`,
+`B-cell-sunlit` and `-before`, `B-cell-9km`, `B-ridge-hides-cell` and `-before`, `B-lens`,
+`B-lens-from-the-side`, `B-lens-none-drawn` (the fault), `B-floor` and `B-floor-hole` (the
+fault), `B-noclouds`, `B-from-30km`, `B-globe`, `B-ledge-afternoon`, `B-mist`, `B-front`,
+`B-ledge-storm`, `B-earth-before/after`, `B-B0-drift-0s/60s`.
 
 **The stub's own pictures** (before the model landed) are kept for the record:
 `haven_ledge_storm12.png` (the first storm picture, which showed the three faults of 9478d38),
@@ -297,8 +361,9 @@ SHEET_SQUASH 0.667 (the pattern squashed upright, so a deck's lumps lie flat), S
 0.92, MID_SHADE 0.72; HIGH_STRETCH 7 (how far cirrus is drawn out along its own wind),
 HIGH_ALPHA 0.5, HIGH_ANVIL 0.97, HIGH_UNDER 0.45; HALO 0.062 (the 22-degree halo).
 
-**`FOG_LOOK` (src/sky/fogSheet.js)**: SPAN 60 km, N 129, EDGE 40 m, LUMP 900 m, LIFT 18 m,
-ALPHA 0.97, BRIGHT 1.06.
+**`FOG_LOOK` (src/sky/fogSheet.js)**: SPAN 60 km, N 129, EDGE 40 m, LUMP 900 m, ALPHA 0.97,
+BRIGHT 1.06. (Its top is level, as a lake of mist is; the lumps are in what it takes of the
+light behind it, not in its height.)
 
 **`LENS_LOOK` (src/sky/lenticulars.js)**: MAX 12 plates, FLAT 0.11, GAP 1.35, SHADE 0.66,
 RIM 0.35, EDGE 0.22.
@@ -306,10 +371,28 @@ RIM 0.35, EDGE 0.22.
 ## Cost (headless work counts; the phone decides)
 
 What is paid for a fair day, and what a storm adds, counted on software WebGL by
-`scripts/cloud-cost.mjs` (a count of work, never a frame rate; the same view on step 0's build
-and on this one, at the phone's pixel count):
+`scripts/cloud-cost.mjs` (a count of work, never a frame rate; the same view on the owning head
+and on this branch, at the phone's pixel count — `--size 880x412 --dsf 2.2`). Each run measures
+itself: the march and the lay are the difference from a frame with the clouds left out, taken in
+the same browser session, so the two runs can be set side by side:
 
-*(the numbers land as the runs finish)*
+At the storm 20 km off, 3 km up (the merged build, 1100 x 515, two cells in reach, the far
+slices on, cloud on 5 % of the picture):
+
+| | ms of work |
+| --- | --- |
+| laying the slices over an empty picture | 58 |
+| the march into its small picture | 790 |
+
+The six programs of the sky and what each asks of a phone (16 fragment textures, 15 varyings):
+the march 11 + 0 and 1 varying; the far low shell 9 + 2; the mid and high shells 8 + 0; the
+ground's two shade programs 5 + 0; Haven's globe 7 + 0.
+
+(The same view on an earlier build with one cell in reach and no far slices marched 203 ms: what
+the far slices and the model's five cells add is most of this. Software WebGL counts work, not
+frames; the phone's cost table is what decides.)
+
+*(the runs at the phone's pixel count, and the fair day, land as they finish)*
 
 What the march reads, which is what the phone will feel:
 
@@ -333,7 +416,8 @@ are not crossed at all.
   `haven_ledge_M_storm20.png` and `haven_ledge_Q_storm20.png` is this change alone: at 3 km over
   the country west of the opening place, the owning branch draws a grey wall — the camera inside
   a cloud whose base followed it — and this branch draws the storm, the mackerel sky and the
-  mountains.)
+  mountains. Since the main session has taken those lines, that is the owner's "before" too: it
+  is what the phone drew until today.)
 - **Storms are things in the world**: a tower with its own shape, lit on the side the Sun is on,
   slate where it is deep, with an anvil at the top and rain falling out of its base in shafts
   that you can see slanting downwind. They are drawn out to 200 km, so a storm stands on the
@@ -345,29 +429,20 @@ are not crossed at all.
 - On the real worlds nothing changes but Earth's own clouds, which are drawn with the new shapes
   (softer, more cut-out; the pair is `earth_ledge_B0_earth.png` / `earth_ledge_B_earth.png`).
 
-## Asked of the main session
+## Asked of the main session — **done** (merged into `ccr-aa39490a-qiw63x`, 25 November)
 
-1. **`src/sky/skySystem.js`**, the three stand-ins:
-   ```js
-   import { UpperClouds } from './upperClouds.js';
-   import { FogSheet } from './fogSheet.js';
-   import { Lenticulars } from './lenticulars.js';
-   // in the constructor:
-   this.upper = parts.upper ?? new UpperClouds(renderer);
-   this.fog = parts.fog ?? new FogSheet(renderer);
-   this.lenses = parts.lenses ?? new Lenticulars(renderer);
-   ```
-2. **The field always on** for a world whose weather is made by rule, now that the volume, the
-   shell, the shells above and the fog all draw from it:
-   ```js
-   this.fieldWanted = made && !this.noClouds;      // (was: && (d.preset || d.storm || d.flash))
-   ```
-   Without it Haven draws no volume cloud at all except under `?debug=sky:...`.
-3. **`beforeScene`**: the volume's bounds come from the field, so `place()` needs the frame:
-   ```js
-   this.cloudVolume.place(rig.pos, this.frame);    // (was: place(rig.pos))
-   ```
-   (It keeps the last frame's own otherwise, so nothing breaks before the change.)
+All four lines are in the owning branch now, and this branch has merged it back:
+
+```js
+this.upper = parts.upper ?? new UpperClouds(renderer);      // skySystem.js
+this.fog = parts.fog ?? new FogSheet(renderer);
+this.lenses = parts.lenses ?? new Lenticulars(renderer);
+this.fieldWanted = !this.noClouds && (made || (maps && d.preset === 'model'));
+this.cloudVolume.place(rig.pos, this.frame);                // beforeScene
+```
+
+Nothing of B's own files was changed upstream, so the merge was clean and the frozen builds no
+longer need a patch of their own.
 
 ## Views on Haven with weather in them (the model, found in Node in seconds)
 
@@ -379,7 +454,7 @@ are not crossed at all.
 | t= | what the model has | where to stand |
 | --- | --- | --- |
 | −0.5 | mist 267 m deep in the low ground, none within 2 km of the ledge | the ledge, heading 150, pitch −12 |
-| 8.25 | five cells; the nearest 64 km off at bearing 243, its top 10.3 km, raining 39 mm/h | the ledge for the far skyline; lat −52.0691, lon 23.3976 at 4.2 km for its portrait with the Sun behind |
+| 8.25 | five cells; the nearest 64 km off at bearing 243, its top 10.3 km, raining 39 mm/h | the ledge for the far skyline; lat −52.0691, lon 23.3976 at 4.2 km for its portrait with the Sun behind (at that place and hour the Sun stands 26 degrees up at azimuth 308, so looking 120 has it over the shoulder) |
 | 33 | a front: four cells, the nearest 25 km off at 274, raining 26 mm/h | the ledge, heading 274 |
 | 53 | twelve lenticulars over the high summits; the Crown's own are 229 km off, so the nearest in daylight is at −28.30, 16.09 | lat −30.3666, lon 16.0940 at 3.6 km, heading 0 |
 
@@ -458,9 +533,21 @@ t=3 and t=9, with the heaps' bases at 1 250 m and their tops at 2 575.
    whose top is at 10.3 km stands below it — so it reads as a disc floating over a stalk. For an
    anvil that grows out of its tower, the flare belongs in the cell's own shape
    (`weather/sky/cellShape.js`) and must be marched with it.
-5. **The cell's own outline** (`cellShape.js`, step 0's, not mine) draws a narrow chimney with a
+12. **The cell's own outline** (`cellShape.js`, step 0's, not mine) draws a narrow chimney with a
    rounded cap: at 20 km the hull is 25 degrees wide and what is drawn is about 10. A
    cumulonimbus is about as wide as it is tall. Worth a look by whoever owns that file.
+
+## A lesson worth lifting into CLAUDE.md
+
+**`t=` in the game is hours from the SCENE's own moment; the weather's clock counts seconds from
+its epoch.** On Haven those differ by 521 hours. A Node scan that asks the producer for `t = H *
+3600` is asking about the first day after the epoch, not about the hour the game will show at
+`?t=H` — so a view chosen that way can have cloud in Node and none in the game. It cost two
+runs of the motion check, both of which then "passed" nothing and failed on a correlation of
+zero. The right conversion is
+`t_weather = (Date.parse(world.scene.dateUTC) - Date.parse(world.weather.epoch)) / 1000 + H * 3600`
+(`scratchpad/wx.mjs` does it), and the same trap is waiting for anyone who writes a stability
+case or a benchmark view from a Node scan.
 
 ## Open
 
@@ -523,6 +610,31 @@ t=3 and t=9, with the heaps' bases at 1 250 m and their tops at 2 575.
   is there is the wisps — the great soft patches torn out of a cloud within a kilometre of the
   eye, which cost no read of their own. A raining base keeps its clean line. Its constant was
   taken out rather than left dead.
+- **`?at=haven:3` does not move the camera** for the world one is standing on: it drew the
+  opening view at the eye (and, being a ground view with trees, took the full twenty minutes
+  doing it). Haven from space is taken with `alt=500000&pitch=-55` instead. Worth a line in
+  `CLAUDE.md`, or a guard that says so, for whoever owns `at=`.
+- **A stray `peek.png`** (12 KB) sits at the top of the repository: it came in with package C
+  and is now in the owning branch. Not mine to delete, but worth sweeping up.
 - **The rise's fades** cost one more read of the masses and one of the look toward the Sun (16 %
   of the game clock). The alternative — reading the look toward the Sun at one phase — makes the
   two tones speckle while the phases blend, so it was not taken.
+
+## What is still running (25 November, 08:30)
+
+One browser at a time on this machine, as detached chains in
+`/tmp/claude-0/-home-user-what-it-s-best-at/fa086d69-ff44-5069-99a3-fdab3300646a/scratchpad`
+(`chainM*.sh`, logs in `logs/`, pictures in `shots/`, frozen builds `buildC1` = this branch,
+`buildQ2` = the owning head):
+
+| chain | what |
+| --- | --- |
+| M2 | the reads a step at a storm, and what the clouds cost at the phone's pixel count — the owning head against this branch, at a storm and on a fair day |
+| M7 | the motion, the anchoring and the hand-over, under the model's own heaps |
+| M5 | the lenses twice, the storm from 20 km again, the cell from 9 km (and the owning head's) |
+| M6 | the cell's portrait with the Sun behind it (and the owning head's), the governor's floor again, Haven from 500 km, from 30 km |
+| M3 | check 6's ridge pair, and the owner's three weather views at the eye (mist, storm, front) |
+| M4 | stability: the climb on the owning head (B0), then the climb, the crossing under heaps and a storm pass on this branch; then `npm run smoke` on a tree |
+
+If this machine restarts, the chains die but the builds, the logs and the pictures do not: each
+chain is a few lines and starts with `nohup setsid`.
