@@ -28,6 +28,25 @@ rule; nothing on screen changes until B's clouds land, since the field is drawn 
 T4, from above A6, air L4, flowers F4). The sky helpers may edit `skySystem.js`, `haven.js`'s
 hours and add their own governor steps on their branches (marked "(sky X)", tests passing):
 waiting on this session cost them hours; clashes are resolved at the merge.
+**07:45**: sky A done and merged (6b534be: Haven's weather bookmarks and three cost views,
+`?debug=sky:model`, a worker re-asked when started anew). Sky B merged so far and wired
+here (d46152e): **the new clouds are on in Haven** on this branch (the field always on, the
+upper shells, the fog sheet and the lenticulars made). Not yet seen in a picture from this
+head: B takes its pictures and the climb, crossing and storm-pass runs from it. The wood
+walk before and after (`docs/shots/trees-refined/wood_walk_shadows_before_after11.md`):
+the middle ground where the trees' shadows lie changed 63 -> 55 % and flickered 10 -> 7.9 %;
+the wind dominates, so "calmer", not proof (the proof is the Node replays).
+**08:05**: **all four sky packages merged** on this branch (dfbf8c1: A 3fda6d3 Earth's field from
+its maps and storm cells kept between snapshots; C 4e7c2fc one map of the clouds' shade fixed
+to the world, read by the ground, the trees and the rocks, the ground's fragment shader down to
+15 of 16 textures; B bd3e9e6 the anvil frayed and darker underneath, the mackerel sky in
+patches, lenticulars drawn, the storms kept at the governor's floor; D e1318e3 rain, lightning,
+thunder and wind where the traveller is), with the air helper's water from the air (122e0e0: one
+fade by depth, a calm sky sheen, no rainbow) and the trees' probe. Clashes: `skySystem.js`'s
+field (on wherever the weather is made by rule; on Earth under `sky:model` only), the ground's
+water (the calm sheen with C's `vCloud.z`), `play-profile.mjs`. Every Node check passes. A cold
+code review of the whole sky runs (`review-sky`, five parts, each finding checked by a
+refuter); the helpers take their remaining pictures from dfbf8c1.
 
 ### In hand: Haven rich and smooth (the owner's ninth phone results)
 

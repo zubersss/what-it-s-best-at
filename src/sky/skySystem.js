@@ -85,6 +85,8 @@
 //
 // THE DEBUG SWITCHES (?debug=..., skyDebug)
 //   sky:<preset>   the field's producer is the stub with that preset (fair, fog, storm, front)
+//   sky:model      the field's producer is the world's own weather model (sky A): what the field
+//                  will always be once the packages read it
 //   storm          a mature storm cell that stands still 8 km north-east of where the view opens
 //   flash          a stroke of lightning held at its brightest (on Earth from its maps, as before;
 //                  on a world with a made weather, from the field's nearest cell: the stub's storm)
@@ -106,9 +108,14 @@ import { Rainbow } from '../weather/rainbow.js';
 import { Steer, STEER_LAYERS } from '../weather/sky/steer.js';
 import { makeSkyAt } from '../weather/sky/format.js';
 import { STUB_PRESETS } from '../weather/sky/stub.js';
+const SKY_PRESETS = [...STUB_PRESETS, 'model'];   // (sky A)
 import { cellGeometry, anvilGeometry, setCellUniforms, CELL_MAX } from '../weather/sky/cellShape.js';
 import { SKY_UNIFORMS, steerQuat, skyRiseOf } from './skyGlsl.js';
 import { SkyField } from './skyField.js';
+// (sky B: the stand-ins replaced by the parts themselves)
+import { UpperClouds } from './upperClouds.js';
+import { FogSheet } from './fogSheet.js';
+import { Lenticulars } from './lenticulars.js';
 
 // Above this many seconds of game time a second the clouds' noise keeps to it and is set back to
 // the game clock when the clock slows again (one re-cut, as at a bookmark): at an hour a second
@@ -134,9 +141,11 @@ export const SKY_SAVINGS = Object.freeze({
   'rain-shafts': 'B: no streak read in the shafts, one look into the field',
   'cloud-shade-rate': "C: the shade map's middle window every other frame",
   'cloud-shade-coarse': 'C: the shade from the middle window only (220 m): the shadows stay, coarser',
+  lenses: 'B: the nearest three lenses, one plate each',
+  'fog-sheet': 'B: the fog on a lattice of half as many points a side (a quarter of the triangles)',
 });
 // The parts the benchmark's cost test can leave out one at a time (perf/benchmark.js PARTS_OUT).
-export const SKY_PARTS = Object.freeze(['clouds-all', 'cloud-shade', 'cloud-upper', 'cells-far', 'rain-shafts', 'fog']);
+export const SKY_PARTS = Object.freeze(['clouds-all', 'cloud-shade', 'cloud-upper', 'cells-far', 'rain-shafts', 'fog', 'lenses']);
 
 // ?debug= -> what the sky does with it
 export function skyDebug(str = '') {
@@ -144,8 +153,9 @@ export function skyDebug(str = '') {
   const sky = toks.find((t) => t.startsWith('sky:'));
   const preset = sky ? sky.slice(4) : null;
   return {
-    preset: preset && STUB_PRESETS.includes(preset) ? preset : null,
-    badPreset: preset && !STUB_PRESETS.includes(preset) ? preset : null,
+    // ('model': the world's own weather, sky A)
+    preset: preset && SKY_PRESETS.includes(preset) ? preset : null,
+    badPreset: preset && !SKY_PRESETS.includes(preset) ? preset : null,
     storm: toks.includes('storm'),
     flash: String(str).includes('flash'),
     noClouds: toks.includes('noclouds'),
@@ -173,7 +183,7 @@ export class SkySystem {
     this.renderer = renderer; this.terrain = terrain; this.shared = terrain.shared; this.shotMode = shotMode;
     this.debug = skyDebug(debug);
     this.noClouds = this.debug.noClouds;
-    if (this.debug.badPreset) console.warn(`debug=sky:${this.debug.badPreset}: no such preset (${STUB_PRESETS.join(', ')})`);
+    if (this.debug.badPreset) console.warn(`debug=sky:${this.debug.badPreset}: no such preset (${SKY_PRESETS.join(', ')})`);
     this.clouds = parts.clouds ?? new CloudLayer(renderer);
     this.cloudVolume = parts.cloudVolume ?? new CloudVolume(renderer);
     this.treeShade = parts.treeShade ?? new TreeShade(terrain);
@@ -182,9 +192,9 @@ export class SkySystem {
     this.bolt = parts.bolt ?? new Bolt(G);
     this.rainbow = parts.rainbow ?? new Rainbow(G);
     this.field = parts.field ?? new SkyField(renderer);
-    this.upper = parts.upper ?? stubPart('upper');
-    this.fog = parts.fog ?? stubPart('fog');
-    this.lenses = parts.lenses ?? stubPart('lenses');
+    this.upper = parts.upper ?? new UpperClouds(renderer);          // (sky B)
+    this.fog = parts.fog ?? new FogSheet(renderer);                  // (sky B)
+    this.lenses = parts.lenses ?? new Lenticulars(renderer);         // (sky B)
     this.probe = parts.probe ?? stubPart('probe');
     this.shared.uCloud.value = this.clouds.shadow;
     // (the far low shell: drawn in the picture after the shells above the camera, in a scene of
@@ -226,10 +236,14 @@ export class SkySystem {
     u[0] = 1 / (v?.scale ?? 5200); u[1] = world.radius; u[2] = world.clouds?.shadow ?? 0.6;
     setCellUniforms(SKY_UNIFORMS, [], []);
     Object.assign(this.frame, { world, R: world.radius, steer: this.steer, tPrev: null, here: null, cells: NONE, strikes: NONE });
-    // The field: a world whose weather is made by rule, under a debug switch (step 0: nothing on
-    // screen reads it yet). Made at the first frame, when the place the view opens at is known.
+    // The field: a world whose weather is made by rule (the clouds, their shade and the weather at
+    // the traveller all read it). Made at the first frame, when the place the view opens at is known.
     const made = world.weather?.recipe === 'made', d = this.debug;
-    this.fieldWanted = made && !this.noClouds && !!(d.preset || d.storm || d.flash);
+    // (sky B: the field is always on where the weather is made by rule: the volume, the shells,
+    // the fog and the lenses all draw from it; sky A: a world of a day's maps - Earth - makes its
+    // field from them under sky:model alone, its storm and flash switches stay weather.js's)
+    const maps = world.weather?.recipe === 'maps';
+    this.fieldWanted = !this.noClouds && (made || (maps && d.preset === 'model'));
     this.raster = data?.rasters?.[0] || null;
     this.field.setWorld(null, null);
   }
@@ -249,8 +263,10 @@ export class SkySystem {
     // (the elevation as the stub reads it: rows from latitude 90, columns from longitude 0)
     const land = r && r.wrap && (r.lon0 ?? 0) === 0 && (r.lat0 ?? 90) === 90 && (r.lat1 ?? -90) === -90 ? { data: r.data, width: r.width, height: r.height, scale: r.scale ?? 1 } : null;
     const stormAt = d.storm ? offsetLatLon(rig.pos, Math.PI / 4, 8000) : null;
-    // (debug=flash alone: the stub's storm, which has a mature cell within 40 km of the opening place at every moment)
-    this.field.setWorld(w, { preset: d.preset || (d.flash && !d.storm ? 'storm' : 'fair'), stormAt, land });
+    // (debug=flash alone: the stub's storm, which has a mature cell within 40 km of the opening place
+    // at every moment; with no switch, the world's own weather: the model. It was the stub's 'fair'
+    // test pattern, so that no storm of the day's weather was ever drawn without debug=sky:model)
+    this.field.setWorld(w, { preset: d.preset || (d.flash && !d.storm ? 'storm' : 'model'), stormAt, land });
     this.fieldWanted = false;
   }
 
@@ -415,7 +431,7 @@ export class SkySystem {
     // (clouds: near the traveller the layer is a volume. Its small picture is marched now,
     // before the main picture is begun, and laid over the ground further down: nothing
     // interrupts the main picture, see sky/cloudVolume.js)
-    this.cloudVolume.place(rig.pos);
+    this.cloudVolume.place(rig.pos, this.frame);          // (sky B: the march's bounds from the field)
     this.clouds.shadows = !(this.saving.has('clouds') || this.out.has('cloud-shade'));
     const cloudFar = this.clouds.update(rig.pos, c.worldRadius, this.cloudVolume);
     // (?debug=noclouds: a clear sky, for pictures of the land from high above; their shadows go with them)
@@ -493,6 +509,8 @@ export class SkySystem {
       case 'cloud-upper': this.upper.saving(id, off); break;
       case 'rain-shafts': this.cloudVolume.saving?.(id, off); break;
       case 'cloud-shade-rate': case 'cloud-shade-coarse': this.treeShade.saving?.(id, off); this.probe.saving(id, off); break;
+      case 'fog-sheet': this.fog.saving(id, off); break;
+      case 'lenses': this.lenses.saving(id, off); break;
     }
   }
   // whether a saving can buy anything here now (the governor passes by one that cannot)
@@ -504,6 +522,8 @@ export class SkySystem {
       case 'cloud-upper': return !!this.upper.live(id);
       case 'rain-shafts': return !!this.cloudVolume.live?.(id);
       case 'cloud-shade-rate': case 'cloud-shade-coarse': return !!this.treeShade.live?.(id);
+      case 'fog-sheet': return !!this.fog.live(id);
+      case 'lenses': return !!this.lenses.live(id);
     }
     return false;
   }
@@ -514,6 +534,8 @@ export class SkySystem {
       case 'cloud-upper': return !!this.upper.has(id);
       case 'rain-shafts': return !!this.cloudVolume.has?.(id);
       case 'cloud-shade-rate': case 'cloud-shade-coarse': return !!this.treeShade.has?.(id);
+      case 'fog-sheet': return !!this.fog.has(id);
+      case 'lenses': return !!this.lenses.has(id);
     }
     return false;
   }
@@ -525,6 +547,7 @@ export class SkySystem {
       case 'cloud-upper': return this.upper.has(id);
       case 'cells-far': case 'rain-shafts': return !!this.cloudVolume.has?.(id);
       case 'fog': return this.fog.has(id);
+      case 'lenses': return this.lenses.has(id);
     }
     return false;
   }
@@ -533,6 +556,7 @@ export class SkySystem {
     if (out) this.out.add(id); else this.out.delete(id);
     if (id === 'cloud-upper') this.upper.partOut(id, out);
     else if (id === 'fog') this.fog.partOut(id, out);
+    else if (id === 'lenses') this.lenses.partOut(id, out);
     else if (id === 'cells-far' || id === 'rain-shafts') this.cloudVolume.partOut?.(id, out);
   }
 

@@ -310,6 +310,7 @@ export const PARTS_OUT = [
   skyPart('cells-far', 'storm cells far off'),
   skyPart('rain-shafts', 'rain shafts'),
   skyPart('fog', 'fog and mist'),
+  skyPart('lenses', 'lens clouds over the peaks'),
   // (the last pass over the canvas at the picture's size, as it now is, instead of the screen's: App.fitCanvas)
   { id: 'last-pass', label: "the last pass at the picture's size, not the screen's", set: (app, out) => { app.canvasHold = out ? 'fit' : 'full'; } },
   // (last: what is left with nothing drawn at all)

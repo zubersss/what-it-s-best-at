@@ -208,6 +208,7 @@ class Shape {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
     g.setAttribute('aLeaf', new THREE.BufferAttribute(leaf, 1)); g.setAttribute('aSway', new THREE.BufferAttribute(sway, 2)); g.setAttribute('aUv', new THREE.BufferAttribute(uv, 2));
+    g.setAttribute('aCrown', new THREE.BufferAttribute(new Float32Array(n * 3), 3));          // (crown coordinates: set on the far mesh, crownCoords below; 0 elsewhere)
     g.userData.mid = this.mid;          // (the height the crown's light is reckoned from: the far forest lights its cards by the same rule)
     return g;
   }
@@ -219,6 +220,27 @@ class Shape {
 // the same way at both, those of its foliage apart); far is its picture. (Widths are for
 // a tree whose crown-width number is 1; heights are fractions of the tree's height.)
 export const VARIANTS = 3;
+
+// The far mesh's crown coordinates (aCrown), for lighting its pictures as one rounded mass
+// (life/trees.js): on a whole tree's upright card, x across the crown and y up it, each in
+// the crown's half widths (the crown: the near mesh's foliage, its height range and its
+// widest reach), z 1 or 2 for the card standing along x or along z; on the rosette lying in
+// the crown, its own x and z in its half width, z 3. Linear over each quad, so a pixel's
+// place in the crown comes out exact.
+function crownCoords(farG, nearG) {
+  const P = nearG.attributes.position.array, L = nearG.attributes.aLeaf.array;
+  let y0 = 1e9, y1 = -1e9, rx = 0;
+  for (let i = 0; i < L.length; i++) if (L[i] > 0.5) { const y = P[i * 3 + 1]; y0 = Math.min(y0, y); y1 = Math.max(y1, y); rx = Math.max(rx, Math.abs(P[i * 3]), Math.abs(P[i * 3 + 2])); }
+  rx = Math.min(rx, IMP_HALF);
+  const yc = (y0 + y1) / 2, ry = Math.max(0.05, (y1 - y0) / 2);
+  const F = farG.attributes.position.array, FL = farG.attributes.aLeaf.array, C = farG.attributes.aCrown.array;
+  let rr = 0; for (let i = 0; i < FL.length; i++) if (FL[i] > 2.5 && FL[i] < 3.5) rr = Math.max(rr, Math.abs(F[i * 3]), Math.abs(F[i * 3 + 2]));
+  for (let i = 0; i < FL.length; i++) {
+    const x = F[i * 3], y = F[i * 3 + 1], z = F[i * 3 + 2];
+    if (FL[i] > 3.5) { const alongZ = Math.abs(x) < 1e-5 && Math.abs(z) > 1e-5; C[i * 3] = (alongZ ? z : x) / rx; C[i * 3 + 1] = (y - yc) / ry; C[i * 3 + 2] = alongZ ? 2 : 1; }
+    else if (FL[i] > 2.5) { C[i * 3] = x / rr; C[i * 3 + 1] = z / rr; C[i * 3 + 2] = 3; }
+  }
+}
 export function makeTreeGeometries() {
   const out = [];
   // build: (shape, the build's random numbers, the foliage's random numbers, which variant, q) => fills the shape
@@ -230,6 +252,7 @@ export function makeTreeGeometries() {
       if (q === 0) { const f = far(v); s.mid = f[3] ?? 0.6; s.whole(arch, v, f[0], f[1], f[2]); } else build(s, rng(seed + v * 7919), rng(seed + 577 + v * 7919 + q * 131), v, q);
       return s.build();
     }));
+    for (const trio of list) crownCoords(trio[2], trio[1]);
     out.push(list);
   };
   const UP = [0, 1, 0];
@@ -303,6 +326,11 @@ export function makeTreeGeometries() {
     s.mid = 0.7;
     const tr = (y) => [lean * (y < 0.5 ? y * 1.6 : 0.8 + (y - 0.5) * 0.9) + 0.012 * Math.sin(y * 7), y, 0.01 * Math.sin(y * 5 + 1)];
     if (q === 2) s.bole(tr, 0.016, 0.004, 0.93); else s.trunk([tr(0), tr(0.3), tr(0.62), tr(0.93)], 0.016, 0.004, 5);
+    // (a pine sheds its lower limbs and keeps their stubs: short, thin, angled down and out
+    // along the bare bole below the crown; their own random numbers, so the tree is the
+    // same tree. Without them the bole seen from a few metres, its crown out of the frame,
+    // was a pole.)
+    if (q > 0) { const S = rng(4711 + v * 31); for (let k = 0; k < 7; k++) { const y = 0.16 + (low - 0.2) * (k + S()) / 7, a = k * 2.4 + S() * 1.5, r = 0.016 + (0.004 - 0.016) * y / 0.93, c = tr(y), d = [Math.cos(a), -0.25 - 0.3 * S(), Math.sin(a)], l = 0.012 + 0.02 * S(); s.tube([add(c, [Math.cos(a), 0, Math.sin(a)], r * 0.6), add(c, d, r + l)], [0.0028 * (q === 2 ? 1 : 1.2), 0.0012], 3); } }
     // a burst: crossed cards standing on the point, the needles upward and outward
     const burst = (c, r, n) => { s.heart(c[0], c[1] + r * 0.7, c[2], r * 0.74, r * 0.66, SPRAYS.roseN); for (let j = 0; j < n; j++) { const a = L() * TAU + j * (3.1416 / n), tilt = (L() - 0.5) * 0.7; s.plate(c, [Math.cos(a), 0, Math.sin(a)], norm([-Math.sin(a) * tilt, 1, Math.cos(a) * tilt]), r * 2.5, r * 2.5, sprayRect(SPRAYS.pineTwig), 0.5, 0.8, [c[0], c[1] - r * 0.6, c[2]]); } };
     // a head, close by: twigs up and out of the branch's end, a branch end's tufts on each
