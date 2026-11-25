@@ -144,6 +144,26 @@ RIM 0.35, EDGE 0.22.
 
 ## Cost (headless work counts; the phone decides)
 
+What is paid for a fair day, and what a storm adds, counted on software WebGL by
+`scripts/cloud-cost.mjs` (a count of work, never a frame rate; the same view on step 0's build
+and on this one, at the phone's pixel count):
+
+*(the numbers land as the runs finish)*
+
+What the march reads, which is what the phone will feel:
+
+| when | reads a step |
+| --- | --- |
+| clear sky or a fair day | the field's A, the masses and the lobes (one read of the noise's two channels), the look toward the Sun: **3** |
+| within a kilometre of the eye | and the wisps: **4** |
+| while the rise crosses its wrap (16 % of the clock) | the masses and the look toward the Sun are each read twice: **5** |
+| inside a storm cell | the field's A, the cell's own boiling noise, the masses: **3** (its light is an exact chord, no read) |
+
+Per ray, not per step: field B once (the Sun the mid and high layers leave), and where rain is
+falling within reach, field C once and A and B twice more. On a fair day with no rain the shafts
+are not crossed at all.
+
+
 ## Open
 
 ## Asked of the main session
