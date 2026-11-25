@@ -298,8 +298,9 @@ SHEET_SQUASH 0.667 (the pattern squashed upright, so a deck's lumps lie flat), S
 0.92, MID_SHADE 0.72; HIGH_STRETCH 7 (how far cirrus is drawn out along its own wind),
 HIGH_ALPHA 0.5, HIGH_ANVIL 0.97, HIGH_UNDER 0.45; HALO 0.062 (the 22-degree halo).
 
-**`FOG_LOOK` (src/sky/fogSheet.js)**: SPAN 60 km, N 129, EDGE 40 m, LUMP 900 m, LIFT 18 m,
-ALPHA 0.97, BRIGHT 1.06.
+**`FOG_LOOK` (src/sky/fogSheet.js)**: SPAN 60 km, N 129, EDGE 40 m, LUMP 900 m, ALPHA 0.97,
+BRIGHT 1.06. (Its top is level, as a lake of mist is; the lumps are in what it takes of the
+light behind it, not in its height.)
 
 **`LENS_LOOK` (src/sky/lenticulars.js)**: MAX 12 plates, FLAT 0.11, GAP 1.35, SHADE 0.66,
 RIM 0.35, EDGE 0.22.
