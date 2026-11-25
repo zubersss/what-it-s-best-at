@@ -516,6 +516,10 @@ t=3 and t=9, with the heaps' bases at 1 250 m and their tops at 2 575.
   is there is the wisps — the great soft patches torn out of a cloud within a kilometre of the
   eye, which cost no read of their own. A raining base keeps its clean line. Its constant was
   taken out rather than left dead.
+- **`?at=haven:3` does not move the camera** for the world one is standing on: it drew the
+  opening view at the eye (and, being a ground view with trees, took the full twenty minutes
+  doing it). Haven from space is taken with `alt=500000&pitch=-55` instead. Worth a line in
+  `CLAUDE.md`, or a guard that says so, for whoever owns `at=`.
 - **A stray `peek.png`** (12 KB) sits at the top of the repository: it came in with package C
   and is now in the owning branch. Not mine to delete, but worth sweeping up.
 - **The rise's fades** cost one more read of the masses and one of the look toward the Sun (16 %
