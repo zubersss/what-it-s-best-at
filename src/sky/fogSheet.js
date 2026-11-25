@@ -82,7 +82,7 @@ export function frameAt(q) {
 export class FogSheet {
   constructor(renderer) {
     this.renderer = renderer;
-    this.off = false; this.ready = false;
+    this.off = false; this.ready = false; this.thin = false;
     this.uniforms = {
       ...lightingUniforms(), uSkyLow: SKY_UNIFORMS.uSkyLow, tWxA: SKY_UNIFORMS.tWxA, tWxB: SKY_UNIFORMS.tWxB, tWxC: SKY_UNIFORMS.tWxC,
       tCloudNoise: SKY_UNIFORMS.tCloudNoise, uCloudSteer: SKY_UNIFORMS.uCloudSteer, uCloudRise: SKY_UNIFORMS.uCloudRise,
@@ -96,8 +96,11 @@ export class FogSheet {
     this.material = mat;
     // (the grid's x and y run from -(N-1)/2 to (N-1)/2 in whole steps: a lattice, not a plane of
     // its own size, so the vertex shader can snap it to the world)
-    const geo = new THREE.PlaneGeometry(F.N - 1, F.N - 1, F.N - 1, F.N - 1);
-    this.mesh = new THREE.Mesh(geo, mat);
+    // the lattice, and a coarser one for the governor's step (half as many points a side: a
+    // quarter of the triangles, and the same places of the world, since the step is doubled)
+    const grid = (n) => new THREE.PlaneGeometry(n - 1, n - 1, n - 1, n - 1);
+    this.fine = grid(F.N); this.coarse = grid((F.N + 1) / 2);
+    this.mesh = new THREE.Mesh(this.fine, mat);
     this.mesh.frustumCulled = false; this.mesh.renderOrder = 950;
     this.scene = new THREE.Scene(); this.scene.add(this.mesh);
     this._anchor = null;
@@ -157,8 +160,18 @@ export class FogSheet {
     c.renderer.render(this.scene, c.rig.camera);
   }
 
-  saving() {}
-  live() { return false; }
-  has(id) { return id === 'fog'; }
+  // The governor's step and the benchmark's part. Thinned, the sheet is a lattice of half as
+  // many points a side over the same 60 km (a quarter of the triangles, standing on the same
+  // places of the world: the step is doubled, so every coarse point is a fine one). The fog is
+  // still there, as a step must leave what the place is about.
+  saving(id, off) {
+    if (id !== 'fog-sheet') return;
+    this.thin = !!off;
+    this.mesh.geometry = this.thin ? this.coarse : this.fine;
+    this.uniforms.uStep.value = F.SPAN / (F.N - 1) * (this.thin ? 2 : 1);
+  }
+
+  live(id) { return id === 'fog-sheet' && this.ready; }
+  has(id) { return id === 'fog' || id === 'fog-sheet'; }
   partOut(id, out) { if (id === 'fog') this.off = !!out; }
 }

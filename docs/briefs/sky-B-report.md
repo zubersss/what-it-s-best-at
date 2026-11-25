@@ -415,8 +415,8 @@ HIGH_ALPHA 0.5, HIGH_ANVIL 0.97, HIGH_UNDER 0.45; HALO 0.062 (the 22-degree halo
 BRIGHT 1.06. (Its top is level, as a lake of mist is; the lumps are in what it takes of the
 light behind it, not in its height.)
 
-**`LENS_LOOK` (src/sky/lenticulars.js)**: MAX 12 plates, FLAT 0.11, GAP 1.35, SHADE 0.66,
-RIM 0.35, EDGE 0.22.
+**`LENS_LOOK` (src/sky/lenticulars.js)**: MAX 12 plates, THIN_MAX 3 (the governor's step),
+FLAT 0.11, GAP 1.35, SHADE 0.66, RIM 0.35, EDGE 0.22, THICK 140 m.
 
 ## Cost (headless work counts; the phone decides)
 
@@ -493,6 +493,34 @@ this.cloudVolume.place(rig.pos, this.frame);                // beforeScene
 
 Nothing of B's own files was changed upstream, so the merge was clean and the frozen builds no
 longer need a patch of their own.
+
+## Asked of the main session — **still wanted** (two lists in `src/sky/skySystem.js`)
+
+The fog sheet and the lenses are now the only drawn things of the sky with no step in the
+governor's ladder and no part the benchmark's cost test can leave out. Their module side is
+built and tested (`scripts/fog-sheet-test.mjs`, `scripts/lens-list-test.mjs`); what is wanted is
+the wiring, which is in a file that is not mine:
+
+```js
+// SKY_SAVINGS (sky/skySystem.js)
+'fog-sheet': 'B: the fog on a lattice of half as many points a side (a quarter of the triangles)',
+lenses: 'B: the nearest three lenses, one plate each',
+// SKY_PARTS
+'lenses',
+// setSaving's switch
+case 'fog-sheet': this.fog.saving(id, off); break;
+case 'lenses': this.lenses.saving(id, off); break;
+// live's switch
+case 'fog-sheet': return !!this.fog.live(id);
+case 'lenses': return !!this.lenses.live(id);
+// partOut
+else if (id === 'lenses') this.lenses.partOut(id, out);
+```
+
+and then a step for each in `src/perf/governor.js`, cheapest visual loss first: the lenses
+before the fog (a lens is a small thing high up; the fog is what a valley at first light is
+about). Each thins and leaves the thing itself: with both steps on there is still a lens over
+every near summit and fog in every basin — `?debug=floor` shows it.
 
 ## Views on Haven with weather in them (the model, found in Node in seconds)
 

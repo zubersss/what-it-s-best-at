@@ -72,5 +72,24 @@ check('and at an anchor it moves by about one step, not by a swing of the whole 
   check('with no fog in reach nothing is drawn', dry.ready === false);
 }
 
+// the governor's step and the benchmark's part: a coarser lattice over the same ground, the fog
+// still there (a step thins; it does not take away what the place is about)
+{
+  const tri = (g) => g.index.count / 3;
+  const fine = tri(fog.mesh.geometry);
+  fog.saving('fog-sheet', true);
+  frame();
+  const coarse = tri(fog.mesh.geometry);
+  check('the governor\'s step quarters the sheet\'s triangles and keeps the fog',
+    coarse * 4 === fine && fog.ready === true && fog.uniforms.uStep.value === 2 * step,
+    `${fine} -> ${coarse} triangles, step ${fog.uniforms.uStep.value} m`);
+  check('and the step and the part are offered to the governor', fog.has('fog-sheet') && fog.has('fog') && fog.live('fog-sheet') === true);
+  fog.saving('fog-sheet', false); frame();
+  check('and it goes back when there is room again', tri(fog.mesh.geometry) === fine && fog.uniforms.uStep.value === step);
+  fog.partOut('fog', true); frame();
+  check('the benchmark can leave the fog out', fog.ready === false && fog.live('fog-sheet') === false);
+  fog.partOut('fog', false);
+}
+
 console.log(fails ? `fog-sheet-test: ${fails} FAILED` : 'fog-sheet-test: all passed');
 process.exit(fails ? 1 : 0);

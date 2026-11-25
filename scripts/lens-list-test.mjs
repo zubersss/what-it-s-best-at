@@ -113,5 +113,21 @@ check('a lens faded below 0.02 is not drawn', L.list.length === 0);
   check('the plates still follow the traveller in between', moved > 400, `${Math.round(moved)} m`);
 }
 
+// 9. the governor's step: the nearest few lenses, one plate each, and they are still there
+{
+  const L3 = new Lenticulars(null);
+  const three = [0.02, 0.04, 0.06, 0.08, 0.1].map((a) => ({ ...lens, x: Math.cos(a), y: Math.sin(a), z: 0, plates: 3 }));
+  L3.update(frame({ on: true, lenses: () => three }));
+  const full = L3.list.length;
+  check('every lens asks for its plates', full === LENS_LOOK.MAX, `${full} plates`);
+  L3.saving('lenses', true);
+  L3.update(frame({ on: true, lenses: () => three }));
+  check('the governor\'s step leaves the nearest few, one plate each', L3.list.length === LENS_LOOK.THIN_MAX && L3.list.length > 0, `${L3.list.length} plates`);
+  check('and it answers to the governor and to the benchmark', L3.has('lenses') === true && L3.live('lenses') === true);
+  L3.partOut('lenses', true);
+  L3.update(frame({ on: true, lenses: () => three }));
+  check('the benchmark can leave the lenses out', L3.list.length === 0 && L3.live('lenses') === false);
+}
+
 console.log(fails ? `lens-list-test: ${fails} FAILED` : 'lens-list-test: all passed');
 process.exit(fails ? 1 : 0);
