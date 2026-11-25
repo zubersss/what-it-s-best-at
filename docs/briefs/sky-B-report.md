@@ -208,10 +208,11 @@ All at 880 x 412, dsf 1.25, from frozen builds, in
 
 **Which build each picture came from.** The frozen builds step with the fixes below:
 `buildB6` was the first from A's model, `buildB8` adds the anvil's torn edge and the patchy
-mackerel sky, `buildB10` the lenses that are drawn at all, `buildB11` merges package C (the
-clouds' shadow on the land, the trees and the rocks: from here the pictures show B and C
-together, which is what the traveller will see), and `buildB12` the storms at the governor's
-floor. Each picture's build is named beside it when it matters.
+mackerel sky, `buildB10` the lenses that are drawn at all, `buildB12` the storms at the
+governor's floor, `buildB14` the anvils at their own height and whole over their towers. From
+then on the owning branch had merged all four sky packages and B's four lines, so the last
+pictures are `buildC1` — that merge with this branch's eleven newer commits on top — against
+`buildQ2`, the owning head alone. Each picture's build is named beside it when it matters.
 
 **Before and after.** "Before" is the owning branch's own head (`ccr-aa39490a-qiw63x`, built as
 `buildQ`) and "after" is this branch, with the four lines of "Asked of the main session" patched
