@@ -146,7 +146,12 @@ export default {
   // and the clock they run on. seed: which days; epoch: the weather clock's zero; dayStart: the
   // hour (UTC) at which the world's day begins: solar midnight at the opening place (the scene's
   // 17:00 UTC is 08:00 there).
-  weather: { recipe: 'made', seed: 1, epoch: '2024-09-01T00:00:00Z', dayStart: 9 },
+  weather: { recipe: 'made', seed: 23, epoch: '2024-09-01T00:00:00Z', dayStart: 9,
+    land: 'data/haven_wxland_1024.u8', peaks: 'data/haven_peaks.json',
+    // the day's low wind (m/s on the steering's great circle): calm days near 2, gales near 22,
+    // skewed toward the light end; easterly on 15 % of days (src/weather/sky/steer.js)
+    steering: { low: { max: 20, least: 1.2, easterly: 0.15, easterlyMax: 9, shape: 1.15, change: 0.25 } },
+  },
 
   sky: { stars: { url: 'data/stars_bsc5.f32' } },
 

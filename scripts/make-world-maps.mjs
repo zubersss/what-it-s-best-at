@@ -4,6 +4,8 @@
 //                                      127.5 + 127.5 sign(s) sqrt(min(|s|, 1)), as scripts/fetch-maps.py makes them)
 //   haven_water_2048.jpg, _512.jpg     white where water lies: the sea, the lakes, the great rivers
 //   haven_clouds_<W>.jpg, _512.jpg     a day's clouds
+//   haven_wxland_1024.u8               the land as the day's weather needs it (src/weather/sky/land.js)
+//   haven_peaks.json                   its summits: place, height, prominence, the bearing of their ridge
 // The colours are the same rule the game uses round the traveller (src/terrain/tiles/madeLand.js).
 //
 //   node scripts/make-world-maps.mjs [--width 4096] [--data public/data]
@@ -16,6 +18,7 @@ import { execFileSync } from 'node:child_process';
 import { noise3 } from '../src/terrain/height/noise.js';
 import { landAt, landNoise1, landNoise2, LAND_DEFAULTS } from '../src/terrain/tiles/madeLand.js';
 import { png, readPng } from './lib/png.mjs';
+import { makeWxLand, packWxLand, WxLand, WX_LAND } from '../src/weather/sky/land.js';
 
 const opt = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const W = +opt('width', 4096), H = W >> 1, N = W * H, DATA = opt('data', 'public/data'), SEED = +opt('seed', 7);
@@ -90,6 +93,19 @@ const toJpeg = (name, w, h, px, channels, out, quality, small) => { const f = pa
   let m = 0; for (let q = 0; q < N; q++) m += cloud[q * 3]; console.log(`the day's cloud: ${(m / N / 2.55).toFixed(0)} % of full, on average`);
   { const f = path.join(tmp, 'clouds.png'); fs.writeFileSync(f, png(W, H, cloud)); jobs.push([f, path.join(DATA, `haven_clouds_${W}.jpg`), 0, 85, 'L'], [f, path.join(DATA, 'haven_clouds_512.jpg'), 512, 85, 'L']); }
   say('clouds');
+}
+
+// --- the weather's land: the planes the day's weather is worked out over, and the summits
+// (src/weather/sky/land.js; the same rule the model uses when it has no file, so the two agree)
+{
+  const planes = makeWxLand({ dem: { data: dem, width: W, height: H }, width: +opt('wxwidth', 1024), radius: RADIUS });
+  fs.writeFileSync(path.join(DATA, `haven_wxland_${planes.width}.u8`), packWxLand(planes));
+  const peaks = planes.peaks.map((p) => ({ lat: +p.lat.toFixed(4), lon: +p.lon.toFixed(4), h: Math.round(p.h), prom: Math.round(p.prom), ridge: p.ridge }));
+  fs.writeFileSync(path.join(DATA, 'haven_peaks.json'), `${JSON.stringify({ version: WX_LAND.VERSION, radius: RADIUS, prominence: WX_LAND.PEAK_PROM, apart: WX_LAND.PEAK_APART, count: peaks.length, peaks }, null, 1)}\n`);
+  const land = new WxLand(planes);
+  const high = planes.peaks[0];
+  console.log(`  the weather's land: ${planes.width} x ${planes.height}, ${land.sites.length} trigger sites, ${peaks.length} summits over ${WX_LAND.PEAK_PROM} m of prominence (the highest ${Math.round(high.h)} m at ${high.lat.toFixed(2)}, ${high.lon.toFixed(2)})`);
+  say(`the weather's land (haven_wxland_${planes.width}.u8, haven_peaks.json)`);
 }
 
 // --- PNG -> JPEG
