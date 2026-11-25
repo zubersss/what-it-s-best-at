@@ -48,7 +48,7 @@ Pictures `haven_ledge_<view>_after6.png` beside `_r6before.png` (before: 73d6ef1
   are no longer worked out, and a glade's colour came in wherever the canopy's weight (a
   vertex quantity) was a little under full, along the triangles; glades now only where the
   canopy is open. Pairs `ledge_300_p60_after6b`, `ledge_300_p20_phone_after6b`,
-  `ledge_1000_p60_after6b` beside `_r6before`. Cost against the shader at d1a0174 (A6): the
+  `ledge_1000_p60_after6b` beside `_r6before`; `ledge_300_p60_after6c` and `ledge_300_p20_phone_after6c` again on the head with dfbf8c1 merged (the sky packages): the same, no facets. Cost against the shader at d1a0174 (A6): the
   opening view 95 %, the wood 97 %, 300 m up 92 %, 3 km up 89 %. (A run against 73d6ef1 in
   between read 106 to 120 % for the same shader; the same "before" read 1 283 and 1 372 ms on
   two runs: this machine's counts drift by a tenth and more between runs, and only the
