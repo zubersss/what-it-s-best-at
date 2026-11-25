@@ -129,7 +129,7 @@ void main() {
   vec3 sun = directSun(planetPos) * smoothstep(-0.09, 0.06, mu0);
   // (ice: a bright rim toward the Sun, and the 22-degree halo of a cirrostratus veil)
   float fwd = 0.75 + 0.9 * pow(max(cs, 0.0), 8.0);
-  if (high) fwd += ${glf(U.HALO)} * smoothstep(0.02, 0.0, abs(cs - 0.927)) * smoothstep(0.1, 0.4, cover);
+  if (high) fwd += ${glf(U.HALO)} * (1.0 - smoothstep(0.0, 0.02, abs(cs - 0.927))) * smoothstep(0.1, 0.4, cover);
   vec3 col = vec3(0.9) * (sun * fwd * shade + skyLight(uUpper.z > 0.5 ? -up : up, up) * 0.8) / PI;
   col = aerialPerspective(col, vRel);
   fragColor = vec4(col * uExposure * alpha, alpha);

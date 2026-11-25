@@ -95,3 +95,20 @@ whichever the world should pin into `src/worlds/haven.js`.
    this.cloudVolume.place(rig.pos, this.frame);    // (was: place(rig.pos))
    ```
    (It keeps the last frame's own otherwise, so nothing breaks before the change.)
+
+## Views on Haven with weather in them (the stub's presets; Node, seconds)
+
+`node /tmp/.../scan2.mjs` over a 120 km box round the opening place (the stub is a test pattern,
+so its weather is not the model's; these are the hours where there is something to look at):
+
+| preset | hour (t=) | what |
+| --- | --- | --- |
+| `sky:fair` | 13–14 | heaps over the high ground, cover to 0.93, bases 2.9–3.0 km |
+| `sky:fair` | 0–2 | a few heaps, cover to 0.6 over low ground (bases 0.9 km) |
+| `sky:front` | 13–14 | a whole rain deck: mean cover 0.53, 6 mm/h, base 0.6–1.7 km, top 5–7 km |
+| `sky:storm` | any | 5–6 cells within 60 km, cover to 0.98 |
+| `debug=storm` | any | one mature cell 8 km north-east of where the view opens |
+
+At the scene's own hour (t=0) the stub's fair preset has almost no cloud at the opening place
+(cover 0.02–0.13), so a picture taken there shows an empty sky: that is the test pattern, not the
+renderer. A's model paints the real cover.

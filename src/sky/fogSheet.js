@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { SKY_FIELD_GLSL, SKY_UNIFORMS } from './skyGlsl.js';
+import { makeSkyAt } from '../weather/sky/format.js';
 
 export const FOG_LOOK = Object.freeze({
   SPAN: 60000,       // m across the whole sheet
@@ -116,7 +117,7 @@ export class FogSheet {
       this._anchor = [base[0] + east[0] * ne * step + north[0] * nn * step, base[1] + east[1] * ne * step + north[1] * nn * step, base[2] + east[2] * ne * step + north[2] * nn * step];
     }
     // is there fog within reach? (the field at nine places: the sheet is drawn only where there is)
-    const out = this._at || (this._at = {});
+    const out = this._at || (this._at = makeSkyAt());
     let fog = 0;
     const look = (x, y, z) => { const v = sky.field.at([x, y, z], sky.t, out); fog = Math.max(fog, v.field.fogTop - v.field.country); };
     look(p.x, p.y, p.z);

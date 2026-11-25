@@ -162,9 +162,12 @@ float skyEdgeEat(float d, float e) {
 // A sheet of cover "sheet" whose own top is "share" of the layer's depth, at the height y:
 // a flat base, a lumpy rolled top, the same through its depth.
 float skySheetAt(float n, float sheet, float y, float share) {
+  // (nothing where there is no sheet: a smoothstep whose two edges meet is not defined, and a
+  // share of nothing met them)
+  float body = smoothstep(${glf(C.SHEET_BODY0)}, ${glf(C.SHEET_BODY1)}, sheet);
+  if (body <= 0.0 || share <= 0.001) return 0.0;
   float top = share * (${glf(C.SHEET_TOP)} + ${glf(C.SHEET_LUMP)} * n);
-  return smoothstep(0.0, ${glf(C.SHEET_BASE)} * share + 1e-4, y) * (1.0 - smoothstep(top - ${glf(C.SHEET_CROWN)} * share, top, y))
-       * smoothstep(${glf(C.SHEET_BODY0)}, ${glf(C.SHEET_BODY1)}, sheet);
+  return smoothstep(0.0, max(${glf(C.SHEET_BASE)} * share, 1e-3), y) * (1.0 - smoothstep(top - max(${glf(C.SHEET_CROWN)} * share, 1e-3), top, y)) * body;
 }
 // Where the noise is read for a place that is part heap and part sheet: the sheet squashes the
 // pattern upright, so its lumps lie flat (one read serves both).
@@ -193,8 +196,10 @@ export function skyHeapAtJS(n, c, y) {
 }
 export const skyEdgeEatJS = (d, e) => (d <= 0 ? d : clamp((d - e * C.EAT * (1 - d)) / (1 - C.EAT * (1 - d) * e + 1e-3), 0, 1));
 export function skySheetAtJS(n, sheet, y, share) {
+  const body = sstep(C.SHEET_BODY0, C.SHEET_BODY1, sheet);
+  if (body <= 0 || share <= 0.001) return 0;
   const top = share * (C.SHEET_TOP + C.SHEET_LUMP * n);
-  return sstep(0, C.SHEET_BASE * share + 1e-4, y) * (1 - sstep(top - C.SHEET_CROWN * share, top, y)) * sstep(C.SHEET_BODY0, C.SHEET_BODY1, sheet);
+  return sstep(0, Math.max(C.SHEET_BASE * share, 1e-3), y) * (1 - sstep(top - Math.max(C.SHEET_CROWN * share, 1e-3), top, y)) * body;
 }
 export function skyLowAtJS(noise, q, r, a, cover, sheet, share, y, fine) {
   const n = skyLowNoise2JS(noise, q, r, a);

@@ -52,6 +52,7 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { G } from '../render/globals.js';
 import { FAIR_GLSL, SKY_FIELD_GLSL, SKY_FIELD_UNIFORMS_GLSL, SKY_UNIFORMS } from './skyGlsl.js';
 import { CELL_GLSL, CELL_MAX } from '../weather/sky/cellShape.js';
+import { makeSkyAt } from '../weather/sky/format.js';
 
 // ---- the numbers of the look (the report lists them; the world file may pin them) ------------
 export const CLOUD_LOOK = Object.freeze({
@@ -64,8 +65,8 @@ export const CLOUD_LOOK = Object.freeze({
   CELL_TINT: [0.62, 0.66, 1.0],   // the slate-indigo its shade is pulled toward
   CELL_BOIL: 5.5,           // m/s: its noise boils upward in the cell's own moving frame (3..8)
   CELL_NOISE: 0.55,         // the share of the cell's own noise that eats at its hull
-  ROUND: 0.55, ROUND_K: 0.12,   // the light that comes round into a cloud from its sides, and how deep it reaches
-  FLOOR_HEAP: 0.45, FLOOR_DECK: 0.3,   // the least light a heap's and a deck's base keep (coloured shade, never black)
+  ROUND: 0.18, ROUND_K: 0.22,   // the light that comes round into a cloud from its sides, and how deep it reaches
+  FLOOR_DECK: 0.3,              // the least light a deck's base keeps (coloured shade, never black)
   GROUND_HALF: 0.5,         // under a storm the light from the ground below is halved
   MID_K: 1.2, HIGH_K: 0.35, // the Sun left by the layers above: exp(-MID_K mid - HIGH_K high)
   SCUD: 400,                // m under a raining base that ragged scud hangs
@@ -98,7 +99,7 @@ precision highp sampler3D;
 ${SKY_FIELD_UNIFORMS_GLSL}
 uniform sampler2D tCloudMap;   // (no field: the day's cloud map, the rule as it was)
 uniform vec4 uCloud;           // x cover, y longitude shift of the map (turns), z 1 / noise scale (1/m), w the reach (m)
-uniform vec4 uLayer;           // x the lowest base in reach (m, radius), y the depth to the highest top (m), z steps a slice, w time (s)
+uniform vec4 uLayer;           // x the lowest base in reach (m, radius), y the depth to the highest top (m), z steps in a near slice, w steps in a far one
 uniform vec3 uCamRight, uCamUp, uCamFwd;
 uniform vec4 uProj;            // x tan(half the vertical view angle), y aspect, z near, w far
 uniform float uSliceZ[SLICES + 1];   // where each slice of the distance from the eye begins and ends (m)
@@ -107,6 +108,7 @@ uniform float uDense;          // how solid the cloud is, against the plain meas
 uniform float uStorm;          // (no field: how much of a storm this is, from the world's weather)
 uniform float uFieldK;         // (no field: the world's radius in units of the fair-weather field's noise)
 uniform vec2 uFair;            // (no field: x the fair-weather cover, y how far round the eye the cloud is thinned (m))
+uniform float uLayerOn;        // 0 at the governor's last step: the field's own heaps and decks go to the far shell and only the storm cells are marched
 uniform vec4 uBolt[BOLTS];     // flashes inside the cloud: xyz where (from the camera, m), w how bright
 uniform vec4 uShaft;           // x 1 while rain shafts are drawn, y 1 while they are thinned (the governor), z the streaks' phase (0..1), w the highest base in reach (m)
 in vec2 vUv;
@@ -279,7 +281,7 @@ void main() {
   float b = dot(uCamPlanetPos, dir), disc = b * b - rc * rc;
   float qt = disc + rt * rt, qb = disc + rb * rb;
   float t0 = 1.0, t1 = -1.0;
-  if (qt > 0.0) {
+  if (qt > 0.0 && uLayerOn > 0.5) {
     float sT = sqrt(qt);
     if (rc < rb) { t0 = -b + sqrt(max(qb, 0.0)); t1 = -b + sT; }                               // below: up through the base to the top
     else if (rc < rt) { t0 = 0.0; t1 = (qb > 0.0 && b < 0.0) ? -b - sqrt(qb) : -b + sT; }      // inside: to the top, or down to the base
@@ -299,8 +301,8 @@ void main() {
 
   // steps: short near the eye, longer farther off; started at a different place in every pixel
   // so the layers of the march do not show
-  float n = uLayer.z;
-  if (gCells > 0) n = min(n * 1.7, 16.0);
+  float n = far ? uLayer.w : uLayer.z;
+  if (gCells > 0 && !far) n = min(n * 1.7, 16.0);
   float L = mB - mA;
   float jit = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
   // (the far slices are cut to clean shapes when they are laid: less grain there, a little banding instead)
@@ -362,7 +364,7 @@ void main() {
     }
     // the layer's own cloud at this place, from the field (one read) or from the day's map
     float ld = 0.0, y = 0.0, base = 0.0, depth = 1.0, share = 0.0, cover = 0.0, sheet = 0.0;
-    if (!far && t >= t0 && t <= t1 && cd < 0.75) {
+    if (!far && uLayerOn > 0.5 && t >= t0 && t <= t1 && cd < 0.75) {
       if (uSkyLow.w > 0.5) {
         vec4 A = skyTex2(tWxA, wxUV(up));
         vec4 Lf = skyLowOf(A);
@@ -406,12 +408,14 @@ void main() {
     // is dark because its own depth is above it; among scattered heaps the light comes down
     // between them)
     float above = gSigma * (1.0 - y) * depth * max(d, share) * 0.35 / max(gMu0, 0.25);
-    // (and among scattered heaps the light comes down between them: only a whole cover shuts it out)
-    above *= 0.3 + 0.7 * smoothstep(0.2, 0.9, cover);
-    // (a small cloud's shade is light: the Sun's light goes round inside it from its own sides; a
-    // deck's base is grey and a storm's slate. Two tones with a clean line between them.)
+    // Only a cover that is nearly whole stands between the Sun and what is under it: among
+    // scattered heaps the light comes down between them and goes round inside each one, so a
+    // fair heap is light all over. A sheet darkens by its own depth, however much sky is left
+    // beside it: that is what makes a deck grey and a rain deck nearly slate.
+    above *= max(smoothstep(0.74, 0.97, cover), share);
+    // (two tones with a clean line between them, the shade a light one: a poster's cloud)
     float lit = mix(${glf(K.SHADE)}, ${glf(K.LIT)}, smoothstep(0.4, 0.56, sunward));
-    lit *= clamp(exp(-above) + ${glf(K.ROUND)} * exp(-${glf(K.ROUND_K)} * above), mix(${glf(K.FLOOR_HEAP)}, ${glf(K.FLOOR_DECK)}, share), 1.0);
+    lit *= clamp(exp(-above) + ${glf(K.ROUND)} * exp(-${glf(K.ROUND_K)} * above), mix(1.0, ${glf(K.FLOOR_DECK)}, share), 1.0);
     // (no field: the storm patches the world's weather gave, as before)
     vec3 tint = vec3(1.0);
     if (uSkyLow.w < 0.5 && uStorm > 0.02 && y < 0.6) {
@@ -561,7 +565,7 @@ export const BOLTS = 2;
 export class CloudVolume {
   constructor(renderer) {
     this.renderer = renderer;
-    this.enabled = true; this.steps = 36; this.farSteps = 8; this.def = null; this.noise = null; this.active = false;
+    this._enabled = true; this.cellsOnly = false; this.steps = 36; this.def = null; this.noise = null; this.active = false;
     this.target = null; this.tw = 0; this.th = 0; this.farOn = false; this.shafts = true; this.shaftThin = false;
     this.out = new Set();
     this.bounds = { base: 0, baseHi: 0, top: 0 };
@@ -573,7 +577,7 @@ export class CloudVolume {
       uProj: { value: new THREE.Vector4() }, uCloudSteer: SKY_UNIFORMS.uCloudSteer, uCloudRise: SKY_UNIFORMS.uCloudRise,
       uSkyLow: SKY_UNIFORMS.uSkyLow, tWxA: SKY_UNIFORMS.tWxA, tWxB: SKY_UNIFORMS.tWxB, tWxC: SKY_UNIFORMS.tWxC,
       uCells: SKY_UNIFORMS.uCells, uCellCount: SKY_UNIFORMS.uCellCount,
-      uBolt: { value: [new THREE.Vector4(), new THREE.Vector4()] }, uShaft: { value: new THREE.Vector4(1, 0, 0, 0) },
+      uBolt: { value: [new THREE.Vector4(), new THREE.Vector4()] }, uShaft: { value: new THREE.Vector4(1, 0, 0, 0) }, uLayerOn: { value: 1 },
     };
     const defs = { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, HAZE_UV: 1, SLICES, COLS, ROWS, NEAR_SLICES, BOLTS, CELL_MAX };
     this.march = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: defs, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: MARCH, depthTest: false, depthWrite: false });
@@ -643,13 +647,25 @@ export class CloudVolume {
   // True while the noise is still being made (screenshots wait for it).
   get busy() { return !!this.def && !this.noise; }
 
+  // The governor's last cloud step ('cloud-volume') puts the field's own heaps and decks on the
+  // far shell. It does NOT take the storm cells away: they keep their towers, their darkness,
+  // their rain and their strokes, marched at five steps a slice. (A step thins; it does not
+  // remove what a place is about.)
+  get enabled() { return this._enabled; }
+  set enabled(v) { this._enabled = !!v; }
+  get farSteps() { return this.steps <= 22 ? 5 : 8; }
+
   // Is the volume to be drawn this frame? cam: the camera's place (planet-fixed, m);
   // layer: the cloud shell (clouds.js: its map and whether it is on).
   ready(cam, layer) {
     const v = this.def?.volume;
     // (wanted: it would be drawn here if the governor's saving were not on: the governor asks)
     this.wanted = !!(v && this.noise && layer.mesh.visible && cam.length() - this.radius < (v.above ?? 30000));
-    this.active = this.wanted && this.enabled;
+    // (with the layer off, the cells are still marched while one stands within reach: the last
+    // frame's list, since this is asked before the sky's frame reaches us)
+    const cells = this._sky?.cells || [];
+    this.cellsOnly = this.wanted && !this._enabled && cells.some((c) => c.dist < CELL_FAR);
+    this.active = this.wanted && (this._enabled || this.cellsOnly);
     return this.active;
   }
   get reach() { return this.def?.volume?.reach ?? 16000; }
@@ -662,17 +678,27 @@ export class CloudVolume {
     const v = this.def?.volume;
     if (!v) { this.base = null; return; }
     const field = sky?.field, R = this.radius;
-    if (!field?.on) { this.base = v.base ?? 1500; this.top = this.base + (v.thick ?? 3000); this.bounds.base = this.base; this.bounds.baseHi = this.base; this.bounds.top = this.top; return; }
+    // (a world whose weather has no field yet: the base stands the world file's height over the
+    // country smoothed round the traveller, as it did before the field — the whole sky's base
+    // then shifts a little as one flies, which is the very fault the field puts right. This path
+    // goes when every world has a field; until then it keeps Earth as it was.)
+    if (!field?.on) {
+      this.lift = this.groundAt ? this.groundAt(cam) : 0;
+      this.base = (v.base ?? 1500) + this.lift; this.top = this.base + (v.thick ?? 3000);
+      this.bounds.base = this.base; this.bounds.baseHi = this.base; this.bounds.top = this.top; this.rainNear = false;
+      return;
+    }
     // (nine places: under the traveller and eight round it at the reach, which is as far as the
     // layer is marched; a base is a thing of the country, smoothed over kilometres, so the
     // lowest and highest within reach are not missed between them)
-    const reach = this.reach, out = this._at || (this._at = {});
-    let lo = Infinity, loHi = 0, hi = -Infinity;
+    const reach = this.reach, out = this._at || (this._at = makeSkyAt());
+    let lo = Infinity, loHi = 0, hi = -Infinity, rain = 0;
     const look = (p) => {
       const a = field.at(p, sky.t, out);
       if (a.base < lo) lo = a.base;
       if (a.base > loHi) loHi = a.base;
       if (a.top > hi) hi = a.top;
+      if (a.field.rain > rain) rain = a.field.rain;
     };
     const r = cam.length(), east = [-cam.y, cam.x, 0], el = Math.hypot(east[0], east[1]) || 1;
     east[0] /= el; east[1] /= el;
@@ -696,6 +722,27 @@ export class CloudVolume {
     const hiWant = Math.ceil((loHi + step) / step) * step;
     if (!b.baseHi || hiWant > b.baseHi + 1 || hiWant < b.baseHi - step - 1) b.baseHi = hiWant;
     this.base = b.base; this.top = Math.max(b.top, b.base + 500);
+    // (is any rain falling within reach? Where none is, the shafts' looks into the field are not
+    // made at all: a fair day pays nothing for them)
+    this.rainNear = rain > 0.05;
+  }
+
+  // The world's coarse elevation (its first bundled raster: whole-world, Int16 metres), for
+  // the height the cloud base stands over. null: none.
+  setGround(raster) {
+    if (!raster || !raster.wrap) { this.groundAt = null; return; }
+    const { data, width: W, height: H } = raster, lon0 = raster.lon0 ?? 0, lat0 = raster.lat0 ?? 90, lat1 = raster.lat1 ?? -90;
+    const at = (lat, lon) => {
+      const fx = (((lon - lon0) / 360) % 1 + 1) % 1 * W - 0.5, fy = Math.min(H - 1.001, Math.max(0, (lat0 - lat) / (lat0 - lat1) * H - 0.5));
+      const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0, xa = ((x0 % W) + W) % W, xb = (xa + 1) % W;
+      const sc = raster.scale ?? 1, h = (x, y) => Math.max(0, data[y * W + x] * sc);
+      return (h(xa, y0) * (1 - tx) + h(xb, y0) * tx) * (1 - ty) + (h(xa, y0 + 1) * (1 - tx) + h(xb, y0 + 1) * tx) * ty;
+    };
+    this.groundAt = (p) => {
+      const len = p.length(), lat = Math.asin(p.z / len) * 57.29578, lon = Math.atan2(p.y, p.x) * 57.29578, k = 1 / Math.max(0.2, Math.cos(lat / 57.29578));
+      let sum = 0; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) sum += at(Math.max(-89.9, Math.min(89.9, lat + j * 0.4)), lon + i * 0.4 * k);
+      return sum / 9;
+    };
   }
 
   // Lightning inside the cloud: the uBolt setter (sky/skySystem.js calls it each frame with the
@@ -708,7 +755,7 @@ export class CloudVolume {
   // The governor's savings and the benchmark's parts (sky/skySystem.js calls these).
   saving(id, off) {
     if (id === 'rain-shafts') this.shaftThin = !!off;
-    else if (id === 'cloud-steps') { this.steps = off ? 22 : 36; this.farSteps = off ? 5 : 8; }
+    else if (id === 'cloud-steps') this.steps = off ? 22 : 36;
   }
   live(id) { return id === 'rain-shafts' ? !!this.wanted && this.shafts : !!this.wanted; }
   has(id) { return id === 'rain-shafts' || id === 'cells-far'; }
@@ -737,11 +784,15 @@ export class CloudVolume {
     // Is a cell standing beyond the reach? Only then are the two far slices marched and laid.
     const cells = sky?.cells || [];
     this.farOn = !this.out.has('cells-far') && cells.some((c) => c.dist > this.reach && c.dist < CELL_FAR);
+    // (with the layer off the far shell shows it everywhere: it must not fade out near the
+    // traveller, who would then fly through a hole in the sky)
+    u.uLayerOn.value = this.cellsOnly ? 0 : 1;
+    if (this.cellsOnly) layer.uniforms.uNearFade.value = 0;
     const slices = this.farOn ? SLICES : NEAR_SLICES;
     u.uSliceCount.value = slices;
     this.hasCellsNear = cells.some((c) => c.dist < this.reach + 6000);
     // (rain falls out of the cloud above: only a world whose weather says where it rains has it)
-    this.shafts = hasField && !this.out.has('rain-shafts');
+    this.shafts = hasField && !this.out.has('rain-shafts') && (this.rainNear || cells.some((c) => c.dist < CELL_FAR && c.rain > 0));
     const phase = ((sky?.noiseT ?? 0) * K.SHAFT_FALL / (v.scale ?? 5200) * 1.7) % 1;
     u.uShaft.value.set(this.shafts ? 1 : 0, this.shaftThin ? 1 : 0, phase < 0 ? phase + 1 : phase, this.bounds.baseHi || base);
     // The target is as large as the view can ever be (eight pictures of a quarter of the canvas
@@ -760,11 +811,13 @@ export class CloudVolume {
       this.fw = fw; this.fh = fh;
     }
     const tileW = Math.max(8, Math.round(post.viewW / SMALL)), tileH = Math.max(4, Math.round(post.viewH / SMALL));
-    // (down a column first: the near six slices are the first three columns, so with no storm
-    // beyond the reach the fourth column is never drawn and never read)
-    const tw = tileW * (this.farOn ? COLS : Math.ceil(slices / ROWS)), th = tileH * ROWS;
+    // The whole of the view that the slices are laid out in (every tile at its own place), and
+    // the part of it that is drawn: the slices go down a column first, so the six near ones are
+    // the first three columns and with no storm beyond the reach the fourth is neither drawn nor
+    // read, and the target is used in part exactly as it was before the far slices.
+    const tw = tileW * COLS, th = tileH * ROWS, twUsed = tileW * (this.farOn ? COLS : Math.ceil(slices / ROWS));
     this.tw = tw; this.th = th; this.tileW = tileW; this.tileH = tileH;
-    for (const t of [this.target, this.smooth]) { t.viewport.set(0, 0, tw, th); t.scissor.set(0, 0, tw, th); }
+    for (const t of [this.target, this.smooth]) { t.viewport.set(0, 0, tw, th); t.scissor.set(0, 0, twUsed, th); }
     u.uCamRight.value.copy(rig.right); u.uCamUp.value.copy(rig.up); u.uCamFwd.value.copy(rig.forward);
     u.uProj.value.set(Math.tan(rig.fov * Math.PI / 360), post.viewW / post.viewH, 0, 0); this.aspect = post.viewW / post.viewH;
     const z = u.uSliceZ.value;
@@ -778,7 +831,7 @@ export class CloudVolume {
     u.tCloudMap.value = layer.texture;
     u.uCloud.value.set(this.def.cover ?? 0.8, this.def.lon0 === -180 ? 0.5 : 0, 1 / (v.scale ?? 5200), this.reach);
     // (the governor's step count is for the whole ray: shared out among the near slices)
-    u.uLayer.value.set(this.radius + base, thick, Math.max(3, Math.round(this.steps / NEAR_SLICES) + 1), sky?.noiseT ?? time);
+    u.uLayer.value.set(this.radius + base, thick, this.cellsOnly ? 5 : Math.max(3, Math.round(this.steps / NEAR_SLICES) + 1), this.farSteps);
     this.lastTime = time;
     this.quad.material = this.march;
     r.setRenderTarget(this.target);

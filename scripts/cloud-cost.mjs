@@ -38,15 +38,22 @@ const reads = await page.evaluate(({ BREAK }) => {
     cv.march.fragmentShader = src.replace('    if (ld <= 0.001) continue;', '    if (ld <= 0.001) continue;\n    ld *= 0.5 + skyTex3(tCloudNoise, marchPattern(gCamQ, gDirQ, t) * 3.1).r;');
   }
   cv.march.defines.CLOUD_READS = 1; cv.march.needsUpdate = true;
-  const rise = window.__skyRise || null;
+  // a render target read back as floats, whatever the driver gives (half floats decoded here)
+  const half = (h) => { const s = (h & 0x8000) ? -1 : 1, e = (h >> 10) & 0x1f, f = h & 0x3ff; return e === 0 ? s * f * 5.9604644775390625e-8 : e === 31 ? (f ? NaN : s * Infinity) : s * Math.pow(2, e - 15) * (1 + f / 1024); };
+  const readRT = (rt, w, h2) => {
+    r.setRenderTarget(rt);
+    const type = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE);
+    let out;
+    if (type === gl.FLOAT) { out = new Float32Array(w * h2 * 4); gl.readPixels(0, 0, w, h2, gl.RGBA, gl.FLOAT, out); }
+    else { const u = new Uint16Array(w * h2 * 4); gl.readPixels(0, 0, w, h2, gl.RGBA, gl.HALF_FLOAT, u); out = new Float32Array(u.length); for (let i = 0; i < u.length; i++) out[i] = half(u[i]); }
+    r.setRenderTarget(null);
+    return out;
+  };
   const run = (ridePhase) => {
     const u = cv.uniforms.uCloudRise.value, keep = [u[0], u[1]];
     if (ridePhase != null) { u[0] = ridePhase; u[1] = 0.5; }       // (inside the rise's fade: two phases read)
     a.sky.beforeScene({ renderer: r, post: a.post, rig: a.rig, worldRadius: a.world.radius, time: 0, treesWanted: false });
-    const w = cv.tw, h = cv.th, buf = new Float32Array(w * h * 4);
-    r.setRenderTarget(cv.target);
-    gl.readPixels(0, 0, w, h, gl.RGBA, gl.FLOAT, buf);
-    r.setRenderTarget(null);
+    const w = cv.tw, h = cv.th, buf = readRT(cv.target, w, h);
     u[0] = keep[0]; u[1] = keep[1];
     // the most reads a step, by slice (the tiles go down a column first: slice = row + ROWS * col)
     const COLS = 4, ROWS = 2, tw = w / COLS, th = h / ROWS, out = [];
@@ -68,7 +75,7 @@ const reads = await page.evaluate(({ BREAK }) => {
   const plain = run(null), fade = run(0.02 * 4200);
   cv.march.defines.CLOUD_READS = 0; delete cv.march.defines.CLOUD_READS;
   cv.march.fragmentShader = src; cv.march.needsUpdate = true;
-  return { plain, fade, rise };
+  return { plain, fade };
 }, { BREAK });
 if (reads.error) { console.log(reads.error); await close(); process.exit(1); }
 
