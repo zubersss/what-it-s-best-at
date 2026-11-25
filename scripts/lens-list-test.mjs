@@ -58,13 +58,23 @@ if (fromObjects.length) {
   check('the plates are stacked round the base', Math.abs((mid[0] + mid[1]) / 2 - lens.base) < 1, `${mid.map((m) => m.toFixed(0)).join(', ')} m`);
 }
 
-// 4. a field with neither call nor snapshot draws nothing, and so does a sky with no clouds
+// 4. the nearest are taken, and what stands over the horizon is dropped
+{
+  const far = { ...lens, x: Math.cos(1.6), y: Math.sin(1.6), z: 0, plates: 1 };       // 400 km away round the world
+  const mid = { ...lens, x: Math.cos(0.08), y: Math.sin(0.08), z: 0, plates: 1 };     // 20 km away
+  L.update(frame({ on: true, lenses: () => [far, far, far, far, far, far, far, far, far, far, far, far, mid] }));
+  check('a lens over the horizon is not drawn', L.list.length > 0 && L.list.length <= LENS_LOOK.MAX, `${L.list.length} plates`);
+  const d = L.list.map((p) => Math.hypot(p.centre[0], p.centre[1], p.centre[2]));
+  check('and the nearest one is, though it came last in the list', d.length === 1 && d[0] < 30000, `${d.map((x) => Math.round(x / 1000) + ' km').join(', ')}`);
+}
+
+// 5. a field with neither call nor snapshot draws nothing, and so does a sky with no clouds
 L.update(frame({ on: true }));
 check('a field with neither a list nor a snapshot draws nothing', L.list.length === 0);
 L.update({ rig: { pos: cam }, sky: { field: { on: true, lenses: () => [lens] }, t: 0, R, noClouds: true } });
 check('?debug=noclouds takes the lenses too', L.list.length === 0);
 
-// 5. a lens that has faded out is not drawn
+// 6. a lens that has faded out is not drawn
 L.update(frame({ on: true, lenses: () => [{ ...lens, strength: 0.01 }] }));
 check('a lens faded below 0.02 is not drawn', L.list.length === 0);
 

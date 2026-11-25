@@ -137,10 +137,26 @@ export class Lenticulars {
     list.length = 0;
     if (!sky || sky.noClouds || this.off || !sky.field?.on) return;
     const all = lensList(sky.field, sky.t), R = sky.R, cam = c.rig.pos;
+    // The model lays them over the whole world (a dozen at a time, by its high summits), and this
+    // draws at most L.MAX plates: so the NEAREST are taken, and any that stands beyond the
+    // horizon from here is dropped. (Taking them in the order the model gives filled the twelve
+    // with lenses four hundred kilometres away — over the edge of a world 250 km in radius — and
+    // the one standing nine kilometres ahead was never drawn.)
+    const alt = Math.max(0, cam.length() - R);
+    const near = [];
     for (const L0 of all) {
+      if (!(L0.strength > 0.02)) continue;
+      const rr = R + L0.base;
+      const d = Math.hypot(L0.x * rr - cam.x, L0.y * rr - cam.y, L0.z * rr - cam.z);
+      // (the geometric horizon: as far as the eye reaches from its height, plus as far as the
+      // lens's own height reaches back, and a little over)
+      if (d > 1.2 * (Math.sqrt(2 * R * alt + alt * alt) + Math.sqrt(2 * R * L0.base + L0.base * L0.base))) continue;
+      near.push([d, L0]);
+    }
+    near.sort((a, b) => a[0] - b[0]);
+    for (const [, L0] of near) {
       if (list.length >= L.MAX) break;
       const strength = L0.strength;
-      if (!(strength > 0.02)) continue;
       const x = L0.x, y = L0.y, z = L0.z, base = L0.base;
       const len = L0.length, wid = L0.width, head = L0.heading, plates = Math.max(1, Math.min(3, Math.round(L0.plates)));
       const r = R + base, up = [x, y, z];
