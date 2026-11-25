@@ -141,9 +141,11 @@ export const SKY_SAVINGS = Object.freeze({
   'rain-shafts': 'B: no streak read in the shafts, one look into the field',
   'cloud-shade-rate': "C: the shade map's middle window every other frame",
   'cloud-shade-coarse': 'C: the shade from the middle window only (220 m): the shadows stay, coarser',
+  lenses: 'B: the nearest three lenses, one plate each',
+  'fog-sheet': 'B: the fog on a lattice of half as many points a side (a quarter of the triangles)',
 });
 // The parts the benchmark's cost test can leave out one at a time (perf/benchmark.js PARTS_OUT).
-export const SKY_PARTS = Object.freeze(['clouds-all', 'cloud-shade', 'cloud-upper', 'cells-far', 'rain-shafts', 'fog']);
+export const SKY_PARTS = Object.freeze(['clouds-all', 'cloud-shade', 'cloud-upper', 'cells-far', 'rain-shafts', 'fog', 'lenses']);
 
 // ?debug= -> what the sky does with it
 export function skyDebug(str = '') {
@@ -507,6 +509,8 @@ export class SkySystem {
       case 'cloud-upper': this.upper.saving(id, off); break;
       case 'rain-shafts': this.cloudVolume.saving?.(id, off); break;
       case 'cloud-shade-rate': case 'cloud-shade-coarse': this.treeShade.saving?.(id, off); this.probe.saving(id, off); break;
+      case 'fog-sheet': this.fog.saving(id, off); break;
+      case 'lenses': this.lenses.saving(id, off); break;
     }
   }
   // whether a saving can buy anything here now (the governor passes by one that cannot)
@@ -518,6 +522,8 @@ export class SkySystem {
       case 'cloud-upper': return !!this.upper.live(id);
       case 'rain-shafts': return !!this.cloudVolume.live?.(id);
       case 'cloud-shade-rate': case 'cloud-shade-coarse': return !!this.treeShade.live?.(id);
+      case 'fog-sheet': return !!this.fog.live(id);
+      case 'lenses': return !!this.lenses.live(id);
     }
     return false;
   }
@@ -528,6 +534,8 @@ export class SkySystem {
       case 'cloud-upper': return !!this.upper.has(id);
       case 'rain-shafts': return !!this.cloudVolume.has?.(id);
       case 'cloud-shade-rate': case 'cloud-shade-coarse': return !!this.treeShade.has?.(id);
+      case 'fog-sheet': return !!this.fog.has(id);
+      case 'lenses': return !!this.lenses.has(id);
     }
     return false;
   }
@@ -539,6 +547,7 @@ export class SkySystem {
       case 'cloud-upper': return this.upper.has(id);
       case 'cells-far': case 'rain-shafts': return !!this.cloudVolume.has?.(id);
       case 'fog': return this.fog.has(id);
+      case 'lenses': return this.lenses.has(id);
     }
     return false;
   }
@@ -547,6 +556,7 @@ export class SkySystem {
     if (out) this.out.add(id); else this.out.delete(id);
     if (id === 'cloud-upper') this.upper.partOut(id, out);
     else if (id === 'fog') this.fog.partOut(id, out);
+    else if (id === 'lenses') this.lenses.partOut(id, out);
     else if (id === 'cells-far' || id === 'rain-shafts') this.cloudVolume.partOut?.(id, out);
   }
 
