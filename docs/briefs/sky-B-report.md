@@ -322,12 +322,13 @@ renderer. A's model paints the real cover.
 
 ## Open
 
-- **A's model.** Everything here is drawn against the stub's test pattern. Its weather is sparse
-  (a fair day near the opening place has 0.02–0.4 cover, and its only rain deck is at night), so
-  the pictures are taken at the hours and places where it puts cloud. The look's numbers will
-  want another pass once the model paints real cover.
-- **Anvils** need a list from the field (`field.anvils(t)`, A's): until it is there the high
-  shell draws cirrus alone.
+- **A's model** landed while this was being built, and the owning branch was merged in: the
+  pictures now come from the model, at the hours `scripts/find-weather.mjs --scene` names. The
+  look's numbers were tuned against the stub's thin test pattern and will want another pass
+  against the model's real cover.
+- **Anvils**: `field.anvils(t)` came with package A, and the sky system packs them into
+  `uAnvils`, so the high shell now draws them — solid where one lies, dark underneath, cirrus
+  streaks elsewhere. (The model also paints them into field B's high cover, so the two agree.)
 - **The lenses** are drawn now: every snapshot already holds its LENS records, and they stand
   still over the land, so `lenticulars.js` reads them out of the snapshot the field is blending
   when the field has no `lenses(t)` call of its own. **For A**: a `lenses(t)` on the field (as
