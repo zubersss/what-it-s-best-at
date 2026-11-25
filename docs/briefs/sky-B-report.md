@@ -419,7 +419,12 @@ renderer. A's model paints the real cover.
    It now asks the cells the sky system has already packed for the shaders this frame, which is
    what the march reads anyway (bd3e9e6). The floor is the picture that found it, which is the
    lesson about looking at `?debug=floor` after adding steps.
-9. **The anvil from 35 km** (`haven_ledge_M_storm35.png`) was the brightest thing in the frame —
+9. **Every anvil had a hole in it where its own tower passed through.** The shells are cut where
+   a tower stands (the march draws the tower itself, with its own depth), and the high shell is
+   where the anvils are drawn — so the cut took the anvil out exactly over the tower that made
+   it, and the sheet floated round the stalk. The anvil's cover is worked out before the cut now,
+   and where one lies the cut is not made (04c418a).
+10. **The anvil from 35 km** (`haven_ledge_M_storm35.png`) was the brightest thing in the frame —
    a smooth cream disc on a stalk, at 209/180/152 against a sky at 71/94/131. Seen from below an
    anvil is grey: 0.45 of its sunlit top became 0.32, and the cirrus strokes now thin and thicken
    the sheet itself, so it is drawn-out ice rather than a plate (225dcd2). What stays, and is not
