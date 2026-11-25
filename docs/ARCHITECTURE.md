@@ -1075,10 +1075,10 @@ it describe the code at 8411572.
   `land.js` works the same planes out of the elevation map in a second. From them come 1 073
   trigger sites for storms (proud high ground, the sea-breeze line 12 km inland).
 - **Where the field is on**: wherever a world's weather is `made`, unless `debug=noclouds`; on
-  Earth only under `?debug=sky:model`. **A fault at 8411572**: `SkySystem._makeField` asks for
-  `preset: 'fair'` when the URL names no `sky:` preset, so Haven's field is the stub's fair test
-  pattern unless the URL carries `debug=sky:model` (bookmarks 6 to 9 included). The default
-  should be the model.
+  Earth only under `?debug=sky:model`. With no `sky:` preset in the URL the field's producer is
+  the world's model (`debug=flash` alone takes the stub's storm, so a stroke is always near). Until
+  the fix of 2026-11-25 it was the stub's `fair` pattern: a whole merge drew no storm of the day
+  (sky-system-test check 12 now fails on that).
 
 **The clock**
 

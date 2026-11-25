@@ -628,6 +628,9 @@ if (BREAK === 'clock') {
     const { sky } = run('', true);
     // (sky B: the field is always on where the weather is made by rule: the clouds draw from it)
     check(sky.field.on || sky.field.busy, 'with no switch Haven has its field: the weather made by rule (sky B: the clouds draw from it)');
+    // (it was the stub's 'fair' test pattern for a whole merge: no storm of the day was drawn)
+    const pre = sky.field.opts?.preset ?? null;
+    check(!!sky.field.opts && (pre === null || pre === 'model') && !!sky.field.producer?.lenses, `with no switch the field is the world's own model, not the stub's test pattern (preset ${pre})`);
   }
   check(hourAtEpoch(haven.weather) === 15 && STUB_PRESETS.length === 4, "the stub's day: 15 h local at the weather clock's zero, so the scene's 17:00 UTC is 08:00 at the opening place");
 }

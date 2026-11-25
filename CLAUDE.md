@@ -407,8 +407,9 @@ finished benchmark leaves its text in `window.__benchResult`.
   vectors. A shader over a phone's limit draws nothing there and works in every headless
   test (the whole ground vanished on the phone at 17). `scripts/lib/glLimits.mjs` checks
   every program in `npm run smoke` and in screenshot runs. The terrain's fragment
-  shader is full, at 16 of 16 (its vertex shader reads 4 more, which a phone counts
-  apart): a new map there must take the place of one.
+  shader is at 15 of 16 since the clouds' shade atlas took the place of the cloud map and its
+  noise (its vertex shader reads more, which a phone counts apart): one map is free, and after
+  it a new map must take the place of one.
 - three uploads a changed texture at the draw call that first uses it, in the middle of
   the render pass, and with `generateMipmaps` has the GPU build the mips there. A phone's
   tile-based GPU must write the half-drawn picture out and read it back for that: every
