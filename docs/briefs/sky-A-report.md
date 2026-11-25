@@ -201,6 +201,15 @@ still thought its question to the ended one was pending. Fixed, with a check in
    `weather.land` and `weather.peaks`, so nothing is needed there, but the field is `busy` until
    they arrive (a picture waits for them, as it does for the first maps).
 3. **The bookmarks and cost views** above (they change the benchmark's route).
-4. **Earth's field** is not wired: `fromMaps` needs its three maps as bytes
+4. **Earth's field** (done, A2): `skyField` decodes Earth's three grey maps and `earth_storms.json`
+   as `weather.js` does and hands them to `fromMaps`; `?debug=sky:model` makes Earth's field (its
+   storm and flash switches stay `weather.js`'s). In the browser: both snapshots arrive, and the
+   field's rain at Jose, Katia, Irma, the Sahara and the North Atlantic is `weather.js`'s to the
+   hundredth of a mm/h. Two faults found on the way, each with a check that fails without its fix:
+   Earth's day was one snapshot handed out twice, and the worker's transfer of the first left the
+   second with nothing (sky-model-test 10); and on Haven the storm cells' cached list went out
+   with each snapshot uncopied, so the transfer emptied it and **every snapshot after the first in
+   a half-hour slot had no storm cells** (sky-model-test 8).
+   (Was: Earth's field is not wired: `fromMaps` needs its three maps as bytes
    (`{ data, w, h }` each) and `data/earth_storms.json`, which the page must decode as
-   `weather.js` does. Say the word and I will write that loader into `skyField`.
+   `weather.js` does. Say the word and I will write that loader into `skyField`.)

@@ -230,7 +230,10 @@ export class SkySystem {
     // The field: a world whose weather is made by rule, under a debug switch (step 0: nothing on
     // screen reads it yet). Made at the first frame, when the place the view opens at is known.
     const made = world.weather?.recipe === 'made', d = this.debug;
-    this.fieldWanted = made && !this.noClouds && !!(d.preset || d.storm || d.flash);
+    // (sky A: a world of a day's maps - Earth - makes its field from them under sky:model alone;
+    // its storm and flash switches stay weather.js's)
+    const maps = world.weather?.recipe === 'maps';
+    this.fieldWanted = !this.noClouds && ((made && !!(d.preset || d.storm || d.flash)) || (maps && d.preset === 'model'));
     this.raster = data?.rasters?.[0] || null;
     this.field.setWorld(null, null);
   }

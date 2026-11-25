@@ -525,6 +525,15 @@ if (wanted(7)) {
 if (wanted(8)) {
   say('8. storms');
   const p = producerFor(SWEEP);
+  // a worker transfers each snapshot it hands over: the next snapshot of the same half-hour slot
+  // must still carry the cells (the cached list was handed out and emptied by the transfer)
+  {
+    const { snapshotTransfer } = await import('../src/weather/sky/format.js');
+    const q = producerFor(256), t = tAt(DAY0, 16, CROWN.lon), counts = [];
+    let why = '';
+    try { for (const dt of [0, 120, 240, 0]) { const s = q.snapshot(t + dt); counts.push(s.cells.length); structuredClone(s, { transfer: snapshotTransfer(s) }); } } catch (e) { why = `; it threw: ${e.message}`; }
+    check(!why && counts[0] > 0 && counts.every((n) => n === counts[0]), `snapshots handed over one after another as the worker does keep their cells (${counts.map((n) => n / CELL.STRIDE).join(', ')} cells${why})`);
+  }
   // lightning near the Crown on afternoons
   let near = 0;
   const AFTERNOONS = 40;
@@ -628,6 +637,19 @@ if (wanted(10) && ON === 'model') {
     const r = await compareWithWeatherJs(earth, maps, mod);
     for (const line of r.lines) note(line);
     check(r.worstRain <= 0.02 && r.worstWind <= 0.02, `Earth's rain and ground wind at five places are within 2 % of today's (the worst rain ${(r.worstRain * 100).toFixed(2)} %, wind ${(r.worstWind * 100).toFixed(2)} %)`);
+    // a worker transfers each snapshot it is given: the next one must still be whole (Earth's day
+    // is one snapshot, made once; handing out the same buffers twice threw in the browser)
+    const { snapshotTransfer, fieldLayout } = await import('../src/weather/sky/format.js');
+    const sky = mod.createEarthSky({ weather: earth.weather, radius: earth.radius, maps, storms: maps.storms, layout: fieldLayout({ weather: { field: { width: 256 } } }) });
+    let ok = true, why = '';
+    try {
+      for (let k = 0; k < 3; k++) {
+        const s = sky.snapshot(k * 120);
+        structuredClone(s, { transfer: snapshotTransfer(s) });
+      }
+      const s = sky.snapshot(360); if (!(s.A.length > 0) || s.A.every((x) => x === 0)) { ok = false; why = 'the fourth came back empty'; }
+    } catch (e) { ok = false; why = e.message; }
+    check(ok, `Earth's snapshots, transferred one after another as the worker does, each have maps of their own${why ? ' (' + why + ')' : ''}`);
   }
 }
 
