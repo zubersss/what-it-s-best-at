@@ -28,6 +28,7 @@ export const LENS_LOOK = Object.freeze({
 const L = LENS_LOOK;
 const NO_LENS = [];
 const LENS_EVERY = 10;            // s of the game clock between one reading of the field's list and the next
+const LENS_REAL = 0.25;           // ... and at least this many seconds of the wall clock
 
 // The lenses standing now, each { x, y, z, base, length, width, heading, plates, strength }:
 // the field's own call where there is one (the model hands back objects), else the LENS records
@@ -121,7 +122,7 @@ void main() {
 export class Lenticulars {
   constructor(renderer) {
     this.renderer = renderer;
-    this.off = false; this.list = []; this._lenses = null; this._lensT = null; this._lensField = null;
+    this.off = false; this.list = []; this._lenses = null; this._lensT = null; this._lensField = null; this._lensReal = -1e9;
     this.uniforms = { ...lightingUniforms(), uCentre: { value: new THREE.Vector3() }, uAlong: { value: new THREE.Vector3() }, uAcross: { value: new THREE.Vector3() }, uUpAxis: { value: new THREE.Vector3() }, uStrength: { value: 1 }, uCamLocal: { value: new THREE.Vector3() } };
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1 }, uniforms: this.uniforms,
@@ -143,8 +144,12 @@ export class Lenticulars {
     // given (3.1 ms a call here, against 0.014 for one it has already seen). The plates are
     // built from it every frame all the same: where they stand is where the traveller is.
     const R = sky.R, cam = c.rig.pos;
-    if (!this._lenses || this._lensT == null || sky.field !== this._lensField || Math.abs(sky.t - this._lensT) > LENS_EVERY) {
-      this._lenses = lensList(sky.field, sky.t); this._lensT = sky.t; this._lensField = sky.field;
+    // (and not more often than LENS_REAL seconds of the wall clock, however fast the game's own
+    // clock is running: at sixty times real time, ten seconds of it go by six times a second)
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (!this._lenses || this._lensT == null || sky.field !== this._lensField
+      || (Math.abs(sky.t - this._lensT) > LENS_EVERY && now - (this._lensReal || -1e9) > LENS_REAL * 1000)) {
+      this._lenses = lensList(sky.field, sky.t); this._lensT = sky.t; this._lensField = sky.field; this._lensReal = now;
     }
     const all = this._lenses;
     // The model lays them over the whole world (a dozen at a time, by its high summits), and this

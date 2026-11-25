@@ -86,11 +86,11 @@ const MOVES = [
   { id: 'haven_climb', world: 'haven', shot: 'ledge', query: 'alt=1663&pitch=-60', step: { up: 2 }, stride: 175, slow: true },      // (stations at 150, 500 and 850 m: from 1.2 km up the opening place is in cloud)
   // (flying level under the heaps with the clock held: no cloud may move between frames, and
   // none of its light may crawl, as the traveller crosses 300 m of country)
-  // (over the low country west of the opening place, where the stub's fair heaps stand between
-  // 1 250 and 2 575 m and cover a third of the sky at this hour: at the opening place itself
-  // that preset has 0.01 cover then, and the test would watch an empty sky hold still)
-  { id: 'haven_cross', world: 'haven', shot: 'ledge', query: 'lat=-51.3&lon=46.978&alt=1150&pitch=8&heading=168&t=4&debug=sky:fair', step: { fwd: 1 }, stride: 300, slow: true },
-  // (a storm cell 8 km away, its tower, its slate base and its rain shaft, while the camera creeps)
+  // (under the model's own broken heaps on the second scene day: 0.55 cover, their bases 2 101 m
+  // over ground at 1 444, the low wind 11.8 m/s toward 86 degrees, and the camera 300 m under
+  // them looking across that wind. The stub's thin test pattern had nothing in this view: its
+  // `t=` is counted from the scene's own moment, not from the weather's epoch.)
+  { id: 'haven_cross', world: 'haven', shot: 'ledge', query: 'lat=-41.674&lon=59.442&alt=1800&pitch=8&heading=176&t=32&debug=sky:model', step: { fwd: 1 }, stride: 300, slow: true },
   { id: 'haven_storm_pass', world: 'haven', shot: 'ledge', query: 'alt=2600&pitch=4&heading=45&t=6&debug=storm', step: { fwd: 1 }, stride: 300, slow: true },
   { id: 'earth_forest_flight', world: 'earth', shot: 'ledge', query: 'lat=36.3&lon=247.9&alt=3000&heading=0&pitch=-25&t=5', step: { fwd: 1.5 }, stride: 300, slow: true },
 ];

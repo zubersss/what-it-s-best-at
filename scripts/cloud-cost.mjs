@@ -13,8 +13,9 @@
 //
 //   node scripts/cloud-cost.mjs [--distdir <build>] [--query "world=haven&shot=ledge&..."]
 //                               [--size 880x412] [--dsf 2.2] [--frames 5] [--out picture.png]
-//                               [--break read]
-// --break read puts one more read into the march's loop, to see the check fail.
+//                               [--break read] [--only reads]
+// --break read puts four more reads into every step of the march, to see the check fail.
+// --only reads stops after that first check (a couple of minutes instead of nine).
 import { writeFile } from 'node:fs/promises';
 import { open, opt, flag } from './lib/browser.mjs';
 import { png } from './lib/png.mjs';
@@ -36,10 +37,21 @@ const reads = await page.evaluate(({ BREAK }) => {
   if (!cv.active) return { error: 'the cloud volume is not drawn at this view' };
   const src = cv.march.fragmentShader;
   if (BREAK === 'read') {
-    // (one more read of the noise at every step: the fault the check guards against)
-    cv.march.fragmentShader = src.replace('    if (ld <= 0.001) continue;', '    if (ld <= 0.001) continue;\n    ld *= 0.5 + skyTex3(tCloudNoise, marchPattern(gCamQ, gDirQ, t) * 3.1).r;');
+    // (four more reads of the noise at EVERY step, whichever path the step takes: the fault the
+    // check guards against. Put inside the layer's path alone it was never run at a view whose
+    // cloud is all storm cells — the check then passed on a build broken on purpose.)
+    const at = 'void cloudStep(float t, float dt, bool far) {';
+    if (!src.includes(at)) return { error: 'the march has no cloudStep to break' };
+    cv.march.fragmentShader = src.replace(at, at + '\n  float brk = 0.0;\n  for (int bi = 0; bi < 4; bi++) brk += skyTex3(tCloudNoise, marchPattern(gCamQ, gDirQ, t + float(bi)) * 3.1).r;\n  if (brk < -1.0) return;');
   }
   cv.march.defines.CLOUD_READS = 1; cv.march.needsUpdate = true;
+  // The march must actually RUN under the counting shader, and what comes back must be the
+  // counts and not the ordinary picture: a step count is a whole number, a cloud's green is not.
+  // (Without this the check read whatever the last real frame had left in the target — a grey
+  // cloud, whose red over green is about 1 — and so passed on every build, broken or not.)
+  let marched = 0;
+  const origRender = cv.render.bind(cv);
+  cv.render = (...rest) => { marched++; return origRender(...rest); };
   // a render target read back as floats, whatever the driver gives (half floats decoded here)
   const half = (h) => { const s = (h & 0x8000) ? -1 : 1, e = (h >> 10) & 0x1f, f = h & 0x3ff; return e === 0 ? s * f * 5.9604644775390625e-8 : e === 31 ? (f ? NaN : s * Infinity) : s * Math.pow(2, e - 15) * (1 + f / 1024); };
   const readRT = (rt, w, h2) => {
@@ -51,6 +63,7 @@ const reads = await page.evaluate(({ BREAK }) => {
     r.setRenderTarget(null);
     return out;
   };
+  let counted = 0, whole = 0;
   const run = (ridePhase) => {
     const u = cv.uniforms.uCloudRise.value, keep = [u[0], u[1]];
     if (ridePhase != null) { u[0] = ridePhase; u[1] = 0.5; }       // (inside the rise's fade: two phases read)
@@ -64,11 +77,12 @@ const reads = await page.evaluate(({ BREAK }) => {
     for (let s = 0; s < COLS * ROWS; s++) {
       const col = Math.floor(s / ROWS), row = s % ROWS;
       let most = 0, steps = 0, pixels = 0, ray = 0;
+      // (counted and whole are the run's own, over every slice)
       for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
         const i = ((row * th + y) * w + col * tw + x) * 4;
         const reads = buf[i], n = buf[i + 1], alpha = buf[i + 2], all = buf[i + 3];
         if (!(n > 0) || alpha <= 0.002) continue;
-        pixels++;
+        pixels++; counted++; if (Math.abs(n - Math.round(n)) < 1e-3) whole++;
         ray = Math.max(ray, all - reads);
         const per = reads / n;
         if (per > most) { most = per; steps = n; }
@@ -78,11 +92,15 @@ const reads = await page.evaluate(({ BREAK }) => {
     return out;
   };
   const plain = run(null), fade = run(0.02 * 4200);
+  cv.render = origRender;
   cv.march.defines.CLOUD_READS = 0; delete cv.march.defines.CLOUD_READS;
   cv.march.fragmentShader = src; cv.march.needsUpdate = true;
-  return { plain, fade };
+  return { plain, fade, marched, counted, whole, broken: BREAK === 'read' };
 }, { BREAK });
 if (reads.error) { console.log(reads.error); await close(); process.exit(1); }
+
+check(`the counting shader itself ran, twice, and handed back counts and not a picture (${reads.marched} marches, ${reads.whole} of ${reads.counted} pixels a whole number of steps)`,
+  reads.marched >= 2 && reads.counted > 0 && reads.whole === reads.counted);
 
 const show = (rows) => rows.filter((r) => r.pixels > 0).map((r) => `slice ${r.slice}: ${r.most} a step over ${Math.round(r.steps)}, ${r.ray} a ray`).join('; ');
 console.log(`the march's reads a step, out of the rise's fade — ${show(reads.plain)}`);
@@ -94,6 +112,14 @@ check(`at most 4 reads a step out of the rise's fade (${worst(reads.plain, 2).to
   worst(reads.plain, 2) <= 4.01 && near(reads.plain) <= 5.01);
 check(`at most 6 in the fade, when the masses and the look toward the Sun are each read twice (${worst(reads.fade, 2).toFixed(2)} / ${near(reads.fade).toFixed(2)})`,
   worst(reads.fade, 2) <= 6.01 && near(reads.fade) <= 7.01);
+
+// (--only reads: the first check alone, in a couple of minutes, for the check's own sake)
+if (opt('only', '') === 'reads') {
+  console.log(bad ? `cloud-cost: ${bad} FAILED` : 'cloud-cost: the reads check passed');
+  if (errors.length) console.log('ERRORS', errors.slice(0, 3));
+  await close();
+  process.exit(bad ? 1 : 0);
+}
 
 // ---- 2. the limits a phone sets ------------------------------------------------------------------
 const use = await shaderUse(page);
@@ -120,8 +146,14 @@ const res = await page.evaluate(({ frames }) => {
   let lay = 1e9, march = 1e9, none = 1e9;
   for (let i = 0; i < frames; i++) { lay = Math.min(lay, draw('lay')); march = Math.min(march, draw('march')); none = Math.min(none, draw('none')); }
   draw('lay');
-  const w = post.viewW, h = post.viewH, f = new Float32Array(w * h * 4);
-  gl.readPixels(0, 0, w, h, gl.RGBA, gl.FLOAT, f);
+  // (the main picture is half floats: read back as floats it comes out as nothing, and "cloud
+  // on N % of the picture" was then whatever the driver left in the buffer)
+  const half = (x) => { const sg = (x & 0x8000) ? -1 : 1, e = (x >> 10) & 0x1f, m = x & 0x3ff; return e === 0 ? sg * m * 5.9604644775390625e-8 : e === 31 ? (m ? NaN : sg * Infinity) : sg * Math.pow(2, e - 15) * (1 + m / 1024); };
+  const w = post.viewW, h = post.viewH;
+  const type = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE);
+  let f;
+  if (type === gl.FLOAT) { f = new Float32Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.FLOAT, f); }
+  else { const u16 = new Uint16Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.HALF_FLOAT, u16); f = new Float32Array(u16.length); for (let i = 0; i < u16.length; i++) f[i] = half(u16[i]); }
   const out = new Uint8Array(w * h * 3); let cloudy = 0;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = ((h - 1 - y) * w + x) * 4, o = (y * w + x) * 3;
