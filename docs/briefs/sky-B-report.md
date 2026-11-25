@@ -334,6 +334,17 @@ renderer. A's model paints the real cover.
   icosphere of detail 48 has facets about 2 degrees across: 85 m on Haven, but 220 km on Earth,
   where the base varies over 15 km. On Haven it is right; when Earth gets a field, its shell will
   want either more vertices or a base that does not vary (one for the whole view).
+- **The near slices are laid at the distance each begins at** (step 0's scheme, kept): a sheet
+  over the whole view at that depth, so ground NEARER than the slice's start hides its cloud and
+  ground inside the slice does not. The error is bounded by the slice's width, and only shows
+  where cloud stands behind ground at a like distance — on Haven the far near slice runs from
+  9 km to the reach at 16 km, and a ridge 14 km off will not hide a heap 15 km beyond it. The far
+  cell slices do not have it: they lay each pixel at the distance its ray enters the cell
+  (`LAY_FAR`), which is what the brief's sixth check asks for. To put it right for the near
+  slices as well, the lay would want the same per-pixel depth, from the distance at which the ray
+  enters the layer — but `gl_FragDepth` in that pass costs every pixel of six full-view sheets
+  its early depth test, and laying is already 62 ms of the headless work count here. It wants a
+  phone's cost table before it is done, not a guess.
 - **The rise's fades** cost one more read of the masses and one of the look toward the Sun (16 %
   of the game clock). The alternative — reading the look toward the Sun at one phase — makes the
   two tones speckle while the phases blend, so it was not taken.
