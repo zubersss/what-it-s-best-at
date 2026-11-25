@@ -11,17 +11,31 @@ import * as THREE from 'three';
 import { G } from '../render/globals.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
-import { HEAP_GLSL, SKY_UNIFORMS, SKY_NOISE_UNIFORM_GLSL, SKY_STEER_UNIFORM_GLSL } from './skyGlsl.js';
+import { HEAP_GLSL, SKY_UNIFORMS, SKY_NOISE_UNIFORM_GLSL, SKY_STEER_UNIFORM_GLSL, SKY_FIELD_GLSL, SKY_V0 } from './skyGlsl.js';
 
 // The rule the shell, the volume and every shadow share (fair-weather fields, heaps carved
 // from the noise on the low layer's steering) lives in sky/skyGlsl.js; passed on from here
 // for the files that took it from here.
 export { FAIR_GLSL, HEAP_GLSL } from './skyGlsl.js';
 
+// a JS number as a GLSL float literal
+const glf = (x) => { const s = String(x); return /[.eE]/.test(s) ? s : s + '.0'; };
+
 const VERT = /* glsl */`
+${SKY_FIELD_GLSL}
+uniform float uShellR;         // the shell's radius with no field (m)
 out vec3 vRel;
 void main() {
-  vec4 w = modelMatrix * vec4(position, 1.0);
+  vec3 dir = normalize(position);
+  // With a field, every vertex stands where the cloud over ITS OWN place is widest: the sheet
+  // lies in the valleys and the heaps stand over the high ground, as the volume draws them near
+  // the traveller. (One sphere for the whole world put a deck through the mountains.)
+  float r = uShellR;
+  if (uSkyLow.w > 0.5) {
+    vec4 L = skyLow(dir);
+    r = uSkyLow.y + mix(L.z, L.w, ${glf(SKY_V0.WIDEST)});
+  }
+  vec4 w = modelMatrix * vec4(dir * r, 1.0);
   vRel = w.xyz;
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
@@ -39,6 +53,7 @@ uniform vec4 uVol;             // x: 1 / the noise's scale (1/m; 0: no volume), 
 uniform float uNearFade;       // metres: nearer than this the cloud is drawn as a volume instead (cloudVolume.js); 0: all of it is this shell
 in vec3 vRel;
 layout(location = 0) out vec4 fragColor;
+${SKY_FIELD_GLSL}
 ${HEAP_GLSL}
 float hash(vec3 p) { p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float vnoise(vec3 x) {
@@ -49,6 +64,9 @@ float vnoise(vec3 x) {
 void main() {
   vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos);
   float dist = length(vRel);
+  // (nearer than the volume's reach the cloud is marched instead: thrown out before anything is
+  // worked out for this pixel, not after)
+  if (uNearFade > 0.0 && dist < 0.7 * uNearFade) discard;
   vec3 V = -vRel / dist;
   // the map, its footprint taken from the direction itself (no seam where longitude wraps)
   vec2 uv = vec2(atan(up.y, up.x) * 0.15915494 + uCloud.z, acos(clamp(up.z, -1.0, 1.0)) * 0.31830989);
@@ -79,7 +97,28 @@ void main() {
   // (heaps, some kilometres wide, stay heaps until a pixel is a kilometre and a half across)
   float far = smoothstep(1500.0, 5000.0, 2.0 * min(length(ux), length(uy)) * uCloud.y);
   float relief = 1.0;            // the Sun on a heap's own shape: over 1 on its sunward side, under 1 in its own shade
-  if (uVol.x > 0.0) {
+  if (uSkyLow.w > 0.5) {
+    // The field's own cloud, carved by the shared forms at the height where the masses are
+    // widest: the same heaps and decks the volume marches near the traveller, so a cloud keeps
+    // its place and its outline when one comes near and the volume takes it over.
+    vec4 A = wxRead(tWxA, up);
+    vec4 L = skyLowOf(A);
+    float share = skyLowShare(A, L), rr = uSkyLow.y + mix(L.z, L.w, ${glf(SKY_V0.WIDEST)});
+    float fine = 1.0 - smoothstep(150.0, 600.0, px * rr);
+    vec3 q = skyFormQ(skyToLow(uCloudSteer, up) * (rr * uSkyLow.x), skyToLow(uCloudSteer, up), share);
+    vec2 n = skyLowNoise2(tCloudNoise, q, rr, uCloudRise.x);
+    float dv = skyEdgeEat(max(skyHeapBody(n.x, L.x), L.y > 0.0 ? smoothstep(0.02, 0.3, L.y) : 0.0), n.y * fine);
+    float c = max(L.x, L.y);
+    cover = mix(smoothstep(0.0, 0.45, dv) * 0.75, c * 0.5, far);
+    // A heap seen from above has a lit side and a side in its own shade: the same cloud a few
+    // hundred metres toward the Sun says which this is (as the volume does near the traveller).
+    if (far < 1.0) {
+      vec3 u1 = normalize(up + uSunDir * (450.0 / rr));
+      float n1 = skyLowNoise(tCloudNoise, skyToLow(uCloudSteer, u1) * (rr * uSkyLow.x), rr, uCloudRise.x);
+      float dv1 = skyHeapBody(n1, L.x);
+      relief = clamp(1.0 + 1.25 * (dv - dv1), 0.6, 1.24);
+    }
+  } else if (uVol.x > 0.0) {
     // With a volume near the traveller, this shell is the same clouds seen from far off: the
     // same cover (the day's map, and fair-weather fields where it is clear), carved by the
     // same noise at the height where the masses are widest. A cloud keeps its place and
@@ -151,7 +190,8 @@ export class CloudLayer {
     this.renderer = renderer;
     const blank = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); blank.needsUpdate = true;
     this.blank = blank; this.texture = blank;
-    this.uniforms = { ...lightingUniforms(), tCloudMap: { value: blank }, uCloud: { value: new THREE.Vector4(0.8, 1, 0, 1) }, uNearFade: { value: 0 }, uFair: { value: 0 }, tCloudNoise: { value: null }, uVol: { value: new THREE.Vector4() }, uCloudSteer: SKY_UNIFORMS.uCloudSteer };
+    this.uniforms = { ...lightingUniforms(), tCloudMap: { value: blank }, uCloud: { value: new THREE.Vector4(0.8, 1, 0, 1) }, uNearFade: { value: 0 }, uFair: { value: 0 }, tCloudNoise: { value: null }, uVol: { value: new THREE.Vector4() }, uCloudSteer: SKY_UNIFORMS.uCloudSteer,
+      uShellR: { value: 1 }, uSkyLow: SKY_UNIFORMS.uSkyLow, tWxA: SKY_UNIFORMS.tWxA, tWxB: SKY_UNIFORMS.tWxB, tWxC: SKY_UNIFORMS.tWxC, uCloudRise: SKY_UNIFORMS.uCloudRise };
     const mat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1 }, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: FRAG,
       side: THREE.DoubleSide, depthTest: true, depthWrite: false, transparent: true,
@@ -177,7 +217,7 @@ export class CloudLayer {
     this.mesh.visible = false; this.shadow.x = 0; this.loading = !!def;
     if (!def) return;
     this.radius = world.radius + def.altitude;
-    this.mesh.scale.setScalar(this.radius);
+    this.uniforms.uShellR.value = this.radius;
     const loader = new THREE.ImageBitmapLoader();
     loader.setOptions({ imageOrientation: 'none', premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
     loader.load(import.meta.env.BASE_URL + def.map, (bitmap) => {
@@ -198,9 +238,11 @@ export class CloudLayer {
     const on = !!this.def && this.enabled && this.texture !== this.blank;
     const v = this.def?.volume, match = !!(v && volume && volume.noise && volume.base != null);
     if (match) {
-      // (the shell stands where the volume's masses are widest: a third of the way up them)
-      this.radius = worldRadius + volume.base + 0.3 * (v.thick ?? 3000);
-      this.mesh.scale.setScalar(this.radius);
+      // (the shell stands where the volume's masses are widest: a third of the way up them. With
+      // a field each vertex stands over its own place, and this is only the mean, for the ground's
+      // own shadow rule and for how far the layer reaches)
+      this.radius = worldRadius + volume.base + 0.3 * Math.max(500, (volume.top ?? 0) - volume.base || (v.thick ?? 3000));
+      this.uniforms.uShellR.value = this.radius;
       this.uniforms.tCloudNoise.value = volume.noise;
       this.uniforms.uVol.value.set(1 / (v.scale ?? 5200), worldRadius / (v.scale ?? 5200) * 0.11, this.radius, SKY_UNIFORMS.uCloudRise.value[0]);
     } else this.uniforms.uVol.value.x = 0;

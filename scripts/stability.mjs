@@ -76,6 +76,11 @@ const MOVES = [
   // arriving or being filled again while one flies, which --streaming shows.)
   { id: 'haven_above_flight', world: 'haven', shot: 'ledge', query: 'lat=22.983&lon=129.507&alt=2190&pitch=-45', step: { level: 4 }, stride: 300, slow: true },
   { id: 'haven_climb', world: 'haven', shot: 'ledge', query: 'alt=1663&pitch=-60', step: { up: 2 }, stride: 175, slow: true },      // (stations at 150, 500 and 850 m: from 1.2 km up the opening place is in cloud)
+  // (flying level under the heaps with the clock held: no cloud may move between frames, and
+  // none of its light may crawl, as the traveller crosses 300 m of country)
+  { id: 'haven_cross', world: 'haven', shot: 'ledge', query: 'alt=2100&pitch=2&heading=90&t=5&debug=sky:fair', step: { fwd: 1 }, stride: 300, slow: true },
+  // (a storm cell 8 km away, its tower, its slate base and its rain shaft, while the camera creeps)
+  { id: 'haven_storm_pass', world: 'haven', shot: 'ledge', query: 'alt=2600&pitch=4&heading=45&t=6&debug=storm', step: { fwd: 1 }, stride: 300, slow: true },
   { id: 'earth_forest_flight', world: 'earth', shot: 'ledge', query: 'lat=36.3&lon=247.9&alt=3000&heading=0&pitch=-25&t=5', step: { fwd: 1.5 }, stride: 300, slow: true },
 ];
 // The list above is tuned by hand for the worlds it names. A world in the registry that
