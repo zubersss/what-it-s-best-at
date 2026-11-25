@@ -110,9 +110,9 @@ the package's own pictures instead.
   core is nearly solid. So a ridge in front hides a storm behind it and the shells behind a tower
   are hidden by it. (The plan's alpha-weighted mean distance would have needed a second target or
   a channel of the ALL pass; the entry of the chord is the same rule and cheaper.)
-- **Rain shafts** below the raining base: EVERY live cell's chord (not the two the stepping
-  found: a ray aimed at the rain goes under the cloud and meets no cell's body — check 8) and the
-  field's rain under decks,
+- **Rain shafts** below the raining base: every live cell's shaft chord, of which the two the ray
+  is really in are kept for the stepping (NOT the two the body's chords found: a ray aimed at the
+  rain goes under the cloud and meets no body — check 8) and the field's rain under decks,
   2 looks into the field and one into the noise for the falling streaks, virga where the base
   stands high over the land, a misty foot over field C's country height, grey-blue sky light with
   a silver glow toward a low Sun, and nothing within 600 m of the eye (D's streaks take over).
@@ -239,8 +239,11 @@ chord, and the shaft's stretch was built from those two — so the rain was draw
 a cell one was looking into, which is the one place from which a shaft cannot be seen. In the new
 check, of 241 rays fanned across a storm 20 km off from 2 km up, **61 crossed the rain without
 crossing the cloud** (a quarter of the fan, from 1.7 degrees below the horizontal to 3.3 above)
-and one crossed both. The shafts, and the rain's strength under them, now go over every live cell.
-Seen to fail with the old loop put back ("FAIL the march takes the shafts from every live cell").
+and one crossed both. The shafts are now looked for over every live cell, and the two the ray's
+rain is actually in are kept (`gShaftK`) exactly as the body's two are, so the stepping under the
+rain still pays for two cells however many storms stand in the line of sight. Both halves were
+seen to fail with the old loops put back ("FAIL the march looks for the shafts over every live
+cell", "FAIL and the rain under it is the shafts' own cells, at most two").
 
 The pictures of a cell and its shaft (`_M_cell9`, `_M_cellsun`) are therefore taken from a build
 made after the fix, not from the merged build the rest of them come from.

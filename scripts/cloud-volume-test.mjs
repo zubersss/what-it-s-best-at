@@ -67,10 +67,13 @@ check('with no cloud layer there is nothing to march', cv.ready(cam, { mesh: { v
   // and the march looks for the shafts over every live cell, not over the two its stepping found
   const fs = cv.march.fragmentShader;
   const block = fs.slice(fs.indexOf('float sA = 1.0'), fs.indexOf('// ---- the cloud, and the rain under it'));
-  check('the march takes the shafts from every live cell',
+  check('the march looks for the shafts over every live cell',
     /for \(int k = 0; k < CELL_MAX; k\+\+\)/.test(block) && /cellShaftChord\(k,/.test(block) && !block.includes('cellShaftChord(gCellK'),
     `${block.split('\n').length} lines of the shaft's stretch`);
-  check('and the rain\'s own strength under it likewise', !fs.includes('cellRain(gCellK'));
+  // and the stepping under the rain reads the two cells the shafts were found in, not the two the
+  // body's chords found (which may be none) and not all eight (which a line of storms would cost)
+  check('and the rain under it is the shafts\' own cells, at most two',
+    fs.includes('cellRain(gShaftK[c], p)') && !fs.includes('cellRain(gCellK') && !fs.includes('cellRain(k, p)'));
 }
 
 SKY_UNIFORMS.uCellCount.value = 0;
