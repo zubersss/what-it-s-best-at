@@ -33,6 +33,9 @@ export const UPPER_LOOK = Object.freeze({
   MID_CELL: 520,                  // m: a cloudlet of the mackerel sky (what counts as smaller than a pixel)
   MID_ALPHA: 0.92,                // the most a thick altostratus veil takes
   MID_SHADE: 0.72,                // its shaded side (two tones, as the heaps have)
+  MID_PATCH: 0.28,                // how much the field clumps into patches and lanes (0: an even screen)
+  MID_PATCH_K: 0.21,              // how large those patches are, against a cloudlet
+  ANVIL_TORN: 0.26,               // how far the cirrus strokes move an anvil's edge (a torn fringe)
   HIGH_STRETCH: 7,                // how far the high noise is drawn out along its own wind
   HIGH_ALPHA: 0.5,                // cirrus is never more than half there ...
   HIGH_ANVIL: 0.97,               // ... but an anvil is solid
@@ -101,7 +104,9 @@ void main() {
       an = max(an, anvilCover(k2, up));
     }
     if (an > 0.0) {
-      alpha = max(alpha, ${glf(U.HIGH_ANVIL)} * smoothstep(0.05, 0.35, an));
+      // (its edge is torn and fibrous, not a cut line: the same strokes the cirrus is made of
+      // move the line where it ends, so it ends in streaks drawn out downwind)
+      alpha = max(alpha, ${glf(U.HIGH_ANVIL)} * smoothstep(0.05 + ${glf(U.ANVIL_TORN)} * n, 0.35 + ${glf(U.ANVIL_TORN)} * n, an));
       shade = mix(shade, uUpper.z > 0.5 ? ${glf(U.HIGH_UNDER)} : 1.12, smoothstep(0.05, 0.5, an));
     }
   } else {
@@ -109,9 +114,14 @@ void main() {
     // is a grey-white veil with the Sun a pale disc behind it.
     float k = uUpper.y * uSkyLow.x * ${glf(U.MID_K)};
     float n = upperNoise(q * k);
-    if (uUpper.w < 0.5) n = 0.78 * n + 0.22 * upperNoise(q * (k * 2.3));
+    // (a mackerel sky comes in patches and lanes, not as an even screen of dots: a coarse look
+    // at the same noise thickens the cloudlets here and thins them there. It takes the place of
+    // the finer octave, which at this size is smaller than a pixel from anywhere: the same
+    // number of reads.)
+    float lumpN = n;
+    if (uUpper.w < 0.5) lumpN = n * (${glf(1 - U.MID_PATCH)} + ${glf(2 * U.MID_PATCH)} * upperNoise(q * (k * ${glf(U.MID_PATCH_K)})));
     float veil = smoothstep(0.45, 0.85, cover);                 // thick: altostratus
-    float lump = smoothstep(0.46, 0.62, n + 0.35 * cover);
+    float lump = smoothstep(0.46, 0.62, lumpN + 0.35 * cover);
     alpha = min(${glf(U.MID_ALPHA)}, mix(lump * cover * 1.8, 0.75 + 0.25 * cover, veil));
     // (its two tones: the side of each cloudlet turned from the Sun. Not in a veil, which is flat.)
     if (uUpper.w < 0.5 && veil < 1.0) {
