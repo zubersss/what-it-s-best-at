@@ -361,22 +361,24 @@ are not crossed at all.
    ```
    (It keeps the last frame's own otherwise, so nothing breaks before the change.)
 
-## Views on Haven with weather in them (the stub's presets; Node, seconds)
+## Views on Haven with weather in them (the model, found in Node in seconds)
 
-`node /tmp/.../scan2.mjs` over a 120 km box round the opening place (the stub is a test pattern,
-so its weather is not the model's; these are the hours where there is something to look at):
+`scripts/find-weather.mjs --scene` names the hours; the rest was found with the model's own
+`cells(t)`, `lenses(t)` and the world's height function (`scratchpad/wx.mjs`,
+`cell-behind-ridge.mjs`, `ridge2.mjs`). `t=` is hours from the scene's own moment
+(2024-09-22 17:00 UTC, which is 08 h local at the opening place).
 
-| preset | hour (t=) | what |
+| t= | what the model has | where to stand |
 | --- | --- | --- |
-| `sky:fair` | 13–14 | heaps over the high ground, cover to 0.93, bases 2.9–3.0 km |
-| `sky:fair` | 0–2 | a few heaps, cover to 0.6 over low ground (bases 0.9 km) |
-| `sky:front` | 13–14 | a whole rain deck: mean cover 0.53, 6 mm/h, base 0.6–1.7 km, top 5–7 km |
-| `sky:storm` | any | 5–6 cells within 60 km, cover to 0.98 |
-| `debug=storm` | any | one mature cell 8 km north-east of where the view opens |
+| −0.5 | mist 267 m deep in the low ground, none within 2 km of the ledge | the ledge, heading 150, pitch −12 |
+| 8.25 | five cells; the nearest 64 km off at bearing 243, its top 10.3 km, raining 39 mm/h | the ledge for the far skyline; lat −52.0691, lon 23.3976 at 4.2 km for its portrait with the Sun behind |
+| 33 | a front: four cells, the nearest 25 km off at 274, raining 26 mm/h | the ledge, heading 274 |
+| 53 | twelve lenticulars over the high summits; the Crown's own are 229 km off, so the nearest in daylight is at −28.30, 16.09 | lat −30.3666, lon 16.0940 at 3.6 km, heading 0 |
 
-At the scene's own hour (t=0) the stub's fair preset has almost no cloud at the opening place
-(cover 0.02–0.13), so a picture taken there shows an empty sky: that is the test pattern, not the
-renderer. A's model paints the real cover.
+The stub's presets (`?debug=sky:fair` and the rest) are still what the motion and anchoring
+checks use: a known, fixed pattern that does not move when A tunes the model. Its fair day peaks
+at 0.30 cover over the low country west of the opening place (lat −51.3, lon 46.978) between
+t=3 and t=9, with the heaps' bases at 1 250 m and their tops at 2 575.
 
 ## What the pictures showed, and what each one changed
 
