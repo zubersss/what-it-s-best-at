@@ -742,11 +742,11 @@ export class CloudVolume {
       this.bounds.base = this.base; this.bounds.baseHi = this.base; this.bounds.top = this.top; this.rainNear = false;
       return;
     }
-    // (nine places: under the traveller and eight round it at the reach, which is as far as the
-    // layer is marched; a base is a thing of the country, smoothed over kilometres, so the
-    // lowest and highest within reach are not missed between them. Asked again only when the
-    // traveller has gone a good way or the clock has moved on: the field is smooth over
-    // kilometres and the bounds are snapped to 250 m, and this is page work in every frame.)
+    // (a square of 25 places over the reach, which is as far as the layer is marched: the lowest
+    // base and the highest top among them bound the march. A ring of eight at the reach looked
+    // past everything between them. Asked again only when the traveller has gone a good way or
+    // the clock has moved on: the field is smooth over kilometres and the bounds are snapped to
+    // 250 m, so this is 0.2 ms every 800 m, not page work in every frame.)
     const a0 = this._placeAt;
     if (a0 && Math.abs(sky.t - this._placeT) < 20 && (cam.x - a0[0]) ** 2 + (cam.y - a0[1]) ** 2 + (cam.z - a0[2]) ** 2 < 800 * 800) return;
     this._placeAt = [cam.x, cam.y, cam.z]; this._placeT = sky.t;
@@ -764,9 +764,8 @@ export class CloudVolume {
     const up = [cam.x / r, cam.y / r, cam.z / r];
     const north = [up[1] * east[2] - up[2] * east[1], up[2] * east[0] - up[0] * east[2], up[0] * east[1] - up[1] * east[0]];
     const p = [0, 0, 0];
-    look([cam.x, cam.y, cam.z]);
-    for (let i = 0; i < 8; i++) {
-      const a = i * Math.PI / 4, ce = Math.cos(a) * reach, cn = Math.sin(a) * reach;
+    for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) {
+      const ce = i * reach * 0.5, cn = j * reach * 0.5;
       for (let k = 0; k < 3; k++) p[k] = cam.getComponent(k) + east[k] * ce + north[k] * cn;
       look(p);
     }
