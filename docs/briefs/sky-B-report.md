@@ -436,7 +436,7 @@ longer need a patch of their own.
 | t= | what the model has | where to stand |
 | --- | --- | --- |
 | −0.5 | mist 267 m deep in the low ground, none within 2 km of the ledge | the ledge, heading 150, pitch −12 |
-| 8.25 | five cells; the nearest 64 km off at bearing 243, its top 10.3 km, raining 39 mm/h | the ledge for the far skyline; lat −52.0691, lon 23.3976 at 4.2 km for its portrait with the Sun behind |
+| 8.25 | five cells; the nearest 64 km off at bearing 243, its top 10.3 km, raining 39 mm/h | the ledge for the far skyline; lat −52.0691, lon 23.3976 at 4.2 km for its portrait with the Sun behind (at that place and hour the Sun stands 26 degrees up at azimuth 308, so looking 120 has it over the shoulder) |
 | 33 | a front: four cells, the nearest 25 km off at 274, raining 26 mm/h | the ledge, heading 274 |
 | 53 | twelve lenticulars over the high summits; the Crown's own are 229 km off, so the nearest in daylight is at −28.30, 16.09 | lat −30.3666, lon 16.0940 at 3.6 km, heading 0 |
 
