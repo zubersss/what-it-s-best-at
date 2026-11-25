@@ -140,7 +140,13 @@ export class Weather {
     const p = rig.pos, len = p.length(), alt = len - this.radius;
     this.place[0] = p.x; this.place[1] = p.y; this.place[2] = p.z;
     localFrame([p.x, p.y, p.z], this._e, this._n, this._u);
-    if (this.def) { this._fromMaps(rig, dt, sunDir, day, sunE, alt, len); return; }
+    if (this.def) {
+      this._fromMaps(rig, dt, sunDir, day, sunE, alt, len);
+      // (?debug=noclouds: no cloud means nothing the cloud does, the storm's dark grade and the
+      // grey sky among it. The sky system takes the rain, the veil and the flash away itself.)
+      if (sky && sky.noClouds) setStorm();
+      return;
+    }
     if (sky && sky.here && !sky.noClouds) { this._fromField(rig, dt, sunE, alt, sky); return; }
     // a world without weather (and a made world before its field answers): a still, dry sky
     this.own = false; this.takesStrikes = !!(sky && sky.here); this.bolts = null;

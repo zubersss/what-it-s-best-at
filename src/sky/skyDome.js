@@ -7,6 +7,7 @@ import { G } from '../render/globals.js';
 import { fullscreenGeometry } from '../render/fullscreen.js';
 import { ATMO_UNIFORMS, ATMO_COMMON, ATMO_LUT_ACCESS, SKYVIEW_ACCESS } from '../atmosphere/atmosphereGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
+import { STORM } from '../weather/storm.js';
 
 export const RAY_VERT = /* glsl */`
 in vec3 position;
@@ -23,7 +24,7 @@ export function makeSkyDome() {
     glslVersion: THREE.GLSL3, defines: atmosphereDefines(),
     depthTest: false, depthWrite: false, transparent: true,
     blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
-    uniforms: { ...G },
+    uniforms: { ...G, uStorm: STORM.u },
     vertexShader: RAY_VERT,
     fragmentShader: /* glsl */`precision highp float; precision highp sampler2D;
       ${ATMO_UNIFORMS}
@@ -32,6 +33,8 @@ export function makeSkyDome() {
       ${SKYVIEW_ACCESS}
       uniform mat3 uSkyFrame; uniform vec3 uSunLocal; uniform vec3 uSunIrradiance; uniform float uExposure; uniform float uSkyFade;
       uniform vec3 uCamPlanetPos; uniform vec3 uSunDir; uniform vec4 uQuality; uniform vec4 uWeather;
+      // the storm overhead (weather/storm.js): x the light the cloud leaves, y its darkness, z the overcast
+      uniform vec4 uStorm;
       in vec3 vDir; out vec4 outColor;
       void main() {
         vec3 rd = normalize(vDir);
@@ -54,6 +57,13 @@ export function makeSkyDome() {
               L += (Ls + Lm * phaseHG3(dot(rd, uSunDir), uMieG)) * (1.0 - uSkyFade);
             }
           }
+        }
+        // Under a closed deck the sky is the deck's own grey, not blue: what little light comes
+        // through a nimbostratus or a storm's anvil has been through kilometres of cloud. (Only
+        // under a real deck: a heap passing overhead leaves the sky its colour.)
+        if (uStorm.z > 0.55 && uSkyFade > 0.0) {
+          vec3 grey = skyRadianceLocal(vec3(0.0, 0.0, 1.0), uSunLocal, uMieG) * (0.75 * uStorm.x);
+          L = mix(L, grey, 0.72 * smoothstep(0.55, 0.95, uStorm.z));
         }
         // Rain between the eye and the sky hides it as it hides the land (rainVeil in the
         // lighting chunk; uWeather.w a share a metre): through some 1 500 m of it overhead,

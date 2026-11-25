@@ -43,6 +43,7 @@ import { makeProducer } from '../src/weather/sky/producer.js';
 import { makeSkyAt } from '../src/weather/sky/format.js';
 import { Steer } from '../src/weather/sky/steer.js';
 import { landFromI16 } from '../src/weather/sky/stub.js';
+import { thunderLoudness } from '../src/audio/audio.js';
 import haven from '../src/worlds/haven.js';
 import earth from '../src/worlds/earth.js';
 
@@ -238,7 +239,12 @@ function earthWeather() {
   // (the last strokes' thunder is still on its way when the hour ends: up to three minutes for 60 km)
   const due = a.queued.filter((q) => q.at <= a.end).length;
   note(`Haven: ${a.queued.length} strokes in the hour, ${a.heard.length} heard; the delay is the distance over 343 m/s within ${worst === Infinity ? '-' : worst.toFixed(4)} s, heard at most ${late === Infinity ? '-' : late.toFixed(3)} s after its time`);
-  if (a.queued.length) note(`  the first five: ${a.queued.slice(0, 5).map((q) => `${(q.dist / 1000).toFixed(1)} km -> ${(q.dist / 343).toFixed(1)} s, power ${q.power.toFixed(2)}`).join('; ')}`);
+  if (a.queued.length) {
+    note('  the log (the stroke\'s moment, how far off, when its thunder arrives, how loud):');
+    for (const q of a.queued.slice(0, 8)) note(`    ${q.t.toFixed(1)} s  ${(q.dist / 1000).toFixed(1)} km  +${(q.dist / 343).toFixed(1)} s  loudness ${thunderLoudness(q.power, q.dist).toFixed(3)}`);
+    const near = a.queued.filter((q) => q.dist < 30000), loud = near.map((q) => thunderLoudness(q.power, q.dist));
+    note(`    ${near.length} of them within 30 km (loudness ${loud.length ? Math.min(...loud).toFixed(2) : '-'} to ${loud.length ? Math.max(...loud).toFixed(2) : '-'}), ${a.queued.filter((q) => q.dist > 50000).length} past 50 km (heard as nothing)`);
+  }
   check(a.queued.length >= 20 && worst <= 0.05 && late <= DT + 1e-6 && a.heard.length >= due - 1 && key(a) === key(b),
     `every stroke's thunder is queued for its own distance over 343 m/s and heard then (${a.queued.length} strokes, ${a.heard.length} of the ${due} due heard, within ${worst === Infinity ? '-' : worst.toFixed(4)} s), the same in two runs`);
 

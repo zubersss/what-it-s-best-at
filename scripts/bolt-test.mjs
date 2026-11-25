@@ -78,8 +78,9 @@ const makeRig = (pos, agl = 30) => ({ pos, agl, mode: 'hero', onFoot: false, thr
 
 // The first stroke to the ground within reach from a place: the weather and the bolt driven over
 // the frames that hold it.
-function strokeRun({ steps = 16, move = null, dt = 1 / 30 } = {}) {
+function strokeRun({ steps = 16, move = null, dt = 1 / 30, held = false } = {}) {
   const wx = new Weather(); wx.setWorld(haven);
+  if (held) wx.forceFlash = true;              // (a stroke held at its brightest, as ?debug=flash holds one)
   const b = new Bolt(G);
   const pos = atPos(R, START.lat, START.lon, 1500);
   const rig = makeRig(pos.clone());
@@ -104,7 +105,7 @@ function strokeRun({ steps = 16, move = null, dt = 1 / 30 } = {}) {
     for (let k = 0; k < steps; k++) {
       if (move) rig.pos.addScaledVector(move, dt);
       b.update(wx, rig.agl, 1);
-      frames.push({ cam: rig.pos.clone(), pts: worldPoints(b, rig.pos), visible: !!(b.mesh?.visible || b.slot?.visible) });
+      frames.push({ cam: rig.pos.clone(), pts: worldPoints(b, rig.pos), visible: !!(b.mesh?.visible) });
       const prev2 = t; t += dt;
       const f2 = skyFrame(t, prev2, rig);
       wx.update(rig, dt, SUN, 266, 1, f2);
@@ -114,20 +115,26 @@ function strokeRun({ steps = 16, move = null, dt = 1 / 30 } = {}) {
   return { wx, b, strike, frames, rig };
 }
 
-// The world place of every drawn vertex, as the vertex shader works it out: the stroke's own
-// anchor (a uniform, the camera to the stroke) plus the vertex's place in planet axes. Where
-// there is no anchor the vertices are the camera's own frame, as they were.
+// The world place of every DRAWN vertex, as the vertex shader works it out: the stroke's own
+// anchor (a uniform: the camera to the stroke's foot) plus the vertex's place in planet axes,
+// and nothing for the pieces the shader throws out of the picture. Where there is no anchor the
+// vertices are the camera's own frame, as they were. Keyed by the vertex, so a stroke that dies
+// mid-run cannot shift the comparison.
 function worldPoints(b, cam) {
   const geo = b.geo || b.mesh?.geometry;
-  if (!geo) return [];
-  const pos = geo.attributes.position.array, idx = geo.attributes.aBolt?.array;
-  const anchors = b.uniforms?.uBoltPos?.value || null;
-  const n = Math.min(pos.length / 3, geo.drawRange.count ? (geo.index ? pos.length / 3 : geo.drawRange.count) : pos.length / 3);
-  const out = [];
-  for (let i = 0; i < n; i++) {
-    const k = idx ? idx[i * 4] : 0;
+  if (!geo || !b.mesh?.visible) return new Map();
+  const pos = geo.attributes.position.array, bolt = geo.attributes.aBolt?.array;
+  const anchors = b.uniforms?.uBoltPos?.value || null, bright = b.uniforms?.uBoltBright?.value || null;
+  const idx = geo.index?.array || null;
+  const start = geo.drawRange.start || 0, count = Math.min(geo.drawRange.count, idx ? idx.length : pos.length / 3);
+  const out = new Map();
+  for (let i = start; i < start + count; i++) {
+    const v = idx ? idx[i] : i;
+    if (out.has(v)) continue;
+    const k = bolt ? (bolt[v * 4] | 0) : 0;
+    if (bolt && bright && !(bolt[v * 4 + 3] * bright[k] > 0)) continue;       // (the shader throws it out)
     const a = anchors ? anchors[k] : { x: 0, y: 0, z: 0 };
-    out.push([cam.x + a.x + pos[i * 3], cam.y + a.y + pos[i * 3 + 1], cam.z + a.z + pos[i * 3 + 2]]);
+    out.set(v, [cam.x + a.x + pos[v * 3], cam.y + a.y + pos[v * 3 + 1], cam.z + a.z + pos[v * 3 + 2]]);
   }
   return out;
 }
@@ -155,26 +162,30 @@ function worldPoints(b, cam) {
 {
   const fr = enu(START.lat, START.lon);
   const move = new THREE.Vector3(fr.n[0], fr.n[1], fr.n[2]).multiplyScalar(50);     // 50 m/s north
-  const run = strokeRun({ steps: 15, move });
-  const fs = run.frames.filter((f) => f.pts.length);
-  let worst = 0;
+  const run = strokeRun({ steps: 15, move, held: true });
+  const fs = run.frames.filter((f) => f.pts.size);
+  let worst = 0, kept = 0;
   if (fs.length > 1) {
-    const n = Math.min(...fs.map((f) => f.pts.length));
-    for (let i = 0; i < n; i++) for (const f of fs.slice(1)) {
-      const a = fs[0].pts[i], b2 = BREAK === 'camera' ? [f.pts[i][0] + (f.cam.x - fs[0].cam.x), f.pts[i][1] + (f.cam.y - fs[0].cam.y), f.pts[i][2] + (f.cam.z - fs[0].cam.z)] : f.pts[i];
-      worst = Math.max(worst, Math.hypot(a[0] - b2[0], a[1] - b2[1], a[2] - b2[2]));
+    for (const [v, a] of fs[0].pts) {
+      if (!fs.every((f) => f.pts.has(v))) continue;
+      kept++;
+      for (const f of fs.slice(1)) {
+        const q = f.pts.get(v);
+        const b2 = BREAK === 'camera' ? [q[0] + (f.cam.x - fs[0].cam.x), q[1] + (f.cam.y - fs[0].cam.y), q[2] + (f.cam.z - fs[0].cam.z)] : q;
+        worst = Math.max(worst, Math.hypot(a[0] - b2[0], a[1] - b2[1], a[2] - b2[2]));
+      }
     }
   }
-  note(`${fs.length} frames of a stroke while the camera flew ${(50 * 15 / 30).toFixed(0)} m: the vertices moved ${fs.length > 1 ? worst.toFixed(3) : '-'} m in planet axes`);
-  check(fs.length >= 8 && worst <= 0.05, `a stroke stands still in the world while the camera flies at 50 m/s (${fs.length > 1 ? worst.toFixed(3) + ' m' : 'no stroke was drawn'})`);
+  note(`${fs.length} frames of a stroke while the camera flew ${(50 * 15 / 30).toFixed(0)} m: ${kept} vertices drawn throughout, moving ${fs.length > 1 ? worst.toFixed(3) : '-'} m in planet axes`);
+  check(fs.length >= 8 && kept >= 30 && worst <= 0.05, `a stroke stands still in the world while the camera flies at 50 m/s (${fs.length > 1 ? worst.toFixed(3) + ' m over ' + kept + ' vertices' : 'no stroke was drawn'})`);
 }
 
 // ---- 4c, 4d, 4e. what is drawn --------------------------------------------------------------------
 {
-  const run = strokeRun({ steps: 4 });
+  const run = strokeRun({ steps: 4, held: true });
   const b = run.b, s = run.strike, geo = b.geo || b.mesh?.geometry;
   const drawn = geo ? geo.drawRange.count : 0;
-  const pts = run.frames.length ? run.frames[0].pts : [];
+  const pts = run.frames.length ? [...run.frames[0].pts.values()] : [];
   // the stroke's reach: from the cloud's base at the strike's place to the ground there
   let top = -Infinity, foot = Infinity, wander = 0;
   const dir = s ? [s.x, s.y, s.z] : null;
@@ -189,7 +200,7 @@ function worldPoints(b, cam) {
   const pieces = bolt.BOLT ? bolt.BOLT.PIECES : 0, strokes = bolt.BOLT ? bolt.BOLT.STROKES : 0;
   note(s ? `the strike: ${((s.h1 - s.h0) / 1000).toFixed(2)} km from the base (${Math.round(s.h1)} m) to the ground (${Math.round(s.h0)} m); drawn ${drawn} indices, ${pts.length} vertices; the stroke reached ${Math.round(foot)} to ${Math.round(top)} m, wandering ${Math.round(wander)} m` : 'no strike');
   const drop = s ? s.h1 - s.h0 : 1;
-  check(!!s && pts.length > 0 && strokes <= 4 && pieces >= 30 && pieces <= 64 && Math.abs(top - s.h1) < 150 && Math.abs(foot - s.h0) < 150 && wander < 0.25 * drop,
+  check(!!s && pts.length > 0 && strokes <= 4 && pieces >= 30 && pieces <= 64 && Math.abs(top - s.h1) < 150 && Math.abs(foot - s.h0) < 150 && wander < 0.2 * drop,
     `a stroke of ${pieces} pieces at most, ${strokes} at once, from the base to the ground (${s ? `${Math.round(foot)}-${Math.round(top)} m against ${Math.round(s.h0)}-${Math.round(s.h1)} m` : '-'}), wandering ${(100 * wander / drop).toFixed(0)} % of its drop`);
 
   // alpha 0, and the glow ribbon

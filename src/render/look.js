@@ -20,8 +20,13 @@
 // The principles are those of the landscape poster: few colours, each time of day its own
 // pair of them (the light's and the shade's), the far ground lost in the air layer by layer.
 import { G } from './globals.js';
+import { STORM } from '../weather/storm.js';
 
 const NEUTRAL = { sat: 1, contrast: 1, tint: 0, shade: [1, 1, 1], light: [1, 1, 1] };
+// A storm overhead has a grade of its own, blended in by how much of a storm the cloud over the
+// traveller is (weather/storm.js, written by weather.js): fewer colours, a little more contrast,
+// a cool shade and a flat grey-blue light. A world may give its own as look.storm.
+export const STORM_GRADE = { sat: 0.82, contrast: 1.12, shade: [0.86, 0.93, 1.12], light: [0.93, 0.96, 1.04] };
 const KEYS = [['night', -10], ['dusk', -2], ['low', 8], ['day', 30]];
 const mix = (a, b, t) => a + (b - a) * t;
 
@@ -58,6 +63,14 @@ export class Look {
     const A = { ...NEUTRAL, ...(g[a[0]] || {}) }, B = { ...NEUTRAL, ...(g[b[0]] || {}) }, n = this.now;
     n.sat = mix(A.sat, B.sat, t); n.contrast = mix(A.contrast, B.contrast, t); n.tint = mix(A.tint, B.tint, t);
     for (let k = 0; k < 3; k++) { n.shade[k] = mix(A.shade[k], B.shade[k], t); n.light[k] = mix(A.light[k], B.light[k], t); }
+    // ... and a storm overhead pulls all of it toward the storm grade (0 in fair weather, so
+    // nothing of the look changes where there is none)
+    const sg = this.debug?.includes('nostorm') ? 0 : STORM.grade;
+    if (sg > 0) {
+      const S = { ...STORM_GRADE, ...(d.storm || {}) };
+      n.sat = mix(n.sat, S.sat, sg); n.contrast = mix(n.contrast, S.contrast, sg);
+      for (let k = 0; k < 3; k++) { n.shade[k] = mix(n.shade[k], S.shade[k], sg); n.light[k] = mix(n.light[k], S.light[k], sg); }
+    }
     this.apply(n, (d.paint ?? 1) * near);
   }
 
