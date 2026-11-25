@@ -270,8 +270,22 @@ chords the shaders use):
 | the cell's portrait (`_M_cellsun`) | 15.3 % | 8.1 % | 7.4 % | 7.8 % |
 | the storm 20 km off (`_M_storm20`) | 5.7 % | 3.0 % | 2.8 % | 2.8 % |
 
-The last column is the share of the picture whose rain was drawn wrongly or not at all before
-today: **of the nine per cent of that view which stands in rain, eight and a half were missing or
+The map of that view says the same in a picture of its own (`node scripts/sky-map.mjs --t 8.25
+--view "-52.2848,29.7865,4500,243,3,70"`): the tower stands in the middle, its anvil spreads over
+the top, and the rain (`r`) fills the bottom third of the view, where nothing was drawn.
+
+```
+|......................TTTTTTTTTTTTTTTTTTTTTAaa....................|
+|.....................TTTTTTTTTTTTTTTTTTTTTTT......................|
+|hhhhhhhhhhhhhhh......TTTTTTTTTTTTTTTTTTTTTTTTc   .......c.........|
+|hhhhhhhhhhhhh............TTTTTTTTTTTTTTr..                     ...|
+|hhhhhhhhhhhh  ...........rrrrrrrrrrrrrrrr    ....                 |
+|hhhhhhh...vv.............rrrrrrrrrrrrrrrr      .....              |
+|vvvvvv. .................rrrrrrrrrrrrrrrr                         |
+```
+
+The last column of the table is the share of the picture whose rain was drawn wrongly or not at
+all before today: **of the nine per cent of that view which stands in rain, eight and a half were missing or
 cut off in mid-air**. `haven_ledge_Q_cell9.png` (the owning head) is the "before" and
 `haven_ledge_M_cell9.png` the "after".
 
