@@ -159,9 +159,22 @@ One read a step is the cell's own boiling noise: in the far slices the layer is 
 all, so nothing else is read there. `--break read` puts one more read into the loop, to see the
 check fail.
 
-**2. The motion (`node scripts/cloud-motion.mjs`).** Its first run showed a fault of its own: the
-view looked ALONG the day's wind, so the clouds came toward the eye and the picture moved one
-pixel in twenty seconds — nothing to measure. It looks across the wind now.
+**2. The motion (`node scripts/cloud-motion.mjs`).** Three runs of this check found three faults
+of the check, not of the clouds, and each is worth knowing:
+
+1. its first view looked ALONG the day's wind, so the clouds came toward the eye and the picture
+   moved one pixel in twenty seconds — nothing to measure;
+2. the second stood 3 km up at ten degrees above the horizon, over a layer whose top was
+   2 575 m: the slice it correlated was empty sky;
+3. the third was chosen from a Node scan that read the stub's `t` as hours since the weather's
+   epoch, while the game counts `?t=` from the scene's own moment, 521 hours later — so the hour
+   that had cloud in Node had none in the game. Both runs failed with "cover 0.000": **a
+   correlation of nothing moves nothing**, which is what a check that cannot fail looks like
+   from the other side.
+
+It now stands under the model's own broken heaps (t=32: 0.55 cover, no deck, their bases 2 101 m
+over ground at 1 444, the day's low wind 11.8 m/s toward 86 degrees), 300 m under them, looking
+across that wind. Its numbers are below as the run lands.
 
 **3. Anchoring (`node scripts/cloud-motion.mjs`).** The march is drawn from the camera's place,
 from 100 m away and from 10 km away, each aimed at the same point of the world, and every uniform
