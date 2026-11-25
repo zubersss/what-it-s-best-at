@@ -213,10 +213,17 @@ clouds' shadow on the land, the trees and the rocks: from here the pictures show
 together, which is what the traveller will see), and `buildB12` the storms at the governor's
 floor. Each picture's build is named beside it when it matters.
 
-**Before and after.** Since package A landed, "before" is the owning branch's own head
-(`ccr-aa39490a-qiw63x`, built as `buildQ`) and "after" is this branch (`buildB6`, with the four
-lines of "Asked of the main session" patched in). The same query goes to both, with
-`debug=sky:model` so that each uses the world's own weather: the only difference is package B.
+**Before and after.** "Before" is the owning branch's own head (`ccr-aa39490a-qiw63x`, built as
+`buildQ`) and "after" is this branch, with the four lines of "Asked of the main session" patched
+into the frozen copy. The same query goes to both, with `debug=sky:model` so that each uses the
+world's own weather.
+
+Note what that pair is and is not: the owning head **already carries most of package B's code**
+(the main session has been merging this branch as it goes), but **not the four lines that switch
+it on**. So "before" is this work with the field unplugged — the volume falls back to the base
+the world file gives plus the ground under the traveller, and nothing of `upperClouds.js`,
+`fogSheet.js` or `lenticulars.js` is ever built. That is exactly the state the owner would see
+today, which is what makes the pair worth looking at; it is not package B against nothing.
 The hours are the ones `scripts/find-weather.mjs --scene` names, as a `t=` offset from the
 scene's own moment.
 
