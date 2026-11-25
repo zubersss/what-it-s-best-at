@@ -802,6 +802,19 @@ case or a benchmark view from a Node scan.
   cut away by that rule, while a heavy core (alpha near 1) is untouched. To spare it, the march
   would have to hand the rain's share back apart from the cloud's, and its four channels are
   full. Worth a look in `haven_ledge_M_cell9.png` at the shaft's outer edge.
+- **A tower still reads as a smooth pill, and its anvil as a plate.** Looking at
+  `haven_ledge_M_storm20.png` (20 km) and `haven_ledge_M_storm35.png` (35 km) as pictures rather
+  than as checks: the storm is a grey cylinder with a flat cap under a crisp cream disc. The
+  cover is right — a map of the view in Node says the lid really is four anvils of 10 km radius
+  merged, which is what four storms do — but three things read wrong. The tower's inside is one
+  flat tone, because a chord five kilometres deep goes straight to the slate floor
+  (`CELL_FLOOR`), so the lit side it should have toward the Sun is lost. Its surface has no
+  cauliflower: the erosion noise repeats every 1 900 m, which is two or three lumps across a
+  4.5 km tower — too coarse for billows, too fine for an outline. And the anvil's edge is a line
+  where it should be fibres. The anvil's underside and grain and the width of its torn edge are
+  mine and are now 0.20, 0.30 and 0.42 (`0ae1a83`, the pair is `_M_storm20` against `_M2_storm20`);
+  the tower's own shape and its two tones want the next round, and the numbers to try first are
+  `CELL_FACE0/1` and `CELL_NOISE` with a finer frequency for the erosion.
 - **Scud was not built.** The brief asks for ragged fragments hanging under a raining base; what
   is there is the wisps — the great soft patches torn out of a cloud within a kilometre of the
   eye, which cost no read of their own. A raining base keeps its clean line. Its constant was
