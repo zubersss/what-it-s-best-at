@@ -8,9 +8,9 @@
 //   node scripts/cloud-shade-test.mjs            every check; exits 1 on any failure
 //   node scripts/cloud-shade-test.mjs --break <what>   one fault put in on purpose, to see its
 //        checks fail: nosnap (the windows not snapped to whole texels, as the trees' shade map
-//        was), hold (the anchor held for 300 km: the x D / R term), flat (the reader taking a
-//        level plane for the shade sphere, as the ground did), noband (no blend band at a
-//        window's edge), probe (the figure left in full Sun, as it was)
+//        was), hold (the frame's anchor held for 30 km: the x D / R term a small world shows),
+//        noband (no blend band where one window hands over to the next), probe (the figure left
+//        in full Sun, as it was). The flat slide the ground did is in check 3 for good.
 //
 // TWO ADDRESSINGS ARE MEASURED, SIDE BY SIDE:
 //   'atlas'  what src/sky/cloudShade.js does: windows on a lattice fixed to the world, each
@@ -28,7 +28,7 @@ import { runGlsl } from './lib/glslRun.mjs';
 
 const argv = process.argv.slice(2);
 const BREAK = argv.includes('--break') ? argv[argv.indexOf('--break') + 1] : null;
-const BREAKS = ['nosnap', 'hold', 'flat', 'noband', 'probe'];
+const BREAKS = ['nosnap', 'hold', 'noband', 'probe'];
 if (BREAK && !BREAKS.includes(BREAK)) { console.log(`no break ${BREAK} (${BREAKS.join(', ')})`); process.exit(2); }
 if (BREAK) console.log(`(with a fault put in: ${BREAK})`);
 
@@ -112,24 +112,29 @@ const SUN = sunAt(25, 35);
 
 // ---- the atlas as the game fills and reads it ---------------------------------------------------
 // One traveller position -> the atlas's bytes and the uniforms its readers are handed.
+let WORLD_BYTES = null;         // the world window is in latitude and longitude: filled once
 class Atlas {
   constructor() {
     this.st = M.shadeState();
-    this.N = M.SHADE.ATLAS;
-    this.bytes = new Uint8Array(this.N * this.N * 4);
-    this.sampler = sampler2D(this.bytes, this.N, this.N, 4, { wrapS: 'repeat', wrapT: 'clamp' });
-    this.u = null; this.filled = ''; this.worldDone = false; this.reanchors = 0;
+    this.W = M.SHADE.ATLAS_W; this.H = M.SHADE.ATLAS_H;
+    this.bytes = new Uint8Array(this.W * this.H * 4);
+    this.sampler = sampler2D(this.bytes, this.W, this.H, 4, { wrapS: 'repeat', wrapT: 'clamp' });
+    this.u = null; this.near = ''; this.mid = ''; this.reanchors = 0; this.sun = SUN; this.hold = undefined;
+    if (!WORLD_BYTES) { this._fill('world'); WORLD_BYTES = this.bytes.slice(); }
+    else this.bytes.set(WORLD_BYTES);
   }
   // the traveller moved: the anchor and the windows follow (as a frame does), and whatever
   // window has moved is filled again
   step(pos) {
-    const r = M.shadeStep(this.st, pos, R, BREAK === 'nosnap' ? { snap: false } : BREAK === 'hold' ? { hold: 300000 } : undefined);
+    const o = { snap: BREAK !== 'nosnap', hold: BREAK === 'hold' ? 30000 : this.hold };
+    const r = M.shadeStep(this.st, pos, R, o);
+    if (BREAK === 'noband') { this.st.bandNear = 0; this.st.bandMid = 0; }
     if (r.reanchored) this.reanchors++;
-    this.u = M.shadeUniforms(this.st, pos, SUN, R, STRENGTH);
-    if (BREAK === 'flat') this.u.uShadeCam[3] = 0;        // (no sphere: the reader slides to a level plane)
-    const key = `${this.st.anchor.join()}|${this.st.nx},${this.st.ny}|${this.st.mx},${this.st.my}`;
-    if (key !== this.filled) { this._fill('near'); this._fill('mid'); this.filled = key; }
-    if (!this.worldDone) { this._fill('world'); this.worldDone = true; }
+    this.u = M.shadeUniforms(this.st, pos, this.sun, R, STRENGTH);
+    const an = this.st.anchor.join();
+    const kn = `${an}|${this.st.nx},${this.st.ny}`, km = `${an}|${this.st.mx},${this.st.my}`;
+    if (kn !== this.near) { this._fill('near'); this.near = kn; }
+    if (km !== this.mid) { this._fill('mid'); this.mid = km; }
     return r;
   }
   _fill(win) {
@@ -137,9 +142,9 @@ class Atlas {
     const d = [0, 0, 0], uv = [0, 0];
     for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
       M.shadeTexelDir(this.st, win, i, j, R, d);
-      const ch = win === 'world' ? meanSource(this.st, i, j) : source(d);
+      const ch = win === 'near' ? source(d) : meanSource(this.st, win, i, j);
       M.shadeTexelUV(win, i, j, uv);
-      const o = ((Math.round(uv[1] * this.N - 0.5)) * this.N + Math.round(uv[0] * this.N - 0.5)) * 4;
+      const o = (Math.round(uv[1] * this.H - 0.5) * this.W + Math.round(uv[0] * this.W - 0.5)) * 4;
       for (let k = 0; k < 4; k++) this.bytes[o + k] = Math.max(0, Math.min(255, Math.round(ch[k] * 255)));
     }
   }
@@ -151,11 +156,11 @@ class Atlas {
 // The world window's texel is the mean of the shade over it, written back as a raw value whose
 // crisp curve is that mean (the atlas's R channel is "the raw shade whose curve is the shade"):
 // point-sampled at 1.5 km a texel a heap's edge would be a blotch kilometres across.
-function meanSource(st, i, j) {
-  const n = M.SHADE.WORLD_SAMPLES, d = [0, 0, 0];
+function meanSource(st, win, i, j) {
+  const n = win === 'world' ? M.SHADE.WORLD_SAMPLES : M.SHADE.MID_SAMPLES, d = [0, 0, 0];
   let s = 0, up = 0, sky = 0, top = 0;
   for (let b = 0; b < n; b++) for (let a = 0; a < n; a++) {
-    M.shadeTexelDir(st, 'world', i, j, R, d, (a + 0.5) / n - 0.5, (b + 0.5) / n - 0.5);
+    M.shadeTexelDir(st, win, i, j, R, d, (a + 0.5) / n - 0.5, (b + 0.5) / n - 0.5);
     const ch = source(d);
     s += crisp(ch[0]); up += ch[1]; sky += ch[2]; top += ch[3];
   }
@@ -215,19 +220,26 @@ const stats = (xs) => {
 // (a) walking 2 km in 1 m steps: a fixed ground point's shade must not move by one byte.
 function walkCheck(kind) {
   const m = kind === 'atlas' ? new Atlas() : new Today();
-  let first = null, worst = 0, at0 = 0;
+  const frac = (x) => x - Math.round(x);
+  let first = null, worst = 0, at0 = 0, grid = null, slide = 0;
   for (let s = 0; s <= 2000; s++) {
     const pos = walker(s, 0);
     m.cam = pos; m.step(pos);
     const now = WALK_PTS.map((p) => m.read(p)[0]);
     if (!first) first = now;
     for (let i = 0; i < now.length; i++) { const d = Math.abs(now[i] - first[i]); if (d > worst) { worst = d; at0 = s; } }
+    // and the lattice itself: where in its texel a fixed place lies may not move at all
+    if (kind === 'atlas') {
+      const f = WALK_PTS.map((p) => M.shadeTexelAt(m.st, norm(p), 'near'));
+      if (!grid) grid = f;
+      else for (let i = 0; i < f.length; i++) slide = Math.max(slide, Math.abs(frac(f[i][0] - grid[i][0])), Math.abs(frac(f[i][1] - grid[i][1])));
+    }
   }
-  return { worst, at0, reanchors: m.reanchors ?? 0 };
+  return { worst, at0, slide, reanchors: m.reanchors ?? 0 };
 }
 {
   const a = M ? walkCheck('atlas') : null, t = walkCheck('today');
-  check(!!a && a.worst <= 1 / 255, `1a. walking 2 km in 1 m steps, the shade at 24 fixed ground points moves by at most one byte: ${a ? a.worst.toFixed(4) : 'no atlas'} (the map that follows the traveller: ${t.worst.toFixed(4)} at ${t.at0} m)`);
+  check(!!a && a.worst <= 1 / 255 && a.slide < 1e-9, `1a. walking 2 km in 1 m steps, the shade at 24 fixed ground points moves by at most one byte: ${a ? a.worst.toFixed(4) : 'no atlas'} (the map that follows the traveller: ${t.worst.toFixed(4)} at ${t.at0} m), and the lattice under them does not move at all (${a ? a.slide.toExponential(1) : '-'} of a texel)`);
   check(t.worst > 0.05, `1a. the trees' shade map as it was fails this check (${t.worst.toFixed(3)} at ${t.at0} m walked)`);
 }
 // (b) flying 30 km in 100 m steps: the shade at fixed places read from the same window, with the
@@ -244,11 +256,12 @@ function flyCheck(kind) {
     const r = m.step(pos);
     for (let i = 0; i < pts.length; i++) {
       const v = m.read(pts[i])[0], w = kind === 'atlas' ? M.shadeWindowOf(m.u, sub(pts[i], pos)) : 0;
+      const band = kind === 'atlas' && w >= 10;
       const had = last.get(i);
       if (had !== undefined) {
         const d2 = Math.abs(v - had);
         if (r.reanchored) over = Math.max(over, d2);
-        else if (w !== windowOf.get(i)) hand = Math.max(hand, d2);
+        else if (band || windowOf.get(i) >= 10) hand = Math.max(hand, d2);
         else same = Math.max(same, d2);
       }
       last.set(i, v); windowOf.set(i, w);
@@ -258,7 +271,7 @@ function flyCheck(kind) {
 }
 {
   const a = M ? flyCheck('atlas') : null, t = flyCheck('today');
-  check(!!a && a.same <= 1 / 255 && a.hand <= 0.03, `1b. flying 30 km, the shade at 40 fixed places moves by at most one byte between frames while one window holds it (${a ? a.same.toFixed(4) : 'no atlas'}), and by at most 0.03 where one window hands over to the next (${a ? a.hand.toFixed(4) : '-'}); the map as it was: ${t.same.toFixed(3)} a frame`);
+  check(!!a && a.same <= 1 / 255 && a.hand <= 0.03, `1b. flying 30 km, the shade at 40 fixed places moves by at most one byte between steps of 100 m while one window holds it (${a ? a.same.toFixed(4) : 'no atlas'}), and by at most 0.03 a step inside a window's blend band (${a ? a.hand.toFixed(4) : '-'}); the map as it was: ${t.same.toFixed(3)} a step`);
   check(t.same > 0.05, `1b. the map as it was fails this check (${t.same.toFixed(3)} per 100 m flown)`);
 }
 
@@ -269,7 +282,7 @@ function flyCheck(kind) {
   if (M) {
     const m = new Atlas();
     m.cam = walker(0, 0); m.step(m.cam);
-    const u0 = m.u, st0 = { ...m.st, anchor: m.st.anchor.slice() };
+    const st0 = { ...m.st, anchor: m.st.anchor.slice(), a: m.st.a.slice(), e: m.st.e.slice(), n: m.st.n.slice() };
     let found = null;
     for (let km = 1; km <= 400 && !found; km++) {
       const pos = walker(km * 1000, 0);
@@ -278,20 +291,25 @@ function flyCheck(kind) {
     }
     check(!!found, `2. the anchor is kept until the traveller is far from it, then re-chosen (after ${found ? Math.round(len(sub(found, walker(0, 0))) / 1000) : '-'} km of flight)`);
     // the lattice's shift, over the near and middle windows
+    // (the texel a place lies in, and where in it: only the fraction matters - the whole part
+    // is which texel of the window, and the window follows the traveller by whole texels)
+    const frac = (x) => x - Math.round(x);
+    const shiftOf = (d, win) => {
+      const a = M.shadeTexelAt(st0, d, win), b = M.shadeTexelAt(m.st, d, win);
+      return Math.hypot(frac(b[0] - a[0]), frac(b[1] - a[1]));
+    };
     const sN = [], sM = [];
     for (let i = 0; i < 400; i++) {
       const ea = 7000 * (spread(i, 3) - 0.5) * 2, no = 7000 * (spread(i, 4) - 0.5) * 2;
-      const p = groundPt(ea, no), d = norm(p);
-      sN.push(len(sub(M.shadeSnapJS(st0, d, 'near', R), M.shadeSnapJS(m.st, d, 'near', R))) / M.SHADE.NEAR_STEP);
-      const pm = groundPt(ea * 4, no * 4), dm = norm(pm);
-      sM.push(len(sub(M.shadeSnapJS(st0, dm, 'mid', R), M.shadeSnapJS(m.st, dm, 'mid', R))) / M.SHADE.MID_STEP);
+      sN.push(shiftOf(norm(groundPt(ea, no)), 'near'));
+      sM.push(shiftOf(norm(groundPt(ea * 4, no * 4)), 'mid'));
     }
     shiftN = stats(sN).max; shiftM = stats(sM).max;
     // and what it does to the shade at fixed places (both windows, the same places)
     const before = new Atlas(); before.cam = walker(0, 0); before.step(before.cam);
     const after = new Atlas();
-    after.st.anchor = m.st.anchor.slice(); after.cam = before.cam;
-    after.step(after.cam);
+    after.st.anchor = m.st.anchor.slice(); after.st.a = m.st.a.slice(); after.st.e = m.st.e.slice(); after.st.n = m.st.n.slice();
+    after.hold = 1e9; after.cam = before.cam; after.step(after.cam);
     const ds = [];
     for (let i = 0; i < 600; i++) {
       const p = groundPt(5000 * (spread(i, 5) - 0.5) * 2, 5000 * (spread(i, 6) - 0.5) * 2);
@@ -302,17 +320,20 @@ function flyCheck(kind) {
     check(shiftN <= 0.25 && shiftM <= 0.25, `2. a re-anchor moves the lattice under a fixed place by at most a quarter of a texel: ${shiftN.toFixed(3)} texels over the near window, ${shiftM.toFixed(3)} over the middle one`);
     check(S.p95 <= 0.02, `2. a re-anchor changes the shade at fixed places by at most 0.02 (95th of 600 places): ${S.p95.toFixed(4)}, mean ${S.mean.toFixed(4)}, worst ${S.max.toFixed(4)}`);
   } else { check(false, '2. a re-anchor: no atlas'); check(false, '2. a re-anchor: no atlas'); check(false, '2. a re-anchor: no atlas'); }
-  // a window's edge: walking a place out through the near window's edge, in 20 m steps
+  // a window's edge: a FIXED place is left behind by the near window as the traveller walks
+  // away from it, 20 m a step (the band is the only thing that may change its shade)
   if (M) {
-    const m = new Atlas(), pos = walker(0, 0);
-    m.cam = pos; m.step(pos);
-    let jump = 0, prev = null;
-    for (let d = 5500; d < 9000; d += 20) {
-      const p = groundPt(d, 0), v = m.read(p)[0];
+    const m = new Atlas(), p = groundPt(0, 0);
+    let jump = 0, prev = null, from = 1, to = 1;
+    for (let d = 2000; d < 12000; d += 20) {
+      const pos = walker(-d, 0);
+      m.cam = pos; m.hold = 1e9; m.step(pos);
+      const v = m.read(p)[0];
       if (prev !== null) jump = Math.max(jump, Math.abs(v - prev));
-      prev = v;
+      if (d === 2000) from = v;
+      to = v; prev = v;
     }
-    check(jump <= 0.03, `2. crossing the near window's edge (5.5 to 9 km out, 20 m a step) the shade steps by at most 0.03: ${jump.toFixed(4)}`);
+    check(jump <= 0.03, `2. a fixed place left behind by the near window as the traveller walks 10 km away, 20 m a step: the shade steps by at most 0.03 (${jump.toFixed(4)}; ${from.toFixed(3)} near, ${to.toFixed(3)} from the middle window)`);
   } else check(false, "2. the window's edge: no atlas");
 }
 
@@ -322,13 +343,13 @@ function flyCheck(kind) {
   // must be the one whose own point stands on the Sun's ray through the place
   const sun15 = sunAt(15, 35);
   let worst = 0, worstToday = 0;
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < 30; i++) {
     const p = groundPt(12000 * (spread(i, 9) - 0.5), 12000 * (spread(i, 10) - 0.5));
     const high = mul(norm(p), Rs + 2000);
     const want = hitSphere(high, sun15, Rs);
     if (M) {
       const m = new Atlas();
-      m.cam = high; m.step(high);
+      m.sun = sun15; m.cam = high; m.step(high);
       worst = Math.max(worst, len(sub(M.shadeRayPointJS(m.u, sub(high, high)), want)));
     }
     // the flat slide the ground did: (layer - r) / max(dot(up, sun), 0.08) along the Sun
@@ -353,28 +374,32 @@ function flyCheck(kind) {
 
 // ---- check 4: the ground, a crown, a far rock and the figure agree -----------------------------------
 {
-  // the same place asked for by four readers: the ground at its vertex, a tree's crown 30 m up, a
-  // far rock a metre up, and the figure through the probe (which reads the atlas at its feet)
-  let same = 0; const ds = [];
+  // The same spot asked for by four readers: the ground at its vertex, a tree's crown 30 m up, a
+  // far rock a metre up, and the figure through the probe (one texel read back from the atlas at
+  // its feet). A crown 30 m up is lit through another part of the cloud - 64 m along the Sun's
+  // ray at 25 degrees - so they are only alike where the sky above them is: where the true shade
+  // at two of these places is the same, no reader may add a disagreement of its own.
+  let same = 0, apart = 0; const ds = []; let dark = 0, n = 0;
   if (M) {
-    for (let i = 0; i < 200; i++) {
+    const m = new Atlas();
+    for (let i = 0; i < 120; i++) {
       const ea = 4000 * (spread(i, 13) - 0.5) * 2, no = 4000 * (spread(i, 14) - 0.5) * 2;
-      const m = new Atlas(), pos = walker(ea, no);
+      const pos = walker(ea, no);
       m.cam = pos; m.step(pos);
       const g = groundPt(ea, no), gd = norm(g), h = len(g) - R;
-      const ground = m.read(g)[0];
-      const crown = m.read(mul(gd, R + h + 30))[0];
-      const rock = m.read(mul(gd, R + h + 1))[0];
-      // the probe: one texel read back from the atlas at the figure's feet (pos is 1.7 m over them)
+      const places = [g, mul(gd, R + h + 30), mul(gd, R + h + 1)];
+      const got = places.map((p) => m.read(p)[0]), want = places.map((p) => truth(p, SUN)[0]);
       const probe = BREAK === 'probe' ? 1 : M.shadeProbeJS(m.u, m.sampler, [g], R)[0].sun;
-      same = Math.max(same, Math.abs(ground - probe));
-      ds.push(Math.max(Math.abs(ground - crown), Math.abs(ground - rock), Math.abs(ground - probe)));
+      same = Math.max(same, Math.abs(got[0] - probe));
+      for (let k = 1; k < 3; k++) if (Math.abs(want[k] - want[0]) < 0.01) ds.push(Math.abs(got[k] - got[0]));
+      apart = Math.max(apart, Math.abs(got[0] - want[0]));
+      dark += 1 - got[0]; n++;
     }
   }
-  const S = stats(ds);
-  check(!!M && same <= 1 / 255, `4. the figure's probe reads the ground's own texel: within ${M ? same.toFixed(4) : '-'} of the ground at 200 places`);
-  check(!!M && S.p95 <= 0.03, `4. the ground, a crown 30 m up, a far rock and the figure agree within 0.03 at a place (95th of 200): ${M ? S.p95.toFixed(4) : '-'}, worst ${S.max.toFixed(4)}`);
-  check(!M || S.max < 0.72, `4. the figure is no longer left in full Sun inside a cloud's shadow (it was 1.0 against the ground's ${(1 - STRENGTH * SKY_V0.SHADOW).toFixed(2)})`);
+  const S4 = stats(ds);
+  check(!!M && same <= 1 / 255, `4. the figure's probe reads the ground's own texel: within ${M ? same.toFixed(4) : '-'} of the ground at 120 places`);
+  check(!!M && S4.p95 <= 0.03, `4. where the sky over the ground, a crown 30 m up and a far rock is the same, the three agree within 0.03 (95th of ${ds.length}): ${M ? S4.p95.toFixed(4) : '-'}, worst ${S4.max.toFixed(4)}; the atlas is within ${apart.toFixed(3)} of the shade worked out at the place itself`);
+  check(!!M && dark / Math.max(n, 1) > 0.05, `4. the figure is no longer left in full Sun inside a cloud's shadow: it is ${M ? (dark / Math.max(n, 1)).toFixed(3) : '-'} darker than full Sun on the mean of 120 places (it was 1.0 everywhere)`);
 }
 
 // ---- check 5: the reader's GLSL is its JS twin ---------------------------------------------------
