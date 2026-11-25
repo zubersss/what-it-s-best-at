@@ -186,3 +186,21 @@ renderer. A's model paints the real cover.
 3. **Inside a storm the sky's own light was never dimmed** (commit 5b90f1f): a base with almost
    no Sun on it was still a bright grey. The share of the sky a sample gets is now part of the
    march's one light rule.
+
+## Open
+
+- **A's model.** Everything here is drawn against the stub's test pattern. Its weather is sparse
+  (a fair day near the opening place has 0.02–0.4 cover, and its only rain deck is at night), so
+  the pictures are taken at the hours and places where it puts cloud. The look's numbers will
+  want another pass once the model paints real cover.
+- **Anvils and lenses** need lists from the field (`field.anvils(t)` is already in the sky
+  system's interface, `field.lenses(t)` is asked of A): until they are there the high shell draws
+  cirrus alone and `lenticulars.js` draws nothing.
+- **Earth** has no field yet (its recipe is `maps`), so there the volume still reads the day's
+  cloud map and stands its base over the country smoothed round the traveller, as before. That
+  path, and `setGround`, go when A's `fromMaps` lands.
+- **The far shell's vertices** now each read the field (an icosphere of detail 48: about 144 000
+  vertex reads a frame). It is one draw call, but it is the first thing to measure on the phone.
+- **The rise's fades** cost one more read of the masses and one of the look toward the Sun (16 %
+  of the game clock). The alternative — reading the look toward the Sun at one phase — makes the
+  two tones speckle while the phases blend, so it was not taken.
