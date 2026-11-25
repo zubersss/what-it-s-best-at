@@ -135,7 +135,11 @@ export default {
 
   // The weather of one real day (scripts/fetch-earth-weather.py): 8 September 2017, with
   // hurricanes Irma, Jose and Katia in the Atlantic at once.
-  weather: { day: '2017-09-08', rain: 'data/earth_rain_2048.jpg', tops: 'data/earth_cloudtop_1024.jpg', cloud: 'data/earth_clouds_512.jpg', storms: 'data/earth_storms.json' },
+  // steering: the clouds' wind by height (weather/sky/steer.js): a plain westerly, 8 m/s on the
+  // equator (6.5 m/s at the Grand Canyon), the same every day; no lean of its axis, which on a
+  // world this large would add tens of m/s.
+  weather: { recipe: 'maps', day: '2017-09-08', rain: 'data/earth_rain_2048.jpg', tops: 'data/earth_cloudtop_1024.jpg', cloud: 'data/earth_clouds_512.jpg', storms: 'data/earth_storms.json',
+    steering: { low: { fixed: 8 }, tilt: 0, high: { veer: 0 } } },
 
   // Trees: where the land-cover map says forest, woodland or savanna, of the species the
   // region really grows (life/cover.js), as tall as the canopy was measured.

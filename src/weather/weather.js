@@ -9,7 +9,10 @@
 //   lightning under deep, hard-raining cloud: where the next stroke falls and how bright
 // Others take what they need: the sea and the trees take the wind, the ground the wetness,
 // the lighting the shade and the flashes, the sound the rain and the thunder.
-// World file: weather: { day, rain: url, tops: url, cloud: url (small), storms: url }.
+// World file: weather: { day, rain: url, tops: url, cloud: url (small), storms: url } (the recipe
+// 'maps', the one when none is named). A world whose weather is made by rule (recipe 'made',
+// Haven: src/weather/sky/) has none of this here: its steering winds and its field are
+// sky/skySystem.js's.
 import * as THREE from 'three';
 import { localFrame } from '../core/ephemeris.js';
 
@@ -30,7 +33,8 @@ export class Weather {
 
   setWorld(world) {
     this.epoch++;
-    this.def = world.weather || null; this.maps = {}; this.storms = []; this.radius = world.radius; this.world = world;
+    this.def = world.weather && (world.weather.recipe ?? 'maps') === 'maps' ? world.weather : null;
+    this.maps = {}; this.storms = []; this.radius = world.radius; this.world = world;
     this.rain = this.snow = this.wet = 0; this.squall = this.storminess = this.veil = 0; this.sunShade = this.skyShade = 1; this.flash = null; this.thunder.length = 0; this.flashLight.set(0, 0, 0);
     this.shadow = world.clouds?.shadow ?? 0.6;                 // (how dark this world's cloud shadow is: the ground's own number)
     if (!this.def || typeof document === 'undefined') return;

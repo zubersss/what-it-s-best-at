@@ -5,20 +5,25 @@
 // to 32 bits after each operation, as a phone's highp does (off: { f32: false }).
 //   const g = runGlsl(source, uniforms); g.fn.steerLow([x, y, z])
 // What it takes: #define (names only), uniform (arrays too), const, functions with in-
-// parameters, local declarations, = and op=, if/else, return, the usual operators, ?:,
-// swizzles, vecN/matN constructors and the common built-ins. Anything else is an error, and so
-// is a word GLSL ES 3 reserves used as a name (a variable `patch` once broke the ground shader).
+// parameters, local declarations, = and op=, ++ and --, if/else, for (with break and
+// continue), return, the usual operators, ?:, swizzles, vecN/matN constructors and the common
+// built-ins. Anything else is an error, and so is a word GLSL ES 3 reserves used as a name (a
+// variable `patch` once broke the ground shader).
 // Vectors are arrays of numbers; a matrix is { n, v } (v column by column).
+// Samplers (sampler2D, sampler3D, as uniforms or parameters) are objects with
+// sample(coords, lod) -> [r, g, b, a]: texture() and textureLod() call it (glslSamplers.mjs makes
+// ones that filter bytes as a GPU does). An int divided by an int is not truncated here.
 
 export const GLSL_RESERVED = new Set(['attribute', 'varying', 'coherent', 'volatile', 'restrict', 'readonly', 'writeonly', 'resource',
   'atomic_uint', 'noperspective', 'patch', 'sample', 'subroutine', 'common', 'partition', 'active', 'asm', 'class', 'union', 'enum',
   'typedef', 'template', 'this', 'goto', 'inline', 'noinline', 'public', 'static', 'extern', 'external', 'interface', 'long', 'short',
   'double', 'half', 'fixed', 'unsigned', 'superp', 'input', 'output', 'hvec2', 'hvec3', 'hvec4', 'dvec2', 'dvec3', 'dvec4', 'fvec2',
   'fvec3', 'fvec4', 'sampler3DRect', 'filter', 'image1D', 'image2D', 'image3D', 'imageCube', 'sizeof', 'cast', 'namespace', 'using']);
-const TYPES = new Set(['void', 'float', 'int', 'uint', 'bool', 'vec2', 'vec3', 'vec4', 'ivec2', 'ivec3', 'ivec4', 'mat2', 'mat3', 'mat4']);
-const KEYWORDS = new Set(['uniform', 'const', 'return', 'if', 'else', 'precision', 'highp', 'mediump', 'lowp', 'in', 'out', 'inout', 'true', 'false']);
+const TYPES = new Set(['void', 'float', 'int', 'uint', 'bool', 'vec2', 'vec3', 'vec4', 'ivec2', 'ivec3', 'ivec4', 'mat2', 'mat3', 'mat4', 'sampler2D', 'sampler3D']);
+const SAMPLERS = new Set(['sampler2D', 'sampler3D']);
+const KEYWORDS = new Set(['uniform', 'const', 'return', 'if', 'else', 'for', 'break', 'continue', 'precision', 'highp', 'mediump', 'lowp', 'in', 'out', 'inout', 'true', 'false']);
 const SIZE = { float: 1, int: 1, uint: 1, bool: 1, vec2: 2, vec3: 3, vec4: 4, ivec2: 2, ivec3: 3, ivec4: 4, mat2: 4, mat3: 9, mat4: 16 };
-const TOKEN = /\s+|\/\/[^\n]*|\/\*[\s\S]*?\*\/|(\d+\.\d*(?:[eE][-+]?\d+)?|\.\d+(?:[eE][-+]?\d+)?|\d+[eE][-+]?\d+|\d+)[uUfF]?|([A-Za-z_]\w*)|(&&|\|\||==|!=|<=|>=|\+=|-=|\*=|\/=|[-+*/%<>=!?:;,.(){}[\]])/y;
+const TOKEN = /\s+|\/\/[^\n]*|\/\*[\s\S]*?\*\/|(\d+\.\d*(?:[eE][-+]?\d+)?|\.\d+(?:[eE][-+]?\d+)?|\d+[eE][-+]?\d+|\d+)[uUfF]?|([A-Za-z_]\w*)|(&&|\|\||==|!=|<=|>=|\+\+|--|\+=|-=|\*=|\/=|[-+*/%<>=!?:;,.(){}[\]])/y;
 
 function tokenize(text) {
   const out = []; TOKEN.lastIndex = 0;
@@ -99,19 +104,38 @@ function parse(tokens) {
     if (accept('{')) { const body = []; while (!accept('}')) body.push(stmt()); return { n: 'block', body }; }
     if (accept('return')) { if (accept(';')) return { n: 'ret', e: null }; const e = expr(); expect(';'); return { n: 'ret', e }; }
     if (accept('if')) { expect('('); const c = expr(); expect(')'); const a = stmt(); return { n: 'if', c, a, b: accept('else') ? stmt() : null }; }
+    if (accept('for')) {
+      expect('(');
+      const init = accept(';') ? null : isType() ? decl(false) : simple(';');
+      const c = is(';') ? { n: 'bool', v: true } : expr(); expect(';');
+      const step = is(')') ? null : simple(')');
+      return { n: 'for', init, c, step, body: stmt() };
+    }
+    if (accept('break')) { expect(';'); return { n: 'break' }; }
+    if (accept('continue')) { expect(';'); return { n: 'continue' }; }
     if (accept('const')) return decl(true);
     if (isType()) return decl(false);
+    return simple(';');
+  };
+  // an assignment, ++ / -- or an expression, ended by `end` (';', or ')' after a for's step)
+  const simple = (end) => {
+    if (is('++') || is('--')) { const op = tokens[i++].v; const nm = name(); expect(end); return { n: 'set', name: nm, op: op === '++' ? '+=' : '-=', e: { n: 'num', v: 1, int: true } }; }
     const lhs = expr();
-    for (const op of ['=', '+=', '-=', '*=', '/=']) if (accept(op)) { if (lhs.n !== 'id') fail('only a name can be assigned to here'); const e = expr(); expect(';'); return { n: 'set', name: lhs.v, op, e }; }
-    expect(';'); return { n: 'expr', e: lhs };
+    if (is('++') || is('--')) { const op = tokens[i++].v; if (lhs.n !== 'id') fail('only a name can be stepped here'); expect(end); return { n: 'set', name: lhs.v, op: op === '++' ? '+=' : '-=', e: { n: 'num', v: 1, int: true } }; }
+    for (const op of ['=', '+=', '-=', '*=', '/=']) if (accept(op)) { if (lhs.n !== 'id') fail('only a name can be assigned to here'); const e = expr(); expect(end); return { n: 'set', name: lhs.v, op, e }; }
+    expect(end); return { n: 'expr', e: lhs };
   };
   const prog = { uniforms: [], consts: [], fns: [] };
   while (!eof()) {
     if (accept('precision')) { while (!accept(';')) i++; continue; }
     if (accept('uniform')) {
-      const ty = type(), nm = name(); let size = 0;
-      if (accept('[')) { const t = peek(); if (!t || t.k !== 'num' || !t.int) fail('an array size must be a whole number'); size = Number(t.v); i++; expect(']'); }
-      expect(';'); prog.uniforms.push({ type: ty, name: nm, size }); continue;
+      const ty = type();
+      do {
+        const nm = name(); let size = 0;
+        if (accept('[')) { const t = peek(); if (!t || t.k !== 'num' || !t.int) fail('an array size must be a whole number'); size = Number(t.v); i++; expect(']'); }
+        prog.uniforms.push({ type: ty, name: nm, size });
+      } while (accept(','));
+      expect(';'); continue;
     }
     if (accept('const')) { prog.consts.push(decl(true)); continue; }
     if (!isType()) fail('expected a declaration');
@@ -213,11 +237,16 @@ function runtime(f) {
     pow: zip(Math.pow), mod: zip((x, y) => x - y * Math.floor(x / y)), min: zip(Math.min), max: zip(Math.max),
     clamp: zip((x, lo, hi) => Math.min(Math.max(x, lo), hi)), mix: zip((x, y, t) => x * (1 - t) + y * t),
     step: zip((e, x) => (x < e ? 0 : 1)), smoothstep: zip((a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); }),
+    texture: (s, c) => R.textureLod(s, c, 0),
+    textureLod: (s, c, lod) => {
+      if (!s || typeof s.sample !== 'function') throw new Error('glsl: texture() of something that is not a sampler');
+      return Array.from(s.sample(c.map(f), lod), f);
+    },
   };
   return R;
 }
 const BUILTINS = ['length', 'normalize', 'dot', 'cross', 'distance', 'abs', 'sign', 'floor', 'ceil', 'fract', 'sqrt', 'inversesqrt', 'exp', 'exp2', 'log', 'log2',
-  'sin', 'cos', 'tan', 'asin', 'acos', 'radians', 'degrees', 'atan', 'pow', 'mod', 'min', 'max', 'clamp', 'mix', 'step', 'smoothstep'];
+  'sin', 'cos', 'tan', 'asin', 'acos', 'radians', 'degrees', 'atan', 'pow', 'mod', 'min', 'max', 'clamp', 'mix', 'step', 'smoothstep', 'texture', 'textureLod'];
 
 function emit(prog, f) {
   const out = ['"use strict"; const F = {}, C = {};'];
@@ -265,6 +294,19 @@ function emit(prog, f) {
       case 'decl': for (const it of s.items) { const init = it.init ? ex(it.init) : `R.ctor('${it.type}', [0])`; scope[scope.length - 1].add(it.name); lines.push(`${ind}let v_${it.name} = ${init};`); } return;
       case 'set': { const r = ref(s.name); if (!r.startsWith('v_')) throw new Error(`glsl: ${s.name} cannot be assigned to`); const e = ex(s.e); lines.push(`${ind}${r} = ${s.op === '=' ? e : `R.${{ '+=': 'add', '-=': 'sub', '*=': 'mul', '/=': 'div' }[s.op]}(${r}, ${e})`};`); return; }
       case 'expr': lines.push(`${ind}${ex(s.e)};`); return;
+      case 'break': lines.push(`${ind}break;`); return;
+      case 'continue': lines.push(`${ind}continue;`); return;
+      case 'for': {
+        // (a scope of its own for the loop's variable; the step is run as the loop's last statement)
+        scope.push(new Set()); lines.push(`${ind}{`);
+        if (s.init) st(s.init, lines, ind + '  ');
+        const step = []; if (s.step) st(s.step, step, '');
+        lines.push(`${ind}  for (let __n = 0; R.b(${ex(s.c)}); ${step.map((l) => l.replace(/;$/, '')).join(', ') || ''}) {`);
+        lines.push(`${ind}    if (++__n > 1e6) throw new Error('glsl: a loop ran a million times');`);
+        st({ n: 'block', body: [s.body] }, lines, ind + '    ');
+        lines.push(`${ind}  }`, `${ind}}`); scope.pop();
+        return;
+      }
     }
     throw new Error(`glsl: cannot run the statement ${s.n}`);
   };
@@ -282,6 +324,11 @@ function emit(prog, f) {
 
 // a uniform's value as WebGL would take it from three (a flat array, or numbers, or { x, y, z, w })
 function bindValue(u, value, f) {
+  if (SAMPLERS.has(u.type)) {
+    if (u.size) throw new Error(`glsl: arrays of samplers (${u.name}) are not understood here`);
+    if (!value || typeof value.sample !== 'function') throw new Error(`glsl: the sampler ${u.name} was handed no sample(coords, lod)`);
+    return value;
+  }
   const comp = SIZE[u.type];
   const flat = (v) => {
     if (typeof v === 'number') return [v];

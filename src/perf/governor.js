@@ -54,6 +54,10 @@ export const MODES = {
 // of the trial. Without `live` a step is always live.
 // The last steps leave the scene what it is: a step thins, it does not remove what a place
 // is about (the cloud layer and the rain stay whatever is switched off).
+// The sky's steps go through the sky's own setters (sky/skySystem.js SKY_SAVINGS: app.sky.setSaving),
+// so that each package's module takes its saving its own way; the sky has more savings than
+// this ladder holds yet (cloud-upper, rain-shafts, cloud-shade-rate, cloud-shade-coarse), to be
+// put on it when their packages land and the phone has said what they buy.
 // (reach: 0 whenever none are drawn, in the air above the trees' height for one: the count is
 // the last list's, kept after a take-off)
 const nearTrees = (app) => (app.trees?.count ?? 0) > 0 && (app.trees.reach ?? 1) > 0 && !app.trees.hidden;
@@ -61,7 +65,7 @@ const cloudVolume = (app) => !!app.cloudVolume?.wanted;
 export const FEATURE_STEPS = [
   // --- 1. bought 2.5 ms and more on the phone
   // (3.4 ms in a wood)
-  { id: 'cloud-steps', buys: 3.4, label: 'coarser clouds near you', live: cloudVolume, apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.steps = off ? 22 : 36; } },
+  { id: 'cloud-steps', buys: 3.4, label: 'coarser clouds near you', live: cloudVolume, apply: (app, off) => { app.sky?.setSaving('cloud-steps', off); } },
   // (2.7 ms in a wood)
   // (and the far forest's shadows on the ground, drawn for a traveller in the air: life/farForest.js; not yet measured on the phone)
   { id: 'tree-shadows', buys: 2.7, label: 'shadows of the farther trees', live: (app) => nearTrees(app) || !!app.farForest?.shadowsShown, apply: (app, off) => { if (app.trees) app.trees.shadowsFar = !off; if (app.farForest) app.farForest.shadows = !off; } },
@@ -93,11 +97,11 @@ export const FEATURE_STEPS = [
   // (the layer itself is never switched off: a hurricane with a clear sky is not one, and the
   // layer is one texture on the sky)
   // (4.0 ms at the opening view)
-  { id: 'clouds', buys: 4.0, label: "the clouds' shadows on the ground", live: (app) => !!app.clouds?.mesh?.visible, apply: (app, off) => { if (app.clouds) app.clouds.shadows = !off; } },
+  { id: 'clouds', buys: 4.0, label: "the clouds' shadows on the ground", live: (app) => !!app.clouds?.mesh?.visible, apply: (app, off) => { app.sky?.setSaving('clouds', off); } },
   // (3.5 ms at the opening view, 2.1 from the air)
   { id: 'far-relief', buys: 3.5, label: 'relief shading of far ground', live: (app) => (app.terrain?.shared?.uRelief?.value.x ?? 1) > 0, apply: (app, off) => { app.quality.w = off ? 0 : 1; } },
   // (9.4 ms from the air on build 6ac24ff)
-  { id: 'cloud-volume', buys: 9.4, label: 'clouds with depth (they stay as a layer)', live: cloudVolume, apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.enabled = !off; } },
+  { id: 'cloud-volume', buys: 9.4, label: 'clouds with depth (they stay as a layer)', live: cloudVolume, apply: (app, off) => { app.sky?.setSaving('cloud-volume', off); } },
   // --- 4. nothing that could be measured on the phone (each line: its largest reading in the three views)
   // (0.4 ms from the air, -2.3 and -7.9 elsewhere: noise. The ground's shader now reads
   // its close-up layers only where they can show, which is what this step used to save.)
@@ -119,7 +123,7 @@ export const FEATURE_STEPS = [
   { id: 'far-rocks', buys: 0.3, label: 'small rocks from less far', apply: (app, off) => { app.farRocks?.setFraction(off ? 0.62 : 1); } },
   // (0.5 ms in dry weather, where there is none to thin; half of 5 600 streaks; thinning
   // 1 400 to 560 saved nothing that could be measured on the phone in a storm either)
-  { id: 'rain', buys: 0.3, label: 'thinner rain and snow', live: (app) => !!app.rain?.mesh?.visible, apply: (app, off) => { if (app.rain) app.rain.share = off ? 0.5 : 1; } },
+  { id: 'rain', buys: 0.3, label: 'thinner rain and snow', live: (app) => !!app.rain?.mesh?.visible, apply: (app, off) => { app.sky?.setSaving('rain', off); } },
   // (nothing: -0.4)
   { id: 'leaves', buys: 0.3, label: 'leaves in the wind', apply: (app, off) => { if (app.leaves) app.leaves.enabled = !off; if (app.petals) app.petals.enabled = !off; } },          // (petals: thinned to a third, not taken away)
   // (nothing: -0.7)
