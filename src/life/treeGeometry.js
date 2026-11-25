@@ -326,6 +326,11 @@ export function makeTreeGeometries() {
     s.mid = 0.7;
     const tr = (y) => [lean * (y < 0.5 ? y * 1.6 : 0.8 + (y - 0.5) * 0.9) + 0.012 * Math.sin(y * 7), y, 0.01 * Math.sin(y * 5 + 1)];
     if (q === 2) s.bole(tr, 0.016, 0.004, 0.93); else s.trunk([tr(0), tr(0.3), tr(0.62), tr(0.93)], 0.016, 0.004, 5);
+    // (a pine sheds its lower limbs and keeps their stubs: short, thin, angled down and out
+    // along the bare bole below the crown; their own random numbers, so the tree is the
+    // same tree. Without them the bole seen from a few metres, its crown out of the frame,
+    // was a pole.)
+    if (q > 0) { const S = rng(4711 + v * 31); for (let k = 0; k < 7; k++) { const y = 0.16 + (low - 0.2) * (k + S()) / 7, a = k * 2.4 + S() * 1.5, r = 0.016 + (0.004 - 0.016) * y / 0.93, c = tr(y), d = [Math.cos(a), -0.25 - 0.3 * S(), Math.sin(a)], l = 0.012 + 0.02 * S(); s.tube([add(c, [Math.cos(a), 0, Math.sin(a)], r * 0.6), add(c, d, r + l)], [0.0028 * (q === 2 ? 1 : 1.2), 0.0012], 3); } }
     // a burst: crossed cards standing on the point, the needles upward and outward
     const burst = (c, r, n) => { s.heart(c[0], c[1] + r * 0.7, c[2], r * 0.74, r * 0.66, SPRAYS.roseN); for (let j = 0; j < n; j++) { const a = L() * TAU + j * (3.1416 / n), tilt = (L() - 0.5) * 0.7; s.plate(c, [Math.cos(a), 0, Math.sin(a)], norm([-Math.sin(a) * tilt, 1, Math.cos(a) * tilt]), r * 2.5, r * 2.5, sprayRect(SPRAYS.pineTwig), 0.5, 0.8, [c[0], c[1] - r * 0.6, c[2]]); } };
     // a head, close by: twigs up and out of the branch's end, a branch end's tufts on each
