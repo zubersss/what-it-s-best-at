@@ -144,6 +144,10 @@ export class CameraRig {
     this._refresh();
   }
 
+  // Where the traveller is (planet-fixed metres, the rig's own vector): on foot the soles (the
+  // camera circles the figure 6 m behind it as the view turns), else the camera (in flight the
+  // figure is drawn just ahead of it and swings round it as the view turns).
+  get travellerAt() { return this.onFoot ? this.feet : this.pos; }
   get latLon() { return dirToLatLon([this.pos.x, this.pos.y, this.pos.z]); }
   get altitude() { return this.pos.length() - this.world.radius; }
 
