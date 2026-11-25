@@ -186,6 +186,13 @@ All at 880 x 412, dsf 1.25, from frozen builds, in
 `/tmp/claude-0/-home-user-what-it-s-best-at/fa086d69-ff44-5069-99a3-fdab3300646a/scratchpad/shots/`
 (the ones worth keeping are copied into `docs/shots/sky/`).
 
+**Which build each picture came from.** The frozen builds step with the fixes below:
+`buildB6` was the first from A's model, `buildB8` adds the anvil's torn edge and the patchy
+mackerel sky, `buildB10` the lenses that are drawn at all, `buildB11` merges package C (the
+clouds' shadow on the land, the trees and the rocks: from here the pictures show B and C
+together, which is what the traveller will see), and `buildB12` the storms at the governor's
+floor. Each picture's build is named beside it when it matters.
+
 **Before and after.** Since package A landed, "before" is the owning branch's own head
 (`ccr-aa39490a-qiw63x`, built as `buildQ`) and "after" is this branch (`buildB6`, with the four
 lines of "Asked of the main session" patched in). The same query goes to both, with
