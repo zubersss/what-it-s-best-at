@@ -111,7 +111,7 @@ uniform float uFieldK;         // (no field: the world's radius in units of the 
 uniform vec2 uFair;            // (no field: x the fair-weather cover, y how far round the eye the cloud is thinned (m))
 uniform float uLayerOn;        // 0 at the governor's last step: the field's own heaps and decks go to the far shell and only the storm cells are marched
 uniform vec4 uBolt[BOLTS];     // flashes inside the cloud: xyz where (from the camera, m), w how bright
-uniform vec4 uShaft;           // x 1 while rain shafts are drawn, y 1 while they are thinned (the governor), z the streaks' phase (0..1), w the highest base in reach (m)
+uniform vec4 uShaft;           // x 0 no rain shafts, 1 the cells' alone, 2 the field's rain as well; y 1 while they are thinned (the governor), z the streaks' phase (0..1), w the highest base in reach (m)
 in vec2 vUv;
 layout(location = 0) out vec4 fragColor;
 ${SKY_FIELD_GLSL}
@@ -420,13 +420,21 @@ void main() {
   if (uShaft.x > 0.0 && uSkyLow.w > 0.5) country = wxCountry(skyTex2(tWxC, wxUV(upM)));
   float sA = 1.0, sB = -1.0;
   if (uShaft.x > 0.0) {
-    // the stretch of the ray under the highest base within reach (a bound, so it only shortens
-    // the crossing; each step asks the field for the base over its own place)
-    float rr = uSkyLow.y + uShaft.w, qr = disc + rr * rr;
-    if (qr > 0.0) {
-      float sq = sqrt(qr);
-      sA = max(tA, max(-b - sq, 0.0)); sB = min(tB, -b + sq);
+    // Where the rain is on this ray: each raining cell's own shaft (an exact chord, no read),
+    // and, where a deck is raining within reach, the stretch under the highest base there.
+    for (int c = 0; c < 2; c++) {
+      if (c >= gCells) break;
+      vec2 q = cellShaftChord(gCellK[c], uCamPlanetPos, dir);
+      if (q.y > q.x) { sA = min(sA > sB ? q.x : sA, q.x); sB = max(sB, q.y); }
     }
+    if (uShaft.x > 1.5) {
+      float rr = uSkyLow.y + uShaft.w, qr = disc + rr * rr;
+      if (qr > 0.0) {
+        float sq = sqrt(qr), lo = max(-b - sq, 0.0), hi = -b + sq;
+        if (hi > lo) { sA = min(sA > sB ? lo : sA, lo); sB = max(sB, hi); }
+      }
+    }
+    sA = max(sA, tA); sB = min(sB, tB);
   }
 
   // ---- the cloud, and the rain under it, in the order the ray meets them ----
@@ -786,7 +794,7 @@ export class CloudVolume {
     if (id === 'rain-shafts') this.shaftThin = !!off;
     else if (id === 'cloud-steps') this.steps = off ? 22 : 36;
   }
-  live(id) { return id === 'rain-shafts' ? !!this.wanted && this.shafts : !!this.wanted; }
+  live(id) { return id === 'rain-shafts' ? !!this.wanted && this.shafts > 0 : !!this.wanted; }
   has(id) { return id === 'rain-shafts' || id === 'cells-far'; }
   partOut(id, out) { if (out) this.out.add(id); else this.out.delete(id); }
 
@@ -821,9 +829,11 @@ export class CloudVolume {
     u.uSliceCount.value = slices;
     this.hasCellsNear = cells.some((c) => c.dist < this.reach + 6000);
     // (rain falls out of the cloud above: only a world whose weather says where it rains has it)
-    this.shafts = hasField && !this.out.has('rain-shafts') && (this.rainNear || cells.some((c) => c.dist < CELL_FAR && c.rain > 0));
+    // (0: none; 1: the cells' shafts alone; 2: a deck is raining within reach as well)
+    const cellRain = cells.some((c) => c.dist < CELL_FAR && c.rain > 0);
+    this.shafts = hasField && !this.out.has('rain-shafts') && (this.rainNear || cellRain) ? (this.rainNear ? 2 : 1) : 0;
     const phase = ((sky?.noiseT ?? 0) * K.SHAFT_FALL / (v.scale ?? 5200) * 1.7) % 1;
-    u.uShaft.value.set(this.shafts ? 1 : 0, this.shaftThin ? 1 : 0, phase < 0 ? phase + 1 : phase, this.bounds.baseHi || base);
+    u.uShaft.value.set(this.shafts, this.shaftThin ? 1 : 0, phase < 0 ? phase + 1 : phase, this.bounds.baseHi || base);
     // The target is as large as the view can ever be (eight pictures of a quarter of the canvas
     // each way) and only the part the governor's resolution asks for is used, as with the main
     // picture: made anew at every resolution step it cost an allocation in the middle of the

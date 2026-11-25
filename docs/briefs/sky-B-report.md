@@ -59,7 +59,25 @@ by the shared forms, and it throws near pixels out FIRST. With no field it is th
 
 ## Checks (each with its numbers, and how it was seen to fail)
 
-*(filled in as they run)*
+**4. A phone's limits (`scripts/cloud-cost.mjs`, which runs `lib/glLimits.mjs` on every program
+three has linked).** Every program of the sky is inside them:
+
+| program | textures (fragment + vertex) | varyings |
+| --- | --- | --- |
+| the march | 11 + 0 | 1 |
+| the far low shell | 9 + 2 (field A in its vertex shader) | 1 |
+| the mid and high shells | 8 + 0 | 1 |
+| the fog sheet | 7 + 0 | 1 |
+| the far cell sheets | 2 + 0 | 1 |
+| (the ground, for scale) | 16 + 13 | 14 |
+
+**1. The reads a step (`node scripts/cloud-cost.mjs`).** The march is compiled a second time with
+`CLOUD_READS`, and every read of the noise and of the field adds one to a running total that the
+pixel hands back, so this is the count on real rays. First run, at an air view with no cloud in
+it, it read 1 a step; the run at a storm is below. `--break read` puts one more read into the
+loop, to see the check fail.
+
+*(the rest as they run)*
 
 ## Pictures (paths; before and after)
 
