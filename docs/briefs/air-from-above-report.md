@@ -76,16 +76,46 @@ Blended by height (smoothstep), so nothing steps. A world opts in with `look.alo
 ## 4. Unchanged where it must be
 
 - At eye height `aloft` is 0: the haze, the forest's air, the sky's light and the grade
-  are the same code path with the same numbers. The changes that reach eye height are
-  the seam fix (the far canopy along patch edges) and the far rocks on lines of sight
-  steeper than 20 degrees. Pairs (owning branch alone against this branch):
-  `docs/shots/air-above/` — Haven `ledge` and `dusk`, Earth `ledge` (see the last section).
-- The floor at 300 m: `ledge_300_p60_floor` `_own` against `_a6`.
+  run the same code path with the same numbers. What reaches eye height: the seam fix
+  (the far canopy along patch edges) and the far rocks on lines of sight steeper than
+  20 degrees. Pairs, the owning head alone (`_eye_own`) against this branch (`_eye_a5`),
+  in `docs/shots/air-above/`; pixels more than 8 of 255 apart:
+  Haven `ledge` 0.8 % (a far wood's edge across the valley, the seam fix), Haven `dusk`
+  0.1 %, Earth `ledge` 0.2 % (noise).
+- The floor at 300 m (`ledge_300_p60_floor`, `_own` against `_a6`): the blue-teal wash
+  is gone, the wood green, the cloud's shadow a coloured green.
+
+## Water
+
+- The tide's phase and the far sea's foam (0.37, 1.3 tiles) now have a whole number of
+  cycles over the 16 tiles the patches agree on (0.375, 1.3125): `far-ground-test` passes
+  with nothing listed elsewhere in the shader.
 
 ## Cost and checks
 
-- New per-pixel work: a smoothstep per haze lookup and a few operations in the grade;
-  the vertex taps above. No texture added to any shader. The far rocks draw fewer.
-  No governor step added (nothing to step down that would not bring back the fault).
+- The ground's shading, `scripts/ground-cost.mjs --size 880x412 --dsf 2.2` (software
+  WebGL, a count of work), the owning head alone against this branch, two runs each:
+
+  | view   | own (two runs)     | this branch        |
+  |--------|--------------------|--------------------|
+  | ledge  | 4606, 4470 ms      | 4778, 4615 ms      |
+  | air300 | 3039, 2758 ms      | 3155, 2815 ms      |
+  | air3k  | 1802, 1866 ms      | 2009, 1811 ms      |
+  | sum    | 9447, 9094 ms      | 9942, 9240 ms      |
+
+  About 3 % more on average, within the run-to-run spread (4 % between the two runs of
+  the same build). The far rocks draw fewer from the air (not counted here).
+- New work: a smoothstep per haze lookup (at the ground's vertices, and per pixel only in
+  the forest's air), a few operations in the grade, and up to eleven texture reads at the
+  vertices of the canopy's edge strips. No texture added to any shader. No governor step
+  added: none of it can be stepped down without bringing the fault back.
 - `./scripts/build-check.sh`, `npm run govsim`, `npm run rocks`,
   `node scripts/far-ground-test.mjs` pass; no "OVER" line in any picture run.
+
+## Not done
+
+- Ridgelines, rock faces and cliff bands from 1 to 10 km (the relief light).
+- A river narrower than the far patches' texels still thins in and out (now in water's
+  colour, not pale beads): a true ribbon needs the patch builder to know such rivers.
+- The shade from above is at about half the light's brightness, not two thirds: lifting
+  it further began to flatten the lit wood at 300 m.
