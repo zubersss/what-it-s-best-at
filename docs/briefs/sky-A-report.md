@@ -111,7 +111,9 @@ In `docs/shots/sky/` (all drawn without a browser, from the model's own snapshot
   `A-land-sites.png` — the land the weather is worked out over, and where storms are born.
 - `A-2024-09-22-06h.png` … `-18h`, and the same for 23 and 24 September — each kind's cover, the
   rain, the cells and their strikes, with the low and high wind arrows.
-- `A-lapse-00.png` … `-47` — 24 hours of 22 September every half hour, 300 km round the opening place.
+- `A-lapse-00.png` … `-47` — 24 hours of 22 September every half hour, 300 km round the opening
+  place (the mist in the basins at dawn, the heaps growing over the ranges, the storms of the
+  afternoon drifting east, the clearing at dusk).
 - `A-meteogram.png` — a week at the opening place: wind by layer, rain, cover by kind, cells within 40 km.
 
 ## Numbers for src/worlds/haven.js
@@ -159,10 +161,12 @@ game before pinning them. The hours are from `find-weather --scene`, and are wha
 
 ## Open
 
-- **Nothing of this has run in a real GL yet** (no browser was free on this machine). The field's
-  strip uploads and its blend pass are the only new GL in package A; they follow the chunk pool's
-  pattern (raw textures three only binds) and `makePassMaterial`. The first picture is also the
-  first proof that the blend shader compiles.
+- The field has now run in a real GL (`node scripts/play-profile.mjs --world haven --query
+  'debug=sky:storm' --rate 60`, which makes the field with step 0's test pattern through the new
+  `skyField`): the blend pass compiles and runs, 128 KB goes up in a frame (one map's 32-row
+  strip, against the 260 KB budget), and the page reported no problems. Nothing on screen reads
+  the field yet, so there is nothing to look at: B's first picture is the first proof of the
+  'now' maps' own contents.
 - The lenticulars' list is built and posted, but on the scene day the Crown's air is too unstable
   for lenses and it wears a cap instead; `find-weather --seeds` shows days with 1–4 lenses on other
   seeds. B may want a day with lenses for its own pictures: 24 September on seed 13 has three and on seed 21 four.

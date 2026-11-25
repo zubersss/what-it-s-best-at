@@ -266,7 +266,10 @@ export class SkyField {
       const dt = (wall - this.lastWall) / 1000;
       if (dt > 0.002) this.rate = 0.6 * this.rate + 0.4 * Math.abs(t - this.lastT) / dt;
     }
-    const jumped = this.lastT != null && Math.abs(t - this.lastT) > JUMP;
+    // a jump is a clock that has moved far more than its own rate would move it: at x600 the game
+    // clock runs 20 s a frame at 30 frames a second, and that is not a jump
+    const dtWall = this.lastT != null ? Math.max(0.004, (wall - this.lastWall) / 1000) : 0;
+    const jumped = this.lastT != null && Math.abs(t - this.lastT) > Math.max(JUMP, 3 * this.rate * dtWall);
     this.lastT = t; this.lastWall = wall;
     const step = this._step();
     const k = Math.floor(t / step), t0 = k * step, t1 = t0 + step;
@@ -284,10 +287,16 @@ export class SkyField {
     this._fadeWall = wall;
   }
 
-  // one strip of one map of one slot (the plan's budget: at most 260 KB a frame)
+  // One strip of one map of one slot (the plan's budget: at most 260 KB a frame). The FIRST
+  // snapshot goes up whole: nothing is on screen from the field until it is there, a picture
+  // waits for it, and a strip a frame would be five minutes of a headless browser's frames.
   _upload() {
     const s = this.slots.find((q) => !q.ready);
     if (!s) return;
+    if (!this.uploaded) { while (!s.ready) this._strip(s); return; }
+    this._strip(s);
+  }
+  _strip(s) {
     const { width: W, height: H, cWidth: CW, cHeight: CH } = this.layout;
     const maps = [['A', W, H, 4], ['B', W, H, 4], ['C', CW, CH, 2]];
     for (let m = 0; m < maps.length; m++) {
