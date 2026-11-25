@@ -175,8 +175,9 @@ be the same sky. The camera the shaders read is the app's own uniform, so the ch
 one and says how far it moved (100 and 10 000 m): a test that moves the camera must check that
 the camera moved.
 
-**4. A phone's limits (`scripts/cloud-cost.mjs`, which runs `lib/glLimits.mjs` on every program
-three has linked).** Every program of the sky is inside them:
+**4. A phone's limits — PASSED (`scripts/cloud-cost.mjs`, which runs `lib/glLimits.mjs` on every
+program three has linked; run again on the merged build: "ok every program of the sky is inside
+a phone's limits (6 of them)").** They are:
 
 | program | textures (fragment + vertex) | varyings |
 | --- | --- | --- |
