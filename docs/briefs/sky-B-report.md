@@ -543,3 +543,22 @@ case or a benchmark view from a Node scan.
 - **The rise's fades** cost one more read of the masses and one of the look toward the Sun (16 %
   of the game clock). The alternative — reading the look toward the Sun at one phase — makes the
   two tones speckle while the phases blend, so it was not taken.
+
+## What is still running (25 November, 08:30)
+
+One browser at a time on this machine, as detached chains in
+`/tmp/claude-0/-home-user-what-it-s-best-at/fa086d69-ff44-5069-99a3-fdab3300646a/scratchpad`
+(`chainM*.sh`, logs in `logs/`, pictures in `shots/`, frozen builds `buildC1` = this branch,
+`buildQ2` = the owning head):
+
+| chain | what |
+| --- | --- |
+| M2 | the reads a step at a storm, and what the clouds cost at the phone's pixel count — the owning head against this branch, at a storm and on a fair day |
+| M7 | the motion, the anchoring and the hand-over, under the model's own heaps |
+| M5 | the lenses twice, the storm from 20 km again, the cell from 9 km (and the owning head's) |
+| M6 | the cell's portrait with the Sun behind it (and the owning head's), the governor's floor again, Haven from 500 km, from 30 km |
+| M3 | check 6's ridge pair, and the owner's three weather views at the eye (mist, storm, front) |
+| M4 | stability: the climb on the owning head (B0), then the climb, the crossing under heaps and a storm pass on this branch; then `npm run smoke` on a tree |
+
+If this machine restarts, the chains die but the builds, the logs and the pictures do not: each
+chain is a few lines and starts with `nohup setsid`.
