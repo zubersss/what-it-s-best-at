@@ -79,7 +79,9 @@ export function treeBlock(hs, bi, bj, spacing = 7, nominal = BLOCK_DEG, salt = 4
     // (the trees that flower stand in drifts: along a wood's edge, a stream, one hillside, with
     // plain green between, and a few alone; by a broad noise of the place, some 400 m to a
     // cell, near water more. Evenly mixed they were polka dots over every wood from the air.)
-    const drift = near ? 1.6 : 0.08 + 5.0 * smoothstep01((0.5 + 0.5 * noise3(px / 420 - 5.3, py / 420 + 2.9, pz / 420 + 7.7) - 0.52) / 0.2);
+    // (and within a drift in groves some 130 m across, with green between: by the broad noise
+    // alone a drift was itself an even scatter of pink dots)
+    const drift = near ? 1.6 : 0.05 + 14.0 * smoothstep01((0.5 + 0.5 * noise3(px / 420 - 5.3, py / 420 + 2.9, pz / 420 + 7.7) - 0.5) / 0.2) * smoothstep01((0.5 + 0.5 * noise3(px / 130 + 1.7, py / 130 - 4.1, pz / 130 + 2.3) - 0.48) / 0.2);
     const sp = pickDrift(flora ? floraFor(flora, cls, h / Math.max(1, line), near) : speciesFor(cls, lat, ((lon + 540) % 360) - 180, h, near), u4, drift), S = SPECIES[sp];
     // height: the measured canopy's, more or less, and stunted toward the tree line
     const base = Math.max(tall, near ? 9 : 2.5), height = Math.max(1.2, base * S.tall * (0.72 + 0.5 * u1) * (over > 0 ? 1 - 0.6 * over : 1));
