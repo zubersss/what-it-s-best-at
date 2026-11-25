@@ -155,7 +155,10 @@ game before pinning them. The hours are from `find-weather --scene`, and are wha
 - `at()` at the traveller: **under 20 µs** after the first call of a snapshot's context (100 calls
   in 2 ms).
 - The field's uploads: **128 KB** in a frame at most (one map's 32-row strip), 48 frames to take a
-  whole snapshot in; the 'now' blend is a sixteenth of each map's rows a frame on the GPU.
+  whole snapshot in; the 'now' blend is a sixteenth of each map's rows a frame on the GPU. The
+  *first* snapshot is the one exception: nothing on screen can read the field until its maps are
+  there, so it goes up whole in the frame it arrives (3 MB once, before the first picture), and
+  every snapshot after it goes in strips while the one before it is still being read.
 - The land's planes: 5.0 MB (`haven_wxland_1024.u8`), fetched once; without the file the model
   works the same planes out from the elevation map in about a second of worker time.
 
@@ -164,9 +167,12 @@ game before pinning them. The hours are from `find-weather --scene`, and are wha
 - The field has now run in a real GL (`node scripts/play-profile.mjs --world haven --query
   'debug=sky:storm' --rate 60`, which makes the field with step 0's test pattern through the new
   `skyField`): the blend pass compiles and runs, 128 KB goes up in a frame (one map's 32-row
-  strip, against the 260 KB budget), and the page reported no problems. Nothing on screen reads
-  the field yet, so there is nothing to look at: B's first picture is the first proof of the
-  'now' maps' own contents.
+  strip, against the 260 KB budget), and the page reported no problems. A second run of a hundred
+  seconds, after the first snapshot was made to go up whole, holds at **two snapshots and 0 KB a
+  frame** with no problems through 40 frames of walking: the field is up, the crossfade runs, and
+  it costs the page nothing a frame once its maps are in. Nothing on screen reads the field yet,
+  so there is nothing to look at: B's first picture is the first proof of the 'now' maps' own
+  contents.
 - The lenticulars' list is built and posted, but on the scene day the Crown's air is too unstable
   for lenses and it wears a cap instead; `find-weather --seeds` shows days with 1–4 lenses on other
   seeds. B may want a day with lenses for its own pictures: 24 September on seed 13 has three and on seed 21 four.
