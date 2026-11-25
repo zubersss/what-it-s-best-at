@@ -248,17 +248,17 @@ falling within reach, field C once and A and B twice more. On a fair day with no
 are not crossed at all.
 
 
-## Open
-
 ## Asked of the main session
 
-1. **`src/sky/skySystem.js`**, the two stand-ins:
+1. **`src/sky/skySystem.js`**, the three stand-ins:
    ```js
    import { UpperClouds } from './upperClouds.js';
    import { FogSheet } from './fogSheet.js';
+   import { Lenticulars } from './lenticulars.js';
    // in the constructor:
    this.upper = parts.upper ?? new UpperClouds(renderer);
    this.fog = parts.fog ?? new FogSheet(renderer);
+   this.lenses = parts.lenses ?? new Lenticulars(renderer);
    ```
 2. **The field always on** for a world whose weather is made by rule, now that the volume, the
    shell, the shells above and the fog all draw from it:
@@ -313,9 +313,14 @@ renderer. A's model paints the real cover.
   (a fair day near the opening place has 0.02–0.4 cover, and its only rain deck is at night), so
   the pictures are taken at the hours and places where it puts cloud. The look's numbers will
   want another pass once the model paints real cover.
-- **Anvils and lenses** need lists from the field (`field.anvils(t)` is already in the sky
-  system's interface, `field.lenses(t)` is asked of A): until they are there the high shell draws
-  cirrus alone and `lenticulars.js` draws nothing.
+- **Anvils** need a list from the field (`field.anvils(t)`, A's): until it is there the high
+  shell draws cirrus alone.
+- **The lenses** are drawn now: every snapshot already holds its LENS records, and they stand
+  still over the land, so `lenticulars.js` reads them out of the snapshot the field is blending
+  when the field has no `lenses(t)` call of its own. **For A**: a `lenses(t)` on the field (as
+  `cells(t)`) takes the place of that reading, and the stub's two lenses stand over ground 29 m
+  above the sea — the model should put them in the lee of high ground, which is what a standing
+  wave needs.
 - **Earth** has no field yet (its recipe is `maps`), so there the volume still reads the day's
   cloud map and stands its base over the country smoothed round the traveller, as before. That
   path, and `setGround`, go when A's `fromMaps` lands.
