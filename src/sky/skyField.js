@@ -96,7 +96,7 @@ export class SkyField {
     // second of the worker's time at start-up).
     const w = world.weather || {};
     // (only the world's own weather needs it: a test pattern has no land in it)
-    if (!po.preset && !po.wxland && w.land && typeof fetch === 'function' && typeof document !== 'undefined') {
+    if ((!po.preset || po.preset === 'model') && !po.wxland && w.land && typeof fetch === 'function' && typeof document !== 'undefined') {
       this.loading = true;
       const id = this.id, base = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '';
       Promise.all([

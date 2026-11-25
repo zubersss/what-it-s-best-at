@@ -85,6 +85,8 @@
 //
 // THE DEBUG SWITCHES (?debug=..., skyDebug)
 //   sky:<preset>   the field's producer is the stub with that preset (fair, fog, storm, front)
+//   sky:model      the field's producer is the world's own weather model (sky A): what the field
+//                  will always be once the packages read it
 //   storm          a mature storm cell that stands still 8 km north-east of where the view opens
 //   flash          a stroke of lightning held at its brightest (on Earth from its maps, as before;
 //                  on a world with a made weather, from the field's nearest cell: the stub's storm)
@@ -106,6 +108,7 @@ import { Rainbow } from '../weather/rainbow.js';
 import { Steer, STEER_LAYERS } from '../weather/sky/steer.js';
 import { makeSkyAt } from '../weather/sky/format.js';
 import { STUB_PRESETS } from '../weather/sky/stub.js';
+const SKY_PRESETS = [...STUB_PRESETS, 'model'];   // (sky A)
 import { cellGeometry, anvilGeometry, setCellUniforms, CELL_MAX } from '../weather/sky/cellShape.js';
 import { SKY_UNIFORMS, steerQuat, skyRiseOf } from './skyGlsl.js';
 import { SkyField } from './skyField.js';
@@ -144,8 +147,9 @@ export function skyDebug(str = '') {
   const sky = toks.find((t) => t.startsWith('sky:'));
   const preset = sky ? sky.slice(4) : null;
   return {
-    preset: preset && STUB_PRESETS.includes(preset) ? preset : null,
-    badPreset: preset && !STUB_PRESETS.includes(preset) ? preset : null,
+    // ('model': the world's own weather, sky A)
+    preset: preset && SKY_PRESETS.includes(preset) ? preset : null,
+    badPreset: preset && !SKY_PRESETS.includes(preset) ? preset : null,
     storm: toks.includes('storm'),
     flash: String(str).includes('flash'),
     noClouds: toks.includes('noclouds'),
@@ -173,7 +177,7 @@ export class SkySystem {
     this.renderer = renderer; this.terrain = terrain; this.shared = terrain.shared; this.shotMode = shotMode;
     this.debug = skyDebug(debug);
     this.noClouds = this.debug.noClouds;
-    if (this.debug.badPreset) console.warn(`debug=sky:${this.debug.badPreset}: no such preset (${STUB_PRESETS.join(', ')})`);
+    if (this.debug.badPreset) console.warn(`debug=sky:${this.debug.badPreset}: no such preset (${SKY_PRESETS.join(', ')})`);
     this.clouds = parts.clouds ?? new CloudLayer(renderer);
     this.cloudVolume = parts.cloudVolume ?? new CloudVolume(renderer);
     this.treeShade = parts.treeShade ?? new TreeShade(terrain);
