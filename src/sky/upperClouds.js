@@ -35,12 +35,12 @@ export const UPPER_LOOK = Object.freeze({
   MID_SHADE: 0.72,                // its shaded side (two tones, as the heaps have)
   MID_PATCH: 0.28,                // how much the field clumps into patches and lanes (0: an even screen)
   MID_PATCH_K: 0.21,              // how large those patches are, against a cloudlet
-  ANVIL_TORN: 0.26,               // how far the cirrus strokes move an anvil's edge (a torn fringe)
+  ANVIL_TORN: 0.42,               // how far the cirrus strokes move an anvil's edge (a torn fringe)
   HIGH_STRETCH: 7,                // how far the high noise is drawn out along its own wind
   HIGH_ALPHA: 0.5,                // cirrus is never more than half there ...
   HIGH_ANVIL: 0.97,               // ... but an anvil is solid
-  HIGH_UNDER: 0.32,               // an anvil's underside, against its top (grey, not white: it is shut out of the Sun by its own depth)
-  ANVIL_GRAIN: 0.18,              // how much the strokes thin and thicken its sheet
+  HIGH_UNDER: 0.2,                // an anvil's underside, against its top (grey, not white: it is shut out of the Sun by its own depth)
+  ANVIL_GRAIN: 0.3,               // how much the strokes thin and thicken its sheet
   HALO: 0.062,                    // how strong the 22-degree halo is
 });
 const U = UPPER_LOOK;
@@ -163,7 +163,11 @@ void main() {
   if (alpha < 0.004) discard;
   // light: the Sun through the air at this height (so it goes gold and then pink after the land's
   // sunset), the sky from above and below
-  float mu0 = dot(up, uSunDir), cs = dot(normalize(-vRel), uSunDir);
+  // (the cosine between the way one is LOOKING and the Sun, as the march and the far shell have
+  // it (cloudVolume.js gCs, clouds.js cs): from the vector toward the eye instead, which is what
+  // stood here, every ice effect was put opposite the Sun — the bright rim and the 22-degree halo
+  // ringing the antisolar point, where a real sky has neither.)
+  float mu0 = dot(up, uSunDir), cs = dot(normalize(vRel), uSunDir);
   vec3 sun = directSun(planetPos) * smoothstep(-0.09, 0.06, mu0);
   // (ice: a bright rim toward the Sun, and the 22-degree halo of a cirrostratus veil)
   float fwd = 0.75 + 0.9 * pow(max(cs, 0.0), 8.0);

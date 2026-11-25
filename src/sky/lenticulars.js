@@ -19,6 +19,7 @@ import { LENS } from '../weather/sky/format.js';
 
 export const LENS_LOOK = Object.freeze({
   MAX: 12,                  // plates at once
+  THIN_MAX: 3,              // ... and with the governor's step on (one plate each, the nearest three lenses)
   FLAT: 0.11,               // how deep a plate is, against its width
   GAP: 1.35,                // the gap between stacked plates, against a plate's depth
   SHADE: 0.66,              // its shaded side (the two tones)
@@ -122,7 +123,7 @@ void main() {
 export class Lenticulars {
   constructor(renderer) {
     this.renderer = renderer;
-    this.off = false; this.list = []; this._lenses = null; this._lensT = null; this._lensField = null; this._lensReal = -1e9;
+    this.off = false; this.thin = false; this.list = []; this._lenses = null; this._lensT = null; this._lensField = null; this._lensReal = -1e9;
     this.uniforms = { ...lightingUniforms(), uCentre: { value: new THREE.Vector3() }, uAlong: { value: new THREE.Vector3() }, uAcross: { value: new THREE.Vector3() }, uUpAxis: { value: new THREE.Vector3() }, uStrength: { value: 1 }, uCamLocal: { value: new THREE.Vector3() } };
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1 }, uniforms: this.uniforms,
@@ -170,10 +171,11 @@ export class Lenticulars {
     }
     near.sort((a, b) => a[0] - b[0]);
     for (const [, L0] of near) {
-      if (list.length >= L.MAX) break;
+      if (list.length >= (this.thin ? L.THIN_MAX : L.MAX)) break;
       const strength = L0.strength;
       const x = L0.x, y = L0.y, z = L0.z, base = L0.base;
-      const len = L0.length, wid = L0.width, head = L0.heading, plates = Math.max(1, Math.min(3, Math.round(L0.plates)));
+      const len = L0.length, wid = L0.width, head = L0.heading;
+      const plates = this.thin ? 1 : Math.max(1, Math.min(3, Math.round(L0.plates)));
       const r = R + base, up = [x, y, z];
       // its own axes: north and east at its place, turned to the heading the wind blows toward
       let east = [-y, x, 0];
@@ -196,6 +198,12 @@ export class Lenticulars {
         });
       }
     }
+    // Drawn from the FARTHEST to the nearest: they are see-through, and what is laid over what
+    // is the order they are drawn in. The nearest were taken first (that is what the cap is for),
+    // which is exactly the wrong order to draw them in — a lens behind another was blended over
+    // it, and the plates of one lens, which do overlap when it is seen from the side, were laid
+    // bottom over top.
+    list.sort((a, b) => (b.centre[0] ** 2 + b.centre[1] ** 2 + b.centre[2] ** 2) - (a.centre[0] ** 2 + a.centre[1] ** 2 + a.centre[2] ** 2));
   }
 
   draw(c) {
@@ -216,8 +224,13 @@ export class Lenticulars {
     }
   }
 
-  saving() {}
-  live() { return false; }
-  has() { return false; }
-  partOut(id, out) { if (id === 'fog') this.off = !!out; }
+  // The governor's step and the benchmark's part (the wiring in sky/skySystem.js is the main
+  // session's: SKY_SAVINGS 'lenses', SKY_PARTS 'lenses'. Until it is there this answers to
+  // nothing, as a stand-in does, and the lenses are always drawn: at most L.MAX plates, one
+  // draw each. Thinned, only the nearest few lenses are drawn and each as a single plate — a
+  // lens is still over its summit, which is what the place is about.)
+  saving(id, off) { if (id === 'lenses') this.thin = !!off; }
+  live(id) { return id === 'lenses' && this.list.length > 0; }
+  has(id) { return id === 'lenses'; }
+  partOut(id, out) { if (id === 'lenses') this.off = !!out; }
 }

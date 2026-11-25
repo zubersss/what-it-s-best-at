@@ -134,6 +134,8 @@ const sat = (x) => Math.min(1, Math.max(0, x));
 // a block's width and more (bent strongly, never folded: from the air a block unbent was a
 // cobble of a quilt, and one bent by short waves folded into a mosaic).
 export const PATCH = 130;
+// The drifts within a meadow: their noise's cell (m).
+export const DRIFT = 14;
 // How far into a patch (in a block's width) the next patch's kind mixes in from its edge.
 export const BLEND = 0.3;
 const smooth01 = (x) => { const t = sat(x); return t * t * (3 - 2 * t); };
@@ -173,8 +175,11 @@ export function flowersAt(X, Y, Z, flora, slope = 0, turf = false) {
   let hill = 0;
   if (slope > 0.16) hill = sat((slope - 0.16) / 0.12) * sat((noise3(X / 420 + 5, Y / 420 + 3, Z / 420 + 11) - 0.5) / 0.08);
   if (fringe <= 0 && hill <= 0) return 0;
-  const drift = noise3(X / 9 + 40, Y / 9, Z / 9);
-  let many = fl.many * Math.max(rich * (0.45 + 0.75 * sat((drift - 0.25) / 0.4)), 0.5 * fringe * sat((drift - 0.6) / 0.15), 1.1 * hill);
+  // (drifts some 15 m across: thick pools that colour the ground, thinning at their edges into
+  // plain grass with a flower here and there. Within a meadow everywhere a little, as an even
+  // sprinkle to the horizon, they were confetti.)
+  const drift = noise3(X / DRIFT + 40, Y / DRIFT, Z / DRIFT);
+  let many = fl.many * Math.max(rich * (0.04 + 1.15 * smooth01((drift - 0.42) / 0.2)), 0.5 * fringe * smooth01((drift - 0.6) / 0.12), 1.1 * hill);
   if (many <= 0.01) return 0;
   // (the patch: blocks of 110 m with bent edges, each of their three coordinates pushed about
   // by a wave of its own. By the levels of one smooth noise, the kinds lay in rings round
@@ -267,9 +272,10 @@ export const FLOWERS_GLSL = /* glsl */`
     float rich = clamp((meadow - t0) / 0.1, 0.0, 1.0), fringe = clamp((meadow - t0 + 0.11) / 0.06, 0.0, 1.0);
     if (slope > 0.16) hill = clamp((slope - 0.16) / 0.12, 0.0, 1.0) * clamp((fields.y - 0.5) / 0.08, 0.0, 1.0);
     if (fringe <= 0.0 && hill <= 0.0) return 0.0;
-    float drift = blur < 1.0 ? flNoise(P / 9.0 + vec3(40.0, 0.0, 0.0)) : 0.5;
-    float inMeadow = mix(clamp((drift - 0.25) / 0.4, 0.0, 1.0), 0.587, blur), inFringe = mix(clamp((drift - 0.6) / 0.15, 0.0, 1.0), 0.192, blur);
-    float many = FLORA_MANY[flora] * max(max(rich * (0.45 + 0.75 * inMeadow), 0.5 * fringe * inFringe), 1.1 * hill);
+    float drift = blur < 1.0 ? flNoise(P / ${DRIFT.toFixed(1)} + vec3(40.0, 0.0, 0.0)) : 0.5;
+    // (blurred: each by its mean over the land, 0.461 and 0.211)
+    float inMeadow = mix(smoothstep(0.42, 0.62, drift), 0.461, blur), inFringe = mix(smoothstep(0.6, 0.72, drift), 0.211, blur);
+    float many = FLORA_MANY[flora] * max(max(rich * (0.04 + 1.15 * inMeadow), 0.5 * fringe * inFringe), 1.1 * hill);
     if (many <= 0.01) return 0.0;
     vec3 bv = P / ${PATCH.toFixed(1)} + 0.9 * sin(P.yzx / vec3(190.0, 181.0, 197.0) + P.zxy / vec3(230.0, 241.0, 223.0)) + 0.25 * sin(P.zxy / vec3(47.0, 43.0, 41.0) + P.yzx / vec3(53.0, 59.0, 61.0)), bc = floor(bv), bf = bv - bc;
     uvec3 bu = uvec3(ivec3(bc));
@@ -314,7 +320,7 @@ export const FLOWERS_GLSL = /* glsl */`
   // is soft drifts of its colours, never specks.
   vec4 flowerTint(vec3 P, int flora, float slope, vec2 fields, float fpx) {
     int lead, ca, cb, next; float hill, nextShare;
-    float many = flowerBase(P, flora, slope, fields, smoothstep(3.0, 8.0, fpx), lead, ca, cb, hill, next, nextShare);
+    float many = flowerBase(P, flora, slope, fields, smoothstep(4.0, 12.0, fpx), lead, ca, cb, hill, next, nextShare);
     if (many <= 0.0) return vec4(0.0);
     vec2 thr = flowerCompany(P, hill), mean = 0.5 * pow(1.0 - clamp((thr - 0.5) / 0.45, 0.0, 1.0), vec2(2.0));
     float sharp = 1.0 - smoothstep(0.8, 2.5, fpx);

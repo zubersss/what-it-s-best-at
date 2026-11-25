@@ -6,6 +6,22 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
+### Sent 2026-11-25 (late morning): the third link of the rich-and-smooth work, with the new sky
+
+The owner: "Give me a link with everything done merged". This link is ccr-aa39490a-qiw63x at
+173afd5 (PR #37): **the sky by rule** (packages A to D: the day's weather, the clouds of many
+kinds, their shade on everything lit from one map fixed to the world, rain, lightning, thunder
+and wind where the traveller is), the fourth round (trees T4, from above A6, the air and the
+mountains L4 so far, flowers F4), the field's lists every two seconds (`listClock.js`), Haven's
+weather views (keys 6 to 9, the menu's Views), the fog and the lenses on the governor's ladder.
+**Known wrong in it** (being fixed by the helpers, see below): the model's low heaps are not
+drawn (noon over the ranges is an empty sky: `docs/shots/sky/main-noon_air-de185f9.png`; the
+stub's fair heaps did draw, so the fault is in what the model hands the clouds); a storm 64 km
+off is a pale ghost at the horizon; a pale hard-edged disc in the front's view; the weather
+views look into hillsides (A3 is moving them). Until de185f9 the field was the stub's 'fair'
+test pattern whenever the URL had no switch (lesson in CLAUDE.md). The sky's cold code review
+(`review-sky`, five parts with refuters) is still running.
+
 ### Sent 2026-11-25 07:10: the second link of the rich-and-smooth work (read this first)
 
 The owner, after the tenth results, asked for clouds and weather and said the shadows jump;

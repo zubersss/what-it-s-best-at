@@ -485,7 +485,7 @@ if (BREAK === 'clock') {
 // ---- 9. the governor ---------------------------------------------------------------------------------
 {
   // (the order of fix/governor10, the tenth phone results: the steps that bought nothing go last)
-  const LADDER = ['grass-mid', 'trees-far', 'far-trees', 'tree-leaves', 'grass', 'pollen', 'cloud-upper', 'rain-shafts', 'cloud-shade-rate', 'terrain-1', 'terrain-2', 'cloud-shade-coarse', 'clouds', 'far-relief', 'cloud-volume', 'cloud-steps', 'cloak', 'fine-shadows', 'bloom', 'detail', 'soft-shadows', 'contact', 'edge-glow', 'dust', 'rocks', 'far-rock-shadows', 'far-rocks', 'rain', 'leaves', 'sun-beams', 'air-shadow', 'tree-shadows'];
+  const LADDER = ['grass-mid', 'trees-far', 'far-trees', 'tree-leaves', 'grass', 'pollen', 'cloud-upper', 'rain-shafts', 'cloud-shade-rate', 'lenses', 'fog-sheet', 'terrain-1', 'terrain-2', 'cloud-shade-coarse', 'clouds', 'far-relief', 'cloud-volume', 'cloud-steps', 'cloak', 'fine-shadows', 'bloom', 'detail', 'soft-shadows', 'contact', 'edge-glow', 'dust', 'rocks', 'far-rock-shadows', 'far-rocks', 'rain', 'leaves', 'sun-beams', 'air-shadow', 'tree-shadows'];
   check(FEATURE_STEPS.map((f) => f.id).join(',') === LADDER.join(','), "the governor's ladder: as it was, with the plan's four sky steps (cloud-upper, rain-shafts, cloud-shade-rate in the second group, cloud-shade-coarse before 'clouds')");
   // the plan's four: through the sky's setters; not live and not built while their parts are stand-ins
   {
@@ -518,7 +518,7 @@ if (BREAK === 'clock') {
   const skyRows = PARTS_OUT.filter((p) => SKY_PARTS.includes(p.id));
   if (BREAK === 'parts') delete skyRows[0].has;
   check(new Set(ids).size === ids.length && ids[ids.length - 1] === 'everything' && SKY_PARTS.every((id) => ids.includes(id)) && skyRows.every((p) => typeof p.has === 'function'),
-    `PARTS_OUT: ${ids.length} rows with ids, 'everything' last, the sky's six (${SKY_PARTS.join(', ')}) measured only where the sky has them`);
+    `PARTS_OUT: ${ids.length} rows with ids, 'everything' last, the sky's seven (${SKY_PARTS.join(', ')}) measured only where the sky has them`);
   // a cost test on a stand-in app: its parts, its hour, its clock held
   const sky = new SkySystem({ terrain: terrain(), parts: fakeParts() }); sky.setWorld(haven, DATA);
   const rig = { setLatLon(lat, lon) { this.at = [lat, lon]; }, pos: new THREE.Vector3(1, 0, 0), velocity: new THREE.Vector3(), mode: 'walk', standUp() {} };
@@ -549,7 +549,7 @@ if (BREAK === 'clock') {
   }
   // the steps not built yet are not measured
   const stubIdx = FEATURE_STEPS.map((f, i) => (f.has && !f.has(app) ? i : -1)).filter((i) => i >= 0);
-  check(stubIdx.length === 4 && !ct.configs.some((c) => stubIdx.includes(c[0])), `the cost test measures no step that is not built yet (${stubIdx.map((i) => FEATURE_STEPS[i].id).join(', ')})`);
+  check(stubIdx.length === 6 && !ct.configs.some((c) => stubIdx.includes(c[0])), `the cost test measures no step that is not built yet (${stubIdx.map((i) => FEATURE_STEPS[i].id).join(', ')})`);
   ct.restore();
   check(app.paused === false, '... and let go again when the test is over');
   // the route's clock is pinned: the game's own pace whatever the player had, given back at the end
