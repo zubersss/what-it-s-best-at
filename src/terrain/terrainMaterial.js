@@ -699,7 +699,7 @@ void main() {
       // (and within the far trees' reach the trees are the crowns: the canopy under them is
       // the dark between them, its own domes only a hint, or each tree stood on an oval of
       // its own, the same oval over and over)
-      float underTrees = mix(0.3, 1.0, smoothstep(3000.0, 5600.0, dist));
+      float underTrees = mix(0.55, 1.0, smoothstep(3000.0, 5600.0, dist));
       kc *= underTrees; kg *= underTrees;
       if (kg > 0.0) {
         cg = crowns(vDetailUv + 0.37, 3.0);
