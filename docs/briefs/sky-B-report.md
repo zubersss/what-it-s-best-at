@@ -71,6 +71,22 @@ three has linked).** Every program of the sky is inside them:
 | the far cell sheets | 2 + 0 | 1 |
 | (the ground, for scale) | 16 + 13 | 14 |
 
+**3. Anchoring (`node scripts/cloud-motion.mjs`).** The march is drawn from the camera's place,
+from 100 m away and from 10 km away, each aimed at the same point of the world, and every uniform
+it reads is compared between them. **Of everything the march reads, only `uCamPlanetPos` changed
+when the traveller moved** — not the base, not the bounds, nothing of the cloud. In the picture,
+from 100 m away the same cloud stands over the same place to a correlation of 0.87 (the rays
+through a volume are not the same rays, so it is not 1). The check first asked for that from
+10 km away too, where a volume seen from 10 km to the side is a different path through it
+altogether and a perfectly anchored march scores 0: that half of it now asks only that the sky
+be the same sky. The camera the shaders read is the app's own uniform, so the check moves that
+one and says how far it moved (100 and 10 000 m): a test that moves the camera must check that
+the camera moved.
+
+**2. The motion (`node scripts/cloud-motion.mjs`).** Its first run showed a fault of its own: the
+view looked ALONG the day's wind, so the clouds came toward the eye and the picture moved one
+pixel in twenty seconds — nothing to measure. It looks across the wind now.
+
 **1. The reads a step (`node scripts/cloud-cost.mjs`).** The march is compiled a second time with
 `CLOUD_READS`, and every read of the noise and of the field adds one to a running total that the
 pixel hands back, so this is the count on real rays. First run, at an air view with no cloud in
