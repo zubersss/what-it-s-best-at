@@ -44,9 +44,11 @@ Measured by matching the two pictures (a high-pass filter, then the best shift):
   clouds.
 - **one thing does not move**: the big mass at the top right, which is the far cloud shell
   (`src/sky/clouds.js`), matches itself best at a shift of exactly zero (a sharp peak:
-  0.41 at no shift, 0.13 at the heaps' shift). The shell reads its pattern in *direction*
-  space, so the wind turns it as if it were infinitely far away. On this branch the shell
-  is tied to the field and its deck moves with it, but on step 0's head it stands still.
+  0.41 at no shift, 0.13 at the heaps' shift). That is right for what it draws there: with
+  no `?debug=sky:` preset the field is off at the opening view, so the shell falls back to
+  the day's cloud *map* and a detail noise, neither of which the wind touches. It is the
+  reason for change 2 below ("the field always on"): on this branch, with the field on, the
+  shell's heaps are the same heaps the volume marches and they take the same steering.
 
 **Earth** and **`npm run stability --only haven_climb`**: queued on the same frozen build
 (this machine runs one browser at a time); filled in here when they land.
