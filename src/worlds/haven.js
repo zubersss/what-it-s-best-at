@@ -172,6 +172,12 @@ export default {
     costViews: [
       { name: 'in the forest', lat: 22.983, lon: 129.507, heading: 6, pitch: -4 },
       { name: 'from the air', lat: -48.54992, lon: 49.05567, alt: 5000, heading: 235, pitch: -14 },
+      // (sky A) the weather's heaviest moments on the scene days of seed 23 (scripts/find-weather.mjs
+      // --scene): 10 km downwind of the afternoon storm, 400 m under its base; the same storm 64 km
+      // off from over the ledge; the morning mist in the valleys south-west of it, looked down on
+      { name: 'beside the storm', lat: -53.154, lon: 30.536, alt: 2900, heading: 270, pitch: 6, timeOffsetHours: 8.25 },
+      { name: 'a storm from afar', lat: -48.54992, lon: 49.05567, alt: 2500, heading: 243, pitch: 2, timeOffsetHours: 8.25 },
+      { name: 'over the morning mist', lat: -48.54992, lon: 49.05567, alt: 1700, heading: 240, pitch: -14, timeOffsetHours: -0.5 },
     ],
     bookmarks: {
       ledge: { label: 'The first morning', heading: 222, pitch: -2, fov: 60 },
@@ -179,6 +185,14 @@ export default {
       wall: { label: 'The range across the valley', heading: 250, pitch: 3, fov: 26 },
       ship: { label: 'The lander', east: -20, north: -12, heading: 230, pitch: 3, fov: 50 },
       dusk: { label: 'Evening', heading: 275, pitch: 0, fov: 60, timeOffsetHours: 9.6 },
+      // (sky A) the weather of the scene days (seed 23; hours from find-weather.mjs --scene):
+      // mist in the valleys at half past seven; the afternoon storm 64 km off at a quarter past
+      // four; the next day's front from the west-north-west; and two days on, the Crown in a wind
+      // of 18 m/s with a cap on it, seen from 9 km south
+      mist: { label: 'Morning mist', heading: 240, pitch: -14, fov: 55, timeOffsetHours: -0.5 },
+      storm: { label: 'Afternoon storm', heading: 243, pitch: 4, fov: 45, timeOffsetHours: 8.25 },
+      front: { label: 'A front coming', heading: 280, pitch: 4, fov: 55, timeOffsetHours: 33 },
+      crown: { label: 'Wind on the Crown', lat: 13.362, lon: 68.95, heading: 0, pitch: 8, fov: 45, timeOffsetHours: 53 },
     },
   },
   places: [

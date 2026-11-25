@@ -21,6 +21,21 @@ blossom from above stickers; clouds at 3 km flat and dashed, the mountain a smoo
 the tree close-ups badly framed; water from the air oily or paint-bucket blue; grass and
 flowers at eye height too even). **Next**: the sky's four packages (helpers running:
 `docs/briefs/sky-*.md`), and a fourth round on the critic's gaps 1, 3, 4 and the mountains.
+Sent as PR #36, main at 607ddca. Since: the fourteenth final picture and the final tests on
+5ab3400 (smoke, foot, shadowturns pass); **sky A merged** (fd6ce5c: the day's weather by
+rule; nothing on screen changes until B's clouds land, since the field is drawn only under
+`debug=sky:*` until then); the **fourth round** handed out (`docs/briefs/round4.md`: trees
+T4, from above A6, air L4, flowers F4). The sky helpers may edit `skySystem.js`, `haven.js`'s
+hours and add their own governor steps on their branches (marked "(sky X)", tests passing):
+waiting on this session cost them hours; clashes are resolved at the merge.
+**07:45**: sky A done and merged (6b534be: Haven's weather bookmarks and three cost views,
+`?debug=sky:model`, a worker re-asked when started anew). Sky B merged so far and wired
+here (d46152e): **the new clouds are on in Haven** on this branch (the field always on, the
+upper shells, the fog sheet and the lenticulars made). Not yet seen in a picture from this
+head: B takes its pictures and the climb, crossing and storm-pass runs from it. The wood
+walk before and after (`docs/shots/trees-refined/wood_walk_shadows_before_after11.md`):
+the middle ground where the trees' shadows lie changed 63 -> 55 % and flickered 10 -> 7.9 %;
+the wind dominates, so "calmer", not proof (the proof is the Node replays).
 
 ### In hand: Haven rich and smooth (the owner's ninth phone results)
 

@@ -89,7 +89,7 @@ import haven from '../src/worlds/haven.js';
 import earth from '../src/worlds/earth.js';
 
 const argv = process.argv.slice(2), BREAK = argv.includes('--break') ? argv[argv.indexOf('--break') + 1] : null;
-const BREAKS = ['quat', 'march', 'heap', 'clock', 'order', 'noclouds', 'field', 'ladder', 'parts', 'guards', 'rise', 'fade', 'shell', 'probe', 'frame', 'worker', 'hour', 'clockpin', 'rain'];
+const BREAKS = ['quat', 'march', 'heap', 'clock', 'order', 'noclouds', 'field', 'ladder', 'parts', 'guards', 'rise', 'fade', 'shell', 'probe', 'frame', 'worker', 'hour', 'clockpin', 'rain', 'reask'];
 if (BREAK && !BREAKS.includes(BREAK)) { console.log(`no break ${BREAK} (${BREAKS.join(', ')})`); process.exit(2); }
 if (BREAK) console.log(`(with a fault put in: ${BREAK})`);
 let failed = 0;
@@ -618,7 +618,8 @@ if (BREAK === 'clock') {
   }
   {
     const { sky } = run('', true);
-    check(!sky.field.on && !sky.field.busy, 'with no switch Haven has no field yet (nothing on screen reads one in step 0)');
+    // (sky B: the field is always on where the weather is made by rule: the clouds draw from it)
+    check(sky.field.on || sky.field.busy, 'with no switch Haven has its field: the weather made by rule (sky B: the clouds draw from it)');
   }
   check(hourAtEpoch(haven.weather) === 15 && STUB_PRESETS.length === 4, "the stub's day: 15 h local at the weather clock's zero, so the scene's 17:00 UTC is 08:00 at the opening place");
 }
@@ -772,7 +773,9 @@ function ts0() { let t = T0; while (steer.risePhases(t).wa < 1 || steer.risePhas
   sky.weatherStep(ctx(sky, rig, jdOf(T_SCENE_MS)));
   check(Math.abs(G.uWeather.value.x - 0.15) < 1e-6 && Math.abs(G.uWeather.value.y - 0.45) < 1e-6, `the shade probe's value (C) is the shade on the figure and the things near it: uWeather ${G.uWeather.value.x.toFixed(2)}, ${G.uWeather.value.y.toFixed(2)}`);
   parts.probe.value = null;
-  // the flashes reach the volume's uBolt setter
+  // the flashes reach the volume's uBolt setter (a weather that takes the strokes itself, as D's
+  // does: with the field always on the stand-in would set the flash from the field's own strokes)
+  const tsWas = wx.takesStrikes; wx.takesStrikes = true;
   wx.flash = null; wx.bolts = [{ pos: [1, 2, 3], power: 4 }];
   sky.weatherStep(ctx(sky, rig, jdOf(T_SCENE_MS)));
   const fromD = parts.cloudVolume.bolts?.length === 1 && parts.cloudVolume.bolts[0].power === 4;
@@ -782,6 +785,7 @@ function ts0() { let t = T0; while (steer.risePhases(t).wa < 1 || steer.risePhas
   wx.update = function () { this.flash = { dir: new THREE.Vector3(0, 0, 1), dist: 5000, ground: true, power: 1 }; this.flashLight.set(0, 0, 0.5); };
   sky.weatherStep(ctx(sky, rig, jdOf(T_SCENE_MS)));
   const ground = parts.cloudVolume.bolts === null;
+  wx.takesStrikes = tsWas;
   const cv = new CloudVolume(null); cv.setBolts([{ pos: [0, 0, 0], power: 1 }, { pos: [1, 0, 0], power: 0 }, { pos: [2, 0, 0], power: 2 }, { pos: [3, 0, 0], power: 3 }]);
   check(fromD && fromFlash && ground && cv.bolts.length === BOLTS && cv.bolts[1].power === 2, `the flashes reach the volume's uBolt setter: D's list, else a flash in the cloud (where it is, x6 its light), none for a stroke to the ground; the volume keeps ${BOLTS} of power`);
   // D's strokes have a slot of their own
@@ -813,6 +817,23 @@ function ts0() { let t = T0; while (steer.risePhases(t).wa < 1 || steer.risePhas
     const had = !!f.worker;
     f.setWorld(null, null);
     check(made === 1 && had && ended === 1 && f.worker === null, `the field's worker (and its copy of the land) is ended when the field is: a switch away, or no field (${made} made, ${ended} ended)`);
+  } finally { if (saved === undefined) delete globalThis.Worker; else globalThis.Worker = saved; }
+}
+
+{
+  // (sky A) a worker started anew (the land's file arriving) is asked again: the question put to
+  // the one it replaces is never answered (the model's field once waited for ever on it)
+  const saved = globalThis.Worker; const made = [];
+  globalThis.Worker = class { constructor() { this.asked = []; made.push(this); } postMessage(m) { if (m.kind === 'snap') this.asked.push(m.t); } terminate() {} };
+  try {
+    const f = new SkyField(null);
+    f.setWorld(haven, { preset: 'fair', land: { data: new Int16Array(8), width: 4, height: 2, scale: 1 } });
+    f.update(1000);
+    const was = f.asking;
+    f._make(f.opts);                       // what the land's arrival does
+    if (BREAK === 'reask') f.asking = was;
+    f.update(1000.5);
+    check(made.length === 2 && made[0].asked.length === 1 && made[1].asked.length === 1, `a worker started anew is asked for the snapshot again (asked of the first ${made[0]?.asked.length}, of the second ${made[1]?.asked.length})`);
   } finally { if (saved === undefined) delete globalThis.Worker; else globalThis.Worker = saved; }
 }
 

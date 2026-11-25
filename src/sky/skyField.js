@@ -96,7 +96,7 @@ export class SkyField {
     // second of the worker's time at start-up).
     const w = world.weather || {};
     // (only the world's own weather needs it: a test pattern has no land in it)
-    if (!po.preset && !po.wxland && w.land && typeof fetch === 'function' && typeof document !== 'undefined') {
+    if ((!po.preset || po.preset === 'model') && !po.wxland && w.land && typeof fetch === 'function' && typeof document !== 'undefined') {
       this.loading = true;
       const id = this.id, base = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '';
       Promise.all([
@@ -117,7 +117,10 @@ export class SkyField {
   _make(po) {
     this.producer = makeProducer(po);
     this._maps();
+    // (a question put to a worker that is ended here is never answered: the new one is asked again.
+    // Forgetting this left the model's field waiting for ever once the land's file arrived)
     if (this.worker) { this.worker.terminate(); this.worker = null; }
+    this.asking = null;
     if (typeof Worker === 'undefined') return;
     try {
       this.worker = new Worker(new URL('../weather/sky/skyWorker.js', import.meta.url), { type: 'module' });
@@ -266,7 +269,10 @@ export class SkyField {
       const dt = (wall - this.lastWall) / 1000;
       if (dt > 0.002) this.rate = 0.6 * this.rate + 0.4 * Math.abs(t - this.lastT) / dt;
     }
-    const jumped = this.lastT != null && Math.abs(t - this.lastT) > JUMP;
+    // a jump is a clock that has moved far more than its own rate would move it: at x600 the game
+    // clock runs 20 s a frame at 30 frames a second, and that is not a jump
+    const dtWall = this.lastT != null ? Math.max(0.004, (wall - this.lastWall) / 1000) : 0;
+    const jumped = this.lastT != null && Math.abs(t - this.lastT) > Math.max(JUMP, 3 * this.rate * dtWall);
     this.lastT = t; this.lastWall = wall;
     const step = this._step();
     const k = Math.floor(t / step), t0 = k * step, t1 = t0 + step;
@@ -284,10 +290,16 @@ export class SkyField {
     this._fadeWall = wall;
   }
 
-  // one strip of one map of one slot (the plan's budget: at most 260 KB a frame)
+  // One strip of one map of one slot (the plan's budget: at most 260 KB a frame). The FIRST
+  // snapshot goes up whole: nothing is on screen from the field until it is there, a picture
+  // waits for it, and a strip a frame would be five minutes of a headless browser's frames.
   _upload() {
     const s = this.slots.find((q) => !q.ready);
     if (!s) return;
+    if (!this.uploaded) { while (!s.ready) this._strip(s); return; }
+    this._strip(s);
+  }
+  _strip(s) {
     const { width: W, height: H, cWidth: CW, cHeight: CH } = this.layout;
     const maps = [['A', W, H, 4], ['B', W, H, 4], ['C', CW, CH, 2]];
     for (let m = 0; m < maps.length; m++) {
