@@ -109,6 +109,40 @@ const res = await page.evaluate(({ SEC, BREAK }) => {
   sky.clockStep(jd0, 0.016, 1, false);
   const shift = bestShift(A, B, 10);
   const want = pA && pB ? { x: pB.x - pA.x, y: pB.y - pA.y } : null;
+  // ---- 1b. the high layer, which runs faster and often on another heading ----
+  // (the shell drawn alone into the main picture, which the clouds write their cover into as
+  // alpha; the mid shell is kept out of the pass by its own flag)
+  let high = null;
+  if (a.sky.upper && !a.sky.upper.stub) {
+    const post = a.post;
+    const highPic = () => {
+      a.sky.upper.update({ rig, sky: a.sky.frame });
+      a.sky.upper.camBelowMid = false;                  // (the mid shell goes to the other pass)
+      post.beginScene();
+      a.sky.upper.draw({ renderer: r, rig }, 'above');
+      const w = post.viewW, h2 = post.viewH, f = new Float32Array(w * h2 * 4);
+      gl.readPixels(0, 0, w, h2, gl.RGBA, gl.FLOAT, f);
+      const out = new Float32Array(w * h2);
+      for (let i = 0; i < w * h2; i++) out[i] = f[i * 4 + 3];
+      return { a: out, w, h: h2 };
+    };
+    const A2 = highPic();
+    // a point of the world on the high shell straight ahead, carried by the high steering
+    const hr = a.world.radius + 9000;
+    const o = [rig.pos.x, rig.pos.y, rig.pos.z], dd = [rig.forward.x, rig.forward.y, rig.forward.z];
+    const bq = o[0] * dd[0] + o[1] * dd[1] + o[2] * dd[2], disc = bq * bq - (o[0] * o[0] + o[1] * o[1] + o[2] * o[2]) + hr * hr;
+    if (disc > 0) {
+      const tt = -bq + Math.sqrt(disc), P2 = [o[0] + dd[0] * tt, o[1] + dd[1] * tt, o[2] + dd[2] * tt];
+      const P3 = sky.steer.carry('high', t0, t0 + SEC, P2);
+      const pa = project(toDir(P2), A2), pb = project(toDir(P3), A2);
+      if (BREAK !== 'still') sky.clockStep(jd0 + SEC / 86400, 0.016, 1, false);
+      const B2 = highPic();
+      sky.clockStep(jd0, 0.016, 1, false);
+      const sh = bestShift(A2, B2, 12);
+      high = { shift: sh, want: pa && pb ? { x: pb.x - pa.x, y: pb.y - pa.y } : null, cover: A2.a.reduce((x, y) => x + y, 0) / A2.a.length };
+    }
+  }
+
   // ---- 2. anchoring ----
   const keep = rig.pos.clone();
   const marks = [];
@@ -180,7 +214,7 @@ const res = await page.evaluate(({ SEC, BREAK }) => {
   }
   const pic = (p) => { let s = ''; const u = new Uint8Array(p.w * p.h * 3); for (let i = 0; i < p.w * p.h; i++) { const v = Math.round(255 * Math.min(1, p.a[i])); u[i * 3] = u[i * 3 + 1] = u[i * 3 + 2] = v; } for (let i = 0; i < u.length; i += 32768) s += String.fromCharCode.apply(null, u.subarray(i, i + 32768)); return { w: p.w, h: p.h, b64: btoa(s) }; };
   return {
-    shift, want, q: shift.q, slice, wind: sky.steer.windAt('low', t0, 0, 0).speed,
+    shift, want, q: shift.q, slice, high, wind: sky.steer.windAt('low', t0, 0, 0).speed,
     secs: SEC, anchored, changed, camMoved, cells: sky.frame.cells.length,
     pics: { a: pic(A), b: pic(B) },
   };
@@ -196,6 +230,16 @@ const ratio = len(got) / Math.max(len(want), 1e-6);
 console.log(`the low layer over ${res.secs} s: the picture moved ${len(got).toFixed(1)} px toward ${ang(got).toFixed(0)} deg, the steering says ${len(want).toFixed(1)} px toward ${ang(want).toFixed(0)} deg (match ${res.q.toFixed(2)})`);
 check(`the clouds go where the day's low wind carries them (within 10 degrees and 20 %): ${dAng.toFixed(0)} degrees, ${(100 * ratio).toFixed(0)} %`,
   len(want) > 1.2 && dAng <= 10 && ratio > 0.8 && ratio < 1.2);
+// ---- the high layer ----
+if (res.high && res.high.want) {
+  const g = res.high.shift, wnt = res.high.want;
+  let dA = Math.abs(ang(g) - ang(wnt)); if (dA > 180) dA = 360 - dA;
+  const ra = len(g) / Math.max(len(wnt), 1e-6);
+  console.log(`the high layer over ${res.secs} s: the picture moved ${len(g).toFixed(1)} px toward ${ang(g).toFixed(0)} deg, the steering says ${len(wnt).toFixed(1)} px toward ${ang(wnt).toFixed(0)} deg (cover ${res.high.cover.toFixed(3)}, match ${g.q.toFixed(2)})`);
+  check(`a patch of the high layer moves with its own wind (within 15 degrees and 25 %): ${dA.toFixed(0)} degrees, ${(100 * ra).toFixed(0)} %`,
+    res.high.cover > 0.01 && len(wnt) > 1.5 && dA <= 15 && ra > 0.75 && ra < 1.25);
+} else console.log('the high layer: the shells are not in the sky system here (the main session\'s three lines), or nothing of them is in view');
+
 // ---- anchoring ----
 for (const x of res.anchored) console.log(`  the camera ${x.m} m away, aimed at the same place: the same cloud there to ${x.q.toFixed(3)} (${x.n} pixels, ${(100 * x.diff).toFixed(1)} % apart on average, mean cover ${x.mean.toFixed(3)})`);
 check(`the camera really moved for the shaders (${res.camMoved.join(' and ')} m)`, res.camMoved[0] > 90 && res.camMoved[1] > 9000);
