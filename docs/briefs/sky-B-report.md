@@ -329,7 +329,19 @@ and on this branch, at the phone's pixel count — `--size 880x412 --dsf 2.2`). 
 itself: the march and the lay are the difference from a frame with the clouds left out, taken in
 the same browser session, so the two runs can be set side by side:
 
-*(the numbers land as the runs finish)*
+At the storm 20 km off, 3 km up (the merged build, 1100 x 515, five cells in reach, the far
+slices on):
+
+| | ms of work |
+| --- | --- |
+| laying the slices over an empty picture | 58 |
+| the march into its small picture | 790 |
+
+(The same view on an earlier build with one cell in reach and no far slices marched 203 ms: what
+the far slices and the model's five cells add is most of this. Software WebGL counts work, not
+frames; the phone's cost table is what decides.)
+
+*(the runs at the phone's pixel count, and the fair day, land as they finish)*
 
 What the march reads, which is what the phone will feel:
 
