@@ -152,10 +152,11 @@ export default {
   // Clouds of one real day (the globe's own cloud map) as a layer overhead (see sky/clouds.js).
   // Near the traveller the layer is a volume to fly through: its base at 1 400 m, its
   // tops up to 3 200 m higher where the map is thick, out to 16 km (cloudVolume.js).
-  // dense: how solid; change: how fast its shapes turn over; fair: fields of small heaps
-  // where the day's map shows no cloud; clear: the cloud is thin this near the eye (m).
+  // dense: how solid; fair: fields of small heaps
+  // where the day's map shows no cloud; clear: the cloud is thin this near the eye (m). (How the
+  // heaps move and grow is the steering's: weather.steering, src/weather/sky/steer.js.)
   clouds: { map: 'data/earth_clouds_4096.jpg', lon0: -180, altitude: 4500, cover: 0.45, shadow: 0.85,
-    volume: { base: 1400, thick: 3600, reach: 16000, above: 30000, scale: 4200, dense: 3.4, change: 0.009, fair: 0.44, clear: 120 } },
+    volume: { base: 1400, thick: 3600, reach: 16000, above: 30000, scale: 4200, dense: 3.4, fair: 0.44, clear: 120 } },
 
   sky: { stars: { url: 'data/stars_bsc5.f32' } },
 

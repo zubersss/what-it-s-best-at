@@ -59,6 +59,8 @@
 // cellApex) and of its far end's middle; level: m above the sea, its top (anvilLevel);
 // radius: m, its far end's; strength 0..1.
 
+import { glslOnce } from './format.js';
+
 export const CELL_SHAPE = Object.freeze({
   EDGE_IN: 0.55,      // the heart ends at this share of the way out; the edge fades from here to the hull
   BASE_SOFT: 120,     // m: the flat base fades in over this much height
@@ -433,7 +435,7 @@ const U = CELL_UNIFORMS, V = CELL_VEC4;
 //   float cellFootprint(int k, vec3 dir)          cover over a place, seen from above
 // and each cell's numbers: uCells[k * 5 + 3] = (depth, strength, stage, rain), uCells[k * 5 + 4]
 // = (core, age, seed, base).
-export const CELL_GLSL = /* glsl */`
+export const CELL_GLSL = glslOnce('SKY_CELLS', /* glsl */`
 // storm cells (made by src/weather/sky/cellShape.js from its constants; the JS there is the same rule)
 uniform vec4 ${U.cells}[${CELL_MAX * V}];
 uniform int ${U.count};
@@ -552,12 +554,12 @@ float cellFootprint(int k, vec3 dir) {
   float s = l2 > 1.0 ? clamp(dot(q, lean) / l2, 0.0, 1.0) : 0.0;
   return d.y * (1.0 - smoothstep(${glf(S.EDGE_IN)}, 1.0, length(q - lean * s) / b.w));
 }
-`;
+`);
 
 // Anvils in a shader (the high shell's, or the march's): anvil k of uAnvils (0 .. uAnvilCount - 1).
 //   float anvilCover(int k, vec3 dir)    cover over a place (unit direction), 0..1
 //   float anvilDensity(int k, vec3 p)    how solid at p (planet-centred, m), 0..1
-export const ANVIL_GLSL = /* glsl */`
+export const ANVIL_GLSL = glslOnce('SKY_ANVILS', /* glsl */`
 // anvils (made by src/weather/sky/cellShape.js from its constants; the JS there is the same rule)
 uniform vec4 ${U.anvils}[${ANVIL_MAX * ANVIL_VEC4}];
 uniform int ${U.anvilCount};
@@ -584,4 +586,4 @@ float anvilDensity(int k, vec3 p) {
   float h = rp - length(a.xyz), th = ${glf(S.ANVIL_THICK)} * (1.0 - ${glf(S.ANVIL_THIN)} * g.x);
   return s * (1.0 - smoothstep(${glf(S.ANVIL_EDGE_IN)}, 1.0, g.y)) * smoothstep(-th, ${glf(S.ANVIL_SOFT)} - th, h) * (1.0 - smoothstep(${glf(-S.ANVIL_SOFT)}, 0.0, h));
 }
-`;
+`);

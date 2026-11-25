@@ -75,7 +75,9 @@ const quart = (a, f) => { const s = [...a].sort((x, y) => x - y); return s[Math.
       else visit(path.resolve(path.dirname(file), m[1]));
     }
     if (/\bMath\.random\b/.test(code)) bad.push(`${path.relative(root, file)} uses Math.random`);
-    if (/\b(document|window|navigator|self|globalThis)\.|\b(localStorage|requestAnimationFrame|performance\.now)\b/.test(code)) bad.push(`${path.relative(root, file)} uses the DOM`);
+    // (the worker, skyWorker.js, has its own two words of a worker's API: those, and nothing else)
+    const own = path.basename(file) === 'skyWorker.js' ? code.replace(/\bself\.(onmessage|postMessage)\b/g, '') : code;
+    if (/\b(document|window|navigator|self|globalThis)\.|\b(localStorage|requestAnimationFrame|performance\.now)\b/.test(own)) bad.push(`${path.relative(root, file)} uses the DOM`);
   };
   const dir = path.join(root, 'src/weather/sky');
   for (const f of fs.readdirSync(dir).filter((x) => /\.m?js$/.test(x))) visit(path.join(dir, f));
@@ -346,7 +348,8 @@ const quart = (a, f) => { const s = [...a].sort((x, y) => x - y); return s[Math.
   // the cloud drift as it was (CloudVolume.render, lines 408-420, and the shader's q = p / scale + drift;
   // on Haven the wind is rig.east x the sea's wind or 6 m/s, at the traveller)
   const todayRule = () => {
-    const v = haven.clouds.volume, wind = haven.surface.sea?.wind ?? 6, change = v.change ?? 0.006, sc = v.scale ?? 5200, drift = [0.3, 0.6, 0.1], dt = 1 / 30;
+    // (Haven's 'change' was 0.009 noise units a second: the number has left its file with the term)
+    const v = haven.clouds.volume, wind = haven.surface.sea?.wind ?? 6, change = 0.009, sc = v.scale ?? 5200, drift = [0.3, 0.6, 0.1], dt = 1 / 30;
     const q0 = drift.slice(); for (let t = 0; t < T - 1e-9; t += dt) { for (let c = 0; c < 3; c++) drift[c] += E.e[c] * dt * Math.min(20, wind) / sc; drift[2] += dt * change; }
     const q1 = drift.slice();
     return { q0: (p) => p.map((x, c) => x / sc + q0[c]), q1: (p) => p.map((x, c) => x / sc + q1[c]), want: [wind * T, 0, 0] };

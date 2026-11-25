@@ -55,13 +55,18 @@ export const MODES = {
 // The last steps leave the scene what it is: a step thins, it does not remove what a place
 // is about (the cloud layer and the rain stay whatever is switched off).
 // The sky's steps go through the sky's own setters (sky/skySystem.js SKY_SAVINGS: app.sky.setSaving),
-// so that each package's module takes its saving its own way; the sky has more savings than
-// this ladder holds yet (cloud-upper, rain-shafts, cloud-shade-rate, cloud-shade-coarse), to be
-// put on it when their packages land and the phone has said what they buy.
+// so that each package's module takes its saving its own way. Four of them are the clouds
+// plan's (docs/briefs/clouds-weather-plan.md, GOVERNOR), on the ladder from step 0 with the
+// setters of parts not built yet: cloud-upper, rain-shafts, cloud-shade-rate, cloud-shade-coarse.
+// Their `live` is the sky's (false until their packages land: passed by) and `has` says whether
+// the part is built at all (the benchmark's cost test measures only those). Their `buys` are the
+// plan's estimates until the phone has measured them. 'clouds' (every cloud shadow off) goes when
+// package C lands: 'cloud-shade-coarse' takes its place, the shadows kept, coarser.
 // (reach: 0 whenever none are drawn, in the air above the trees' height for one: the count is
 // the last list's, kept after a take-off)
 const nearTrees = (app) => (app.trees?.count ?? 0) > 0 && (app.trees.reach ?? 1) > 0 && !app.trees.hidden;
 const cloudVolume = (app) => !!app.cloudVolume?.wanted;
+const skyStep = (id, buys, label) => ({ id, buys, label, live: (app) => !!app.sky?.live(id), has: (app) => !!app.sky?.hasSaving(id), apply: (app, off) => { app.sky?.setSaving(id, off); } });
 export const FEATURE_STEPS = [
   // --- 1. bought 2.5 ms and more on the phone
   // (3.4 ms in a wood)
@@ -87,6 +92,10 @@ export const FEATURE_STEPS = [
   { id: 'grass', buys: 1.6, label: 'half the grass', live: (app) => (app.grass?.keepBlades ?? 0) > 0 && !!app.grass.mesh?.visible, apply: (app, off) => { app.grass?.setFraction(off ? 0.5 : 1); } },
   // (pollen in the air over flowers: 3 200 points at most, a point each; not yet measured on the phone, a guess)
   { id: 'pollen', buys: 0.3, label: 'less pollen in the air', live: (app) => !!app.pollen?.mesh?.visible, apply: (app, off) => { app.pollen?.setShare(off ? 0.4 : 1); } },
+  // (the clouds plan's, not yet built nor measured: the plan's estimates)
+  skyStep('cloud-upper', 0.5, 'middle and high cloud plainer'),
+  skyStep('rain-shafts', 0.5, 'plainer rain shafts under the clouds'),
+  skyStep('cloud-shade-rate', 0.3, "the clouds' shadows a little behind (every other frame)"),
   // (the patches: the cost test cannot ask about them, the ground would have to settle
   // again each time; a guess. They are also what the governor gives up when the page's own
   // work is what is slow: see _down.)
@@ -96,6 +105,8 @@ export const FEATURE_STEPS = [
   // coming down from space saw a flat map under a flat picture of clouds.
   // (the layer itself is never switched off: a hurricane with a clear sky is not one, and the
   // layer is one texture on the sky)
+  // (the clouds plan's: the shadows kept, coarser; it takes the place of 'clouds' when its package lands)
+  skyStep('cloud-shade-coarse', 0.5, 'coarser cloud shadows'),
   // (4.0 ms at the opening view)
   { id: 'clouds', buys: 4.0, label: "the clouds' shadows on the ground", live: (app) => !!app.clouds?.mesh?.visible, apply: (app, off) => { app.sky?.setSaving('clouds', off); } },
   // (3.5 ms at the opening view, 2.1 from the air)

@@ -323,12 +323,18 @@ export function makeSkyAt() {
 // a JS number as a GLSL float literal
 const glf = (x) => { const s = String(x); return /[.eE]/.test(s) ? s : s + '.0'; };
 
+// A shared GLSL text that a shader may be handed twice (the field's readers, the steering, the
+// cells, the shared cloud rule: a shader that takes two of them gets their common parts twice):
+// guarded, so its uniforms and functions are declared once. Every shared text of the sky is
+// made with this (src/sky/skyGlsl.js, steer.js, cellShape.js).
+export const glslOnce = (name, text) => `\n#ifndef ${name}\n#define ${name}\n${text}\n#endif\n`;
+
 // The GLSL readers of the field: include where a shader reads A, B or C (it declares its own
 // samplers, FIELD_UNIFORMS). wxRead works in vertex and fragment shaders (level 0: the maps
 // have no mipmaps, so no seam where longitude wraps). d is a unit direction in planet axes.
 // Each decoder is one line, `type name(args) { return expression; }`: the format test reads
 // them back from this string and runs their arithmetic in JS against `dec`.
-export const FIELD_GLSL = /* glsl */ `
+export const FIELD_GLSL = glslOnce('SKY_FIELD_DECODERS', /* glsl */ `
 // The sky's snapshot fields (src/weather/sky/format.js, format ${FORMAT_VERSION}; made from its constants, edit them there).
 // A: heap cover, sheet cover, base (m above the sea), sheet thickness (m).
 // B: mid cover, high cover, field rain (mm/h), wet ground (0..1).
@@ -353,7 +359,7 @@ float wxRain(vec4 b) { return exp2(b.b * WX_RAIN_N) - 1.0; }
 float wxWet(vec4 b) { return b.a; }
 float wxFogTop(vec4 c) { return c.r * WX_FOG_M; }
 float wxCountry(vec4 c) { return c.g * WX_COUNTRY_M; }
-`;
+`);
 
 // Which GLSL decoder reads which channel (for the parity test and for readers' reference).
 export const GLSL_DECODERS = Object.freeze({

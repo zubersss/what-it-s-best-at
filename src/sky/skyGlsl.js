@@ -22,6 +22,20 @@
 //    noise in the same steering frame; and the cloud-shade atlas's four channels (skyShade) with
 //    the reader that turns a texel into sunlight and skylight (skyShadeLight).
 //
+// The rise: the low pattern also rises through its layer at steer.js's `rise` (0.5 m/s), so a
+// heap grows and fades in place as it goes (in the place of the old 'change' term, which slid
+// the clouds along the planet's axis): skyLowNoise() reads the masses' noise where the pattern
+// stood the rise's phase lower, blended with a second phase near the first's wrap (steer.js
+// RISE, riseWeight). One number a frame, SKY_UNIFORMS.uCloudRise.x (m); the shared heap rule
+// takes it as the fourth of its `vol` (uCloudVol.w on the ground, uVol.w on the shell), so no
+// shader's uniform count grows. The smaller lobes and the wisps are read unrisen: they go with
+// the wind and only the masses grow and fade.
+//
+// Every text here is guarded (format.js glslOnce): a shader may take two of them (the shared
+// rule and the field's) and gets their common parts once. The uniforms they read are declared
+// by guarded texts too (SKY_STEER_UNIFORM_GLSL, SKY_NOISE_UNIFORM_GLSL, SKY_RISE_UNIFORM_GLSL,
+// SKY_FIELD_UNIFORMS_GLSL): a reader declares them through these, never by a line of its own.
+//
 // The steering in a shader: one unit quaternion of M_low(t)^-1 (four numbers: a uniform vec4
 // takes the place the old vec3 drift had, so no shader's uniform count grows; the ground's
 // vertex and fragment shaders are near a phone's limits). steerQuat() makes it from steer.js's
@@ -29,7 +43,9 @@
 // (STEER_GLSL in steer.js has every layer as mat3 arrays, for shaders that want them all.)
 //
 // Pure: no three, no DOM, no Math.random (it is imported by Node tests).
-import { FIELD_GLSL, ENC } from '../weather/sky/format.js';
+import { FIELD_GLSL, ENC, glslOnce } from '../weather/sky/format.js';
+import { RISE, riseWeight, makeSteerUniforms } from '../weather/sky/steer.js';
+import { makeCellUniforms } from '../weather/sky/cellShape.js';
 
 // a JS number as a GLSL float literal
 const glf = (x) => { const s = String(x); return /[.eE]/.test(s) ? s : s + '.0'; };
@@ -60,23 +76,81 @@ export function skyToLowJS(q, p, out = [0, 0, 0]) {
   return out;
 }
 
-export const SKY_STEER_GLSL = /* glsl */`
+export const SKY_STEER_GLSL = glslOnce('SKY_TO_LOW', /* glsl */`
 // Where the low layer's pattern stands still: p (planet axes, m, or a direction) turned back by
 // the low layer's motion; q is SKY_UNIFORMS.uCloudSteer (src/sky/skyGlsl.js)
-vec3 skyToLow(vec4 q, vec3 p) { vec3 t = 2.0 * cross(q.xyz, p); return p + q.w * t + cross(q.xyz, t); }`;
+vec3 skyToLow(vec4 q, vec3 p) { vec3 t = 2.0 * cross(q.xyz, p); return p + q.w * t + cross(q.xyz, t); }`);
+
+// The uniforms the shared texts read, each declared once however many texts a shader takes.
+export const SKY_STEER_UNIFORM_GLSL = glslOnce('SKY_U_STEER', "uniform vec4 uCloudSteer;      // the low layer's motion as a quaternion of M_low(t)^-1 (src/sky/skyGlsl.js)");
+export const SKY_NOISE_UNIFORM_GLSL = glslOnce('SKY_U_NOISE', "uniform highp sampler3D tCloudNoise;  // the clouds' noise (src/sky/cloudNoiseData.js)");
+export const SKY_RISE_UNIFORM_GLSL = glslOnce('SKY_U_RISE', "uniform vec4 uCloudRise;       // the low pattern's rise: x its phase (m), y its weight, z its speed (m/s) (src/sky/skyGlsl.js)");
 
 // ---- the uniforms every reader shares (one object each, never replaced; three takes the flat arrays)
 
 export function makeSkyUniforms() {
+  const st = makeSteerUniforms();
   return {
     uCloudSteer: { value: new Float32Array([0, 0, 0, 1]) },     // the low layer's M^-1 as a quaternion (identity: no motion)
+    uCloudRise: { value: new Float32Array([0, 1, 0, 0]) },       // the low pattern's rise (skyRiseOf): x its phase (m), y its weight, z its speed
     // the field's rule (part 2): x 1 / the noise's scale (1/m), y the world's radius (m), z how dark a
     // full cloud's shadow is (0..1), w 1 when there is a field (0: no cloud from it at all)
     uSkyLow: { value: new Float32Array([1 / 4200, 250000, 0.85, 0]) },
     tWxA: { value: null }, tWxB: { value: null }, tWxC: { value: null },      // the field's 'now' maps (sky/skyField.js)
+    // every layer's steering, as steer.js's STEER_GLSL declares it (Steer.uniforms fills them each frame)
+    uSteerInv: { value: st.uSteerInv }, uSteerSpin: { value: st.uSteerSpin }, uSteerRise: { value: st.uSteerRise },
+    // the storm cells and anvils in reach, as cellShape.js's CELL_GLSL and ANVIL_GLSL declare them
+    // (sky/skySystem.js fills them each frame from the field's cells, nearest first)
+    ...makeCellUniforms(),
   };
 }
 export const SKY_UNIFORMS = makeSkyUniforms();
+
+// ---- the rise ------------------------------------------------------------------------------
+
+// Its numbers (the GLSL below is made from them): the noise's mean, about which a blend of two
+// phases is stretched back to the spread of one (a blend of two reads is flatter than either,
+// and the heaps cut from it would thin while the phases blend).
+export const RISE_RULE = Object.freeze({ PERIOD: RISE.PERIOD, FADE: RISE.FADE, NOISE_MEAN: 0.339 });
+// What a frame hands the shaders: [phase (m), its weight, the rise's speed (m/s), 0] at the
+// clock t (the clouds' noise clock) from the world's steering (steer.js); no steering: none.
+export function skyRiseOf(steer, t, out = new Float32Array(4)) {
+  if (!steer) { out[0] = 0; out[1] = 1; out[2] = 0; out[3] = 0; return out; }
+  const ph = steer.risePhases(t);
+  out[0] = ph.a; out[1] = ph.wa; out[2] = steer.cfg.rise; out[3] = 0;
+  return out;
+}
+export const SKY_RISE_GLSL = glslOnce('SKY_RISE', /* glsl */`
+const float SKY_RISE_W = ${glf(RISE_RULE.PERIOD)};
+const float SKY_RISE_FADE = ${glf(RISE_RULE.FADE)};
+const float SKY_NOISE_MEAN = ${glf(RISE_RULE.NOISE_MEAN)};
+// the weight of the rise's first phase a (m into its period): 1 but near its wrap (steer.js riseWeight)
+float skyRiseWeight(float a) { float f = a / SKY_RISE_W; return smoothstep(0.0, SKY_RISE_FADE, f) * smoothstep(0.0, SKY_RISE_FADE, 1.0 - f); }
+// The low pattern's masses (the noise's red) at the pattern point q (noise units) whose radius is
+// r (m), risen by the phase a (m): read where q stood a metres lower; near a's wrap blended with
+// the second phase, half a period on, and the blend stretched back to one read's spread.
+float skyLowNoise(highp sampler3D noise, vec3 q, float r, float a) {
+  float wa = skyRiseWeight(a), n = 0.0;
+  if (wa > 0.0) n = wa * texture(noise, q * (1.0 - a / r)).r;
+  if (wa < 1.0) {
+    float b = mod(a + 0.5 * SKY_RISE_W, SKY_RISE_W);
+    n += (1.0 - wa) * texture(noise, q * (1.0 - b / r)).r;
+    n = SKY_NOISE_MEAN + (n - SKY_NOISE_MEAN) * inversesqrt(wa * wa + (1.0 - wa) * (1.0 - wa));
+  }
+  return n;
+}`);
+// its JS twin (noise: anything with sample([x, y, z]) -> [r, g, b, a], filtered as the GPU does)
+export function skyLowNoiseJS(noise, q, r, a) {
+  const wa = riseWeight(a);
+  let n = 0;
+  if (wa > 0) { const k = 1 - a / r; n = wa * noise.sample([q[0] * k, q[1] * k, q[2] * k])[0]; }
+  if (wa < 1) {
+    const W = RISE_RULE.PERIOD, b = ((a + 0.5 * W) % W + W) % W, k = 1 - b / r;
+    n += (1 - wa) * noise.sample([q[0] * k, q[1] * k, q[2] * k])[0];
+    n = RISE_RULE.NOISE_MEAN + (n - RISE_RULE.NOISE_MEAN) / Math.sqrt(wa * wa + (1 - wa) * (1 - wa));
+  }
+  return n;
+}
 
 // ---- 1. the rule as drawn today -------------------------------------------------------------
 
@@ -100,28 +174,29 @@ const C = CLOUD_RULE;
 //   noise: the cloud volume's noise; up: the direction from the world's centre; k: the
 //   world's radius in units of the field; fair: its cover; m: the day's map there.
 //   Never a whole cover: fair weather has sky between its heaps.
-export const FAIR_GLSL = /* glsl */`
+export const FAIR_GLSL = glslOnce('SKY_FAIR', /* glsl */`
 float fairCover(highp sampler3D noise, vec3 up, float k, float fair, float m) {
   float field = texture(noise, up * k + ${glf(C.FIELD_OFFSET)}).r, cluster = texture(noise, up * (k * ${glf(C.CLUSTER_K)}) + ${glf(C.CLUSTER_OFFSET)}).g;
   return min(${glf(C.FAIR_MAX)}, fair * (${glf(C.FAIR_M0)} + ${glf(C.FAIR_M1)} * smoothstep(0.0, ${glf(C.FAIR_M_EDGE)}, m)) * smoothstep(${glf(C.FIELD0)}, ${glf(C.FIELD1)}, field) * smoothstep(${glf(C.CLUSTER0)}, ${glf(C.CLUSTER1)}, cluster) * ${glf(C.FAIR_GAIN)});
-}`;
+}`);
 
 // A heap of the cloud layer over a place, as the far shell draws it and as the ground, the
 // trees and the far rocks are shaded by it: one rule.
 //   noise: the cloud volume's noise; up: the direction from the world's centre; m: the day's
 //   map there; lo: 1 - the layer's cover; fair: the fair-weather cover; vol: x 1 / the noise's
 //   scale, y the fair-weather field's scale, z the radius at which the volume's masses are
-//   widest; steer: SKY_UNIFORMS.uCloudSteer; fine: how much of the smaller lobes (0..1).
+//   widest, w the rise's phase (m, SKY_UNIFORMS.uCloudRise.x); steer: SKY_UNIFORMS.uCloudSteer;
+//   fine: how much of the smaller lobes (0..1).
 //   Returns x the heap (0..1), y the cover there (0..1).
-export const HEAP_GLSL = SKY_STEER_GLSL + FAIR_GLSL + /* glsl */`
-vec2 cloudHeap(highp sampler3D noise, vec3 up, float m, float lo, float fair, vec3 vol, vec4 steer, float fine) {
+export const HEAP_GLSL = SKY_STEER_GLSL + FAIR_GLSL + SKY_RISE_GLSL + glslOnce('SKY_HEAP', /* glsl */`
+vec2 cloudHeap(highp sampler3D noise, vec3 up, float m, float lo, float fair, vec4 vol, vec4 steer, float fine) {
   float c = smoothstep(lo - ${glf(C.EDGE0)}, lo + ${glf(C.EDGE1)}, m);
   if (fair > 0.0) c = max(c, fairCover(noise, up, vol.y, fair, m));
   vec3 qv = skyToLow(steer, up) * (vol.z * vol.x);
-  float n = texture(noise, qv).r;
+  float n = skyLowNoise(noise, qv, vol.z, vol.w);
   if (fine > 0.0) n += (texture(noise, qv * ${glf(C.LOBE_K)} + ${glf(C.LOBE_OFFSET)}).g - 0.5) * ${glf(C.LOBE_AMP)} * fine;
   return vec2(clamp((n - (1.0 - c) * ${glf(C.CUT)}) / max(c * ${glf(C.CUT)} + ${glf(C.FLOOR)}, ${glf(C.FLOOR_MIN)}) * ${glf(C.GAIN)}, 0.0, 1.0), c);
-}`;
+}`);
 
 // The JS twins (noise: anything with sample([x, y, z]) -> [r, g, b, a], filtered as the GPU does)
 export function fairCoverJS(noise, up, k, fair, m) {
@@ -134,7 +209,7 @@ export function cloudHeapJS(noise, up, m, lo, fair, vol, steer, fine) {
   if (fair > 0) c = Math.max(c, fairCoverJS(noise, up, vol[1], fair, m));
   const q = skyToLowJS(steer, up), s = vol[2] * vol[0];
   q[0] *= s; q[1] *= s; q[2] *= s;
-  let n = noise.sample(q)[0];
+  let n = skyLowNoiseJS(noise, q, vol[2], vol[3] ?? 0);
   if (fine > 0) { const k = C.LOBE_K, o = C.LOBE_OFFSET; n += (noise.sample([q[0] * k + o, q[1] * k + o, q[2] * k + o])[1] - 0.5) * C.LOBE_AMP * fine; }
   return [clamp((n - (1 - c) * C.CUT) / Math.max(c * C.CUT + C.FLOOR, C.FLOOR_MIN) * C.GAIN, 0, 1), c];
 }
@@ -155,15 +230,14 @@ export const SKY_V0 = Object.freeze({
   MU_MIN: 0.08,           // the Sun's height (sine) below which a ray is taken as this low
 });
 
-export const SKY_FIELD_UNIFORMS_GLSL = /* glsl */`
+export const SKY_FIELD_UNIFORMS_GLSL = glslOnce('SKY_U_FIELD', /* glsl */`
 uniform sampler2D tWxA, tWxB, tWxC;   // the field's 'now' maps (src/weather/sky/format.js; src/sky/skyField.js)
-uniform vec4 uSkyLow;                 // x 1 / the noise's scale (1/m), y the world's radius (m), z the shadow's strength, w 1: a field is there
-uniform vec4 uCloudSteer;             // the low layer's motion (src/sky/skyGlsl.js)
-uniform highp sampler3D tCloudNoise;  // the clouds' noise (src/sky/cloudNoiseData.js)`;
+uniform vec4 uSkyLow;                 // x 1 / the noise's scale (1/m), y the world's radius (m), z the shadow's strength, w 1: a field is there`)
+  + SKY_STEER_UNIFORM_GLSL + SKY_NOISE_UNIFORM_GLSL + SKY_RISE_UNIFORM_GLSL;
 
 const V = SKY_V0;
-// (FIELD_GLSL's decoders, then:)
-export const SKY_FIELD_GLSL = FIELD_GLSL + SKY_STEER_GLSL + /* glsl */`
+// (its uniforms, FIELD_GLSL's decoders, the steering and the rise, then:)
+export const SKY_FIELD_GLSL = SKY_FIELD_UNIFORMS_GLSL + FIELD_GLSL + SKY_STEER_GLSL + SKY_RISE_GLSL + glslOnce('SKY_FIELD_RULE', /* glsl */`
 // The low cloud over a place (dir: a unit direction, planet axes), from field A:
 // x heap cover, y sheet cover, z its base, w its top (m above the sea).
 vec4 skyLow(vec3 dir) {
@@ -179,7 +253,7 @@ float skyLowDensity(vec3 p) {
   vec4 L = skyLow(p / r);
   float y = (r - uSkyLow.y - L.z) / max(L.w - L.z, 1.0);
   float inside = smoothstep(0.0, 0.08, y) * (1.0 - smoothstep(0.86, 1.0, y));
-  float n = texture(tCloudNoise, skyToLow(uCloudSteer, p) * uSkyLow.x).r;
+  float n = skyLowNoise(tCloudNoise, skyToLow(uCloudSteer, p) * uSkyLow.x, r, uCloudRise.x);
   float heap = clamp((n * inside - (1.0 - L.x) * 0.85) / max(L.x * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
   return max(heap, L.y * inside) * uSkyLow.w;
 }
@@ -198,7 +272,7 @@ vec4 skyShade(vec3 p, vec3 toSun) {
   float s = max(widest - h, 0.0) / max(dot(up, toSun), ${glf(V.MU_MIN)});
   vec3 uq = normalize(p + toSun * s);
   vec4 L = skyLow(uq);
-  float n = texture(tCloudNoise, skyToLow(uCloudSteer, uq) * ((uSkyLow.y + widest) * uSkyLow.x)).r;
+  float n = skyLowNoise(tCloudNoise, skyToLow(uCloudSteer, uq) * ((uSkyLow.y + widest) * uSkyLow.x), uSkyLow.y + widest, uCloudRise.x);
   float heap = clamp((n - (1.0 - L.x) * 0.85) / max(L.x * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
   float raw = max(heap, L.y);
   vec4 b = wxRead(tWxB, uq);
@@ -215,10 +289,11 @@ float skyShadeCrisp(float x) { return ${glf(V.SHADOW)} * smoothstep(${glf(V.CRIS
 vec2 skyShadeLight(vec4 s, float h) {
   float below = 1.0 - smoothstep(s.w * ${glf(V.TOP_M)} - ${glf(V.TOP_SOFT)}, s.w * ${glf(V.TOP_M)} + ${glf(V.TOP_SOFT)}, h);
   return vec2((1.0 - uSkyLow.z * skyShadeCrisp(s.x) * below) * s.y, s.z);
-}`;
+}`);
 
 // The JS twins of part 2. maps: { A, B } samplers (sample([u, v]) -> [r, g, b, a], filtered as the
-// GPU does), noise: as above, u: { uCloudSteer, uSkyLow } (arrays). Decoders as format.js's.
+// GPU does), noise: as above, u: { uCloudSteer, uSkyLow, uCloudRise } (arrays; without uCloudRise,
+// no rise). Decoders as format.js's.
 const TWO_PI = 2 * Math.PI;
 const readMap = (m, d) => m.sample([Math.atan2(d[1], d[0]) / TWO_PI, Math.acos(clamp(d[2], -1, 1)) / Math.PI]);
 export function skyLowJS(maps, d) {
@@ -230,7 +305,7 @@ export function skyLowDensityJS(maps, noise, u, p) {
   const r = Math.hypot(p[0], p[1], p[2]), L = skyLowJS(maps, [p[0] / r, p[1] / r, p[2] / r]), k = u.uSkyLow;
   const y = (r - k[1] - L[2]) / Math.max(L[3] - L[2], 1), inside = sstep(0, 0.08, y) * (1 - sstep(0.86, 1, y));
   const q = skyToLowJS(u.uCloudSteer, p); q[0] *= k[0]; q[1] *= k[0]; q[2] *= k[0];
-  const n = noise.sample(q)[0];
+  const n = skyLowNoiseJS(noise, q, r, u.uCloudRise?.[0] ?? 0);
   const heap = clamp((n * inside - (1 - L[0]) * 0.85) / Math.max(L[0] * 0.85 + 0.15, 0.2) * 2.2, 0, 1);
   return Math.max(heap, L[1] * inside) * k[3];
 }
@@ -241,7 +316,7 @@ export function skyShadeJS(maps, noise, u, p, toSun) {
   const qp = [p[0] + toSun[0] * s, p[1] + toSun[1] * s, p[2] + toSun[2] * s], ql = Math.hypot(qp[0], qp[1], qp[2]), uq = [qp[0] / ql, qp[1] / ql, qp[2] / ql];
   const L = skyLowJS(maps, uq), q = skyToLowJS(u.uCloudSteer, uq), sc = (k[1] + widest) * k[0];
   q[0] *= sc; q[1] *= sc; q[2] *= sc;
-  const n = noise.sample(q)[0];
+  const n = skyLowNoiseJS(noise, q, k[1] + widest, u.uCloudRise?.[0] ?? 0);
   const heap = clamp((n - (1 - L[0]) * 0.85) / Math.max(L[0] * 0.85 + 0.15, 0.2) * 2.2, 0, 1), raw = Math.max(heap, L[1]);
   const b = readMap(maps.B, uq), upper = Math.exp(-V.MID_K * b[0] - V.HIGH_K * b[1]), sky = 1 - V.SKY_K * Math.max(L0[1], 0.6 * L0[0]);
   return [raw * k[3], 1 + (upper - 1) * k[3], 1 + (sky - 1) * k[3], clamp(L[3] / V.TOP_M, 0, 1) * k[3]];

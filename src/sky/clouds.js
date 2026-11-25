@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { G } from '../render/globals.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
-import { HEAP_GLSL, SKY_UNIFORMS } from './skyGlsl.js';
+import { HEAP_GLSL, SKY_UNIFORMS, SKY_NOISE_UNIFORM_GLSL, SKY_STEER_UNIFORM_GLSL } from './skyGlsl.js';
 
 // The rule the shell, the volume and every shadow share (fair-weather fields, heaps carved
 // from the noise on the low layer's steering) lives in sky/skyGlsl.js; passed on from here
@@ -32,9 +32,10 @@ uniform sampler2D tCloudMap;
 uniform vec4 uCloud;           // x cover, y the shell's radius (m), z longitude shift of the map (turns), w 1 = the camera is below the shell
 uniform float uFair;           // the cover of fair-weather cloud where the day's map has none (0: none; see cloudVolume.js)
 precision highp sampler3D;
-uniform sampler3D tCloudNoise; // the volume's own noise: far off, this shell shows the same clouds the volume does near
-uniform vec4 uVol;             // x: 1 / the noise's scale (1/m; 0: no volume), y: the world's radius in units of the fair-weather field, z: the radius at which the volume's masses are widest (m)
-uniform vec4 uCloudSteer;      // the low layer's motion: its pattern is read where it stands still (sky/skyGlsl.js)
+// (tCloudNoise: the volume's own noise: far off, this shell shows the same clouds the volume does
+// near; uCloudSteer: the low layer's motion, its pattern read where it stands still, sky/skyGlsl.js)
+${SKY_NOISE_UNIFORM_GLSL}${SKY_STEER_UNIFORM_GLSL}
+uniform vec4 uVol;             // x: 1 / the noise's scale (1/m; 0: no volume), y: the world's radius in units of the fair-weather field, z: the radius at which the volume's masses are widest (m), w: the low pattern's rise (m, SKY_UNIFORMS.uCloudRise.x)
 uniform float uNearFade;       // metres: nearer than this the cloud is drawn as a volume instead (cloudVolume.js); 0: all of it is this shell
 in vec3 vRel;
 layout(location = 0) out vec4 fragColor;
@@ -84,7 +85,7 @@ void main() {
     // same noise at the height where the masses are widest. A cloud keeps its place and
     // its outline when the traveller comes near and the volume takes it over. (Not where
     // a mass is smaller than a pixel: there, its mean.)
-    vec2 hc = cloudHeap(tCloudNoise, up, m, lo, uFair, uVol.xyz, uCloudSteer, 1.0 - smoothstep(150.0, 600.0, px * uVol.z));
+    vec2 hc = cloudHeap(tCloudNoise, up, m, lo, uFair, uVol, uCloudSteer, 1.0 - smoothstep(150.0, 600.0, px * uVol.z));
     float c = hc.y, dv = hc.x;
     float small = far;
     cover = mix(smoothstep(0.0, 0.45, dv) * 0.75, c * 0.5, small);
@@ -92,7 +93,7 @@ void main() {
     // few hundred metres toward the Sun says which this is (as the volume does near the
     // traveller). Flat white, the layer was a picture laid over the land.
     if (small < 1.0) {
-      float n1 = texture(tCloudNoise, skyToLow(uCloudSteer, normalize(up + uSunDir * (450.0 / uVol.z))) * (uVol.z * uVol.x)).r;
+      float n1 = skyLowNoise(tCloudNoise, skyToLow(uCloudSteer, normalize(up + uSunDir * (450.0 / uVol.z))) * (uVol.z * uVol.x), uVol.z, uVol.w);
       float dv1 = clamp((n1 - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
       relief = clamp(1.0 + 1.25 * (dv - dv1), 0.6, 1.24);
     }
@@ -201,7 +202,7 @@ export class CloudLayer {
       this.radius = worldRadius + volume.base + 0.3 * (v.thick ?? 3000);
       this.mesh.scale.setScalar(this.radius);
       this.uniforms.tCloudNoise.value = volume.noise;
-      this.uniforms.uVol.value.set(1 / (v.scale ?? 5200), worldRadius / (v.scale ?? 5200) * 0.11, this.radius, 0);
+      this.uniforms.uVol.value.set(1 / (v.scale ?? 5200), worldRadius / (v.scale ?? 5200) * 0.11, this.radius, SKY_UNIFORMS.uCloudRise.value[0]);
     } else this.uniforms.uVol.value.x = 0;
     if (!on || !match) this.heap.w = 0;
     this.mesh.visible = on;

@@ -139,7 +139,7 @@ export default {
   // A day's clouds (made: scripts/make-world-maps.mjs) as a layer overhead, a volume near
   // the traveller, fair-weather heaps where the map is clear (see Earth's file).
   clouds: { map: 'data/haven_clouds_4096.jpg', altitude: 3600, cover: 0.45, shadow: 0.85,
-    volume: { base: 1200, thick: 3000, reach: 16000, above: 30000, scale: 4200, dense: 3.4, change: 0.009, fair: 0.44, clear: 120 } },
+    volume: { base: 1200, thick: 3000, reach: 16000, above: 30000, scale: 4200, dense: 3.4, fair: 0.44, clear: 120 } },
 
   // The day's weather, made by rule (src/weather/sky/; docs/briefs/clouds-weather-plan.md). So
   // far: the clouds' steering winds (steer.js: a wind by height that changes from day to day)

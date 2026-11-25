@@ -15,7 +15,7 @@
 // Sun's ray through its crown meets the plane, which is the ground's rule exactly.
 import * as THREE from 'three';
 import { makePassMaterial, renderPass } from '../render/fullscreen.js';
-import { HEAP_GLSL } from '../sky/skyGlsl.js';
+import { HEAP_GLSL, SKY_NOISE_UNIFORM_GLSL, SKY_STEER_UNIFORM_GLSL } from '../sky/skyGlsl.js';
 import { localFrame } from '../core/ephemeris.js';
 
 const SIZE = 256, WIDTH = 14000;
@@ -48,10 +48,9 @@ layout(location = 0) out vec4 fragColor;
 uniform vec3 uCentre, uE, uN, uSunDir;
 uniform float uWidth;
 uniform sampler2D tClouds;
-uniform sampler3D tCloudNoise;
+${SKY_NOISE_UNIFORM_GLSL}${SKY_STEER_UNIFORM_GLSL}
 uniform vec4 uCloud, uCloudHeap;
-uniform vec3 uCloudVol;
-uniform vec4 uCloudSteer;
+uniform vec4 uCloudVol;
 ${HEAP_GLSL}
 void main() {
   vec3 planetPos = uCentre + (uE * (vUv.x - 0.5) + uN * (vUv.y - 0.5)) * uWidth;

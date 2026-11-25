@@ -6,12 +6,13 @@
 // VERSION 0 (step 0). The interface below is what sky/skySystem.js calls and the readers bind;
 // package A rewrites the inside (its model in the worker, strip uploads between frames, the
 // blend as a GPU pass) and keeps the interface. Here: the producer is the stub
-// (sky/skyProducer.js), its snapshots made in a worker (sky/skyFieldWorker.js; at once where
-// there is none, as in Node), the 'now' bytes blended on the CPU a sixteenth of the rows a
-// frame and uploaded whole when all are done.
+// (weather/sky/producer.js), its snapshots made in a worker (weather/sky/skyWorker.js; at once
+// where there is none, as in Node), the 'now' bytes blended on the CPU a sixteenth of the rows
+// a frame and uploaded whole when all are done. setWorld(null, ...) ends the worker and lets go
+// of its copy of the land.
 //
 //   setWorld(world, opts)  opts: null (no field: every read is clear sky) or { preset, origin,
-//                          stormAt, land }: sky/skyProducer.js makeProducer's
+//                          stormAt, land }: weather/sky/producer.js makeProducer's
 //   update(t)              at the start of a frame (between frames): snapshots asked for and
 //                          taken in, a strip of 'now' blended, the maps uploaded when whole
 //   on                     a producer is there
@@ -22,7 +23,7 @@
 //   textures               { A, B, C } (the 'now' maps) or null
 import * as THREE from 'three';
 import { SNAP_STEP, STRIPS, fieldLayout, blendByte, checkSnapshot, makeSkyAt } from '../weather/sky/format.js';
-import { makeProducer } from './skyProducer.js';
+import { makeProducer } from '../weather/sky/producer.js';
 import { SKY_UNIFORMS } from './skyGlsl.js';
 
 const CLEAR = makeSkyAt();
@@ -43,6 +44,9 @@ export class SkyField {
     this.producer = null; this.opts = null;
     SKY_UNIFORMS.uSkyLow.value[3] = 0;
     for (const k of ['tWxA', 'tWxB', 'tWxC']) SKY_UNIFORMS[k].value = null;
+    // (the worker of the field before, and its copy of the land, go whatever comes next: no
+    // field at all, or one with other numbers)
+    if (this.worker) { this.worker.terminate(); this.worker = null; }
     if (!opts || !world) return;
     this.layout = fieldLayout(world);
     const po = {
@@ -63,10 +67,9 @@ export class SkyField {
       };
       this.textures = { A: make(this.now.A, W, H, THREE.RGBAFormat), B: make(this.now.B, W, H, THREE.RGBAFormat), C: make(this.now.C, CW, CH, THREE.RGFormat) };
     }
-    if (this.worker) { this.worker.terminate(); this.worker = null; }
     if (typeof Worker !== 'undefined') {
       try {
-        this.worker = new Worker(new URL('./skyFieldWorker.js', import.meta.url), { type: 'module' });
+        this.worker = new Worker(new URL('../weather/sky/skyWorker.js', import.meta.url), { type: 'module' });
         const id = this.id;
         this.worker.onmessage = (ev) => { const m = ev.data; if (m.id !== this.id || m.id !== id) return; this.asking = null; this.snaps.set(m.t, checkSnapshot(m.s)); };
         // (a worker that cannot start: the snapshots are made here, as in Node; never a picture waiting for ever)

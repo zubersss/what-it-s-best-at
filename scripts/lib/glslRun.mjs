@@ -37,12 +37,23 @@ function tokenize(text) {
   return out;
 }
 
+// (#ifdef, #ifndef, #else and #endif too: the shared texts are guarded so that a shader may take
+// two of them, src/sky/skyGlsl.js)
 function preprocess(source) {
-  const defines = new Map(), body = [];
+  const defines = new Map(), body = [], live = [];
+  const on = () => live.every(Boolean);
   for (const line of source.split('\n')) {
     const t = line.trim();
-    if (!t.startsWith('#')) { body.push(line); continue; }
+    if (!t.startsWith('#')) { body.push(on() ? line : ''); continue; }
     const m = /^#\s*(\w+)\s*(.*)$/.exec(t);
+    if (m && (m[1] === 'ifdef' || m[1] === 'ifndef')) {
+      const nm = m[2].replace(/\/\/.*$/, '').trim();
+      if (!/^[A-Za-z_]\w*$/.test(nm)) throw new Error(`glsl: #${m[1]} needs one name: ${t}`);
+      live.push(m[1] === 'ifdef' ? defines.has(nm) : !defines.has(nm)); body.push(''); continue;
+    }
+    if (m && m[1] === 'else') { if (!live.length) throw new Error('glsl: #else without #if'); live.push(!live.pop()); body.push(''); continue; }
+    if (m && m[1] === 'endif') { if (!live.length) throw new Error('glsl: #endif without #if'); live.pop(); body.push(''); continue; }
+    if (!on()) { body.push(''); continue; }
     if (m && m[1] === 'define') {
       const d = /^([A-Za-z_]\w*)(\s+(.*))?$/.exec(m[2]);
       if (!d || m[2].includes('(') && /^[A-Za-z_]\w*\(/.test(m[2])) throw new Error(`glsl: only #define NAME value is understood: ${t}`);
@@ -50,6 +61,7 @@ function preprocess(source) {
     } else if (!m || !['version', 'extension'].includes(m[1])) throw new Error(`glsl: the directive ${t} is not understood here`);
     body.push('');
   }
+  if (live.length) throw new Error('glsl: an #ifdef or #ifndef is never closed');
   const expand = (tokens, depth = 0) => tokens.flatMap((tk) => tk.k === 'id' && defines.has(tk.v) ? (depth > 20 ? [] : expand(defines.get(tk.v), depth + 1)) : [tk]);
   return { defines, tokens: expand(tokenize(body.join('\n'))) };
 }
@@ -152,6 +164,13 @@ function parse(tokens) {
     expect('{'); const body = []; while (!accept('}')) body.push(stmt());
     prog.fns.push({ ret, name: nm, params, body });
   }
+  // (as a GLSL compiler: a uniform, a constant or a function with the same parameters given
+  // twice is an error; two shared texts pasted into one shader without their guards do this)
+  const seen = new Map();
+  const once = (key, what) => { if (seen.has(key)) throw new Error(`glsl: ${what} is defined twice`); seen.set(key, true); };
+  for (const u of prog.uniforms) once(`v ${u.name}`, `the uniform ${u.name}`);
+  for (const c of prog.consts) for (const it of c.items) once(`v ${it.name}`, `the constant ${it.name}`);
+  for (const fn of prog.fns) once(`f ${fn.name}(${fn.params.map((p) => p.type).join(',')})`, `the function ${fn.name}(${fn.params.map((p) => p.type).join(', ')})`);
   return prog;
 }
 

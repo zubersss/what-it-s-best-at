@@ -26,7 +26,7 @@
 import * as THREE from 'three';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
-import { HEAP_GLSL } from '../sky/skyGlsl.js';
+import { HEAP_GLSL, SKY_NOISE_UNIFORM_GLSL, SKY_STEER_UNIFORM_GLSL } from '../sky/skyGlsl.js';
 import { CONFIG } from '../config.js';
 import { shadowTileDistance, tileShare } from '../shadows/nearShadow.js';
 import { ROCK_SHAPE_GLSL, rockGeometry } from './rocks.js';
@@ -73,7 +73,8 @@ const SUN_VERT = /* glsl */`
 #ifndef HAS_CAM_U
 uniform vec3 uCamPlanetPos, uSunDir; uniform float uPlanetRadius;
 #endif
-uniform sampler2D tClouds; uniform vec4 uCloud; uniform highp sampler3D tCloudNoise; uniform vec4 uCloudHeap; uniform vec3 uCloudVol; uniform vec4 uCloudSteer;
+uniform sampler2D tClouds; uniform vec4 uCloud; uniform vec4 uCloudHeap; uniform vec4 uCloudVol;
+${SKY_NOISE_UNIFORM_GLSL}${SKY_STEER_UNIFORM_GLSL}
 ${HEAP_GLSL}
 float rockSun(vec3 planetPos, vec3 up) {
   float sun = aMisc.x;

@@ -7,7 +7,7 @@ import { CONFIG } from '../config.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { FACES } from './cubeSphere.js';
-import { HEAP_GLSL, SKY_UNIFORMS } from '../sky/skyGlsl.js';
+import { HEAP_GLSL, SKY_UNIFORMS, SKY_NOISE_UNIFORM_GLSL, SKY_STEER_UNIFORM_GLSL } from '../sky/skyGlsl.js';
 import { GRASS_GLSL, FLOWERS_GLSL, GRASS_GROUND } from '../life/grassRules.js';
 import { PAINT_LEAF } from '../life/trees.js';
 import { FAR_GREEN_GLSL } from '../life/farTreeForm.js';
@@ -38,10 +38,11 @@ const CLOUD_OVER_GLSL = /* glsl */`
 uniform sampler2D tClouds;      // the home world's cloud map (its shadow on the ground)
 uniform vec4 uCloud;           // x how dark the shadow is (0: no clouds), y the cloud layer's radius (m), z the map's longitude shift (turns)
 precision highp sampler3D;
-uniform sampler3D tCloudNoise; // the cloud volume's noise: the ground is shaded by the heaps the layer shows (sky/clouds.js, HEAP_GLSL)
+// (tCloudNoise: the cloud volume's noise, the ground shaded by the heaps the layer shows;
+// uCloudSteer: the low layer's motion, the heaps going with its wind: sky/skyGlsl.js)
+${SKY_NOISE_UNIFORM_GLSL}${SKY_STEER_UNIFORM_GLSL}
 uniform vec4 uCloudHeap;       // x 1 - the layer's cover, y the fair-weather cover, w 1: shade by the heaps (0: by the day's map alone)
-uniform vec3 uCloudVol;        // the heaps' scales (the layer's uVol)
-uniform vec4 uCloudSteer;      // the low layer's motion: the heaps go with its wind (sky/skyGlsl.js)
+uniform vec4 uCloudVol;        // the heaps' scales (the layer's uVol), w the low pattern's rise (m)
 ${HEAP_GLSL}
 vec3 cloudOver(vec3 P, float r) {
   vec3 uc = normalize(P + uSunDir * ((uCloud.y - r) / max(dot(P, uSunDir) / r, 0.08)));
@@ -1002,7 +1003,7 @@ export function makeTerrainShared(world, textures) {
     // w: the cover pattern (d0.a + 0.3 d1.a) is about normal; logistic scale = its spread / 1.702
     uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
     uPlain: { value: 0 }, uTide: { value: new THREE.Vector2(0, 0) }, uAirRelief: { value: 0 },
-    tCloudNoise: { value: null }, uCloudHeap: { value: new THREE.Vector4(0, 0, 0, 0) }, uCloudVol: { value: new THREE.Vector3() }, uCloudSteer: SKY_UNIFORMS.uCloudSteer,
+    tCloudNoise: { value: null }, uCloudHeap: { value: new THREE.Vector4(0, 0, 0, 0) }, uCloudVol: { value: new THREE.Vector4() }, uCloudSteer: SKY_UNIFORMS.uCloudSteer,
     uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) }, uGrassWave: { value: new THREE.Vector4(0, 0, 0, 0) },
     tRingColour: { value: textures.white }, uRingColour: { value: new THREE.Vector4(0, 0, 1, 0) },
     tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoShift: { value: 0 }, uAlbedoSteep: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },

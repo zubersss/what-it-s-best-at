@@ -1,7 +1,8 @@
 // What makes the sky's snapshots (docs/briefs/clouds-weather-plan.md, "THE SNAPSHOT"): until the
 // model (package A: weather/sky/model.js) lands, the test pattern of weather/sky/stub.js, moved by
 // the world's own steering winds (weather/sky/steer.js). One function for the page and for the
-// worker that makes the snapshots (sky/skyFieldWorker.js), so both make the same bytes.
+// worker that makes the snapshots (skyWorker.js), so both make the same bytes. (Package A puts
+// its model, model.js, in the stub's place here: the page and the worker keep calling makeProducer.)
 //
 // opts (plain data, so it can be posted to a worker):
 //   preset: 'fair' | 'fog' | 'storm' | 'front' (STUB_PRESETS)
@@ -13,8 +14,8 @@
 // t in seconds since weather.epoch.
 //
 // Pure: no three, no DOM, no Math.random.
-import { createSkyStub } from '../weather/sky/stub.js';
-import { Steer } from '../weather/sky/steer.js';
+import { createSkyStub } from './stub.js';
+import { Steer } from './steer.js';
 
 // The local solar hour at the opening place when the weather clock reads 0: the world's day
 // begins at `dayStart` hours UTC (solar midnight there).

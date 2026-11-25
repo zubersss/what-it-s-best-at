@@ -50,6 +50,11 @@ export class Benchmark {
     this.maxGpuBytes = 0;
     // the first five bookmarks of each world: its main scene (the rest are landmarks, not benchmarked)
     this.names = { [this.first]: Object.keys(WORLDS[this.first].scene.bookmarks).slice(0, 5), [this.second]: Object.keys(WORLDS[this.second].scene.bookmarks).slice(0, 5) };
+    // The route's clock is pinned: each stop begins at its bookmark's moment (App.gotoBookmark sets
+    // it) and the clock runs at the game's own pace, whatever the player had set (stopped, or a
+    // time-lapse): every run meets the same sky, the clouds moved by the same wind, the same storm.
+    this.clockBefore = { rate: app.timeRate, paused: app.paused };
+    app.timeRate = 1; app.paused = false;
     app.setHero(true);
   }
 
@@ -162,6 +167,8 @@ export class Benchmark {
   _finish(stopped) {
     this.active = false;
     if (this.cost) { this.cost.restore(); this.costLines = this.cost.lines; this.cost = null; }
+    // (the player's clock as it was)
+    if (this.clockBefore) { this.app.timeRate = this.clockBefore.rate; this.app.paused = this.clockBefore.paused; this.clockBefore = null; }
     this.releaseAll();
     this.app.onBenchmarkDone(this.report(stopped));
   }
@@ -259,8 +266,10 @@ export class Benchmark {
 // start until the GPU has finished drawing it (reading one pixel back waits for that).
 // At the first world's opening view and at the views its world file lists (scene.costViews:
 // { name, lat, lon, alt, heading, pitch, timeOffsetHours }, the heaviest places it has; the hour,
-// as a bookmark's, from the scene's date: the weather of that moment). The clock is held while a
-// view is measured, so every saving meets the same sky.
+// as a bookmark's, from the scene's date: the weather of that moment; a view without one keeps the
+// first bookmark's). The clock is held while a view is measured, so every saving meets the same sky.
+// Savings that are not built yet (a step's `has`: the clouds plan's, until their packages land) are
+// not measured.
 const WARM = 5, TAKE = 16, HELD = 2.07e6;
 // Whole parts of the picture left out, one at a time (configs -10 and below): what the
 // savings cannot say. The fourth benchmark with a cost test showed a frame that took as
@@ -311,7 +320,7 @@ export class CostTest {
     // (everything on is measured again after every three savings: a frame grows slower over a
     // minute of this, from heat and from ground still arriving, and each saving is set against
     // the measures of "everything on" on either side of it, not against the first)
-    const steps = FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-'));
+    const steps = FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-') && (!FEATURE_STEPS[i].has || FEATURE_STEPS[i].has(app)));
     this.configs = [[-1, held]];
     steps.forEach((i, k) => { this.configs.push([i, held]); if (k % 3 === 2 || k === steps.length - 1) this.configs.push([-1, held]); });
     // (a part left out is set against "everything on" measured just before it)
@@ -359,8 +368,9 @@ export class CostTest {
         const rig = app.rig;
         rig.setLatLon(v.lat, v.lon, 1.7, v.heading ?? 0, v.pitch ?? 0);
         if (v.alt != null) { rig.pos.setLength(app.world.radius + v.alt); rig.onFoot = false; rig.hover = true; } else if (rig.mode === 'hero') rig.standUp();
-        // (its hour: from the scene's date, which going to the bookmark has just set)
-        app.timeOffsetHours = v.timeOffsetHours ?? 0;
+        // (its hour, if it names one: from the scene's date, which going to the bookmark has just
+        // set; else the bookmark's own, as before)
+        if (v.timeOffsetHours != null) app.timeOffsetHours = v.timeOffsetHours;
         rig.velocity.set(0, 0, 0); app.jumpedAt = now; this.placed = true; this.t0 = now;
         return true;
       }

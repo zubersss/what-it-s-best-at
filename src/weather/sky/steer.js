@@ -26,13 +26,18 @@
 // for every day (Earth's): steering { low: { fixed: 8 }, tilt: 0, high: { veer: 0 } }.
 //
 // The low pattern also rises through its layer at `rise` m/s (in the place of the old 'change'
-// term, which slid it along the planet's axis at six times the wind): read in two phases, so the
-// pattern never jumps when one wraps (risePhases; steerLowA and steerLowB in the GLSL).
+// term, which slid it along the planet's axis at six times the wind), so heaps grow and fade in
+// place as they go: read in two phases half a period apart, so the pattern never jumps when one
+// wraps (risePhases; steerLowA and steerLowB in the GLSL; the shared cloud rule's skyLowNoise in
+// src/sky/skyGlsl.js). The first phase alone is read but for a fade either side of its wrap
+// (RISE.FADE of the period each side), where the second takes over: one noise read most of
+// the time, two only in the fades.
 //
 // Pure JS: no three, no DOM, no Math.random. It runs in the worker, on the main thread and in
 // Node. Everything is a function of (seed, the world's numbers, the clock); nothing here knows
 // where the traveller is. Test: node scripts/sky-steer-test.mjs.
 import { hash3 } from '../../terrain/height/noise.js';
+import { glslOnce } from './format.js';
 
 // The layers, in the order of the shader's arrays (STEER_GLSL is made from this list).
 export const STEER_LAYERS = Object.freeze(['low', 'mid', 'high', 'cell']);
@@ -55,9 +60,16 @@ export const STEER_DEFAULTS = Object.freeze({
     high: Object.freeze({ k: 3.4, add: 8, veer: 30 }), // and its axis up to veer degrees from the low's
     tilt: 43, tiltDays: 3,          // how far the axis leans from the pole (degrees), knots every so many days
     turnDays: 5,                    // the lean's direction: a new one every so many days (the shorter way round)
-    rise: 0.5, risePeriod: 4200,    // the low pattern's rise through its layer (m/s), and its two phases' period (m)
+    rise: 0.5,                      // the low pattern's rise through its layer (m/s); its phases: RISE
   }),
 });
+
+// The rise's two phases (the same for every world: a shader is handed only the first phase, in
+// metres, and works out the second and the weights from these): their period (m; the noise's
+// scale on Haven and Earth) and the share of a period over which the first fades out before its
+// wrap and in after it. The weight of the first phase at a (m into its period): riseWeight(a).
+export const RISE = Object.freeze({ PERIOD: 4200, FADE: 0.08 });
+export function riseWeight(a) { const f = a / RISE.PERIOD; return smooth(Math.min(1, Math.max(0, f / RISE.FADE))) * smooth(Math.min(1, Math.max(0, (1 - f) / RISE.FADE))); }
 
 const LOW = 0, MID = 1, HIGH = 2, CELL = 3;
 const DAY = 86400, HALF = 43200, DEG = Math.PI / 180, TAU = 2 * Math.PI;
@@ -133,7 +145,7 @@ export class Steer {
     this.cfg = {
       low: { ...D.low, ...s.low }, mid: { ...D.mid, ...s.mid }, high: { ...D.high, ...s.high },
       tilt: s.tilt ?? D.tilt, tiltDays: s.tiltDays ?? D.tiltDays, turnDays: s.turnDays ?? D.turnDays,
-      rise: s.rise ?? D.rise, risePeriod: s.risePeriod ?? D.risePeriod,
+      rise: s.rise ?? D.rise, risePeriod: RISE.PERIOD,
     };
     this.seed = (weather.seed ?? STEER_DEFAULTS.seed) | 0;
     this.epochMs = Date.parse(weather.epoch ?? STEER_DEFAULTS.epoch);
@@ -276,10 +288,11 @@ export class Steer {
   rise(t) { return this.cfg.rise * t; }
   // Read whole, the rise would shrink the pattern sideways as it went (lower down a sphere is
   // smaller) and lose a float's precision: it is read in two phases half a period apart, each
-  // weighted to nothing where it wraps, so the blend never jumps. a, b (m) and the weight of a.
+  // weighted to nothing where it wraps, so the blend never jumps. a, b (m) and the weight of a
+  // (riseWeight: 1 but within RISE.FADE of a period of a's wrap, where b is half a period from its own).
   risePhases(t) {
-    const W = this.cfg.risePeriod, r = this.rise(t), a = r - W * Math.floor(r / W), b = (a + 0.5 * W) % W;
-    return { a, b, wa: 1 - Math.abs(2 * a / W - 1) };
+    const W = RISE.PERIOD, r = this.rise(t), a = r - W * Math.floor(r / W), b = (a + 0.5 * W) % W;
+    return { a, b, wa: riseWeight(a) };
   }
 
   // All the shader needs at the clock t, into the arrays of makeSteerUniforms().
@@ -308,7 +321,7 @@ export class Steer {
 //   steerWindLow(q) ..: the wind at the place whose pattern point is q, in the layer's own axes
 //     (m/s): to stretch a pattern along its wind.
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
-export const STEER_GLSL = [
+export const STEER_GLSL = glslOnce('SKY_STEERING', [
   '// The steering of the cloud layers, made from src/weather/sky/steer.js (its constants; change it there).',
   ...STEER_LAYERS.map((n, k) => `#define STEER_${n.toUpperCase()} ${k}`),
   `uniform mat3 uSteerInv[${STEER_LAYERS.length}];    // each layer's M(t)^-1: the planet's axes to the layer's own`,
@@ -320,4 +333,4 @@ export const STEER_GLSL = [
   'vec3 steerLowB(vec3 p) { return steerLow(steerRisen(p, uSteerRise.y)); }',
   ...STEER_LAYERS.map((n) => `vec3 steerWind${cap(n)}(vec3 q) { return cross(uSteerSpin[STEER_${n.toUpperCase()}].xyz, q); }`),
   '',
-].join('\n');
+].join('\n'));

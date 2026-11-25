@@ -1,7 +1,7 @@
 // A storm cell's shape (src/weather/sky/cellShape.js), without a browser: what numbers can prove
 // of it. Fails (exit 1) when a promise is broken.   (about half a minute)
 //   node scripts/sky-cell-test.mjs
-// 1. Pure: cellShape.js imports nothing, and nothing under src/weather/sky/ uses three, the DOM
+// 1. Pure: cellShape.js imports only format.js's guard (glslOnce), and nothing under src/weather/sky/ uses three, the DOM
 //    or Math.random.
 // 2. The GLSL's text: no backtick, no word GLSL ES 3 reserves, no whole number outside an
 //    index (GLSL ES turns no int into a float), the uniforms' names and sizes as exported, every
@@ -125,7 +125,9 @@ function chordSpread(fn, o, d, eps) {
 {
   const src = fs.readFileSync(path.join(root, 'src/weather/sky/cellShape.js'), 'utf8');
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-  check(!/^\s*import\b/m.test(code), 'cellShape.js imports nothing');
+  // (one helper of the format's: the guard that lets a shader take two of the shared texts)
+  const imports = [...code.matchAll(/^\s*import\b[^;]*;/gm)].map((m) => m[0].replace(/\s+/g, ' ').trim());
+  check(imports.length === 1 && imports[0] === ['import { glslOnce }', "from './format.js';"].join(' '), `cellShape.js imports only format.js's glslOnce${imports.length ? ' (' + imports.join(' ') + ')' : ''}`);
   const dir = path.join(root, 'src/weather/sky'), bad = [];
   for (const f of fs.readdirSync(dir).filter((x) => /\.m?js$/.test(x))) {
     const s = fs.readFileSync(path.join(dir, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');

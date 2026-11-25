@@ -286,7 +286,8 @@ export class App {
     if (params.debug.includes('nofar') || params.debug.includes('nofarrough')) this.terrain.shared.uFarRoughness.value = this.terrain.shared.uRoughness.value;
     if (params.debug.includes('nofar') || params.debug.includes('noboost')) CONFIG.SPLIT_SPACE_BOOST = 1;
     this.rocks = new Rocks(world, data.hs);
-    this.nearScene.add(this.terrain.group, this.rocks.mesh, this.clouds.mesh);
+    // (the far low shell of clouds is not in it: the sky draws it after the shells above the camera, sky/skySystem.js)
+    this.nearScene.add(this.terrain.group, this.rocks.mesh);
     this.nearShadow.addCaster(this.rocks.mesh, this.rocks.depthMaterial, null, () => this.rocks.nearCount);
     // (boulders and outcrops as far as they can be seen: the land's own, in tiles)
     this.farRocks = new FarRocks(world, this.terrain); this.nearScene.add(this.farRocks.group);
@@ -1291,7 +1292,7 @@ export class App {
       const dens = a ? (a.surfaceDensity ?? 0) * Math.exp(-Math.max(0, alt) / (a.rayleigh?.scaleHeight ?? 10000)) : 0;
       const foot = rig.mode === 'hero' && rig.onFoot, landed = this._wasAir && foot && !rig.airborne ? Math.max(1, rig.landSpeed) : 0;
       this._wasAir = !foot || rig.airborne;
-      this.audio.update(dt, { wind: this.weather.def ? this.weather.windSpeed : 0, rain: this.weather.rain + 0.5 * this.weather.snow, airDensity: dens, speed: rig.velocity.length(), onFoot: foot || rig.mode === 'walk', airborne: rig.airborne, throttle: rig.throttle || 0, boost: rig.boost, flying: rig.mode === 'hero' && !rig.onFoot, warp: this.warp.amount, landed });
+      this.audio.update(dt, { wind: this.weather.own ? this.weather.windSpeed : 0, rain: this.weather.rain + 0.5 * this.weather.snow, airDensity: dens, speed: rig.velocity.length(), onFoot: foot || rig.mode === 'walk', airborne: rig.airborne, throttle: rig.throttle || 0, boost: rig.boost, flying: rig.mode === 'hero' && !rig.onFoot, warp: this.warp.amount, landed });
     }
     this.stars?.setFrame(eph.icrfToFixed, rig, post.viewH);
     // ?aim=<body>: possible only now, once the bodies have a position for this moment.
@@ -1349,8 +1350,9 @@ export class App {
     rig.finalize(aspect, near, far);
     renderer.render(this.nearScene, rig.camera);
     prof.mark(8);
-    // (the sky in the picture: the strokes' slot, then the near cloud slices laid over the ground)
-    this.sky.afterGround({ renderer, rig, near, far });
+    // (the sky in the picture, in the plan's order: far cell sheets, shells above, the far low shell,
+    // fog and lenses, the strokes' slot, the near cloud slices laid over the ground, shells below)
+    this.sky.afterGround({ renderer, rig, near, far, nearVisible: this.nearScene.visible });
     prof.mark(9);
     // (the weather scene: rain, strokes, rainbow, pollen; and the rain again in a slice of its
     // own from the eye to the terrain's near plane)
@@ -1413,7 +1415,7 @@ export class App {
     if (this.shotMode) {
       const ready = this.frameCount > 6 && post.stableReads >= 3 && this.terrain.idle && !this.trees.busy && !this.farForest.busy && !this.farRocks.busy && !this.grass.busy && !this.sky.busy && !this.rocks.needVis && !this.rocks.pendingVis && !this.lander.pending && !this.atmosphere.airBusy && !this.bodies.pending && (!this.hero.group.visible || rig.agl >= 20000 || this.heroVisKnown === true);
       window.__shotReady = ready;
-      window.__stats = { weather: this.weather.def ? `wind ${this.weather.windSpeed.toFixed(0)} m/s, rain ${this.weather.rain.toFixed(1)} mm/h, snow ${this.weather.snow.toFixed(1)}, ${this.weather.temp.toFixed(0)} C, sun ${this.weather.sunShade.toFixed(2)}, sky ${this.weather.skyShade.toFixed(2)}, top ${Math.round(this.weather.top)} m` : '', trees: `${this.trees.count} (${Math.round(this.trees.triangles / 1000)}k triangles)${this.trees.names ? ': ' + this.trees.names : ''}`, farTrees: `${this.farForest.count} standing (${this.farForest.held} handed to the GPU)`, farRocks: (() => { const f = this.farRocks, c = (ready || this.frameCount % 30 === 0) ? (f.lastTally = f.tally(rig.camera)) : (f.lastTally || f.tally(rig.camera)); return `${c.rocks} in view of ${c.all} all round, in ${c.tiles} tiles (${c.calls} draw calls, ${Math.round(c.triangles / 1000)}k triangles; ${c.handed} handed to the GPU${f.dropped ? ', ' + f.dropped + ' tiles dropped' : ''})`; })(), water: this.terrain.tiles.rings.map((r) => r.info ? `z${r.zoom}: ${r.info.rivers} rivers, ${Math.round(r.info.flow)} m3/s${r.info.inflow ? '' : ' (no inflow)'}` : null).filter(Boolean).join('; '), stale: this.terrain.staleData, tilesBusy: this.terrain.tiles.busy, refreshQ: this.terrain.readyRefresh.length, rings: this.terrain.ringSerial, tileFails: this.terrain.tiles.failures, busyW: this.terrain.workers.busy, calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.sky.waiting}`, sky: this.sky.stats(rig) };
+      window.__stats = { weather: this.weather.own ? `wind ${this.weather.windSpeed.toFixed(0)} m/s, rain ${this.weather.rain.toFixed(1)} mm/h, snow ${this.weather.snow.toFixed(1)}, ${this.weather.temp.toFixed(0)} C, sun ${this.weather.sunShade.toFixed(2)}, sky ${this.weather.skyShade.toFixed(2)}, top ${Math.round(this.weather.top)} m` : '', trees: `${this.trees.count} (${Math.round(this.trees.triangles / 1000)}k triangles)${this.trees.names ? ': ' + this.trees.names : ''}`, farTrees: `${this.farForest.count} standing (${this.farForest.held} handed to the GPU)`, farRocks: (() => { const f = this.farRocks, c = (ready || this.frameCount % 30 === 0) ? (f.lastTally = f.tally(rig.camera)) : (f.lastTally || f.tally(rig.camera)); return `${c.rocks} in view of ${c.all} all round, in ${c.tiles} tiles (${c.calls} draw calls, ${Math.round(c.triangles / 1000)}k triangles; ${c.handed} handed to the GPU${f.dropped ? ', ' + f.dropped + ' tiles dropped' : ''})`; })(), water: this.terrain.tiles.rings.map((r) => r.info ? `z${r.zoom}: ${r.info.rivers} rivers, ${Math.round(r.info.flow)} m3/s${r.info.inflow ? '' : ' (no inflow)'}` : null).filter(Boolean).join('; '), stale: this.terrain.staleData, tilesBusy: this.terrain.tiles.busy, refreshQ: this.terrain.readyRefresh.length, rings: this.terrain.ringSerial, tileFails: this.terrain.tiles.failures, busyW: this.terrain.workers.busy, calls: this.stats.calls, triangles: this.stats.triangles, chunks: this.terrain.drawList.length, loaded: this.terrain.loadedCount, visited: this.terrain.visited, wanted: this.terrain.wanted.length, lodScale: +this.terrain.lodScale.toFixed(3), avgBuildMs: +(this.terrain.buildMs / Math.max(1, this.terrain.built)).toFixed(1), exposure: +post.exposure.toPrecision(4), surface: [+(post.surfaceCover ?? 0).toFixed(3), +(post.surfaceBright ?? 0).toPrecision(3)], frame: this.frameCount, wait: `${post.stableReads >= 3 ? '' : 'exposure '}${this.terrain.idle ? '' : 'terrain '}${this.rocks.needVis || this.rocks.pendingVis ? 'rocks ' : ''}${this.lander.pending ? 'lander ' : ''}${this.atmosphere.airBusy ? 'air-shadow ' : ''}${this.sky.waiting}`, sky: this.sky.stats(rig) };
     }
   }
 
