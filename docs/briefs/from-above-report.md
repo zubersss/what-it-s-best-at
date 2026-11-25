@@ -39,6 +39,21 @@ Pictures `haven_ledge_<view>_after6.png` beside `_r6before.png` (before: 73d6ef1
   1 372 -> 1 336 (97 %), 3 km up 809 -> 829 (102 %). Not raised. (The far trees' tone is a
   few dozen operations per tree in the vertex shader.)
 
+- **A6b: the angular facets** (the owning session, `ledge_300_p60_after6`, lower left). Two
+  builds, each with one suspect switched off, said which: the 21 m stand domes. With the 8 m
+  crowns gone their tilted domes met along straight lines, large flat-shaded facets; the
+  shared tone (the other suspect) is soft. The stands are gone within the far trees' reach
+  too (from 3 to 4.5 km they come in), and the broken edge reads neither pattern there. On
+  the way two smaller faults were fixed: the edge read the 8 m crowns as nought where they
+  are no longer worked out, and a glade's colour came in wherever the canopy's weight (a
+  vertex quantity) was a little under full, along the triangles; glades now only where the
+  canopy is open. Pairs `ledge_300_p60_after6b`, `ledge_300_p20_phone_after6b`,
+  `ledge_1000_p60_after6b` beside `_r6before`. Cost against the shader at d1a0174 (A6): the
+  opening view 95 %, the wood 97 %, 300 m up 92 %, 3 km up 89 %. (A run against 73d6ef1 in
+  between read 106 to 120 % for the same shader; the same "before" read 1 283 and 1 372 ms on
+  two runs: this machine's counts drift by a tenth and more between runs, and only the
+  comparisons made in one run hold.)
+
 ## Fifth round (2026-11-25): the steppe from the air, stronger
 
 The owning session: steppe_300_p60_after4 was still almost one ochre tone. Now (block 2):
