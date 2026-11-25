@@ -600,12 +600,17 @@ void main() {
   vec2 ndc = vUv * 2.0 - 1.0;
   vec3 tang = uCamRight * (ndc.x * uProj.x * uProj.y) + uCamUp * (ndc.y * uProj.x);
   vec3 dir = normalize(uCamFwd + tang);
-  // where this ray meets the nearest cell (the same rule the march used)
+  // Where this ray meets the nearest cell (the same rule the march used) OR the nearest rain
+  // shaft: a ray aimed at a far storm's rain passes under the cloud and meets no body, and by
+  // the body's chord alone every such pixel was thrown away — the march had drawn the rain of
+  // storms beyond the reach and nothing laid it.
   float t = 1e30;
   for (int k = 0; k < CELL_MAX; k++) {
     if (k >= uCellCount) break;
     vec2 ch = cellChord(k, uCamPlanetPos, dir);
     if (ch.y > ch.x && ch.y > 0.0) t = min(t, max(ch.x, 0.0));
+    vec2 sh = cellShaftChord(k, uCamPlanetPos, dir);
+    if (sh.y > sh.x && sh.y > 0.0) t = min(t, max(sh.x, 0.0));
   }
   if (t > 1e29) discard;
   // the depth that distance has along this ray, as the near slices' sheets are laid

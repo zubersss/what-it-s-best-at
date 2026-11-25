@@ -72,6 +72,11 @@ check('with no cloud layer there is nothing to march', cv.ready(cam, { mesh: { v
     `${block.split('\n').length} lines of the shaft's stretch`);
   // and the stepping under the rain reads the two cells the shafts were found in, not the two the
   // body's chords found (which may be none) and not all eight (which a line of storms would cost)
+  // and the sheets that lay the far slices take the shaft's chord too, or every pixel of a far
+  // storm's rain is marched and then thrown away for want of a depth to lay it at
+  const far = cv.farMat.fragmentShader;
+  check('the far sheets lay a pixel of rain at the rain\'s own distance',
+    far.includes('cellShaftChord(k, uCamPlanetPos, dir)') && far.includes('cellChord(k, uCamPlanetPos, dir)'));
   check('and the rain under it is the shafts\' own cells, at most two',
     fs.includes('cellRain(gShaftK[c], p)') && !fs.includes('cellRain(gCellK') && !fs.includes('cellRain(k, p)'));
 }

@@ -245,6 +245,11 @@ rain still pays for two cells however many storms stand in the line of sight. Bo
 seen to fail with the old loops put back ("FAIL the march looks for the shafts over every live
 cell", "FAIL and the rain under it is the shafts' own cells, at most two").
 
+The same fault stood in the sheets that lay the two FAR slices (the storms beyond 16 km): each
+pixel is laid at the depth where its ray enters the nearest cell, by the body's chord, and every
+pixel that held a far storm's rain was therefore marched and then thrown away for want of a
+depth. Those sheets now take the nearer of the body's and the shaft's entry.
+
 The pictures of a cell and its shaft (`_M_cell9`, `_M_cellsun`) are therefore taken from a build
 made after the fix, not from the merged build the rest of them come from.
 
