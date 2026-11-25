@@ -757,7 +757,7 @@ function ts0() { let t = T0; while (steer.risePhases(t).wa < 1 || steer.risePhas
   // a weather that takes the strokes itself: the stand-in leaves the flash to it
   sky.weather.takesStrikes = true; sky.weather.flash = null; sky.flashOwn = null;
   for (let i = 0; i < 20; i++, ms += 1000) sky.weatherStep(ctx(sky, rig, jdOf(ms)));
-  check(sky.weather.flash === null, "a weather that takes the strokes itself (D: takesStrikes) gets them in the frame, and the stand-in does not make its flash");
+  check(sky.flashOwn === null, "a weather that takes the strokes itself (D: takesStrikes) gets them in the frame, and the stand-in makes no flash of its own");
   sky.weather.takesStrikes = false;
   // the parts get the frame
   sky.beforeScene({ renderer: renderer(), post: {}, rig, worldRadius: R, time: 3, treesWanted: true });
