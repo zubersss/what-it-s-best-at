@@ -110,7 +110,9 @@ the package's own pictures instead.
   core is nearly solid. So a ridge in front hides a storm behind it and the shells behind a tower
   are hidden by it. (The plan's alpha-weighted mean distance would have needed a second target or
   a channel of the ALL pass; the entry of the chord is the same rule and cheaper.)
-- **Rain shafts** below the raining base: the cells' chords and the field's rain under decks,
+- **Rain shafts** below the raining base: EVERY live cell's chord (not the two the stepping
+  found: a ray aimed at the rain goes under the cloud and meets no cell's body — check 8) and the
+  field's rain under decks,
   2 looks into the field and one into the noise for the falling streaks, virga where the base
   stands high over the land, a misty foot over field C's country height, grey-blue sky light with
   a silver glow toward a low Sun, and nothing within 600 m of the eye (D's streaks take over).
@@ -229,6 +231,19 @@ light it shows are compared; the step across the hand-over must be no larger tha
 either side. Its first run drew the SAME picture four times (34 007 pixels, cover 0.845, light
 0.439, to four decimals) and passed: it moved rig.pos but not the camera the shaders read. It
 now moves that uniform and fails if the four pictures are identical.
+
+**8. The rain shafts, seen from the side — a fault found and fixed late (89fb6a5,
+`node scripts/cloud-volume-test.mjs`).** A ray aimed at a storm's rain passes UNDER the cloud: it
+does not meet the cell's own body. The march finds the two cells its stepping needs by the body's
+chord, and the shaft's stretch was built from those two — so the rain was drawn nowhere but under
+a cell one was looking into, which is the one place from which a shaft cannot be seen. In the new
+check, of 241 rays fanned across a storm 20 km off from 2 km up, **61 crossed the rain without
+crossing the cloud** (a quarter of the fan, from 1.7 degrees below the horizontal to 3.3 above)
+and one crossed both. The shafts, and the rain's strength under them, now go over every live cell.
+Seen to fail with the old loop put back ("FAIL the march takes the shafts from every live cell").
+
+The pictures of a cell and its shaft (`_M_cell9`, `_M_cellsun`) are therefore taken from a build
+made after the fix, not from the merged build the rest of them come from.
 
 **The parity of every JS twin with its GLSL** (`scripts/sky-system-test.mjs`, which runs the
 shared texts through `scripts/lib/glslRun.mjs` at a grid of points): passes on the merged build,
