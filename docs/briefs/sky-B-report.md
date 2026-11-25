@@ -178,7 +178,11 @@ All at 880 x 412, dsf 1.25, from frozen builds, in
 | `haven_ledge_steppe_sun.png`, `..._steppe_away.png` | over flat country at noon, toward the Sun and away |
 | `haven_ledge_up30.png`, `..._globe.png` | from 30 km up, and the globe wearing the field |
 | `earth_ledge_B0_earth.png`, `earth_ledge_B_earth.png` | Earth, step 0's build and this one (no field there yet) |
-| `haven_ledge_lapse0..3.png` | four frames 30 s of game time apart: the heaps go downwind and grow in place |
+| `haven_ledge_heaps_after.png`, `..._heaps_before.png` | the fair heaps where the stub lays them (a third of the sky over the low country 36 km west), this branch and step 0's |
+| `haven_ledge_heaps_under.png` | the same heaps from 100 m under their bases |
+| `haven_ledge_ridge_hides.png` | check 6: a ridge 17 km off, 2.3 degrees up, in front of a cell 38.8 km off whose foot is at -5.5 and whose top is at +7.1 |
+| `haven_ledge_ridge_behind.png` | and the other way: a cell 18.9 km off drawn over a ridge 29.3 km off |
+| `haven_ledge_lens.png`, `..._lens_near.png` | the lenticulars, 18 and 4 km from the stub's nearer lens (7.0 x 2.6 km, two plates, base 1 500 m) |
 
 
 ## Numbers for src/worlds/haven.js
