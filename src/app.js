@@ -420,6 +420,7 @@ export class App {
     if (this.hero) this.hero.started = false;
     this.heroVisKnown = false;            // (its terrain shadow is asked again for the new place)
     this.jumpedAt = performance.now();
+    this.governor?.jumped();              // (a trial or a step up begun at the view left behind is not this view's to judge)
   }
 
   // --- the clock ----------------------------------------------------------------------
