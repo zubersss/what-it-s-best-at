@@ -264,6 +264,26 @@ falling within reach, field C once and A and B twice more. On a fair day with no
 are not crossed at all.
 
 
+## For the checkpoint message (what the player will see that is different)
+
+- **The clouds stand where the weather says they stand, not over the traveller.** The base and
+  the top come from the field at each place, so the sky no longer sinks or rises as one flies,
+  and a deck lies in the valleys while the heaps stand over the high ground. (The picture pair
+  `haven_ledge_M_storm20.png` and `haven_ledge_Q_storm20.png` is this change alone: at 3 km over
+  the country west of the opening place, the owning branch draws a grey wall — the camera inside
+  a cloud whose base followed it — and this branch draws the storm, the mackerel sky and the
+  mountains.)
+- **Storms are things in the world**: a tower with its own shape, lit on the side the Sun is on,
+  slate where it is deep, with an anvil at the top and rain falling out of its base in shafts
+  that you can see slanting downwind. They are drawn out to 200 km, so a storm stands on the
+  far skyline.
+- **New in the sky**: altocumulus and cirrus overhead (with the 22-degree halo round the Sun),
+  mist lying in the basins at first light, and lenticular plates standing over the ranges on a
+  windy day.
+- **Haven from space wears the weather of the hour** instead of a painted-on cloud map.
+- On the real worlds nothing changes but Earth's own clouds, which are drawn with the new shapes
+  (softer, more cut-out; the pair is `earth_ledge_B0_earth.png` / `earth_ledge_B_earth.png`).
+
 ## Asked of the main session
 
 1. **`src/sky/skySystem.js`**, the three stand-ins:
