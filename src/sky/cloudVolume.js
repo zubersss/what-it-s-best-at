@@ -64,7 +64,7 @@ export const CLOUD_LOOK = Object.freeze({
   CELL_DEEP: 2600,          // ... and over which it is as dark as it gets
   CELL_FLOOR: 0.11,         // the light the base of a tower keeps (0.08..0.15 of the lit top)
   CELL_TINT: [0.62, 0.66, 1.0],   // the slate-indigo its shade is pulled toward
-  CELL_SKY: 0.28,           // the share of the sky's light that reaches the heart of a tower
+  CELL_SKY: 0.2,            // the share of the sky's light that reaches the heart of a tower
   CELL_BOIL: 5.5,           // m/s: its noise boils upward in the cell's own moving frame (3..8)
   CELL_NOISE: 0.55,         // the share of the cell's own noise that eats at its hull
   ROUND: 0.18, ROUND_K: 0.22,   // the light that comes round into a cloud from its sides, and how deep it reaches
