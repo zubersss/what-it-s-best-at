@@ -248,10 +248,25 @@ cell", "FAIL and the rain under it is the shafts' own cells, at most two").
 The pictures of a cell and its shaft (`_M_cell9`, `_M_cellsun`) are therefore taken from a build
 made after the fix, not from the merged build the rest of them come from.
 
+**9. The fog sheet's lattice swings with the traveller — found by reading, fixed
+(`node scripts/fog-sheet-test.mjs`).** The sheet is a lattice of 129 x 129 points over 60 km,
+anchored to the world and re-anchored only when the traveller has gone a whole step (469 m), so
+that the fog stays on its own places. But its AXES were taken at the traveller, and on a world
+250 km in radius they turn with every metre flown: the whole lattice swung about its anchor, by
+**7.1 m at its far corner for every 60 m flown** (32 m between two travellers standing in the
+same cell), to and fro as each cell was crossed — the fog's edge crawling against the ridges all
+the way. The axes are now the anchor's own, so what the shader is given depends on the anchor
+alone: between two anchors nothing of the sheet moves at all (0.0 m), and at an anchor it moves by
+one step (472 m at the corner) and no more. The new check was seen to fail three ways with the
+traveller's axes put back.
+
+This is the lesson about the grass's anchor met again, in a new place: on Haven every term in
+x times D over R shows, and a frame taken at the traveller is one of them.
+
 **The parity of every JS twin with its GLSL** (`scripts/sky-system-test.mjs`, which runs the
 shared texts through `scripts/lib/glslRun.mjs` at a grid of points): passes on the merged build,
 as do `sky-steer-test`, `sky-format-test`, `sky-cell-test`, `sky-model-test`, `governor-sim`,
-`cloud-volume-test` and `lens-list-test`.
+`cloud-volume-test`, `fog-sheet-test` and `lens-list-test`.
 
 ## Pictures (paths; before and after)
 
@@ -315,10 +330,12 @@ fault), `B-noclouds`, `B-from-30km`, `B-globe`, `B-ledge-afternoon`, `B-mist`, `
 | script | what it holds to |
 | --- | --- |
 | `scripts/lens-list-test.mjs` | the lenses' list: either shape the field hands over (the model's objects, a snapshot's LENS records), the plates each lens becomes and where they stand, the nearest taken and the ones over the horizon dropped, `noclouds` and a faded lens drawing nothing |
-| `scripts/cloud-volume-test.mjs` | the volume's decisions: drawn or not, and the storms still marched when the governor has switched the volume off — on the very first frame |
+| `scripts/cloud-volume-test.mjs` | the volume's decisions: drawn or not, and the storms still marched when the governor has switched the volume off — on the very first frame; and the rain shafts, which a ray crosses without crossing the cloud (check 8) |
+| `scripts/fog-sheet-test.mjs` | the fog's lattice is the world's: nothing of it moves between two anchors, two travellers in one cell are given the same sheet, and it is drawn only where there is fog (check 9) |
 | `scripts/cloud-motion.mjs` (new, the brief's) | the motion, the anchoring, the uniform audit and the hand-over at 16 km, in one browser run |
 
-Both tests were seen to fail with the fault they guard put back.
+Every one of these was seen to fail with the fault it guards put back (the read-count check in
+`cloud-cost.mjs` as well, which took three tries: see check 1).
 
 ## Numbers for src/worlds/haven.js
 

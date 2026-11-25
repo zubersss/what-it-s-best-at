@@ -70,6 +70,15 @@ void main() {
   fragColor = vec4(col * uExposure * alpha, alpha);
 }`;
 
+// The level axes at a place of the world (east, then north): a function of that place alone.
+export function frameAt(q) {
+  const r = Math.hypot(q[0], q[1], q[2]) || 1, up = [q[0] / r, q[1] / r, q[2] / r];
+  const el = Math.hypot(-q[1], q[0]);
+  const east = el > 1 ? [-q[1] / el, q[0] / el, 0] : [1, 0, 0];
+  const north = [up[1] * east[2] - up[2] * east[1], up[2] * east[0] - up[0] * east[2], up[0] * east[1] - up[1] * east[0]];
+  return { up, east, north };
+}
+
 export class FogSheet {
   constructor(renderer) {
     this.renderer = renderer;
@@ -101,20 +110,22 @@ export class FogSheet {
     this.ready = false;
     if (!R || !sky.field?.on || sky.noClouds || this.off || !this.uniforms.tCloudNoise.value) return;
     const step = this.uniforms.uStep.value, p = c.rig.pos;
-    const r = p.length(), up = [p.x / r, p.y / r, p.z / r];
-    let east = [-p.y, p.x, 0];
-    const el = Math.hypot(east[0], east[1]);
-    east = el > 1 ? [east[0] / el, east[1] / el, 0] : [1, 0, 0];
-    const north = [up[1] * east[2] - up[2] * east[1], up[2] * east[0] - up[0] * east[2], up[0] * east[1] - up[1] * east[0]];
-    // the lattice's middle: the traveller's place snapped to whole steps in those axes, kept
-    // until it is a whole step away (so the sheet's points stay on the same places of the world)
-    const a = this._anchor;
+    // The lattice's middle: the traveller's place snapped to whole steps, kept until it is a
+    // whole step away. ITS AXES ARE THE ANCHOR'S OWN, never the traveller's: taken at
+    // the traveller they turn with every metre flown, and the whole lattice then swings about its
+    // anchor — on a world 250 km in radius by up to a tenth of a kilometre at the sheet's far
+    // corner, to and fro as the traveller crosses each cell, so the fog's edge crawled against
+    // the ridges all the way. What the shader is given now depends on the anchor alone, and
+    // between two anchors nothing of the sheet moves at all (scripts/fog-sheet-test.mjs).
+    let a = this._anchor;
+    let { east, north } = frameAt(a || [p.x, p.y, p.z]);
     const de = a ? (p.x - a[0]) * east[0] + (p.y - a[1]) * east[1] + (p.z - a[2]) * east[2] : 0;
     const dn = a ? (p.x - a[0]) * north[0] + (p.y - a[1]) * north[1] + (p.z - a[2]) * north[2] : 0;
     if (!a || Math.abs(de) > step || Math.abs(dn) > step) {
       const ne = a ? Math.round(de / step) : 0, nn = a ? Math.round(dn / step) : 0;
       const base = a || [p.x, p.y, p.z];
-      this._anchor = [base[0] + east[0] * ne * step + north[0] * nn * step, base[1] + east[1] * ne * step + north[1] * nn * step, base[2] + east[2] * ne * step + north[2] * nn * step];
+      a = this._anchor = [base[0] + east[0] * ne * step + north[0] * nn * step, base[1] + east[1] * ne * step + north[1] * nn * step, base[2] + east[2] * ne * step + north[2] * nn * step];
+      ({ east, north } = frameAt(a));
     }
     // Is there fog within reach? (the field over a square of 25 places across the sheet; the
     // sheet is drawn only where there is. A ring of eight at the sheet's edge missed what lay
