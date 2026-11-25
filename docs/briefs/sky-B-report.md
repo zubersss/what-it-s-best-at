@@ -586,7 +586,10 @@ else if (id === 'lenses') this.lenses.partOut(id, out);
 and then a step for each in `src/perf/governor.js`, cheapest visual loss first: the lenses
 before the fog (a lens is a small thing high up; the fog is what a valley at first light is
 about). Each thins and leaves the thing itself: with both steps on there is still a lens over
-every near summit and fog in every basin — `?debug=floor` shows it.
+every near summit and fog in every basin (`scripts/fog-sheet-test.mjs` and
+`scripts/lens-list-test.mjs` hold them to that). Until the wiring lands they are not in the
+ladder, so the `?debug=floor` pictures in this report do NOT have them on: a floor picture with
+the fog and the lenses thinned is one to take after that line is in.
 
 ## Views on Haven with weather in them (the model, found in Node in seconds)
 
