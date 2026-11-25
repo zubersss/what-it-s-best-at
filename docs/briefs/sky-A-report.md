@@ -118,31 +118,34 @@ In `docs/shots/sky/` (all drawn without a browser, from the model's own snapshot
 
 ## Numbers for src/worlds/haven.js
 
-The `weather` block is already in the branch (seed 23, chosen by `find-weather --seeds` out of 40:
+The `weather` block is in the branch (seed 23, chosen by `find-weather --seeds` out of 40:
 mist in the basin on the opening morning, heaps over the ranges by noon, a storm in view of the
 ledge in the afternoon, a front the next day, wind and a cap on the Crown the day after).
 
-The bookmarks and cost views are the main session's to paste (they change the benchmark's route).
-`timeOffsetHours` is from the scene's own moment (2024-09-22T17:00Z = 08:00 at the opening place):
+The bookmarks and cost views below are the main session's to add once B's clouds can be seen in
+the game (three more cost views lengthen the owner's benchmark). Written as code they were:
+`mist: { label: 'Morning mist', heading: 240, pitch: -14, fov: 55, timeOffsetHours: -0.5 }`,
+`storm: { label: 'Afternoon storm', heading: 243, pitch: 4, fov: 45, timeOffsetHours: 8.25 }`,
+`front: { label: 'A front coming', heading: 280, pitch: 4, fov: 55, timeOffsetHours: 33 }`,
+`crown: { label: 'Wind on the Crown', lat: 13.362, lon: 68.95, heading: 0, pitch: 8, fov: 45, timeOffsetHours: 53 }`;
+cost views `{ name: 'beside the storm', lat: -53.154, lon: 30.536, alt: 2900, heading: 270, pitch: 6, timeOffsetHours: 8.25 }`,
+`{ name: 'a storm from afar', lat: -48.54992, lon: 49.05567, alt: 2500, heading: 243, pitch: 2, timeOffsetHours: 8.25 }`,
+`{ name: 'over the morning mist', lat: -48.54992, lon: 49.05567, alt: 1700, heading: 240, pitch: -14, timeOffsetHours: -0.5 }`. `timeOffsetHours` counts from the scene's own moment (2024-09-22T17:00Z,
+08:00 at the opening place); the hours come from `find-weather --scene`, and the places and
+headings from asking the model itself, not from reading its maps (the first guesses in this
+report had the storm to the north-west; it is 64 km to the west-south-west):
 
-```js
-    bookmarks: {
-      // ... the five that are there now ...
-      mist:  { label: 'Morning mist',      heading: 150, pitch: -12, fov: 55, timeOffsetHours: -0.5 },
-      storm: { label: 'Afternoon storm',   heading: 300, pitch: 4,   fov: 50, timeOffsetHours: 8.25 },
-      front: { label: 'A front coming',    heading: 250, pitch: 2,   fov: 55, timeOffsetHours: 33 },
-      crown: { label: 'Wind on the Crown', lat: 15.425, lon: 68.95, alt: 5200, heading: 200, pitch: -6, fov: 45, timeOffsetHours: 53 },
-    },
-    costViews: [
-      // ... the two that are there now ...
-      { name: 'under the storm',     lat: -48.08, lon: 48.30, alt: 1800, heading: 300, pitch: 6,  timeOffsetHours: 8.25 },
-      { name: 'a storm from afar',   lat: -48.54992, lon: 49.05567, alt: 2500, heading: 300, pitch: 2, timeOffsetHours: 8.25 },
-      { name: 'in the morning mist', lat: -48.54992, lon: 49.05567, alt: 1600, heading: 150, pitch: -10, timeOffsetHours: -0.5 },
-    ],
-```
+| | where, which way | when | what the model has there |
+|---|---|---|---|
+| `mist` | the ledge, 240°, 14° down | 07:30 | mist 240–350 m deep in the valley floors 4–50 km south-west |
+| `storm` | the ledge, 243° | 16:15 | a mature cell 64 km off, its top 10.3 km (7 km of it above the horizon) |
+| `front` | the ledge, 280° | 23 Sept 17:00 | cover 0.8–1.0 and rain 10–25 km to the west and west-north-west |
+| `crown` | 9 km south of the summit, looking north | 24 Sept 13:00 | 18 m/s from the south-west, a cap (base 3.7 km), clear air where one stands |
+| cost: beside the storm | 10 km east of the cell, 2 900 m (400 m under the base) | 16:15 | |
+| cost: a storm from afar | over the ledge, 2 500 m, 243° | 16:15 | |
+| cost: over the morning mist | over the ledge, 1 700 m, 240°, 14° down | 07:30 | |
 
-(The headings and heights are my reading of the maps; the main session should look at them in the
-game before pinning them. The hours are from `find-weather --scene`, and are what the checks test.)
+`crown` stands on the ground (a bookmark has no height: only the `alt=` parameter flies).
 
 ## Cost
 
@@ -183,6 +186,13 @@ game before pinning them. The hours are from `find-weather --scene`, and are wha
 
 ## Asked of the main session
 
+Item 1 is done (`?debug=sky:model` goes through `skyDebug`, and `skyField` fetches the land's
+planes for it); item 3 waits for B's clouds (the main session's word). Seen in the browser with `?debug=sky:model` on Haven: both snapshots made by the
+model in the worker and uploaded within ten seconds of the start, no problems reported. (The
+first try waited for ever: when the land's file arrives the field starts a fresh worker, and it
+still thought its question to the ended one was pending. Fixed, with a check in
+`sky-system-test` that fails with the fault put back: `--break reask`.)
+
 1. **`?debug=sky:model`**: `skyDebug` only allows the stub's four presets, and `_makeField` always
    passes one. To see the model in the game before the field is always on, let `sky:model` through
    (`preset: 'model'`, which `makeProducer` already understands) — or simply pass no preset.
@@ -191,6 +201,15 @@ game before pinning them. The hours are from `find-weather --scene`, and are wha
    `weather.land` and `weather.peaks`, so nothing is needed there, but the field is `busy` until
    they arrive (a picture waits for them, as it does for the first maps).
 3. **The bookmarks and cost views** above (they change the benchmark's route).
-4. **Earth's field** is not wired: `fromMaps` needs its three maps as bytes
+4. **Earth's field** (done, A2): `skyField` decodes Earth's three grey maps and `earth_storms.json`
+   as `weather.js` does and hands them to `fromMaps`; `?debug=sky:model` makes Earth's field (its
+   storm and flash switches stay `weather.js`'s). In the browser: both snapshots arrive, and the
+   field's rain at Jose, Katia, Irma, the Sahara and the North Atlantic is `weather.js`'s to the
+   hundredth of a mm/h. Two faults found on the way, each with a check that fails without its fix:
+   Earth's day was one snapshot handed out twice, and the worker's transfer of the first left the
+   second with nothing (sky-model-test 10); and on Haven the storm cells' cached list went out
+   with each snapshot uncopied, so the transfer emptied it and **every snapshot after the first in
+   a half-hour slot had no storm cells** (sky-model-test 8).
+   (Was: Earth's field is not wired: `fromMaps` needs its three maps as bytes
    (`{ data, w, h }` each) and `data/earth_storms.json`, which the page must decode as
-   `weather.js` does. Say the word and I will write that loader into `skyField`.
+   `weather.js` does. Say the word and I will write that loader into `skyField`.)

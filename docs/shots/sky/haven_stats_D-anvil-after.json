@@ -1,0 +1,31 @@
+{
+  "ledge": {
+    "weather": "wind 8 m/s, rain 0.0 mm/h, snow 0.0, -1 C, sun 0.04, sky 0.27, top 8163 m",
+    "trees": "20 (0k triangles)",
+    "farTrees": "663 standing (2781 handed to the GPU)",
+    "farRocks": "4207 in view of 14073 all round, in 26 tiles (20 draw calls, 96k triangles; 18765 handed to the GPU)",
+    "water": "z2: 105 rivers, 499 m3/s (no inflow); z5: 24 rivers, 107 m3/s; z8: 11 rivers, 2 m3/s",
+    "stale": 0,
+    "tilesBusy": false,
+    "refreshQ": 0,
+    "rings": 3,
+    "tileFails": 0,
+    "busyW": 0,
+    "calls": 94,
+    "triangles": 1406290,
+    "chunks": 94,
+    "loaded": 282,
+    "visited": 282,
+    "wanted": 0,
+    "lodScale": 1,
+    "avgBuildMs": 42.6,
+    "exposure": 3.374,
+    "surface": [
+      0.684,
+      0.125
+    ],
+    "frame": 162,
+    "wait": "",
+    "sky": "low wind 10.8 m/s toward 83 deg; field (storm): base 3000 m, top 8163 m, rain 0.0 mm/h, storm 1.00, overcast 1.00, wind 7.8 m/s, cell 3146352, 6 cells in reach"
+  }
+}

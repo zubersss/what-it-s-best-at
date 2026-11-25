@@ -15,12 +15,17 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 
 const COUNT = 5600, BOX = 26, TALL = 22, NEAR = 0.36;      // NEAR: the small box's size against the large one's
 
+// Each drop's four numbers are its own, from its index: nothing of the weather comes from
+// chance (the same drops in every run, so a picture of the rain can be compared with the next).
+const mix32 = (h) => { h = Math.imul(h ^ (h >>> 16), 0x7feb352d); h = Math.imul(h ^ (h >>> 15), 0x846ca68b); return (h ^ (h >>> 16)) >>> 0; };
+const h01 = (i, j) => mix32((Math.imul(i | 0, 0x9e3779b1) ^ mix32(j | 0)) | 0) / 4294967296;
+
 export class Rain {
   constructor(shared) {
     // four corners to a streak: position.x 0 at the drop, 1 where it was a moment ago; y the side
     const pos = new Float32Array(COUNT * 4 * 3), seed = new Float32Array(COUNT * 4 * 4), index = new Uint32Array(COUNT * 6);
     for (let i = 0; i < COUNT; i++) {
-      const a = Math.random(), b = Math.random(), c = Math.random(), d = Math.random();
+      const a = h01(i, 1), b = h01(i, 2), c = h01(i, 3), d = h01(i, 4);
       for (let e = 0; e < 4; e++) { seed.set([a, b, c, d], (i * 4 + e) * 4); pos[(i * 4 + e) * 3] = e >> 1; pos[(i * 4 + e) * 3 + 1] = (e & 1) * 2 - 1; }
       index.set([i * 4, i * 4 + 1, i * 4 + 2, i * 4 + 2, i * 4 + 1, i * 4 + 3], i * 6);
     }
@@ -102,7 +107,9 @@ export class Rain {
     // (nothing under a tenth of a millimetre an hour: with the square root below, a rate
     // that reads "0.0" drew four hundred streaks in dry weather)
     const want = this.enabled && rig.agl < 3000 && fall > 0.1 ? Math.min(1, fall / 6) : 0;
-    this.amount += (want - this.amount) * 0.08;
+    // (walking or flying into a shaft: the streaks fill in over a second. A picture is settled
+    // at once, or every one of them would be taken while the rain was still arriving.)
+    this.amount += (want - this.amount) * (weather.quiet ? 1 : 0.08);
     const n = Math.round(COUNT * Math.sqrt(this.amount) * (this.share ?? 1));          // (share: the governor's thinner rain)
     this.geo.setDrawRange(0, n * 6); this.mesh.visible = n > 0;
     const e = weather._e, nn = weather._n, up = weather._u, sp = weather.windSpeed, w = weather.wind;

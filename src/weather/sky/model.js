@@ -845,7 +845,9 @@ export function createSkyModel(opts = {}) {
     const c = timeOf(t), s = makeSnapshot(layout, t);
     for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) texelAB(c, i, j, s.A, s.B);
     for (let j = 0; j < CH; j++) for (let i = 0; i < CW; i++) texelC(c, i, j, s.C);
-    s.cells = recordsOf(c, t - SNAP_STEP, t + SNAP_STEP);
+    // (a copy: the records are cached, and a worker transfers the snapshot it hands over, which
+    // emptied the cache's own list, and with it the cells of the next snapshot of the same slot)
+    s.cells = recordsOf(c, t - SNAP_STEP, t + SNAP_STEP).slice();
     const lens = lensesOf(c), rec = [];
     for (const l of lens) rec.push(l.id, l.x, l.y, l.z, l.base, l.length, l.width, l.heading, l.plates, l.strength);
     s.lenses = Float64Array.from(rec);

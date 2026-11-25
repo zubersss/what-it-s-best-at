@@ -84,7 +84,9 @@
 //                               field.anvils?(t); tWxA/B/C and uSkyLow by the field
 //
 // THE DEBUG SWITCHES (?debug=..., skyDebug)
-//   sky:<preset>   the field's producer is the stub with that preset (fair, fog, storm, front), or the world's model (sky:model)
+//   sky:<preset>   the field's producer is the stub with that preset (fair, fog, storm, front)
+//   sky:model      the field's producer is the world's own weather model (sky A): what the field
+//                  will always be once the packages read it
 //   storm          a mature storm cell that stands still 8 km north-east of where the view opens
 //   flash          a stroke of lightning held at its brightest (on Earth from its maps, as before;
 //                  on a world with a made weather, from the field's nearest cell: the stub's storm)
@@ -106,9 +108,14 @@ import { Rainbow } from '../weather/rainbow.js';
 import { Steer, STEER_LAYERS } from '../weather/sky/steer.js';
 import { makeSkyAt } from '../weather/sky/format.js';
 import { STUB_PRESETS } from '../weather/sky/stub.js';
+const SKY_PRESETS = [...STUB_PRESETS, 'model'];   // (sky A)
 import { cellGeometry, anvilGeometry, setCellUniforms, CELL_MAX } from '../weather/sky/cellShape.js';
 import { SKY_UNIFORMS, steerQuat, skyRiseOf } from './skyGlsl.js';
 import { SkyField } from './skyField.js';
+// (sky B: the stand-ins replaced by the parts themselves)
+import { UpperClouds } from './upperClouds.js';
+import { FogSheet } from './fogSheet.js';
+import { Lenticulars } from './lenticulars.js';
 
 // Above this many seconds of game time a second the clouds' noise keeps to it and is set back to
 // the game clock when the clock slows again (one re-cut, as at a bookmark): at an hour a second
@@ -144,9 +151,9 @@ export function skyDebug(str = '') {
   const sky = toks.find((t) => t.startsWith('sky:'));
   const preset = sky ? sky.slice(4) : null;
   return {
-    // ('model': the world's own weather model, package A, before the field is always on)
-    preset: preset && (STUB_PRESETS.includes(preset) || preset === 'model') ? preset : null,
-    badPreset: preset && !STUB_PRESETS.includes(preset) && preset !== 'model' ? preset : null,
+    // ('model': the world's own weather, sky A)
+    preset: preset && SKY_PRESETS.includes(preset) ? preset : null,
+    badPreset: preset && !SKY_PRESETS.includes(preset) ? preset : null,
     storm: toks.includes('storm'),
     flash: String(str).includes('flash'),
     noClouds: toks.includes('noclouds'),
@@ -174,7 +181,7 @@ export class SkySystem {
     this.renderer = renderer; this.terrain = terrain; this.shared = terrain.shared; this.shotMode = shotMode;
     this.debug = skyDebug(debug);
     this.noClouds = this.debug.noClouds;
-    if (this.debug.badPreset) console.warn(`debug=sky:${this.debug.badPreset}: no such preset (${STUB_PRESETS.join(', ')})`);
+    if (this.debug.badPreset) console.warn(`debug=sky:${this.debug.badPreset}: no such preset (${SKY_PRESETS.join(', ')})`);
     this.clouds = parts.clouds ?? new CloudLayer(renderer);
     this.cloudVolume = parts.cloudVolume ?? new CloudVolume(renderer);
     this.treeShade = parts.treeShade ?? new TreeShade(terrain);
@@ -183,9 +190,9 @@ export class SkySystem {
     this.bolt = parts.bolt ?? new Bolt(G);
     this.rainbow = parts.rainbow ?? new Rainbow(G);
     this.field = parts.field ?? new SkyField(renderer);
-    this.upper = parts.upper ?? stubPart('upper');
-    this.fog = parts.fog ?? stubPart('fog');
-    this.lenses = parts.lenses ?? stubPart('lenses');
+    this.upper = parts.upper ?? new UpperClouds(renderer);          // (sky B)
+    this.fog = parts.fog ?? new FogSheet(renderer);                  // (sky B)
+    this.lenses = parts.lenses ?? new Lenticulars(renderer);         // (sky B)
     this.probe = parts.probe ?? stubPart('probe');
     this.shared.uCloud.value = this.clouds.shadow;
     // (the far low shell: drawn in the picture after the shells above the camera, in a scene of
@@ -230,7 +237,11 @@ export class SkySystem {
     // The field: a world whose weather is made by rule, under a debug switch (step 0: nothing on
     // screen reads it yet). Made at the first frame, when the place the view opens at is known.
     const made = world.weather?.recipe === 'made', d = this.debug;
-    this.fieldWanted = made && !this.noClouds && !!(d.preset || d.storm || d.flash);
+    // (sky B: the field is always on where the weather is made by rule: the volume, the shells,
+    // the fog and the lenses all draw from it; sky A: a world of a day's maps - Earth - makes its
+    // field from them under sky:model alone, its storm and flash switches stay weather.js's)
+    const maps = world.weather?.recipe === 'maps';
+    this.fieldWanted = !this.noClouds && (made || (maps && d.preset === 'model'));
     this.raster = data?.rasters?.[0] || null;
     this.field.setWorld(null, null);
   }
@@ -416,7 +427,7 @@ export class SkySystem {
     // (clouds: near the traveller the layer is a volume. Its small picture is marched now,
     // before the main picture is begun, and laid over the ground further down: nothing
     // interrupts the main picture, see sky/cloudVolume.js)
-    this.cloudVolume.place(rig.pos);
+    this.cloudVolume.place(rig.pos, this.frame);          // (sky B: the march's bounds from the field)
     this.clouds.shadows = !(this.saving.has('clouds') || this.out.has('cloud-shade'));
     const cloudFar = this.clouds.update(rig.pos, c.worldRadius, this.cloudVolume);
     // (?debug=noclouds: a clear sky, for pictures of the land from high above; their shadows go with them)

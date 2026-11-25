@@ -35,6 +35,7 @@ uniform vec3 uShineE;               // its irradiance at the ground (planetshine
 uniform vec3 uHomeShine;            // sunlight the home world's day side sends up to something high above it
 uniform vec4 uQuality;              // governor switches: x close-up detail, y soft shadow edges, z edge-glow samples
 uniform vec4 uPaint;                // the painted look: x amount, y sky light on things, z colour, w facets (globals.js)
+uniform float uSkyBoost;           // the painted sky light's extra share from up in the air (globals.js)
 uniform float uAloft;               // how much of the haze a line of sight straight down is spared, from up in the air (globals.js)
 uniform float uHaze;                // how much of the haze lies over what is seen (1: all; less from high above a world with thick low air)
 uniform float uPhotometry;          // 0 = matte dust under air (Oren-Nayar), 1 = airless regolith (lunarDiffuse)

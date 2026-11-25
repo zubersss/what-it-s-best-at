@@ -96,7 +96,7 @@ export class SkyField {
     // second of the worker's time at start-up).
     const w = world.weather || {};
     // (only the world's own weather needs it: a test pattern has no land in it)
-    if (!po.preset && !po.wxland && w.land && typeof fetch === 'function' && typeof document !== 'undefined') {
+    if ((!po.preset || po.preset === 'model') && !po.wxland && w.land && typeof fetch === 'function' && typeof document !== 'undefined') {
       this.loading = true;
       const id = this.id, base = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '';
       Promise.all([
@@ -111,20 +111,58 @@ export class SkyField {
         this._make(po);
       }).catch(() => { this.loading = false; });
     }
+    // A world of a day's maps (Earth: fromMaps.js): its three grey maps and its storms, decoded as
+    // weather.js decodes them (the red of each pixel, longitude -180 at the left, latitude 90 at
+    // the top). Until they are here the field is the clear sky, and busy.
+    if ((w.recipe ?? 'made') === 'maps' && !po.maps && typeof document !== 'undefined' && typeof Image !== 'undefined') {
+      this.loading = true;
+      const id = this.id, base = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '';
+      const grey = (url) => (url ? new Promise((ok) => {
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+          const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0);
+          const d = g.getImageData(0, 0, img.width, img.height).data, out = new Uint8Array(img.width * img.height);
+          for (let i = 0; i < out.length; i++) out[i] = d[i * 4];
+          ok({ data: out, w: img.width, h: img.height });
+        };
+        img.onerror = () => ok(null);
+        img.src = base + url;
+      }) : Promise.resolve(null));
+      Promise.all([
+        grey(w.rain), grey(w.tops), grey(w.cloud),
+        w.storms ? fetch(base + w.storms).then((r) => r.json()).then((j) => j.storms || []).catch(() => []) : Promise.resolve([]),
+      ]).then(([rain, tops, cloud, storms]) => {
+        if (this.id !== id) return;
+        po.maps = {};
+        if (rain) po.maps.rain = rain;
+        if (tops) po.maps.tops = tops;
+        if (cloud) po.maps.cloud = cloud;
+        po.storms = storms;
+        this.loading = false;
+        this.slots = []; this.uploaded = false; this.strip = 0; this.pair = null;
+        SKY_UNIFORMS.uSkyLow.value[3] = 0;
+        this._make(po);
+      });
+    }
   }
 
   // the producer here (at(), cells(), strikes()) and its twin in the worker (the snapshots)
   _make(po) {
     this.producer = makeProducer(po);
     this._maps();
+    // (a question put to a worker that is ended here is never answered: the new one is asked again.
+    // Forgetting this left the model's field waiting for ever once the land's file arrived)
     if (this.worker) { this.worker.terminate(); this.worker = null; }
+    this.asking = null;
     if (typeof Worker === 'undefined') return;
     try {
       this.worker = new Worker(new URL('../weather/sky/skyWorker.js', import.meta.url), { type: 'module' });
-      const id = this.id;
+      const id = this.id, gen = this.gen = (this.gen || 0) + 1;
       this.worker.onmessage = (ev) => {
         const m = ev.data;
-        if (m.id !== this.id || m.id !== id) return;
+        // (and never from a worker since replaced: an Earth made before its maps came answers clear sky)
+        if (m.id !== this.id || m.id !== id || gen !== this.gen) return;
         this.asking = null;
         this._take(m.t, checkSnapshot(m.s));
       };

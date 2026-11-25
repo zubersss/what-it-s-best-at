@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { makePassMaterial, renderPass } from '../render/fullscreen.js';
 import { BLUE_NOISE_BASE64, BLUE_NOISE_SIZE } from './blueNoiseData.js';
+import { STORM } from '../weather/storm.js';
 
 const DOWN_FRAG = /* glsl */`
 uniform sampler2D tSrc;
@@ -383,38 +384,58 @@ export class PostPipeline {
       const log2Pre = this._readBuf[0];
       if (!Number.isFinite(log2Pre)) return;
       this.measuredLog2 = log2Pre - Math.log2(used);           // scene luminance, log2
-      let target = s.key / Math.pow(2, this.measuredLog2);
-      // Highlight priority: a sunlit surface (the hero in space, a planet filling the view)
-      // may not be pushed more than `highlight` times over white, however dark the rest is.
-      // (The peak comes from a blurred copy of the frame: the texels around the Sun's disc
-      // are left out of it in the shader, see setSun.)
-      const bright = this._readBuf[2] / used, cover = this._readBuf[3];
-      const peak = this._readBuf[1] / used;
-      if (peak > 0) target = Math.min(target, s.highlight / peak);
-      // Subject priority: once lit surfaces are more than a small part of the frame (a
-      // planet from space, not a figure against the stars) their bright parts may not go
-      // above `surface`, however much black surrounds them.
-      if (bright > 0) {
-        // (coverFrom: from what share of the frame lit surfaces count as the subject; a small
-        // world is a small disc from not far off, and at the default it burned out to a white
-        // ball in black space while it covered less than a hundredth of the view)
-        const from = s.coverFrom ?? 0.01, x = Math.min(1, Math.max(0, (cover - from) / (5 * from))), k = x * x * (3 - 2 * x);
-        // A world in black space (lit surfaces cover a small part of the frame) is held
-        // lower, at `globe`, where its markings and colour still have contrast; a view
-        // filled with ground keeps the higher `surface` limit.
-        const y = Math.min(1, Math.max(0, (cover - 0.35) / 0.3)), cap = s.globe + (s.surface - s.globe) * y * y * (3 - 2 * y);
-        target = Math.min(target, s.highlight * Math.pow(cap / s.highlight, k) / bright);
-      }
-      // Dim scenes stay dim: past `dim.above` only part of the missing light is made up
-      // (the picture darkens by the scene's darkening to the power `dim.power`), until
-      // the picture is `dim.most` times darker than full compensation would make it. So
-      // an earthlit night reads as night, and a view into a low Sun shows its dark ground
-      // as a camera set by hand would (Apollo crews opened up about two stops for those).
-      if (s.dim && target > s.dim.above) target /= Math.min(s.dim.most ?? Infinity, Math.pow(target / s.dim.above, s.dim.power));
+      const bright = this._readBuf[2] / used, cover = this._readBuf[3], peak = this._readBuf[1] / used;
+      // The storm overhead holds the picture dark (weather/storm.js, written by weather.js from
+      // the cloud over the traveller). Nothing else of the weather reaches the meter.
+      const target = meterTarget(s, this.measuredLog2, peak, bright, cover, STORM.light, STORM.flash);
       this.surfaceCover = cover; this.surfaceBright = bright * target;
-      target = Math.min(s.max, Math.max(s.min, target));
       this.stableReads = Math.abs(Math.log2(target / used)) < 0.03 ? this.stableReads + 1 : 0;
       this.targetExposure = target;
     }).catch(() => { this._readPending = false; });
   }
+}
+
+// How much of the darkness under cloud the meter makes up: with `light` of the day's light left
+// overhead it aims light^METER_HOLD of the way, so a storm (about 0.15 of the light left) comes
+// out 1.2 stops darker than full compensation would make it, and a clear sky is untouched.
+// (It made up all of it: the owner's thunderstorm was as bright as noon.)
+export const METER_HOLD = 0.45;
+
+// What the meter aims at, from one read-back: pure, so that scripts/weather-test.mjs can replay
+// it (check 6). s: the world's exposure settings; measuredLog2: the scene's luminance (log2);
+// peak: the brightest part of the frame; bright, cover: how bright lit surfaces are and how much
+// of the frame they fill; light: the share of the day's light the cloud overhead leaves (1: clear).
+export function meterTarget(s, measuredLog2, peak, bright, cover, light = 1, flash = 0) {
+  let target = s.key / Math.pow(2, measuredLog2);
+  // Highlight priority: a sunlit surface (the hero in space, a planet filling the view)
+  // may not be pushed more than `highlight` times over white, however dark the rest is.
+  // (The peak comes from a blurred copy of the frame: the texels around the Sun's disc
+  // are left out of it in the shader, see setSun.)
+  // (not while a stroke of lightning is alight: a channel 60 times as bright as sunlight lies
+  // over lit ground, so alpha 0 does not keep it out of this, and chasing it took two stops off
+  // a sunlit landscape with a storm on the horizon)
+  if (peak > 0 && !(flash > 0)) target = Math.min(target, s.highlight / peak);
+  // Subject priority: once lit surfaces are more than a small part of the frame (a
+  // planet from space, not a figure against the stars) their bright parts may not go
+  // above `surface`, however much black surrounds them.
+  if (bright > 0) {
+    // (coverFrom: from what share of the frame lit surfaces count as the subject; a small
+    // world is a small disc from not far off, and at the default it burned out to a white
+    // ball in black space while it covered less than a hundredth of the view)
+    const from = s.coverFrom ?? 0.01, x = Math.min(1, Math.max(0, (cover - from) / (5 * from))), k = x * x * (3 - 2 * x);
+    // A world in black space (lit surfaces cover a small part of the frame) is held
+    // lower, at `globe`, where its markings and colour still have contrast; a view
+    // filled with ground keeps the higher `surface` limit.
+    const y = Math.min(1, Math.max(0, (cover - 0.35) / 0.3)), cap = s.globe + (s.surface - s.globe) * y * y * (3 - 2 * y);
+    target = Math.min(target, s.highlight * Math.pow(cap / s.highlight, k) / bright);
+  }
+  // Dim scenes stay dim: past `dim.above` only part of the missing light is made up
+  // (the picture darkens by the scene's darkening to the power `dim.power`), until
+  // the picture is `dim.most` times darker than full compensation would make it. So
+  // an earthlit night reads as night, and a view into a low Sun shows its dark ground
+  // as a camera set by hand would (Apollo crews opened up about two stops for those).
+  if (s.dim && target > s.dim.above) target /= Math.min(s.dim.most ?? Infinity, Math.pow(target / s.dim.above, s.dim.power));
+  // ... and a storm stays dark: only part of what the cloud overhead takes is made up.
+  if (light < 1) target *= Math.pow(Math.max(0.02, light), METER_HOLD);
+  return Math.min(s.max, Math.max(s.min, target));
 }

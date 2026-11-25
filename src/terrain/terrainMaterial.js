@@ -679,6 +679,7 @@ void main() {
   // (THE GROUND FROM AFAR, 2 is the land's painted patches, further down; 3 the relief
   // light, in the lighting.)
   // =====================================================================================
+  float shellOut = vShell;      // (how much of the ground here is canopy, the broken edge counted)
   if (canopyTall > 0.3 && vShell > 0.0) {
     vec3 c1 = texture(tDetail, vDetailUv * 5.0).rgb - 0.5, c2 = texture(tDetail, vDetailUv * 1.0).rgb - 0.5;
     float fwC = fwidth(vDetailUv.x) + fwidth(vDetailUv.y);
@@ -716,8 +717,11 @@ void main() {
       // (and within the far trees' reach the trees are the crowns: the canopy under them is
       // the dark between them, its own domes only a hint, or each tree stood on an oval of
       // its own, the same oval over and over)
+      // (the single crowns, 8 m, not at all there: the far trees' own tops are those, and the
+      // two together were an even field of small round blobs, "bubble wrap"; the stands, 21 m,
+      // at half strength)
       float underTrees = mix(0.55, 1.0, smoothstep(3000.0, 5600.0, dist));
-      kc *= underTrees; kg *= underTrees;
+      kc *= smoothstep(3000.0, 4500.0, dist); kg *= underTrees;
       if (kg > 0.0) {
         cg = crowns(vDetailUv + 0.37, 3.0);
         N = normalize(N + (uTanU * cg.x + uTanV * cg.y) * (farCrownTilt(true) * kg));
@@ -740,14 +744,30 @@ void main() {
     // (where a pattern was not worked out, its weight is nought or the canopy is not drawn at all)
     float patH = mix(mix(mix(${FAR_GROUND.clumpZ.toFixed(3)}, cz.z, kz), cg.z, kgE), cr.z, kcE);
     float sharp = max(max(kz, kgE), kcE);
-    float shellW = mix(vShell, smoothstep(0.3, 0.7, clamp((vShell - 0.5) * 2.4 + 0.5 + 1.4 * (patH - ${FAR_GROUND.clumpZ.toFixed(3)}), 0.0, 1.0)), sharp * step(vShell, 0.999));
+    // (and broken by the detail tile's broad blobs, 13 and 64 m, so that the edge wanders
+    // freely, not along the land-cover map's square pixels, "a staircase")
+    float shellW = mix(vShell, smoothstep(0.3, 0.7, clamp((vShell - 0.5) * 2.4 + 0.5 + 1.4 * (patH - ${FAR_GROUND.clumpZ.toFixed(3)}) + 0.9 * c2.g + 0.45 * c1.r, 0.0, 1.0)), sharp * step(vShell, 0.999));
+    // (from a kilometre the wood gathers into larger soft clumps in two or three tones: the
+    // detail tile's broad blob, 64 m, lighter and darker, as the far trees' shared tone is)
+    leaves *= mix(1.0, 0.68 + 0.62 * smoothstep(-0.12, 0.12, c2.r + 0.4 * c1.g), smoothstep(400.0, 1200.0, dist));
     albedo = mix(albedo, leaves, shellW * ownC);
+    shellOut = shellW;
     ao *= mix(1.0, 0.72 + 0.5 * clamp(c1.b + c2.b, -0.4, 0.5), vShell * ownC);
     // (the clumps: their light and shade on whatever colour the wood has there, its own or,
     // beyond 19 km, the map's; tilted a little toward their own light)
     if (kz > 0.0) {
       N = normalize(N + (uTanU * cz.x + uTanV * cz.y) * (0.25 * kz * shellW));
       albedo *= mix(1.0, (0.48 + 0.8 * smoothstep(0.0, 0.55, cz.z)) * (0.8 + 0.4 * cz.w) / ${FAR_GROUND.clumpMean.toFixed(3)}, kz * shellW);
+    }
+  }
+  // A clearing in a wood, seen from the air, is a glade: the meadow's gold and green, not the
+  // forest floor's grey-sage litter in the canopy's shade ("holes in the picture"). Wherever
+  // the land carries trees and the ground shows between them, from 250 m off and from above.
+  if (canopyTall > 0.3) {
+    float glade = (1.0 - shellOut) * smoothstep(250.0, 500.0, dist) * smoothstep(0.15, 0.35, dot(V, up)) * flatW;
+    if (glade > 0.0) {
+      albedo = mix(albedo, grassColour(uGrassTone.x, 0.62) * mapTint * (0.85 + 0.3 * texture(tDetail, vDetailUv).b), 0.85 * glade);
+      ao = mix(ao, ao / mix(1.0, 0.55, canopyShade), glade); canopyShade *= 1.0 - glade;
     }
   }
   // ===================================== end of THE GROUND FROM AFAR, 1 ================
@@ -868,7 +888,11 @@ void main() {
   }
 
   // --- water: dark, moving, shining; its colour by how deep it is
-  float water = uSea.x > 0.5 ? smoothstep(0.02, 0.22, waterDepth) : 0.0;
+  // (seen from the air, uAloft, and far off, the shore is a soft margin a metre and a half
+  // deep: a patch's texel there is tens of metres, and a sharp edge drew lakes with
+  // stair-stepped outlines)
+  float waterAir = smoothstep(0.0, 0.4, uAloft), waterFar = waterAir * smoothstep(1500.0, 6000.0, dist);
+  float water = uSea.x > 0.5 ? smoothstep(0.02, 0.22 + 1.3 * waterFar, waterDepth) : 0.0;
   float foam = 0.0, waveRough = 0.0;
   if (water > 0.0) {
     // waves: the long ones as slopes (the surface itself rises with them near the
@@ -908,8 +932,15 @@ void main() {
     // shallows are a lighter, greener water and not the pale sand of the bed: a pixel there
     // is part water and part bank, and the bed's sand drew every river as a dashed line of
     // pale beads and every lake with a pale dotted rim. Seen from the air: uAloft)
-    vec3 bed = mix(vec3(0.30, 0.27, 0.20), vec3(0.12, 0.25, 0.23), smoothstep(1500.0, 6000.0, dist) * smoothstep(0.0, 0.4, uAloft));
-    vec3 body = bed * through + uSeaColor * (1.0 - through.b);
+    vec3 bed = mix(vec3(0.30, 0.27, 0.20), vec3(0.12, 0.25, 0.23), waterFar);
+    // (from the air the deep water is a muted slate-blue, not the deep sea's pure blue: a
+    // lake at 3 km was a paint-bucket fill of royal blue outside the picture's palette)
+    vec3 deepC = mix(uSeaColor, dot(uSeaColor, vec3(0.3, 0.55, 0.15)) * vec3(0.8, 1.0, 1.2), 0.45 * waterAir);
+    vec3 body = bed * through + deepC * (1.0 - through.b);
+    // (and from the air, one fade from pale green shallows to the slate middle: red, green and
+    // blue lost at three depths made a river of changing depth cycle through sand, yellow,
+    // green and lilac, "an oily rainbow ribbon" from 1 km)
+    if (waterAir > 0.0) { float tg = exp(-0.16 * waterDepth * 2.3); body = mix(body, mix(deepC, vec3(0.10, 0.20, 0.19), tg), waterAir); }
     albedo = mix(albedo, mix(body, vec3(0.75), foam), water);
     ao = mix(ao, 1.0, water);
   }
@@ -954,6 +985,20 @@ void main() {
       float slopeL = clamp(mix(max(nlr, 0.0) / 0.574, paintLit(nlr) / paintLit(0.574), paint), 0.4, 1.6);
       diffuse = mix(diffuse, mix(max(su, 0.0) * 0.3183099, paintLit(su), paint) * slopeL, kr);
     }
+    // Planes: far mountain sides (from 1.2 km, steeper than some 25 degrees) take the painted
+    // light in a wider ramp, so that faces turned a little away from the Sun are clearly
+    // darker than those facing it and the cool sky light shows in them. The two-tone light
+    // put every face toward the Sun at one brightness: the big mountain of the opening view
+    // was a smooth salmon dome with no shade side. Arithmetic only; no read.
+    float kp = paint * smoothstep(1200.0, 3000.0, dist) * smoothstep(0.08, 0.25, 1.0 - dot(N, up)) * (1.0 - water);
+    if (kp > 0.0) {
+      vec3 Lp = uSunDir;
+      if (kr > 0.0) { vec3 Lh = uSunDir - up * su; float lh = length(Lh); Lp = normalize(mix(uSunDir, normalize((lh > 1e-3 ? Lh / lh : uTanU) * 0.819 + up * 0.574), kr)); }
+      float nlp = dot(N, Lp);
+      float planes = smoothstep(-0.04, 0.2, nlp) * (0.28 + 0.72 * smoothstep(0.2, 0.85, nlp)) * 0.3183099;
+      // (as a share of the two-tone light: what the relief light did to level ground stays)
+      diffuse *= mix(1.0, clamp(planes / max(paintLit(nlp), 1e-4), 0.0, 1.0), kp);
+    }
   }
   vec3 sunHere = vSun;
   vec3 direct = sunHere * shadow * diffuse;
@@ -967,7 +1012,12 @@ void main() {
     float nh = max(dot(N, Hh), 0.0), a2 = rough * rough, dd = nh * nh * (a2 - 1.0) + 1.0;
     float F = 0.02 + 0.98 * pow(1.0 - max(dot(V, Hh), 0.0), 5.0), Fv = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
     vec3 Rv = reflect(-V, N); Rv = normalize(Rv + up * max(0.0, 0.05 - dot(Rv, up)));
-    col += water * (1.0 - foam) * (sunHere * shadow * (a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0) * 0.25 / max(dot(N, V), 0.2)) + Fv * skyLight(Rv, up) / PI);
+    // (from the air the water shows the sky as one calm sheen: the sky toward the vertical,
+    // without the painted look's extra sky light from above, and a little of it even looking
+    // straight down. Each ripple read the painted sky in its own direction, and a river
+    // from 1 km was a rainbow of lilac, mint and pink.)
+    Rv = normalize(mix(Rv, up, waterAir)); Fv = max(Fv, 0.1 * waterAir);
+    col += water * (1.0 - foam) * (sunHere * shadow * (a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0) * 0.25 / max(dot(N, V), 0.2)) + Fv * skyLight(Rv, up) / (PI * mix(1.0, uSkyBoost, waterAir)));
   } else if (uGloss.x > 0.0 || vCloud.z > 0.01) {
     // the Sun's sheen on ice, and on ground the rain has wetted: a broad glint toward the
     // Sun, strongest at a grazing view; it fades with distance into the far ground's plain
