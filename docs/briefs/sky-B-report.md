@@ -144,11 +144,20 @@ by the shared forms, and it throws near pixels out FIRST. With no field it is th
 
 ## Checks (each with its numbers, and how it was seen to fail)
 
-**1. The reads a step (`node scripts/cloud-cost.mjs`).** The march is compiled a second time with
-`CLOUD_READS`, and every read of the noise and of the field adds one to a running total that the
-pixel hands back, so this is the count on real rays. First run, at an air view with no cloud in
-it, it read 1 a step; the run at a storm is below. `--break read` puts one more read into the
-loop, to see the check fail.
+**1. The reads a step — PASSED (`node scripts/cloud-cost.mjs`, the merged build).** The march is
+compiled a second time with `CLOUD_READS`, and every read of the noise and of the field adds one
+to a running total that the pixel hands back, so this is the count on real rays, counted over
+the stepping alone (the per-ray reads are reported apart).
+
+At the storm 20 km off (`t=8.25`, the far slices on):
+
+> the march's reads a step, out of the rise's fade — slice 6: **1 a step over 8 steps, 0 a ray**
+> ok   at most 4 reads a step out of the rise's fade (1.00 beyond the first kilometre, 0.00 within it)
+> ok   at most 6 in the fade, when the masses and the look toward the Sun are each read twice (1.00 / 0.00)
+
+One read a step is the cell's own boiling noise: in the far slices the layer is not marched at
+all, so nothing else is read there. `--break read` puts one more read into the loop, to see the
+check fail.
 
 **2. The motion (`node scripts/cloud-motion.mjs`).** Its first run showed a fault of its own: the
 view looked ALONG the day's wind, so the clouds came toward the eye and the picture moved one
