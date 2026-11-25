@@ -65,7 +65,8 @@ target within 2 % of what the frame used, three frames running) and after 137 fr
 "not ready", and every ground-level Haven picture on this machine therefore costs the full
 time limit — 17 minutes each instead of 7. The air views settle normally. A probe that
 prints the exposure frame by frame, with the clouds in the picture and with them taken
-out, is queued to say whether the clouds are what keeps it moving.
+out, is written (`scratchpad/exposure-probe.mjs`) but was not run: the browser's hours went to
+the package's own pictures instead.
 
 ## What was built
 
@@ -82,8 +83,9 @@ out, is queued to say whether the clouds are what keeps it moving.
   the look toward the Sun — 3, plus the wisps within a kilometre of the eye, and one more for
   each of the two noise reads while the rise crosses its wrap. Per ray: field B once (the Sun the
   mid and high layers leave), field C once and A and B twice more where there are rain shafts.
-- **Bounds** from the field within reach (nine places, snapped to 250 m with hysteresis): they
-  only shorten the march, and no value of a cloud comes from them.
+- **Bounds** from the field within reach (a square of 25 places, snapped to 250 m with
+  hysteresis): they only shorten the march, and no value of a cloud comes from them. (A ring of
+  eight at the reach looked past everything between them.)
 - **Storm cells** (`weather/sky/cellShape.js`) are marched by the same function in the near slices
   and in the two far ones: the exact chord toward the Sun through the tower for its light, a slate
   tint that deepens with that chord, density 1.45 times a heap's, the ground's light halved, the
