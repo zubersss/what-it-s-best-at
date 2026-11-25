@@ -181,7 +181,11 @@ report had the storm to the north-west; it is 64 km to the west-south-west):
 
 Items 1 and 3 are done on this branch (the main session's word): `?debug=sky:model` is let through
 `skyDebug` (and `skyField` fetches the land's planes for it), and the bookmarks and cost views are
-in `haven.js`.
+in `haven.js`. Seen in the browser with `?debug=sky:model` on Haven: both snapshots made by the
+model in the worker and uploaded within ten seconds of the start, no problems reported. (The
+first try waited for ever: when the land's file arrives the field starts a fresh worker, and it
+still thought its question to the ended one was pending. Fixed, with a check in
+`sky-system-test` that fails with the fault put back: `--break reask`.)
 
 1. **`?debug=sky:model`**: `skyDebug` only allows the stub's four presets, and `_makeField` always
    passes one. To see the model in the game before the field is always on, let `sky:model` through

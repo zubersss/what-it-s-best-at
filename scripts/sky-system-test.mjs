@@ -89,7 +89,7 @@ import haven from '../src/worlds/haven.js';
 import earth from '../src/worlds/earth.js';
 
 const argv = process.argv.slice(2), BREAK = argv.includes('--break') ? argv[argv.indexOf('--break') + 1] : null;
-const BREAKS = ['quat', 'march', 'heap', 'clock', 'order', 'noclouds', 'field', 'ladder', 'parts', 'guards', 'rise', 'fade', 'shell', 'probe', 'frame', 'worker', 'hour', 'clockpin', 'rain'];
+const BREAKS = ['quat', 'march', 'heap', 'clock', 'order', 'noclouds', 'field', 'ladder', 'parts', 'guards', 'rise', 'fade', 'shell', 'probe', 'frame', 'worker', 'hour', 'clockpin', 'rain', 'reask'];
 if (BREAK && !BREAKS.includes(BREAK)) { console.log(`no break ${BREAK} (${BREAKS.join(', ')})`); process.exit(2); }
 if (BREAK) console.log(`(with a fault put in: ${BREAK})`);
 let failed = 0;
@@ -813,6 +813,23 @@ function ts0() { let t = T0; while (steer.risePhases(t).wa < 1 || steer.risePhas
     const had = !!f.worker;
     f.setWorld(null, null);
     check(made === 1 && had && ended === 1 && f.worker === null, `the field's worker (and its copy of the land) is ended when the field is: a switch away, or no field (${made} made, ${ended} ended)`);
+  } finally { if (saved === undefined) delete globalThis.Worker; else globalThis.Worker = saved; }
+}
+
+{
+  // (sky A) a worker started anew (the land's file arriving) is asked again: the question put to
+  // the one it replaces is never answered (the model's field once waited for ever on it)
+  const saved = globalThis.Worker; const made = [];
+  globalThis.Worker = class { constructor() { this.asked = []; made.push(this); } postMessage(m) { if (m.kind === 'snap') this.asked.push(m.t); } terminate() {} };
+  try {
+    const f = new SkyField(null);
+    f.setWorld(haven, { preset: 'fair', land: { data: new Int16Array(8), width: 4, height: 2, scale: 1 } });
+    f.update(1000);
+    const was = f.asking;
+    f._make(f.opts);                       // what the land's arrival does
+    if (BREAK === 'reask') f.asking = was;
+    f.update(1000.5);
+    check(made.length === 2 && made[0].asked.length === 1 && made[1].asked.length === 1, `a worker started anew is asked for the snapshot again (asked of the first ${made[0]?.asked.length}, of the second ${made[1]?.asked.length})`);
   } finally { if (saved === undefined) delete globalThis.Worker; else globalThis.Worker = saved; }
 }
 

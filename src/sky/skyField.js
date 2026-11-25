@@ -117,7 +117,10 @@ export class SkyField {
   _make(po) {
     this.producer = makeProducer(po);
     this._maps();
+    // (a question put to a worker that is ended here is never answered: the new one is asked again.
+    // Forgetting this left the model's field waiting for ever once the land's file arrived)
     if (this.worker) { this.worker.terminate(); this.worker = null; }
+    this.asking = null;
     if (typeof Worker === 'undefined') return;
     try {
       this.worker = new Worker(new URL('../weather/sky/skyWorker.js', import.meta.url), { type: 'module' });
