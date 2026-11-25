@@ -57,20 +57,23 @@ const reads = await page.evaluate(({ BREAK }) => {
     a.sky.beforeScene({ renderer: r, post: a.post, rig: a.rig, worldRadius: a.world.radius, time: 0, treesWanted: false });
     const w = cv.tw, h = cv.th, buf = readRT(cv.target, w, h);
     u[0] = keep[0]; u[1] = keep[1];
-    // the most reads a step, by slice (the tiles go down a column first: slice = row + ROWS * col)
+    // The most reads a step, by slice (the tiles go down a column first: slice = row + ROWS * col).
+    // The pixel hands back its stepping's reads, its steps, its cover and every read on the ray,
+    // so the two are counted apart: a ray reads the field a few times whatever its steps do.
     const COLS = 4, ROWS = 2, tw = w / COLS, th = h / ROWS, out = [];
     for (let s = 0; s < COLS * ROWS; s++) {
       const col = Math.floor(s / ROWS), row = s % ROWS;
-      let most = 0, steps = 0, pixels = 0;
+      let most = 0, steps = 0, pixels = 0, ray = 0;
       for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
         const i = ((row * th + y) * w + col * tw + x) * 4;
-        const reads = buf[i], n = buf[i + 1], alpha = buf[i + 2];
+        const reads = buf[i], n = buf[i + 1], alpha = buf[i + 2], all = buf[i + 3];
         if (!(n > 0) || alpha <= 0.002) continue;
         pixels++;
+        ray = Math.max(ray, all - reads);
         const per = reads / n;
         if (per > most) { most = per; steps = n; }
       }
-      out.push({ slice: s, most: +most.toFixed(2), steps, pixels });
+      out.push({ slice: s, most: +most.toFixed(2), steps, pixels, ray: +ray.toFixed(1) });
     }
     return out;
   };
@@ -81,7 +84,7 @@ const reads = await page.evaluate(({ BREAK }) => {
 }, { BREAK });
 if (reads.error) { console.log(reads.error); await close(); process.exit(1); }
 
-const show = (rows) => rows.filter((r) => r.pixels > 0).map((r) => `slice ${r.slice}: ${r.most} (${r.steps} steps)`).join(', ');
+const show = (rows) => rows.filter((r) => r.pixels > 0).map((r) => `slice ${r.slice}: ${r.most} a step over ${Math.round(r.steps)}, ${r.ray} a ray`).join('; ');
 console.log(`the march's reads a step, out of the rise's fade — ${show(reads.plain)}`);
 console.log(`                        in the rise's fade      — ${show(reads.fade)}`);
 // (slices 0 and 1 are the first kilometre: the wisps round the eye are the one read more)

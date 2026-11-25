@@ -273,7 +273,9 @@ void cloudShafts(float t0, float t1, float country) {
 
 // One step of the march at the distance t along the ray, dt long: the cell on this ray if there
 // is one, else the layer's own cloud from the field, lit as a painter has it.
+float gSteps;                  // how many steps this ray took (the read count is against it)
 void cloudStep(float t, float dt, bool far) {
+  gSteps += 1.0;
   vec3 p = uCamPlanetPos + gDir * t;
   float r = length(p); vec3 up = p / r;
   // the cell on this ray at this step, if any (arithmetic, but for its own noise)
@@ -451,6 +453,11 @@ void main() {
   // stretches, more coarsely.
   bool shaftFirst = sB > sA && sA < mA;
   if (shaftFirst) cloudShafts(sA, min(sB, mA), country);
+  // (the reads a step are counted over the stepping alone: what a ray reads once — the Sun left
+  // by the layers above, the country under the rain, the wisps — is counted by the frame's own
+  // run of scripts/cloud-cost.mjs, not shared out among the steps)
+  gSteps = 0.0;
+  gSkyReads = 0.0;
   float layerLen = max(t1 - t0, 1.0);
   float c0 = gCells > 0 ? gCellT[0].x : 1e30, c1 = gCells > 0 ? gCellT[0].y : -1e30;
   for (int seg = 0; seg < 3; seg++) {
@@ -468,14 +475,16 @@ void main() {
       cloudStep(t, dt, far);
     }
   }
+  float stepReads = gSkyReads;
   if (!shaftFirst) cloudShafts(max(sA, mB), sB, country);
 
   // (cut off at a fiftieth, the march has let that much through: stretched so the thickest cloud
   // lets nothing through. The Sun's disc is tens of thousands of times white.)
   float alpha = clamp((1.0 - gT) / 0.98, 0.0, 1.0);
 #ifdef CLOUD_READS
-  // (the march compiled to count: the reads this ray made, the steps it took, what it gathered)
-  fragColor = vec4(gSkyReads, n, alpha, 1.0);
+  // (the march compiled to count: the reads its stepping made, the steps it took, what it
+  // gathered, and every read on the ray)
+  fragColor = vec4(stepReads, gSteps, alpha, gSkyReads);
   return;
 #endif
   if (alpha < 0.003) { fragColor = vec4(0.0); return; }
