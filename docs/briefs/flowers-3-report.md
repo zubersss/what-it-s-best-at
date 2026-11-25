@@ -83,12 +83,66 @@ The same rule in GLSL (`flowerBase`, `flPick`, `flowerCompany`, `flowersAt`), st
 
 ## 5. Pictures and numbers
 
+`docs/shots/flowers-3/`: `haven_ledge_<view>_before.png` (build 6fd3896) and `_after.png`
+(frozen build of e345387; the pollen's near-lens fade came after it), and `pair_<view>.png`
+(before over after). Views (`scripts/flowers-3-shots.sh <frozen build> <suffix> [view ...]`):
+`ledge` (the opening view), `ledge_phone` (`fov=21.4`), `floor` (`debug=floor`), `meadow`
+(`lat=-54.39501&lon=38.28479&t=5&heading=45`, eye height), `meadow_a20` (20 m up),
+`meadow_300` and `meadow_1k` (the meadow from 300 m and 1 km, 60 degrees down),
+`region_300` and `region_1k` (the opening region the same way: mostly wood, few flowers to see).
+
+What they show:
+- **ledge / ledge_phone**: the yellow discs turned to the eye, floating large over the
+  valley, are heads on stems, tilted, seen side on or as bowls, smaller far off; the yellow
+  still leads; a few companions (lupin, paintbrush) among them.
+- **meadow_a20**: one blue block beside one white is drifts of five and more colours.
+- **meadow**: one blue star to the horizon is thistle globes, cornflowers, clover and others
+  at different heights.
+- **meadow_300 / meadow_1k**: nothing from 1 km before; now soft drifts of the meadows'
+  colours with no seam and no speck.
+
+Counts (`scripts/grass-layers.mjs`, 660 x 309; `layers_<view>_<before|after>.txt`):
+
+| view | flower triangles handed over | flower layers per grass pixel | all grass layers |
+|---|---|---|---|
+| opening view, before | 0.31 M | 0.23 | 4.69 |
+| opening view, after | 0.62 M | 0.37 | 4.82 |
+| meadow, before | 0.31 M | 0.41 | 5.06 |
+| meadow, after | 0.62 M | 0.73 | 5.37 |
+
+Twice the flowers' triangles (two a part); no cut-out (they are opaque, shaded only where
+they pass the depth test: "shaded" over all the grass 1.79 to 1.82 at the opening view, 2.20
+to 2.35 in the meadow). The extra layers are the stems now drawn and the companions'
+taller heads: some 6 % more grass layers in all.
+
+### The ground's cost (asked by the owning session after the tenth benchmark)
+
+`scripts/ground-cost-run.sh <scratch> --only ledge,meadow,air300,meadow1k,air3k --before
+<file> --size 880x412 --dsf 2.2`, where the "before" shader is today's with the old flowers'
+block and the 1 100 m vertex reach put back (same browser session; a count of work on
+software WebGL, never a frame rate; `docs/shots/flowers-3/ground-cost.txt`; `meadow1k` is a
+view added to the script):
+
+| view | shaded, before -> after (ms of work; vertex work in it) | the shading alone |
+|---|---|---|
+| opening view | 7996 -> 8116 (+1.5 %) | 99 % of before |
+| meadow, eye height | 6229 -> 6350 (+1.9 %) | 100 % |
+| 300 m up | 5312 -> 5367 (+1.0 %) | 100 % |
+| meadow from 1 km | 2674 -> 2716 (+1.6 %) | 99 % |
+| 3 km up | 3343 -> 3334 (-0.3 %) | 94 % |
+
+The fragment side is flat; the 2.6 km vertex reach and the rest add 1 to 2 % to the whole
+(under the noise this measure has elsewhere). Kept.
+
 ## Pollen (`src/life/pollen.js`)
 
 - Thins with height: none above 3.2 m, full under 1 m (was to 6 m in an even spread: motes
   seen against the sky read as dust on the lens).
-- Toward the Sun a mote blooms into a soft halo (drawn up to 3.5 times wider, as bright in
-  all); never drawn under 2 pixels (1.5 read as squares).
+- Toward the Sun a mote blooms into a soft halo (drawn up to 2.5 times wider, as bright in
+  all), the smallest still 1.5 pixels: with the motes above 3.2 m and those at the lens gone,
+  fewer pixels are filled than before (the owning session asked for its cost flat or lower).
+- None nearer the eye than 0.6 m, faded to 1.6 m: a mote a hand from the lens was the
+  blurred disc in the sky (`ledge_phone`, both builds; fixed after the frozen build).
 - Not done: plumes downwind (asked by the critic).
 
 ## Behaviour changes
@@ -105,3 +159,18 @@ The same rule in GLSL (`flowerBase`, `flPick`, `flowerCompany`, `flowersAt`), st
 - `life.flowers` floras carry `with` (companions); world files unchanged.
 
 ## Known problems
+
+1. **Not measured on the phone.** Flowers' triangles doubled (0.31 to 0.62 M at the opening
+   view, out of 1.74 M for all grass); the ground's tint now runs to 2.5 km from the air
+   (one or two noises a grass pixel there). `grass` and `grass-mid` still thin or take them.
+2. From 1 km the meadows' tint is a little milky (a mean of bright petal colours over the
+   olive grass reads as pastel); it could be deeper and less pale.
+3. Stems at 20 to 50 m are many fine green lines (half a pixel at least); in the meadow
+   from 20 m they are visible as a green hatch.
+4. Heads seen exactly edge-on are yellow dashes; the cup's middle seen from the side is a
+   dark slit.
+5. Pollen: near motes can still sit above the horizon at eye height; no plumes.
+6. The opening region's views (region_300, region_1k) are mostly wood: they say little about
+   flowers; the meadow views are the ones to judge by.
+7. No stability run of the new flowers (a walk and low flight over the meadow): heads now
+   tilt in fixed directions, so they should not swim, but it was not measured.

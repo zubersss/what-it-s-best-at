@@ -11,38 +11,12 @@ import * as THREE from 'three';
 import { G } from '../render/globals.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
+import { HEAP_GLSL, SKY_UNIFORMS, SKY_NOISE_UNIFORM_GLSL, SKY_STEER_UNIFORM_GLSL } from './skyGlsl.js';
 
-// A heap of the cloud layer over a place, as the layer draws it and as the ground is shaded
-// by it (terrainMaterial.js): one rule, written here, for both.
-//   noise: the cloud volume's noise; up: the direction from the world's centre; m: the day's
-//   map there; lo: 1 - the layer's cover; fair: the cover of fair-weather cloud where the map
-//   has none; vol: x 1 / the noise's scale, y the fair-weather field's scale, z the radius at
-//   which the volume's masses are widest; wind: where the noise has drifted to; fine: how
-//   much of the smaller lobes (0: none; 1: all). c: the cover there (0..1). Returns 0..1.
-// Fair-weather cloud, where the day's map shows none (its pixels are 10 km: it never saw
-// them): fields of small heaps with clear stretches between, and the fields themselves in
-// clusters some tens of kilometres across with clear country between them. One rule, for
-// the volume (cloudVolume.js), this shell and the ground's shadows. (Without the clusters,
-// seen from high up one even field lay over the whole land: the same few heaps in rows
-// to the horizon, since the noise they are cut from repeats every few kilometres.)
-//   noise: the cloud volume's noise; up: the direction from the world's centre; k: the
-//   world's radius in units of the field; fair: its cover; m: the day's map there.
-//   Never a whole cover: fair weather has sky between its heaps.
-export const FAIR_GLSL = /* glsl */`
-float fairCover(highp sampler3D noise, vec3 up, float k, float fair, float m) {
-  float field = texture(noise, up * k + 0.31).r, cluster = texture(noise, up * (k * 0.2) + 0.83).g;
-  return min(0.5, fair * (0.55 + 0.45 * smoothstep(0.0, 0.5, m)) * smoothstep(0.12, 0.34, field) * smoothstep(0.40, 0.56, cluster) * (1.3 / 0.55));
-}`;
-
-export const HEAP_GLSL = FAIR_GLSL + /* glsl */`
-float cloudHeap(highp sampler3D noise, vec3 up, float m, float lo, float fair, vec3 vol, vec3 wind, float fine, out float c) {
-  c = smoothstep(lo - 0.08, lo + 0.34, m);
-  if (fair > 0.0) c = max(c, fairCover(noise, up, vol.y, fair, m));
-  vec3 qv = up * (vol.z * vol.x) + wind;
-  float n = texture(noise, qv).r;
-  if (fine > 0.0) n += (texture(noise, qv * 5.3 + 0.37).g - 0.5) * 0.26 * fine;
-  return clamp((n - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
-}`;
+// The rule the shell, the volume and every shadow share (fair-weather fields, heaps carved
+// from the noise on the low layer's steering) lives in sky/skyGlsl.js; passed on from here
+// for the files that took it from here.
+export { FAIR_GLSL, HEAP_GLSL } from './skyGlsl.js';
 
 const VERT = /* glsl */`
 out vec3 vRel;
@@ -58,9 +32,10 @@ uniform sampler2D tCloudMap;
 uniform vec4 uCloud;           // x cover, y the shell's radius (m), z longitude shift of the map (turns), w 1 = the camera is below the shell
 uniform float uFair;           // the cover of fair-weather cloud where the day's map has none (0: none; see cloudVolume.js)
 precision highp sampler3D;
-uniform sampler3D tCloudNoise; // the volume's own noise: far off, this shell shows the same clouds the volume does near
-uniform vec4 uVol;             // x: 1 / the noise's scale (1/m; 0: no volume), y: the world's radius in units of the fair-weather field, z: the radius at which the volume's masses are widest (m)
-uniform vec3 uVolWind;         // where the volume's noise has drifted to
+// (tCloudNoise: the volume's own noise: far off, this shell shows the same clouds the volume does
+// near; uCloudSteer: the low layer's motion, its pattern read where it stands still, sky/skyGlsl.js)
+${SKY_NOISE_UNIFORM_GLSL}${SKY_STEER_UNIFORM_GLSL}
+uniform vec4 uVol;             // x: 1 / the noise's scale (1/m; 0: no volume), y: the world's radius in units of the fair-weather field, z: the radius at which the volume's masses are widest (m), w: the low pattern's rise (m, SKY_UNIFORMS.uCloudRise.x)
 uniform float uNearFade;       // metres: nearer than this the cloud is drawn as a volume instead (cloudVolume.js); 0: all of it is this shell
 in vec3 vRel;
 layout(location = 0) out vec4 fragColor;
@@ -110,14 +85,15 @@ void main() {
     // same noise at the height where the masses are widest. A cloud keeps its place and
     // its outline when the traveller comes near and the volume takes it over. (Not where
     // a mass is smaller than a pixel: there, its mean.)
-    float c, dv = cloudHeap(tCloudNoise, up, m, lo, uFair, uVol.xyz, uVolWind, 1.0 - smoothstep(150.0, 600.0, px * uVol.z), c);
+    vec2 hc = cloudHeap(tCloudNoise, up, m, lo, uFair, uVol, uCloudSteer, 1.0 - smoothstep(150.0, 600.0, px * uVol.z));
+    float c = hc.y, dv = hc.x;
     float small = far;
     cover = mix(smoothstep(0.0, 0.45, dv) * 0.75, c * 0.5, small);
     // A heap seen from above has a lit side and a side in its own shade: the same cloud a
     // few hundred metres toward the Sun says which this is (as the volume does near the
     // traveller). Flat white, the layer was a picture laid over the land.
     if (small < 1.0) {
-      float n1 = texture(tCloudNoise, normalize(up + uSunDir * (450.0 / uVol.z)) * (uVol.z * uVol.x) + uVolWind).r;
+      float n1 = skyLowNoise(tCloudNoise, skyToLow(uCloudSteer, normalize(up + uSunDir * (450.0 / uVol.z))) * (uVol.z * uVol.x), uVol.z, uVol.w);
       float dv1 = clamp((n1 - (1.0 - c) * 0.85) / max(c * 0.85 + 0.15, 0.2) * 2.2, 0.0, 1.0);
       relief = clamp(1.0 + 1.25 * (dv - dv1), 0.6, 1.24);
     }
@@ -175,7 +151,7 @@ export class CloudLayer {
     this.renderer = renderer;
     const blank = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); blank.needsUpdate = true;
     this.blank = blank; this.texture = blank;
-    this.uniforms = { ...lightingUniforms(), tCloudMap: { value: blank }, uCloud: { value: new THREE.Vector4(0.8, 1, 0, 1) }, uNearFade: { value: 0 }, uFair: { value: 0 }, tCloudNoise: { value: null }, uVol: { value: new THREE.Vector4() }, uVolWind: { value: new THREE.Vector3() } };
+    this.uniforms = { ...lightingUniforms(), tCloudMap: { value: blank }, uCloud: { value: new THREE.Vector4(0.8, 1, 0, 1) }, uNearFade: { value: 0 }, uFair: { value: 0 }, tCloudNoise: { value: null }, uVol: { value: new THREE.Vector4() }, uCloudSteer: SKY_UNIFORMS.uCloudSteer };
     const mat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1 }, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: FRAG,
       side: THREE.DoubleSide, depthTest: true, depthWrite: false, transparent: true,
@@ -225,8 +201,8 @@ export class CloudLayer {
       // (the shell stands where the volume's masses are widest: a third of the way up them)
       this.radius = worldRadius + volume.base + 0.3 * (v.thick ?? 3000);
       this.mesh.scale.setScalar(this.radius);
-      this.uniforms.tCloudNoise.value = volume.noise; this.uniforms.uVolWind.value.copy(volume.drift);
-      this.uniforms.uVol.value.set(1 / (v.scale ?? 5200), worldRadius / (v.scale ?? 5200) * 0.11, this.radius, 0);
+      this.uniforms.tCloudNoise.value = volume.noise;
+      this.uniforms.uVol.value.set(1 / (v.scale ?? 5200), worldRadius / (v.scale ?? 5200) * 0.11, this.radius, SKY_UNIFORMS.uCloudRise.value[0]);
     } else this.uniforms.uVol.value.x = 0;
     if (!on || !match) this.heap.w = 0;
     this.mesh.visible = on;

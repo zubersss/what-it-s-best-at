@@ -12,17 +12,17 @@
     "tileFails": 0,
     "busyW": 0,
     "calls": 174,
-    "triangles": 2863768,
+    "triangles": 2863936,
     "chunks": 122,
     "loaded": 346,
     "visited": 346,
     "wanted": 0,
     "lodScale": 1,
-    "avgBuildMs": 39.8,
-    "exposure": 6.682,
+    "avgBuildMs": 32.9,
+    "exposure": 6.71,
     "surface": [
       0.705,
-      0.482
+      0.491
     ],
     "frame": 182,
     "wait": ""
