@@ -1,0 +1,30 @@
+{
+  "ledge": {
+    "weather": "",
+    "trees": "511 (4k triangles): Swiss stone pine, Engelmann spruce, quaking aspen",
+    "farTrees": "11174 standing (22076 handed to the GPU)",
+    "farRocks": "1188 in view of 5261 all round, in 21 tiles (9 draw calls, 24k triangles; 7274 handed to the GPU)",
+    "water": "z2: 105 rivers, 499 m3/s (no inflow); z5: 38 rivers, 122 m3/s; z8: 15 rivers, 87 m3/s",
+    "stale": 0,
+    "tilesBusy": false,
+    "refreshQ": 0,
+    "rings": 3,
+    "tileFails": 0,
+    "busyW": 0,
+    "calls": 82,
+    "triangles": 1520278,
+    "chunks": 82,
+    "loaded": 283,
+    "visited": 250,
+    "wanted": 0,
+    "lodScale": 0.737,
+    "avgBuildMs": 38.8,
+    "exposure": 6.724,
+    "surface": [
+      0.665,
+      0.254
+    ],
+    "frame": 159,
+    "wait": ""
+  }
+}

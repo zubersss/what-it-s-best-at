@@ -51,7 +51,8 @@ try {
     if (a.leaves?.mesh) P.leaves = takeAll([a.leaves.mesh]);
     const ns = a.nearShadow;
     if (ns?.casters) {
-      const treeCast = new Set((a.trees?.sets ?? []).flat(3).map((s) => s?.cast).filter(Boolean));
+      // (a build before trees.casters: one caster a set, set.cast)
+      const treeCast = new Set((a.trees?.casters?.map((c) => c.mesh) ?? (a.trees?.sets ?? []).flat(3).map((s) => s?.cast)).filter(Boolean));
       const kind = (c) => (treeCast.has(c.mesh) ? 'trees' : c.mesh === a.rocks?.mesh ? 'rocks' : 'other');
       for (const k of ['trees', 'rocks', 'other']) {
         if (!ns.casters.some((c) => kind(c) === k)) continue;

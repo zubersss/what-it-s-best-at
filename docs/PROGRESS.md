@@ -6,7 +6,23 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-### In hand: Haven rich and smooth (the owner's ninth phone results; read this first)
+### Sent 2026-11-25 07:10: the second link of the rich-and-smooth work (read this first)
+
+The owner, after the tenth results, asked for clouds and weather and said the shadows jump;
+earlier the same night: "Give me a playable link to test what's been added so far but
+continue working". This link carries the third round (trees T3, from above A4 and A5, the
+air from above, flowers F-DONE), the fixes of the shadows that jump and of the governor's
+hunting (`docs/briefs/shadows-governor-10.md`), and the sky's step 0 (the clouds drift
+downwind at the day's speed on the game clock; nothing else of the sky yet). Asked: a Haven
+benchmark in Sharp. Not seen in motion yet: the shadows' walk before and after (the trees
+helper's machine, "WALK"). The visual critic on the final pictures:
+`docs/briefs/haven-rich-critic-2.md` (the wood from 90 m to 1 km a bubbly texture and the
+blossom from above stickers; clouds at 3 km flat and dashed, the mountain a smooth dome;
+the tree close-ups badly framed; water from the air oily or paint-bucket blue; grass and
+flowers at eye height too even). **Next**: the sky's four packages (helpers running:
+`docs/briefs/sky-*.md`), and a fourth round on the critic's gaps 1, 3, 4 and the mountains.
+
+### In hand: Haven rich and smooth (the owner's ninth phone results)
 
 *2026-11-24. The owner ran the Haven benchmark on build 6ac24ff and wrote: "this was a
 good job it looks a lot better but I need it perfect from a distance, specially when I'm
@@ -212,6 +228,78 @@ branch `ccr-aa39490a-flowers-3`). `terrainMaterial.js` is shared out by block: F
 and the helpers above `main` from above's, FAR 3 and the water the air helper's, the
 flowers' block the flowers helper's. Then the critic again on the new pictures, the final
 run, the pull request.
+
+**23:40**: the owner asked for a playable link of what was in so far: PR #35, main at
+e9d4888 (the interim build; its checkpoint text is in the session's transcript).
+
+**00:05 (2026-11-25), the owner's tenth phone results** (build e9d4888, Sharp; whole
+text in `docs/benchmarks/2026-11-25-haven-e9d4888.txt`):
+- **28.5 fps, 0.86 % late frames** against 33 ms (the ninth: 31 fps in Smooth with 25 to
+  52 % late). Haven 28.3, flight 29.0, the Moon 28.3. Page work 7.6 ms (the character
+  1.3 to 2.0).
+- Haven sat at **1.60 to 1.65 MP** (36 % of native) at every stop; the Moon at 3.44.
+- The governor **hunted**: 74 steps (savings off 30, back on 24), five savings put back at
+  18.3 s and off again at 18.9 s; "late frames taken as the device's own" 7.0 %.
+- Cost table (2.07 MP; the measuring alone some 23 to 26 ms): **the ground's shading 31.1 at
+  the opening view and 21.6 from the air** (now with its vertex work counted, ground-2);
+  the far forest 5.9; savings that buy at more than one view: far-relief 3.9 and 5.2,
+  far-rock-shadows 3.0 and 4.1, clouds 2.7 and 5.5; cloud-volume 3.7 from the air. The rest
+  is noise (signs change between views).
+- The owner: the shadows "get jumpy when I'm moving around near them"; the clouds must move
+  like real clouds, form where real ones do (near mountains), be of many kinds from high
+  thin ones to dark storm clouds, move with the day's wind at its speed, rain where it
+  rains, and storms be dark with lightning and thunder; "as many agents as you need".
+- Begun: workflow `clouds-shadows-understand-design` (readers of the clouds, the weather
+  and the shadows, a reader of the governor in this benchmark, three designers from three
+  angles and a judge); its plan becomes the cloud helpers' briefs.
+
+**01:45**: the machine restarted twice in the night (at 23:53 and about 01:15): workflows
+were resumed from their journals (`resumeFromRunId`), detached picture runs started again.
+Merged since 00:05: the air from above (first landing: haze and the forest's air thinned by
+how steeply one looks down, the shade in more sky light, the seam under the plateau, far
+rocks not specks from above), from above A4 (crowns lit as domes, cherries pink far off,
+no ghosts, wood edges into crowns, grassland varied from the air), the trees' third round
+(crown tops as pictures of their own, the cherry rebuilt on a skeleton), the flowers'
+first landing (a leading kind with companions, bowls and spikes in space, meadows as soft
+drifts from the air), and `fix/shadow-tiles` (rocks in the fine tile by its reach along the
+Sun, the lattice turned about the eye, one Sun for the land's baked shadow). Waiting on
+their cold checks: `fix/shadow-trees` (the leaf flecks re-rolled at every tile re-centre,
+every tree lurching at a rebuild, the shadow's mesh switching at 20 m) and `fix/governor10`
+(Haven no longer at the floor in Sharp; the dead first steps last; jumps close trials; the
+benchmark starts fresh). Why: `docs/briefs/shadows-governor-10.md`.
+**The sky**: the plan is `docs/briefs/clouds-weather-plan.md`. Its step 0 (the shared
+contract: steering motions, snapshot format, cell shape, a stub producer, `skyGlsl.js`
+v0, `skySystem.js` out of `app.js`, debug switches) is being built by workflow `sky-step0`,
+which also drafts the four helpers' briefs (`sky-A-model.md` to `sky-D-storm.md`). Then
+four helpers, one package each. Meanwhile the third round finishes (flowers' final set,
+the air helper's L-DONE, from above's steppe A5) and goes to the owner as the next link
+with the shadow and governor fixes.
+
+**04:05**: the third round is done and merged (head 5ab3400): from above A5 (the steppe
+from the air), the air L-DONE (shade in cool sky light, rivers not beads, the water's
+patterns whole), flowers F-DONE (companions, bowls and spikes in space, drifts from the
+air), and the shadow and governor fixes (`fix/shadow-tiles`, `fix/shadow-trees` with its
+repair, `fix/governor10` with its repair, and the remedy that keeps the flecks' hash when
+the lattice turns: f55d3f5; `npm run treeshadows`). The machine here restarted four times
+since midnight (each about two hours apart): long runs here go in resumable halves; the
+final pictures and tests of the combined delivery were handed to the air helper's machine
+(`docs/shots/final-11/`, "FINAL pushed"). Here: the wood walk before and after
+(`scratchpad/stab_wood.sh`, resumable) and the sky's step 0 (workflow `sky-step0`, resumed
+at its repair). Then the visual critic on final-11, the pull request and the checkpoint.
+
+**04:55**: the sky's step 0 is merged (9a2566e, with the ladder as `fix/governor10` set it;
+f3a1eb7: `sky-system-test` passes): the clouds now move downwind at the day's speed on
+the game clock; nothing else meant to change. Its shaders were never compiled in a browser
+before this: a check runs here (`scratchpad/chk30.log`: Haven, Earth, Mars, smoke with
+the phone's limits, foot, shadowturns), and sky B's first job (B0) is the same in motion
+on its machine. The four sky helpers, one package each from `docs/briefs/sky-*.md`:
+**A** the model `session_01XG1DZ3LJarZ4Xp1BZfo9EQ` (`ccr-aa39490a-sky-A-model`), **B** the
+clouds you see `session_01XG1DZ4dvGuRkSZEW9gJK62` (`-sky-B-clouds`), **C** the cloud shade
+map `session_01XG1DZ4vi4qHWPcoM4xEPp3` (`-sky-C-shade`), **D** rain, lightning, thunder,
+wind `session_01XG1DZ3taJ647KGr2i5bpe8` (`-sky-D-storm`). The owning session alone edits
+`app.js`, `skySystem.js`, `governor.js`, `benchmark.js`, the charter and haven's look
+numbers; it merges A first when it builds, then the others. The wood walk (shadows in
+motion, before and after) went to the trees helper's machine ("WALK pushed").
 
 ### The far view sent: trees, grass and rock as far as one can see
 

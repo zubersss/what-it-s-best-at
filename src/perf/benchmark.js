@@ -6,7 +6,7 @@
 // does. The result is plain text the owner can copy and paste back.
 import { WORLDS } from '../worlds/index.js';
 import { Profile, PARTS } from './profile.js';
-import { MODES, FEATURE_STEPS } from './governor.js';
+import { MODES, FEATURE_STEPS, LATE } from './governor.js';
 import { latLonToDir } from '../core/ephemeris.js';
 import { BUILD } from '../core/build.js';
 
@@ -43,13 +43,22 @@ export class Benchmark {
     this.n = 0;
     this.hitches = [];
     this.maxCalls = 0; this.maxTris = 0;
-    this.stepsFrom = app.governor.log.length; this.hiddenFrom = app.hiddenCount;
+    // (the governor as at the page's start: the run measures it, not what play before it left
+    // behind. Its log begins with the run, and its first line, listed with the steps, says
+    // where the run began.)
+    app.governor.fresh(app.world.id);
+    this.stepsFrom = 0; this.hiddenFrom = app.hiddenCount;
     // terrain patches built and the time they took, per world (the counters only grow)
     this.lastBuilt = app.terrain.built; this.lastBuildMs = app.terrain.buildMs;
     this.builds = { [this.first]: [0, 0], [this.second]: [0, 0] };
     this.maxGpuBytes = 0;
     // the first five bookmarks of each world: its main scene (the rest are landmarks, not benchmarked)
     this.names = { [this.first]: Object.keys(WORLDS[this.first].scene.bookmarks).slice(0, 5), [this.second]: Object.keys(WORLDS[this.second].scene.bookmarks).slice(0, 5) };
+    // The route's clock is pinned: each stop begins at its bookmark's moment (App.gotoBookmark sets
+    // it) and the clock runs at the game's own pace, whatever the player had set (stopped, or a
+    // time-lapse): every run meets the same sky, the clouds moved by the same wind, the same storm.
+    this.clockBefore = { rate: app.timeRate, paused: app.paused };
+    app.timeRate = 1; app.paused = false;
     app.setHero(true);
   }
 
@@ -162,6 +171,8 @@ export class Benchmark {
   _finish(stopped) {
     this.active = false;
     if (this.cost) { this.cost.restore(); this.costLines = this.cost.lines; this.cost = null; }
+    // (the player's clock as it was)
+    if (this.clockBefore) { this.app.timeRate = this.clockBefore.rate; this.app.paused = this.clockBefore.paused; this.clockBefore = null; }
     this.releaseAll();
     this.app.onBenchmarkDone(this.report(stopped));
   }
@@ -185,8 +196,15 @@ export class Benchmark {
     const L = [];
     L.push(`SOLAR SYSTEM EXPLORER — ${this.kind === 'soak' ? '10-minute soak' : KIND_NAMES[this.kind] ? '3-minute ' + KIND_NAMES[this.kind] : '3-minute benchmark'}${stopped ? ' (stopped early)' : ''}`);
     L.push(`build ${BUILD.commit} · mode ${MODES[g.mode].label} (target ${Math.round(g.targetFps)} fps) · ran ${total.toFixed(0)} s, ${n} frames`);
-    const target = 1000 / g.targetFps, late = dts.filter((d) => d > target * 1.5).length;
-    L.push(`average fps ${fps(dts).toFixed(1)} · 1% low ${fps(worst1).toFixed(1)} · worst frame ${Math.round(sorted[0] || 0)} ms · late frames (over 1.5x the target) ${late} = ${(100 * late / Math.max(1, n)).toFixed(2)} %`);
+    // (a frame is late as the governor counts it: over LATE x the target, in Sharp at 60 Hz
+    // three refreshes or more. Counted at 1.5x it was exactly three refreshes, and most of
+    // them came in under the line: the tenth results printed 0.86 % with 8.4 % of the frames
+    // three refreshes long or more)
+    const target = 1000 / g.targetFps, isLate = (d) => d > target * LATE, late = dts.filter(isLate).length;
+    // (how many screen refreshes the frames took: from the target's own number up)
+    const v = g.vsync || 16.7, want = Math.max(1, Math.round(target / v));
+    const refreshes = (list) => { const bins = [0, 0, 0, 0]; for (const d of list) bins[Math.min(3, Math.max(0, Math.round(d / v) - want))]++; return bins.map((c, k) => `${want + k}${k === 3 ? '+' : ''}: ${(100 * c / Math.max(1, list.length)).toFixed(1)} %`).join(' · '); };
+    L.push(`average fps ${fps(dts).toFixed(1)} · 1% low ${fps(worst1).toFixed(1)} · worst frame ${Math.round(sorted[0] || 0)} ms · late frames (over ${LATE}x the target, as the governor counts them) ${late} = ${(100 * late / Math.max(1, n)).toFixed(2)} %`);
     L.push(`render resolution: average ${mp(avgPx)} (${dims(avgPx)}) · minimum ${mp(minPx)} (${dims(minPx)}) · native ${mp(g.nativePixels)} (${post.width}x${post.height})`);
     L.push(`by part: ${WORLDS[this.first].name} ${part(0).toFixed(1)} fps · flight ${part(1).toFixed(1)} · ${WORLDS[this.second].name} ${part(2).toFixed(1)}`);
     // The page's own work per frame (everything but the GPU drawing it): tells slow pixels
@@ -194,13 +212,13 @@ export class Benchmark {
     const sc = Array.from(this.sc.subarray(0, n)), scSorted = sc.slice().sort((a, b) => b - a);
     const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
     L.push(`the page's own work per frame: average ${avg(sc).toFixed(1)} ms · worst 1 % ${avg(scSorted.slice(0, Math.max(1, Math.ceil(n / 100)))).toFixed(1)} ms (a frame has ${target.toFixed(1)} ms)`);
-    L.push('by stop (fps · late frames · own work · resolution):');
+    L.push('by stop (fps · late frames · own work · resolution · frame lengths in screen refreshes):');
     for (let k = 0; k <= 10; k++) {
       const idx = []; for (let i = 0; i < n; i++) if (this.ph[i] === k) idx.push(i);
       if (!idx.length) continue;
       const name = k < 5 ? `${WORLDS[this.first].name} ${this.names[this.first][k]}` : k === 5 ? 'flight' : `${WORLDS[this.second].name} ${this.names[this.second][k - 6]}`;
       const d = idx.map((i) => dts[i]);
-      L.push(`  ${name}: ${fps(d).toFixed(1)} · ${(100 * d.filter((x) => x > target * 1.5).length / d.length).toFixed(1)} % · ${avg(idx.map((i) => sc[i])).toFixed(1)} ms · ${mp(avg(idx.map((i) => px[i])))}`);
+      L.push(`  ${name}: ${fps(d).toFixed(1)} · ${(100 * d.filter(isLate).length / d.length).toFixed(1)} % · ${avg(idx.map((i) => sc[i])).toFixed(1)} ms · ${mp(avg(idx.map((i) => px[i])))} · ${refreshes(d)}`);
       // (the three largest parts of that work, ms a frame)
       L.push(`      ${Profile.text(Array.from(this.pt.subarray(k * PARTS.length, (k + 1) * PARTS.length), (v) => v / idx.length), 0.2).split(' · ').slice(0, 4).join(' · ')}`);
     }
@@ -208,11 +226,9 @@ export class Benchmark {
     // late?), and how many screen refreshes the frames took.
     {
       let nu = 0, lu = 0, lo = 0;
-      for (let i = 0; i < n; i++) { const l = dts[i] > target * 1.5; if (this.up[i]) { nu++; if (l) lu++; } else if (l) lo++; }
+      for (let i = 0; i < n; i++) { const l = isLate(dts[i]); if (this.up[i]) { nu++; if (l) lu++; } else if (l) lo++; }
       L.push(`frames that took in new terrain: ${(100 * nu / Math.max(1, n)).toFixed(0)} % of all · late among them ${(100 * lu / Math.max(1, nu)).toFixed(1)} % · late among the rest ${(100 * lo / Math.max(1, n - nu)).toFixed(1)} %`);
-      const v = g.vsync || 16.7, want = Math.max(1, Math.round(target / v)), bins = [0, 0, 0, 0];
-      for (let i = 0; i < n; i++) bins[Math.min(3, Math.max(0, Math.round(dts[i] / v) - want))]++;
-      L.push(`frame lengths in screen refreshes (${v.toFixed(1)} ms each): ${bins.map((c, k) => `${want + k}${k === 3 ? '+' : ''}: ${(100 * c / Math.max(1, n)).toFixed(1)} %`).join(' · ')}`);
+      L.push(`frame lengths in screen refreshes (${v.toFixed(1)} ms each): ${refreshes(dts)}`);
     }
     if (this.kind === 'soak') {
       L.push('minute by minute (fps, resolution):');
@@ -226,9 +242,12 @@ export class Benchmark {
       }
     }
     L.push(`quality steps: ${steps.length} (resolution down ${down}, up ${up}; features off ${off}, back on ${on}) · ended at ${g.summary}`);
-    // (what the governor has taken for the device's own share of late frames, and how often
-    // it put quality back after steps down that cured nothing)
-    L.push(`late frames taken as the device's own: ${(100 * (g.bg || 0)).toFixed(1)} % · quality put back after steps that cured nothing: ${steps.filter((x) => /did not cure/.test(x.text)).length} times`);
+    // (the share of late frames the governor lets be at the end, and how often it put quality
+    // back after steps down that cured nothing. It is not the device's own: it is learned
+    // where nothing more can be given up, the heavy views at the fewest pixels, or from a
+    // trial that cured nothing. The tenth results called it the device's own, 7.0 %, while
+    // three of the stops ran at 30.0 fps.)
+    L.push(`late frames left alone at the end, as nothing the governor gives up cures them: ${(100 * (g.bg || 0)).toFixed(1)} % · quality put back after steps that cured nothing: ${steps.filter((x) => /did not cure/.test(x.text)).length} times`);
     for (const s of steps.slice(0, 30)) L.push(`  ${s.t}s ${s.text}`);
     if (steps.length > 30) L.push(`  … ${steps.length - 30} more`);
     // Hitches: how many per cause, then the worst ones in the order they happened.
@@ -258,35 +277,51 @@ export class Benchmark {
 // saving the governor has is switched on alone in turn, and each frame is timed from its
 // start until the GPU has finished drawing it (reading one pixel back waits for that).
 // At the first world's opening view and at the views its world file lists (scene.costViews:
-// { name, lat, lon, alt, heading, pitch }, the heaviest places it has).
+// { name, lat, lon, alt, heading, pitch, timeOffsetHours }, the heaviest places it has; the hour,
+// as a bookmark's, from the scene's date: the weather of that moment; a view without one keeps the
+// first bookmark's). The clock is held while a view is measured, so every saving meets the same sky.
+// Savings that are not built yet (a step's `has`: the clouds plan's, until their packages land) are
+// not measured.
 const WARM = 5, TAKE = 16, HELD = 2.07e6;
 // Whole parts of the picture left out, one at a time (configs -10 and below): what the
 // savings cannot say. The fourth benchmark with a cost test showed a frame that took as
 // long with every saving on and at any size: the cost was in none of the things a saving
 // switches. "Nothing drawn" is what the measuring itself costs (the post chain and the
-// pixel read back), to be taken off the rest.
-const PARTS_OUT = [
-  ['grass', (app, out) => app.grass?.setFraction(out ? 0 : 1)],
+// pixel read back), to be taken off the rest. A row with `has` is measured only where the
+// part is there (the sky's parts: sky/skySystem.js SKY_PARTS; their packages say when).
+const skyPart = (id, label) => ({ id, label, set: (app, out) => app.sky?.partOut(id, out), has: (app) => !!app.sky?.hasPart(id) });
+export const PARTS_OUT = [
+  { id: 'grass', label: 'grass', set: (app, out) => app.grass?.setFraction(out ? 0 : 1) },
   // (hidden, not shortened: shortened, the far forest drew every tree from 5 m as a card,
   // and the row read meshes against cards)
-  ['trees', (app, out) => { if (app.trees) app.trees.hidden = out; }],
-  ['the far forest', (app, out) => app.farForest?.setFraction(out ? 0 : 1)],
-  ['the figure', (app, out) => { app.heroScene.visible = !out; app.dustScene.visible = !out; }],
+  { id: 'trees', label: 'trees', set: (app, out) => { if (app.trees) app.trees.hidden = out; } },
+  { id: 'far-forest', label: 'the far forest', set: (app, out) => app.farForest?.setFraction(out ? 0 : 1) },
+  { id: 'figure', label: 'the figure', set: (app, out) => { app.heroScene.visible = !out; app.dustScene.visible = !out; } },
   // (the shadows of trees, rocks and the figure: drawn into their own maps before the picture)
-  ['the shadow maps', (app, out) => { app.nearShadow.off = out; }],
+  { id: 'shadow-maps', label: 'the shadow maps', set: (app, out) => { app.nearShadow.off = out; } },
   // (the ground in one flat tone: its triangles are still drawn, its shading is not)
-  ["the ground's shading", (app, out) => { app.terrain.shared.uPlain.value = out ? 1 : 0; }],
-  ['the ground and all on it', (app, out) => { app.nearScene.visible = !out; }],
-  ['the sky', (app, out) => { app.farScene.visible = !out; }],
+  { id: 'ground-shading', label: "the ground's shading", set: (app, out) => { app.terrain.shared.uPlain.value = out ? 1 : 0; } },
+  { id: 'ground', label: 'the ground and all on it', set: (app, out) => { app.nearScene.visible = !out; } },
+  { id: 'sky', label: 'the sky', set: (app, out) => { app.farScene.visible = !out; } },
+  // (the clouds of every kind and all they do: shell, volume, shadows; then their parts one by one)
+  skyPart('clouds-all', 'all the clouds'),
+  skyPart('cloud-shade', "the clouds' shadows"),
+  skyPart('cloud-upper', 'the middle and high cloud'),
+  skyPart('cells-far', 'storm cells far off'),
+  skyPart('rain-shafts', 'rain shafts'),
+  skyPart('fog', 'fog and mist'),
   // (the last pass over the canvas at the picture's size, as it now is, instead of the screen's: App.fitCanvas)
-  ["the last pass at the picture's size, not the screen's", (app, out) => { app.canvasHold = out ? 'fit' : 'full'; }],
-  ['everything', (app, out) => { app.nearScene.visible = app.farScene.visible = app.heroScene.visible = app.dustScene.visible = !out; }],
+  { id: 'last-pass', label: "the last pass at the picture's size, not the screen's", set: (app, out) => { app.canvasHold = out ? 'fit' : 'full'; } },
+  // (last: what is left with nothing drawn at all)
+  { id: 'everything', label: 'everything', set: (app, out) => { app.nearScene.visible = app.farScene.visible = app.heroScene.visible = app.dustScene.visible = !out; } },
 ];
-class CostTest {
+export class CostTest {
   constructor(bench) {
     const app = bench.app, g = app.governor, w = WORLDS[bench.first];
     this.bench = bench; this.app = app; this.g = g;
     const b0 = bench.names[bench.first][0];
+    // (the parts there are to leave out here: the sky's only where the world has them)
+    this.parts = PARTS_OUT.filter((p) => !p.has || p.has(app));
     this.views = [{ world: bench.first, name: `${w.name}, ${b0}`, bookmark: b0 }, ...(w.scene.costViews || []).map((v) => ({ world: bench.first, bookmark: b0, ...v, name: `${w.name}, ${v.name}` }))];
     // everything on, the governor still
     this.level = g.featureLevel; this.resLevel = g.resLevel; this.fixedBefore = g.fixed;
@@ -297,15 +332,17 @@ class CostTest {
     // (everything on is measured again after every three savings: a frame grows slower over a
     // minute of this, from heat and from ground still arriving, and each saving is set against
     // the measures of "everything on" on either side of it, not against the first)
-    const steps = FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-'));
+    const steps = FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-') && (!FEATURE_STEPS[i].has || FEATURE_STEPS[i].has(app)));
     this.configs = [[-1, held]];
     steps.forEach((i, k) => { this.configs.push([i, held]); if (k % 3 === 2 || k === steps.length - 1) this.configs.push([-1, held]); });
     // (a part left out is set against "everything on" measured just before it)
-    PARTS_OUT.forEach((p, k) => this.configs.push([-1, held], [-10 - k, held]));
+    this.parts.forEach((p, k) => this.configs.push([-1, held], [-10 - k, held]));
     this.configs.push([-2, held], [-1, held], [-1, small], [-1, 1]);
     // (the canvas at the screen's own size while the parts are measured, so that the one
     // part that changes it is seen against the rest: App.fitCanvas)
     app.canvasHold = 'full';
+    // (the clock held while a view is measured: the same sky, Sun and shadows for every saving)
+    this.pausedBefore = app.paused; app.paused = true;
     this.off = []; this.lines = []; this.px = new Uint8Array(4); this.vi = -1; this.state = 'settle';
     this._next();
   }
@@ -325,8 +362,8 @@ class CostTest {
   _set(which, scale) {
     const app = this.app, g = this.g;
     for (const i of this.off) FEATURE_STEPS[i].apply(app, false);
-    if (this.partOut != null) { PARTS_OUT[this.partOut][1](app, false); this.partOut = null; }
-    if (which <= -10) { this.partOut = -10 - which; PARTS_OUT[this.partOut][1](app, true); }
+    if (this.partOut != null) { this.parts[this.partOut].set(app, false); this.partOut = null; }
+    if (which <= -10) { this.partOut = -10 - which; this.parts[this.partOut].set(app, true); }
     this.off = which === -2 ? FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-')) : which >= 0 ? [which] : [];
     for (const i of this.off) FEATURE_STEPS[i].apply(app, true);
     g.fixed = scale; g._applyScale();
@@ -343,6 +380,9 @@ class CostTest {
         const rig = app.rig;
         rig.setLatLon(v.lat, v.lon, 1.7, v.heading ?? 0, v.pitch ?? 0);
         if (v.alt != null) { rig.pos.setLength(app.world.radius + v.alt); rig.onFoot = false; rig.hover = true; } else if (rig.mode === 'hero') rig.standUp();
+        // (its hour, if it names one: from the scene's date, which going to the bookmark has just
+        // set; else the bookmark's own, as before)
+        if (v.timeOffsetHours != null) app.timeOffsetHours = v.timeOffsetHours;
         rig.velocity.set(0, 0, 0); app.jumpedAt = now; this.placed = true; this.t0 = now;
         return true;
       }
@@ -390,7 +430,7 @@ class CostTest {
     // (what leaving each part out saves, against "everything on" just before it; the last is
     // what is left with nothing drawn at all: the measuring itself and the page's own work)
     const parts = []; let none = NaN;
-    for (let k = 1; k < n - 4; k++) if (c[k][0] <= -10) { const i = -10 - c[k][0]; if (i === PARTS_OUT.length - 1) none = ms[k]; else parts.push(`${PARTS_OUT[i][0]} ${f(ms[k - 1] - ms[k])}`); }
+    for (let k = 1; k < n - 4; k++) if (c[k][0] <= -10) { const p = this.parts[-10 - c[k][0]]; if (p.id === 'everything') none = ms[k]; else parts.push(`${p.label} ${f(ms[k - 1] - ms[k])}`); }
     this.lines.push(`  saved by leaving a part out: ${parts.join(' · ')} · (with nothing drawn at all a frame still takes ${f(none)})`);
     saved.sort((a, b) => b[1] - a[1]);
     this.lines.push(`  saved by one saving alone: ${saved.filter((x) => Math.abs(x[1]) >= 0.3).map((x) => `${x[0]} ${x[1].toFixed(1)}`).join(' · ') || 'nothing over 0.3'}`);
@@ -401,7 +441,8 @@ class CostTest {
     const app = this.app, g = this.g;
     for (const i of this.off) FEATURE_STEPS[i].apply(app, false);
     this.off = [];
-    if (this.partOut != null) { PARTS_OUT[this.partOut][1](app, false); this.partOut = null; }
+    if (this.partOut != null) { this.parts[this.partOut].set(app, false); this.partOut = null; }
+    app.paused = this.pausedBefore ?? app.paused;
     g.fixed = this.fixedBefore ?? null; g.resLevel = this.resLevel; g._applyScale();
     app.canvasHold = null;
     g.restoreSavings(this.savings);

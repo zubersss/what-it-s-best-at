@@ -1,0 +1,19 @@
+# Report B: the clouds you see
+
+*To be written by the helper that builds brief `docs/briefs/sky-B-clouds.md`, beside it, as the
+work goes (the main session reads this file and the branch, not the transcript). Branch:
+`ccr-aa39490a-sky-B-clouds`.*
+
+## What was built
+
+## Checks (each with its numbers, and how it was seen to fail)
+
+## Pictures (paths; before and after)
+
+## Numbers for src/worlds/haven.js
+
+## Cost (headless work counts; the phone decides)
+
+## Open
+
+## Asked of the main session

@@ -26,17 +26,25 @@
 import * as THREE from 'three';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
-import { HEAP_GLSL } from '../sky/clouds.js';
+import { HEAP_GLSL, SKY_NOISE_UNIFORM_GLSL, SKY_STEER_UNIFORM_GLSL } from '../sky/skyGlsl.js';
 import { CONFIG } from '../config.js';
+import { shadowTileDistance, tileShare } from '../shadows/nearShadow.js';
 import { ROCK_SHAPE_GLSL, rockGeometry } from './rocks.js';
 import { rocksFarDef, tileDeg, tileLon, rockTop, SMALL_SHARE, shareOf, ROCKS_FAR_DEFAULTS, tileCap } from './rockBlock.js';
 
 const POOL = [14, 14, 14, 16];            // tiles held at once, by level (fixed: memory cannot creep)
 const CASTERS = 1024;                 // the most rocks drawn into the near shadow map
-const FINE_REACH = 45;                // a rock nearer than this can reach the shadow map's fine tile (20 m half-width, and its shadow's length)
 const CASTER_STEP = 20;               // metres the traveller goes before they are chosen again
 const VIS_TURN = 0.9998;              // the land's shadow on the rocks is asked again when the Sun has moved 1.1 degrees
 const COLLIDE_FROM = 3.4;             // levels whose rocks are this large and more carry a walker (m)
+
+// Seen from above, a rock far off is a speck: a dark pixel on the land ("flies on the
+// lens", from 1 km up). Its reach is cut to under half where the line of sight to it looks
+// steeply down (a thing of where the eye is, not of where it looks: the rock grows in and
+// out as it does with distance), so that from the air the rocks drawn are big enough to be
+// rocks. From the ground the lines of sight are grazing and nothing changes.
+const ABOVE_GLSL = /* glsl */`
+float aboveReach(vec3 c) { return mix(1.0, 0.45, smoothstep(0.35, 0.75, -dot(normalize(c), normalize(uCamPlanetPos + c)))); }`;
 
 const VERT = /* glsl */`
 in vec4 aOff;            // xyz: the rock's middle from the tile's origin (m, planet axes), w: its size (m)
@@ -46,11 +54,14 @@ in vec4 aMisc;           // x: sunlight on it (the land's shadow), y: its tone (
 in vec4 aTint;           // rgb: the land's colour at its place over the world's mean (the albedo map's tint, a fifth of it); a: the share of its size it is seen as from afar (less under trees)
 uniform vec4 uFar;       // x: metres a rock is seen from per metre of its size, z: the share of x left to small rocks (the governor), w: where the near shadow map ends (m)
 uniform vec2 uShareSize; // the size up to which a rock is small, and from which it has all its reach (m)
+#define HAS_CAM_U
+uniform vec3 uCamPlanetPos, uSunDir; uniform float uPlanetRadius;
+${ABOVE_GLSL}
 ${ROCK_SHAPE_GLSL}
 // A rock's place and size; false when this mesh does not draw it.
 bool rockPlace(out vec3 centre, out float grow) {
   centre = (modelMatrix * vec4(aOff.xyz, 1.0)).xyz;
-  float seen = aOff.w * aTint.a, key = length(centre) / seen, reach = uFar.x * mix(uFar.z, 1.0, smoothstep(uShareSize.x, uShareSize.y, seen));
+  float seen = aOff.w * aTint.a, key = length(centre) / seen, reach = uFar.x * mix(uFar.z, 1.0, smoothstep(uShareSize.x, uShareSize.y, seen)) * aboveReach(centre);
   grow = 1.0 - smoothstep(0.78, 1.0, key / reach);
   return grow > 0.0;
 }`;
@@ -59,8 +70,11 @@ bool rockPlace(out vec3 centre, out float grow) {
 // Sunlight on a rock (vertex shader): the land's shadow from the worker, and the cloud that
 // stands between it and the Sun, as the ground has it (terrainMaterial.js).
 const SUN_VERT = /* glsl */`
+#ifndef HAS_CAM_U
 uniform vec3 uCamPlanetPos, uSunDir; uniform float uPlanetRadius;
-uniform sampler2D tClouds; uniform vec4 uCloud; uniform highp sampler3D tCloudNoise; uniform vec4 uCloudHeap; uniform vec3 uCloudVol, uCloudWind;
+#endif
+uniform sampler2D tClouds; uniform vec4 uCloud; uniform vec4 uCloudHeap; uniform vec4 uCloudVol;
+${SKY_NOISE_UNIFORM_GLSL}${SKY_STEER_UNIFORM_GLSL}
 ${HEAP_GLSL}
 float rockSun(vec3 planetPos, vec3 up) {
   float sun = aMisc.x;
@@ -68,7 +82,7 @@ float rockSun(vec3 planetPos, vec3 up) {
     vec3 uc = normalize(planetPos + uSunDir * ((uCloud.y - length(planetPos)) / max(dot(up, uSunDir), 0.08)));
     float cd = textureLod(tClouds, vec2(atan(uc.y, uc.x) * 0.15915494 + uCloud.z, acos(clamp(uc.z, -1.0, 1.0)) * 0.31830989), 0.0).r;
     float shade = smoothstep(0.2, 0.7, cd);
-    if (uCloudHeap.w > 0.5) { float cc, hp = cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudWind, 0.0, cc); shade = 0.85 * smoothstep(0.06, 0.42, hp); }
+    if (uCloudHeap.w > 0.5) { float hp = cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudSteer, 0.0).x; shade = 0.85 * smoothstep(0.06, 0.42, hp); }
     sun *= 1.0 - uCloud.x * shade;
   }
   return sun;
@@ -80,6 +94,8 @@ export class FarRocks {
     this.terrain = terrain;
     this.group = new THREE.Group();
     this.base = rockGeometry(0); this.tris = this.base.index.count / 3;
+    // (the block's largest radius over its scale: how far a rock reaches, for the shadow map's fine tile)
+    { const p = this.base.attributes.position; let m = 0; for (let i = 0; i < p.count; i++) m = Math.max(m, Math.hypot(p.getX(i), p.getY(i), p.getZ(i))); this.lumpRadius = m; }
     this.lump = { pos: this.base.attributes.position.array, idx: this.base.index.array };      // (the block's own faces, for whoever stands on one: riseAt)
     const sh = terrain.shared;
     this.uFar = { value: new THREE.Vector4(420, 0, 1, CONFIG.NEAR_SHADOW_RADIUS) }; this.uShareSize = { value: new THREE.Vector2(3.4, 8) };
@@ -87,7 +103,7 @@ export class FarRocks {
       ...lightingUniforms(), uFar: this.uFar, uShareSize: this.uShareSize,
       uRockAlbedo: { value: new THREE.Vector3(0.2, 0.15, 0.1) }, uDustAlbedo: { value: new THREE.Vector3(0.2, 0.17, 0.12) }, uRoughness: { value: 0.5 }, uDustCap: { value: 0.55 },
       // (the ground's own: the clouds' shadow and the beds of coloured rock, read as the ground reads them)
-      tClouds: sh.tClouds, uCloud: sh.uCloud, tCloudNoise: sh.tCloudNoise, uCloudHeap: sh.uCloudHeap, uCloudVol: sh.uCloudVol, uCloudWind: sh.uCloudWind,
+      tClouds: sh.tClouds, uCloud: sh.uCloud, tCloudNoise: sh.tCloudNoise, uCloudHeap: sh.uCloudHeap, uCloudVol: sh.uCloudVol, uCloudSteer: sh.uCloudSteer,
       tStrata: sh.tStrata, uStrata: sh.uStrata,
     };
     const vertex = /* glsl */`${VERT}
@@ -169,10 +185,11 @@ export class FarRocks {
         in vec4 aOff; in vec4 aQuat; in vec3 aScale; in vec4 aMisc; in vec4 aTint;
         uniform vec4 uFar; uniform vec2 uShareSize;
         ${SUN_VERT}
+        ${ABOVE_GLSL}
         out vec3 vRel; out vec2 vDisc; flat out vec4 vSh;          // vSh: xyz the ground's normal, w how dark
         void main() {
           vec3 c = (modelMatrix * vec4(aOff.xyz, 1.0)).xyz;
-          float d = length(c), size = aOff.w, seen = size * aTint.a, key = d / seen, reach = uFar.x * mix(uFar.z, 1.0, smoothstep(uShareSize.x, uShareSize.y, seen));
+          float d = length(c), size = aOff.w, seen = size * aTint.a, key = d / seen, reach = uFar.x * mix(uFar.z, 1.0, smoothstep(uShareSize.x, uShareSize.y, seen)) * aboveReach(c);
           // (not for a rock that is a pixel or two: its shadow would be less)
           float show = (1.0 - smoothstep(0.5, 0.72, key / reach));
           vec3 planetPos = uCamPlanetPos + c, up = normalize(planetPos);
@@ -227,7 +244,7 @@ export class FarRocks {
       for (const name in this.casterAt) geo.setAttribute(name, this.casterAt[name]);
       geo.instanceCount = 0;
       this.caster = new THREE.Mesh(geo, this.depthMaterial); this.caster.frustumCulled = false;
-      this.casterAnchor = new THREE.Vector3(); this.casterFine = 0; this.casterDirty = true; this.casterAt0 = 0;
+      this.casterAnchor = new THREE.Vector3(); this.casterDirty = true; this.casterAt0 = 0;
     }
     this.frame = 0; this.asked = 0; this.missing = 0; this.fraction = 1; this.count = 0; this.drawn = [0, 0]; this.triangles = 0;
     this.coverSerial = -1; this.visSun = [0, 0, 0]; this.sun = [0, 0, 1]; this.sunHalf = 0.0046;
@@ -293,11 +310,20 @@ export class FarRocks {
   // caster, on while its tile has rocks within the map's reach (app.js adds them).
   // What the near shadow map draws of the far rocks: the one small mesh, on while it holds
   // any; `fine`: how many of its first can reach the fine tile.
-  get casters() { return [{ mesh: this.caster, on: () => this.group.visible && this.caster.geometry.instanceCount > 0, fine: () => this.casterFine }]; }
+  get casters() { return [{ mesh: this.caster, on: () => this.group.visible && this.caster.geometry.instanceCount > 0, fine: () => this.fineCount() }]; }
+
+  // How many of the casters the fine tile draws: up to the last one whose shadow falls in it,
+  // asked by the shadow pass with the tile in place (nearShadow.js: tileShare). They were
+  // put in order of their distance from that tile when chosen (_fillCaster), so it is the
+  // first few dozen. (Those within 45 m of where they were chosen, as it was, left out the
+  // rocks out to 51 m along a Sun 20 degrees up whose shadows lie in the tile.)
+  fineCount() { return tileShare(1, this.caster.geometry.instanceCount, this.casterAt.aOff.array, 4, this.caster.position, this.casterAt.aScale.array, this.lumpRadius); }
 
   // Chooses the rocks that cast into the near shadow map: those within its reach of the
-  // traveller, nearest first, the first CASTERS of them. A pass over the tiles that reach
-  // that far, when the traveller has gone CASTER_STEP metres or a tile has come or gone.
+  // traveller, the nearest CASTERS of them, put in order of how far across the Sun's rays
+  // they lie from the fine tile (shadowTileDistance: the shadow map's own axes, as last drawn),
+  // so that the ones it draws come first. A pass over the tiles that reach that far, when the
+  // traveller has gone CASTER_STEP metres or a tile has come or gone.
   _fillCaster(p) {
     const R = CONFIG.NEAR_SHADOW_RADIUS * 1.6, list = this._cl || (this._cl = []), at = this.casterAt;
     list.length = 0;
@@ -312,16 +338,21 @@ export class FarRocks {
       }
     }
     list.sort((x, y) => x.d - y.d);
-    const n = Math.min(CASTERS, list.length); let fine = 0;
+    const n = Math.min(CASTERS, list.length);
+    if (list.length > n) list.length = n;
+    for (const e of list) {
+      const f = e.b.full, i4 = e.i * 4, i3 = e.i * 3;
+      e.d = shadowTileDistance(1, e.b.origin.x - p.x + f.off[i4], e.b.origin.y - p.y + f.off[i4 + 1], e.b.origin.z - p.z + f.off[i4 + 2]) - this.lumpRadius * Math.max(f.scale[i3], f.scale[i3 + 1], f.scale[i3 + 2]);
+    }
+    list.sort((x, y) => x.d - y.d);
     for (let k = 0; k < n; k++) {
-      const { d, b, i } = list[k], f = b.full, i4 = i * 4, k4 = k * 4;
+      const { b, i } = list[k], f = b.full, i4 = i * 4, k4 = k * 4;
       at.aOff.array[k4] = b.origin.x - p.x + f.off[i4]; at.aOff.array[k4 + 1] = b.origin.y - p.y + f.off[i4 + 1]; at.aOff.array[k4 + 2] = b.origin.z - p.z + f.off[i4 + 2]; at.aOff.array[k4 + 3] = f.off[i4 + 3];
       for (let c = 0; c < 4; c++) { at.aQuat.array[k4 + c] = f.quat[i4 + c]; at.aShape.array[k4 + c] = f.shape[i4 + c]; }
       for (let c = 0; c < 3; c++) at.aScale.array[k * 3 + c] = f.scale[i * 3 + c];
-      if (d < FINE_REACH) fine = k + 1;
     }
     if (n) for (const name in at) { const a = at[name]; a.clearUpdateRanges(); a.addUpdateRange(0, n * a.itemSize); a.needsUpdate = true; }
-    this.caster.geometry.instanceCount = n; this.casterFine = fine; this.casterDirty = false; this.casterAt0 = this.frame;
+    this.caster.geometry.instanceCount = n; this.casterDirty = false; this.casterAt0 = this.frame;
     this.casterAnchor.copy(p); list.length = 0;
   }
 

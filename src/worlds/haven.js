@@ -99,6 +99,9 @@ export default {
 
   look: {
     paint: 1, shade: 1.35, colour: 0.7, facets: 0.6, shafts: 1, reliefLight: 1,
+    // From up in the air: the ground below nearly clear of the haze (the land toward the
+    // horizon keeps all of it), and the shade lifted to a light cool one (render/look.js)
+    aloft: { clear: 0.9, sky: 2.6, lift: 0.9 },
     grade: {
       day: { sat: 1.18, contrast: 1.06, tint: 1, shade: [0.84, 1.02, 1.04], light: [1.05, 1.0, 0.93] },
       low: { sat: 1.3, contrast: 1.08, tint: 1, shade: [0.95, 0.86, 1.02], light: [1.12, 0.98, 0.8] },
@@ -136,7 +139,14 @@ export default {
   // A day's clouds (made: scripts/make-world-maps.mjs) as a layer overhead, a volume near
   // the traveller, fair-weather heaps where the map is clear (see Earth's file).
   clouds: { map: 'data/haven_clouds_4096.jpg', altitude: 3600, cover: 0.45, shadow: 0.85,
-    volume: { base: 1200, thick: 3000, reach: 16000, above: 30000, scale: 4200, dense: 3.4, change: 0.009, fair: 0.44, clear: 120 } },
+    volume: { base: 1200, thick: 3000, reach: 16000, above: 30000, scale: 4200, dense: 3.4, fair: 0.44, clear: 120 } },
+
+  // The day's weather, made by rule (src/weather/sky/; docs/briefs/clouds-weather-plan.md). So
+  // far: the clouds' steering winds (steer.js: a wind by height that changes from day to day)
+  // and the clock they run on. seed: which days; epoch: the weather clock's zero; dayStart: the
+  // hour (UTC) at which the world's day begins: solar midnight at the opening place (the scene's
+  // 17:00 UTC is 08:00 there).
+  weather: { recipe: 'made', seed: 1, epoch: '2024-09-01T00:00:00Z', dayStart: 9 },
 
   sky: { stars: { url: 'data/stars_bsc5.f32' } },
 

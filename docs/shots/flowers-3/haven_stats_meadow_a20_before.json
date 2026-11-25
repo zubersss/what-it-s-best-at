@@ -1,0 +1,30 @@
+{
+  "ledge": {
+    "weather": "",
+    "trees": "0 (0k triangles)",
+    "farTrees": "542 standing (7050 handed to the GPU)",
+    "farRocks": "176 in view of 1685 all round, in 23 tiles (18 draw calls, 4k triangles; 2256 handed to the GPU)",
+    "water": "z2: 104 rivers, 499 m3/s (no inflow); z5: 24 rivers, 75 m3/s; z8: 5 rivers, 11 m3/s",
+    "stale": 0,
+    "tilesBusy": false,
+    "refreshQ": 0,
+    "rings": 3,
+    "tileFails": 0,
+    "busyW": 0,
+    "calls": 81,
+    "triangles": 2098304,
+    "chunks": 134,
+    "loaded": 346,
+    "visited": 346,
+    "wanted": 0,
+    "lodScale": 1,
+    "avgBuildMs": 37.2,
+    "exposure": 3.615,
+    "surface": [
+      0.813,
+      0.464
+    ],
+    "frame": 184,
+    "wait": ""
+  }
+}
