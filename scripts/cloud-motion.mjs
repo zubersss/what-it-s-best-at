@@ -30,7 +30,10 @@ import path from 'node:path';
 import { open, opt, flag } from './lib/browser.mjs';
 import { png } from './lib/png.mjs';
 
-const query = opt('query', 'world=haven&shot=ledge&alt=3000&pitch=14&heading=90&debug=sky:fair');
+// (the view looks ACROSS the day's wind: along it the clouds come toward the eye and the picture
+// hardly moves, which says nothing about where they are going. A little above the horizon, so
+// that the heaps are in the fifth slice and the high shell fills the top of the view.)
+const query = opt('query', 'world=haven&shot=ledge&alt=3000&pitch=10&heading=352&t=1&debug=sky:fair');
 const SEC = +opt('seconds', 20), BREAK = opt('break', null), OUT = opt('out', null);
 const { base, page, errors, goto, close } = await open({ dist: flag('dist') });
 await goto(`${base}?${query}`);
