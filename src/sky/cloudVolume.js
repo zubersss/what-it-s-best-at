@@ -673,6 +673,7 @@ export class CloudVolume {
     this.def = world.clouds?.volume ? world.clouds : null;
     this.radius = world.radius;
     this.world = world;
+    this._placeAt = null;
     this.bounds.base = 0; this.bounds.baseHi = 0; this.bounds.top = 0;
     if (this.def && !this.noise && !this.asked && typeof Worker !== 'undefined') {
       this.asked = true;
@@ -734,7 +735,12 @@ export class CloudVolume {
     }
     // (nine places: under the traveller and eight round it at the reach, which is as far as the
     // layer is marched; a base is a thing of the country, smoothed over kilometres, so the
-    // lowest and highest within reach are not missed between them)
+    // lowest and highest within reach are not missed between them. Asked again only when the
+    // traveller has gone a good way or the clock has moved on: the field is smooth over
+    // kilometres and the bounds are snapped to 250 m, and this is page work in every frame.)
+    const a0 = this._placeAt;
+    if (a0 && Math.abs(sky.t - this._placeT) < 20 && (cam.x - a0[0]) ** 2 + (cam.y - a0[1]) ** 2 + (cam.z - a0[2]) ** 2 < 800 * 800) return;
+    this._placeAt = [cam.x, cam.y, cam.z]; this._placeT = sky.t;
     const reach = this.reach, out = this._at || (this._at = makeSkyAt());
     let lo = Infinity, loHi = 0, hi = -Infinity, rain = 0;
     const look = (p) => {
