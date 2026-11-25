@@ -31,13 +31,19 @@ import { open, opt, flag } from './lib/browser.mjs';
 import { png } from './lib/png.mjs';
 
 // (the view looks ACROSS the day's wind: along it the clouds come toward the eye and the picture
-// hardly moves, which says nothing about where they are going.
-// And it looks AT cloud: the stub's fair heaps stand between 1 250 and 2 575 m and cover a third
-// of the sky at its best hour over the low country west of the opening place, so the camera is
-// 3.2 km up and 8 degrees down — the ray is inside the layer for the whole of the fifth slice,
-// 5 to 9 km out. Its first view was 3 km up at +10 degrees, above a layer whose top is 2 575 m:
-// the slice it measured was empty sky, and a correlation of nothing moved nothing.)
-const query = opt('query', 'world=haven&shot=ledge&lat=-51.3&lon=46.978&alt=3200&pitch=-8&heading=168&t=4&debug=sky:fair');
+// hardly moves, which says nothing about where they are going. And it looks AT cloud: the
+// world's own weather model at t=32 (the second scene day, mid-afternoon) puts broken heaps over
+// the high ground 60 km east of the opening place — 0.55 cover, no deck, their bases at 2 101 m
+// over ground at 1 444, their tops at 4 018 — and the day's low wind there is 11.8 m/s toward
+// 86 degrees. The camera stands 356 m over the ground and 300 m under the bases and looks 12
+// degrees up, so the ray is inside the layer for the whole of the fifth slice, 5 to 9 km out.
+//
+// (Two views before it taught the same lesson twice: 3 km up at +10 degrees was ABOVE a layer
+// whose top was 2 575 m, and the stub's `t=` was read as hours since the weather's epoch when
+// the game counts it from the scene's own moment — 521 hours later — so the hour that had cloud
+// in Node had none in the game. A correlation of nothing moves nothing: both runs failed with
+// "cover 0.000".)
+const query = opt('query', 'world=haven&shot=ledge&lat=-41.674&lon=59.442&alt=1800&pitch=12&heading=176&t=32&debug=sky:model');
 const SEC = +opt('seconds', 20), BREAK = opt('break', null), OUT = opt('out', null);
 const { base, page, errors, goto, close } = await open({ dist: flag('dist') });
 await goto(`${base}?${query}`);
