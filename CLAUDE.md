@@ -741,3 +741,9 @@ finished benchmark leaves its text in `window.__benchResult`.
   to a stub's test pattern ("fair") whenever no `sky:` switch was given: four helpers pictured
   their work under `debug=sky:model`, every check asked only "is the field on", and the merged
   build drew no storm of the day. A test of a default asks what the default is.
+- Two clocks: `?t=` (and a bookmark's `timeOffsetHours`) counts hours from the scene's own
+  moment; the weather's clock counts seconds from `weather.epoch` (521 hours apart on Haven).
+  A Node scan of the model at `t = H * 3600` asks about another day than the game shows at
+  `?t=H`: `t_weather = (Date.parse(scene.dateUTC) - Date.parse(weather.epoch)) / 1000 + H * 3600`
+  (or `new Steer(weather, R).t(date)`). Views, stability cases and benchmark hours picked from
+  the model go through it.
