@@ -24,7 +24,7 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { G } from '../render/globals.js';
 import { SKY_FIELD_GLSL, SKY_UNIFORMS } from './skyGlsl.js';
 import { STEER_GLSL } from '../weather/sky/steer.js';
-import { CELL_GLSL, ANVIL_GLSL, CELL_MAX, ANVIL_MAX } from '../weather/sky/cellShape.js';
+import { CELL_GLSL, ANVIL_GLSL, CELL_MAX, ANVIL_MAX, ANVIL_VEC4, CELL_UNIFORMS } from '../weather/sky/cellShape.js';
 
 // the look's numbers (the report lists them; the world file may pin them)
 export const UPPER_LOOK = Object.freeze({
@@ -68,6 +68,17 @@ layout(location = 0) out vec4 fragColor;
 // the layer's pattern at a point of its own frame (one read)
 float upperNoise(vec3 q) { return skyTex3(tCloudNoise, q).r; }
 
+// Where the ray o + t d crosses the sphere this anvil lies on (its own height, which is the
+// tower's business, not the shell's). Zero where it does not cross it in front of the eye.
+vec3 anvilRayDir(int k, vec3 o, vec3 d) {
+  float ra = length(${CELL_UNIFORMS.anvils}[k * ${ANVIL_VEC4}].xyz);
+  float b = dot(o, d), c = dot(o, o) - ra * ra, h = b * b - c;
+  if (h < 0.0) return vec3(0.0);
+  float sh = sqrt(h), t0 = -b - sh, t1 = -b + sh, t = t0 > 0.0 ? t0 : t1;
+  if (t <= 0.0) return vec3(0.0);
+  return normalize(o + d * t);
+}
+
 void main() {
   vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos);
   float dist = length(vRel);
@@ -76,11 +87,30 @@ void main() {
   vec4 B = wxRead(tWxB, up);
   float cover = high ? wxHigh(B) : wxMid(B);
   if (cover < 0.015) discard;
+  // Its own anvil, worked out first because the cut below must not take it: an anvil is
+  // thickest exactly over the tower that made it. (It was cut there, so every anvil had a hole
+  // in it where its own tower passed through, and the sheet floated round the stalk.)
+  // Each is asked for where THIS RAY crosses ITS OWN height, not where it crosses the shell:
+  // an anvil stands between 6.7 and 9.5 km by the height of the tower that made it, and the
+  // shell is at 9. Drawn at the shell's height, a small storm's anvil floated two kilometres
+  // over its own tower.
+  float an = 0.0;
+  if (high) {
+    vec3 ray = normalize(vRel);
+    for (int k2 = 0; k2 < ANVIL_MAX; k2++) {
+      if (k2 >= uAnvilCount) break;
+      vec3 ad = anvilRayDir(k2, uCamPlanetPos, ray);
+      if (ad.x == 0.0 && ad.y == 0.0 && ad.z == 0.0) continue;
+      an = max(an, anvilCover(k2, ad));
+    }
+  }
   // A tower stands through both layers: where one does, this shell is not drawn (the march
   // draws the tower itself, with its own depth).
-  for (int k = 0; k < CELL_MAX; k++) {
-    if (k >= uCellCount) break;
-    if (cellDensity(k, planetPos) > 0.08) discard;
+  if (an < 0.05) {
+    for (int k = 0; k < CELL_MAX; k++) {
+      if (k >= uCellCount) break;
+      if (cellDensity(k, planetPos) > 0.08) discard;
+    }
   }
   float px = length(dFdx(up)) + length(dFdy(up));          // radians a pixel
   float alpha, shade = 1.0;
@@ -98,12 +128,7 @@ void main() {
     if (uUpper.w < 0.5) n = 0.75 * n + 0.25 * upperNoise(qs * (k * 2.7));
     float streak = smoothstep(0.42, 0.78, n * (0.6 + 0.6 * cover));
     alpha = min(${glf(U.HIGH_ALPHA)}, streak * cover * 1.6);
-    // an anvil: the same height, but solid, and dark underneath
-    float an = 0.0;
-    for (int k2 = 0; k2 < ANVIL_MAX; k2++) {
-      if (k2 >= uAnvilCount) break;
-      an = max(an, anvilCover(k2, up));
-    }
+    // an anvil: the same height, but solid, and dark underneath (worked out above)
     if (an > 0.0) {
       // (its edge is torn and fibrous, not a cut line: the same strokes the cirrus is made of
       // move the line where it ends, so it ends in streaks drawn out downwind. And its sheet is

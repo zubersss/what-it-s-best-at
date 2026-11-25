@@ -3,6 +3,16 @@
 The helper of `docs/briefs/sky-B-clouds.md`, on branch `ccr-aa39490a-sky-B-clouds`. Kept as the
 work goes: the main session reads this file and the branch, not the transcript.
 
+**In short.** Everything of a cloud that is drawn now comes from the field: the base and the top
+at each place (so the sky no longer follows the traveller), heaps and decks cut by one shared
+rule that the volume, the far shell and C's shade atlas all read, storm cells with their own
+shape, their two tones, their slate depth, their anvils and their rain shafts, out to 200 km;
+altocumulus and cirrus on shells above, mist lying in the basins, lenticular plates standing
+over the ranges, and Haven's globe wearing the weather of the hour. **Four lines in
+`src/sky/skySystem.js` are the main session's to add** ("Asked of the main session"): without
+them nothing of `upperClouds.js`, `fogSheet.js` or `lenticulars.js` is ever built, and Haven's
+field is only on under `?debug=sky:...`.
+
 ## B0 (the job before the package): step 0's GLSL on a GPU
 
 All of this is `f3a1eb7` (step 0's head), built once and served frozen from
@@ -116,8 +126,16 @@ by the shared forms, and it throws near pixels out FIRST. With no field it is th
   solid and dark beneath). Each is cut where a tower passes through it, and they are drawn above
   or below the camera by their height. 1 read where the sky is clear (then the pixel is thrown
   out), 2–3 where there is cloud.
-- `FogSheet`: 129 x 129 points over 60 km on a lattice fixed to the world, each lifted to field
-  C's fog top, depth-tested, one noise read a pixel.
+- `FogSheet`: 129 x 129 points over 60 km on a lattice fixed to the world (snapped in whole
+  steps, so its points stay on the same places as one flies), each lifted to field C's fog top,
+  depth-tested, one noise read a pixel. Whether there is any fog within reach is asked of the
+  field over a square of 25 places, every 3 km of travel or 60 s of the clock.
+- `Lenticulars` (src/sky/lenticulars.js): up to 12 plates, each a stretched ball — 7 to 11 km
+  along the ridge, a tenth as deep — standing still over its own summit. Every pixel takes the
+  metres of cloud its own ray crosses, so a lens is a lens from any side and fades out at its
+  own edge; two tones with a clean line and a pearly rim where it is seen edge on; no texture
+  read at all. The list comes from the model (`field.lenses(t)`, or a snapshot's LENS records),
+  nearest first, nothing from beyond the horizon, read every ten seconds of the clock.
 
 ## Checks (each with its numbers, and how it was seen to fail)
 
@@ -218,6 +236,16 @@ scene's own moment.
 `haven_ledge_storm12.png` (the first storm picture, which showed the three faults of 9478d38),
 `haven_ledge_tower8.png` (a cell 8 km off), `haven_ledge_B0_noon*.png` (B0's pair),
 `haven_ledge_fair_air.png`.
+
+## New scripts (all without a browser, seconds each)
+
+| script | what it holds to |
+| --- | --- |
+| `scripts/lens-list-test.mjs` | the lenses' list: either shape the field hands over (the model's objects, a snapshot's LENS records), the plates each lens becomes and where they stand, the nearest taken and the ones over the horizon dropped, `noclouds` and a faded lens drawing nothing |
+| `scripts/cloud-volume-test.mjs` | the volume's decisions: drawn or not, and the storms still marched when the governor has switched the volume off — on the very first frame |
+| `scripts/cloud-motion.mjs` (new, the brief's) | the motion, the anchoring, the uniform audit and the hand-over at 16 km, in one browser run |
+
+Both tests were seen to fail with the fault they guard put back.
 
 ## Numbers for src/worlds/haven.js
 
@@ -401,7 +429,18 @@ renderer. A's model paints the real cover.
    It now asks the cells the sky system has already packed for the shaders this frame, which is
    what the march reads anyway (bd3e9e6). The floor is the picture that found it, which is the
    lesson about looking at `?debug=floor` after adding steps.
-9. **The anvil from 35 km** (`haven_ledge_M_storm35.png`) was the brightest thing in the frame —
+9. **Every anvil had a hole in it where its own tower passed through.** The shells are cut where
+   a tower stands (the march draws the tower itself, with its own depth), and the high shell is
+   where the anvils are drawn — so the cut took the anvil out exactly over the tower that made
+   it, and the sheet floated round the stalk. The anvil's cover is worked out before the cut now,
+   and where one lies the cut is not made (04c418a).
+10. **And every anvil was drawn at the shell's height, not its own.** `cellShape.anvilLevel`
+    puts an anvil between 6 700 and 9 500 m by the height of the tower that made it; the high
+    shell stands at a flat 9 000. So a small storm's anvil floated two kilometres over its own
+    tower — the disc on a stalk. Each anvil's cover is now read where the pixel's own ray
+    crosses the sphere IT lies on, so it is drawn where it stands (efad75d). The shell is only
+    the surface that carries it.
+11. **The anvil from 35 km** (`haven_ledge_M_storm35.png`) was the brightest thing in the frame —
    a smooth cream disc on a stalk, at 209/180/152 against a sky at 71/94/131. Seen from below an
    anvil is grey: 0.45 of its sunlit top became 0.32, and the cirrus strokes now thin and thicken
    the sheet itself, so it is drawn-out ice rather than a plate (225dcd2). What stays, and is not
@@ -431,12 +470,14 @@ renderer. A's model paints the real cover.
 - **Earth** has no field yet (its recipe is `maps`), so there the volume still reads the day's
   cloud map and stands its base over the country smoothed round the traveller, as before. That
   path, and `setGround`, go when A's `fromMaps` lands.
-- **The far shell's vertices** now each read the field (an icosphere of detail 48: about 144 000
-  vertex reads a frame). It is one draw call, but it is the first thing to measure on the phone.
-- **The far shell on a big world.** Its vertices are displaced to the field's own base, and an
-  icosphere of detail 48 has facets about 2 degrees across: 85 m on Haven, but 220 km on Earth,
-  where the base varies over 15 km. On Haven it is right; when Earth gets a field, its shell will
-  want either more vertices or a base that does not vary (one for the whole view).
+- **The far shell's vertices** now each read the field: an icosphere of detail 48 is 46 080
+  triangles, 138 240 vertices not indexed, so 138 240 vertex texture reads a frame. It is still
+  one draw call, but it is the first thing to measure on the phone — and the shell could be
+  coarser (detail 32 is 61 440 vertices) without the base losing anything it can carry.
+- **The far shell on a big world.** Its vertices are displaced to the field's own base, and each
+  facet is 0.95 degrees across: **4.2 km on Haven**, which the base varies over gently, but
+  **105 km on Earth**, where it does not. On Haven it is right; when Earth gets a field, its
+  shell will want either more vertices or a base that does not vary (one for the whole view).
 - **The near slices are laid at the distance each begins at** (step 0's scheme, kept): a sheet
   over the whole view at that depth, so ground NEARER than the slice's start hides its cloud and
   ground inside the slice does not. The error is bounded by the slice's width, and only shows
@@ -448,6 +489,26 @@ renderer. A's model paints the real cover.
   enters the layer — but `gl_FragDepth` in that pass costs every pixel of six full-view sheets
   its early depth test, and laying is already 62 ms of the headless work count here. It wants a
   phone's cost table before it is done, not a guess.
+- **The field's lists cost a millisecond a frame, and they are not mine.** The model keeps a
+  weather moment per exact `t`, and the game's `t` moves on every frame, so every call works a
+  whole moment out: measured in Node, `cells(t)` 1.15 ms, `lenses(t)` 3.14 ms, and 0.014 ms for
+  a `t` already seen. `skySystem.js` asks `cells(this.t)` and `anvils(this.t)` once a frame.
+  Quantising the `t` those lists are asked for (a moment every second or two of game time) would
+  give it all back. B's own lens list is already read on a cadence of ten seconds.
+- **Haven's clouds from 30 km** (`haven_ledge_M_up30.png`) read as white flecks scattered over the
+  land: at that height a pixel is 760 m across and a heap is one to three pixels, while the
+  layer's veil — the mean cover that takes over when the heaps are smaller than a pixel — only
+  begins at 1 500 m a pixel. It is not wrong (a cumulus field from an aeroplane looks like that),
+  but if it reads as confetti on the phone, the veil should begin at about a third of the
+  volume's own scale instead.
+- **The fog sheet's lattice ends at 30 km** from the traveller, and the question "is there fog
+  within reach" is asked over a square 27 km wide: fog that begins between those two is drawn
+  only as one comes nearer. At that distance it is behind most of the air's haze, so it has not
+  been a problem in any picture; a wider sheet is a straight trade of triangles for reach.
+- **`?debug=noclouds` leaves the globe's own cloud map on** (sky/bodies.js: the field's map is
+  put aside and the body's own comes back), so a picture of Haven from space with the switch on
+  still has painted clouds on it. Nothing in the brief asks for that view, and the switch is for
+  pictures of the land from above, so it was left as it is.
 - **The rise's fades** cost one more read of the masses and one of the look toward the Sun (16 %
   of the game clock). The alternative — reading the look toward the Sun at one phase — makes the
   two tones speckle while the phases blend, so it was not taken.

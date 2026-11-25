@@ -78,5 +78,22 @@ check('?debug=noclouds takes the lenses too', L.list.length === 0);
 L.update(frame({ on: true, lenses: () => [{ ...lens, strength: 0.01 }] }));
 check('a lens faded below 0.02 is not drawn', L.list.length === 0);
 
+// 7. the field's list is asked for rarely (the model works out a whole weather moment for every
+// t it is given), but the plates follow the traveller every frame
+{
+  let asked = 0;
+  const field = { on: true, lenses: () => { asked++; return [lens]; } };
+  const L2 = new Lenticulars(null);
+  for (let i = 0; i < 20; i++) L2.update({ rig: { pos: cam }, sky: { field, t: i * 0.1, R, noClouds: false } });
+  check('twenty frames over two seconds ask the field once', asked === 1, `asked ${asked} times`);
+  L2.update({ rig: { pos: cam }, sky: { field, t: 30, R, noClouds: false } });
+  check('and again when the clock has moved on', asked === 2, `asked ${asked} times`);
+  const before = L2.list[0].centre.slice();
+  const cam2 = new THREE.Vector3(R + 2000, 500, 0);
+  L2.update({ rig: { pos: cam2 }, sky: { field, t: 30.1, R, noClouds: false } });
+  const moved = Math.abs(L2.list[0].centre[1] - before[1]);
+  check('the plates still follow the traveller in between', moved > 400, `${Math.round(moved)} m`);
+}
+
 console.log(fails ? `lens-list-test: ${fails} FAILED` : 'lens-list-test: all passed');
 process.exit(fails ? 1 : 0);
