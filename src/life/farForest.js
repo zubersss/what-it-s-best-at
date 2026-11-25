@@ -244,11 +244,11 @@ export class FarForest {
         // corners alone it was one flat tone, no lit cap and no shaded side)
         vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0);
         // A tone neighbouring crowns share, so that from a kilometre they gather into clumps in two
-        // or three tones (a noise of the place some 110 m to a cell, and finer, 45 m), lighter
+        // or three tones (a noise of the place some 150 m to a cell, and finer, 55 m), lighter
         // and warmer on the slopes turned to the Sun, darker on those turned from it.
         vec3 wp = uCamPlanetPos + foot;
-        float tn = smoothstep(0.32, 0.68, toneNoise(wp / 110.0)) + 0.35 * (toneNoise(wp / 45.0 + 7.3) - 0.5);
-        vTone = vec2(0.8 + 0.38 * tn + 0.2 * (groundQ / 15.0 - 0.6), cell < ${VARIANTS} ? 1.0 : 0.0);
+        float tn = smoothstep(0.3, 0.7, toneNoise(wp / 150.0)) + 0.3 * (toneNoise(wp / 55.0 + 7.3) - 0.5);
+        vTone = vec2(0.66 + 0.62 * tn + 0.35 * (groundQ / 15.0 - 0.6), cell < ${VARIANTS} ? 1.0 : 0.0);
         if (position.x > 1.5) { vDome = vec3((position.y - 0.5) * 2.0, (0.5 - position.z) * 2.0, smoothstep(${TOP0.toFixed(3)}, ${TOP1.toFixed(3)}, down) * smoothstep(uFar.z, uFar.z + 200.0, d)); vDomeE = uTileEast * c + uTileNorth * s; vDomeN = uTileNorth * c - uTileEast * s; }
         vUv = vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
         gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);

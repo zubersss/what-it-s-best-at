@@ -754,7 +754,7 @@ void main() {
     float shellW = mix(vShell, smoothstep(0.3, 0.7, clamp((vShell - 0.5) * 2.4 + 0.5 + 1.4 * (patH - ${FAR_GROUND.clumpZ.toFixed(3)}) + 0.9 * c2.g + 0.45 * c1.r, 0.0, 1.0)), sharp * step(vShell, 0.999));
     // (from a kilometre the wood gathers into larger soft clumps in two or three tones: the
     // detail tile's broad blob, 64 m, lighter and darker, as the far trees' shared tone is)
-    leaves *= mix(1.0, 0.82 + 0.36 * smoothstep(-0.12, 0.12, c2.r + 0.4 * c1.g), smoothstep(400.0, 1200.0, dist));
+    leaves *= mix(1.0, 0.68 + 0.62 * smoothstep(-0.12, 0.12, c2.r + 0.4 * c1.g), smoothstep(400.0, 1200.0, dist));
     albedo = mix(albedo, leaves, shellW * ownC);
     shellOut = shellW;
     ao *= mix(1.0, 0.72 + 0.5 * clamp(c1.b + c2.b, -0.4, 0.5), vShell * ownC);
