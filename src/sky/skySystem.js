@@ -108,7 +108,6 @@ import { Rainbow } from '../weather/rainbow.js';
 import { Steer, STEER_LAYERS } from '../weather/sky/steer.js';
 import { makeSkyAt } from '../weather/sky/format.js';
 import { STUB_PRESETS } from '../weather/sky/stub.js';
-const SKY_PRESETS = [...STUB_PRESETS, 'model'];   // (sky A)
 import { cellGeometry, anvilGeometry, setCellUniforms, CELL_MAX } from '../weather/sky/cellShape.js';
 import { SKY_UNIFORMS, steerQuat, skyRiseOf } from './skyGlsl.js';
 import { SkyField } from './skyField.js';
@@ -181,7 +180,7 @@ export class SkySystem {
     this.renderer = renderer; this.terrain = terrain; this.shared = terrain.shared; this.shotMode = shotMode;
     this.debug = skyDebug(debug);
     this.noClouds = this.debug.noClouds;
-    if (this.debug.badPreset) console.warn(`debug=sky:${this.debug.badPreset}: no such preset (${SKY_PRESETS.join(', ')})`);
+    if (this.debug.badPreset) console.warn(`debug=sky:${this.debug.badPreset}: no such preset (${STUB_PRESETS.join(', ')})`);
     this.clouds = parts.clouds ?? new CloudLayer(renderer);
     this.cloudVolume = parts.cloudVolume ?? new CloudVolume(renderer);
     this.treeShade = parts.treeShade ?? new TreeShade(terrain);
@@ -238,8 +237,10 @@ export class SkySystem {
     // screen reads it yet). Made at the first frame, when the place the view opens at is known.
     const made = world.weather?.recipe === 'made', d = this.debug;
     // (sky B: the field is always on where the weather is made by rule: the volume, the shells,
-    // the fog and the lenses all draw from it)
-    this.fieldWanted = made && !this.noClouds;
+    // the fog and the lenses all draw from it; sky A: a world of a day's maps - Earth - makes its
+    // field from them under sky:model alone, its storm and flash switches stay weather.js's)
+    const maps = world.weather?.recipe === 'maps';
+    this.fieldWanted = !this.noClouds && (made || (maps && d.preset === 'model'));
     this.raster = data?.rasters?.[0] || null;
     this.field.setWorld(null, null);
   }
