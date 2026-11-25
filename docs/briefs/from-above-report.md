@@ -6,6 +6,34 @@ ranked: `from-above-look.md`. Pictures: `docs/shots/from-above/`,
 `<place>_<metres over the ground>_p<degrees looked down>[_phone|_floor|_clear]`), taken with
 `scripts/from-above-shots.sh <frozen build> <suffix> [view ...]`.
 
+## Sixth round (2026-11-25, `round4.md` "From above", the critic's second gaps)
+
+Pictures `haven_ledge_<view>_after6.png` beside `_r6before.png` (before: 73d6ef1):
+`ledge_300_p60` (critic's 3), `ledge_1000_p60` (4), `ledge_300_p20_phone` (6).
+
+- **Blossom in drifts, not polka dots.** Where the trees that flower stand is now a rule of
+  the place (`life/treeBlock.js`, `pickDrift`): their weight in the flora is multiplied by
+  a broad noise some 400 m to a cell (0.08 to 5), and 1.6 near water. The same rule for the
+  near and the far trees (far-trees-test passes). At the opening tile 788 flowering trees in
+  drifts against 1 140 spread evenly. From 300 m: a drift on one hillside, plain green
+  elsewhere.
+- **Fir spires among round crowns.** A conifer's top seen from above no longer spreads
+  past 2.4 crown widths (the round crowns still spread to 8 in a closed wood) and is drawn
+  darker (0.7): dark spires in the canopy.
+- **Clumps from a kilometre.** Every far tree takes a tone shared with its neighbours (a
+  noise of the place, 150 m and 55 m, worked out per tree in the vertex shader), 0.66 to
+  1.28, and lighter and warmer on slopes turned to the Sun, from 250 m out; the canopy
+  between them takes the same kind of tone from the detail tile's 64 m blob, from 400 m.
+- **Bubble wrap.** The canopy's own 8 m domes are gone within 3 km (the far trees' tops are
+  the crowns there); the 21 m stands at half strength. (One crowns() call fewer per pixel
+  there.)
+- **The edge.** The canopy's broken edge is also broken by the detail tile's 13 and 64 m
+  blobs, so it wanders instead of following the land-cover map's square pixels.
+- **Glades.** Where a wooded place shows its ground from the air (from 250 m off, looked
+  down on), it is the meadow's gold and green, not the forest floor's grey-sage litter in
+  the canopy's shade. (The grey patches in `ledge_300_p60` that remain are meadow in the
+  mountain's shadow: the painted shade, the air helper's.)
+
 ## Fifth round (2026-11-25): the steppe from the air, stronger
 
 The owning session: steppe_300_p60_after4 was still almost one ochre tone. Now (block 2):
