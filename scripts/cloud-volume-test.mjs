@@ -72,6 +72,11 @@ check('with no cloud layer there is nothing to march', cv.ready(cam, { mesh: { v
     `${block.split('\n').length} lines of the shaft's stretch`);
   // and the stepping under the rain reads the two cells the shafts were found in, not the two the
   // body's chords found (which may be none) and not all eight (which a line of storms would cost)
+  // a slice of the distance that holds the rain but no cloud is the rain's: the shaft is worked
+  // out before the slice can be given up, or a shaft ended at a slice's boundary in mid-air
+  check('a slice with the rain in it but no cloud is still marched',
+    fs.indexOf('float sA = 1.0') < fs.indexOf('bool noCloud') && fs.includes('if (sB <= sA) { fragColor = vec4(0.0); return; }')
+    && /for \(int seg = 0; seg < 3 && !noCloud/.test(fs));
   // and the sheets that lay the far slices take the shaft's chord too, or every pixel of a far
   // storm's rain is marched and then thrown away for want of a depth to lay it at
   const far = cv.farMat.fragmentShader;

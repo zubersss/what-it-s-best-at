@@ -389,10 +389,47 @@ void main() {
   // (the stretch to march: the layer's, the cells', or the hull of both. The layer's is empty
   // when the ray misses it, and 'empty' is t0 > t1: taking its smaller end then would start the
   // march at a metre from the eye and spread its steps over everything in between.)
+  float sA = 1.0, sB = -1.0;
+  if (uShaft.x > 0.0) {
+    // Where the rain is on this ray: each raining cell's own shaft (an exact chord, no read),
+    // and, where a deck is raining within reach, the stretch under the highest base there.
+    // (Every cell, not the two the march found: a ray that passes UNDER a storm — which is
+    // every ray aimed at the rain itself, seen from the side — never meets the cell's own body,
+    // and the shafts were then drawn nowhere but under a cell one was looking into.)
+    gShafts = 0; gShaftK[0] = -1; gShaftK[1] = -1;
+    float s0 = 1e30, s1 = 1e30;
+    for (int k = 0; k < CELL_MAX; k++) {
+      if (k >= uCellCount) break;
+      vec2 q = cellShaftChord(k, uCamPlanetPos, dir);
+      if (q.y <= q.x) continue;
+      sA = min(sA > sB ? q.x : sA, q.x); sB = max(sB, q.y);
+      // (the two nearest, as the body's chords are kept: the stepping under the rain then pays
+      // for two cells however many stand in the line of sight)
+      if (gShafts == 0) { gShaftK[0] = k; s0 = q.x; gShafts = 1; }
+      else if (q.x < s0) { gShaftK[1] = gShaftK[0]; s1 = s0; gShaftK[0] = k; s0 = q.x; gShafts = 2; }
+      else if (gShafts == 1 || q.x < s1) { gShaftK[1] = k; s1 = q.x; gShafts = 2; }
+    }
+    if (uShaft.x > 1.5) {
+      float rr = uSkyLow.y + uShaft.w, qr = disc + rr * rr;
+      if (qr > 0.0) {
+        float sq = sqrt(qr), lo = max(-b - sq, 0.0), hi = -b + sq;
+        if (hi > lo) { sA = min(sA > sB ? lo : sA, lo); sB = max(sB, hi); }
+      }
+    }
+    sA = max(sA, tA); sB = min(sB, tB);
+  }
   bool haveLayer = t1 > t0;
   float mA = haveLayer ? (gCells > 0 ? min(t0, cA) : t0) : cA;
   float mB = haveLayer ? (gCells > 0 ? max(t1, cB) : t1) : cB;
-  if (mB <= mA) { fragColor = vec4(0.0); return; }
+  // Nothing of the cloud itself in this slice — but its RAIN may cross it all the same, and then
+  // the slice is the rain's. (Worked out before this, and the stretch taken over: with the test
+  // on the cloud's own stretch alone, the rain showed only in the slices where the ray also
+  // crossed the cloud's body, so a shaft ended at a slice's boundary in mid-air.)
+  bool noCloud = mB <= mA;
+  if (noCloud) {
+    if (sB <= sA) { fragColor = vec4(0.0); return; }
+    mA = sA; mB = sB;
+  }
 
   // steps: short near the eye, longer farther off; started at a different place in every pixel
   // so the layers of the march do not show
@@ -430,43 +467,14 @@ void main() {
   // the country the rain falls onto (one read a ray; its foot turns to mist over it)
   float country = 0.0;
   if (uShaft.x > 0.0 && uSkyLow.w > 0.5) country = wxCountry(skyTex2(tWxC, wxUV(upM)));
-  float sA = 1.0, sB = -1.0;
-  if (uShaft.x > 0.0) {
-    // Where the rain is on this ray: each raining cell's own shaft (an exact chord, no read),
-    // and, where a deck is raining within reach, the stretch under the highest base there.
-    // (Every cell, not the two the march found: a ray that passes UNDER a storm — which is
-    // every ray aimed at the rain itself, seen from the side — never meets the cell's own body,
-    // and the shafts were then drawn nowhere but under a cell one was looking into.)
-    gShafts = 0; gShaftK[0] = -1; gShaftK[1] = -1;
-    float s0 = 1e30, s1 = 1e30;
-    for (int k = 0; k < CELL_MAX; k++) {
-      if (k >= uCellCount) break;
-      vec2 q = cellShaftChord(k, uCamPlanetPos, dir);
-      if (q.y <= q.x) continue;
-      sA = min(sA > sB ? q.x : sA, q.x); sB = max(sB, q.y);
-      // (the two nearest, as the body's chords are kept: the stepping under the rain then pays
-      // for two cells however many stand in the line of sight)
-      if (gShafts == 0) { gShaftK[0] = k; s0 = q.x; gShafts = 1; }
-      else if (q.x < s0) { gShaftK[1] = gShaftK[0]; s1 = s0; gShaftK[0] = k; s0 = q.x; gShafts = 2; }
-      else if (gShafts == 1 || q.x < s1) { gShaftK[1] = k; s1 = q.x; gShafts = 2; }
-    }
-    if (uShaft.x > 1.5) {
-      float rr = uSkyLow.y + uShaft.w, qr = disc + rr * rr;
-      if (qr > 0.0) {
-        float sq = sqrt(qr), lo = max(-b - sq, 0.0), hi = -b + sq;
-        if (hi > lo) { sA = min(sA > sB ? lo : sA, lo); sB = max(sB, hi); }
-      }
-    }
-    sA = max(sA, tA); sB = min(sB, tB);
-  }
 
   // ---- the cloud, and the rain under it, in the order the ray meets them ----
   // The ray is marched in up to three stretches, in order: the layer up to the first cell, the
   // cell itself (with its own steps: a tower is five kilometres of cloud, and the layer's steps
   // would cross it in two), then the layer again. A second cell is still seen in the layer's
   // stretches, more coarsely.
-  bool shaftFirst = sB > sA && sA < mA;
-  if (shaftFirst) cloudShafts(sA, min(sB, mA), country);
+  bool shaftFirst = sB > sA && (noCloud || sA < mA);
+  if (shaftFirst) cloudShafts(sA, noCloud ? sB : min(sB, mA), country);
   // (the reads a step are counted over the stepping alone: what a ray reads once — the Sun left
   // by the layers above, the country under the rain, the wisps — is counted by the frame's own
   // run of scripts/cloud-cost.mjs, not shared out among the steps)
@@ -474,7 +482,7 @@ void main() {
   gSkyReads = 0.0;
   float layerLen = max(t1 - t0, 1.0);
   float c0 = gCells > 0 ? gCellT[0].x : 1e30, c1 = gCells > 0 ? gCellT[0].y : -1e30;
-  for (int seg = 0; seg < 3; seg++) {
+  for (int seg = 0; seg < 3 && !noCloud; seg++) {
     if (gT < 0.02) break;
     float a, b, ns;
     if (seg == 0) { a = mA; b = min(mB, c0); ns = n * clamp((b - a) / layerLen, 0.0, 1.0); }
