@@ -1002,11 +1002,14 @@ void main() {
       // or so of height (wavering), as beds of rock show on a mountain from afar; gone again
       // by 14 km, where a band would be under a pixel. By the height alone: the same band at
       // the same place from any patch and any eye.
-      float kb = kp * smoothstep(0.18, 0.4, 1.0 - dot(N, up)) * (1.0 - smoothstep(8000.0, 14000.0, dist));
+      float kb = kp * smoothstep(0.3, 0.5, 1.0 - dot(N, up)) * (1.0 - smoothstep(6000.0, 11000.0, dist));
       if (kb > 0.0) {
-        float hb = vHeight / 70.0 + 0.18 * sin(vHeight / 23.0) + 0.1 * sin(vHeight / 9.0);
-        float band = smoothstep(0.55, 0.7, fract(hb)) * (1.0 - smoothstep(0.85, 0.97, fract(hb)));
-        albedo *= mix(vec3(1.0), vec3(0.72, 0.62, 0.62), band * kb);
+        // (broken along their length, so that they are ledges and not contour lines)
+        vec3 pb = planetPos / 173.0;
+        float run = smoothstep(0.2, 0.7, 0.5 + 0.25 * sin(pb.x + 1.7 * sin(pb.y)) + 0.25 * sin(pb.z * 1.3 + pb.x * 0.7));
+        float hb = vHeight / 90.0 + 0.25 * sin(vHeight / 31.0) + 0.3 * sin(pb.y * 0.9 + pb.z * 0.6);
+        float band = smoothstep(0.62, 0.72, fract(hb)) * (1.0 - smoothstep(0.82, 0.92, fract(hb)));
+        albedo *= mix(vec3(1.0), vec3(0.8, 0.7, 0.72), band * run * kb);
       }
     }
   }
