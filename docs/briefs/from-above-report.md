@@ -37,6 +37,11 @@ from 30 m; its before is `docs/shots/grass-rich/haven_steppe_a30_after.png`).
   lee greener), broad stretches some hundreds of metres greener or drier gold, greener
   hollows (by the ground's cavity) and a warmer gold on slopes turned to the Sun, a cooler
   olive on those turned from it; on ground whose colour is grass, out to 4 km (block 2).
+- **Cost** (`scripts/ground-cost-run.sh`, 1100 x 515, a count of work on software WebGL,
+  never a frame rate; before: the shader at 76b3099, after: this branch's head, which also
+  carries the owning branch's merged changes): the opening view 2 220 -> 2 249 ms of
+  shading (101 %), the steppe from 40 m 2 031 -> 1 987 (98 %), 300 m up 1 497 -> 1 411
+  (94 %), 3 km up 884 -> 836 (95 %), the meadow 1 463 -> 1 462 (100 %). Not raised.
 - Not mine and untouched: the blue-teal veil and navy shade (the air helper's), the
   flowers' drifts (the flowers helper's), the near trees.
 
