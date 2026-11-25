@@ -3,6 +3,16 @@
 The helper of `docs/briefs/sky-B-clouds.md`, on branch `ccr-aa39490a-sky-B-clouds`. Kept as the
 work goes: the main session reads this file and the branch, not the transcript.
 
+**In short.** Everything of a cloud that is drawn now comes from the field: the base and the top
+at each place (so the sky no longer follows the traveller), heaps and decks cut by one shared
+rule that the volume, the far shell and C's shade atlas all read, storm cells with their own
+shape, their two tones, their slate depth, their anvils and their rain shafts, out to 200 km;
+altocumulus and cirrus on shells above, mist lying in the basins, lenticular plates standing
+over the ranges, and Haven's globe wearing the weather of the hour. **Four lines in
+`src/sky/skySystem.js` are the main session's to add** ("Asked of the main session"): without
+them nothing of `upperClouds.js`, `fogSheet.js` or `lenticulars.js` is ever built, and Haven's
+field is only on under `?debug=sky:...`.
+
 ## B0 (the job before the package): step 0's GLSL on a GPU
 
 All of this is `f3a1eb7` (step 0's head), built once and served frozen from
