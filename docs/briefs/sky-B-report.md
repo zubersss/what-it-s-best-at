@@ -410,6 +410,7 @@ fault), `B-noclouds`, `B-from-30km`, `B-globe`, `B-ledge-afternoon`, `B-mist`, `
 | --- | --- |
 | `scripts/lens-list-test.mjs` | the lenses' list: either shape the field hands over (the model's objects, a snapshot's LENS records), the plates each lens becomes and where they stand, the nearest taken and the ones over the horizon dropped, `noclouds` and a faded lens drawing nothing |
 | `scripts/cloud-volume-test.mjs` | the volume's decisions: drawn or not, and the storms still marched when the governor has switched the volume off — on the very first frame; and the rain shafts, which a ray crosses without crossing the cloud (check 8) |
+| `scripts/sky-map.mjs` | what stands where in a view, as a map of letters in one second: the anvils, the volume's own low cloud against the far shell's, the mid veil, the high cloud (`scripts/lib/skyModel.mjs` loads the model for both of these) |
 | `scripts/rain-pixels.mjs` | how much of a view the rain stands in, and how much of it a shader that finds the storms by their body alone must throw away (the model's own cells; a tool, not a test — it fails only if the hour has no raining cell) |
 | `scripts/fog-sheet-test.mjs` | the fog's lattice is the world's: nothing of it moves between two anchors, two travellers in one cell are given the same sheet, and it is drawn only where there is fog (check 9) |
 | `scripts/cloud-motion.mjs` (new, the brief's) | the motion, the anchoring, the uniform audit and the hand-over at 16 km, in one browser run |
@@ -507,8 +508,8 @@ the opening place (`alt=2600&pitch=-4&t=4`) the march came to **1 743 ms on the 
 1 762 on this branch** (laying 177 and 175) — 88 % of the storm's, for a picture with no cloud of
 the volume's in it at all (cloud on 0 % of what it lays).
 
-A map of that view made in Node in a second (`scratchpad/sky-map.mjs`: the model's own field cast
-along the view's rays) says why there is nothing: of the cloud in that view, **all but one corner
+A map of that view made in Node in a second (`node scripts/sky-map.mjs --t 4 --view
+"-48.54992,49.05567,2600,222,-4,50"`: the model's own field cast along the view's rays) says why there is nothing: of the cloud in that view, **all but one corner
 stands beyond the volume's 16 km reach** and is drawn by the far shell. The march still pays for
 it, because the layer is a slab between two spheres, every ray that crosses the slab is marched
 through it whatever the cover is there, and the cover is read a step at a time.
