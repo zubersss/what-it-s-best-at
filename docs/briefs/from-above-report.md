@@ -6,6 +6,27 @@ ranked: `from-above-look.md`. Pictures: `docs/shots/from-above/`,
 `<place>_<metres over the ground>_p<degrees looked down>[_phone|_floor|_clear]`), taken with
 `scripts/from-above-shots.sh <frozen build> <suffix> [view ...]`.
 
+## Fifth round (2026-11-25): the steppe from the air, stronger
+
+The owning session: steppe_300_p60_after4 was still almost one ochre tone. Now (block 2):
+the broad stretches some hundreds of metres across are two of the look's colours, a gold
+and a cooler olive, at two to three times the strength; hollows are olive with darker damp
+bottoms where water runs; slopes to the Sun warmer, from it cooler; the swaths combed along
+the wind twice as strong. The broad stretches reach 8 km and take the map's dull ochre
+beyond the ground's grass too (from 1 km up the land past 2 km was one plain tone, failing
+a test made for the grass's own gold). All of it only where the ground is looked down on
+(fading in from 5 to 12 degrees): at eye height it cannot be told apart and it cost the
+opening view 9 % of its ground's shading.
+
+Pictures `haven_ledge_steppe_300_p60_after5.png`, `steppe_1000_p60_after5.png` beside
+`_after4`; `steppe_a30_after5.png` was taken before the gate by angle (from 30 m looking 8
+degrees down the gate now leaves the near ground as it was in `_after4`).
+
+Cost (`ground-cost-run.sh`, the shader before the fourth round against this head): the
+opening view 2 265 -> 2 199 ms (97 %), the steppe from 40 m 2 137 -> 2 047 (96 %), 300 m up
+1 436 -> 1 488 (104 %), the meadow 1 567 -> 1 533 (98 %); 3 km up 854 -> 847 (99 %, before
+the gate). Runs of the same shader differ by up to 5 %.
+
 ## Fourth round (2026-11-25, the visual critic: `haven-rich-critic.md`)
 
 Mine: gap 1's far-forest part, and from gap 3 the steppe from the air and the forest's edge
