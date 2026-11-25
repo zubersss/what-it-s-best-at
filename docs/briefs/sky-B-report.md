@@ -670,11 +670,12 @@ case or a benchmark view from a Node scan.
   of the game clock). The alternative — reading the look toward the Sun at one phase — makes the
   two tones speckle while the phases blend, so it was not taken.
 
-## What is still running (25 November, 08:30)
+## What is still running (25 November, 09:05)
 
 One browser at a time on this machine, as detached chains in
 `/tmp/claude-0/-home-user-what-it-s-best-at/fa086d69-ff44-5069-99a3-fdab3300646a/scratchpad`
-(`chainM*.sh`, logs in `logs/`, pictures in `shots/`, frozen builds `buildC1` = this branch,
+(`chainM*.sh`, logs in `logs/`, pictures in `shots/`, frozen builds `buildC1` = this branch as it
+was this morning, `buildD1` = this branch with the rain's six fixes and the lenses' order,
 `buildQ2` = the owning head):
 
 | chain | what |
@@ -685,6 +686,12 @@ One browser at a time on this machine, as detached chains in
 | M6 | the cell's portrait with the Sun behind it (and the owning head's), the governor's floor again, Haven from 500 km, from 30 km |
 | M3 | check 6's ridge pair, and the owner's three weather views at the eye (mist, storm, front) |
 | M4 | stability: the climb on the owning head (B0), then the climb, the crossing under heaps and a storm pass on this branch; then `npm run smoke` on a tree |
+| M8 | the reads check again, now that it proves its own numbers, and the same with four reads a step put in on purpose (it must fail) |
+| M9 | what the rain's fixes cost at the phone's pixel count, against `buildC1`'s 209 / 2 006 ms |
+
+The pictures of the cells, their rain and the lenses (M5, M6) are taken from `buildD1`: the six
+faults of checks 8 to 11 were found while the chains ran, and a picture from `buildC1` would show
+a storm with a quarter of its rain missing.
 
 If this machine restarts, the chains die but the builds, the logs and the pictures do not: each
 chain is a few lines and starts with `nohup setsid`.
