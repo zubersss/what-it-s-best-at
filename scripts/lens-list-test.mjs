@@ -86,11 +86,16 @@ check('a lens faded below 0.02 is not drawn', L.list.length === 0);
   const L2 = new Lenticulars(null);
   for (let i = 0; i < 20; i++) L2.update({ rig: { pos: cam }, sky: { field, t: i * 0.1, R, noClouds: false } });
   check('twenty frames over two seconds ask the field once', asked === 1, `asked ${asked} times`);
+  // (the list is also held for a quarter of a second of the WALL clock, however fast the game's
+  // own clock runs: at sixty times real time, ten seconds of it go by six times a second)
   L2.update({ rig: { pos: cam }, sky: { field, t: 30, R, noClouds: false } });
-  check('and again when the clock has moved on', asked === 2, `asked ${asked} times`);
+  check('the wall clock holds it too, however far the game clock jumps', asked === 1, `asked ${asked} times`);
+  await new Promise((r) => setTimeout(r, 300));
+  L2.update({ rig: { pos: cam }, sky: { field, t: 60, R, noClouds: false } });
+  check('and it is asked again once both clocks have moved on', asked === 2, `asked ${asked} times`);
   const before = L2.list[0].centre.slice();
   const cam2 = new THREE.Vector3(R + 2000, 500, 0);
-  L2.update({ rig: { pos: cam2 }, sky: { field, t: 30.1, R, noClouds: false } });
+  L2.update({ rig: { pos: cam2 }, sky: { field, t: 60.1, R, noClouds: false } });
   const moved = Math.abs(L2.list[0].centre[1] - before[1]);
   check('the plates still follow the traveller in between', moved > 400, `${Math.round(moved)} m`);
 }
