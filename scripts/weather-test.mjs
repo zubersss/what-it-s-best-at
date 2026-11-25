@@ -149,11 +149,24 @@ const havenWeather = () => { const wx = new Weather(); wx.setWorld(haven); retur
 // ---- 2. rain at the eye comes from the cloud above ------------------------------------------------
 {
   let bad = 0, wet = 0, dry = 0, gaps = 0, above = 0, worst = '';
+  // places out from the middle of each raining cell (through the shaft's edge and beyond it) and
+  // places away from every cell, each at four heights round the cloud's base
+  const spots = [];
   for (let k = 0; k < 4; k++) {
     const t = T_SCENE + k * 900;
-    for (let i = 0; i < 7; i++) for (let j = 0; j < 7; j++) {
-      const lat = START.lat + (i - 3) * 0.25, lon = START.lon + (j - 3) * 0.35;
-      for (const h of [1500, 2200, 3400, 6000]) {
+    for (const c of field.cells(t).filter((x) => x.rain > 1).slice(0, 3)) {
+      for (let i = 0; i < 7; i++) for (const b of [0, 1.9]) {
+        const km = i * 0.55 * c.core / 1000, br = b + 0.3 * i;
+        const la = Math.asin(Math.sin(c.lat * D2R) * Math.cos(km * 1000 / R) + Math.cos(c.lat * D2R) * Math.sin(km * 1000 / R) * Math.cos(br)) / D2R;
+        const lo = c.lon + Math.atan2(Math.sin(br) * Math.sin(km * 1000 / R) * Math.cos(c.lat * D2R), Math.cos(km * 1000 / R) - Math.sin(c.lat * D2R) * Math.sin(la * D2R)) / D2R;
+        spots.push([t, la, lo, c.base]);
+      }
+    }
+    for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) spots.push([t, START.lat + (i - 3) * 0.9, START.lon + (j - 3) * 1.2, 2600]);
+  }
+  {
+    for (const [t, lat, lon, cbase] of spots) {
+      for (const h of [cbase - 900, cbase - 60, cbase + 80, cbase + 2500]) {
         const wx = havenWeather(), rig = makeRig(atPos(R, lat, lon, h), Math.max(5, h - 1400));
         const f = skyFrame(t, t - 1 / 30, rig);
         wx.quiet = true;                                   // (settled at once, as in a picture)
@@ -214,6 +227,7 @@ function earthWeather() {
         out.err.push(q.at - want);
       }
       for (const h of wx.heard()) { out.heard.push({ power: h.power, dist: h.dist }); out.late.push(wx.time - h.at); }
+      out.end = wx.time;
     }
     return out;
   };
@@ -221,10 +235,12 @@ function earthWeather() {
   const worst = a.err.length ? Math.max(...a.err.map(Math.abs)) : Infinity;
   const late = a.late.length ? Math.max(...a.late) : Infinity;
   const key = (o) => JSON.stringify(o.queued.map((q) => [q.dist.toFixed(1), q.power.toFixed(3), q.at.toFixed(3)]));
+  // (the last strokes' thunder is still on its way when the hour ends: up to three minutes for 60 km)
+  const due = a.queued.filter((q) => q.at <= a.end).length;
   note(`Haven: ${a.queued.length} strokes in the hour, ${a.heard.length} heard; the delay is the distance over 343 m/s within ${worst === Infinity ? '-' : worst.toFixed(4)} s, heard at most ${late === Infinity ? '-' : late.toFixed(3)} s after its time`);
   if (a.queued.length) note(`  the first five: ${a.queued.slice(0, 5).map((q) => `${(q.dist / 1000).toFixed(1)} km -> ${(q.dist / 343).toFixed(1)} s, power ${q.power.toFixed(2)}`).join('; ')}`);
-  check(a.queued.length >= 20 && worst <= 0.05 && late <= DT + 1e-6 && a.heard.length >= a.queued.length - 2 && key(a) === key(b),
-    `every stroke's thunder is queued for its own distance over 343 m/s and heard then (${a.queued.length} strokes, ${a.heard.length} heard, within ${worst === Infinity ? '-' : worst.toFixed(4)} s), the same in two runs`);
+  check(a.queued.length >= 20 && worst <= 0.05 && late <= DT + 1e-6 && a.heard.length >= due - 1 && key(a) === key(b),
+    `every stroke's thunder is queued for its own distance over 343 m/s and heard then (${a.queued.length} strokes, ${a.heard.length} of the ${due} due heard, within ${worst === Infinity ? '-' : worst.toFixed(4)} s), the same in two runs`);
 
   // Earth: its own strokes (from its maps), over an hour
   const earthRun = () => {
@@ -296,7 +312,8 @@ function earthWeather() {
     // a heap's shadow over the figure: the sky overhead the same, only the Sun at the feet gone
     const sunny = { ...makeSkyAt(), overcast: 0.1, storm: 0, sunShade: 1 };
     const shaded = { ...makeSkyAt(), overcast: 0.1, storm: 0, sunShade: 0.22 };
-    const heap = stops(target(s, -1, 0.4, 0.25, 0.6, light(sunny)), target(s, -1, 0.4, 0.25, 0.6, light(shaded)));
+    // (a case the exposure's floor does not swallow: a dim scene, where a hold of a stop shows)
+    const heap = stops(target(s, -4, 0.05, 0.03, 0.6, light(sunny)), target(s, -4, 0.05, 0.03, 0.6, light(shaded)));
     note(`a clear sky is within ${clear.toFixed(3)} stops of the old meter; a heap's shadow over the figure moves it ${heap.toFixed(3)} stops`);
     check(dark >= 1.2 && clear <= 0.05 && heap <= 0.05,
       `the meter makes up only part of the darkness: ${dark === Infinity ? '-' : dark.toFixed(2)} stops held at 0.15 of the light, clear days unmoved (${clear.toFixed(3)} stops), a heap's shadow over the figure ${heap.toFixed(3)} stops`);
