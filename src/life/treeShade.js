@@ -15,7 +15,7 @@
 // Sun's ray through its crown meets the plane, which is the ground's rule exactly.
 import * as THREE from 'three';
 import { makePassMaterial, renderPass } from '../render/fullscreen.js';
-import { HEAP_GLSL } from '../sky/clouds.js';
+import { HEAP_GLSL, SKY_NOISE_UNIFORM_GLSL, SKY_STEER_UNIFORM_GLSL } from '../sky/skyGlsl.js';
 import { localFrame } from '../core/ephemeris.js';
 
 const SIZE = 256, WIDTH = 14000;
@@ -48,9 +48,9 @@ layout(location = 0) out vec4 fragColor;
 uniform vec3 uCentre, uE, uN, uSunDir;
 uniform float uWidth;
 uniform sampler2D tClouds;
-uniform sampler3D tCloudNoise;
+${SKY_NOISE_UNIFORM_GLSL}${SKY_STEER_UNIFORM_GLSL}
 uniform vec4 uCloud, uCloudHeap;
-uniform vec3 uCloudVol, uCloudWind;
+uniform vec4 uCloudVol;
 ${HEAP_GLSL}
 void main() {
   vec3 planetPos = uCentre + (uE * (vUv.x - 0.5) + uN * (vUv.y - 0.5)) * uWidth;
@@ -60,7 +60,7 @@ void main() {
     vec3 uc = normalize(planetPos + uSunDir * ((uCloud.y - r) / max(dot(planetPos / r, uSunDir), 0.08)));
     float cd = textureLod(tClouds, vec2(atan(uc.y, uc.x) * 0.15915494 + uCloud.z, acos(clamp(uc.z, -1.0, 1.0)) * 0.31830989), 0.0).r;
     float shade = smoothstep(0.2, 0.7, cd);
-    if (uCloudHeap.w > 0.5) { float cc, hp = cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudWind, 0.0, cc); shade = 0.85 * smoothstep(0.06, 0.42, hp); }
+    if (uCloudHeap.w > 0.5) { float hp = cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudSteer, 0.0).x; shade = 0.85 * smoothstep(0.06, 0.42, hp); }
     lit = 1.0 - uCloud.x * shade;
   }
   fragColor = vec4(lit, lit, lit, 1.0);
@@ -77,7 +77,7 @@ export class TreeShade {
     this.material = makePassMaterial(FRAG, {
       uCentre: { value: new THREE.Vector3() }, uE: { value: new THREE.Vector3() }, uN: { value: new THREE.Vector3() }, uWidth: { value: WIDTH },
       uSunDir: { value: new THREE.Vector3(0, 0, 1) },
-      tClouds: sh.tClouds, tCloudNoise: sh.tCloudNoise, uCloud: sh.uCloud, uCloudHeap: sh.uCloudHeap, uCloudVol: sh.uCloudVol, uCloudWind: sh.uCloudWind,
+      tClouds: sh.tClouds, tCloudNoise: sh.tCloudNoise, uCloud: sh.uCloud, uCloudHeap: sh.uCloudHeap, uCloudVol: sh.uCloudVol, uCloudSteer: sh.uCloudSteer,
     });
     this._e = [0, 0, 0]; this._n = [0, 0, 0]; this._u = [0, 0, 0]; this._c = new THREE.Vector3();
   }

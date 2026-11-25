@@ -54,6 +54,11 @@ export class Benchmark {
     this.maxGpuBytes = 0;
     // the first five bookmarks of each world: its main scene (the rest are landmarks, not benchmarked)
     this.names = { [this.first]: Object.keys(WORLDS[this.first].scene.bookmarks).slice(0, 5), [this.second]: Object.keys(WORLDS[this.second].scene.bookmarks).slice(0, 5) };
+    // The route's clock is pinned: each stop begins at its bookmark's moment (App.gotoBookmark sets
+    // it) and the clock runs at the game's own pace, whatever the player had set (stopped, or a
+    // time-lapse): every run meets the same sky, the clouds moved by the same wind, the same storm.
+    this.clockBefore = { rate: app.timeRate, paused: app.paused };
+    app.timeRate = 1; app.paused = false;
     app.setHero(true);
   }
 
@@ -166,6 +171,8 @@ export class Benchmark {
   _finish(stopped) {
     this.active = false;
     if (this.cost) { this.cost.restore(); this.costLines = this.cost.lines; this.cost = null; }
+    // (the player's clock as it was)
+    if (this.clockBefore) { this.app.timeRate = this.clockBefore.rate; this.app.paused = this.clockBefore.paused; this.clockBefore = null; }
     this.releaseAll();
     this.app.onBenchmarkDone(this.report(stopped));
   }
@@ -270,35 +277,51 @@ export class Benchmark {
 // saving the governor has is switched on alone in turn, and each frame is timed from its
 // start until the GPU has finished drawing it (reading one pixel back waits for that).
 // At the first world's opening view and at the views its world file lists (scene.costViews:
-// { name, lat, lon, alt, heading, pitch }, the heaviest places it has).
+// { name, lat, lon, alt, heading, pitch, timeOffsetHours }, the heaviest places it has; the hour,
+// as a bookmark's, from the scene's date: the weather of that moment; a view without one keeps the
+// first bookmark's). The clock is held while a view is measured, so every saving meets the same sky.
+// Savings that are not built yet (a step's `has`: the clouds plan's, until their packages land) are
+// not measured.
 const WARM = 5, TAKE = 16, HELD = 2.07e6;
 // Whole parts of the picture left out, one at a time (configs -10 and below): what the
 // savings cannot say. The fourth benchmark with a cost test showed a frame that took as
 // long with every saving on and at any size: the cost was in none of the things a saving
 // switches. "Nothing drawn" is what the measuring itself costs (the post chain and the
-// pixel read back), to be taken off the rest.
-const PARTS_OUT = [
-  ['grass', (app, out) => app.grass?.setFraction(out ? 0 : 1)],
+// pixel read back), to be taken off the rest. A row with `has` is measured only where the
+// part is there (the sky's parts: sky/skySystem.js SKY_PARTS; their packages say when).
+const skyPart = (id, label) => ({ id, label, set: (app, out) => app.sky?.partOut(id, out), has: (app) => !!app.sky?.hasPart(id) });
+export const PARTS_OUT = [
+  { id: 'grass', label: 'grass', set: (app, out) => app.grass?.setFraction(out ? 0 : 1) },
   // (hidden, not shortened: shortened, the far forest drew every tree from 5 m as a card,
   // and the row read meshes against cards)
-  ['trees', (app, out) => { if (app.trees) app.trees.hidden = out; }],
-  ['the far forest', (app, out) => app.farForest?.setFraction(out ? 0 : 1)],
-  ['the figure', (app, out) => { app.heroScene.visible = !out; app.dustScene.visible = !out; }],
+  { id: 'trees', label: 'trees', set: (app, out) => { if (app.trees) app.trees.hidden = out; } },
+  { id: 'far-forest', label: 'the far forest', set: (app, out) => app.farForest?.setFraction(out ? 0 : 1) },
+  { id: 'figure', label: 'the figure', set: (app, out) => { app.heroScene.visible = !out; app.dustScene.visible = !out; } },
   // (the shadows of trees, rocks and the figure: drawn into their own maps before the picture)
-  ['the shadow maps', (app, out) => { app.nearShadow.off = out; }],
+  { id: 'shadow-maps', label: 'the shadow maps', set: (app, out) => { app.nearShadow.off = out; } },
   // (the ground in one flat tone: its triangles are still drawn, its shading is not)
-  ["the ground's shading", (app, out) => { app.terrain.shared.uPlain.value = out ? 1 : 0; }],
-  ['the ground and all on it', (app, out) => { app.nearScene.visible = !out; }],
-  ['the sky', (app, out) => { app.farScene.visible = !out; }],
+  { id: 'ground-shading', label: "the ground's shading", set: (app, out) => { app.terrain.shared.uPlain.value = out ? 1 : 0; } },
+  { id: 'ground', label: 'the ground and all on it', set: (app, out) => { app.nearScene.visible = !out; } },
+  { id: 'sky', label: 'the sky', set: (app, out) => { app.farScene.visible = !out; } },
+  // (the clouds of every kind and all they do: shell, volume, shadows; then their parts one by one)
+  skyPart('clouds-all', 'all the clouds'),
+  skyPart('cloud-shade', "the clouds' shadows"),
+  skyPart('cloud-upper', 'the middle and high cloud'),
+  skyPart('cells-far', 'storm cells far off'),
+  skyPart('rain-shafts', 'rain shafts'),
+  skyPart('fog', 'fog and mist'),
   // (the last pass over the canvas at the picture's size, as it now is, instead of the screen's: App.fitCanvas)
-  ["the last pass at the picture's size, not the screen's", (app, out) => { app.canvasHold = out ? 'fit' : 'full'; }],
-  ['everything', (app, out) => { app.nearScene.visible = app.farScene.visible = app.heroScene.visible = app.dustScene.visible = !out; }],
+  { id: 'last-pass', label: "the last pass at the picture's size, not the screen's", set: (app, out) => { app.canvasHold = out ? 'fit' : 'full'; } },
+  // (last: what is left with nothing drawn at all)
+  { id: 'everything', label: 'everything', set: (app, out) => { app.nearScene.visible = app.farScene.visible = app.heroScene.visible = app.dustScene.visible = !out; } },
 ];
-class CostTest {
+export class CostTest {
   constructor(bench) {
     const app = bench.app, g = app.governor, w = WORLDS[bench.first];
     this.bench = bench; this.app = app; this.g = g;
     const b0 = bench.names[bench.first][0];
+    // (the parts there are to leave out here: the sky's only where the world has them)
+    this.parts = PARTS_OUT.filter((p) => !p.has || p.has(app));
     this.views = [{ world: bench.first, name: `${w.name}, ${b0}`, bookmark: b0 }, ...(w.scene.costViews || []).map((v) => ({ world: bench.first, bookmark: b0, ...v, name: `${w.name}, ${v.name}` }))];
     // everything on, the governor still
     this.level = g.featureLevel; this.resLevel = g.resLevel; this.fixedBefore = g.fixed;
@@ -309,15 +332,17 @@ class CostTest {
     // (everything on is measured again after every three savings: a frame grows slower over a
     // minute of this, from heat and from ground still arriving, and each saving is set against
     // the measures of "everything on" on either side of it, not against the first)
-    const steps = FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-'));
+    const steps = FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-') && (!FEATURE_STEPS[i].has || FEATURE_STEPS[i].has(app)));
     this.configs = [[-1, held]];
     steps.forEach((i, k) => { this.configs.push([i, held]); if (k % 3 === 2 || k === steps.length - 1) this.configs.push([-1, held]); });
     // (a part left out is set against "everything on" measured just before it)
-    PARTS_OUT.forEach((p, k) => this.configs.push([-1, held], [-10 - k, held]));
+    this.parts.forEach((p, k) => this.configs.push([-1, held], [-10 - k, held]));
     this.configs.push([-2, held], [-1, held], [-1, small], [-1, 1]);
     // (the canvas at the screen's own size while the parts are measured, so that the one
     // part that changes it is seen against the rest: App.fitCanvas)
     app.canvasHold = 'full';
+    // (the clock held while a view is measured: the same sky, Sun and shadows for every saving)
+    this.pausedBefore = app.paused; app.paused = true;
     this.off = []; this.lines = []; this.px = new Uint8Array(4); this.vi = -1; this.state = 'settle';
     this._next();
   }
@@ -337,8 +362,8 @@ class CostTest {
   _set(which, scale) {
     const app = this.app, g = this.g;
     for (const i of this.off) FEATURE_STEPS[i].apply(app, false);
-    if (this.partOut != null) { PARTS_OUT[this.partOut][1](app, false); this.partOut = null; }
-    if (which <= -10) { this.partOut = -10 - which; PARTS_OUT[this.partOut][1](app, true); }
+    if (this.partOut != null) { this.parts[this.partOut].set(app, false); this.partOut = null; }
+    if (which <= -10) { this.partOut = -10 - which; this.parts[this.partOut].set(app, true); }
     this.off = which === -2 ? FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-')) : which >= 0 ? [which] : [];
     for (const i of this.off) FEATURE_STEPS[i].apply(app, true);
     g.fixed = scale; g._applyScale();
@@ -355,6 +380,9 @@ class CostTest {
         const rig = app.rig;
         rig.setLatLon(v.lat, v.lon, 1.7, v.heading ?? 0, v.pitch ?? 0);
         if (v.alt != null) { rig.pos.setLength(app.world.radius + v.alt); rig.onFoot = false; rig.hover = true; } else if (rig.mode === 'hero') rig.standUp();
+        // (its hour, if it names one: from the scene's date, which going to the bookmark has just
+        // set; else the bookmark's own, as before)
+        if (v.timeOffsetHours != null) app.timeOffsetHours = v.timeOffsetHours;
         rig.velocity.set(0, 0, 0); app.jumpedAt = now; this.placed = true; this.t0 = now;
         return true;
       }
@@ -402,7 +430,7 @@ class CostTest {
     // (what leaving each part out saves, against "everything on" just before it; the last is
     // what is left with nothing drawn at all: the measuring itself and the page's own work)
     const parts = []; let none = NaN;
-    for (let k = 1; k < n - 4; k++) if (c[k][0] <= -10) { const i = -10 - c[k][0]; if (i === PARTS_OUT.length - 1) none = ms[k]; else parts.push(`${PARTS_OUT[i][0]} ${f(ms[k - 1] - ms[k])}`); }
+    for (let k = 1; k < n - 4; k++) if (c[k][0] <= -10) { const p = this.parts[-10 - c[k][0]]; if (p.id === 'everything') none = ms[k]; else parts.push(`${p.label} ${f(ms[k - 1] - ms[k])}`); }
     this.lines.push(`  saved by leaving a part out: ${parts.join(' · ')} · (with nothing drawn at all a frame still takes ${f(none)})`);
     saved.sort((a, b) => b[1] - a[1]);
     this.lines.push(`  saved by one saving alone: ${saved.filter((x) => Math.abs(x[1]) >= 0.3).map((x) => `${x[0]} ${x[1].toFixed(1)}`).join(' · ') || 'nothing over 0.3'}`);
@@ -413,7 +441,8 @@ class CostTest {
     const app = this.app, g = this.g;
     for (const i of this.off) FEATURE_STEPS[i].apply(app, false);
     this.off = [];
-    if (this.partOut != null) { PARTS_OUT[this.partOut][1](app, false); this.partOut = null; }
+    if (this.partOut != null) { this.parts[this.partOut].set(app, false); this.partOut = null; }
+    app.paused = this.pausedBefore ?? app.paused;
     g.fixed = this.fixedBefore ?? null; g.resLevel = this.resLevel; g._applyScale();
     app.canvasHold = null;
     g.restoreSavings(this.savings);

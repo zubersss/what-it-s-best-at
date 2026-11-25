@@ -9,7 +9,31 @@
 //   lightning under deep, hard-raining cloud: where the next stroke falls and how bright
 // Others take what they need: the sea and the trees take the wind, the ground the wetness,
 // the lighting the shade and the flashes, the sound the rain and the thunder.
-// World file: weather: { day, rain: url, tops: url, cloud: url (small), storms: url }.
+// World file: weather: { day, rain: url, tops: url, cloud: url (small), storms: url } (the recipe
+// 'maps', the one when none is named). A world whose weather is made by rule (recipe 'made',
+// Haven: src/weather/sky/) has none of this here yet: its steering winds and its field are
+// sky/skySystem.js's, and package D makes this the reader of the field there.
+//
+// THE INTERFACE sky/skySystem.js calls (docs/briefs/clouds-weather-plan.md, step 0; package D
+// keeps it when it rewrites the inside):
+//   setWorld(world)
+//   update(rig, dt, sunDir, day, sunE, sky)  every frame. sky: the sky system's frame (SkySystem
+//            .frame): t (the weather clock, s since weather.epoch), tPrev, noiseT, steer, field,
+//            here (field.at() at the traveller, or null), cells (the live cells in reach, nearest
+//            first, each with dist), strikes (the field's strokes since the last frame within
+//            reach, each with pos [x, y, z] planet axes and dist), world, noClouds, shotMode.
+//   own      true when this module answers for the weather at the traveller on this world: the
+//            sky system then takes wind and windSpeed for uWind (trees, grass, sea), sunShade and
+//            skyShade for uWeather.x/y (where the shade probe has nothing), wet (uWeather.z), veil
+//            (uWeather.w), the wind sound and the drift of a hovering figure. False: a steady
+//            breeze from the west and none of the rest. (Step 0: the 'maps' recipe only; D sets it
+//            on a made world from sky.here.)
+//   takesStrikes  true when this module turns sky.strikes into its strokes, their light and their
+//            thunder (D); false: the sky system's stand-in does (one stroke a frame, SkySystem._fieldStrikes)
+//   bolts    null, or up to two { pos: [x, y, z] planet axes (m), power }: the flashes that light
+//            the cloud from inside (the volume's uBolt, CloudVolume.setBolts). null: the sky system
+//            makes one of `flash` when it is in the cloud, as before
+//   wind, windSpeed, sunShade, skyShade, wet, veil, rain, snow, temp, flash, flashLight, heard()
 import * as THREE from 'three';
 import { localFrame } from '../core/ephemeris.js';
 
@@ -26,11 +50,14 @@ export class Weather {
     this.storm = null;                       // the nearest named storm: { name, dist (m) }
     this.time = 0;
     this._e = [0, 0, 0]; this._n = [0, 0, 0]; this._u = [0, 0, 0];
+    this.own = false; this.takesStrikes = false; this.bolts = null;
   }
 
   setWorld(world) {
     this.epoch++;
-    this.def = world.weather || null; this.maps = {}; this.storms = []; this.radius = world.radius; this.world = world;
+    this.def = world.weather && (world.weather.recipe ?? 'maps') === 'maps' ? world.weather : null;
+    this.own = !!this.def;
+    this.maps = {}; this.storms = []; this.radius = world.radius; this.world = world;
     this.rain = this.snow = this.wet = 0; this.squall = this.storminess = this.veil = 0; this.sunShade = this.skyShade = 1; this.flash = null; this.thunder.length = 0; this.flashLight.set(0, 0, 0);
     this.shadow = world.clouds?.shadow ?? 0.6;                 // (how dark this world's cloud shadow is: the ground's own number)
     if (!this.def || typeof document === 'undefined') return;
@@ -82,8 +109,9 @@ export class Weather {
   }
 
   // Every frame. rig: the camera rig; dt (s); sunDir: toward the Sun (planet axes, unit); day: day of the year.
-  // sunE: the Sun's irradiance in the game's units (a stroke is measured against it).
-  update(rig, dt, sunDir, day = 180, sunE = 1) {
+  // sunE: the Sun's irradiance in the game's units (a stroke is measured against it). skyFrame: the sky
+  // system's frame (see the top; read by package D, not yet here).
+  update(rig, dt, sunDir, day = 180, sunE = 1, skyFrame = null) {
     this.time += dt;
     if (!this.def) { this.windSpeed = 0; this.veil = 0; return; }
     const p = rig.pos, len = p.length(), lat = Math.asin(p.z / len) / RAD, lon = Math.atan2(p.y, p.x) / RAD, alt = len - this.radius;

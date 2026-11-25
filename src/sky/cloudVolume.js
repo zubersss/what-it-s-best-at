@@ -35,7 +35,7 @@ import * as THREE from 'three';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { G } from '../render/globals.js';
-import { FAIR_GLSL } from './clouds.js';
+import { SKY_STEER_GLSL, FAIR_GLSL, SKY_RISE_GLSL, SKY_UNIFORMS, SKY_NOISE_UNIFORM_GLSL, SKY_STEER_UNIFORM_GLSL, SKY_RISE_UNIFORM_GLSL } from './skyGlsl.js';
 
 const VERT = /* glsl */`
 out vec2 vUv;
@@ -44,7 +44,7 @@ void main() { vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0
 const MARCH = /* glsl */`
 ${LIGHTING_PARS}
 precision highp sampler3D;
-uniform sampler3D tCloudNoise;
+${SKY_NOISE_UNIFORM_GLSL}
 uniform sampler2D tCloudMap;
 uniform vec4 uCloud;           // x cover, y longitude shift of the map (turns), z 1 / noise scale (1/m), w the reach (m)
 uniform vec4 uLayer;           // x base radius (m), y thickness (m), z steps, w time (s)
@@ -55,13 +55,17 @@ uniform float uDense;          // how solid the cloud is, against the plain meas
 uniform float uStorm;          // how much of a storm this is (0..1): its base is darker and lighter in great patches
 uniform float uFieldK;         // the world's radius in units of the fair-weather field's noise
 uniform vec2 uFair;            // x: the cover of fair-weather cloud where the day's map has none (0: none); y: how far round the eye the cloud is thinned (m)
-uniform vec3 uCloudWind;       // where the noise has drifted to (noise units)
+// (uCloudSteer: the low layer's motion, the noise read where its pattern stands still; uCloudRise:
+// the low pattern's rise through its layer. Both filled once a frame by sky/skySystem.js)
+${SKY_STEER_UNIFORM_GLSL}${SKY_RISE_UNIFORM_GLSL}
 uniform sampler2D tCloudTop;   // how high the cloud tops stand, where the day's map says (red x 16 km; 0: not seen)
 uniform vec3 uTops;            // x the base's altitude (m), y the tops' usual share of the layer, z 1 if there is a map
 uniform vec4 uBolt;            // lightning inside the cloud: xyz where (from the camera, m), w how bright
 in vec2 vUv;
 layout(location = 0) out vec4 fragColor;
+${SKY_STEER_GLSL}
 ${FAIR_GLSL}
+${SKY_RISE_GLSL}
 
 // x: the cover at a place (0..1); y: how far up the layer its tops reach there (0..1)
 vec2 mapCover(vec3 up) {
@@ -74,10 +78,17 @@ vec2 mapCover(vec3 up) {
   if (uFair.x > 0.0) c = max(c, fairCover(tCloudNoise, up, uFieldK, uFair.x, m));
   return vec2(c, top);
 }
-// How much cloud is at a place: c = the map's cover there (0..1), y = height in the layer (0..1).
-float density(vec3 p, float c, float y, bool fine) {
-  vec3 q = p * uCloud.z + uCloudWind;
-  float n = texture(tCloudNoise, q).r, e = 0.5;
+// Where the low layer's pattern stands still, in noise units, at the distance t along a ray
+// whose camera and direction are camQ and dirQ in that pattern's axes (skyToLow of
+// uCamPlanetPos and of the ray's direction: a turning is linear, so it is done once a ray).
+// Read there, the cloud goes with the low wind at the day's speed (weather/sky/steer.js).
+vec3 marchPattern(vec3 camQ, vec3 dirQ, float t) { return (camQ + dirQ * t) * uCloud.z; }
+// How much cloud is at a place: q = the place in the pattern (noise units, marchPattern), r its
+// distance from the world's centre (m), c = the map's cover there (0..1), y = height in the
+// layer (0..1). The masses rise through the layer as they go (skyLowNoise: the shared rule's),
+// so a heap grows and fades in place; the lobes that eat at their edges go with the wind alone.
+float density(vec3 q, float r, float c, float y, bool fine) {
+  float n = skyLowNoise(tCloudNoise, q, r, uCloudRise.x), e = 0.5;
   // (smaller cells push the outline in and out: a heap's edge is rounded lobes, not one smooth curve)
   if (fine) { e = texture(tCloudNoise, q * 5.3 + 0.37).g; n += (e - 0.5) * 0.26; }
   // rounded below; above, a dome: a heap stands tallest over its middle and low at its
@@ -130,8 +141,10 @@ void main() {
   // seen in a real one is the cloud lighter and darker in great soft patches going by:
   // taken from the noise a few hundred metres off along the ray (one look a pixel; fine
   // wisps along the ray itself only average out).
-  vec3 wq = (uCamPlanetPos + dir * 450.0) * uCloud.z;
-  float wispV = 0.55 + 0.6 * texture(tCloudNoise, wq * 6.0 + uCloudWind * 2.0).g + 0.3 * texture(tCloudNoise, wq * 15.0 - uCloudWind * 3.0 + 0.4).g;
+  // (in the low layer's pattern, as everything of the cloud is: they go by with the wind)
+  vec3 camQ = skyToLow(uCloudSteer, uCamPlanetPos), dirQ = skyToLow(uCloudSteer, dir), sunQ = skyToLow(uCloudSteer, uSunDir);
+  vec3 wq = marchPattern(camQ, dirQ, 450.0);
+  float wispV = 0.55 + 0.6 * texture(tCloudNoise, wq * 6.0).g + 0.3 * texture(tCloudNoise, wq * 15.0 + 0.4).g;
   float T = 1.0, tMean = 0.0, wSum = 0.0; vec3 C = vec3(0.0);
   float sigma = 0.012 * uDense;                          // how fast cloud takes light out, per metre at full density
   for (float i = 0.0; i < n; i += 1.0) {
@@ -143,14 +156,15 @@ void main() {
     float c = mc.x * (1.0 - smoothstep(0.7 * uCloud.w, uCloud.w, t));
     y /= mc.y;
     if (c < 0.01 || y <= 0.0 || y >= 1.0) continue;
-    float d = density(p, c, y, t < 30000.0);
+    vec3 q = marchPattern(camQ, dirQ, t);
+    float d = density(q, r, c, y, t < 30000.0);
     if (d <= 0.001) continue;
     float wisp = 1.0;
     if (t < 1000.0) {
       // close by: wisps a few hundred metres across torn out of the cloud, and the cloud
       // round the eye itself thin, so that flying through one is shapes going by and not
       // a blank wall
-      float e2 = texture(tCloudNoise, p * (uCloud.z * 19.0) + uCloudWind * 3.0 + 0.71).g, nearK = 1.0 - smoothstep(300.0, 1000.0, t);
+      float e2 = texture(tCloudNoise, q * 19.0 + 0.71).g, nearK = 1.0 - smoothstep(300.0, 1000.0, t);
       d *= mix(1.0, smoothstep(0.25, 0.75, e2 + 0.5 * d), 0.7 * nearK);
       d *= mix(0.35, 1.0, smoothstep(0.0, uFair.y, t));
       // (and lighter and darker by the way one looks: see wispV)
@@ -159,7 +173,7 @@ void main() {
     // The Sun on the cloud, as a painter has it: full on the tops and on the sides turned
     // to it (less cloud a little way toward the Sun than here), little in the hearts and
     // under the masses; and under a deep layer (a storm) hardly any reaches the base.
-    float dl = density(p + uSunDir * 280.0, c, y + 280.0 * mu0 / (uLayer.y * mc.y), false);
+    float dl = density(q + sunQ * (280.0 * uCloud.z), length(p + uSunDir * 280.0), c, y + 280.0 * mu0 / (uLayer.y * mc.y), false);
     float sunward = clamp(0.5 + (d - dl) * 2.2 + (y - 0.42) * 1.1, 0.0, 1.0);
     // (only a cover that is nearly whole stands between the Sun and what is under it: among
     // scattered heaps the light comes down between them)
@@ -171,7 +185,7 @@ void main() {
     light *= wisp;
     // (a storm's base: darker and lighter in great patches that go by with the wind and
     // turn over; a settled overcast is one even grey)
-    if (uStorm > 0.02 && y < 0.6) { float sm = texture(tCloudNoise, (p * uCloud.z + uCloudWind) * 1.9 + 0.23).g; light *= mix(1.0, 0.36 + 1.25 * sm, uStorm * (1.0 - y / 0.6)); }
+    if (uStorm > 0.02 && y < 0.6) { float sm = texture(tCloudNoise, q * 1.9 + 0.23).g; light *= mix(1.0, 0.36 + 1.25 * sm, uStorm * (1.0 - y / 0.6)); }
     if (uBolt.w > 0.0) { vec3 fb = dir * t - uBolt.xyz; light += vec3(0.8, 0.88, 1.0) * (uBolt.w / (1.0 + dot(fb, fb) / (900.0 * 900.0))); }
     float a = 1.0 - exp(-sigma * d * dt);
     C += T * a * light;
@@ -251,6 +265,8 @@ void main() {
 // The slices of the view's depth (m; the last ends at the volume's reach), and how their
 // pictures are laid out in the small target.
 const SLICE_Z = [0, 300, 900, 2400, 5000, 9000], COLS = 3, ROWS = 2, SLICES = COLS * ROWS, SMALL = 4;
+// flashes that light the cloud from inside at once (the plan's two, in the near and far slices)
+export const BOLTS = 2;
 
 export class CloudVolume {
   constructor(renderer) {
@@ -261,7 +277,7 @@ export class CloudVolume {
       ...lightingUniforms(), tCloudNoise: { value: null }, tCloudMap: { value: null }, uSliceZ: { value: new Float32Array(SLICES + 1) }, uDense: { value: 1 }, uStorm: { value: 0 }, uFair: { value: new THREE.Vector2(0, 300) }, uFieldK: { value: 1 },
       uCloud: { value: new THREE.Vector4(0.5, 0, 1 / 5200, 45000) }, uLayer: { value: new THREE.Vector4(1, 1, 26, 0) },
       uCamRight: { value: new THREE.Vector3() }, uCamUp: { value: new THREE.Vector3() }, uCamFwd: { value: new THREE.Vector3() },
-      uProj: { value: new THREE.Vector4() }, uCloudWind: { value: new THREE.Vector3() },
+      uProj: { value: new THREE.Vector4() }, uCloudSteer: SKY_UNIFORMS.uCloudSteer, uCloudRise: SKY_UNIFORMS.uCloudRise,
       tCloudTop: { value: null }, uTops: { value: new THREE.Vector3(1400, 1, 0) }, uBolt: { value: new THREE.Vector4() },
     };
     this.march = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, HAZE_UV: 1, SLICES, COLS, ROWS }, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: MARCH, depthTest: false, depthWrite: false });
@@ -293,7 +309,7 @@ export class CloudVolume {
     this.quad = new THREE.Mesh(tri, this.march); this.quad.frustumCulled = false;
     this.scene = new THREE.Scene(); this.scene.add(this.quad);
     this.camera = new THREE.Camera();
-    this.drift = new THREE.Vector3();
+    this.bolts = [];
   }
 
   setWorld(world) {
@@ -351,9 +367,21 @@ export class CloudVolume {
     this.base = (v.base ?? 1500) + this.lift;
   }
 
+  // Lightning inside the cloud: the uBolt setter (sky/skySystem.js calls it each frame with the
+  // flashes package D hands it; step 0: Earth's flash from its maps, or the field's stroke).
+  // list: up to BOLTS of { pos: [x, y, z] planet axes (m), power }; null or [] none. The march
+  // lights the cloud round each (step 0's march takes the first; B's takes both).
+  setBolts(list) {
+    this.bolts.length = 0;
+    if (list) for (const b of list) { if (this.bolts.length >= BOLTS) break; if (b && b.power > 0) this.bolts.push(b); }
+  }
+
   // Step 1: the small picture, before the main one is begun. post: the Post (for the view's
-  // size); rig: the camera rig; time (s); layer: the cloud shell; wind: the terrain's wind uniform.
-  render(post, rig, time, layer, wind, weather) {
+  // size); rig: the camera rig; time (s, the wall clock: storms ease in by it); layer: the cloud
+  // shell; wind: the terrain's wind uniform (not read: the clouds' motion is the steering's);
+  // weather: weather.js (storminess, the cloud tops near); sky: the sky system's frame (its
+  // clocks t and noiseT, the steering, the field, the cells: sky/skySystem.js; B's to read).
+  render(post, rig, time, layer, wind, weather, sky = null) {
     const r = this.renderer, v = this.def.volume, u = this.uniforms;
     // (the layer is as thick as the tallest cloud near the traveller: storms reach 13 km)
     // The base stands that high over the country, not over the sea: on a plateau 2 km up a
@@ -364,18 +392,19 @@ export class CloudVolume {
     const altNow = rig.pos.length() - this.radius;
     this.place(rig.pos);
     // A storm's cloud (weather.storminess, and the squalls that pass through it): the cloud
-    // is thicker and darker, it runs with the wind at the wind's own speed and turns over
-    // many times faster. In settled weather none of this. (Its base stays where it is: a
+    // is thicker and darker. In settled weather none of this. (Its base stays where it is: a
     // base that came down as the traveller flew into the storm was the sky moving because
-    // the traveller did.)
+    // the traveller did.) How it moves is the low layer's steering, as every cloud's:
+    // SKY_UNIFORMS.uCloudSteer, filled by sky/skySystem.js from the game clock.
     const storm = weather?.storminess || 0, squall = weather?.squall || 0;
     this.stormNow = this.stormNow == null || this.lastTime == null || time < this.lastTime ? storm : this.stormNow + (storm - this.stormNow) * Math.min(1, 1.2 * Math.min(0.2, time - this.lastTime));
     const sN = this.stormNow;
     const base = this.base, thick = Math.max(v.thick ?? 3000, Math.min(13000, (weather?.topNear || 0)) - base);
     this.thickNow = this.thickNow ? this.thickNow + (thick - this.thickNow) * 0.05 : thick;
     u.uTops.value.x = base; u.uTops.value.y = Math.min(1, (v.thick ?? 3000) / this.thickNow);
-    const fl = weather?.flash;
-    if (fl && !fl.ground) u.uBolt.value.set(fl.dir.x * fl.dist, fl.dir.y * fl.dist, fl.dir.z * fl.dist, weather.flashLight.z * 6); else u.uBolt.value.w = 0;
+    // (lightning inside the cloud: what the sky system handed over, setBolts; camera-relative here)
+    const bolt = this.bolts[0];
+    if (bolt && bolt.power > 0) u.uBolt.value.set(bolt.pos[0] - rig.pos.x, bolt.pos[1] - rig.pos.y, bolt.pos[2] - rig.pos.z, bolt.power); else u.uBolt.value.w = 0;
     // The target is as large as the view can ever be (six pictures of a quarter of the
     // canvas each way) and only the part the governor's resolution asks for is used, as
     // with the main picture: made anew at every resolution step it cost an allocation in
@@ -405,19 +434,12 @@ export class CloudVolume {
     u.uCloud.value.set(this.def.cover ?? 0.8, this.def.lon0 === -180 ? 0.5 : 0, 1 / (v.scale ?? 5200), this.reach);
     // (the governor's step count is for the whole ray: shared out among the slices)
     u.uLayer.value.set(this.radius + base, this.thickNow, Math.max(3, Math.round(this.steps / SLICES) + 1), time);
-    // the masses drift with the wind (slowly: this is not the weather moving, only the air)
-    // (added up frame by frame: the wind's gusts must not move the whole field by their share
-    // of all the time that has passed)
-    const w = wind?.value, dtw = this.lastTime == null || time < this.lastTime ? 0 : Math.min(0.2, time - this.lastTime);
+    // (The masses' motion is not worked out here any more: the noise is read in the low
+    // layer's own axes, M_low(t)^-1 p, a closed form of the game clock, so the clouds go with
+    // the wind at the day's speed whether or not this volume is drawn. Here they once drifted
+    // against the wind, added up only while drawn, with a 'change' term that slid them along
+    // the planet's axis at six times the wind.)
     this.lastTime = time;
-    // (in a storm: the wind's own speed, up to 55 m/s: the scud races overhead)
-    if (w) this.drift.addScaledVector(w, dtw * Math.min(20 + 35 * sN, w.w) / (v.scale ?? 5200));
-    // (... and they change as they go: the noise rises slowly through the layer's shape, so a
-    // mass is not the same mass a minute later; in a storm it boils: up to nine times as fast,
-    // and faster again while a squall passes)
-    this.drift.z += dtw * (v.change ?? 0.006) * (1 + 8 * sN + 4 * squall);
-    for (const c of ['x', 'y', 'z']) this.drift[c] -= Math.floor(this.drift[c]);          // (the noise repeats every unit)
-    u.uCloudWind.value.copy(this.drift);
     this.quad.material = this.march;
     r.setRenderTarget(this.target);
     r.setClearColor(0x000000, 0); r.clear(true, false, false);

@@ -242,6 +242,8 @@ node scripts/shadow-fine-rocks-test.mjs   # every rock whose shadow lies in the 
 node scripts/shadow-axes-test.mjs   # a still spot's shadow hardly moves when the light axes are renewed or the anchor resets (no browser)
 node scripts/terrain-bake-sun-test.mjs   # a patch built mid-walk is baked for the same Sun as its neighbours (no browser)
 npm run treeshadows   # the trees' shadows in motion, without a browser (about 40 s): flecks fixed to the ground through tile re-centres and axes renewals, no lurch at a rebuild, the shadow's mesh changing only where the picture does, the fine tile's count
+node scripts/sky-system-test.mjs [--break <fault>]   # the sky's step 0 (docs/briefs/sky-step0.md): the shared cloud rule's GLSL against its JS, the clouds going with the day's low wind and rising on the game clock, the guards that let a shader take two shared texts, the frame order and the interfaces the sky packages build on, the governor's and the benchmark's hooks, the debug switches (no browser, 10 s; --break puts one fault in to see its check fail)
+node scripts/sky-steer-test.mjs · node scripts/sky-format-test.mjs · node scripts/sky-cell-test.mjs   # each cloud layer's wind (closed form against a frame-by-frame sum), the weather field's snapshot format (JS and GLSL decoders), a storm cell's shape (JS against its GLSL) (no browser)
 npm run probe          # top-down shaded relief of the height function (no browser)
 node scripts/sky-table.mjs [--lat .. --lon ..]   # where the sky bodies are from a place over time (no browser)
 node scripts/profile-chunks.mjs --world moon   # chunk build times per level (no browser)
