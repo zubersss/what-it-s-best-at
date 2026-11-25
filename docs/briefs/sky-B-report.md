@@ -461,6 +461,18 @@ t=3 and t=9, with the heaps' bases at 1 250 m and their tops at 2 575.
    rounded cap: at 20 km the hull is 25 degrees wide and what is drawn is about 10. A
    cumulonimbus is about as wide as it is tall. Worth a look by whoever owns that file.
 
+## A lesson worth lifting into CLAUDE.md
+
+**`t=` in the game is hours from the SCENE's own moment; the weather's clock counts seconds from
+its epoch.** On Haven those differ by 521 hours. A Node scan that asks the producer for `t = H *
+3600` is asking about the first day after the epoch, not about the hour the game will show at
+`?t=H` — so a view chosen that way can have cloud in Node and none in the game. It cost two
+runs of the motion check, both of which then "passed" nothing and failed on a correlation of
+zero. The right conversion is
+`t_weather = (Date.parse(world.scene.dateUTC) - Date.parse(world.weather.epoch)) / 1000 + H * 3600`
+(`scratchpad/wx.mjs` does it), and the same trap is waiting for anyone who writes a stability
+case or a benchmark view from a Node scan.
+
 ## Open
 
 - **A's model** landed while this was being built, and the owning branch was merged in: the
