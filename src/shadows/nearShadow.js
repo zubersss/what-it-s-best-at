@@ -70,6 +70,11 @@ export class NearShadow {
     G.uShadowTile = { value: this.tiles.map(() => new THREE.Vector4(0, 0, 1, 1)) };
     // per tile: atlas origin and size (uv); the last entry holds the size of one texel (uv)
     G.uShadowAtlas = { value: [...this.tiles.map((t) => new THREE.Vector4(t.x / W, t.y / H, t.n / W, t.n / H)), new THREE.Vector4(1 / W, 1 / H, 0, 0)] };
+    // While a tile is drawn: what to add to a pixel of the atlas to count it on the tile's
+    // lattice on the ground (whole texels from the anchor, kept positive), the same texel of
+    // the ground whichever pixel of the atlas it falls on as the tile follows the traveller.
+    // The trees' shadow pass lets the Sun through a crown by this count (life/trees.js).
+    G.uShadowHashShift = { value: new THREE.Vector2() };
     this._lx = new THREE.Vector3(); this._ly = new THREE.Vector3(); this._lz = new THREE.Vector3(0, 0, 1); this._m = new THREE.Matrix4();
     this._nx = new THREE.Vector3(); this._nz = new THREE.Vector3();
     // How often the tiles are drawn (see render): 2 = the wide tile every fourth frame, the
@@ -244,6 +249,10 @@ export class NearShadow {
       r.setRenderTarget(tgt);
       if (!all) r.clear(true, true, false);
       this.drawn += t.n * t.n;
+      // (the pixel at the atlas's t.x + n/2 is the tile's middle, which is a whole number of
+      // texels from the anchor)
+      const texel = 2 * t.R / t.n, st = this.state[k];
+      G.uShadowHashShift.value.set(Math.round(st.ax / texel) - t.n / 2 - t.x + 65536, Math.round(st.ay / texel) - t.n / 2 - t.y + 65536);
       for (const c of this.casters) {
         const isFocus = !!c.mesh.userData.shadowFocus;
         if (!this._on(c) || isFocus !== (k === 2) || (!isFocus && !this._reaches(c, k))) continue;

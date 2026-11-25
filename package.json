@@ -23,7 +23,8 @@
     "lakes": "node scripts/lakes-check.mjs",
     "rocks": "node scripts/rock-field.mjs --check",
     "ui": "node scripts/ui-test.mjs",
-    "shadowturns": "node scripts/shadow-turns-test.mjs"
+    "shadowturns": "node scripts/shadow-turns-test.mjs",
+    "treeshadows": "node scripts/tree-shadow-test.mjs && node scripts/shadow-hash-steady-test.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"

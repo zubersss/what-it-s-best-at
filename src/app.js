@@ -298,10 +298,9 @@ export class App {
     this.farRocks.off = params.debug.includes('farrocksoff');      // ?debug=farrocksoff: none of them, for before/after pictures
     // Trees (worlds that have them): drawn with the ground, and they cast shadows
     this.trees = new Trees(world, this.terrain); this.trees.renderer = renderer;
-    for (const set of this.trees.sets.flat(2)) {
-      this.nearScene.add(set.mesh);
-      this.nearShadow.addCaster(set.cast, this.trees.depthMaterial, () => set.mesh.visible && (set.lod <= 1 || this.trees.shadowsFar));
-    }
+    for (const set of this.trees.sets.flat(2)) this.nearScene.add(set.mesh);
+    // (what casts their shadows, and when: life/trees.js, casters)
+    for (const c of this.trees.casters) this.nearShadow.addCaster(c.mesh, this.trees.depthMaterial, c.on, c.fineCount);
     // (the far forest: the same trees as those near by, thinned with distance, out to some
     // kilometres; they rise out of the forest the ground shader raises as a whole)
     this.farForest = new FarForest(this.trees, this.terrain); this.nearScene.add(this.farForest.mesh);
