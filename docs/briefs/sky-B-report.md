@@ -208,7 +208,10 @@ what the pictures were tuned with. The main session moves whichever the world sh
 | ROUND / ROUND_K | 0.18 / 0.22 | the light that comes round into a cloud from its own sides |
 | FLOOR_DECK | 0.3 | the least light a deck's base keeps |
 | CELL_DENSE | 1.45 | a storm cell is this much more solid than a heap |
+| CELL_FACE0 / CELL_FACE1 | 250 / 700 m | the chord over which a tower's own face turns from the Sun's tone to its shade |
 | CELL_LIT / CELL_DEEP | 300 / 2600 m | the chord toward the Sun over which a tower goes from white to dark |
+| CELL_SKY | 0.2 | the share of the sky's light that reaches the heart of a tower |
+| SCUD | 400 m | how far under a raining base ragged scud hangs |
 | CELL_FLOOR | 0.11 | the light its base keeps (the plan's 0.08–0.15) |
 | CELL_TINT | 0.62, 0.66, 1.0 | the slate-indigo its shade is pulled toward |
 | CELL_BOIL | 5.5 m/s | how fast its noise boils up through it (the plan's 3–8) |
