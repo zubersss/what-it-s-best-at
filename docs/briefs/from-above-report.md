@@ -34,6 +34,11 @@ Pictures `haven_ledge_<view>_after6.png` beside `_r6before.png` (before: 73d6ef1
   the canopy's shade. (The grey patches in `ledge_300_p60` that remain are meadow in the
   mountain's shadow: the painted shade, the air helper's.)
 
+- **Cost** (`ground-cost-run.sh`, the shader at 73d6ef1 against this head): the opening view
+  1 992 -> 1 979 ms of shading (99 %), in the north wood 1 857 -> 1 700 (92 %), 300 m up
+  1 372 -> 1 336 (97 %), 3 km up 809 -> 829 (102 %). Not raised. (The far trees' tone is a
+  few dozen operations per tree in the vertex shader.)
+
 ## Fifth round (2026-11-25): the steppe from the air, stronger
 
 The owning session: steppe_300_p60_after4 was still almost one ochre tone. Now (block 2):
