@@ -355,6 +355,21 @@ renderer. A's model paints the real cover.
    What the picture got right: the field's own weather fills the sky (the stub never did), the
    tower stands at its true size and distance with the anvil at its top, and the shells sit
    below and above the camera in the right order.
+6. **Not one lenticular was drawn** (`haven_ledge_M_lens.png`: a lens 11 km long and 9 km off,
+   two degrees above the camera, and an empty sky). Its alpha faded by how far the surface point
+   stood from the plate's middle — and seen edge on, which is how one stands under a range and
+   looks at them, EVERY pixel is that rim. Each pixel now takes the metres of cloud its own ray
+   crosses (the plate is a stretched ball: a quadratic), and the back faces are drawn so that a
+   ray always has one, from outside the plate or within it. Checked by hand: from below the ray
+   crosses its 286 m of depth, along its length 7 000 m, across the wind 2 600 m (520d0e2).
+7. **The anvil from 35 km** (`haven_ledge_M_storm35.png`) was the brightest thing in the frame —
+   a smooth cream disc on a stalk, at 209/180/152 against a sky at 71/94/131. Seen from below an
+   anvil is grey: 0.45 of its sunlit top became 0.32, and the cirrus strokes now thin and thicken
+   the sheet itself, so it is drawn-out ice rather than a plate (225dcd2). What stays, and is not
+   mine to fix: it is drawn on the high shell at 9 km, a sheet with no thickness, while the tower
+   whose top is at 10.3 km stands below it — so it reads as a disc floating over a stalk. For an
+   anvil that grows out of its tower, the flare belongs in the cell's own shape
+   (`weather/sky/cellShape.js`) and must be marched with it.
 5. **The cell's own outline** (`cellShape.js`, step 0's, not mine) draws a narrow chimney with a
    rounded cap: at 20 km the hull is 25 degrees wide and what is drawn is about 10. A
    cumulonimbus is about as wide as it is tall. Worth a look by whoever owns that file.
