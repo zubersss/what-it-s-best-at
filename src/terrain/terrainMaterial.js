@@ -922,6 +922,10 @@ void main() {
     // lake at 3 km was a paint-bucket fill of royal blue outside the picture's palette)
     vec3 deepC = mix(uSeaColor, dot(uSeaColor, vec3(0.3, 0.55, 0.15)) * vec3(0.8, 1.0, 1.2), 0.45 * waterAir);
     vec3 body = bed * through + deepC * (1.0 - through.b);
+    // (and from the air, one fade from pale green shallows to the slate middle: red, green and
+    // blue lost at three depths made a river of changing depth cycle through sand, yellow,
+    // green and lilac, "an oily rainbow ribbon" from 1 km)
+    if (waterAir > 0.0) { float tg = exp(-0.16 * waterDepth * 2.3); body = mix(body, mix(deepC, vec3(0.10, 0.20, 0.19), tg), waterAir); }
     albedo = mix(albedo, mix(body, vec3(0.75), foam), water);
     ao = mix(ao, 1.0, water);
   }
