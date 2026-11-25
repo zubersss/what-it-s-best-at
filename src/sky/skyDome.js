@@ -62,7 +62,10 @@ export function makeSkyDome() {
         // through a nimbostratus or a storm's anvil has been through kilometres of cloud. (Only
         // under a real deck: a heap passing overhead leaves the sky its colour.)
         if (uStorm.z > 0.55 && uSkyFade > 0.0) {
-          vec3 grey = skyRadianceLocal(vec3(0.0, 0.0, 1.0), uSunLocal, uMieG) * (0.75 * uStorm.x);
+          vec3 z = skyRadianceLocal(vec3(0.0, 0.0, 1.0), uSunLocal, uMieG);
+          // (grey, not a darker blue: what comes through a deck has been scattered by water, not
+          // by air, so nearly all of its colour is gone)
+          vec3 grey = mix(z, vec3(dot(z, vec3(0.2126, 0.7152, 0.0722))), 0.85) * (0.75 * uStorm.x);
           L = mix(L, grey, 0.72 * smoothstep(0.55, 0.95, uStorm.z));
         }
         // Rain between the eye and the sky hides it as it hides the land (rainVeil in the

@@ -110,8 +110,42 @@ Also green: `./scripts/build-check.sh`, `sky-steer-test`, `sky-format-test`, `sk
 
 ## Pictures (paths; before and after)
 
-*(filled in as they come; `docs/shots/sky/ledge_D-<view>-<after|before>.png`, taken from frozen
-builds of this branch and of step 0's head, 880 x 412 at dsf 1.25)*
+All in `docs/shots/sky/`, named `haven_ledge_D-<view>-<after|before>.png`, taken from frozen
+builds of this branch and of step 0's head (`f3a1eb7`), at the reference shape (880 x 412 at
+dsf 1.25). The camera of each was chosen with `scripts/storm-sites.mjs`, which says where the
+cells are, which stroke `?debug=flash` will hold, and where to stand in a shaft.
+
+| view | what it is | where |
+| --- | --- | --- |
+| `flash20` | a stroke 22 km off, from 900 m over the opening place | the ledge, `debug=flash&alt=2400&heading=28&pitch=4` |
+| `flash3` | a stroke 4.5 km off, from 500 m up outside the storm | `lat=-44.8299&lon=51.5153&alt=2000&heading=39&pitch=8` |
+| `anvil` | under a mature cell (storm 1.00, overcast 1.00, no rain): the dark, the grade, the grey sky | `lat=-55.5390&lon=54.1375&alt=1511&heading=145&pitch=8` |
+| `windy` | the opening view 11 h on: a mature cell 6 km off and its gust front at 22 m/s | the ledge, `t=11` |
+| `shaft` | the streaks under a cell's core, 60 m over the ground (16 mm/h) | `lat=-43.5971&lon=52.3652&alt=1523&heading=206&pitch=-4` |
+| `caps` | whitecaps: 14 m/s over the sea, the coast 7 km west | `t=8&lat=-41.0421&lon=65.3642&alt=60&heading=270&pitch=-6` |
+| `bow` | a rainbow after an evening storm | `t=-0.25&lat=-47.7279&lon=62.7564&alt=253&heading=235&pitch=8` |
+| `flash20floor`, `flash3floor` | the same two strokes at `?debug=floor` (every saving on) | as above |
+
+What they showed, and what it changed (each of these is in the branch):
+
+- **flash20**: the stroke 22 km off is a clear white channel; before, a one-pixel speck. But the
+  first take came out 1.9 stops darker than the before picture (exposure 1.10 against 4.13): the
+  stroke was owning the meter's highlight through the lit ground behind it. Fixed (commit
+  d9c0c35), and the re-take meters exactly as the before picture does.
+- **flash3**: the first camera (inside the shaft at 2 300 m) showed no stroke at all — the
+  nearest was 1 km away at a bearing 73 degrees off the view — and what fell there was snow, not
+  rain: on Haven the air is at 1.5 degrees by about 2 km up, so rain at the eye above that is
+  snow. The camera moved to 500 m over the ground outside the cell, where the nearest stroke is
+  4.5 km off at 9 degrees of elevation.
+- **anvil**: a clear pair. Before, a warm golden hillside under a bright blue sky (exposure
+  5.07); after, the same ground cool and dark under a near-black sky (exposure 3.37), because
+  everything lit through the shared chunk now stands in 0.04 of the Sun and 0.27 of the sky,
+  the meter gives back only part of it, and the grade has taken the warmth out. The sky's grey
+  does reach the dome (a probe of the running page reads `uStorm = [0.12, 1, 1, 1]`), but at a
+  mix of 0.72 a tenth of the clear sky still shows through, so it reads as a dark navy rather
+  than as a lid; the deck's light is desaturated now, and the mix is a number for the world file.
+  What this view cannot show is the cloud itself: package B draws the cells, and until it does
+  there is nothing overhead to be dark, so a storm's ground is lit by a clear sky.
 
 ## Numbers for src/worlds/haven.js
 

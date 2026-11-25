@@ -18,13 +18,13 @@
     "visited": 182,
     "wanted": 0,
     "lodScale": 1,
-    "avgBuildMs": 41,
-    "exposure": 1.104,
+    "avgBuildMs": 41.5,
+    "exposure": 4.074,
     "surface": [
       0.432,
-      0.0882
+      0.326
     ],
-    "frame": 97,
+    "frame": 96,
     "wait": "",
     "sky": "low wind 11.6 m/s toward 85 deg; field (storm): base 2658 m, top 2658 m, rain 0.0 mm/h, storm 0.00, overcast 0.00, wind 8.7 m/s, cell -1, 6 cells in reach"
   }
