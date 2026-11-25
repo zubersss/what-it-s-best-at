@@ -52,9 +52,12 @@ can move because the traveller moved.
    the cloud overhead is doing, written once a frame by `weather.js`).
    - *The meter* (`post.js`): its target is now the pure `meterTarget()`, and it makes up only
      part of what the cloud takes — `light^0.45`, where `light` is the share of the day's light
-     the cloud overhead leaves (a closed deck about 0.15, a storm's base 0.06). The darkness
-     never comes from the Sun at the traveller's feet, so a heap's shadow over the figure cannot
-     dim the frame. A stroke writes alpha 0 and cannot own it either.
+     the cloud overhead leaves (a closed deck about 0.15, a storm's base 0.12: 1.4 stops). The
+     darkness never comes from the Sun at the traveller's feet, so a heap's shadow over the
+     figure cannot dim the frame. A stroke writes alpha 0, which keeps it out of the meter's
+     `bright` and `cover`, but not out of its highlight (the texels a channel lies on take their
+     alpha from the lit ground behind it), so the highlight rule is left alone while a stroke is
+     alight; the frame's mean still counts the light a stroke throws on the land.
    - *The grade* (`render/look.js`): a storm grade blended in by the storminess at the traveller
      (saturation 0.82, contrast 1.12, a cool shade, a flat light; `?debug=nostorm` takes it off).
    - *The sky* (`sky/skyDome.js`): greyed under a closed deck only (nothing under 0.55 of
@@ -150,6 +153,15 @@ What they showed, and what it changed (each of these is in the branch):
   under a cell's core at 16 mm/h, heavy slanted streaks across the whole view, the distance lost
   in the rain's veil and the land a dark blue-grey. This is the owner's "actual rain coming out
   of them", at the eye.
+- **caps**: 60 m over the sea with the coast 7 km off. Before, a glassy sea with ripples (the
+  old fixed 6 m/s from the traveller's own east); after, at the day's 14.2 m/s, real waves with
+  whitecaps on their crests. The whitecaps' own thresholds in the ground shader were already
+  7 to 14 m/s: nothing there changed, only the wind that reaches them.
+- **bow**: a full double bow over the forest after the evening's rain, the sky a little brighter
+  inside the first one, with the moment, the place and the heading found by `storm-sites.mjs`
+  replaying the bow's own rule over the day.
+- **floor**: at `?debug=floor` (every saving the governor has, the bloom among them) both
+  strokes still read as white channels, near and 22 km off. That is what the glow ribbon is for.
 - **anvil**: a clear pair. Before, a warm golden hillside under a bright blue sky (exposure
   5.07); after, the same ground cool and dark under a near-black sky (exposure 3.37), because
   everything lit through the shared chunk now stands in 0.04 of the Sun and 0.27 of the sky,
@@ -211,8 +223,12 @@ the world file, with the engine's defaults as they stand:
 
 ## Open
 
-- The pictures of the ground-level views (streaks under a cell at the eye) are the slowest on this
-  machine and are the last to land.
+- The one picture of the brief's list not taken: the streaks at the eye standing on the ground
+  under a cell (`lat=-43.5971&lon=52.3652` with no `alt`). The same place 60 m up is in
+  (`shaft`), and a wooded ground-level view costs some twenty minutes on this machine.
+- The storm grade and the sky's grey are numbers in the engine for now (`STORM_GRADE` in
+  `render/look.js`, the 0.72 mix in `sky/skyDome.js`); the main session can move them into
+  `haven.js` as `look.storm`.
 - `weather.squall` is 0 on a made world (the cloud volume read it for its storm patches): the
   plan gives that to the cells' own stage, which is package B's. B's cells should not need it.
 - Earth keeps its own belts, storms, showers and strokes in `weather.js` until package A's
