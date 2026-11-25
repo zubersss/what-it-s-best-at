@@ -93,6 +93,13 @@ pixel hands back, so this is the count on real rays. First run, at an air view w
 it, it read 1 a step; the run at a storm is below. `--break read` puts one more read into the
 loop, to see the check fail.
 
+**6. The hand-over at 16 km, where the near slices give way to the two far ones** (in
+`cloud-motion.mjs`): a cell is looked at from 15.0, 15.8, 16.2 and 17.0 km and the cover and the
+light it shows are compared; the step across the hand-over must be no larger than the steps
+either side. Its first run drew the SAME picture four times (34 007 pixels, cover 0.845, light
+0.439, to four decimals) and passed: it moved rig.pos but not the camera the shaders read. It
+now moves that uniform and fails if the four pictures are identical.
+
 *(the rest as they run)*
 
 ## Pictures (paths; before and after)
