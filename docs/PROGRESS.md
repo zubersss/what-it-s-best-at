@@ -6,7 +6,30 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-### In hand: Haven rich and smooth (the owner's ninth phone results; read this first)
+### Sent 2026-11-25 07:10: the second link of the rich-and-smooth work (read this first)
+
+The owner, after the tenth results, asked for clouds and weather and said the shadows jump;
+earlier the same night: "Give me a playable link to test what's been added so far but
+continue working". This link carries the third round (trees T3, from above A4 and A5, the
+air from above, flowers F-DONE), the fixes of the shadows that jump and of the governor's
+hunting (`docs/briefs/shadows-governor-10.md`), and the sky's step 0 (the clouds drift
+downwind at the day's speed on the game clock; nothing else of the sky yet). Asked: a Haven
+benchmark in Sharp. Not seen in motion yet: the shadows' walk before and after (the trees
+helper's machine, "WALK"). The visual critic on the final pictures:
+`docs/briefs/haven-rich-critic-2.md` (the wood from 90 m to 1 km a bubbly texture and the
+blossom from above stickers; clouds at 3 km flat and dashed, the mountain a smooth dome;
+the tree close-ups badly framed; water from the air oily or paint-bucket blue; grass and
+flowers at eye height too even). **Next**: the sky's four packages (helpers running:
+`docs/briefs/sky-*.md`), and a fourth round on the critic's gaps 1, 3, 4 and the mountains.
+Sent as PR #36, main at 607ddca. Since: the fourteenth final picture and the final tests on
+5ab3400 (smoke, foot, shadowturns pass); **sky A merged** (fd6ce5c: the day's weather by
+rule; nothing on screen changes until B's clouds land, since the field is drawn only under
+`debug=sky:*` until then); the **fourth round** handed out (`docs/briefs/round4.md`: trees
+T4, from above A6, air L4, flowers F4). The sky helpers may edit `skySystem.js`, `haven.js`'s
+hours and add their own governor steps on their branches (marked "(sky X)", tests passing):
+waiting on this session cost them hours; clashes are resolved at the merge.
+
+### In hand: Haven rich and smooth (the owner's ninth phone results)
 
 *2026-11-24. The owner ran the Haven benchmark on build 6ac24ff and wrote: "this was a
 good job it looks a lot better but I need it perfect from a distance, specially when I'm
@@ -270,6 +293,20 @@ final pictures and tests of the combined delivery were handed to the air helper'
 (`docs/shots/final-11/`, "FINAL pushed"). Here: the wood walk before and after
 (`scratchpad/stab_wood.sh`, resumable) and the sky's step 0 (workflow `sky-step0`, resumed
 at its repair). Then the visual critic on final-11, the pull request and the checkpoint.
+
+**04:55**: the sky's step 0 is merged (9a2566e, with the ladder as `fix/governor10` set it;
+f3a1eb7: `sky-system-test` passes): the clouds now move downwind at the day's speed on
+the game clock; nothing else meant to change. Its shaders were never compiled in a browser
+before this: a check runs here (`scratchpad/chk30.log`: Haven, Earth, Mars, smoke with
+the phone's limits, foot, shadowturns), and sky B's first job (B0) is the same in motion
+on its machine. The four sky helpers, one package each from `docs/briefs/sky-*.md`:
+**A** the model `session_01XG1DZ3LJarZ4Xp1BZfo9EQ` (`ccr-aa39490a-sky-A-model`), **B** the
+clouds you see `session_01XG1DZ4dvGuRkSZEW9gJK62` (`-sky-B-clouds`), **C** the cloud shade
+map `session_01XG1DZ4vi4qHWPcoM4xEPp3` (`-sky-C-shade`), **D** rain, lightning, thunder,
+wind `session_01XG1DZ3taJ647KGr2i5bpe8` (`-sky-D-storm`). The owning session alone edits
+`app.js`, `skySystem.js`, `governor.js`, `benchmark.js`, the charter and haven's look
+numbers; it merges A first when it builds, then the others. The wood walk (shadows in
+motion, before and after) went to the trees helper's machine ("WALK pushed").
 
 ### The far view sent: trees, grass and rock as far as one can see
 
