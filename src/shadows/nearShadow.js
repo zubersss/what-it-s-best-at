@@ -15,6 +15,29 @@ import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { G } from '../render/globals.js';
 
+// How far (m) a camera-relative point lies from the middle of tile k across the Sun's rays,
+// as the tiles stand now (the larger of the two light-space axes: a tile is a square). A
+// thing r metres round falls inside tile k when this is under the tile's half-width plus r
+// (inShadowTile). This is the one rule for what a tile is given: _reaches below, and the
+// rocks that choose which of theirs the fine tile draws (rocks.js, farRocks.js). Straight
+// distance from the eye was the rocks' rule before, and with a low Sun the fine tile reaches
+// 17.2 m / sin(elevation) along the Sun: 51 m at 20 degrees, where they drew 30 and 45 m.
+export function shadowTileDistance(k, x, y, z) {
+  const m = G.uShadowMatrix.value.elements, u = G.uShadowTile.value[k];
+  return Math.max(Math.abs(m[0] * x + m[4] * y + m[8] * z - u.x), Math.abs(m[1] * x + m[5] * y + m[9] * z - u.y));
+}
+export function inShadowTile(k, x, y, z, r = 0) { return shadowTileDistance(k, x, y, z) < 1 / G.uShadowTile.value[k].z + r; }
+// How many of the first n instances of an instanced caster tile k must draw: up to the last
+// one that falls inside it. at: their middles (every stride numbers) from origin, which is
+// camera-relative (the mesh's position); scale: their three scales; lump: the shape's
+// largest radius before scaling.
+export function tileShare(k, n, at, stride, origin, scale, lump) {
+  for (let i = n - 1; i >= 0; i--) {
+    if (inShadowTile(k, at[i * stride] + origin.x, at[i * stride + 1] + origin.y, at[i * stride + 2] + origin.z, lump * Math.max(scale[i * 3], scale[i * 3 + 1], scale[i * 3 + 2]))) return i + 1;
+  }
+  return 0;
+}
+
 export class NearShadow {
   constructor(renderer) {
     this.renderer = renderer;
@@ -57,13 +80,37 @@ export class NearShadow {
     this.state = this.tiles.map(() => ({ ax: 0, ay: 0, az: 0, at: -1e9 }));      // where each tile was drawn last (light space, from the anchor) and when
     this._anchor = new THREE.Vector3(); this._rel = new THREE.Vector3(); this._anchored = false;
     this._c = new THREE.Vector3(); this._s = new THREE.Vector3();
+    // The lattice the anchor is moved on (_reanchor): the shortest length that is a whole
+    // number of texels of every tile (300/2048, 40/1024 and 7/1024 m: 4.1 m); or, should the
+    // tiles' sizes not allow one, of the wide tile alone.
+    const texels = this.tiles.map((t) => 2 * t.R / t.n);
+    this.lattice = texels[0];
+    for (let k = 1; k <= 4096; k++) { const m = k * texels[0]; if (texels.every((t) => Math.abs(m / t - Math.round(m / t)) < 1e-6)) { this.lattice = m; break; } }
+  }
+
+  // The tiles' texels lie on a lattice tied to the anchor, and the lattice turns about the
+  // anchor when the light's axes are taken anew (every ~7 s, as the Sun moves 0.03 degrees).
+  // With the anchor up to 300 m back, every shadow near the eye moved by up to a wide texel
+  // (15 cm) then; and the anchor put again at the eye itself after 300 m of travel put the
+  // lattice off its place on the ground by up to half a texel. Here the anchor is put on the
+  // lattice itself (with the axes it was drawn with): the point of it nearest the eye, at the
+  // eye's depth along the light. The lattice keeps its place on the ground, and it turns
+  // about a point within 3 m of the eye: a still shadow near the eye moves a millimetre or
+  // two when the axes are taken anew, one 60 m off 3 cm.
+  _reanchor(camPos) {
+    const A = this._anchor;
+    if (!this._anchored) { A.copy(camPos); this._anchored = true; return; }
+    const L = this.lattice, rel = this._rel.subVectors(camPos, A);
+    const a = Math.round(rel.dot(this._lx) / L) * L, b = Math.round(rel.dot(this._ly) / L) * L, c = rel.dot(this._lz);
+    A.addScaledVector(this._lx, a).addScaledVector(this._ly, b).addScaledVector(this._lz, c);
   }
 
   // isVisible: optional predicate (a mesh inside a hidden group still reports visible).
   // A mesh whose userData.shadowFocus is an Object3D (the character's parts) is drawn
   // only into the focus tile, which follows that object.
   // fineCount: optional function giving how many instances of an instanced caster can reach
-  // the fine tile (they must come first); the rest are left out of that pass.
+  // the fine tile (they must come first); the rest are left out of that pass. It is asked
+  // when the fine tile is drawn, with the tile in place: inShadowTile(1, ...) says what falls in it.
   addCaster(mesh, depthMaterial, isVisible = null, fineCount = null) { this.casters.push({ mesh, depthMaterial, isVisible, fineCount }); }
   removeCaster(mesh) { this.casters = this.casters.filter((c) => c.mesh !== mesh); }
   _on(c) { return c.mesh.visible && (!c.isVisible || c.isVisible()); }
@@ -79,8 +126,7 @@ export class NearShadow {
     c.mesh.updateMatrixWorld();                              // (its position was set this frame)
     const p = this._c.copy(b.center).applyMatrix4(c.mesh.matrixWorld);
     const r = b.radius * c.mesh.matrixWorld.getMaxScaleOnAxis();
-    const t = this.tiles[k], u = G.uShadowTile.value[k];
-    return Math.abs(p.dot(this._lx) - u.x) < t.R + r && Math.abs(p.dot(this._ly) - u.y) < t.R + r;
+    return inShadowTile(k, p.x, p.y, p.z, r);
   }
 
   // camPos: planet-fixed doubles; sunDir: unit; localUp: array.
@@ -116,13 +162,24 @@ export class NearShadow {
     // hundreds of metres per second as the Sun turns.
     const A = this._anchor;
     let all = !this._has || (every <= 1 && !this.hold);
-    if (!this._anchored || A.distanceToSquared(camPos) > 4 * this.radius * this.radius) { A.copy(camPos); this._anchored = true; all = true; }
-    // Light basis; lz = toward the Sun.
-    const nz = this._nz.copy(sunDir), nx = this._nx.set(localUp[0], localUp[1], localUp[2]).cross(nz);
-    if (nx.lengthSq() < 1e-8) nx.set(1, 0, 0).cross(nz);
-    nx.normalize();
-    // (0.03 degrees of Sun: 8 cm at the wide tile's edge; half a degree of turn about it, which changes nothing but the tiles' squares)
-    if (all || nz.dot(this._lz) < 0.99999986 || nx.dot(this._lx) < 0.99996) { all = true; this._lz.copy(nz); this._lx.copy(nx); this._ly.crossVectors(nz, nx); }
+    // Light basis; lz = toward the Sun, taken anew when the Sun has moved 0.03 degrees (8 cm
+    // at the wide tile's edge). The axes across it turn only as the Sun does: the old lx made
+    // square to the new Sun, by the least turn. (Made anew from the local up each time, as they
+    // were, they carried the turn of the up over the ground walked since, all at once: 0.06
+    // degrees after 280 m on Haven, twice the Sun's own; and they were made anew for that
+    // alone at half a degree, every 2.2 km there. Which way a tile's square lies on the
+    // ground makes no difference to what it covers.)
+    const nz = this._nz.copy(sunDir);
+    if (nz.dot(this._lz) < 0.99999986) all = true;
+    // (the axes are taken anew: the lattice turns about the eye; and after 300 m of travel: see _reanchor)
+    if (all || !this._anchored || A.distanceToSquared(camPos) > 4 * this.radius * this.radius) { this._reanchor(camPos); all = true; }
+    if (all) {
+      const nx = this._nx.copy(this._lx).addScaledVector(nz, -this._lx.dot(nz));
+      // (none yet, or the Sun has gone far round since: across it from the local up)
+      if (nx.lengthSq() < 0.25) { nx.set(localUp[0], localUp[1], localUp[2]).cross(nz); if (nx.lengthSq() < 1e-8) nx.set(1, 0, 0).cross(nz); }
+      nx.normalize();
+      this._lz.copy(nz); this._lx.copy(nx); this._ly.crossVectors(nz, nx);
+    }
     const lx = this._lx, ly = this._ly, lz = this._lz;
     // camera-relative position -> light-space metres (x, y) and depth 0..1 (what the
     // orthographic cameras below write: they all sit D metres toward the Sun)
