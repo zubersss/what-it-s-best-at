@@ -64,6 +64,7 @@ export const CLOUD_LOOK = Object.freeze({
   CELL_DEEP: 2600,          // ... and over which it is as dark as it gets
   CELL_FLOOR: 0.11,         // the light the base of a tower keeps (0.08..0.15 of the lit top)
   CELL_TINT: [0.62, 0.66, 1.0],   // the slate-indigo its shade is pulled toward
+  CELL_SKY: 0.28,           // the share of the sky's light that reaches the heart of a tower
   CELL_BOIL: 5.5,           // m/s: its noise boils upward in the cell's own moving frame (3..8)
   CELL_NOISE: 0.55,         // the share of the cell's own noise that eats at its hull
   ROUND: 0.18, ROUND_K: 0.22,   // the light that comes round into a cloud from its sides, and how deep it reaches
@@ -160,9 +161,11 @@ vec3 gCamQ, gDirQ, gSunQ;      // the ray in the low layer's own axes
 vec3 gDir;                     // the ray
 float gSigma;                  // how fast full cloud takes light out, per metre
 
-// the light of one step: lit (the share of the Sun), y (its height in its cloud), tint (its own colour)
-void cloudAdd(float d, float dt, float lit, float y, vec3 tint, float groundK, vec3 p, float t) {
-  vec3 light = gSunC * (lit * min(0.6 + 0.4 * gPhase, 2.5)) + (gSkyC * (0.45 + 0.55 * y) + gSkyDown * (1.0 - y) * 0.5 * groundK) * 0.55;
+// The light of one step: lit (the share of the Sun that reaches it), skyK (the share of the
+// sky's light, which a deep cloud shuts out as well), y (its height in its cloud), tint (its own
+// colour), groundK (the light from the ground below, halved under a storm).
+void cloudAdd(float d, float dt, float lit, float skyK, float y, vec3 tint, float groundK, vec3 p, float t) {
+  vec3 light = gSunC * (lit * min(0.6 + 0.4 * gPhase, 2.5)) + (gSkyC * (0.45 + 0.55 * y) + gSkyDown * (1.0 - y) * 0.5 * groundK) * (0.55 * skyK);
   light *= tint;
   for (int b = 0; b < BOLTS; b++) {
     if (uBolt[b].w <= 0.0) continue;
@@ -214,7 +217,9 @@ void cloudCellAdd(int k, vec3 p, float d, float dt, float t, float y) {
   lit *= mix(1.0, ${glf(K.CELL_FLOOR)} / ${glf(K.SHADE)}, smoothstep(${glf(K.CELL_LIT)}, ${glf(K.CELL_DEEP)}, chord));
   float dark = 1.0 - lit;
   vec3 tint = mix(vec3(1.0), vec3(${glf(K.CELL_TINT[0])}, ${glf(K.CELL_TINT[1])}, ${glf(K.CELL_TINT[2])}), dark * 0.9);
-  cloudAdd(d * ${glf(K.CELL_DENSE)}, dt, lit, y, tint, ${glf(K.GROUND_HALF)}, p, t);
+  // (the sky's light is shut out of a tower as the Sun's is: a storm's base is slate, not a grey
+  // that the sky keeps lighting)
+  cloudAdd(d * ${glf(K.CELL_DENSE)}, dt, lit, mix(1.0, ${glf(K.CELL_SKY)}, dark), y, tint, ${glf(K.GROUND_HALF)}, p, t);
 }
 
 // ---- the rain below the base --------------------------------------------------------------------
@@ -329,15 +334,17 @@ void cloudStep(float t, float dt, bool far) {
   // it: that is what makes a deck grey and a rain deck nearly slate.
   above *= max(smoothstep(0.74, 0.97, cover), share);
   // (two tones with a clean line between them, the shade a light one: a poster's cloud)
-  float lit = mix(${glf(K.SHADE)}, ${glf(K.LIT)}, smoothstep(0.4, 0.56, sunward));
-  lit *= clamp(exp(-above) + ${glf(K.ROUND)} * exp(-${glf(K.ROUND_K)} * above), mix(1.0, ${glf(K.FLOOR_DECK)}, share), 1.0);
+  float through = clamp(exp(-above) + ${glf(K.ROUND)} * exp(-${glf(K.ROUND_K)} * above), mix(1.0, ${glf(K.FLOOR_DECK)}, share), 1.0);
+  float lit = mix(${glf(K.SHADE)}, ${glf(K.LIT)}, smoothstep(0.4, 0.56, sunward)) * through;
+  // (a sheet shuts the sky's light out as well as the Sun's; among heaps it comes round between them)
+  float skyK = mix(1.0, through, share);
   // (no field: the storm patches the world's weather gave, as before)
   vec3 tint = vec3(1.0);
   if (uSkyLow.w < 0.5 && uStorm > 0.02 && y < 0.6) {
     float sm = skyTex3(tCloudNoise, marchPattern(gCamQ, gDirQ, t) * 1.9 + 0.23).g;
     tint *= mix(1.0, 0.36 + 1.25 * sm, uStorm * (1.0 - y / 0.6));
   }
-  cloudAdd(d, dt, lit * wisp, y, tint, 1.0, p, t);
+  cloudAdd(d, dt, lit * wisp, skyK, y, tint, 1.0, p, t);
 }
 
 void main() {

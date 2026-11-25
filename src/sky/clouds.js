@@ -73,20 +73,23 @@ void main() {
   vec3 ux = dFdx(up), uy = dFdy(up);
   float k = 0.15915494 / max(dot(up.xy, up.xy), 1e-5);
   vec2 gx = vec2((up.x * ux.y - up.y * ux.x) * k, dFdx(uv.y)), gy = vec2((up.x * uy.y - up.y * uy.x) * k, dFdy(uv.y));
-  float m = textureGrad(tCloudMap, uv, gx, gy).r;
-  // finer shapes than the map holds: three sizes of puff, fading out where they would be
-  // smaller than a pixel
+  bool field = uSkyLow.w > 0.5;
   float px = length(ux) + length(uy);                     // radians per pixel
-  vec3 q = up * 900.0;
-  float d = 0.0, a = 0.5, f = 1.0;
-  // (the painted look: a cloud is a few round masses with a clean edge, not a fine froth)
-  int octs = uPaint.x > 0.5 ? 2 : 4;
-  for (int i = 0; i < octs; i++) { d += a * vnoise(q * f) * (1.0 - smoothstep(0.15, 0.6, px * 900.0 * f)); a *= 0.55; f *= 2.7; }
-  if (uPaint.x > 0.5) d *= 1.18;
-  // (the detail carves the map's cloud into pieces: thin cloud breaks up, thick cloud stays)
-  float dens = m * (0.25 + 1.7 * d) + (d - 0.45) * 0.2 * smoothstep(0.1, 0.4, m);
-  float lo = 1.0 - uCloud.x;
-  float cover = smoothstep(lo - 0.08, lo + 0.34, dens);
+  float m = 0.0, lo = 1.0 - uCloud.x, cover = 0.0;
+  if (!field) {
+    // (no field: the day's map, and finer shapes than it holds — three sizes of puff, fading out
+    // where they would be smaller than a pixel)
+    m = textureGrad(tCloudMap, uv, gx, gy).r;
+    vec3 q = up * 900.0;
+    float d = 0.0, a = 0.5, f = 1.0;
+    // (the painted look: a cloud is a few round masses with a clean edge, not a fine froth)
+    int octs = uPaint.x > 0.5 ? 2 : 4;
+    for (int i = 0; i < octs; i++) { d += a * vnoise(q * f) * (1.0 - smoothstep(0.15, 0.6, px * 900.0 * f)); a *= 0.55; f *= 2.7; }
+    if (uPaint.x > 0.5) d *= 1.18;
+    // (the detail carves the map's cloud into pieces: thin cloud breaks up, thick cloud stays)
+    float dens = m * (0.25 + 1.7 * d) + (d - 0.45) * 0.2 * smoothstep(0.1, 0.4, m);
+    cover = smoothstep(lo - 0.08, lo + 0.34, dens);
+  }
   // (how far off this is: 1 where a cloud's heaps are smaller than a pixel. Whether or not
   // there is a volume near the traveller: with the governor's last saving on there is
   // none, and from space the Earth then had no cloud at all.)
@@ -97,7 +100,9 @@ void main() {
   // (heaps, some kilometres wide, stay heaps until a pixel is a kilometre and a half across)
   float far = smoothstep(1500.0, 5000.0, 2.0 * min(length(ux), length(uy)) * uCloud.y);
   float relief = 1.0;            // the Sun on a heap's own shape: over 1 on its sunward side, under 1 in its own shade
-  if (uSkyLow.w > 0.5) {
+  float cFar = 0.0;              // what the layer is from so far that its heaps are smaller than a pixel
+  float deck = 0.0;              // how much of the cover here is a sheet (a deck's underside is grey)
+  if (field) {
     // The field's own cloud, carved by the shared forms at the height where the masses are
     // widest: the same heaps and decks the volume marches near the traveller, so a cloud keeps
     // its place and its outline when one comes near and the volume takes it over.
@@ -109,6 +114,7 @@ void main() {
     vec2 n = skyLowNoise2(tCloudNoise, q, rr, uCloudRise.x);
     float dv = skyEdgeEat(max(skyHeapBody(n.x, L.x), L.y > 0.0 ? smoothstep(0.02, 0.3, L.y) : 0.0), n.y * fine);
     float c = max(L.x, L.y);
+    cFar = c; deck = L.y;
     cover = mix(smoothstep(0.0, 0.45, dv) * 0.75, c * 0.5, far);
     // A heap seen from above has a lit side and a side in its own shade: the same cloud a few
     // hundred metres toward the Sun says which this is (as the volume does near the traveller).
@@ -147,7 +153,11 @@ void main() {
   // the globe seen from another world wears it (sky/bodies.js): all of its cloud, thin and
   // thick, every mass lit on its sunward side and in its own shade on the other. (It was the
   // heaps' mean cover: from orbit the Earth had hardly a cloud, and what it had was flat.)
-  if (far > 0.0) {
+  if (far > 0.0 && field) {
+    // (from far off a field of heaps is a white veil as thick as the share of sky it covers: the
+    // same cover they are cut from, so no cloud appears from far that is not there from near)
+    alpha = mix(alpha, smoothstep(0.02, 0.8, cFar), far);
+  } else if (far > 0.0) {
     vec3 ps = normalize(up + uSunDir * 0.0035);
     float m1 = textureGrad(tCloudMap, vec2(atan(ps.y, ps.x) * 0.15915494 + uCloud.z, acos(clamp(ps.z, -1.0, 1.0)) * 0.31830989), gx, gy).r;
     // (thin cloud shows only from very far, where the whole globe is in view: nearer, the
@@ -170,7 +180,10 @@ void main() {
   // hardly lighter than the desert under it. By the line of sight, not by where the
   // traveller is: on the way through the layer the clouds far off are seen edge on.)
   fwd = mix(fwd, 0.45 + 0.8 * max(mu0, 0.0), smoothstep(0.0, 0.3, dot(V, up)));
-  float under = uCloud.w > 0.5 ? mix(1.0, uVol.x > 0.0 ? 0.6 : 0.42, cover) : 1.0;
+  // (from below: a heap's underside is light, a deck's is grey and a rain deck's nearly slate —
+  // the same tones the volume gives them near the traveller, so the hand-over at its reach shows
+  // no step)
+  float under = uCloud.w > 0.5 ? mix(1.0, mix(uVol.x > 0.0 ? 0.6 : 0.42, ${glf(0.32)}, smoothstep(0.1, 0.6, deck)), cover) : 1.0;
   vec3 sun = directSun(planetPos) * smoothstep(-0.06, 0.08, mu0) * fwd * under;
   // (matched to the volume near the traveller, whose sunlit faces are white)
   // (... and as white without the volume, in the painted look: with the governor's last
