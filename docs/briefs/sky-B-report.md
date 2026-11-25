@@ -245,6 +245,21 @@ rain still pays for two cells however many storms stand in the line of sight. Bo
 seen to fail with the old loops put back ("FAIL the march looks for the shafts over every live
 cell", "FAIL and the rain under it is the shafts' own cells, at most two").
 
+How much this was worth is measurable without a browser, on the very views the cell pictures are
+taken at (`node scripts/rain-pixels.mjs`, seconds: the world's own model for the cells, the same
+chords the shaders use):
+
+| the view | cloud | rain | rain on a ray that crosses no cloud | rain in a slice with no cloud of its own |
+| --- | --- | --- | --- | --- |
+| the cell from 9 km (`_M_cell9`) | 21.3 % | 9.0 % | 7.3 % | 8.6 % |
+| the cell's portrait (`_M_cellsun`) | 15.3 % | 8.1 % | 7.4 % | 7.8 % |
+| the storm 20 km off (`_M_storm20`) | 5.7 % | 3.0 % | 2.8 % | 2.8 % |
+
+The last column is the share of the picture whose rain was drawn wrongly or not at all before
+today: **of the nine per cent of that view which stands in rain, eight and a half were missing or
+cut off in mid-air**. `haven_ledge_Q_cell9.png` (the owning head) is the "before" and
+`haven_ledge_M_cell9.png` the "after".
+
 It stood a second time one level up, in the march itself: a slice of the distance from the eye
 was given up (`fragColor = 0; return`) when no cloud of its own crossed it, and the rain was
 worked out after that test. So the rain showed only in the slices where the ray ALSO crossed the
@@ -364,6 +379,7 @@ fault), `B-noclouds`, `B-from-30km`, `B-globe`, `B-ledge-afternoon`, `B-mist`, `
 | --- | --- |
 | `scripts/lens-list-test.mjs` | the lenses' list: either shape the field hands over (the model's objects, a snapshot's LENS records), the plates each lens becomes and where they stand, the nearest taken and the ones over the horizon dropped, `noclouds` and a faded lens drawing nothing |
 | `scripts/cloud-volume-test.mjs` | the volume's decisions: drawn or not, and the storms still marched when the governor has switched the volume off — on the very first frame; and the rain shafts, which a ray crosses without crossing the cloud (check 8) |
+| `scripts/rain-pixels.mjs` | how much of a view the rain stands in, and how much of it a shader that finds the storms by their body alone must throw away (the model's own cells; a tool, not a test — it fails only if the hour has no raining cell) |
 | `scripts/fog-sheet-test.mjs` | the fog's lattice is the world's: nothing of it moves between two anchors, two travellers in one cell are given the same sheet, and it is drawn only where there is fog (check 9) |
 | `scripts/cloud-motion.mjs` (new, the brief's) | the motion, the anchoring, the uniform audit and the hand-over at 16 km, in one browser run |
 
