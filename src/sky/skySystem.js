@@ -84,7 +84,7 @@
 //                               field.anvils?(t); tWxA/B/C and uSkyLow by the field
 //
 // THE DEBUG SWITCHES (?debug=..., skyDebug)
-//   sky:<preset>   the field's producer is the stub with that preset (fair, fog, storm, front)
+//   sky:<preset>   the field's producer is the stub with that preset (fair, fog, storm, front), or the world's model (sky:model)
 //   storm          a mature storm cell that stands still 8 km north-east of where the view opens
 //   flash          a stroke of lightning held at its brightest (on Earth from its maps, as before;
 //                  on a world with a made weather, from the field's nearest cell: the stub's storm)
@@ -144,8 +144,9 @@ export function skyDebug(str = '') {
   const sky = toks.find((t) => t.startsWith('sky:'));
   const preset = sky ? sky.slice(4) : null;
   return {
-    preset: preset && STUB_PRESETS.includes(preset) ? preset : null,
-    badPreset: preset && !STUB_PRESETS.includes(preset) ? preset : null,
+    // ('model': the world's own weather model, package A, before the field is always on)
+    preset: preset && (STUB_PRESETS.includes(preset) || preset === 'model') ? preset : null,
+    badPreset: preset && !STUB_PRESETS.includes(preset) && preset !== 'model' ? preset : null,
     storm: toks.includes('storm'),
     flash: String(str).includes('flash'),
     noClouds: toks.includes('noclouds'),

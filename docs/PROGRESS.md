@@ -6,7 +6,30 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
-### In hand: Haven rich and smooth (the owner's ninth phone results; read this first)
+### Sent 2026-11-25 07:10: the second link of the rich-and-smooth work (read this first)
+
+The owner, after the tenth results, asked for clouds and weather and said the shadows jump;
+earlier the same night: "Give me a playable link to test what's been added so far but
+continue working". This link carries the third round (trees T3, from above A4 and A5, the
+air from above, flowers F-DONE), the fixes of the shadows that jump and of the governor's
+hunting (`docs/briefs/shadows-governor-10.md`), and the sky's step 0 (the clouds drift
+downwind at the day's speed on the game clock; nothing else of the sky yet). Asked: a Haven
+benchmark in Sharp. Not seen in motion yet: the shadows' walk before and after (the trees
+helper's machine, "WALK"). The visual critic on the final pictures:
+`docs/briefs/haven-rich-critic-2.md` (the wood from 90 m to 1 km a bubbly texture and the
+blossom from above stickers; clouds at 3 km flat and dashed, the mountain a smooth dome;
+the tree close-ups badly framed; water from the air oily or paint-bucket blue; grass and
+flowers at eye height too even). **Next**: the sky's four packages (helpers running:
+`docs/briefs/sky-*.md`), and a fourth round on the critic's gaps 1, 3, 4 and the mountains.
+Sent as PR #36, main at 607ddca. Since: the fourteenth final picture and the final tests on
+5ab3400 (smoke, foot, shadowturns pass); **sky A merged** (fd6ce5c: the day's weather by
+rule; nothing on screen changes until B's clouds land, since the field is drawn only under
+`debug=sky:*` until then); the **fourth round** handed out (`docs/briefs/round4.md`: trees
+T4, from above A6, air L4, flowers F4). The sky helpers may edit `skySystem.js`, `haven.js`'s
+hours and add their own governor steps on their branches (marked "(sky X)", tests passing):
+waiting on this session cost them hours; clashes are resolved at the merge.
+
+### In hand: Haven rich and smooth (the owner's ninth phone results)
 
 *2026-11-24. The owner ran the Haven benchmark on build 6ac24ff and wrote: "this was a
 good job it looks a lot better but I need it perfect from a distance, specially when I'm
