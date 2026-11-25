@@ -458,6 +458,18 @@ renderer. A's model paints the real cover.
   enters the layer — but `gl_FragDepth` in that pass costs every pixel of six full-view sheets
   its early depth test, and laying is already 62 ms of the headless work count here. It wants a
   phone's cost table before it is done, not a guess.
+- **The field's lists cost a millisecond a frame, and they are not mine.** The model keeps a
+  weather moment per exact `t`, and the game's `t` moves on every frame, so every call works a
+  whole moment out: measured in Node, `cells(t)` 1.15 ms, `lenses(t)` 3.14 ms, and 0.014 ms for
+  a `t` already seen. `skySystem.js` asks `cells(this.t)` and `anvils(this.t)` once a frame.
+  Quantising the `t` those lists are asked for (a moment every second or two of game time) would
+  give it all back. B's own lens list is already read on a cadence of ten seconds.
+- **Haven's clouds from 30 km** (`haven_ledge_M_up30.png`) read as white flecks scattered over the
+  land: at that height a pixel is 760 m across and a heap is one to three pixels, while the
+  layer's veil — the mean cover that takes over when the heaps are smaller than a pixel — only
+  begins at 1 500 m a pixel. It is not wrong (a cumulus field from an aeroplane looks like that),
+  but if it reads as confetti on the phone, the veil should begin at about a third of the
+  volume's own scale instead.
 - **The rise's fades** cost one more read of the masses and one of the look toward the Sun (16 %
   of the game clock). The alternative — reading the look toward the Sun at one phase — makes the
   two tones speckle while the phases blend, so it was not taken.
