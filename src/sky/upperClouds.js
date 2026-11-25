@@ -76,11 +76,23 @@ void main() {
   vec4 B = wxRead(tWxB, up);
   float cover = high ? wxHigh(B) : wxMid(B);
   if (cover < 0.015) discard;
+  // Its own anvil, worked out first because the cut below must not take it: an anvil is
+  // thickest exactly over the tower that made it. (It was cut there, so every anvil had a hole
+  // in it where its own tower passed through, and the sheet floated round the stalk.)
+  float an = 0.0;
+  if (high) {
+    for (int k2 = 0; k2 < ANVIL_MAX; k2++) {
+      if (k2 >= uAnvilCount) break;
+      an = max(an, anvilCover(k2, up));
+    }
+  }
   // A tower stands through both layers: where one does, this shell is not drawn (the march
   // draws the tower itself, with its own depth).
-  for (int k = 0; k < CELL_MAX; k++) {
-    if (k >= uCellCount) break;
-    if (cellDensity(k, planetPos) > 0.08) discard;
+  if (an < 0.05) {
+    for (int k = 0; k < CELL_MAX; k++) {
+      if (k >= uCellCount) break;
+      if (cellDensity(k, planetPos) > 0.08) discard;
+    }
   }
   float px = length(dFdx(up)) + length(dFdy(up));          // radians a pixel
   float alpha, shade = 1.0;
@@ -98,12 +110,7 @@ void main() {
     if (uUpper.w < 0.5) n = 0.75 * n + 0.25 * upperNoise(qs * (k * 2.7));
     float streak = smoothstep(0.42, 0.78, n * (0.6 + 0.6 * cover));
     alpha = min(${glf(U.HIGH_ALPHA)}, streak * cover * 1.6);
-    // an anvil: the same height, but solid, and dark underneath
-    float an = 0.0;
-    for (int k2 = 0; k2 < ANVIL_MAX; k2++) {
-      if (k2 >= uAnvilCount) break;
-      an = max(an, anvilCover(k2, up));
-    }
+    // an anvil: the same height, but solid, and dark underneath (worked out above)
     if (an > 0.0) {
       // (its edge is torn and fibrous, not a cut line: the same strokes the cirrus is made of
       // move the line where it ends, so it ends in streaks drawn out downwind. And its sheet is
