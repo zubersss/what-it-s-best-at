@@ -696,6 +696,11 @@ void main() {
       // (seen at a low angle a dome is a flat oval, and a wood of them one dark oval stamped
       // over and over, "like bubble wrap": the single crowns give way to the stands there)
       kc *= smoothstep(0.12, 0.45, dot(V, up));
+      // (and within the far trees' reach the trees are the crowns: the canopy under them is
+      // the dark between them, its own domes only a hint, or each tree stood on an oval of
+      // its own, the same oval over and over)
+      float underTrees = mix(0.3, 1.0, smoothstep(3000.0, 5600.0, dist));
+      kc *= underTrees; kg *= underTrees;
       if (kg > 0.0) {
         cg = crowns(vDetailUv + 0.37, 3.0);
         N = normalize(N + (uTanU * cg.x + uTanV * cg.y) * (farCrownTilt(true) * kg));
@@ -814,7 +819,11 @@ void main() {
       vec3 q = planetPos / 18.0 + wd * (dot(planetPos, wd) * (1.0 / 60.0 - 1.0 / 18.0));
       vec3 fq = fwidth(planetPos);
       float kw = 1.0 - smoothstep(4.0, 9.0, max(fq.x, max(fq.y, fq.z)));
-      if (kw > 0.0) albedo *= 1.0 + 0.16 * kw * grassy * (flNoise(q) + 0.5 * flNoise(q * 2.3 + 7.1) - 0.75);
+      // (the swaths: the wind's side of the grass paler and drier, its lee greener and darker)
+      if (kw > 0.0) { float sw = flNoise(q) + 0.5 * flNoise(q * 2.3 + 7.1) - 0.75; albedo *= 1.0 + kw * grassy * sw * vec3(0.42, 0.34, 0.12); }
+      // (and broad stretches, some hundreds of metres, greener or drier gold)
+      float broad = flNoise(planetPos / 230.0 + vec3(3.7, 1.3, 8.1)) - 0.5;
+      albedo *= mix(vec3(1.0), broad > 0.0 ? vec3(1.12, 1.03, 0.78) : vec3(0.82, 1.02, 0.86), grassy * min(1.0, abs(broad) * 2.6));
     }
   }
 
