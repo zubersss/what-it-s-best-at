@@ -145,6 +145,11 @@ What they showed, and what it changed (each of these is in the branch):
   The pair is the plainest of all: before, a calm bright meadow at dusk with every blade
   upright; after, the same place a stop darker and bluer, the grass laid over and leaves
   streaming through the air.
+- **shaft**: the sharpest pair of the set. Before, a bright green forest under a sunny sky with
+  fair-weather heaps and the mountains clear on the skyline; after, 60 m over the same forest
+  under a cell's core at 16 mm/h, heavy slanted streaks across the whole view, the distance lost
+  in the rain's veil and the land a dark blue-grey. This is the owner's "actual rain coming out
+  of them", at the eye.
 - **anvil**: a clear pair. Before, a warm golden hillside under a bright blue sky (exposure
   5.07); after, the same ground cool and dark under a near-black sky (exposure 3.37), because
   everything lit through the shared chunk now stands in 0.04 of the Sun and 0.27 of the sky,
