@@ -26,18 +26,34 @@ export const LENS_LOOK = Object.freeze({
   EDGE: 0.22,               // how much of the lens is the soft rim
 });
 const L = LENS_LOOK;
-const NO_LENS = new Float64Array(0);
+const NO_LENS = [];
 
-// The lens records now: the field's own call where there is one, else the snapshot it is
-// blending (its pair's first, or the nearest it holds).
-function lensRecords(field, t) {
-  if (typeof field.lenses === 'function') return field.lenses(t) || NO_LENS;
+// The lenses standing now, each { x, y, z, base, length, width, heading, plates, strength }:
+// the field's own call where there is one (the model hands back objects), else the LENS records
+// of the snapshot it is blending (its pair's first, or the nearest it holds).
+const fromRecords = (rec) => {
+  const out = [];
+  for (let o = 0; o + LENS.STRIDE <= rec.length; o += LENS.STRIDE) {
+    out.push({
+      x: rec[o + LENS.X], y: rec[o + LENS.Y], z: rec[o + LENS.Z], base: rec[o + LENS.BASE],
+      length: rec[o + LENS.LENGTH], width: rec[o + LENS.WIDTH], heading: rec[o + LENS.HEADING],
+      plates: rec[o + LENS.PLATES], strength: rec[o + LENS.STRENGTH],
+    });
+  }
+  return out;
+};
+function lensList(field, t) {
+  if (typeof field.lenses === 'function') {
+    const v = field.lenses(t);
+    if (!v) return NO_LENS;
+    return ArrayBuffer.isView(v) ? fromRecords(v) : v;
+  }
   const snaps = field.snaps;
   if (!snaps || !snaps.size) return NO_LENS;
   const want = field.pair ? field.pair[0] : t;
   let best = null, bd = Infinity;
   for (const [k, s] of snaps) { const d = Math.abs(k - want); if (s && s.lenses && d < bd) { bd = d; best = s; } }
-  return best ? best.lenses : NO_LENS;
+  return best ? fromRecords(best.lenses) : NO_LENS;
 }
 const glf = (x) => { const s = String(x); return /[.eE]/.test(s) ? s : s + '.0'; };
 
@@ -100,12 +116,13 @@ export class Lenticulars {
     const sky = c.sky, list = this.list;
     list.length = 0;
     if (!sky || sky.noClouds || this.off || !sky.field?.on) return;
-    const rec = lensRecords(sky.field, sky.t), R = sky.R, cam = c.rig.pos;
-    for (let o = 0; o + LENS.STRIDE <= rec.length && list.length < L.MAX; o += LENS.STRIDE) {
-      const strength = rec[o + LENS.STRENGTH];
+    const all = lensList(sky.field, sky.t), R = sky.R, cam = c.rig.pos;
+    for (const L0 of all) {
+      if (list.length >= L.MAX) break;
+      const strength = L0.strength;
       if (!(strength > 0.02)) continue;
-      const x = rec[o + LENS.X], y = rec[o + LENS.Y], z = rec[o + LENS.Z], base = rec[o + LENS.BASE];
-      const len = rec[o + LENS.LENGTH], wid = rec[o + LENS.WIDTH], head = rec[o + LENS.HEADING], plates = Math.max(1, Math.min(3, Math.round(rec[o + LENS.PLATES])));
+      const x = L0.x, y = L0.y, z = L0.z, base = L0.base;
+      const len = L0.length, wid = L0.width, head = L0.heading, plates = Math.max(1, Math.min(3, Math.round(L0.plates)));
       const r = R + base, up = [x, y, z];
       // its own axes: north and east at its place, turned to the heading the wind blows toward
       let east = [-y, x, 0];
