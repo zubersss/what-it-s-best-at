@@ -260,6 +260,13 @@ today: **of the nine per cent of that view which stands in rain, eight and a hal
 cut off in mid-air**. `haven_ledge_Q_cell9.png` (the owning head) is the "before" and
 `haven_ledge_M_cell9.png` the "after".
 
+One thing to watch in those pictures: the rain's own numbers (`SHAFT_K` 0.00014 a metre at
+rate^0.85) were tuned while most of a shaft was being thrown away. With the whole of it drawn, a
+39 mm/h core two kilometres deep comes to an optical depth of 6.3 — opaque, which is what a heavy
+shaft at nine kilometres really looks like (one cannot see a kilometre into 39 mm/h of rain), and
+a 5 mm/h veil a kilometre deep is still only 0.14. So the numbers are left as they are; if the
+pictures read as a grey wall rather than a curtain, `SHAFT_K` is the number to lower.
+
 It stood a second time one level up, in the march itself: a slice of the distance from the eye
 was given up (`fragColor = 0; return`) when no cloud of its own crossed it, and the rain was
 worked out after that test. So the rain showed only in the slices where the ray ALSO crossed the
