@@ -271,6 +271,20 @@ final pictures and tests of the combined delivery were handed to the air helper'
 (`scratchpad/stab_wood.sh`, resumable) and the sky's step 0 (workflow `sky-step0`, resumed
 at its repair). Then the visual critic on final-11, the pull request and the checkpoint.
 
+**04:55**: the sky's step 0 is merged (9a2566e, with the ladder as `fix/governor10` set it;
+f3a1eb7: `sky-system-test` passes): the clouds now move downwind at the day's speed on
+the game clock; nothing else meant to change. Its shaders were never compiled in a browser
+before this: a check runs here (`scratchpad/chk30.log`: Haven, Earth, Mars, smoke with
+the phone's limits, foot, shadowturns), and sky B's first job (B0) is the same in motion
+on its machine. The four sky helpers, one package each from `docs/briefs/sky-*.md`:
+**A** the model `session_01XG1DZ3LJarZ4Xp1BZfo9EQ` (`ccr-aa39490a-sky-A-model`), **B** the
+clouds you see `session_01XG1DZ4dvGuRkSZEW9gJK62` (`-sky-B-clouds`), **C** the cloud shade
+map `session_01XG1DZ4vi4qHWPcoM4xEPp3` (`-sky-C-shade`), **D** rain, lightning, thunder,
+wind `session_01XG1DZ3taJ647KGr2i5bpe8` (`-sky-D-storm`). The owning session alone edits
+`app.js`, `skySystem.js`, `governor.js`, `benchmark.js`, the charter and haven's look
+numbers; it merges A first when it builds, then the others. The wood walk (shadows in
+motion, before and after) went to the trees helper's machine ("WALK pushed").
+
 ### The far view sent: trees, grass and rock as far as one can see
 
 *2026-11-24. Merged as pull request #34; the phone link shows build 6ac24ff (this line was
