@@ -116,17 +116,20 @@ export class FogSheet {
       const base = a || [p.x, p.y, p.z];
       this._anchor = [base[0] + east[0] * ne * step + north[0] * nn * step, base[1] + east[1] * ne * step + north[1] * nn * step, base[2] + east[2] * ne * step + north[2] * nn * step];
     }
-    // Is there fog within reach? (the field at nine places; the sheet is drawn only where there
-    // is. Asked again when the traveller has gone a few kilometres or the clock has moved on:
-    // fog lies in basins and burns off over an hour, and this is page work in every frame.)
+    // Is there fog within reach? (the field over a square of 25 places across the sheet; the
+    // sheet is drawn only where there is. A ring of eight at the sheet's edge missed what lay
+    // between them: fog lies in basins a few kilometres wide, and one of those falls through a
+    // ring of 24 km easily. Asked again when the traveller has gone a few kilometres or the
+    // clock has moved on — it burns off over an hour — so this is 0.2 ms every few seconds,
+    // not page work in every frame.)
     const out = this._at || (this._at = makeSkyAt());
     const a0 = this._fogAt;
     if (!a0 || Math.abs(sky.t - this._fogT) > 60 || (p.x - a0[0]) ** 2 + (p.y - a0[1]) ** 2 + (p.z - a0[2]) ** 2 > 3000 * 3000) {
       let fog = 0;
       const look = (x, y, z) => { const v = sky.field.at([x, y, z], sky.t, out); fog = Math.max(fog, v.field.fogTop - v.field.country); };
-      look(p.x, p.y, p.z);
-      for (let i = 0; i < 8; i++) {
-        const ang = i * Math.PI / 4, ce = Math.cos(ang) * F.SPAN * 0.4, cn = Math.sin(ang) * F.SPAN * 0.4;
+      const reach = F.SPAN * 0.45;
+      for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) {
+        const ce = i * reach * 0.5, cn = j * reach * 0.5;
         look(p.x + east[0] * ce + north[0] * cn, p.y + east[1] * ce + north[1] * cn, p.z + east[2] * ce + north[2] * cn);
       }
       this._fogAt = [p.x, p.y, p.z]; this._fogT = sky.t; this._fog = fog;
