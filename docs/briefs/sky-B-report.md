@@ -478,6 +478,14 @@ renderer. A's model paints the real cover.
   begins at 1 500 m a pixel. It is not wrong (a cumulus field from an aeroplane looks like that),
   but if it reads as confetti on the phone, the veil should begin at about a third of the
   volume's own scale instead.
+- **The fog sheet's lattice ends at 30 km** from the traveller, and the question "is there fog
+  within reach" is asked over a square 27 km wide: fog that begins between those two is drawn
+  only as one comes nearer. At that distance it is behind most of the air's haze, so it has not
+  been a problem in any picture; a wider sheet is a straight trade of triangles for reach.
+- **`?debug=noclouds` leaves the globe's own cloud map on** (sky/bodies.js: the field's map is
+  put aside and the body's own comes back), so a picture of Haven from space with the switch on
+  still has painted clouds on it. Nothing in the brief asks for that view, and the switch is for
+  pictures of the land from above, so it was left as it is.
 - **The rise's fades** cost one more read of the masses and one of the look toward the Sun (16 %
   of the game clock). The alternative — reading the look toward the Sun at one phase — makes the
   two tones speckle while the phases blend, so it was not taken.
