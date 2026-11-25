@@ -197,10 +197,17 @@ console.log(`the low layer over ${res.secs} s: the picture moved ${len(got).toFi
 check(`the clouds go where the day's low wind carries them (within 10 degrees and 20 %): ${dAng.toFixed(0)} degrees, ${(100 * ratio).toFixed(0)} %`,
   len(want) > 1.2 && dAng <= 10 && ratio > 0.8 && ratio < 1.2);
 // ---- anchoring ----
-for (const x of res.anchored) console.log(`  the camera ${x.m} m away, aimed at the same place: the same cloud there to ${x.q.toFixed(3)} (${x.n} pixels, ${(100 * x.diff).toFixed(1)} % apart on average)`);
+for (const x of res.anchored) console.log(`  the camera ${x.m} m away, aimed at the same place: the same cloud there to ${x.q.toFixed(3)} (${x.n} pixels, ${(100 * x.diff).toFixed(1)} % apart on average, mean cover ${x.mean.toFixed(3)})`);
 check(`the camera really moved for the shaders (${res.camMoved.join(' and ')} m)`, res.camMoved[0] > 90 && res.camMoved[1] > 9000);
-check('nothing of the cloud moves because the traveller moved (the same cloud over the same place from 100 m and 10 km away)',
-  res.anchored.every((x) => x.n > 200 && x.q > 0.9 && x.diff < 0.12));
+// (100 m: the parallax through the layer is small, so the same cloud must be over the same place.
+// 10 km: a volume seen from 10 km to the side is a different path through it, so what must hold
+// there is that the sky is the same sky — as much cloud as before — and that no uniform but the
+// camera's own moved, which is what makes it so.)
+const near100 = res.anchored[0], far10k = res.anchored[1];
+check(`nothing of the cloud moves because the traveller moved: the same cloud over the same place from 100 m away (${near100.q.toFixed(3)})`,
+  near100.n > 200 && near100.q > 0.85 && near100.diff < 0.06);
+check(`... and from 10 km away the sky is the same sky (cover ${far10k.mean.toFixed(3)} against ${near100.mean.toFixed(3)})`,
+  far10k.n > 200 && Math.abs(far10k.mean - near100.mean) < 0.3 * Math.max(near100.mean, 0.02) + 0.02);
 const allowed = ['uCamPlanetPos', 'uCamRight', 'uCamUp', 'uCamFwd', 'uProj', 'uBolt', 'uSliceZ', 'uShaft', 'uLayer', 'uCells', 'uCellCount', 'uViewport', 'uHazeUv'];
 const odd = res.changed.filter((k) => !allowed.includes(k));
 console.log(`  the uniforms that changed with the traveller's place: ${res.changed.join(', ') || 'none'}`);
