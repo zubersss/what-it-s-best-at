@@ -827,8 +827,15 @@ void main() {
   // turned from it, and long swaths combed along the wind, some 60 m by 18. On ground whose
   // colour is grass (gold or green, not rock, sand or snow) and not under the canopy; each
   // a tint about the ground's own tone, the swaths faded where they are under a few pixels.
-  if (uPaint.x > 0.0 && flatW > 0.0 && dist > 30.0 && dist < 4000.0) {
-    float grassy = smoothstep(0.42, 0.24, albedo.b / max(albedo.r, 1e-4)) * smoothstep(0.62, 0.45, dot(albedo, vec3(0.2126, 0.7152, 0.0722))) * (1.0 - vShell) * flatW * (1.0 - smoothstep(2500.0, 4000.0, dist));
+  // (the broad stretches out to 8 km, the rest to 4: from 1 km up a ring of plain ochre
+  // began 3 km off, where the ground's grass gives way to the map's colour)
+  if (uPaint.x > 0.0 && flatW > 0.0 && dist > 30.0 && dist < 8000.0) {
+    float grassy0 = smoothstep(0.42, 0.24, albedo.b / max(albedo.r, 1e-4)) * smoothstep(0.62, 0.45, dot(albedo, vec3(0.2126, 0.7152, 0.0722))) * (1.0 - vShell) * flatW;
+    float grassy = grassy0 * (1.0 - smoothstep(2500.0, 4000.0, dist)), grassyB = grassy0 * (1.0 - smoothstep(5500.0, 8000.0, dist));
+    if (grassyB > 0.0) {
+      float broad = flNoise(planetPos / 230.0 + vec3(3.7, 1.3, 8.1)) - 0.5;
+      albedo *= mix(vec3(1.0), broad > 0.0 ? vec3(1.3, 1.08, 0.62) : vec3(0.66, 0.92, 0.78), grassyB * smoothstep(0.03, 0.3, abs(broad)));
+    }
     if (grassy > 0.0) {
       vec3 n0 = normalize(nt.xyz);
       // (hollows: a cooler olive, and darkest along their bottoms, where water runs after rain)
@@ -843,10 +850,6 @@ void main() {
       float kw = 1.0 - smoothstep(4.0, 9.0, max(fq.x, max(fq.y, fq.z)));
       // (the swaths: the wind's side of the grass paler and drier, its lee greener and darker)
       if (kw > 0.0) { float sw = flNoise(q) + 0.5 * flNoise(q * 2.3 + 7.1) - 0.75; albedo *= 1.0 + kw * grassy * sw * vec3(0.95, 0.75, 0.3); }
-      // (and broad stretches, some hundreds of metres, greener or drier gold)
-      float broad = flNoise(planetPos / 230.0 + vec3(3.7, 1.3, 8.1)) - 0.5;
-      // (two of the look's few colours: a gold on the drier stretches, a cooler olive on the greener)
-      albedo *= mix(vec3(1.0), broad > 0.0 ? vec3(1.3, 1.08, 0.62) : vec3(0.66, 0.92, 0.78), grassy * smoothstep(0.03, 0.3, abs(broad)));
     }
   }
 
