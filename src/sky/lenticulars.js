@@ -6,8 +6,10 @@
 // They do not move with the wind — the wave they form in stands over the land — so they are
 // placed from the field's own list (one record per lens: where, how big, which way it lies, how
 // many plates, how strong) and nothing about them depends on the traveller. The list is the
-// model's (package A: field.lenses(t), as field.anvils(t) is); while there is none, this draws
-// nothing and costs nothing.
+// model's (package A: field.lenses(t), as field.anvils(t) is); until that call is there, the
+// records are read out of the snapshot the field is blending now, which holds them already
+// (weather/sky/format.js LENS). They stand still over the land, so the snapshot round the clock
+// is as good as a blend between two. Where there is neither, this draws nothing and costs nothing.
 //
 // Cost: at most LENS_MAX plates, 768 triangles each, one draw each, no texture read.
 import * as THREE from 'three';
@@ -24,6 +26,19 @@ export const LENS_LOOK = Object.freeze({
   EDGE: 0.22,               // how much of the lens is the soft rim
 });
 const L = LENS_LOOK;
+const NO_LENS = new Float64Array(0);
+
+// The lens records now: the field's own call where there is one, else the snapshot it is
+// blending (its pair's first, or the nearest it holds).
+function lensRecords(field, t) {
+  if (typeof field.lenses === 'function') return field.lenses(t) || NO_LENS;
+  const snaps = field.snaps;
+  if (!snaps || !snaps.size) return NO_LENS;
+  const want = field.pair ? field.pair[0] : t;
+  let best = null, bd = Infinity;
+  for (const [k, s] of snaps) { const d = Math.abs(k - want); if (s && s.lenses && d < bd) { bd = d; best = s; } }
+  return best ? best.lenses : NO_LENS;
+}
 const glf = (x) => { const s = String(x); return /[.eE]/.test(s) ? s : s + '.0'; };
 
 const VERT = /* glsl */`
@@ -84,8 +99,8 @@ export class Lenticulars {
   update(c) {
     const sky = c.sky, list = this.list;
     list.length = 0;
-    if (!sky || sky.noClouds || this.off || !sky.field?.on || !sky.field.lenses) return;
-    const rec = sky.field.lenses(sky.t), R = sky.R, cam = c.rig.pos;
+    if (!sky || sky.noClouds || this.off || !sky.field?.on) return;
+    const rec = lensRecords(sky.field, sky.t), R = sky.R, cam = c.rig.pos;
     for (let o = 0; o + LENS.STRIDE <= rec.length && list.length < L.MAX; o += LENS.STRIDE) {
       const strength = rec[o + LENS.STRENGTH];
       if (!(strength > 0.02)) continue;
