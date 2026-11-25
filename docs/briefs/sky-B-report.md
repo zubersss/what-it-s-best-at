@@ -449,12 +449,14 @@ renderer. A's model paints the real cover.
 - **Earth** has no field yet (its recipe is `maps`), so there the volume still reads the day's
   cloud map and stands its base over the country smoothed round the traveller, as before. That
   path, and `setGround`, go when A's `fromMaps` lands.
-- **The far shell's vertices** now each read the field (an icosphere of detail 48: about 144 000
-  vertex reads a frame). It is one draw call, but it is the first thing to measure on the phone.
-- **The far shell on a big world.** Its vertices are displaced to the field's own base, and an
-  icosphere of detail 48 has facets about 2 degrees across: 85 m on Haven, but 220 km on Earth,
-  where the base varies over 15 km. On Haven it is right; when Earth gets a field, its shell will
-  want either more vertices or a base that does not vary (one for the whole view).
+- **The far shell's vertices** now each read the field: an icosphere of detail 48 is 46 080
+  triangles, 138 240 vertices not indexed, so 138 240 vertex texture reads a frame. It is still
+  one draw call, but it is the first thing to measure on the phone — and the shell could be
+  coarser (detail 32 is 61 440 vertices) without the base losing anything it can carry.
+- **The far shell on a big world.** Its vertices are displaced to the field's own base, and each
+  facet is 0.95 degrees across: **4.2 km on Haven**, which the base varies over gently, but
+  **105 km on Earth**, where it does not. On Haven it is right; when Earth gets a field, its
+  shell will want either more vertices or a base that does not vary (one for the whole view).
 - **The near slices are laid at the distance each begins at** (step 0's scheme, kept): a sheet
   over the whole view at that depth, so ground NEARER than the slice's start hides its cloud and
   ground inside the slice does not. The error is bounded by the slice's width, and only shows
