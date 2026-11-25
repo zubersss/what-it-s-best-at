@@ -177,10 +177,21 @@ At the storm 20 km off (`t=8.25`, the far slices on):
 One read a step is the cell's own boiling noise: in the far slices the layer is not marched at
 all, so nothing else is read there.
 
-And the break taught its own lesson. `--break read` put its extra read inside the LAYER's path —
-which this view never takes, since its cloud is all storm cells — so **the check passed on a
-build broken on purpose**. The break now adds four reads at the top of `cloudStep`, whichever
-path the step takes (817c129); the run that shows the check failing is below.
+**The check now proves its own numbers** (`89fb6a5`). It counts the marches it sets off and asks
+whether what came back is counts at all — a step count is a whole number, a cloud's green is not:
+
+> ok   the counting shader itself ran, twice, and handed back counts and not a picture (2 marches, 3174 of 3174 pixels a whole number of steps)
+
+Without that, the check could not tell the counting picture from the last frame's ordinary one,
+whose red over green is about 1 — the very number it is looking for. It also catches the other
+way of passing on nothing: at the fair view over the opening place, where the volume draws no
+cloud at all, the old check printed "0.00 reads a step" and passed; it now fails there, saying
+0 of 0 pixels were counted, because a view with no cloud measures nothing.
+
+And the break taught its own lesson too. `--break read` first put its extra read inside the
+LAYER's path — which this view never takes, since its cloud is all storm cells — so the check
+passed on a build broken on purpose. The break now adds four reads at the top of `cloudStep`,
+whichever path the step takes (817c129).
 
 **2. The motion (`node scripts/cloud-motion.mjs`).** Three runs of this check found three faults
 of the check, not of the clouds, and each is worth knowing:
