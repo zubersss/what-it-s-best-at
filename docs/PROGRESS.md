@@ -21,6 +21,13 @@ blossom from above stickers; clouds at 3 km flat and dashed, the mountain a smoo
 the tree close-ups badly framed; water from the air oily or paint-bucket blue; grass and
 flowers at eye height too even). **Next**: the sky's four packages (helpers running:
 `docs/briefs/sky-*.md`), and a fourth round on the critic's gaps 1, 3, 4 and the mountains.
+Sent as PR #36, main at 607ddca. Since: the fourteenth final picture and the final tests on
+5ab3400 (smoke, foot, shadowturns pass); **sky A merged** (fd6ce5c: the day's weather by
+rule; nothing on screen changes until B's clouds land, since the field is drawn only under
+`debug=sky:*` until then); the **fourth round** handed out (`docs/briefs/round4.md`: trees
+T4, from above A6, air L4, flowers F4). The sky helpers may edit `skySystem.js`, `haven.js`'s
+hours and add their own governor steps on their branches (marked "(sky X)", tests passing):
+waiting on this session cost them hours; clashes are resolved at the merge.
 
 ### In hand: Haven rich and smooth (the owner's ninth phone results)
 
