@@ -31,9 +31,13 @@ import { open, opt, flag } from './lib/browser.mjs';
 import { png } from './lib/png.mjs';
 
 // (the view looks ACROSS the day's wind: along it the clouds come toward the eye and the picture
-// hardly moves, which says nothing about where they are going. A little above the horizon, so
-// that the heaps are in the fifth slice and the high shell fills the top of the view.)
-const query = opt('query', 'world=haven&shot=ledge&alt=3000&pitch=10&heading=352&t=1&debug=sky:fair');
+// hardly moves, which says nothing about where they are going.
+// And it looks AT cloud: the stub's fair heaps stand between 1 250 and 2 575 m and cover a third
+// of the sky at its best hour over the low country west of the opening place, so the camera is
+// 3.2 km up and 8 degrees down — the ray is inside the layer for the whole of the fifth slice,
+// 5 to 9 km out. Its first view was 3 km up at +10 degrees, above a layer whose top is 2 575 m:
+// the slice it measured was empty sky, and a correlation of nothing moved nothing.)
+const query = opt('query', 'world=haven&shot=ledge&lat=-51.3&lon=46.978&alt=3200&pitch=-8&heading=168&t=4&debug=sky:fair');
 const SEC = +opt('seconds', 20), BREAK = opt('break', null), OUT = opt('out', null);
 const { base, page, errors, goto, close } = await open({ dist: flag('dist') });
 await goto(`${base}?${query}`);
@@ -123,8 +127,9 @@ const res = await page.evaluate(({ SEC, BREAK }) => {
       a.sky.upper.camBelowMid = false;                  // (the mid shell goes to the other pass)
       post.beginScene();
       a.sky.upper.draw({ renderer: r, rig }, 'above');
-      const w = post.viewW, h2 = post.viewH, f = new Float32Array(w * h2 * 4);
-      gl.readPixels(0, 0, w, h2, gl.RGBA, gl.FLOAT, f);
+      // (the main picture is half floats: read back as floats it comes out as nothing. readRT
+      // asks the driver what it will give and decodes the halves.)
+      const w = post.viewW, h2 = post.viewH, f = readRT(post.scene, w, h2);
       const out = new Float32Array(w * h2);
       for (let i = 0; i < w * h2; i++) out[i] = f[i * 4 + 3];
       return { a: out, w, h: h2 };
@@ -285,16 +290,13 @@ if (!flag('no-handover')) {
       cv.uniforms.uCamPlanetPos.value.copy(rig.pos);
       a.sky.weatherStep({ now: performance.now(), dt: 0, jd: a.ephemeris.jd, timeRate: 0, paused: true, rig, day: 0, sunE: 1, viewW: a.post.viewW, viewH: a.post.viewH });
       a.sky.beforeScene({ renderer: r, post: a.post, rig, worldRadius: R, time: 0, treesWanted: false });
-      const w = cv.tw, hh = cv.th, u = new Uint16Array(w * hh * 4);
-      r.setRenderTarget(cv.smooth);
-      gl.readPixels(0, 0, w, hh, gl.RGBA, gl.HALF_FLOAT, u);
-      r.setRenderTarget(null);
+      const w = cv.tw, hh = cv.th, u = readRT(cv.smooth, w, hh);
       // the whole of the cloud in the picture, whatever slice it is in
       let sum = 0, light = 0, n = 0;
       for (let i = 0; i < w * hh; i++) {
-        const al = half(u[i * 4 + 3]);
+        const al = u[i * 4 + 3];
         if (al <= 0.01) continue;
-        sum += al; light += half(u[i * 4]) / Math.max(al, 1e-3); n++;
+        sum += al; light += u[i * 4] / Math.max(al, 1e-3); n++;
       }
       rows.push({ d: Math.round(Math.hypot(C[0] - rig.pos.x, C[1] - rig.pos.y, C[2] - rig.pos.z)), alpha: sum / Math.max(n, 1), light: light / Math.max(n, 1), pixels: n, far: cv.farOn });
     }
