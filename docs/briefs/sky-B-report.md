@@ -483,9 +483,13 @@ driver had left in the buffer):
 | at 1 100 x 515 — the march into its small picture | | 790–791 ms |
 | at the phone's pixel count (1 936 x 906) — laying | 203 ms | 209 ms |
 | at the phone's pixel count — the march | 1 971 ms | 2 006 ms |
+| the fair day at the phone's pixel count — laying | 177 ms | 175 ms |
+| the fair day at the phone's pixel count — the march | 1 743 ms | 1 762 ms |
 
 So at the phone's pixel count this branch's clouds cost **within two per cent** of the owning
-head's at the same view, and that head already carries most of package B (the four lines and the
+head's at both views (the brief's "no higher than today's on a fair day": 1 937 ms of march plus
+lay against 1 920, which is 0.9 % on a machine whose own runs of the same view differ by that
+much), and that head already carries most of package B (the four lines and the
 field). What the pair says is that the lenses, the anvils' torn edge, the mackerel sky's patches
 and the governor's floor are not where the cost is: the march is, and it is the same march.
 (Software WebGL counts work, never frames; the phone's own cost table decides. These numbers are
@@ -498,14 +502,16 @@ ground's two shade programs 5 + 0; Haven's globe 7 + 0.
 (The same view on an earlier build with one cell in reach and no far slices marched 203 ms at
 1 100 x 515: what the far slices and the model's five cells add is most of the 790.)
 
-**And a view with no cloud in it at all costs nearly as much as a storm.** On the fair day over
-the opening place (`alt=2600&pitch=-4&t=4`, no cell in reach, and nothing of the volume on
-screen: cloud on 0 % of the picture) the owning head's march still came to **1 743 ms** against
-the storm's 1 971 — 88 % of it, for a picture with no cloud. The reason is in the design: the
-layer is a slab between two spheres, every ray that crosses it is marched through it whatever
-the field's cover is there, and the cover is read a step at a time. The field says the cover
-within the reach at that place and hour is 0.98 — the deck is simply out of the view or past the
-fade at 11 km, and the march paid for it all the same.
+**And a view the volume draws nothing in costs nearly as much as a storm.** On the fair day over
+the opening place (`alt=2600&pitch=-4&t=4`) the march came to **1 743 ms on the owning head and
+1 762 on this branch** (laying 177 and 175) — 88 % of the storm's, for a picture with no cloud of
+the volume's in it at all (cloud on 0 % of what it lays).
+
+A map of that view made in Node in a second (`scratchpad/sky-map.mjs`: the model's own field cast
+along the view's rays) says why there is nothing: of the cloud in that view, **all but one corner
+stands beyond the volume's 16 km reach** and is drawn by the far shell. The march still pays for
+it, because the layer is a slab between two spheres, every ray that crosses the slab is marched
+through it whatever the cover is there, and the cover is read a step at a time.
 
 That is not a thing to cure by guessing. A slice whose cover is nil could be skipped, but the
 cover would have to be read for the whole slice at once, and cutting a slice by a test of its
