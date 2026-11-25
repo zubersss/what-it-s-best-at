@@ -771,7 +771,10 @@ void main() {
   // forest floor's grey-sage litter in the canopy's shade ("holes in the picture"). Wherever
   // the land carries trees and the ground shows between them, from 250 m off and from above.
   if (canopyTall > 0.3) {
-    float glade = (1.0 - shellOut) * smoothstep(250.0, 500.0, dist) * smoothstep(0.15, 0.35, dot(V, up)) * flatW;
+    // (only where the canopy is open: the canopy's own weight is worked out at the vertices,
+    // and a little under full across a wood, so a share of it drew the glade's colour in
+    // straight-edged facets along the triangles)
+    float glade = smoothstep(0.45, 0.15, shellOut) * smoothstep(250.0, 500.0, dist) * smoothstep(0.15, 0.35, dot(V, up)) * flatW;
     if (glade > 0.0) {
       albedo = mix(albedo, grassColour(uGrassTone.x, 0.62) * mapTint * (0.85 + 0.3 * texture(tDetail, vDetailUv).b), 0.85 * glade);
       ao = mix(ao, ao / mix(1.0, 0.55, canopyShade), glade); canopyShade *= 1.0 - glade;
