@@ -108,6 +108,7 @@ import { Rainbow } from '../weather/rainbow.js';
 import { Steer, STEER_LAYERS } from '../weather/sky/steer.js';
 import { makeSkyAt } from '../weather/sky/format.js';
 import { STUB_PRESETS } from '../weather/sky/stub.js';
+const SKY_PRESETS = [...STUB_PRESETS, 'model'];   // (sky A)
 import { cellGeometry, anvilGeometry, setCellUniforms, CELL_MAX } from '../weather/sky/cellShape.js';
 import { SKY_UNIFORMS, steerQuat, skyRiseOf } from './skyGlsl.js';
 import { SkyField } from './skyField.js';
@@ -180,7 +181,7 @@ export class SkySystem {
     this.renderer = renderer; this.terrain = terrain; this.shared = terrain.shared; this.shotMode = shotMode;
     this.debug = skyDebug(debug);
     this.noClouds = this.debug.noClouds;
-    if (this.debug.badPreset) console.warn(`debug=sky:${this.debug.badPreset}: no such preset (${STUB_PRESETS.join(', ')})`);
+    if (this.debug.badPreset) console.warn(`debug=sky:${this.debug.badPreset}: no such preset (${SKY_PRESETS.join(', ')})`);
     this.clouds = parts.clouds ?? new CloudLayer(renderer);
     this.cloudVolume = parts.cloudVolume ?? new CloudVolume(renderer);
     this.treeShade = parts.treeShade ?? new TreeShade(terrain);
