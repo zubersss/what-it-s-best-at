@@ -103,9 +103,9 @@ skipped, so frames are evenly spaced.
 | `src/terrain/terrain.js` | Manager: selection, patch-cap feedback, dispatch, eviction, shadow re-bakes. |
 | `src/atmosphere/` | Hillaire-style LUT atmosphere (`atmosphere.js`, `atmosphereGlsl.js`). |
 | `src/render/` | `globals.js` (uniforms shared by reference), `lightingGlsl.js` (the one lighting chunk), `fullscreen.js`. |
-| `src/sky/` | Far pass: `stars.js` (point sources), `sun.js`, `bodies.js`, `skyDome.js`. The clouds: `skySystem.js` (the sky's and the weather's order in the frame, the sky's frame handed to every part, and the fixed interfaces of the parts the clouds plan's packages build), `skyGlsl.js` (the one shared shader rule for cloud cover and shade, its JS twins, and `SKY_UNIFORMS`, filled once a frame), `clouds.js` (the far low shell), `cloudVolume.js` (the volume near the traveller, its storm cells and their rain shafts), `upperClouds.js` (the mid and high shells: altocumulus, cirrus, the storms' anvils), `fogSheet.js` (valley and sea fog as a sheet on a lattice fixed to the world), `lenticulars.js` (the standing plates over the summits), `cloudShade.js` (the clouds' shade, read by everything lit), `skyField.js` (the field's snapshots on the GPU and `at()` on the CPU), `cloudNoiseData.js` (the 64-cube noise). |
-| `src/weather/` | The weather at the traveller (`weather.js`), rain and snow streaks (`rain.js`), the stroke (`bolt.js`), the rainbow (`rainbow.js`). |
-| `src/weather/sky/` | The weather made by rule (docs/briefs/clouds-weather-plan.md): `steer.js` (each cloud layer's wind as a rigid turning of the sky, a closed form of the clock, and the low pattern's rise), `format.js` (the snapshot's layout and its JS and GLSL decoders, `glslOnce`), `cellShape.js` (a storm cell's shape in JS and GLSL), `stub.js` (a test pattern with the model's API), `producer.js` (what makes the snapshots: the stub until the model lands) and `skyWorker.js` (makes them off the page). Pure JS: worker, main thread and Node. |
+| `src/sky/` | Far pass: `stars.js` (point sources), `sun.js`, `bodies.js` (the home globe from space wears the sky's field), `skyDome.js` (greyed under a closed deck). The sky and its clouds (see "The sky by rule" and the sections after it): `skySystem.js` (the sky's and the weather's order in the frame, the sky's frame handed to every part, every part's interface, the debug switches, the sky's governor savings), `skyField.js` (the field: snapshots uploaded in strips and blended on the GPU; `at()`, `cells()`, `strikes()` on the CPU), `skyGlsl.js` (the one shared shader rule for cloud cover, shapes and shade, its JS twins, and `SKY_UNIFORMS`, filled once a frame), `cloudVolume.js` (the volume near the traveller and the storm cells out to 200 km), `clouds.js` (the far low shell), `upperClouds.js` (the mid and high shells), `fogSheet.js`, `lenticulars.js`, `cloudShade.js` (the clouds' shade atlas fixed to the world, and the probe that lights the figure), `cloudNoiseData.js` and `cloudNoiseWorker.js` (the 64-cube noise). |
+| `src/weather/` | The weather at the traveller (`weather.js`: on a made world the field's reader, on Earth its day's maps), `storm.js` (the storm overhead for the meter, the grade and the sky dome; the strokes' flicker), rain and snow streaks (`rain.js`), the strokes as ribbons (`bolt.js`), the rainbow (`rainbow.js`). |
+| `src/weather/sky/` | The weather made by rule (docs/briefs/clouds-weather-plan.md). Pure JS for the worker, the page and Node: no three, no DOM, no `Math.random`, nothing of the traveller. `model.js` (the day's weather: moisture, heat, lift, the kinds of cloud, rain, wet ground, the ground wind, `at()`), `land.js` (the land as the weather needs it, the summits, the trigger sites), `systems.js` (lows with their fronts, highs, tropical waves), `cells.js` and `strikes.js` (storm cells and their lightning, closed forms), `cellShape.js` (a cell's and an anvil's shape in JS and GLSL), `steer.js` (each cloud layer's wind as a rigid turning of the sky, a closed form of the clock, and the low pattern's rise), `format.js` (the snapshot's layout, its encodings, its JS and GLSL decoders, `glslOnce`), `fromMaps.js` (Earth's field from its day's maps), `stub.js` (a test pattern with the model's API), `producer.js` (which of these makes a world's snapshots; the local solar hour), `skyWorker.js` (makes them off the page), `listClock.js` (the cells and anvils asked every frame, blended from moments 2 s apart). |
 | `src/shadows/nearShadow.js` | The shadow atlas of the things standing on the ground (coarse, fine and character tiles) + its GLSL. On an airless world a shadow's soft edge is about a hundredth of the distance to its caster, so a figure's shadow needs millimetre texels. |
 | `src/rocks/rocks.js` | Instanced rocks, scattered deterministically near the camera. |
 | `src/ship/lander.js` | Procedural lander geometry, placement, material. |
@@ -380,12 +380,14 @@ illuminate anything. Everything goes through `src/render/lightingGlsl.js`.
 
 **Texture budget per shader.** Phones allow 16 textures in one fragment shader (the test
 browser allows 32), and a shader over that draws nothing on the phone, with no error in any
-headless test. The terrain's shader is full: 16 of 16 (strata and detail; the world's
+headless test. The terrain's fragment shader reads 15 of 16 (strata and detail; the world's
 colour and slope maps and the colour ring of streamed tiles; the chunks' normal and shadow
 layers; the sky-light texture, three aerial-perspective maps, two atmosphere tables, the
-near shadow map; the day's cloud map and the cloud noise, for the heaps' shadows). Its
-vertex shader reads four more (vertices, morph, normals, the ring), which count apart. A
-new map in the ground's shader must take the place of one. The two sky-light tables share one texture
+near shadow map; the clouds' shade atlas, `tCloudShade`, which since the sky's package C
+stands where the day's cloud map and the cloud noise stood). Its vertex shader reads more
+(vertices, morph, normals, the ring; the shade atlas and the field's wet map at the near
+ground's vertices), which count apart. One more map fits in the ground's fragment shader;
+after that a new one must take the place of one. The two sky-light tables share one texture
 (`tIrradiance`: octahedral map, circumsolar row, and the level-ground sky light against the
 Sun's height in row IRR+1, each pass drawing only its rows). `scripts/lib/glLimits.mjs`
 checks every linked program against the OpenGL ES 3.0 minimums in `npm run smoke` and in
@@ -533,8 +535,8 @@ as before.
   On slopes grass stands by ONE rule, `GRASS_GROUND.slope` in `grassRules.js` (all of it
   to 0.45, none by 0.75): the tables' amount fades by it and the ground's shader lays the
   grass's colour by the same numbers, so that no tuft stands on unpainted ground and no
-  steep meadow is bare. The far grass takes the clouds' shadow from the trees' map
-  (`life/treeShade.js`) and the land's cast shadow from a table of its own (`tLandShade`:
+  steep meadow is bare. The far grass takes the clouds' shadow from the clouds' shade atlas
+  (`sky/cloudShade.js`, see "The clouds' shade") and the land's cast shadow from a table of its own (`tLandShade`:
   36 x 36 places 40 m apart round the anchor, one worker job when the traveller has moved
   120 m, the Sun 1.5 degrees or the maps have changed), both eased in between 30 and
   120 m; near the eye the near shadow map. A far blade whose ground is looked at squarely
@@ -849,11 +851,13 @@ as Earth is; what differs is where the maps come from.
     autumn); a tile is asked for again when the Sun has moved a degree and a half. The
     near trees get theirs from their block's job, tree by tree (`landShadow` in the worker,
     `iD.w`): a grid over a block on a rim put the cliff's shade on the trees above it.
-  - **The clouds' shadow** on near and far trees is read from a small map of it
-    (`life/treeShade.js`: 256 x 256 points over 14 km round the traveller, drawn once a
-    frame before the main picture by the ground's rule from the ground's own uniform
-    objects). A tree reads it once per vertex, where the Sun's ray through its crown meets
-    the map's plane. One rule, and a saving on the ground is a saving on the trees.
+  - **The clouds' shadow** on near and far trees is read from the clouds' shade atlas
+    (`sky/cloudShade.js`, see "The clouds' shade"), once per vertex, where the Sun's ray
+    through the crown meets the atlas's sphere. `life/treeShade.js` only hands on the names
+    the trees read it by (`TREE_SHADE_VERT`, `TREE_SHADE_UNIFORMS`). Its own map, a level
+    plane re-centred on the traveller every frame, is gone: a tree at a shadow's edge
+    changed by up to 0.44 in light as one walked. One writer for the ground, the trees,
+    the grass and the rocks.
   - **The far green.** From 300 m to 1.3 km a far tree's leaf colour goes over to a dark
     warm olive of the same brightness and its share of the sky's light loses most of its
     blue; the wood's own air (`forestAir`) fades out between 300 m and 1 km, where the
@@ -1012,143 +1016,344 @@ lesser of the two). `scripts/rig-over-rock.mjs` fails if that comes back.
 ground has settled; with the ground at rest, every free worker. A tile is asked again
 when the land cover changes and when a ring of water touches it (`Terrain._stale`).
 
-## Clouds with depth (`src/sky/cloudVolume.js`)
+## The sky by rule (`src/sky/skySystem.js`, `src/weather/sky/`)
 
-- Near the traveller (to `reach`, 16 km) the cloud layer is a volume; beyond it the thin
-  shell of `clouds.js`, which fades in where the volume fades out. Above 30 km only the
-  shell (and from space the globe's own clouds).
-- **Before** the main picture is begun, a small picture is marched: six of them side by
-  side (a quarter of the view each way), one for each slice of **distance from the eye**
-  (0 to 300 m, to 900 m, to 2.4 km, to 5 km, to 9 km, to the reach); each pixel's ray is
-  followed through the part of the layer inside its slice (7 steps a slice). A second
-  small pass takes the march's grain out (four looks a pixel, kept inside each slice's
-  own picture). In the main picture, after the ground, six passes lay them over it from
-  the farthest to the nearest, each a curved sheet at the distance where its slice
-  begins (a 24 x 12 grid, every corner at the depth that distance has along its own
-  ray): the depth test hides cloud behind a ridge, to within a slice. The clean edge of
-  the painted look is cut by all the cloud along the line of sight: that sum is worked
-  out once a frame in a third small picture (one slice's size, the `ALL` pass) and each
-  laying pass reads it (two reads a pixel with cloud, where each pass used to read all
-  six slices again: 42 reads a pixel with cloud in every slice, and on the phone's ninth
-  results 9.4 ms a frame from the air that the march's saving did not touch).
-- Nothing reads the main picture's depth and nothing is drawn elsewhere in the middle of
-  it: the first form did both (depth as a texture, the march after the ground) and cost
-  the phone three quarters of its frame rate on every world (PROGRESS, "fifth phone
-  results").
-- **Nothing about a cloud depends on where the traveller is or looks** (PROGRESS, "sixth
-  phone results": four things once did). The base stands `volume.base` over the
-  country's height from the world's coarse elevation, smoothed over a degree
-  (`setGround`); slices are of distance, not of the view's depth; the clean edge is cut
-  by all the cloud along the line of sight (the lay pass reads the six slices), not
-  slice by slice; and beyond the reach the shell (`clouds.js`) shows the same clouds:
-  the same cover rule and the volume's noise at the height where its masses are widest
-  (`uVol`), the shell itself standing at that height.
-- **How the clouds move** (`src/weather/sky/steer.js`, step 0 of the clouds plan): each
-  cloud layer's wind is a rigid turning of the whole sky, `M_low(t)`, a closed form of the
-  game clock; the noise is read where the low layer's pattern stands still, `M_low(t)^-1 p`
-  (one quaternion, `SKY_UNIFORMS.uCloudSteer`, filled once a frame by `skySystem.js`
-  whether or not anything is drawn). So the heaps go with the day's low wind at its speed,
-  stop with the clock, time-lapse with it (the noise's own clock keeps to 600 x and is set
-  back when the clock slows), and every reader (volume, shell, ground, trees' shade map,
-  far rocks) sees the same clouds. The masses also **rise** through the layer at
-  `steering.rise` (0.5 m/s), so a heap grows and fades in place as it goes: read in two
-  phases half a period apart (`RISE`: 4 200 m), the first alone but for a fade either side
-  of its wrap (8 % of a period), where the second takes over and the blend is stretched
-  back to one read's spread (`skyLowNoise` in `skyGlsl.js`; one read most of the time, two
-  in the fades). The rise's phase is `uCloudRise.x`, and the shared heap rule takes it as
-  the fourth of its `vol` (`uCloudVol.w` on the ground, `uVol.w` on the shell). The
-  smaller lobes go with the wind alone. (Before step 0 the noise drifted against the wind,
-  added up only while the volume was drawn, and a 'change' term slid it along the planet's
-  axis at six times the wind.) The shared texts of `skyGlsl.js`, `steer.js`, `format.js`
-  and `cellShape.js` are guarded (`glslOnce`): a shader may take two of them, and the
-  uniforms they read are declared only through their guarded texts.
-- Shape (`density`): the noise, pushed in and out by its smaller cells (lobes), cut at a
-  level set by the cover; the top of the layer at each place stands higher the further
-  the noise is over that level (a dome over each heap's middle). The cover is of one
-  level: the sky seen from below is the union of all of them and much fuller.
-- `volume.fair`: fair-weather cloud (`FAIR_GLSL`, `fairCover`, in `sky/skyGlsl.js`: one
-  rule for the volume, the shell and the ground's shadows). Where the day's map shows no
-  cloud the cover is still `fair` times a slow field (the cloud noise at a 38 km repeat:
-  fields of small heaps and clear stretches) times a slower one (its cells at a 190 km
-  repeat: the fields stand in clusters some tens of kilometres across with clear country
-  between). The heaps' noise repeats every `scale` (4.2 km): without the clusters one
-  even field was the same few heaps in rows to the horizon, seen from 30 km.
-  `node scripts/cloud-field.mjs` draws the field from above in a second.
-- `CloudVolume.place` works out where the base stands every frame, drawn or not: the shell
-  shows the volume's heaps (and the ground their shadows) from any height, on the first
-  way in from space and with the governor's last saving on.
-- The Sun on the cloud is a painter's, not the physical sum: `sunward` (less cloud 280 m
-  toward the Sun than here, and height in the cloud) picks between a light shade (0.45)
-  and full light; only a cover that is nearly whole darkens what is under it (storms).
-- Laying: slices that end nearer than the traveller's distance below the base (or above
-  the top) are not laid at all, and each of the others covers only the part of the
-  view's height where its cloud can be: with a level view from the ground that is well
-  under one screen of blending for all six. Within `volume.clear` metres of the eye the
-  cloud is thinned to a third; inside a deep cloud the view is lighter and darker in
-  great soft patches.
-- `volume.dense` makes the cloud more solid. (`volume.change` is gone: the shapes turn
-  over by the steering's rise, above.)
-- Shapes: the world's cloud map (where, how much), a repeating 64-cube noise made in a
-  worker (`cloudNoiseData.js`: masses and the cells that eat their edges), a base and a
-  top; with weather, the day's cloud-top map makes the layer as deep as the tallest
-  cloud near (storms: 13 km).
-- Light: the Sun through the air to the cloud (once per ray), then through the cloud (one
-  look toward the Sun per step plus the layer above), brightest at edges facing it and
-  round the Sun; sky light from above and below; the air between cloud and eye;
-  lightning inside it (`uBolt`, set through `CloudVolume.setBolts`: the flashes the weather
-  hands the sky system, up to `BOLTS`, in planet axes; camera-relative in `render`).
-- Governor steps: `cloud-steps` (22 for 36 along the whole ray, shared among the slices), `cloud-volume` (off: the shell alone), `sun-beams` (worked out on a picture a quarter of the view each way, `SHAFT_FRAG` in post.js).
+Haven's weather is made by rule; Earth's is one real day's maps. Both reach the screen through
+one sky system. The plan is `docs/briefs/clouds-weather-plan.md`, built as step 0
+(`docs/briefs/sky-step0.md`) and four packages with a brief and a report each in
+`docs/briefs/`: A the day's weather, B the clouds one sees, C their shade, D the weather at the
+traveller. Later commits changed some of what the reports say; this section and the four after
+it describe the code at 8411572.
 
-## Weather (`src/weather/`)
+- **The one rule**: nothing about the sky depends on where the traveller stands or looks; it is
+  a function of the world's numbers, its seed, the game clock and the place. Code under
+  `src/weather/sky/` imports neither three nor the DOM and never calls `Math.random`; it runs in
+  the worker, on the page and in Node.
+- **The sky's frame** (`SkySystem.frame`, filled in place, handed to every part each frame):
+  the weather clock `t`, `tPrev`, `noiseT`, `rate`, `paused`, `steer`, `field`, `here` (the
+  field's `at()` at the traveller), `cells` (live cells within 200 km, nearest first, with
+  `dist`), `strikes` (the field's strokes since the last frame within 60 km, with `pos` in
+  planet axes and `dist`). The header of `skySystem.js` lists every part's interface.
+- **In the frame** ("Frame order", steps 1, 5 and 6): `weatherStep` before the camera moves,
+  `beforeScene` (the shade atlas, its probe and the volume's march, each into a target of its
+  own before `post.beginScene`), `groundUniforms`, `afterGround`, `drawWeather`. Nothing leaves
+  the main picture between its clear and its last draw, and nothing reads its depth as a texture
+  (the far cell sheets write depth and read none).
 
-- A world's `weather` block names maps of one real day: rain, cloud-top height, cloud
-  (small), and that day's storms. `weather.js` looks them up at the traveller's place
-  every frame and derives: **wind** (the planet's belts plus a vortex round each storm:
-  calm eye, hardest at the eye wall), **rain** (only under the cloud) or **snow** (by a
-  rough temperature: latitude, altitude, season), **wetness** (builds in rain, dries
-  slowly), **shade** (the cloud between the traveller and the Sun, and over the sky),
-  **lightning** (under deep cloud where it rains hard: a place, a brightness, thunder on
-  its way at the speed of sound).
-- `weather.js` answers where it has the world's weather (`own`: today the 'maps' recipe,
-  Earth); a world whose weather is made by rule (Haven, recipe 'made') is read from the
-  sky's field there by package D (docs/briefs/sky-D-storm.md). `skySystem.js` calls it with
-  the sky's frame (the weather clock, the steering, the field, `at()` at the traveller, the
-  cells in reach, the strokes since the last frame) and takes from it what follows below.
-- Who takes what: `uWind` (waves, trees, leaves; not the clouds, which go with the
-  steering); `G.uWeather` (the lighting
-  chunk: sunlight on things near the camera, sky light; the ground: wet is darker and
-  shines); `G.uFlash` (sky light for an instant); `rain.js` (5 600 streaks or flakes in a
-  box round the camera, stateless like the leaves); `bolt.js` (a stroke to the ground);
-  the audio (rain, wind, thunder); the rig (the wind carries what hangs in the air, only
-  while the stick is let go). Rain, the stroke and the rainbow (`rainbow.js`: one additive
-  full-screen pass when rain falls opposite a low Sun) are in a scene of their own,
-  drawn after the cloud volume is laid over the picture.
-- The ground and the clouds work out cloud shadow place by place (`OWN_CLOUD_SHADOW`);
-  everything else near the camera takes `uWeather.x` (from the shade probe, `probe.value`,
-  once package C builds it; till then from `weather.js`).
-- **A storm comes in squalls** (`weather.squall`, 0..1): where it rains hard or blows hard,
-  two slow beats (about one and two and a half minutes) bring bursts: the rain up to two
-  and a half times, gusts of 40 % more wind, a darker sky, lightning sooner.
-  `weather.storminess` (0..1, eased: by rain, wind and how tall the cloud is) is what the
-  cloud volume reads: denser, darker cloud (the base stays put: it must not move because
-  the traveller did). Since step 0 of the clouds plan the storm's noise moves with the
-  steering like every cloud's: the old drift at the storm wind's speed (up to 55 m/s) and
-  the turn-over up to thirteen times as fast are gone until package B's storm cells, which
-  boil in their own frame at 3 to 8 m/s.
-- `debug=noclouds` takes every cloud and all it does: shadows, shade on the figure, the
-  field, strokes, rain, snow, wet ground and the rainbow.
-- **Rain hides what is far** (`weather.veil`, `uWeather.w`, `rainVeil` in the lighting
-  chunk): everything lit is mixed toward the sky's grey by `1 - exp(-distance x veil)`,
-  the veil growing with the rate (visibility a few hundred metres in a cloudburst).
-  `rain.js` draws 5 600 streaks (the governor's `rain` step: half of them), each a strip
-  turned to the eye, a few millimetres wide and never under a pixel and a half; a third
-  of them in a small box round the eye, lit by the sky they fall from (`skyLight`: over
-  the veil's grey and the ground's under an overcast, dark at night, lit by lightning).
-  Rain nearer than the terrain's near plane (0.15 of the height: metres, in flight) is
-  drawn again in a slice of its own from the eye to that plane, without the depth test.
-  The sky dome takes the same veil (through 1 500 m of rain overhead, tens of kilometres
-  toward the horizon). In a storm the cloud's base is darker and lighter in great patches
-  that go by with the wind (`uStorm` in the cloud volume).
+**The field** (`src/weather/sky/format.js`, `producer.js`, `skyWorker.js`; `sky/skyField.js`)
+
+- **A snapshot** is the whole world's sky at one moment, made every `SNAP_STEP` (120 s) of game
+  time: three maps in latitude and longitude, 1 024 x 512 by default (1.53 km a texel on Haven),
+  bytes worked out and never stored as JPEG. A (RGBA8): heap cover, sheet cover, the low cloud's
+  base (m above the sea) and the sheet's thickness, 25 m a step. B (RGBA8): mid cover (5 km),
+  high cover (9 km, anvils in it), the field's rain (mm/h = 2^(byte / 60) - 1; a cell's own rain
+  is not in it), wet ground. C (RG8, half the size): the fog's top and the country's height (the
+  ground smoothed over 15 km), m above the sea, 16 m a step. With them the cell list (`CELL`,
+  16 numbers a cell) and the lens list (`LENS`, 10). `format.js` makes the decoders from the
+  same constants (`dec`, `fieldAt` in JS; `FIELD_GLSL` for shaders); a shader reads LINEAR, no
+  mip maps, REPEAT across longitude, CLAMP across latitude, and `fieldAt` does the same on the
+  bytes.
+- **What makes them** (`makeProducer`): the model (`model.js`) where the world's weather is
+  `made`, one static snapshot from the day's maps (`fromMaps.js`) where it is `maps`, the test
+  pattern (`stub.js`) for a `sky:<preset>` switch. The worker makes the snapshots and transfers
+  them (the model: about 0.5 s of a core each); without a worker they are made on the page. The
+  page keeps its own producer for `at()` (under 20 µs: it fills only the texels its read takes),
+  `cells()`, `strikes()`, `anvils()` and `lenses()`. The cells and anvils, asked every frame,
+  come through `ListClock` (`listClock.js`): the model is asked at moments 2 s of the clock
+  apart (a fresh moment costs it 1.6 ms at a storm's hour) and each cell's numbers are blended
+  by id between them, within centimetres of the closed form.
+- **Uploads, paced**: three slots of raw GL textures that three only binds, filled one 32-row
+  strip of one map a frame with `texSubImage2D` between frames, no mip maps: at most 128 KB a
+  frame on Haven. The first pair goes up whole (about 4 MB a snapshot, before the first
+  picture). The 'now' maps (`SKY_UNIFORMS.tWxA/B/C`) are render targets blended from the pair
+  round the clock on the GPU, a sixteenth of the rows a frame, scissored; whole above x60, for
+  the first maps and while a jump fades in. `uSkyLow.w` is 1 once a whole field is shown; till
+  then every reader takes a clear sky, and `field.busy` holds the screenshots.
+- **Haven's land for the weather**: `public/data/haven_wxland_1024.u8` (5 MB: the ground, the
+  country `hC`, the hills `hS`, the floor of each hollow, land, the distance to the coast) and
+  `haven_peaks.json` (598 summits 600 m over their country), fetched by the field; without them
+  `land.js` works the same planes out of the elevation map in a second. From them come 1 073
+  trigger sites for storms (proud high ground, the sea-breeze line 12 km inland).
+- **Where the field is on**: wherever a world's weather is `made`, unless `debug=noclouds`; on
+  Earth only under `?debug=sky:model`. With no `sky:` preset in the URL the field's producer is
+  the world's model (`debug=flash` alone takes the stub's storm, so a stroke is always near). Until
+  the fix of 2026-11-25 it was the stub's `fair` pattern: a whole merge drew no storm of the day
+  (sky-system-test check 12 now fails on that).
+
+**The clock**
+
+- The weather clock `t` is seconds since `weather.epoch` (`Steer.t`; Haven: 2024-09-01, its day
+  starting at `dayStart`, 9 h UTC). Snapshots, steering, systems, cells and strikes are closed
+  forms of `t`: nothing is added up frame by frame. Paused, the clouds stop; run fast, they
+  time-lapse; run backwards, the snapshot on the other side is asked for. After a jump (a step
+  larger than both 300 s and three times what the clock's rate explains) the old maps stay
+  until the new pair is up, then fade into it over 2 s of real time (a constant blend factor).
+  Snapshots are asked for one at a time, `max(120 s, |rate| x 0.5 s)` apart.
+- The clouds' noise clock `noiseT` is `t` up to x600 (`NOISE_RATE_MAX`); faster, it runs at x600
+  and is set back to `t` when the clock slows: at an hour a second every heap would flicker by.
+  Strokes come only from a clock running forward by less than 60 s a frame.
+
+**The day's weather** (`model.js`, `land.js`, `systems.js`)
+
+- The chain at a place and a moment: moisture (the latitude's climate, the day's, how far upwind
+  the sea is, the dry lee of the ranges), heat (the Sun two hours earlier, most over proud high
+  ground), lift (windward slopes, fronts, lows), then the kinds. **Systems**: a low with a cold
+  and a warm front on each hemisphere's track every 26 h, highs between, tropical waves; each
+  born at a slot of the clock and carried rigidly by the mid layer's steering, bringing lift,
+  moisture, shields of mid and high cloud, a rain deck and a gustier wind.
+- **Heaps** form from mid-morning over heated high ground (over 20 afternoons at 15 h, 5.8 times
+  the cover above 2 000 m as below 500 m; the windward side 8.6 times the lee), in clusters and
+  streets downwind, few over the sea by day. **Caps** sit on summits in moist wind. **Sheets**:
+  a marine deck over the sea, stratus in moist stable air, the fronts' rain deck, cloud banked
+  on windward slopes. **Heights are over the country**: the low base is
+  `max(hC + level - 650 x sheet, hS + 600, ground + 150)` m, `level` 400 + 1 600 x
+  (1 - humidity) + 400 x heat over land and 300 + 900 x (1 - humidity) over the sea; a cap
+  hangs 300 m under its own top. So a base never stands in the hills, and a plateau 2 km up has
+  its cloud over it.
+- **Fog** fills a hollow more than 60 m under its country on a calm (under 2 to 4.5 m/s), humid,
+  clear night, its top `gmin + clamp(0.4 x depth, 60, 400)` m, burnt off over the 3.5 h after
+  sunrise; sea fog on about 30 % of days. **Mid and high**: the fronts' shields, moist air
+  aloft, streaks under a high wind over 25 m/s, the anvils. **Rain**: the fronts' deck, upslope
+  rain, drizzle under a full sheet; none of it lands from a base over 2 km up (virga). **Wet
+  ground**: the last six half-hours of rain (the cells' tracks too), fading over 3 h.
+- **The ground wind**: the low steering wind slowed to 0.8 and turned, more on crests and less in
+  valleys, up the slopes by day (2.5 m/s) and down at night (1.5), a sea breeze near the coast,
+  gusts of 12 to 35 %, and round a raining cell an outflow of 6 to 15 m/s reaching 3 to 9 km
+  beyond its core ahead of its rain. The air cools 6.5 degrees a km; rain turns to snow from
+  1.5 degrees down. `at(place, t)` (`makeSkyAt`) gives, for a place and a height: the field
+  there, that wind, rain or snow at that height (none above the base it falls from), the
+  temperature, `overcast`, `storm`, `fog`, `wet`, `base`, `top`, the cell overhead.
+
+**The steering winds** (`src/weather/sky/steer.js`)
+
+- Each cloud layer (low 1.5 km, mid 5 km, high 9 km, the cells) moves as a rigid turning of the
+  whole sky, `M_L(t) = Rz(psi) Rx(phi + lean_L) Rz(theta_L - psi)`, a closed form of the clock:
+  `theta_L` the exact integral of a rate with knots at 06 h and 18 h of the world's day joined
+  by smoothsteps (prefix sums kept, so any moment gives the same number in any order); the axis
+  leans up to 43 degrees from the pole (knots every 3 days) and swings round it (every 5); the
+  high layer leans up to `veer` (30 degrees) further, so cirrus often runs on another heading.
+  A layer's wind at p is `omega x p`: level, and exactly the velocity of its pattern.
+- A day's character is its low wind: westerly on about 85 % of days (Haven: 1.2 to 20 m/s,
+  easterly up to 9, skewed light). Mid = 1.9 |low| + 4 m/s, high = 3.4 |low| + 8, the cells
+  the mean of low and mid. A world pins a day with
+  `weather.days['YYYY-MM-DD'] = { wind, veer }`; Earth's is a plain westerly
+  (`low: { fixed: 8 }, tilt: 0, high: { veer: 0 }`).
+- Shaders take `SKY_UNIFORMS.uCloudSteer` (a quaternion of `M_low(t)^-1`, `skyToLow`) and every
+  layer's `uSteerInv`, `uSteerSpin`, `uSteerRise` (`STEER_GLSL`), filled once a frame whether or
+  not anything is drawn; the noise is read where a layer's pattern stands still. The masses also
+  **rise** through the layer at 0.5 m/s (`uCloudRise.x`), read in two phases half a period apart
+  (`RISE`: 4 200 m), the first alone but for a fade of 8 % either side of its wrap
+  (`skyLowNoise`): a heap grows and fades in place as it goes. The systems ride `M_mid`; a cell
+  is at `M_cell(t) M_cell(born)^-1` times its birth point (a `STILL` cell stays put).
+
+**Storm cells, strikes, lenses** (`cells.js`, `cellShape.js`, `strikes.js`, `model.js`)
+
+- **A cell** is a (trigger site, half-hour slot) pair that exists when a hash falls under the
+  chance the weather there gives (up to 0.22 a slot, 1.6 times that over heated or windward
+  high ground; 13 to 19 h local over land, any hour along a front). It is blocked by a stronger
+  candidate within 40 km whose life overlaps, and capped when eight stronger ones overlap it:
+  never two side by side, never more than eight in the world, and since neither test asks when
+  the question is put, nothing pops in or out. 2.5 to 5 km in radius, its top 6.5 to 11 km, it
+  grows 20 min, is mature 25 to 40 min (15 to 45 mm/h in a core of 0.6 of its radius, 2 to 12
+  flashes a minute) and decays 30 min (`cellLife`); its strength is 0 at birth and death.
+- **Its shape** (`cellShape.js`, one rule in JS and GLSL): a column leaning with the shear under
+  a dome, an overshooting top while mature, a heart whose outer band its noise eats, a rain
+  shaft drifting downwind; quadric pieces, so a ray's entry and exit (`cellChord`) and its
+  length toward the Sun (`cellLight`) are exact. **Anvils** are a list of their own, outliving
+  their cell by 40 min: a fan at 6.7 to 9.5 km, blown 10 to 30 km downwind. The nearest 8
+  cells go into `SKY_UNIFORMS.uCells` each frame, up to 12 anvils into `uAnvils`.
+- **Strikes**: a mature cell has one chance in every 0.7 s slot of the clock, a hash of the cell
+  and the slot. A third reach the ground inside the rain core, from the base down; the rest
+  flash in the cloud; power 0.6 to 1.4. A window split in two gives the union of its parts, so a
+  benchmark meets the same storm every time.
+- **Lenses**: where the mid wind blows at 11 m/s or more across the ridge of a summit 600 m
+  proud of its country, in air neither dry nor saturated, up to three lenses of one to three
+  plates stand downwind a wave's length apart (2 pi x wind / 0.011 s^-1), 1 200 m and more over
+  the summit. They stand still and grow and fade with the wind; at most 12 in the world.
+
+## Clouds (`src/sky/`)
+
+- **One rule for the shapes** (`skyGlsl.js`): `skyLowAt` and its forms (`skyHeapTop`,
+  `skySheetAt`, `skyEdgeEat` ...) cut field A's covers into heaps and decks with the repeating
+  64-cube noise (`cloudNoiseData.js`, made in a worker). The volume marches it, the far shell
+  reads it where the masses are widest, the shade atlas follows it toward the Sun. Every shared
+  GLSL text (this file's, `FIELD_GLSL`, `STEER_GLSL`, `CELL_GLSL`) and the uniforms they read are
+  guarded (`glslOnce`): a shader may take two of them, and no reader declares a shared uniform
+  by a line of its own.
+- **The volume** (`cloudVolume.js`) to `reach` (16 km). Before the main picture a small picture
+  (a quarter of the view each way) is marched in eight slices of distance from the eye: 0 to
+  300 m, to 900 m, 2.4 km, 5 km, 9 km and the reach, then 16 to 40 and 40 to 200 km, which hold
+  storm cells alone and are marched only while one stands out there. A second pass takes the
+  grain out; a third (`ALL`) sums the cloud along each line of sight and cuts the clean edge by
+  it, so an outline cannot change as a slice boundary passes through it. A step reads field A
+  (both covers, base and thickness at that place), the noise's two channels, and the noise
+  280 m toward the Sun, which splits a heap into its two tones (0.64 and 1.0); within a
+  kilometre of the eye one more for the wisps. A ray reads field B once (the Sun the mid and high
+  layers leave). The march's bounds come from `at()` at 25 places over the reach, snapped to
+  250 m: they shorten the march and no value of a cloud comes from them.
+- **Storm cells** are marched by the same function near and far, so the hand-over at 16 km
+  cannot pop: 1.45 times as solid as a heap, lit by the exact chord toward the Sun through the
+  tower (white within 300 m, darkest by 2 600 m, the shade slate-indigo, the base keeping 0.11
+  of the lit top), their noise boiling up at 5.5 m/s in the cell's own frame, up to two flashes
+  lighting them from inside (`uBolt`, `setBolts`). **Rain shafts** below a raining base, crossed
+  once a ray: grey-blue, silver toward a low Sun, gone within 600 m of the eye, where the
+  streaks take over.
+- **Laying.** The two far slices first, each pixel at its own depth (where its ray enters the
+  nearest cell), plus a depth-only pass where a core is nearly solid: a ridge in front hides a
+  storm's foot, a tower hides the shells behind it. After the ground, the six near slices far to
+  near, each a curved sheet (24 x 12) at the distance where its slice begins.
+- **The far low shell** (`clouds.js`, one draw): each vertex stands where the field's cloud over
+  its own place is widest, the same forms cut it, and it fades in where the volume fades out
+  (`uNearFade`): the clouds from any height, from space and at the governor's floor. **The upper
+  shells** (`upperClouds.js`): mid at 5 km (altocumulus in patches and lanes, altostratus as a
+  veil), high at 9 km (cirrus drawn out along the high wind, a faint 22-degree halo, anvils read
+  where the pixel's ray crosses their own height, grey beneath, torn at the edge). Cover from
+  field B, pattern from the noise in each layer's own steering frame; cut where a tower stands
+  (not where its anvil lies); drawn above or below the camera by height.
+- **The fog sheet** (`fogSheet.js`): 129 x 129 points over 60 km on a lattice fixed to the world,
+  each lifted to field C's fog top at its own place, depth-tested so a ridge cuts it. **Lenses**
+  (`lenticulars.js`): at most 12 plates (768 triangles and a draw each) from the field's list,
+  read every 10 s of game time, nearest first, none beyond the horizon; a pixel takes the metres
+  of cloud its own ray crosses in the plate, so a plate seen edge on is drawn. **From space**
+  (`bodies.js`) the home globe wears field A. Every program is inside a phone's limits
+  (`glLimits`): the march 11 textures, the far shell 9, the upper shells 8, the fog 7.
+- **A world with no field** (Earth, unless `sky:model`) keeps the rule as it was: the day's cloud
+  map, fair-weather heaps where it has none (`volume.fair`, `FAIR_GLSL`;
+  `node scripts/cloud-field.mjs` draws them from above), the base `volume.base` over the country
+  smoothed round the traveller, `volume.thick` deep, denser with `weather.storminess`. This path
+  goes when every world with clouds has a field.
+
+## The clouds' shade (`src/sky/cloudShade.js`)
+
+- **One writer**: an RGBA8 atlas of 1 024 x 768 (3 MB), drawn before the main picture and read by
+  everything lit. Each texel is a point on the sphere R + 2 500 m: R the low cloud's raw shade
+  along the ray toward the Sun (readers apply the crisp curve, so an edge stays sharp on a coarse
+  map), G the Sun left by the mid and high layers, B the sky's light left, A the low cloud's top
+  on that ray (a peak above a deck or fog keeps its Sun). With a field the channels are the
+  shared rule's `skyShade()` with fog from field C and the exact chord of every tower crossed;
+  without one (Earth), the old rule of the day's map and the heaps.
+- **Three windows**: the world (1 024 x 512, 1.53 km a texel on Haven, a sixteenth of its rows a
+  frame, whole above x60 and in pictures), near (256 x 256 at 55 m) and middle (256 x 256 at
+  220 m), both whole every frame, on one tangent frame anchored at a world point until the
+  traveller is 2 km from it, each window's first texel snapped to its lattice; a re-anchor
+  carries the lattice over. A fixed place keeps its texel and its byte however one moves.
+- **Readers**: `cloudShadeLight(rel)` and `cloudShade(rel)` (`SHADE_READ_GLSL`): one read (two in
+  a window's blend band) where the Sun's ray through the place meets the sphere, exactly. The
+  near ground at its vertices (`vCloud.xy`), the far ground per pixel, the trees and the far
+  forest at crown height, the far grass, the far rocks; these define `OWN_CLOUD_SHADOW`, so the
+  lighting chunk does not shade them again by `uWeather.x`.
+- **The probe** (`ShadeProbe`): three texels (the figure's soles on foot or the figure in flight;
+  the camera; the lander once App hands it over, which it does not yet) read back
+  asynchronously as the meter's is (at once in a picture) and eased. It writes `G.uWeather.x`
+  and `.y`, which light the figure, the near rocks, the lander, leaves, dust and the grass within
+  30 m. With no value, `weather.js`'s shade from the cloud overhead stands.
+- The ground's vertex shader reads field B's wet (`cloudWet`) into `vCloud.z`, per place (with
+  no field, `uWeather.z`). The ground's fragment shader is at **15 of 16 textures**; its sky
+  light still takes the traveller's `uWeather.y`, not the atlas's B channel place by place.
+- Its strength is `clouds.shadow.x` (the world's `clouds.shadow`, 0.85), set by the far shell
+  once the world's cloud map has loaded (Haven still loads `haven_clouds_4096.jpg` for this). It
+  is 0 under `debug=noclouds`, with the benchmark's `cloud-shade` part out and at the governor's
+  `clouds` step: then no cloud shades anything.
+
+## Weather at the traveller (`src/weather/`)
+
+- **On a made world `weather.js` invents nothing**: it reads `sky.here` and `sky.strikes`. `uWind`
+  is the field's ground wind at the traveller (trees, grass, sea and whitecaps, leaves, pollen);
+  a hovering figure with the stick let go drifts with it at half its speed (below 12 km; not in
+  a benchmark, a GO trip or a picture). Rain and snow at the eye are `here.rain` and `here.snow`
+  at the traveller's own place and height: a shaft starts at its edge, a gap between heaps is
+  dry. The veil (`uWeather.w`, `rainVeil` in the lighting chunk, and the sky dome) is
+  `min(0.0045, 0.00014 (rain + 2 snow)^0.85)` a metre: what is lit is mixed toward the sky's
+  grey by `1 - exp(-distance x veil)`. Distances are metres through the world's own radius.
+- **Rain** (`rain.js`): 5 600 streaks or flakes in a box round the camera, a third in a small box
+  round the eye, each a strip turned to the eye never under two pixels wide, lit by `skyLight`,
+  each drop's numbers from its index; drawn in the weather scene and again in a slice of its own
+  from the eye to the terrain's near plane (0.15 of the height: metres, in flight).
+- **Strokes** (`bolt.js`): a pool of four ribbons of 64 pieces, each a seeded walk from the base
+  at the strike's own place to the ground there, branching (12 %), built **in planet axes round
+  the stroke's foot** and placed relative to the camera each frame, so it stands still while the
+  traveller flies. A white-violet core at 60 times the Sun's light, never under 1.25 pixels or
+  3 m of half-width (`boltHalfWidth`, one rule for JS and GLSL), in a glow five times as wide at
+  a quarter of the light: it reads with the bloom off. Alpha 0: it cannot own the meter. Two to
+  four return strokes over 0.2 to 0.5 s (`storm.js boltFlicker`, one rule for the ribbon, its
+  light on the land `uFlash`, and the cloud lit from inside). Drawn in the bolt slot, before the
+  near slices, so cloud in front covers its top; none seen from above 18 km.
+- **Thunder**: each stroke is queued from its own moment within the frame for distance / 343 m/s,
+  and heard only below 20 km over the ground. `audio.js thunderLoudness` falls to nothing at
+  50 km; a crack near by, a roll beyond, and each arrival raises a low rumble that dies over some
+  15 s, so a storm within 30 km is never quiet.
+- **The storm in the picture** (`storm.js STORM`, written once a frame by `weather.js`): `light`,
+  the share of the day's light the cloud overhead leaves (`stormLight`: a closed deck about
+  0.15, a storm at least 0.12), from `overcast` and `storm` overhead and never from the Sun at
+  the traveller's feet, so a heap's shadow on the figure cannot dim the frame. **The meter**
+  (`post.js meterTarget`) makes up only `light^0.45` of it (`METER_HOLD`): a storm stays 1.2 to
+  1.4 stops darker than full compensation, a clear sky is unchanged, and while a stroke is alight
+  the highlight limit is not applied. **The grade** (`look.js STORM_GRADE`: saturation 0.82,
+  contrast 1.12, a cool shade) blends in by the storm overhead; **the sky dome** goes over to the
+  deck's grey from 0.55 of overcast. **The rainbow** (`rainbow.js`, one additive pass) shows when
+  the Sun is low and rain falls 2.5 to 18 km off on the side away from it.
+- **Earth** keeps its own weather in `weather.js` (`recipe: 'maps'`, 8 September 2017): the belts
+  and a vortex round each named storm, squalls in two slow beats, rain or snow by a rough
+  temperature, lightning under deep cloud where it rains hard, now a hash of the place and the
+  moment (a benchmark meets the same storm twice). Its clouds are the day's map ("A world with
+  no field") on a plain westerly; since step 0 its storms no longer race at their wind's speed.
+  The atlas is drawn from the old rule, so Earth's clouds shade the figure too. Under
+  `?debug=sky:model` Earth gets a field from its maps (`fromMaps.js`): cover, mid and high layers
+  from the cloud tops, rain, and that day's storms as still cells with towers, anvils and
+  strokes; its ground wind is the same belts and vortices.
+
+## The sky's switches, savings and tests
+
+- **`?debug=`** (`skyDebug`): `sky:fair|fog|storm|front` (the field from the stub's test pattern:
+  heaps over high ground; mist in every basin; cells born again and again west of the opening
+  place; a front crossing it 6 h after the weather clock's zero); `sky:model` (the world's own
+  weather; on Earth its field from its maps); `storm` (a still mature cell 8 km north-east of
+  where the view opens); `flash` (in a picture, a stroke held at its brightest: on Haven the
+  nearest to the ground in the next 10 min within 60 km, bringing the stub's storm when no preset
+  is named; on Earth from its maps); `noclouds` (no cloud and nothing a cloud does: no field,
+  shadow, shade on the figure, stroke, rain, snow, wet ground, rainbow or storm grade). Also
+  `nostorm` (`look.js`: no storm grade) and `treeshade` (the far trees painted by the
+  share of the Sun the land and the clouds leave them).
+- **Governor steps** (`SKY_SAVINGS`, through `app.sky.setSaving`, live only where their part
+  draws; `buys` in ms, guesses until a phone measures them): `cloud-upper` (the upper shells in
+  one octave, no relief; 0.5), `rain-shafts` (no streak read in the shafts; 0.5),
+  `cloud-shade-rate` (the atlas's middle window every other frame; 0.3), `cloud-shade-coarse`
+  (no near window: the shadows kept, from the 220 m one; 0.5), `clouds` (every cloud shadow off;
+  4.0 measured before the atlas, still on the ladder after `cloud-shade-coarse`, which the plan
+  meant to replace it), `cloud-volume` (the field's heaps and decks go to the far shell; storm
+  cells still marched at 5 steps a slice; 9.4), `cloud-steps` (36 steps a ray to 22, far slices
+  8 to 5), `rain` (half the streaks). `bolt.js` answers a `bolt-glow` saving not yet on the
+  ladder. At the floor a storm keeps its tower, rain, strokes and thunder. The benchmark leaves
+  the sky's parts out one at a time (`SKY_PARTS`: `clouds-all`, `cloud-shade`, `cloud-upper`,
+  `cells-far`, `rain-shafts`, `fog`), on a pinned clock; a cost view may carry an hour.
+- **Tests** (no browser unless said; each exits 1 on a broken promise, and most take
+  `--break <fault>` to put back what it guards against and see the check fail):
+  - `scripts/sky-system-test.mjs`: the shared rule's GLSL against its JS twins, the clouds on
+    the game clock (paused, jumped, backwards, capped at x600), the frame order, the governor's
+    and the benchmark's hooks, `__shotReady`, the switches, the guards, the rise, the interfaces.
+  - `sky-steer-test.mjs`: the closed form against a frame-by-frame sum, level winds, the days,
+    pinned days, the GLSL against the JS, the pattern moving with the wind.
+  - `sky-format-test.mjs`: the encodings and decoders, `fieldAt` against a GPU's filtered read,
+    determinism, no traveller input, split windows of strikes, eight cells at most, the presets.
+  - `sky-cell-test.mjs`: a cell's GLSL against its JS; chords exact against a brute-force march.
+    `sky-list-test.mjs`: the cells and anvils blended from moments 2 s apart stay within 5 cm
+    of the model's own, forwards and backwards, and the model is asked about once in 60 frames.
+  - `sky-model-test.mjs` (3 min): package A's eleven checks, from determinism and cloud over the
+    mountains to storms only in the afternoon and Earth as `weather.js` has it (`--on fake`, a
+    producer of the old static map, must fail checks 3, 4 and 7).
+  - `cloud-shade-test.mjs`: the shade at fixed places while walking 2 km and flying 30 km
+    (0.000 against the old map's 0.345 and 0.396), a re-anchor, the reader's point on the Sun's
+    ray, the probe against the ground's own texel, the GLSL against the JS.
+  - `weather-test.mjs`: `uWind` is the field's, rain only where `at()` rains, thunder at
+    distance / 343 m/s and the same strokes twice, Earth unmoved, the meter holding the dark,
+    the gust front before the rain. `bolt-test.mjs`: at least 1.25 px at 2, 10 and 40 km at the
+    phone's pixel angle, still in planet axes while the camera flies, alpha 0 with a glow.
+  - `lens-list-test.mjs` (the lens list, nearest first, none over the horizon) and
+    `cloud-volume-test.mjs` (the storms still marched with the volume off).
+  - In a browser: `cloud-motion.mjs` (the clouds move with the steering, not with the camera;
+    the hand-over at 16 km) and `cloud-cost.mjs` (reads a step on real rays, limits, work).
+  - Tools: `find-weather.mjs` (the chain at a place, days, seeds, the scene's hours),
+    `sky-map.mjs` (the weather from above), `storm-sites.mjs` (where to stand for a picture).
 
 ## Sky bodies
 
@@ -1343,26 +1548,23 @@ exposure alone decides whether they are visible.
   mirrored at a grazing view. Rocks are not placed on it. The player can stand on it
   (known problem).
 - **A cloud layer** (`world.clouds`, `src/sky/clouds.js`): the globe's own cloud map on a
-  shell some kilometres up, one draw call in the near pass (depth-tested against the
-  ground, so peaks stand through it and it lies over the terrain from orbit), carved by
-  four sizes of generated puff, lit by the Sun through the air and by the sky. Its shadow
-  on the ground is one extra texture read in the terrain shader (`tClouds`, `uCloud`):
-  the cloud where the sunbeam to that ground crossed the layer. The near pass's far
-  plane reaches the layer's horizon. Governor step `clouds` (one of the last three).
-  **A heap** is one rule (`HEAP_GLSL`, `cloudHeap`): the cover the day's map gives a place
-  (and fair-weather fields where it gives none), carved by the cloud volume's noise at
-  the height where its masses are widest. The layer draws it with a clean edge, a lit side
-  and a side in its own shade (the same heap a few hundred metres toward the Sun,
-  `relief`); **the ground is shaded by the same heap** where the sunbeam to it crosses the
-  layer (`uCloudHeap`, `uCloudVol`, `uCloudWind`, `tCloudNoise` in the ground shader, the
-  sixteenth of its sixteen textures): every cloud has its shadow beside it on the land,
-  and nothing is shaded where no cloud is drawn.
+  shell some kilometres up, one draw call in a scene of its own drawn after the near pass
+  (`SkySystem.afterGround`; depth-tested against the ground, so peaks stand through it and
+  it lies over the terrain from orbit), lit by the Sun through the air and by the sky. The
+  near pass's far plane reaches the layer's horizon. Where the world has a sky field
+  (Haven) the shell draws the field's clouds instead ("Clouds"); what follows is the rule
+  for a world without one (Earth). **A heap** is one rule (`HEAP_GLSL`, `cloudHeap`): the
+  cover the day's map gives a place (and fair-weather fields where it gives none), carved
+  by the cloud volume's noise at the height where its masses are widest. The layer draws
+  it with a clean edge, a lit side and a side in its own shade (the same heap a few hundred
+  metres toward the Sun, `relief`). **Its shadow** is the clouds' shade atlas ("The
+  clouds' shade"), which on such a world is drawn by this same heap rule: every cloud has
+  its shadow beside it on the land, and nothing is shaded where no cloud is drawn.
   **From far off** (`far`: where a pixel is 1.5 to 5 km wide across the line of sight, and
-  a heap no more than a pixel or two) a field of heaps is a white veil as thick as the share of sky
-  it covers (0.55 of the cover), and the ground takes the field's mean shade; from farther
-  still (4 to 12 km a pixel: the whole globe in view) the layer is the day's map itself
-  as the globe seen from another world wears it, `smoothstep(0.04, 0.9, map)`, lit by its
-  own relief. None of this depends on the cloud volume being on.
+  a heap no more than a pixel or two) a field of heaps is a white veil as thick as the
+  share of sky it covers; from farther still (the whole globe in view) the layer is the
+  day's map itself as the globe seen from another world wears it, lit by its own relief.
+  None of this depends on the cloud volume being on.
 - The albedo map can start at longitude -180 (`albedoMap.lon0: -180`, Earth's globe
   maps) and steep rock can take less of its tint (`steep`): snow does not lie on cliffs.
 
@@ -1442,15 +1644,18 @@ Owner policy: the best image quality that holds a steady frame rate on the phone
   on the test phone, then by what the eye loses**; before that it was "least loss first",
   and a trial of two to four steps ended among eight that buy nothing there, with the
   steps that could have cured the frames behind them. Four groups:
-  1. bought 2.5 ms and more: `cloud-steps`, `tree-shadows`, `grass-mid`, `trees-far`,
-     `far-trees`, `tree-leaves`;
-  2. bought a little (0.5 to 1.6 ms): `cloak`, `fine-shadows`, `bloom`, `grass`,
+  1. bought 2.5 ms and more: `grass-mid`, `trees-far`, `far-trees`, `tree-leaves`;
+  2. bought a little (0.5 to 1.6 ms): `grass`, `pollen`, the sky's `cloud-upper`,
+     `rain-shafts` and `cloud-shade-rate` (the plan's guesses, not yet measured),
      `terrain-1`, `terrain-2`;
-  3. the depth of the land and the sky from the air: `clouds` (their shadows),
-     `far-relief`, `cloud-volume`;
-  4. nothing that could be measured on the phone: `detail`, `soft-shadows`, `contact`,
-     `edge-glow`, `dust`, `rocks`, `far-rock-shadows`, `far-rocks`, `rain`, `leaves`,
-     `sun-beams`, `air-shadow` (kept for other devices and for the floor).
+  3. the depth of the land and the sky from the air: `cloud-shade-coarse`, `clouds` (their
+     shadows), `far-relief`, `cloud-volume`;
+  4. nothing that could be measured on the phone (the tenth results moved `cloud-steps`,
+     `cloak`, `fine-shadows` and `bloom` here from the head of the ladder): `cloud-steps`,
+     `cloak`, `fine-shadows`, `bloom`, `detail`, `soft-shadows`, `contact`, `edge-glow`,
+     `dust`, `rocks`, `far-rock-shadows`, `far-rocks`, `rain`, `leaves`, `sun-beams`,
+     `air-shadow`, `tree-shadows` (kept for other devices and for the floor).
+  The sky's steps go through `app.sky.setSaving` ("The sky's switches, savings and tests").
 
   Each step has `buys` (ms a frame where the phone measured it) and may have `live(app)`:
   whether it can buy anything where the traveller is (no near trees drawn: the tree steps

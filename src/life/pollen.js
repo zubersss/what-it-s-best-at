@@ -67,10 +67,11 @@ export class Pollen {
           float ground = mix(mix(t00.r, t10.r, wq.x), mix(t01.r, t11.r, wq.x), wq.y) + uGrassCurve.x - dot(at, at) * uGrassCurve.y - uGrassCam.z;
           // (how high: most of them low over the flowers; rising slowly, some twice as fast)
           float zf = fract(aSeed.z + uAir.z * (1.0 + floor(aSeed.w * 2.0)) / ${TALL.toFixed(1)}), t = uAir.w;
-          float hgt = 0.15 + ${TALL.toFixed(1)} * zf * zf * (box < ${BOX.toFixed(1)} ? 0.45 : 1.0);
-          // (thinning with height: low over the flowers, few at the eye's height and none high up,
+          // (thickest just over the flowers: most within a metre of the ground)
+          float hgt = 0.15 + ${TALL.toFixed(1)} * zf * zf * zf * (box < ${BOX.toFixed(1)} ? 0.3 : 0.45);
+          // (thinning with height: low over the flowers, few toward the eye's height and none above it,
           // where motes against the sky read as dust on the lens)
-          keep *= 1.0 - smoothstep(1.0, 3.2, hgt);
+          keep *= 1.0 - smoothstep(0.6, 1.9, hgt);
           if (keep <= 0.0) OUT_OF_PICTURE
           // (and wandering a little, each its own way)
           vec3 wander = vec3(sin(t * ${WANDER[0].toFixed(2)} + aSeed.x * 40.0), cos(t * ${WANDER[1].toFixed(2)} + aSeed.y * 40.0), sin(t * ${WANDER[2].toFixed(2)} + aSeed.z * 40.0) * 0.6) * (seed ? 0.5 : 0.22);
@@ -83,8 +84,8 @@ export class Pollen {
           // its size on the picture: never under a pixel and a third (a mote there is as bright as its true size would be)
           // (a grain of pollen in the Sun is a glint wider than itself: drawn as 2 cm)
           // (looked at toward the Sun a mote blooms into a soft warm halo: drawn wider, as bright in all)
-          float c = max(dot(normalize(rel), uSunDir), 0.0), c2 = c * c, halo = 1.0 + 1.5 * c2 * c2 * c2 * c2 * (seed ? 0.0 : 1.0);
-          float px = (seed ? 0.045 : 0.02) * uGrassView * abs(projectionMatrix[1][1]) / clip.w, drawn = clamp(px * halo, 1.5, 22.0);
+          float c = max(dot(normalize(rel), uSunDir), 0.0), c2 = c * c, halo = 1.0 + 0.8 * c2 * c2 * c2 * c2 * (seed ? 0.0 : 1.0);
+          float px = (seed ? 0.045 : 0.02) * uGrassView * abs(projectionMatrix[1][1]) / clip.w, drawn = clamp(px * halo, 1.5, 12.0);
           float dim = min(1.0, (px * px) / (drawn * drawn) * 6.0 * halo);
           vec3 sun, sky, air; lightAt(at, sun, sky, air);
           // (a mote throws the Sun's light forward: looked at toward the Sun it is a spark)

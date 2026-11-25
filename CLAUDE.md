@@ -243,6 +243,7 @@ node scripts/shadow-axes-test.mjs   # a still spot's shadow hardly moves when th
 node scripts/terrain-bake-sun-test.mjs   # a patch built mid-walk is baked for the same Sun as its neighbours (no browser)
 npm run treeshadows   # the trees' shadows in motion, without a browser (about 40 s): flecks fixed to the ground through tile re-centres and axes renewals, no lurch at a rebuild, the shadow's mesh changing only where the picture does, the fine tile's count
 node scripts/sky-system-test.mjs [--break <fault>]   # the sky's step 0 (docs/briefs/sky-step0.md): the shared cloud rule's GLSL against its JS, the clouds going with the day's low wind and rising on the game clock, the guards that let a shader take two shared texts, the frame order and the interfaces the sky packages build on, the governor's and the benchmark's hooks, the debug switches (no browser, 10 s; --break puts one fault in to see its check fail)
+node scripts/sky-list-test.mjs [--break hold|nofast]   # the storm cells and anvils asked every frame from moments 2 s apart and blended: within a few cm of the model's own answer, forwards and backwards, and the model asked about once in 60 frames (no browser, 3 s)
 node scripts/sky-steer-test.mjs · node scripts/sky-format-test.mjs · node scripts/sky-cell-test.mjs   # each cloud layer's wind (closed form against a frame-by-frame sum), the weather field's snapshot format (JS and GLSL decoders), a storm cell's shape (JS against its GLSL) (no browser)
 npm run probe          # top-down shaded relief of the height function (no browser)
 node scripts/sky-table.mjs [--lat .. --lon ..]   # where the sky bodies are from a place over time (no browser)
@@ -406,8 +407,9 @@ finished benchmark leaves its text in `window.__benchResult`.
   vectors. A shader over a phone's limit draws nothing there and works in every headless
   test (the whole ground vanished on the phone at 17). `scripts/lib/glLimits.mjs` checks
   every program in `npm run smoke` and in screenshot runs. The terrain's fragment
-  shader is full, at 16 of 16 (its vertex shader reads 4 more, which a phone counts
-  apart): a new map there must take the place of one.
+  shader is at 15 of 16 since the clouds' shade atlas took the place of the cloud map and its
+  noise (its vertex shader reads more, which a phone counts apart): one map is free, and after
+  it a new map must take the place of one.
 - three uploads a changed texture at the draw call that first uses it, in the middle of
   the render pass, and with `generateMipmaps` has the GPU build the mips there. A phone's
   tile-based GPU must write the half-drawn picture out and read it back for that: every
@@ -735,3 +737,13 @@ finished benchmark leaves its text in `window.__benchResult`.
   finding is about, and land fixes after the checks, or say in the brief which are fixed.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.
+- Look at the game as the player gets it, with no switch in the URL. The sky's field fell back
+  to a stub's test pattern ("fair") whenever no `sky:` switch was given: four helpers pictured
+  their work under `debug=sky:model`, every check asked only "is the field on", and the merged
+  build drew no storm of the day. A test of a default asks what the default is.
+- Two clocks: `?t=` (and a bookmark's `timeOffsetHours`) counts hours from the scene's own
+  moment; the weather's clock counts seconds from `weather.epoch` (521 hours apart on Haven).
+  A Node scan of the model at `t = H * 3600` asks about another day than the game shows at
+  `?t=H`: `t_weather = (Date.parse(scene.dateUTC) - Date.parse(weather.epoch)) / 1000 + H * 3600`
+  (or `new Steer(weather, R).t(date)`). Views, stability cases and benchmark hours picked from
+  the model go through it.

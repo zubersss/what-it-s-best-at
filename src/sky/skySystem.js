@@ -141,9 +141,11 @@ export const SKY_SAVINGS = Object.freeze({
   'rain-shafts': 'B: no streak read in the shafts, one look into the field',
   'cloud-shade-rate': "C: the shade map's middle window every other frame",
   'cloud-shade-coarse': 'C: the shade from the middle window only (220 m): the shadows stay, coarser',
+  lenses: 'B: the nearest three lenses, one plate each',
+  'fog-sheet': 'B: the fog on a lattice of half as many points a side (a quarter of the triangles)',
 });
 // The parts the benchmark's cost test can leave out one at a time (perf/benchmark.js PARTS_OUT).
-export const SKY_PARTS = Object.freeze(['clouds-all', 'cloud-shade', 'cloud-upper', 'cells-far', 'rain-shafts', 'fog']);
+export const SKY_PARTS = Object.freeze(['clouds-all', 'cloud-shade', 'cloud-upper', 'cells-far', 'rain-shafts', 'fog', 'lenses']);
 
 // ?debug= -> what the sky does with it
 export function skyDebug(str = '') {
@@ -234,8 +236,8 @@ export class SkySystem {
     u[0] = 1 / (v?.scale ?? 5200); u[1] = world.radius; u[2] = world.clouds?.shadow ?? 0.6;
     setCellUniforms(SKY_UNIFORMS, [], []);
     Object.assign(this.frame, { world, R: world.radius, steer: this.steer, tPrev: null, here: null, cells: NONE, strikes: NONE });
-    // The field: a world whose weather is made by rule, under a debug switch (step 0: nothing on
-    // screen reads it yet). Made at the first frame, when the place the view opens at is known.
+    // The field: a world whose weather is made by rule (the clouds, their shade and the weather at
+    // the traveller all read it). Made at the first frame, when the place the view opens at is known.
     const made = world.weather?.recipe === 'made', d = this.debug;
     // (sky B: the field is always on where the weather is made by rule: the volume, the shells,
     // the fog and the lenses all draw from it; sky A: a world of a day's maps - Earth - makes its
@@ -261,8 +263,10 @@ export class SkySystem {
     // (the elevation as the stub reads it: rows from latitude 90, columns from longitude 0)
     const land = r && r.wrap && (r.lon0 ?? 0) === 0 && (r.lat0 ?? 90) === 90 && (r.lat1 ?? -90) === -90 ? { data: r.data, width: r.width, height: r.height, scale: r.scale ?? 1 } : null;
     const stormAt = d.storm ? offsetLatLon(rig.pos, Math.PI / 4, 8000) : null;
-    // (debug=flash alone: the stub's storm, which has a mature cell within 40 km of the opening place at every moment)
-    this.field.setWorld(w, { preset: d.preset || (d.flash && !d.storm ? 'storm' : 'fair'), stormAt, land });
+    // (debug=flash alone: the stub's storm, which has a mature cell within 40 km of the opening place
+    // at every moment; with no switch, the world's own weather: the model. It was the stub's 'fair'
+    // test pattern, so that no storm of the day's weather was ever drawn without debug=sky:model)
+    this.field.setWorld(w, { preset: d.preset || (d.flash && !d.storm ? 'storm' : 'model'), stormAt, land });
     this.fieldWanted = false;
   }
 
@@ -505,6 +509,8 @@ export class SkySystem {
       case 'cloud-upper': this.upper.saving(id, off); break;
       case 'rain-shafts': this.cloudVolume.saving?.(id, off); break;
       case 'cloud-shade-rate': case 'cloud-shade-coarse': this.treeShade.saving?.(id, off); this.probe.saving(id, off); break;
+      case 'fog-sheet': this.fog.saving(id, off); break;
+      case 'lenses': this.lenses.saving(id, off); break;
     }
   }
   // whether a saving can buy anything here now (the governor passes by one that cannot)
@@ -516,6 +522,8 @@ export class SkySystem {
       case 'cloud-upper': return !!this.upper.live(id);
       case 'rain-shafts': return !!this.cloudVolume.live?.(id);
       case 'cloud-shade-rate': case 'cloud-shade-coarse': return !!this.treeShade.live?.(id);
+      case 'fog-sheet': return !!this.fog.live(id);
+      case 'lenses': return !!this.lenses.live(id);
     }
     return false;
   }
@@ -526,6 +534,8 @@ export class SkySystem {
       case 'cloud-upper': return !!this.upper.has(id);
       case 'rain-shafts': return !!this.cloudVolume.has?.(id);
       case 'cloud-shade-rate': case 'cloud-shade-coarse': return !!this.treeShade.has?.(id);
+      case 'fog-sheet': return !!this.fog.has(id);
+      case 'lenses': return !!this.lenses.has(id);
     }
     return false;
   }
@@ -537,6 +547,7 @@ export class SkySystem {
       case 'cloud-upper': return this.upper.has(id);
       case 'cells-far': case 'rain-shafts': return !!this.cloudVolume.has?.(id);
       case 'fog': return this.fog.has(id);
+      case 'lenses': return this.lenses.has(id);
     }
     return false;
   }
@@ -545,6 +556,7 @@ export class SkySystem {
     if (out) this.out.add(id); else this.out.delete(id);
     if (id === 'cloud-upper') this.upper.partOut(id, out);
     else if (id === 'fog') this.fog.partOut(id, out);
+    else if (id === 'lenses') this.lenses.partOut(id, out);
     else if (id === 'cells-far' || id === 'rain-shafts') this.cloudVolume.partOut?.(id, out);
   }
 

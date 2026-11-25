@@ -210,6 +210,10 @@ still thought its question to the ended one was pending. Fixed, with a check in
    second with nothing (sky-model-test 10); and on Haven the storm cells' cached list went out
    with each snapshot uncopied, so the transfer emptied it and **every snapshot after the first in
    a half-hour slot had no storm cells** (sky-model-test 8).
+   Earth's opening view, today and with Earth's field on (`docs/shots/sky/A2-earth-ledge-today.png`,
+   `-field.png`, from one frozen build): sky, clouds, land and trees the same to the pixel; only
+   grass blades differ, caught at another moment of their sway (nothing on screen reads the field
+   yet). Both pictures waited out their 900 s on Earth's terrain workers, as Earth pictures do here.
    (Was: Earth's field is not wired: `fromMaps` needs its three maps as bytes
    (`{ data, w, h }` each) and `data/earth_storms.json`, which the page must decode as
    `weather.js` does. Say the word and I will write that loader into `skyField`.)
