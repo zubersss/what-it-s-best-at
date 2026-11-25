@@ -35,6 +35,7 @@ uniform vec3 uShineE;               // its irradiance at the ground (planetshine
 uniform vec3 uHomeShine;            // sunlight the home world's day side sends up to something high above it
 uniform vec4 uQuality;              // governor switches: x close-up detail, y soft shadow edges, z edge-glow samples
 uniform vec4 uPaint;                // the painted look: x amount, y sky light on things, z colour, w facets (globals.js)
+uniform float uAloft;               // how much of the haze a line of sight straight down is spared, from up in the air (globals.js)
 uniform float uHaze;                // how much of the haze lies over what is seen (1: all; less from high above a world with thick low air)
 uniform float uPhotometry;          // 0 = matte dust under air (Oren-Nayar), 1 = airless regolith (lunarDiffuse)
 uniform vec3 uGroundTint;           // the world's albedo map at the camera, relative to its mean
@@ -83,7 +84,8 @@ vec3 skyLight(vec3 N, vec3 up) {
   }
   // (the painted look: shade is lit by more of the sky than is physical, and by its colour
   // more than its grey: shadows are blue at noon and violet at dusk, never black)
-  if (uPaint.x > 0.0) { float g = dot(E, vec3(0.3, 0.55, 0.15)); E = max(vec3(0.0), mix(vec3(g), E, 1.0 + 0.3 * uPaint.x)) * mix(vec3(1.0), uPaint.y * vec3(0.88, 1.06, 0.98), uPaint.x); }
+  // (from up in the air, uAloft, the sky's light leans violet: look.js also makes more of it there)
+  if (uPaint.x > 0.0) { float g = dot(E, vec3(0.3, 0.55, 0.15)); E = max(vec3(0.0), mix(vec3(g), E, 1.0 + 0.3 * uPaint.x)) * mix(vec3(1.0), uPaint.y * mix(vec3(0.88, 1.06, 0.98), vec3(1.04, 0.9, 1.1), uAloft), uPaint.x); }
   return E * uSunIrradiance * uWeather.y + uFlash;
 }
 
@@ -164,6 +166,16 @@ void froxelHaze(float dk, float pathA, float pathB, vec2 uvIn, float cosT, out v
   L0 = (Ls + Lm * phaseHG3(cosT, uMieG)) * k;
   Lg = Ls * A.a * k;                                        // alpha: the ground's share of it
 }
+// Seen from up in the air, the ground straight below lies under little of the haze and
+// the land toward the horizon under all of it: the haze along a line of sight is thinned
+// by how steeply it looks down at the place it ends (rd: its direction, up: the vertical
+// there). From 100 m to 3 km up the air lay over the ground below as fully as over the
+// horizon, an even veil "as if under murky water". Nothing on foot (uAloft is 0 there),
+// and blended in by height.
+float hazeAloft(vec3 rd, vec3 up) {
+  if (uAloft <= 0.0) return 1.0;
+  return 1.0 - uAloft * smoothstep(0.04, 0.5, -dot(rd, up));
+}
 vec3 hazeOverGround(vec3 color, vec3 rel, vec3 rho) {
   vec3 h = hazeOverGroundFull(color, rel, rho);
   // (seen from high above, through less of the look's thick low air: see uHaze)
@@ -225,6 +237,7 @@ vec3 hazeOverGroundFull(vec3 color, vec3 rel, vec3 rho) {
 #endif
   vec3 T, L0, Lg;
   froxelHaze(dist * 0.001, pathA, pathB, uvS, cosT, T, L0, Lg);
+  if (uAloft > 0.0) { float ka = hazeAloft(rd, normalize(pEnd)); T = mix(vec3(1.0), T, ka); L0 *= ka; Lg *= ka; }
   vec3 hazed = color * T + L0 + Lg * (rhoW - 1.0);
   return mix(hazed, marched, useMarch);
 }
@@ -252,6 +265,7 @@ void hazeAffine(vec3 rel, vec2 uv, out vec3 T, out vec3 L0, out vec3 Lg) {
   vec3 pEnd = ro + rd * (dist * 0.001);
   froxelHaze(dist * 0.001, 0.0, pathB, uv, dot(rd, uSunDir), T, L0, Lg);
   Lg *= smoothstep(0.3, 0.6, -dot(rd, pEnd) / length(pEnd));
+  if (uAloft > 0.0) { float ka = hazeAloft(rd, normalize(pEnd)); T = mix(vec3(1.0), T, ka); L0 *= ka; Lg *= ka; }
   if (uHaze < 1.0) { T = mix(vec3(1.0), T, uHaze); L0 *= uHaze; Lg *= uHaze; }
   if (uWeather.w > 0.0) {
     vec3 up = normalize(uCamPlanetPos + rel);
@@ -269,7 +283,8 @@ vec3 forestAir(vec3 color, vec3 rel, vec3 up, float amount) {
   vec3 air = skyLight(up, up); air = mix(air, vec3(dot(air, vec3(0.3, 0.55, 0.15))), 0.35);
   // (not from high above: the air of a wood is a thing of the landscape, and from orbit it
   // turned every forest teal)
-  return mix(color, air * (0.3 / PI), uPaint.x * 0.34 * amount * (1.0 - exp(-length(rel) / 150.0)) * smoothstep(0.5, 1.0, uHaze));
+  // (and from up in the air, like the haze, less of it over the wood straight below)
+  return mix(color, air * (0.3 / PI), uPaint.x * 0.34 * amount * (1.0 - exp(-length(rel) / 150.0)) * smoothstep(0.5, 1.0, uHaze) * hazeAloft(normalize(rel), up));
 }
 vec3 aerialPerspective(vec3 color, vec3 rel) { return rainVeil(hazeOverGround(color, rel, vec3(1.0)), rel); }
 // The ground itself, with its own albedo.

@@ -1,0 +1,91 @@
+SOLAR SYSTEM EXPLORER — 3-minute Haven benchmark
+build e9d4888 · mode Sharp (target 30 fps) · ran 180 s, 5125 frames
+average fps 28.5 · 1% low 13.0 · worst frame 258 ms · late frames (over 1.5x the target) 44 = 0.86 %
+render resolution: average 2.59 MP (2357x1099) · minimum 1.60 MP (1852x864) · native 4.45 MP (3088x1440)
+by part: Haven 28.3 fps · flight 29.0 · Moon 28.3
+the page's own work per frame: average 7.6 ms · worst 1 % 26.0 ms (a frame has 33.4 ms)
+by stop (fps · late frames · own work · resolution):
+  Haven ledge: 25.9 · 3.0 % · 9.8 ms · 1.65 MP
+      rocks and trees 2.6 · ground 1.6 · character 1.5 · terrain 0.9
+  Haven sun: 28.9 · 0.3 % · 10.2 ms · 1.60 MP
+      ground 2.7 · character 1.8 · rocks and trees 1.3 · terrain 1.1
+  Haven wall: 30.0 · 0.0 % · 10.2 ms · 1.60 MP
+      ground 2.8 · character 1.9 · rocks and trees 1.2 · terrain 1.1
+  Haven ship: 26.7 · 1.6 % · 7.6 ms · 1.60 MP
+      ground 2.2 · character 1.4 · rocks and trees 1.0 · terrain 0.7
+  Haven dusk: 30.0 · 0.0 % · 9.0 ms · 1.60 MP
+      ground 2.5 · character 1.4 · rocks and trees 1.4 · terrain 1.1
+  flight: 29.0 · 1.1 % · 7.7 ms · 2.76 MP
+      character 1.8 · ground 1.3 · rocks and trees 1.0 · terrain 0.9
+  Moon ledge: 26.1 · 2.6 % · 5.9 ms · 3.22 MP
+      character 1.7 · terrain 1.2 · ground 0.8 · shadow map 0.5
+  Moon sun: 28.8 · 0.0 % · 4.8 ms · 3.44 MP
+      character 1.3 · terrain 1.1 · ground 0.6 · shadow map 0.4
+  Moon wall: 27.6 · 0.6 % · 5.4 ms · 3.44 MP
+      character 1.6 · terrain 1.0 · ground 0.7 · shadow map 0.5
+  Moon ship: 28.9 · 0.0 % · 5.5 ms · 3.44 MP
+      character 1.7 · terrain 0.9 · ground 0.7 · shadow map 0.5
+  Moon dusk: 30.0 · 0.0 % · 6.1 ms · 3.44 MP
+      character 2.0 · terrain 1.2 · ground 0.8 · finishing 0.5
+frames that took in new terrain: 35 % of all · late among them 0.9 % · late among the rest 0.8 %
+frame lengths in screen refreshes (16.7 ms each): 2: 91.6 % · 3: 7.6 % · 4: 0.6 % · 5+: 0.2 %
+quality steps: 74 (resolution down 8, up 9; features off 30, back on 24) · ended at Sharp 30 fps · 3.44 MP (77 % of native)
+late frames taken as the device's own: 7.0 % · quality put back after steps that cured nothing: 2 times
+  6.2s resolution down to 1.60 MP
+  7.4s off: coarser clouds near you
+  7.4s off: thinner grass in the middle distance
+  8.3s off: robe and hair simulated more loosely
+  8.3s off: coarser shadows of nearby rocks
+  8.3s off: glow around bright things
+  8.3s off: half the grass
+  8.3s off: less pollen in the air
+  8.3s off: terrain detail (fewer patches)
+  9.9s off: terrain detail (fewer patches again)
+  9.9s off: the clouds' shadows on the ground
+  10.8s off: relief shading of far ground
+  12.3s off: clouds with depth (they stay as a layer)
+  18.3s back on: coarser clouds near you
+  18.3s back on: thinner grass in the middle distance
+  18.3s back on: robe and hair simulated more loosely
+  18.3s back on: coarser shadows of nearby rocks
+  18.3s back on: glow around bright things
+  18.9s off: coarser clouds near you
+  18.9s off: thinner grass in the middle distance
+  18.9s off: robe and hair simulated more loosely
+  18.9s off: coarser shadows of nearby rocks
+  18.9s off: glow around bright things
+  20.6s off: shadows of the farther trees
+  26.8s back on: coarser clouds near you
+  35.5s back on: thinner grass in the middle distance
+  38.5s back on: robe and hair simulated more loosely
+  41.9s off: robe and hair simulated more loosely
+  42.9s off: coarser clouds near you
+  42.9s off: thinner grass in the middle distance
+  … 44 more
+hitches over 100 ms: 5 — jump to a bookmark 3, sky maps arriving 1, arriving at another world 1
+  0.6s 258 ms — jump to a bookmark
+  0.7s 225 ms — jump to a bookmark
+  0.9s 117 ms — jump to a bookmark
+  90.6s 133 ms — sky maps arriving
+  99.5s 133 ms — arriving at another world
+most at once: 173 draw calls, 2124k triangles, about 237 MB of GPU memory
+
+what each thing costs to draw · Haven, ledge (ms a frame, from the frame's start until it is drawn; picture held at 2.07 MP):
+  everything on 59.7 (from 43.4 to 69.1 over the test) · every saving on 41.6 · everything on at 1.00 MP 47.2 · at native (4.45 MP) 54.3
+  saved by leaving a part out: grass -0.8 · trees 2.3 · the far forest 5.9 · the figure -0.2 · the shadow maps 1.5 · the ground's shading 31.1 · the ground and all on it 37.1 · the sky -11.0 · the last pass at the picture's size, not the screen's 0.6 · (with nothing drawn at all a frame still takes 22.7)
+  saved by one saving alone: edge-glow 6.7 · dust 5.6 · far-relief 3.9 · far-rock-shadows 3.0 · clouds 2.7 · contact 2.7 · cloud-volume 2.0 · grass 1.9 · detail 1.5 · grass-mid 1.4 · pollen 1.3 · tree-leaves 1.2 · rocks 1.2 · cloud-steps 0.7 · sun-beams 0.7 · soft-shadows 0.6 · air-shadow 0.5 · far-rocks -0.3 · fine-shadows -0.4 · tree-shadows -0.5 · leaves -1.0 · cloak -1.1 · trees-far -1.7 · far-trees -2.4 · rain -3.1
+what each thing costs to draw · Haven, in the forest (ms a frame, from the frame's start until it is drawn; picture held at 2.07 MP):
+  everything on 52.0 (from 38.9 to 62.1 over the test) · every saving on 39.4 · everything on at 1.00 MP 51.1 · at native (4.45 MP) 56.1
+  saved by leaving a part out: grass 4.6 · trees 2.9 · the far forest -9.5 · the figure 0.3 · the shadow maps 8.2 · the ground's shading -11.3 · the ground and all on it 8.6 · the sky -4.0 · the last pass at the picture's size, not the screen's 3.7 · (with nothing drawn at all a frame still takes 26.1)
+  saved by one saving alone: pollen 9.1 · far-trees 7.0 · clouds 5.5 · far-relief 5.2 · grass-mid 4.5 · far-rock-shadows 4.1 · fine-shadows 1.3 · trees-far 0.9 · bloom 0.4 · tree-leaves -0.4 · sun-beams -0.6 · leaves -0.8 · cloak -1.0 · cloud-volume -1.7 · rocks -3.6 · grass -3.7 · edge-glow -4.0 · cloud-steps -5.2 · tree-shadows -6.8 · contact -6.8 · soft-shadows -9.6 · detail -11.2
+what each thing costs to draw · Haven, from the air (ms a frame, from the frame's start until it is drawn; picture held at 2.07 MP):
+  everything on 52.0 (from 31.5 to 60.5 over the test) · every saving on 52.2 · everything on at 1.00 MP 42.0 · at native (4.45 MP) 44.6
+  saved by leaving a part out: grass -1.3 · trees -0.8 · the far forest 1.9 · the figure 0.4 · the shadow maps 1.1 · the ground's shading 21.6 · the ground and all on it 26.8 · the sky -10.6 · the last pass at the picture's size, not the screen's -6.9 · (with nothing drawn at all a frame still takes 26.2)
+  saved by one saving alone: cloud-volume 3.7 · cloak 1.2 · grass 0.7 · clouds 0.5 · trees-far -0.3 · sun-beams -0.6 · rain -0.9 · tree-leaves -1.3 · grass-mid -1.5 · far-rock-shadows -1.8 · far-rocks -1.8 · leaves -2.3 · far-trees -2.5 · tree-shadows -2.6 · cloud-steps -4.0 · soft-shadows -5.4 · rocks -6.5 · dust -9.2 · contact -12.5 · edge-glow -15.3
+
+terrain patches built: Haven 1027 (36 ms each), Moon 1900 (54 ms each) · shadows re-baked: 552 · patch cap at the end: 180
+screen 823x384 CSS px · pixel ratio 3.75 · refresh 60 Hz
+GPU: ANGLE (Qualcomm, Adreno (TM) 740, OpenGL ES 3.2)
+Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/158.0.0.0 Mobile Safari/537.36
+
+The owner, with it (2026-11-25): "my observations where that the shawdows need alot of work they get jumpy when im moving around near them also the clouds need alot of work still i want them to move like real clouds and be around areas where real clouds will be mostly likely found like near the mountains they should also have multiple different kinds of clouds like in real life from high altitude ones to low storm carrying dark clouds they should move with the wind at different speeds based on the wind speed on a certain day they should also have actual rain coming out of them when its time to rain the the thunder clouds should be much darker and stormy looking with lightning and thunder you can use as many agents as you need to accomplish this task to the best of your ability"
