@@ -684,6 +684,7 @@ void main() {
   // (THE GROUND FROM AFAR, 2 is the land's painted patches, further down; 3 the relief
   // light, in the lighting.)
   // =====================================================================================
+  float shellOut = vShell;      // (how much of the ground here is canopy, the broken edge counted)
   if (canopyTall > 0.3 && vShell > 0.0) {
     vec3 c1 = texture(tDetail, vDetailUv * 5.0).rgb - 0.5, c2 = texture(tDetail, vDetailUv * 1.0).rgb - 0.5;
     float fwC = fwidth(vDetailUv.x) + fwidth(vDetailUv.y);
@@ -721,8 +722,11 @@ void main() {
       // (and within the far trees' reach the trees are the crowns: the canopy under them is
       // the dark between them, its own domes only a hint, or each tree stood on an oval of
       // its own, the same oval over and over)
+      // (the single crowns, 8 m, not at all there: the far trees' own tops are those, and the
+      // two together were an even field of small round blobs, "bubble wrap"; the stands, 21 m,
+      // at half strength)
       float underTrees = mix(0.55, 1.0, smoothstep(3000.0, 5600.0, dist));
-      kc *= underTrees; kg *= underTrees;
+      kc *= smoothstep(3000.0, 4500.0, dist); kg *= underTrees;
       if (kg > 0.0) {
         cg = crowns(vDetailUv + 0.37, 3.0);
         N = normalize(N + (uTanU * cg.x + uTanV * cg.y) * (farCrownTilt(true) * kg));
@@ -745,14 +749,30 @@ void main() {
     // (where a pattern was not worked out, its weight is nought or the canopy is not drawn at all)
     float patH = mix(mix(mix(${FAR_GROUND.clumpZ.toFixed(3)}, cz.z, kz), cg.z, kgE), cr.z, kcE);
     float sharp = max(max(kz, kgE), kcE);
-    float shellW = mix(vShell, smoothstep(0.3, 0.7, clamp((vShell - 0.5) * 2.4 + 0.5 + 1.4 * (patH - ${FAR_GROUND.clumpZ.toFixed(3)}), 0.0, 1.0)), sharp * step(vShell, 0.999));
+    // (and broken by the detail tile's broad blobs, 13 and 64 m, so that the edge wanders
+    // freely, not along the land-cover map's square pixels, "a staircase")
+    float shellW = mix(vShell, smoothstep(0.3, 0.7, clamp((vShell - 0.5) * 2.4 + 0.5 + 1.4 * (patH - ${FAR_GROUND.clumpZ.toFixed(3)}) + 0.9 * c2.g + 0.45 * c1.r, 0.0, 1.0)), sharp * step(vShell, 0.999));
+    // (from a kilometre the wood gathers into larger soft clumps in two or three tones: the
+    // detail tile's broad blob, 64 m, lighter and darker, as the far trees' shared tone is)
+    leaves *= mix(1.0, 0.82 + 0.36 * smoothstep(-0.12, 0.12, c2.r + 0.4 * c1.g), smoothstep(400.0, 1200.0, dist));
     albedo = mix(albedo, leaves, shellW * ownC);
+    shellOut = shellW;
     ao *= mix(1.0, 0.72 + 0.5 * clamp(c1.b + c2.b, -0.4, 0.5), vShell * ownC);
     // (the clumps: their light and shade on whatever colour the wood has there, its own or,
     // beyond 19 km, the map's; tilted a little toward their own light)
     if (kz > 0.0) {
       N = normalize(N + (uTanU * cz.x + uTanV * cz.y) * (0.25 * kz * shellW));
       albedo *= mix(1.0, (0.48 + 0.8 * smoothstep(0.0, 0.55, cz.z)) * (0.8 + 0.4 * cz.w) / ${FAR_GROUND.clumpMean.toFixed(3)}, kz * shellW);
+    }
+  }
+  // A clearing in a wood, seen from the air, is a glade: the meadow's gold and green, not the
+  // forest floor's grey-sage litter in the canopy's shade ("holes in the picture"). Wherever
+  // the land carries trees and the ground shows between them, from 250 m off and from above.
+  if (canopyTall > 0.3) {
+    float glade = (1.0 - shellOut) * smoothstep(250.0, 500.0, dist) * smoothstep(0.15, 0.35, dot(V, up)) * flatW;
+    if (glade > 0.0) {
+      albedo = mix(albedo, grassColour(uGrassTone.x, 0.62) * mapTint * (0.85 + 0.3 * texture(tDetail, vDetailUv).b), 0.85 * glade);
+      ao = mix(ao, ao / mix(1.0, 0.55, canopyShade), glade); canopyShade *= 1.0 - glade;
     }
   }
   // ===================================== end of THE GROUND FROM AFAR, 1 ================

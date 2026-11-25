@@ -144,14 +144,23 @@ export class FarForest {
       uniform float uCellMid[CELLS];
       uniform vec4 uFar, uShadow;
       uniform float uTileShadow;
+      uniform vec3 uCamPlanetPos;
+      // (a value noise over the world's place, for the tones neighbouring crowns share)
+      float toneHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+      float toneNoise(vec3 p) {
+        vec3 i = floor(p), f = p - i, u = f * f * (3.0 - 2.0 * f);
+        return mix(mix(mix(toneHash(i), toneHash(i + vec3(1, 0, 0)), u.x), mix(toneHash(i + vec3(0, 1, 0)), toneHash(i + vec3(1, 1, 0)), u.x), u.y),
+                   mix(mix(toneHash(i + vec3(0, 0, 1)), toneHash(i + vec3(1, 0, 1)), u.x), mix(toneHash(i + vec3(0, 1, 1)), toneHash(i + vec3(1, 1, 1)), u.x), u.y), u.z);
+      }
       uniform vec3 uSunDir;
       ${TREE_SHADE_VERT}
       ${SHADOW_GLSL}
       out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out vec2 vUv; out vec2 vOwn; out float vShade; out float vShadowA;
       out vec3 vDome; out vec3 vDomeE; out vec3 vDomeN;     // the crown's top seen from above: where in it (xy, -1..1), how much (z); its two axes
+      out vec2 vTone;        // x: the tone it shares with its neighbours (a clump), y: 1 for a fir's spire
       vec3 unpack(float p) { float r = floor(p / 65536.0), g = floor((p - r * 65536.0) / 256.0); return vec3(r, g, p - r * 65536.0 - g * 256.0) * (${COLOUR_TOP.toFixed(3)} / 255.0); }
       // (not drawn: thrown out of the picture whole, never left as a sliver of no size)
-      #define NONE { vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vUv = vec2(0.0); vOwn = vec2(0.0); vShade = 0.0; vShadowA = 0.0; vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+      #define NONE { vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vUv = vec2(0.0); vOwn = vec2(0.0); vShade = 0.0; vShadowA = 0.0; vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0); vTone = vec2(1.0, 0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
       void main() {
         vec3 foot = uTileRel + iA.xyz;
         float d = length(foot);
@@ -191,7 +200,7 @@ export class FarForest {
           float stretch = min(len / max(sunUp, 0.12), ${SHADOW_LONG.toFixed(1)}), wideM = 2.0 * g.z * iB.x * iA.w * grow, longM = g.w * iA.w * grow * stretch;
           // (a little over the ground, and more far off, where the depth buffer is coarse)
           vRel = foot + across * ((position.y - 0.5) * wideM) + along * ((1.0 - position.z) * longM) + uTileUp * (0.4 + 0.0015 * d);
-          vN = uTileUp; vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vOwn = vec2(0.0); vShade = 0.0; vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0);
+          vN = uTileUp; vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vOwn = vec2(0.0); vShade = 0.0; vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0); vTone = vec2(1.0, 0.0);
           vShadowA = a * shadowAlpha(wideM * longM, dens, keep);
           rect = uRectTree[cell]; vUv = vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
           gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
@@ -207,7 +216,9 @@ export class FarForest {
           na = vec3(cos(a) * x0, l.y - mid, sin(a) * x0);
         } else {
           // the rosette lying in its crown, for whoever looks down on it
-          float wide = iB.x * wRose;
+          // (a fir's or a spruce's is its spire seen from above: it never spreads far, so a
+          // conifer wood is dark spires among the canopy's round crowns, not a sheet of discs)
+          float wide = iB.x * (cell < ${VARIANTS} ? min(wRose, 2.4) : wRose);
           l = vec3((position.y - 0.5) * 2.0 * g.x * wide, g.y, (0.5 - position.z) * 2.0 * g.x * wide); rect = uRectRose[cell];
           na = vec3(l.x / wide, g.x, l.z / wide);
         }
@@ -232,6 +243,12 @@ export class FarForest {
         // (the crown's top: lit as a dome pixel by pixel in the fragment shader; by its four
         // corners alone it was one flat tone, no lit cap and no shaded side)
         vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0);
+        // A tone neighbouring crowns share, so that from a kilometre they gather into clumps in two
+        // or three tones (a noise of the place some 110 m to a cell, and finer, 45 m), lighter
+        // and warmer on the slopes turned to the Sun, darker on those turned from it.
+        vec3 wp = uCamPlanetPos + foot;
+        float tn = smoothstep(0.32, 0.68, toneNoise(wp / 110.0)) + 0.35 * (toneNoise(wp / 45.0 + 7.3) - 0.5);
+        vTone = vec2(0.8 + 0.38 * tn + 0.2 * (groundQ / 15.0 - 0.6), cell < ${VARIANTS} ? 1.0 : 0.0);
         if (position.x > 1.5) { vDome = vec3((position.y - 0.5) * 2.0, (0.5 - position.z) * 2.0, smoothstep(${TOP0.toFixed(3)}, ${TOP1.toFixed(3)}, down) * smoothstep(uFar.z, uFar.z + 200.0, d)); vDomeE = uTileEast * c + uTileNorth * s; vDomeN = uTileNorth * c - uTileEast * s; }
         vUv = vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
         gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
@@ -244,7 +261,7 @@ export class FarForest {
       uniform vec3 uSeason;                // x: how far the leaves have turned, y: how bare, z: time
       uniform vec4 uShadow, uFar;
       in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in vec2 vUv; in vec2 vOwn; in float vShade; in float vShadowA;
-      in vec3 vDome; in vec3 vDomeE; in vec3 vDomeN;
+      in vec3 vDome; in vec3 vDomeE; in vec3 vDomeN; in vec2 vTone;
       layout(location = 0) out vec4 fragColor;
       ${PAINT_LEAF}
       ${TREE_WOOD}
@@ -286,6 +303,9 @@ export class FarForest {
         vec3 bloomC = leafC * 1.3;
         if (uPaint.x > 0.0) leafC = paintLeaf(leafC) * mix(0.5, 1.12, smoothstep(-0.5, 0.6, dot(N, up)));
         leafC *= 0.46 + 0.6 * cut.g;
+        // (the clumps' shared tone, from 250 m out; a fir's spire from above darker than the
+        // round crowns about it)
+        leafC *= mix(1.0, vTone.x, smoothstep(250.0, 900.0, length(vRel))) * mix(1.0, 0.7, vTone.y * vDome.z);
         // Far off a tree is a dark shape on the ground behind it, never bluer than that
         // ground: the cold blue-green a fir has near by (paintLeaf) and the blue of the sky's
         // light on a dark leaf made every far tree a teal speck on warm land. From the line
