@@ -233,6 +233,9 @@ if (!flag('no-handover')) {
       const d0 = Math.hypot(C[0] - keep.x, C[1] - keep.y, C[2] - keep.z);
       const back = want - d0;
       rig.pos.set(keep.x - rig.forward.x * back, keep.y - rig.forward.y * back, keep.z - rig.forward.z * back);
+      // (the camera the shaders read is the app's own uniform: moved by hand, as in the
+      // anchoring check, or every distance would draw the same picture)
+      cv.uniforms.uCamPlanetPos.value.copy(rig.pos);
       a.sky.weatherStep({ now: performance.now(), dt: 0, jd: a.ephemeris.jd, timeRate: 0, paused: true, rig, day: 0, sunE: 1, viewW: a.post.viewW, viewH: a.post.viewH });
       a.sky.beforeScene({ renderer: r, post: a.post, rig, worldRadius: R, time: 0, treesWanted: false });
       const w = cv.tw, hh = cv.th, u = new Uint16Array(w * hh * 4);
@@ -258,8 +261,12 @@ if (!flag('no-handover')) {
     const step = (v) => [Math.abs(v[1] - v[0]), Math.abs(v[2] - v[1]), Math.abs(v[3] - v[2])];
     const sa = step(d), sl = step(l);
     const ok = (st) => st[1] <= 2 * (st[0] + st[2]) / 2 + 0.03;
+    // (the four pictures must differ at all: identical ones mean the camera never moved, and the
+    // check would pass whatever the hand-over did)
+    const moved = new Set(h.rows.map((x) => `${x.pixels}:${x.alpha.toFixed(4)}:${x.light.toFixed(4)}`)).size === h.rows.length;
+    check(`the four distances really drew four pictures (${h.rows.map((x) => x.pixels).join(', ')} pixels)`, moved);
     check(`no step at the hand-over at 16 km: the cover changes ${sa.map((x) => x.toFixed(3)).join(', ')} and the light ${sl.map((x) => x.toFixed(3)).join(', ')} across the four distances (the middle pair crosses it)`,
-      h.rows.every((x) => x.pixels > 50) && ok(sa) && ok(sl));
+      moved && h.rows.every((x) => x.pixels > 50) && ok(sa) && ok(sl));
   }
 }
 
