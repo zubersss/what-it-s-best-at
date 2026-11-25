@@ -71,7 +71,6 @@ export const CLOUD_LOOK = Object.freeze({
   FLOOR_DECK: 0.3,              // the least light a deck's base keeps (coloured shade, never black)
   GROUND_HALF: 0.5,         // under a storm the light from the ground below is halved
   MID_K: 1.2, HIGH_K: 0.35, // the Sun left by the layers above: exp(-MID_K mid - HIGH_K high)
-  SCUD: 400,                // m under a raining base that ragged scud hangs
   SHAFT_K: 0.00014, SHAFT_P: 0.85,   // the rain's optical depth a metre: K rate^P
   SHAFT_FALL: 9,            // m/s a drop falls (its foot is offset downwind by this)
   SHAFT_NEAR: 600,          // m: nearer than this the shafts fade out (D's streaks take over)
