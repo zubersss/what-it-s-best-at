@@ -266,6 +266,10 @@ renderer. A's model paints the real cover.
   path, and `setGround`, go when A's `fromMaps` lands.
 - **The far shell's vertices** now each read the field (an icosphere of detail 48: about 144 000
   vertex reads a frame). It is one draw call, but it is the first thing to measure on the phone.
+- **The far shell on a big world.** Its vertices are displaced to the field's own base, and an
+  icosphere of detail 48 has facets about 2 degrees across: 85 m on Haven, but 220 km on Earth,
+  where the base varies over 15 km. On Haven it is right; when Earth gets a field, its shell will
+  want either more vertices or a base that does not vary (one for the whole view).
 - **The rise's fades** cost one more read of the masses and one of the look toward the Sun (16 %
   of the game clock). The alternative — reading the look toward the Sun at one phase — makes the
   two tones speckle while the phases blend, so it was not taken.
