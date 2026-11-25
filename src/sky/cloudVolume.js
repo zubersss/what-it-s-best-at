@@ -715,10 +715,11 @@ export class CloudVolume {
     const v = this.def?.volume;
     // (wanted: it would be drawn here if the governor's saving were not on: the governor asks)
     this.wanted = !!(v && this.noise && layer.mesh.visible && cam.length() - this.radius < (v.above ?? 30000));
-    // (with the layer off, the cells are still marched while one stands within reach: the last
-    // frame's list, since this is asked before the sky's frame reaches us)
-    const cells = this._sky?.cells || [];
-    this.cellsOnly = this.wanted && !this._enabled && cells.some((c) => c.dist < CELL_FAR);
+    // (with the layer off, the cells are still marched while one stands within reach: by the
+    // cells the sky system has already packed for the shaders this frame, which is what the
+    // march will read. By the frame's own list this could never start: the frame reaches the
+    // volume in render(), which does not run while the volume is off.)
+    this.cellsOnly = this.wanted && !this._enabled && SKY_UNIFORMS.uCellCount.value > 0;
     this.active = this.wanted && (this._enabled || this.cellsOnly);
     return this.active;
   }
@@ -729,6 +730,13 @@ export class CloudVolume {
   // march and nothing else: no value of a cloud comes from them). With no field, the world's own
   // base over the sea.
   place(cam, sky = this._sky || null) {
+    // (the frame is kept here as well as in render(): `ready()` is asked before the frame
+    // reaches the volume, and it needs the cells to say whether the storms alone are to be
+    // marched. With it kept only in render(), a traveller who began with the volume switched
+    // off — the governor's floor — had no frame, so no cells, so the volume never ran, so no
+    // frame: the storms were never drawn, and the shells kept the hole cut for a tower that
+    // was not there.)
+    if (sky) this._sky = sky;
     const v = this.def?.volume;
     if (!v) { this.base = null; return; }
     const field = sky?.field, R = this.radius;
