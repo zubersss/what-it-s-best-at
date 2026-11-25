@@ -158,8 +158,12 @@ At the storm 20 km off (`t=8.25`, the far slices on):
 > ok   at most 6 in the fade, when the masses and the look toward the Sun are each read twice (1.00 / 0.00)
 
 One read a step is the cell's own boiling noise: in the far slices the layer is not marched at
-all, so nothing else is read there. `--break read` puts one more read into the loop, to see the
-check fail.
+all, so nothing else is read there.
+
+And the break taught its own lesson. `--break read` put its extra read inside the LAYER's path —
+which this view never takes, since its cloud is all storm cells — so **the check passed on a
+build broken on purpose**. The break now adds four reads at the top of `cloudStep`, whichever
+path the step takes (817c129); the run that shows the check failing is below.
 
 **2. The motion (`node scripts/cloud-motion.mjs`).** Three runs of this check found three faults
 of the check, not of the clouds, and each is worth knowing:
