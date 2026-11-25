@@ -219,6 +219,16 @@ scene's own moment.
 `haven_ledge_tower8.png` (a cell 8 km off), `haven_ledge_B0_noon*.png` (B0's pair),
 `haven_ledge_fair_air.png`.
 
+## New scripts (all without a browser, seconds each)
+
+| script | what it holds to |
+| --- | --- |
+| `scripts/lens-list-test.mjs` | the lenses' list: either shape the field hands over (the model's objects, a snapshot's LENS records), the plates each lens becomes and where they stand, the nearest taken and the ones over the horizon dropped, `noclouds` and a faded lens drawing nothing |
+| `scripts/cloud-volume-test.mjs` | the volume's decisions: drawn or not, and the storms still marched when the governor has switched the volume off — on the very first frame |
+| `scripts/cloud-motion.mjs` (new, the brief's) | the motion, the anchoring, the uniform audit and the hand-over at 16 km, in one browser run |
+
+Both tests were seen to fail with the fault they guard put back.
+
 ## Numbers for src/worlds/haven.js
 
 They are defaults in the files below, each a frozen block at the top of its file, and each is
