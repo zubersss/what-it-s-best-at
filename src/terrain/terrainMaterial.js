@@ -820,7 +820,7 @@ void main() {
     float seaK = 1.0 - smoothstep(2.0, 6.0, vHeight - uSea.y);
     if (seaK > 0.0) {
       float left = waterDepth + uTide.x * seaK;
-      float ph = texture(tDetail, vDetailUv * 0.37).b;
+      float ph = texture(tDetail, vDetailUv * 0.375).b;   // (6 cycles over the 16 tiles the patches agree on: a fractional count broke along patch edges)
       // (only at the water's edge: a hand's depth in a calm, knee-deep in a storm)
       left += (0.07 + 0.16 * uWave.x) * sin(uWave.z * 0.85 + 12.566 * ph) * seaK * (1.0 - smoothstep(0.0, 1.0, abs(left)));
       float bared = (1.0 - smoothstep(0.0, 0.03, left)) * smoothstep(0.0, 0.05, waterDepth);
@@ -861,7 +861,7 @@ void main() {
     // (far off, where no single crest is seen: the share of the sea that is white in this
     // wind, in streaks; a gale's sea is grey-white to the horizon, not a blue sheet)
     float white = clamp(3.84e-6 * pow(max(uWind.w, 0.0), 3.41), 0.0, 0.45) * (1.0 - inland);
-    if (white > 0.004) foam = max(foam, white * smoothstep(0.3, 0.7, texture(tDetail, vDetailUv * 1.3 - drift * 2.0).b + 0.3 * white) * water * (1.0 - 0.7 * near));
+    if (white > 0.004) foam = max(foam, white * smoothstep(0.3, 0.7, texture(tDetail, vDetailUv * 1.3125 - drift * 2.0).b + 0.3 * white) * water * (1.0 - 0.7 * near));
     // colour: light goes down to the bed and comes back, red lost first; what is left of
     // it shows the bed (pale sand), the rest is the water's own blue
     vec3 through = exp(-vec3(0.42, 0.07, 0.035) * (waterDepth * 2.3));
