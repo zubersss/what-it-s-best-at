@@ -59,6 +59,7 @@ export const CLOUD_LOOK = Object.freeze({
   SUN_LOOK: 280,            // m toward the Sun: the look that splits a heap into its two tones
   SHADE: 0.64, LIT: 1.0,    // the two tones, with a clean line between them
   CELL_DENSE: 1.45,         // a cell is this much more solid than a heap
+  CELL_FACE0: 250, CELL_FACE1: 700,   // m of chord between which a tower's own face turns from the Sun's tone to its shade
   CELL_LIT: 300,            // m of chord toward the Sun under which a tower's cloud is fully lit ...
   CELL_DEEP: 2600,          // ... and over which it is as dark as it gets
   CELL_FLOOR: 0.11,         // the light the base of a tower keeps (0.08..0.15 of the lit top)
@@ -207,7 +208,10 @@ float cloudCellDensity(int k, vec3 p) {
 // the light of a cell's cloud at p: the exact chord toward the Sun through the tower
 void cloudCellAdd(int k, vec3 p, float d, float dt, float t, float y) {
   float chord = cellLight(k, p, uSunDir);
-  float lit = mix(1.0, ${glf(K.CELL_FLOOR)}, smoothstep(${glf(K.CELL_LIT)}, ${glf(K.CELL_DEEP)}, chord));
+  // the painter's two tones for the tower's own cauliflower (a short chord toward the Sun is a
+  // face turned to it), and under them the slate that comes with the depth of the whole tower
+  float lit = mix(${glf(K.SHADE)}, 1.0, 1.0 - smoothstep(${glf(K.CELL_FACE0)}, ${glf(K.CELL_FACE1)}, chord));
+  lit *= mix(1.0, ${glf(K.CELL_FLOOR)} / ${glf(K.SHADE)}, smoothstep(${glf(K.CELL_LIT)}, ${glf(K.CELL_DEEP)}, chord));
   float dark = 1.0 - lit;
   vec3 tint = mix(vec3(1.0), vec3(${glf(K.CELL_TINT[0])}, ${glf(K.CELL_TINT[1])}, ${glf(K.CELL_TINT[2])}), dark * 0.9);
   cloudAdd(d * ${glf(K.CELL_DENSE)}, dt, lit, y, tint, ${glf(K.GROUND_HALF)}, p, t);
@@ -262,6 +266,80 @@ void cloudShafts(float t0, float t1, float country) {
   }
 }
 
+// One step of the march at the distance t along the ray, dt long: the cell on this ray if there
+// is one, else the layer's own cloud from the field, lit as a painter has it.
+void cloudStep(float t, float dt, bool far) {
+  vec3 p = uCamPlanetPos + gDir * t;
+  float r = length(p); vec3 up = p / r;
+  // the cell on this ray at this step, if any (arithmetic, but for its own noise)
+  float cd = 0.0; int ck = -1;
+  for (int c = 0; c < 2; c++) {
+    if (c >= gCells) break;
+    if (t < gCellT[c].x || t > gCellT[c].y) continue;
+    float d = cloudCellDensity(gCellK[c], p);
+    if (d > cd) { cd = d; ck = gCellK[c]; }
+  }
+  // the layer's own cloud at this place, from the field (one read) or from the day's map
+  float ld = 0.0, y = 0.0, base = 0.0, depth = 1.0, share = 0.0, cover = 0.0, sheet = 0.0;
+  if (!far && uLayerOn > 0.5 && cd < 0.75) {
+    if (uSkyLow.w > 0.5) {
+      vec4 A = skyTex2(tWxA, wxUV(up));
+      vec4 Lf = skyLowOf(A);
+      cover = Lf.x; sheet = Lf.y; base = Lf.z; depth = max(Lf.w - Lf.z, 1.0);
+      share = skyLowShare(A, Lf);
+    } else {
+      cover = mapCover(up); sheet = 0.0; base = uLayer.x - uSkyLow.y; depth = uLayer.y;
+    }
+    cover *= 1.0 - smoothstep(0.7 * uCloud.w, uCloud.w, t);
+    y = (r - uSkyLow.y - base) / depth;
+    if ((cover > 0.01 || sheet > 0.01) && y > 0.0 && y < 1.0) {
+      vec3 qr = marchPattern(gCamQ, gDirQ, t);
+      ld = layerAt(skyFormQ(qr, normalize(qr), share), r, cover, sheet, share, y, true);
+    }
+  }
+  if (cd > 0.0 && cd >= ld) {
+    float yc = clamp((r - uCells[ck * 5].w) / max(uCells[ck * 5 + 3].x, 1.0), 0.0, 1.0);
+    cloudCellAdd(ck, p, cd, dt, t, yc);
+    return;
+  }
+  if (ld <= 0.001) return;
+  float wisp = 1.0;
+  float d = ld;
+  if (t < 1000.0) {
+    // close by: wisps a few hundred metres across torn out of the cloud, and the cloud round the
+    // eye itself thin, so that flying through one is shapes going by and not a blank wall
+    float e2 = skyTex3(tCloudNoise, marchPattern(gCamQ, gDirQ, t) * 19.0 + 0.71).g;
+    float nearK = 1.0 - smoothstep(300.0, 1000.0, t);
+    d *= mix(1.0, smoothstep(0.25, 0.75, e2 + 0.5 * d), 0.7 * nearK);
+    d *= mix(0.35, 1.0, smoothstep(0.0, uFair.y, t));
+    wisp = mix(1.0, gWisp, 1.0 - smoothstep(400.0, 1000.0, t));
+  }
+  // The Sun on the cloud, as a painter has it: full on the tops and on the sides turned to it
+  // (less cloud a little way toward the Sun than here), little in the hearts and under the
+  // masses; and under a deep deck hardly any reaches the base.
+  vec3 q2 = marchPattern(gCamQ, gDirQ, t) + gSunQ * (${glf(K.SUN_LOOK)} * uCloud.z);
+  float y2 = y + ${glf(K.SUN_LOOK)} * gMu0 / depth;
+  float dl = layerAt(skyFormQ(q2, normalize(q2), share), r + ${glf(K.SUN_LOOK)} * gMu0, cover, sheet, share, y2, false);
+  float sunward = clamp(0.5 + (d - dl) * 2.2 + (y - 0.42) * 1.1, 0.0, 1.0);
+  // how much cloud stands between this place and the Sun inside its own column
+  float above = gSigma * (1.0 - y) * depth * max(d, share) * 0.35 / max(gMu0, 0.25);
+  // Only a cover that is nearly whole stands between the Sun and what is under it: among
+  // scattered heaps the light comes down between them and goes round inside each one, so a fair
+  // heap is light all over. A sheet darkens by its own depth, however much sky is left beside
+  // it: that is what makes a deck grey and a rain deck nearly slate.
+  above *= max(smoothstep(0.74, 0.97, cover), share);
+  // (two tones with a clean line between them, the shade a light one: a poster's cloud)
+  float lit = mix(${glf(K.SHADE)}, ${glf(K.LIT)}, smoothstep(0.4, 0.56, sunward));
+  lit *= clamp(exp(-above) + ${glf(K.ROUND)} * exp(-${glf(K.ROUND_K)} * above), mix(1.0, ${glf(K.FLOOR_DECK)}, share), 1.0);
+  // (no field: the storm patches the world's weather gave, as before)
+  vec3 tint = vec3(1.0);
+  if (uSkyLow.w < 0.5 && uStorm > 0.02 && y < 0.6) {
+    float sm = skyTex3(tCloudNoise, marchPattern(gCamQ, gDirQ, t) * 1.9 + 0.23).g;
+    tint *= mix(1.0, 0.36 + 1.25 * sm, uStorm * (1.0 - y / 0.6));
+  }
+  cloudAdd(d, dt, lit * wisp, y, tint, 1.0, p, t);
+}
+
 void main() {
   // which slice of the distance from the eye this pixel belongs to, and its ray
   vec2 cellf = vUv * vec2(float(COLS), float(ROWS));
@@ -296,7 +374,12 @@ void main() {
     if (c >= gCells) break;
     cA = min(cA, gCellT[c].x); cB = max(cB, gCellT[c].y);
   }
-  float mA = min(t0, cA), mB = max(t1, cB);
+  // (the stretch to march: the layer's, the cells', or the hull of both. The layer's is empty
+  // when the ray misses it, and 'empty' is t0 > t1: taking its smaller end then would start the
+  // march at a metre from the eye and spread its steps over everything in between.)
+  bool haveLayer = t1 > t0;
+  float mA = haveLayer ? (gCells > 0 ? min(t0, cA) : t0) : cA;
+  float mB = haveLayer ? (gCells > 0 ? max(t1, cB) : t1) : cB;
   if (mB <= mA) { fragColor = vec4(0.0); return; }
 
   // steps: short near the eye, longer farther off; started at a different place in every pixel
@@ -347,82 +430,28 @@ void main() {
   }
 
   // ---- the cloud, and the rain under it, in the order the ray meets them ----
+  // The ray is marched in up to three stretches, in order: the layer up to the first cell, the
+  // cell itself (with its own steps: a tower is five kilometres of cloud, and the layer's steps
+  // would cross it in two), then the layer again. A second cell is still seen in the layer's
+  // stretches, more coarsely.
   bool shaftFirst = sB > sA && sA < mA;
   if (shaftFirst) cloudShafts(sA, min(sB, mA), country);
-  for (float i = 0.0; i < 16.0; i += 1.0) {
-    if (i >= n || gT < 0.02) break;
-    float t = mA + L * (i + 0.5 + (jit - 0.5) * jw) / n, dt = L / n;
-    vec3 p = uCamPlanetPos + dir * t;
-    float r = length(p); vec3 up = p / r;
-    // the cell on this ray at this step, if any (arithmetic, but for its own noise)
-    float cd = 0.0; int ck = -1;
-    for (int c = 0; c < 2; c++) {
-      if (c >= gCells) break;
-      if (t < gCellT[c].x || t > gCellT[c].y) continue;
-      float d = cloudCellDensity(gCellK[c], p);
-      if (d > cd) { cd = d; ck = gCellK[c]; }
+  float layerLen = max(t1 - t0, 1.0);
+  float c0 = gCells > 0 ? gCellT[0].x : 1e30, c1 = gCells > 0 ? gCellT[0].y : -1e30;
+  for (int seg = 0; seg < 3; seg++) {
+    if (gT < 0.02) break;
+    float a, b, ns;
+    if (seg == 0) { a = mA; b = min(mB, c0); ns = n * clamp((b - a) / layerLen, 0.0, 1.0); }
+    else if (seg == 1) { a = max(mA, c0); b = min(mB, c1); ns = far ? max(n, 4.0) : clamp(n * 1.2, 6.0, 14.0); }
+    else { a = max(mA, c1); b = mB; ns = n * clamp((b - a) / layerLen, 0.0, 1.0); }
+    if (b <= a) continue;
+    ns = max(ns, 2.0);
+    float Ls = b - a;
+    for (float i = 0.0; i < 16.0; i += 1.0) {
+      if (i >= ns || gT < 0.02) break;
+      float t = a + Ls * (i + 0.5 + (jit - 0.5) * jw) / ns, dt = Ls / ns;
+      cloudStep(t, dt, far);
     }
-    // the layer's own cloud at this place, from the field (one read) or from the day's map
-    float ld = 0.0, y = 0.0, base = 0.0, depth = 1.0, share = 0.0, cover = 0.0, sheet = 0.0;
-    if (!far && uLayerOn > 0.5 && t >= t0 && t <= t1 && cd < 0.75) {
-      if (uSkyLow.w > 0.5) {
-        vec4 A = skyTex2(tWxA, wxUV(up));
-        vec4 Lf = skyLowOf(A);
-        cover = Lf.x; sheet = Lf.y; base = Lf.z; depth = max(Lf.w - Lf.z, 1.0);
-        share = skyLowShare(A, Lf);
-      } else {
-        cover = mapCover(up); sheet = 0.0; base = uLayer.x - uSkyLow.y; depth = uLayer.y;
-      }
-      cover *= 1.0 - smoothstep(0.7 * uCloud.w, uCloud.w, t);
-      y = (r - uSkyLow.y - base) / depth;
-      if ((cover > 0.01 || sheet > 0.01) && y > 0.0 && y < 1.0) {
-        vec3 qr = marchPattern(gCamQ, gDirQ, t);
-        ld = layerAt(skyFormQ(qr, normalize(qr), share), r, cover, sheet, share, y, true);
-      }
-    }
-    if (cd > 0.0 && cd >= ld) {
-      float yc = clamp((r - uCells[ck * 5].w) / max(uCells[ck * 5 + 3].x, 1.0), 0.0, 1.0);
-      cloudCellAdd(ck, p, cd, dt, t, yc);
-      continue;
-    }
-    if (ld <= 0.001) continue;
-    float wisp = 1.0;
-    float d = ld;
-    if (t < 1000.0) {
-      // close by: wisps a few hundred metres across torn out of the cloud, and the cloud round
-      // the eye itself thin, so that flying through one is shapes going by and not a blank wall
-      float e2 = skyTex3(tCloudNoise, marchPattern(gCamQ, gDirQ, t) * 19.0 + 0.71).g;
-      float nearK = 1.0 - smoothstep(300.0, 1000.0, t);
-      d *= mix(1.0, smoothstep(0.25, 0.75, e2 + 0.5 * d), 0.7 * nearK);
-      d *= mix(0.35, 1.0, smoothstep(0.0, uFair.y, t));
-      wisp = mix(1.0, gWisp, 1.0 - smoothstep(400.0, 1000.0, t));
-    }
-    // The Sun on the cloud, as a painter has it: full on the tops and on the sides turned to it
-    // (less cloud a little way toward the Sun than here), little in the hearts and under the
-    // masses; and under a deep deck hardly any reaches the base.
-    vec3 q2 = marchPattern(gCamQ, gDirQ, t) + gSunQ * (${glf(K.SUN_LOOK)} * uCloud.z);
-    float y2 = y + ${glf(K.SUN_LOOK)} * gMu0 / depth;
-    float dl = layerAt(skyFormQ(q2, normalize(q2), share), r + ${glf(K.SUN_LOOK)} * gMu0, cover, sheet, share, y2, false);
-    float sunward = clamp(0.5 + (d - dl) * 2.2 + (y - 0.42) * 1.1, 0.0, 1.0);
-    // how much cloud stands between this place and the Sun inside its own column (a deck's base
-    // is dark because its own depth is above it; among scattered heaps the light comes down
-    // between them)
-    float above = gSigma * (1.0 - y) * depth * max(d, share) * 0.35 / max(gMu0, 0.25);
-    // Only a cover that is nearly whole stands between the Sun and what is under it: among
-    // scattered heaps the light comes down between them and goes round inside each one, so a
-    // fair heap is light all over. A sheet darkens by its own depth, however much sky is left
-    // beside it: that is what makes a deck grey and a rain deck nearly slate.
-    above *= max(smoothstep(0.74, 0.97, cover), share);
-    // (two tones with a clean line between them, the shade a light one: a poster's cloud)
-    float lit = mix(${glf(K.SHADE)}, ${glf(K.LIT)}, smoothstep(0.4, 0.56, sunward));
-    lit *= clamp(exp(-above) + ${glf(K.ROUND)} * exp(-${glf(K.ROUND_K)} * above), mix(1.0, ${glf(K.FLOOR_DECK)}, share), 1.0);
-    // (no field: the storm patches the world's weather gave, as before)
-    vec3 tint = vec3(1.0);
-    if (uSkyLow.w < 0.5 && uStorm > 0.02 && y < 0.6) {
-      float sm = skyTex3(tCloudNoise, marchPattern(gCamQ, gDirQ, t) * 1.9 + 0.23).g;
-      tint *= mix(1.0, 0.36 + 1.25 * sm, uStorm * (1.0 - y / 0.6));
-    }
-    cloudAdd(d, dt, lit * wisp, y, tint, 1.0, p, t);
   }
   if (!shaftFirst) cloudShafts(max(sA, mB), sB, country);
 

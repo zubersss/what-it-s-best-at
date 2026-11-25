@@ -65,10 +65,48 @@ by the shared forms, and it throws near pixels out FIRST. With no field it is th
 
 ## Numbers for src/worlds/haven.js
 
-The look's numbers are `CLOUD_LOOK` in `src/sky/cloudVolume.js`, `UPPER_LOOK` in
-`src/sky/upperClouds.js` and `FOG_LOOK` in `src/sky/fogSheet.js`, and the shapes' numbers are
-`CLOUD_RULE` in `src/sky/skyGlsl.js`. They are defaults in those files; the main session moves
-whichever the world should pin into `src/worlds/haven.js`.
+They are defaults in the files below, each a frozen block at the top of its file, and each is
+what the pictures were tuned with. The main session moves whichever the world should pin into
+`src/worlds/haven.js`.
+
+**`CLOUD_LOOK` (src/sky/cloudVolume.js)** — the march's look
+| name | value | what |
+| --- | --- | --- |
+| SUN_LOOK | 280 m | the look toward the Sun that splits a heap into its two tones |
+| SHADE / LIT | 0.64 / 1.0 | the two tones |
+| ROUND / ROUND_K | 0.18 / 0.22 | the light that comes round into a cloud from its own sides |
+| FLOOR_DECK | 0.3 | the least light a deck's base keeps |
+| CELL_DENSE | 1.45 | a storm cell is this much more solid than a heap |
+| CELL_LIT / CELL_DEEP | 300 / 2600 m | the chord toward the Sun over which a tower goes from white to dark |
+| CELL_FLOOR | 0.11 | the light its base keeps (the plan's 0.08–0.15) |
+| CELL_TINT | 0.62, 0.66, 1.0 | the slate-indigo its shade is pulled toward |
+| CELL_BOIL | 5.5 m/s | how fast its noise boils up through it (the plan's 3–8) |
+| CELL_NOISE | 0.55 | how much of its own noise eats at its hull |
+| GROUND_HALF | 0.5 | the light from the ground below, halved under a storm |
+| MID_K / HIGH_K | 1.2 / 0.35 | the Sun the mid and high layers leave: exp(-K cover) |
+| SHAFT_K / SHAFT_P | 0.00014 / 0.85 | the rain's optical depth a metre: K rate^P |
+| SHAFT_FALL | 9 m/s | a drop's fall (the streaks' scroll, the foot's offset downwind) |
+| SHAFT_NEAR | 600 m | nearer than this the shafts fade out (D's streaks take over) |
+| SHAFT_MIST | 300 m | the misty foot over the country |
+| SHAFT_GREY / SHAFT_GLOW | 0.7 / 1.1 | the sky's light a shaft shows, and the silver glow toward a low Sun |
+| VIRGA | 2000 m | light rain under a base this far over the land dries up before it lands |
+
+**`CLOUD_RULE` (src/sky/skyGlsl.js)** — the shapes the cover is cut into (one rule for the
+volume, the far shell and the shade atlas). The heap's numbers are the game's own, unchanged;
+the sheet's are new: SHEET_TOP 0.82, SHEET_LUMP 0.3, SHEET_BASE 0.04, SHEET_CROWN 0.12,
+SHEET_SQUASH 0.667 (the pattern squashed upright, so a deck's lumps lie flat), SHEET_BODY0/1
+0.02/0.3 (where a cover becomes a solid deck).
+
+**`UPPER_LOOK` (src/sky/upperClouds.js)**: MID_H 5000 m, HIGH_H 9000 m; MID_K 2.2 and HIGH_K 0.8
+(how fine each layer's pattern is); MID_CELL 520 m (a cloudlet of the mackerel sky); MID_ALPHA
+0.92, MID_SHADE 0.72; HIGH_STRETCH 7 (how far cirrus is drawn out along its own wind),
+HIGH_ALPHA 0.5, HIGH_ANVIL 0.97, HIGH_UNDER 0.45; HALO 0.062 (the 22-degree halo).
+
+**`FOG_LOOK` (src/sky/fogSheet.js)**: SPAN 60 km, N 129, EDGE 40 m, LUMP 900 m, LIFT 18 m,
+ALPHA 0.97, BRIGHT 1.06.
+
+**`LENS_LOOK` (src/sky/lenticulars.js)**: MAX 12 plates, FLAT 0.11, GAP 1.35, SHADE 0.66,
+RIM 0.35, EDGE 0.22.
 
 ## Cost (headless work counts; the phone decides)
 
