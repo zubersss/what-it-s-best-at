@@ -322,6 +322,20 @@ renderer. A's model paints the real cover.
 3. **Inside a storm the sky's own light was never dimmed** (commit 5b90f1f): a base with almost
    no Sun on it was still a bright grey. The share of the sky a sample gets is now part of the
    march's one light rule.
+4. **The first picture from A's model** (`haven_ledge_M_storm20.png`, a tower 20 km off from
+   3 km up) showed two things the stub never could, both fixed in 84398a8:
+   - the cell's anvil ended in a **straight line across the sky** — a lid, not a cloud. Its edge
+     is now moved by the cirrus strokes themselves (`ANVIL_TORN`), so it frays downwind;
+   - the mackerel sky was **an even screen of dots** from horizon to horizon. The cloudlets are
+     now thickened and thinned by a coarse look at their own noise (`MID_PATCH`), which comes in
+     the place of the finer octave: the same number of reads, patches and lanes instead of a
+     screen.
+   What the picture got right: the field's own weather fills the sky (the stub never did), the
+   tower stands at its true size and distance with the anvil at its top, and the shells sit
+   below and above the camera in the right order.
+5. **The cell's own outline** (`cellShape.js`, step 0's, not mine) draws a narrow chimney with a
+   rounded cap: at 20 km the hull is 25 degrees wide and what is drawn is about 10. A
+   cumulonimbus is about as wide as it is tall. Worth a look by whoever owns that file.
 
 ## Open
 
