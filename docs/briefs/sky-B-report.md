@@ -104,6 +104,28 @@ now moves that uniform and fails if the four pictures are identical.
 
 ## Pictures (paths; before and after)
 
+All at 880 x 412, dsf 1.25, from frozen builds, in
+`/tmp/claude-0/-home-user-what-it-s-best-at/fa086d69-ff44-5069-99a3-fdab3300646a/scratchpad/shots/`
+(this machine's scratchpad; the ones worth keeping are copied into `docs/shots/sky/`).
+
+| picture | what it shows |
+| --- | --- |
+| `haven_ledge_B0_noon.png`, `..._B0_noon60.png` | step 0's build, the opening view 60 s of game time apart: the heaps move downwind at the day's speed and nothing else changes (B0) |
+| `haven_ledge_storm12.png` | the first storm picture, which showed the three faults of commit 9478d38 |
+| `haven_ledge_tower8.png` | a mature cell 8 km off from 5 km up: the tower stands, its cauliflower cut, its dome |
+| `haven_ledge_tower_dark.png`, `..._tower_dark_hi.png` | the same with the sky's light shut out of it |
+| `haven_ledge_tower_floor.png` | and with every saving the governor has (`?debug=floor`) |
+| `haven_ledge_tower_noclouds.png` | and with `?debug=noclouds` |
+| `haven_ledge_fair09.png`, `..._fair09_before.png` | fair-weather heaps over the opening place, this branch and step 0's |
+| `haven_ledge_storm58.png` | a day of storms, the nearest 58 km off: the two far slices |
+| `haven_ledge_fog_basin.png` | the fog sheet in a basin |
+| `haven_ledge_deck_below.png`, `..._deck_above.png` | a rain deck from below and above, with its shafts |
+| `haven_ledge_steppe_sun.png`, `..._steppe_away.png` | over flat country at noon, toward the Sun and away |
+| `haven_ledge_up30.png`, `..._globe.png` | from 30 km up, and the globe wearing the field |
+| `earth_ledge_B0_earth.png`, `earth_ledge_B_earth.png` | Earth, step 0's build and this one (no field there yet) |
+| `haven_ledge_lapse0..3.png` | four frames 30 s of game time apart: the heaps go downwind and grow in place |
+
+
 ## Numbers for src/worlds/haven.js
 
 They are defaults in the files below, each a frozen block at the top of its file, and each is
