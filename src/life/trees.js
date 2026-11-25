@@ -341,8 +341,10 @@ export class Trees {
           vec3 twigC = mix(vTrunkC, dot(vTrunkC, vec3(0.333)) * vec3(1.06, 1.0, 0.9), 0.75) * 0.4;
           // (bark is dark: a fir's or a pine's trunk in the Sun is grey-brown to red-brown, never a
           // pale peeled pole; only the pale trunks, birch and aspen, keep their tone)
-          float paleT = step(0.4, dot(vTrunkC, vec3(0.333)));
-          vec3 albedo = wood ? (card || vLeaf > 0.1 ? twigC : vTrunkC * mix(0.28, 0.6, paleT)) : leafC;
+          float paleT = step(0.4, dot(vTrunkC, vec3(0.333))), redT = (1.0 - paleT) * smoothstep(1.7, 2.3, vTrunkC.r / max(vTrunkC.b, 1e-3));
+          // (a pine's red plates are lighter than a fir's grey-brown furrows: at 0.28 a ponderosa
+          // was a black pole against the morning sky)
+          vec3 albedo = wood ? (card || vLeaf > 0.1 ? twigC : vTrunkC * mix(mix(0.28, 0.45, redT), 0.6, paleT)) : leafC;
           // (bark: furrows, plates or bands by rule, BARK above; a trunk is round even in the
           // shade of the wood, where no light says so: darker toward its edges)
           if (wood && !card) {
@@ -371,7 +373,10 @@ export class Trees {
           // (and in the shade of the wood a crown is never black: by day some light has always
           // come down through the leaves above it, green from the passage)
           vec3 glow = !wood ? leafC * directSun(planetPos) * (0.07 * smoothstep(0.0, 0.25, dot(up, uSunDir))) * vec3(0.9, 1.2, 0.5) : vec3(0.0);
-          vec3 col = (albedo * (sun * lit + skyLight(N, up) * open + planetShine(N)) + leafC * sun * through * vec3(1.1, 1.25, 0.6) + glow) / PI;
+          // (a trunk's shade side is coloured, never black: the sunlit ground round it throws warm
+          // light up onto its sides, most onto the side away from the Sun)
+          vec3 bounce = wood && !card ? albedo * directSun(planetPos) * vCloud * (0.14 * smoothstep(0.0, 0.3, dot(up, uSunDir))) * (1.0 - 0.6 * abs(dot(N, up))) * vec3(1.0, 0.72, 0.6) : vec3(0.0);
+          vec3 col = (albedo * (sun * lit + skyLight(N, up) * open + planetShine(N)) + bounce + leafC * sun * through * vec3(1.1, 1.25, 0.6) + glow) / PI;
           col = aerialPerspective(forestAir(col, vRel, up, 1.0), vRel);
           fragColor = vec4(col * uExposure, 1.0);
         }`,
