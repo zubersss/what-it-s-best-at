@@ -39,7 +39,8 @@ export const UPPER_LOOK = Object.freeze({
   HIGH_STRETCH: 7,                // how far the high noise is drawn out along its own wind
   HIGH_ALPHA: 0.5,                // cirrus is never more than half there ...
   HIGH_ANVIL: 0.97,               // ... but an anvil is solid
-  HIGH_UNDER: 0.45,               // an anvil's underside, against its top
+  HIGH_UNDER: 0.32,               // an anvil's underside, against its top (grey, not white: it is shut out of the Sun by its own depth)
+  ANVIL_GRAIN: 0.18,              // how much the strokes thin and thicken its sheet
   HALO: 0.062,                    // how strong the 22-degree halo is
 });
 const U = UPPER_LOOK;
@@ -105,9 +106,11 @@ void main() {
     }
     if (an > 0.0) {
       // (its edge is torn and fibrous, not a cut line: the same strokes the cirrus is made of
-      // move the line where it ends, so it ends in streaks drawn out downwind)
-      alpha = max(alpha, ${glf(U.HIGH_ANVIL)} * smoothstep(0.05 + ${glf(U.ANVIL_TORN)} * n, 0.35 + ${glf(U.ANVIL_TORN)} * n, an));
-      shade = mix(shade, uUpper.z > 0.5 ? ${glf(U.HIGH_UNDER)} : 1.12, smoothstep(0.05, 0.5, an));
+      // move the line where it ends, so it ends in streaks drawn out downwind. And its sheet is
+      // ice drawn out by the same wind, not a plate: the strokes thin and thicken it.)
+      float e = smoothstep(0.05 + ${glf(U.ANVIL_TORN)} * n, 0.35 + ${glf(U.ANVIL_TORN)} * n, an);
+      alpha = max(alpha, min(${glf(U.HIGH_ANVIL)}, ${glf(U.HIGH_ANVIL)} * e * (${glf(1 - U.ANVIL_GRAIN)} + ${glf(2 * U.ANVIL_GRAIN)} * n)));
+      shade = mix(shade, (uUpper.z > 0.5 ? ${glf(U.HIGH_UNDER)} : 1.12) * (0.93 + 0.14 * n), smoothstep(0.05, 0.5, an));
     }
   } else {
     // Altocumulus: rows of small rounded cloudlets, each with a lit and a shaded side; thick, it
