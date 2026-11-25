@@ -998,6 +998,16 @@ void main() {
       float planes = smoothstep(-0.04, 0.2, nlp) * (0.28 + 0.72 * smoothstep(0.2, 0.85, nlp)) * 0.3183099;
       // (as a share of the two-tone light: what the relief light did to level ground stays)
       diffuse *= mix(1.0, clamp(planes / max(paintLit(nlp), 1e-4), 0.0, 1.0), kp);
+      // Rock bands: on the steepest of those sides, ledges of darker, warmer rock every 70 m
+      // or so of height (wavering), as beds of rock show on a mountain from afar; gone again
+      // by 14 km, where a band would be under a pixel. By the height alone: the same band at
+      // the same place from any patch and any eye.
+      float kb = kp * smoothstep(0.18, 0.4, 1.0 - dot(N, up)) * (1.0 - smoothstep(8000.0, 14000.0, dist));
+      if (kb > 0.0) {
+        float hb = vHeight / 70.0 + 0.18 * sin(vHeight / 23.0) + 0.1 * sin(vHeight / 9.0);
+        float band = smoothstep(0.55, 0.7, fract(hb)) * (1.0 - smoothstep(0.85, 0.97, fract(hb)));
+        albedo *= mix(vec3(1.0), vec3(0.72, 0.62, 0.62), band * kb);
+      }
     }
   }
   vec3 sunHere = vSun;
