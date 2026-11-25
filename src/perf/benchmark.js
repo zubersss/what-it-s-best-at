@@ -6,7 +6,7 @@
 // does. The result is plain text the owner can copy and paste back.
 import { WORLDS } from '../worlds/index.js';
 import { Profile, PARTS } from './profile.js';
-import { MODES, FEATURE_STEPS } from './governor.js';
+import { MODES, FEATURE_STEPS, LATE } from './governor.js';
 import { latLonToDir } from '../core/ephemeris.js';
 import { BUILD } from '../core/build.js';
 
@@ -43,7 +43,11 @@ export class Benchmark {
     this.n = 0;
     this.hitches = [];
     this.maxCalls = 0; this.maxTris = 0;
-    this.stepsFrom = app.governor.log.length; this.hiddenFrom = app.hiddenCount;
+    // (the governor as at the page's start: the run measures it, not what play before it left
+    // behind. Its log begins with the run, and its first line, listed with the steps, says
+    // where the run began.)
+    app.governor.fresh(app.world.id);
+    this.stepsFrom = 0; this.hiddenFrom = app.hiddenCount;
     // terrain patches built and the time they took, per world (the counters only grow)
     this.lastBuilt = app.terrain.built; this.lastBuildMs = app.terrain.buildMs;
     this.builds = { [this.first]: [0, 0], [this.second]: [0, 0] };
@@ -185,8 +189,15 @@ export class Benchmark {
     const L = [];
     L.push(`SOLAR SYSTEM EXPLORER — ${this.kind === 'soak' ? '10-minute soak' : KIND_NAMES[this.kind] ? '3-minute ' + KIND_NAMES[this.kind] : '3-minute benchmark'}${stopped ? ' (stopped early)' : ''}`);
     L.push(`build ${BUILD.commit} · mode ${MODES[g.mode].label} (target ${Math.round(g.targetFps)} fps) · ran ${total.toFixed(0)} s, ${n} frames`);
-    const target = 1000 / g.targetFps, late = dts.filter((d) => d > target * 1.5).length;
-    L.push(`average fps ${fps(dts).toFixed(1)} · 1% low ${fps(worst1).toFixed(1)} · worst frame ${Math.round(sorted[0] || 0)} ms · late frames (over 1.5x the target) ${late} = ${(100 * late / Math.max(1, n)).toFixed(2)} %`);
+    // (a frame is late as the governor counts it: over LATE x the target, in Sharp at 60 Hz
+    // three refreshes or more. Counted at 1.5x it was exactly three refreshes, and most of
+    // them came in under the line: the tenth results printed 0.86 % with 8.4 % of the frames
+    // three refreshes long or more)
+    const target = 1000 / g.targetFps, isLate = (d) => d > target * LATE, late = dts.filter(isLate).length;
+    // (how many screen refreshes the frames took: from the target's own number up)
+    const v = g.vsync || 16.7, want = Math.max(1, Math.round(target / v));
+    const refreshes = (list) => { const bins = [0, 0, 0, 0]; for (const d of list) bins[Math.min(3, Math.max(0, Math.round(d / v) - want))]++; return bins.map((c, k) => `${want + k}${k === 3 ? '+' : ''}: ${(100 * c / Math.max(1, list.length)).toFixed(1)} %`).join(' · '); };
+    L.push(`average fps ${fps(dts).toFixed(1)} · 1% low ${fps(worst1).toFixed(1)} · worst frame ${Math.round(sorted[0] || 0)} ms · late frames (over ${LATE}x the target, as the governor counts them) ${late} = ${(100 * late / Math.max(1, n)).toFixed(2)} %`);
     L.push(`render resolution: average ${mp(avgPx)} (${dims(avgPx)}) · minimum ${mp(minPx)} (${dims(minPx)}) · native ${mp(g.nativePixels)} (${post.width}x${post.height})`);
     L.push(`by part: ${WORLDS[this.first].name} ${part(0).toFixed(1)} fps · flight ${part(1).toFixed(1)} · ${WORLDS[this.second].name} ${part(2).toFixed(1)}`);
     // The page's own work per frame (everything but the GPU drawing it): tells slow pixels
@@ -194,13 +205,13 @@ export class Benchmark {
     const sc = Array.from(this.sc.subarray(0, n)), scSorted = sc.slice().sort((a, b) => b - a);
     const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
     L.push(`the page's own work per frame: average ${avg(sc).toFixed(1)} ms · worst 1 % ${avg(scSorted.slice(0, Math.max(1, Math.ceil(n / 100)))).toFixed(1)} ms (a frame has ${target.toFixed(1)} ms)`);
-    L.push('by stop (fps · late frames · own work · resolution):');
+    L.push('by stop (fps · late frames · own work · resolution · frame lengths in screen refreshes):');
     for (let k = 0; k <= 10; k++) {
       const idx = []; for (let i = 0; i < n; i++) if (this.ph[i] === k) idx.push(i);
       if (!idx.length) continue;
       const name = k < 5 ? `${WORLDS[this.first].name} ${this.names[this.first][k]}` : k === 5 ? 'flight' : `${WORLDS[this.second].name} ${this.names[this.second][k - 6]}`;
       const d = idx.map((i) => dts[i]);
-      L.push(`  ${name}: ${fps(d).toFixed(1)} · ${(100 * d.filter((x) => x > target * 1.5).length / d.length).toFixed(1)} % · ${avg(idx.map((i) => sc[i])).toFixed(1)} ms · ${mp(avg(idx.map((i) => px[i])))}`);
+      L.push(`  ${name}: ${fps(d).toFixed(1)} · ${(100 * d.filter(isLate).length / d.length).toFixed(1)} % · ${avg(idx.map((i) => sc[i])).toFixed(1)} ms · ${mp(avg(idx.map((i) => px[i])))} · ${refreshes(d)}`);
       // (the three largest parts of that work, ms a frame)
       L.push(`      ${Profile.text(Array.from(this.pt.subarray(k * PARTS.length, (k + 1) * PARTS.length), (v) => v / idx.length), 0.2).split(' · ').slice(0, 4).join(' · ')}`);
     }
@@ -208,11 +219,9 @@ export class Benchmark {
     // late?), and how many screen refreshes the frames took.
     {
       let nu = 0, lu = 0, lo = 0;
-      for (let i = 0; i < n; i++) { const l = dts[i] > target * 1.5; if (this.up[i]) { nu++; if (l) lu++; } else if (l) lo++; }
+      for (let i = 0; i < n; i++) { const l = isLate(dts[i]); if (this.up[i]) { nu++; if (l) lu++; } else if (l) lo++; }
       L.push(`frames that took in new terrain: ${(100 * nu / Math.max(1, n)).toFixed(0)} % of all · late among them ${(100 * lu / Math.max(1, nu)).toFixed(1)} % · late among the rest ${(100 * lo / Math.max(1, n - nu)).toFixed(1)} %`);
-      const v = g.vsync || 16.7, want = Math.max(1, Math.round(target / v)), bins = [0, 0, 0, 0];
-      for (let i = 0; i < n; i++) bins[Math.min(3, Math.max(0, Math.round(dts[i] / v) - want))]++;
-      L.push(`frame lengths in screen refreshes (${v.toFixed(1)} ms each): ${bins.map((c, k) => `${want + k}${k === 3 ? '+' : ''}: ${(100 * c / Math.max(1, n)).toFixed(1)} %`).join(' · ')}`);
+      L.push(`frame lengths in screen refreshes (${v.toFixed(1)} ms each): ${refreshes(dts)}`);
     }
     if (this.kind === 'soak') {
       L.push('minute by minute (fps, resolution):');
@@ -226,9 +235,12 @@ export class Benchmark {
       }
     }
     L.push(`quality steps: ${steps.length} (resolution down ${down}, up ${up}; features off ${off}, back on ${on}) · ended at ${g.summary}`);
-    // (what the governor has taken for the device's own share of late frames, and how often
-    // it put quality back after steps down that cured nothing)
-    L.push(`late frames taken as the device's own: ${(100 * (g.bg || 0)).toFixed(1)} % · quality put back after steps that cured nothing: ${steps.filter((x) => /did not cure/.test(x.text)).length} times`);
+    // (the share of late frames the governor lets be at the end, and how often it put quality
+    // back after steps down that cured nothing. It is not the device's own: it is learned
+    // where nothing more can be given up, the heavy views at the fewest pixels, or from a
+    // trial that cured nothing. The tenth results called it the device's own, 7.0 %, while
+    // three of the stops ran at 30.0 fps.)
+    L.push(`late frames left alone at the end, as nothing the governor gives up cures them: ${(100 * (g.bg || 0)).toFixed(1)} % · quality put back after steps that cured nothing: ${steps.filter((x) => /did not cure/.test(x.text)).length} times`);
     for (const s of steps.slice(0, 30)) L.push(`  ${s.t}s ${s.text}`);
     if (steps.length > 30) L.push(`  … ${steps.length - 30} more`);
     // Hitches: how many per cause, then the worst ones in the order they happened.

@@ -6,6 +6,66 @@ ranked: `from-above-look.md`. Pictures: `docs/shots/from-above/`,
 `<place>_<metres over the ground>_p<degrees looked down>[_phone|_floor|_clear]`), taken with
 `scripts/from-above-shots.sh <frozen build> <suffix> [view ...]`.
 
+## Fifth round (2026-11-25): the steppe from the air, stronger
+
+The owning session: steppe_300_p60_after4 was still almost one ochre tone. Now (block 2):
+the broad stretches some hundreds of metres across are two of the look's colours, a gold
+and a cooler olive, at two to three times the strength; hollows are olive with darker damp
+bottoms where water runs; slopes to the Sun warmer, from it cooler; the swaths combed along
+the wind twice as strong. The broad stretches reach 8 km and take the map's dull ochre
+beyond the ground's grass too (from 1 km up the land past 2 km was one plain tone, failing
+a test made for the grass's own gold). All of it only where the ground is looked down on
+(fading in from 5 to 12 degrees): at eye height it cannot be told apart and it cost the
+opening view 9 % of its ground's shading.
+
+Pictures `haven_ledge_steppe_300_p60_after5.png`, `steppe_1000_p60_after5.png` beside
+`_after4`; `steppe_a30_after5.png` was taken before the gate by angle (from 30 m looking 8
+degrees down the gate now leaves the near ground as it was in `_after4`).
+
+Cost (`ground-cost-run.sh`, the shader before the fourth round against this head): the
+opening view 2 265 -> 2 199 ms (97 %), the steppe from 40 m 2 137 -> 2 047 (96 %), 300 m up
+1 436 -> 1 488 (104 %), the meadow 1 567 -> 1 533 (98 %); 3 km up 854 -> 847 (99 %, before
+the gate). Runs of the same shader differ by up to 5 %.
+
+## Fourth round (2026-11-25, the visual critic: `haven-rich-critic.md`)
+
+Mine: gap 1's far-forest part, and from gap 3 the steppe from the air and the forest's edge
+on bare ground. Pictures `haven_ledge_<view>_after4.png` beside `_r4before.png` (before:
+the branch at 76b3099), and `haven_ledge_steppe_a30_after4.png` (the grass helper's view
+from 30 m; its before is `docs/shots/grass-rich/haven_steppe_a30_after.png`).
+
+- **Crowns with no lit top and no shaded side** (picture 9, 12). A far tree's top was lit by
+  its quad's four corners: one flat tone. It is now lit as a dome pixel by pixel (the
+  fragment shader works out the dome's normal from where in the crown it is, blended in by
+  the angle it is looked down at, as the rest of the form is): the Sun's side lit, the far
+  side a crescent in the painted shade.
+- **Cherries as tan scraps** (picture 9, 11, 12). A far tree in flower went through the
+  leaves' painted green and the far olive and came out tan. Its petals' colour now stays
+  (pink in the Sun, mauve in the shade) at every distance (`ledge_300_p20_phone`,
+  `ledge_100_p60`). The near cherries' white "snowflakes" within 240 m are the trees
+  helper's.
+- **Ghost discs in the land's shade** (picture 12). A crown's top in shade took the whole
+  sky and was paler than the canopy round it; it now takes the sky as the canopy does
+  (`ledge_300_p60_floor`: the pale discs on the right are gone).
+- **Bubble wrap** (picture 11). The canopy's own 8 m domes were a dark oval under every far
+  tree; within the far trees' reach they are at half strength (0.55) and at low angles they give way to
+  the stands, so the far trees are the crowns.
+- **The forest's edge** (picture 13, 15): where the land-cover map thins the canopy out it
+  thins into scattered crowns of the finest scale one can see, each with a clean edge,
+  instead of a soft ramp of half canopy, half ground (the glowing fringe).
+- **The steppe from the air** (picture 5, 14): beyond the soil and shrubs of the third
+  round, long swaths combed along the wind (60 by 18 m, the wind's side paler and drier, the
+  lee greener), broad stretches some hundreds of metres greener or drier gold, greener
+  hollows (by the ground's cavity) and a warmer gold on slopes turned to the Sun, a cooler
+  olive on those turned from it; on ground whose colour is grass, out to 4 km (block 2).
+- **Cost** (`scripts/ground-cost-run.sh`, 1100 x 515, a count of work on software WebGL,
+  never a frame rate; before: the shader at 76b3099, after: this branch's head, which also
+  carries the owning branch's merged changes): the opening view 2 220 -> 2 249 ms of
+  shading (101 %), the steppe from 40 m 2 031 -> 1 987 (98 %), 300 m up 1 497 -> 1 411
+  (94 %), 3 km up 884 -> 836 (95 %), the meadow 1 463 -> 1 462 (100 %). Not raised.
+- Not mine and untouched: the blue-teal veil and navy shade (the air helper's), the
+  flowers' drifts (the flowers helper's), the near trees.
+
 ## Third round (2026-11-25, the second cold review: `haven-rich-review-2.md`)
 
 Each finding was proved against the code first; where a number can show it, a check that

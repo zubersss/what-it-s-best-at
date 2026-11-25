@@ -467,9 +467,20 @@ as before.
     gives the flora of a place (`floraAt`); `flowersAt` (JavaScript, and the same in GLSL
     for the ground's dusting) gives what flowers there and how thickly: flower meadows
     some hundreds of metres across (a share of the land the flora names) where one kind
-    after another carpets a patch of a hectare, plain grass between with a drift here and
-    there, and on some hillsides one kind alone over the whole slope (the ground passes its
-    own slope, and its two broad noises from its vertices).
+    after another leads a patch of a hectare and two companions of other habits and heights
+    (the flora's `with`) stand among it in clumps some metres across, pooling into drifts of
+    their own (`COMPANY`); plain grass between with a drift here and there, and on some
+    hillsides one kind over the whole slope with companions toward its edges (the ground
+    passes its own slope, and its two broad noises from its vertices within 1 000 m; beyond,
+    a pixel asks them itself). The ground's dusting is `flowerTint`: the mean colour of what
+    flowers at a place as wide as the pixel (the companions' and the fine drifts' shares by
+    their means where a pixel cannot tell them), so a meadow from the air is soft drifts of
+    its colours to 2.5 km, never specks; the far blades' flowers fade as they are looked
+    down on. A bloom is a thing in space: every part two triangles (a stem ribbon at least
+    a pixel wide, kite petals), a cup a shallow bowl facing up, tilted its own way and a
+    little toward the Sun (seen from the side as a bowl), spikes, umbels and globes set in
+    the ground's axes, each part lit by how it faces the Sun; only the tiny turf heads are
+    turned partly to the eye.
     `node scripts/flower-field.mjs` draws the rule from above without a browser;
     `node scripts/flower-preview.mjs` takes every kind side by side in the real game.
   - *Pollen* (`life/pollen.js`): 3 200 points, half in a box of air 10 m wide round the eye and

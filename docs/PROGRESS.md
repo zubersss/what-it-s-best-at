@@ -237,6 +237,28 @@ text in `docs/benchmarks/2026-11-25-haven-e9d4888.txt`):
   and the shadows, a reader of the governor in this benchmark, three designers from three
   angles and a judge); its plan becomes the cloud helpers' briefs.
 
+**01:45**: the machine restarted twice in the night (at 23:53 and about 01:15): workflows
+were resumed from their journals (`resumeFromRunId`), detached picture runs started again.
+Merged since 00:05: the air from above (first landing: haze and the forest's air thinned by
+how steeply one looks down, the shade in more sky light, the seam under the plateau, far
+rocks not specks from above), from above A4 (crowns lit as domes, cherries pink far off,
+no ghosts, wood edges into crowns, grassland varied from the air), the trees' third round
+(crown tops as pictures of their own, the cherry rebuilt on a skeleton), the flowers'
+first landing (a leading kind with companions, bowls and spikes in space, meadows as soft
+drifts from the air), and `fix/shadow-tiles` (rocks in the fine tile by its reach along the
+Sun, the lattice turned about the eye, one Sun for the land's baked shadow). Waiting on
+their cold checks: `fix/shadow-trees` (the leaf flecks re-rolled at every tile re-centre,
+every tree lurching at a rebuild, the shadow's mesh switching at 20 m) and `fix/governor10`
+(Haven no longer at the floor in Sharp; the dead first steps last; jumps close trials; the
+benchmark starts fresh). Why: `docs/briefs/shadows-governor-10.md`.
+**The sky**: the plan is `docs/briefs/clouds-weather-plan.md`. Its step 0 (the shared
+contract: steering motions, snapshot format, cell shape, a stub producer, `skyGlsl.js`
+v0, `skySystem.js` out of `app.js`, debug switches) is being built by workflow `sky-step0`,
+which also drafts the four helpers' briefs (`sky-A-model.md` to `sky-D-storm.md`). Then
+four helpers, one package each. Meanwhile the third round finishes (flowers' final set,
+the air helper's L-DONE, from above's steppe A5) and goes to the owner as the next link
+with the shadow and governor fixes.
+
 ### The far view sent: trees, grass and rock as far as one can see
 
 *2026-11-24. Merged as pull request #34; the phone link shows build 6ac24ff (this line was

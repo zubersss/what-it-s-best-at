@@ -7,6 +7,7 @@ import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { noise3, hash3 } from '../terrain/height/noise.js';
 import { latLonToDir, dirToLatLon } from '../core/ephemeris.js';
+import { tileShare } from '../shadows/nearShadow.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // The block's shape, shared with the far rocks (farRocks.js): one rule, one look. Whoever
@@ -76,8 +77,6 @@ export class Rocks {
     const def = world.surface.rocks || { count: 0, radius: 100, size: [0.3, 1], albedo: [0.15, 0.1, 0.07] };
     this.def = def; this.capacity = 512;                // fixed instance buffer; a world may use fewer
     this.cell = 7;
-    this.nearRadius = 30;             // rocks the fine shadow tile can see (its half-width, 20 m, plus a margin for the camera moving)
-    this.nearCount = 0;
     this.prob = Math.min(1, Math.min(this.capacity, def.count | 0) / (Math.PI * def.radius * def.radius / (this.cell * this.cell)) * 0.92);
     const base = rockGeometry();
     const geo = new THREE.InstancedBufferGeometry();
@@ -93,6 +92,8 @@ export class Rocks {
     geo.instanceCount = 0;
     this.geometry = geo;
     this.trianglesPerRock = base.index.count / 3;
+    // (the lump's largest radius: the fracture planes only cut it back. A rock reaches that times its largest scale.)
+    { const p = base.attributes.position; let m = 0; for (let i = 0; i < p.count; i++) m = Math.max(m, Math.hypot(p.getX(i), p.getY(i), p.getZ(i))); this.lumpRadius = m; }
     const fade = { value: def.radius };
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: atmosphereDefines(),
@@ -148,6 +149,14 @@ export class Rocks {
   }
 
   get triangles() { return this.count * this.trianglesPerRock; }
+
+  // How many of the first instances the near shadow map's fine tile draws: up to the last one
+  // whose shadow falls in it, asked by the shadow pass with the tile in place (nearShadow.js:
+  // tileShare). The instances come nearest cell first, so with a high Sun that is the
+  // nearest few dozen; with a low one the tile reaches far along the Sun, and so do they.
+  // (Chosen by straight distance, 30 m, as they were, the stones out to 51 m along a Sun
+  // 20 degrees up cast no shadow inside the tile, and popped back at the next scatter.)
+  get nearCount() { return tileShare(1, this.geometry.instanceCount, this.aOffset.array, 3, this.mesh.position, this.aScale.array, this.lumpRadius); }
 
   // Governor step: draw only part of the scattered rocks (they are in a stable order).
   setFraction(f) { this.fraction = f; this.geometry.instanceCount = Math.floor(this.count * f); }
@@ -219,14 +228,13 @@ export class Rocks {
     let n = 0;
     const maxN = Math.min(this.capacity, def.count | 0);
     // cells nearest the camera first, so the first instances are the nearest rocks (the fine
-    // shadow tile draws only those: see nearCount)
+    // shadow tile draws only the first so-many: see nearCount; and the governor's share, setFraction)
     const order = this._order || (this._order = []);
     if (order.span !== span) {
       order.length = 0;
       for (let a = -span; a <= span; a++) for (let b = -span; b <= span; b++) order.push([a, b, a * a + b * b]);
       order.sort((x, y) => x[2] - y[2]); order.span = span;
     }
-    let nearN = 0;
     for (let o = 0; o < order.length && n < maxN; o++) {
       const i = ci + order[o][0], j = cj + order[o][1];
       const h0 = hash3(i, j, 17, 911);
@@ -240,7 +248,6 @@ export class Rocks {
       const x = d[0] * r, y = d[1] * r, z = d[2] * r;
       const dist = Math.hypot(x - cam.x, y - cam.y, z - cam.z);
       if (dist > radius) continue;
-      if (dist < this.nearRadius) nearN = n + 1;
       const u = (h2 & 0xffff) / 65536;
       const size = def.size[0] * Math.pow(def.size[1] / def.size[0], u * u);
       up.set(d[0], d[1], d[2]);
@@ -262,7 +269,6 @@ export class Rocks {
       n++;
     }
     this.count = n;
-    this.nearCount = nearN;          // the instances that can fall inside nearRadius (they come first)
     this.geometry.instanceCount = Math.floor(n * (this.fraction ?? 1));
     this.aOffset.needsUpdate = this.aQuat.needsUpdate = this.aScale.needsUpdate = this.aMisc.needsUpdate = this.aShape.needsUpdate = true;
     void dirToLatLon; void G;

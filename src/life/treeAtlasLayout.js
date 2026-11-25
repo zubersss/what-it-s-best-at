@@ -34,3 +34,15 @@ export function impostorRect(arch, variant) {
   const [x, y] = impostorCell(arch, variant), m = 1.5;
   return [(x + m) / ATLAS_W, (y + m) / ATLAS_H, (x + IMP_W - m) / ATLAS_W, (y + IMP_H - m) / ATLAS_H];
 }
+
+// Crown tops: a tree's crown seen from above (the far mesh's rosette, which the far forest
+// draws too): solid rounded masses of clumps, 256 pixels, in the whole trees' free cells
+// (shapes 9 x 3 variants fill 27 of the 32). N needles, L leaves, B blossom.
+export const CROWN = 256, CROWN_X0 = IMP_X0 + 3 * IMP_W, CROWN_Y0 = 3 * IMP_H;
+export const CROWNS = { N: 0, L: 1, B: 2 };
+export function crownCell(k) { return [CROWN_X0 + (k % 5) * CROWN, CROWN_Y0 + Math.floor(k / 5) * CROWN]; }
+export function crownRect(k) {
+  const [x, y] = crownCell(k), m = 1.5;
+  return [(x + m) / ATLAS_W, (y + m) / ATLAS_H, (x + CROWN - m) / ATLAS_W, (y + CROWN - m) / ATLAS_H];
+}
+
