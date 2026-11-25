@@ -157,11 +157,13 @@ by the shared forms, and it throws near pixels out FIRST. With no field it is th
   or two for the high shell (its strokes, and a finer octave while the governor leaves it on).
   An anvil costs no read at all: it is the cells' own shape.
 - `FogSheet`: 129 x 129 points over 60 km on a lattice fixed to the world (snapped in whole
-  steps, so its points stay on the same places as one flies), each lifted to field C's fog top,
-  depth-tested, one noise read a pixel. Whether there is any fog within reach is asked of the
+  steps, AND its axes taken at the anchor, not at the traveller — check 9 — so its points stay on
+  the same places as one flies), each lifted to field C's fog top, depth-tested, one noise read a
+  pixel. The governor's `fog-sheet` step halves the points a side. Whether there is any fog within reach is asked of the
   field over a square of 25 places, every 3 km of travel or 60 s of the clock.
-- `Lenticulars` (src/sky/lenticulars.js): up to 12 plates, each a stretched ball — 7 to 11 km
-  along the ridge, a tenth as deep — standing still over its own summit. Every pixel takes the
+- `Lenticulars` (src/sky/lenticulars.js): up to 12 plates (3 while the governor's `lenses` step
+  is on), each a stretched ball — 7 to 11 km along the ridge, a tenth as deep — standing still
+  over its own summit, drawn farthest first (check 10). Every pixel takes the
   metres of cloud its own ray crosses, so a lens is a lens from any side and fades out at its
   own edge; two tones with a clean line and a pearly rim where it is seen edge on; no texture
   read at all. The list comes from the model (`field.lenses(t)`, or a snapshot's LENS records),
