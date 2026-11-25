@@ -72,6 +72,7 @@ export class Weather {
     this.mPerDeg = Math.PI * world.radius / 180;
     this.rain = this.snow = this.wet = 0; this.squall = this.storminess = this.veil = 0; this.sunShade = this.skyShade = 1;
     this.flash = null; this.flashes.length = 0; this.thunder.length = 0; this.flashLight.set(0, 0, 0); this.topNear = 0; this.gust = 1;
+    this.storm = null;               // (the named storm is Earth's: it must not follow the traveller to another world)
     setStorm();
     this.shadow = world.clouds?.shadow ?? 0.6;                 // (how dark this world's cloud shadow is: the ground's own number)
     if (!this.def || typeof document === 'undefined') return;
@@ -175,6 +176,7 @@ export class Weather {
     this.veil = Math.min(0.0045, 0.00014 * Math.pow(this.rain + 2 * this.snow, 0.85));
     this.cover = h.overcast; this.base = h.base; this.top = h.top;
     this.storminess = h.storm; this.squall = 0;          // (a cell's own stage carries its squalls now: B's cells)
+    this.storm = null;                                   // (no storm has a name on a made world)
     // the deepest cloud near by (the volume is made that deep): the cells' towers in reach
     let near = h.top;
     for (const c of sky.cells) { if (c.dist > 50000) break; if (c.top > near) near = c.top; }
