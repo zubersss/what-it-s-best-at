@@ -15,7 +15,7 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
 import { makeTreeGeometries, VARIANTS } from './treeGeometry.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
-import { EDGE0, EDGE1 } from './farTreeForm.js';
+import { EDGE0, EDGE1, TOP0, TOP1 } from './farTreeForm.js';
 import { SPECIES, bloomOf } from './cover.js';
 import { blockDeg, TREE_FLOATS, blockLon } from './treeBlock.js';
 import { REBUILD_M, radii, fineStep, toMake, inFarList, nearCandidates, makeOf, castMake, CUT_IN } from './treeLod.js';
@@ -108,6 +108,7 @@ in vec4 iA;            // xyz: the tree's foot from the anchor (m, planet axes),
 in vec4 iB;            // x: crown width, y: turn (radians), z: a number of its own (0..1), w: 1 if it drops its leaves
 in float aLeaf; in vec2 aSway;      // aSway.x: how far the wind moves the vertex, y: how much it flutters (0 where a spray is held)
 in vec2 aUv;            // where in the trees' picture (a card of foliage, a whole tree's card); -1: a plain face
+in vec3 aCrown;         // the far mesh's crown coordinates (treeGeometry.js crownCoords): z 1, 2 an upright card, 3 the crown's top
 uniform vec3 uAnchorRel, uTreeEast, uTreeNorth, uTreeUp;
 uniform vec4 uTreeWind;      // xyz: where the wind blows to (unit), w: its speed (m/s)
 uniform float uGustPhase;    // the gust's phase at the anchor (Trees.update): a tree's gust is its place's, whatever the anchor
@@ -134,6 +135,11 @@ vec3 treePosition(out vec3 foot, out float leaf) {
 #else
   float edge = aLeaf > 3.5 ? 1.0 - smoothstep(${EDGE0.toFixed(3)}, ${EDGE1.toFixed(3)}, dot(-normalize(foot + uTreeUp * (iA.w * 0.7)), uTreeUp)) : 1.0;
 #endif
+  // The crown's top, from low down, draws in inside the side pictures (lying flat at crown
+  // height and wider than the crown seen from the side, it was a pink or green pad laid on
+  // every tree from 20 degrees down); from above it is the crown, whole (the far trees' rule,
+  // TOP0 to TOP1). It is its old size again from 180 m to the 240 m line, as the far forest's.
+  if (aCrown.z > 2.5) p.xz *= mix(mix(0.55, 1.0, smoothstep(${TOP0.toFixed(3)}, ${TOP1.toFixed(3)}, dot(-normalize(foot + uTreeUp * (iA.w * 0.7)), uTreeUp))), 1.0, smoothstep(180.0, 240.0, length(foot)));
   p.xz *= iB.x * (1.0 - 0.85 * gone) * edge;
   vec3 l = vec3(p.x * c - p.z * s, p.y, p.x * s + p.z * c) * iA.w;
   // wind: the whole tree leans a little and its crown swings, gust by gust, each tree in
@@ -223,7 +229,7 @@ export class Trees {
         in vec4 iE;                      // rgb: its petals' colour, w: how far in flower it is (0..1; -1: a tree that never flowers)
         out vec4 vBloom; out vec2 vTall;  // (vTall: the tree's height in metres; how bare it is)
         out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out float vLeaf; out float vY; out vec2 vOwn; out vec3 vTreeM; out vec2 vUv; out float vCloud;
-        in vec3 aCrown; out vec3 vCrown; out vec3 vCardX;          // (the far mesh's crown coordinates, treeGeometry.js crownCoords; and its card's own x in the world)
+        out vec3 vCrown; out vec3 vCardX;          // (the far mesh's crown coordinates, treeGeometry.js crownCoords; and its card's own x in the world)
         ${TREE_SHADE_VERT}
         void main() {
           vec3 foot; float leaf;
@@ -446,7 +452,7 @@ export class Trees {
         let mesh = s.mesh;
         if (src !== s) {
           const g = new THREE.InstancedBufferGeometry();
-          for (const name of ['position', 'normal', 'aLeaf', 'aSway', 'aUv']) g.setAttribute(name, src.geo.attributes[name]);
+          for (const name of ['position', 'normal', 'aLeaf', 'aSway', 'aUv', 'aCrown']) g.setAttribute(name, src.geo.attributes[name]);
           g.setAttribute('iA', s.iA); g.setAttribute('iB', s.iB); g.setAttribute('iE', s.iE); g.setAttribute('iF', s.iF);
           g.instanceCount = 0; s.castGeos.push(g);
           mesh = new THREE.Mesh(g, this.depthMaterial); mesh.frustumCulled = false;
