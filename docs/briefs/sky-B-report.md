@@ -345,29 +345,20 @@ are not crossed at all.
 - On the real worlds nothing changes but Earth's own clouds, which are drawn with the new shapes
   (softer, more cut-out; the pair is `earth_ledge_B0_earth.png` / `earth_ledge_B_earth.png`).
 
-## Asked of the main session
+## Asked of the main session — **done** (merged into `ccr-aa39490a-qiw63x`, 25 November)
 
-1. **`src/sky/skySystem.js`**, the three stand-ins:
-   ```js
-   import { UpperClouds } from './upperClouds.js';
-   import { FogSheet } from './fogSheet.js';
-   import { Lenticulars } from './lenticulars.js';
-   // in the constructor:
-   this.upper = parts.upper ?? new UpperClouds(renderer);
-   this.fog = parts.fog ?? new FogSheet(renderer);
-   this.lenses = parts.lenses ?? new Lenticulars(renderer);
-   ```
-2. **The field always on** for a world whose weather is made by rule, now that the volume, the
-   shell, the shells above and the fog all draw from it:
-   ```js
-   this.fieldWanted = made && !this.noClouds;      // (was: && (d.preset || d.storm || d.flash))
-   ```
-   Without it Haven draws no volume cloud at all except under `?debug=sky:...`.
-3. **`beforeScene`**: the volume's bounds come from the field, so `place()` needs the frame:
-   ```js
-   this.cloudVolume.place(rig.pos, this.frame);    // (was: place(rig.pos))
-   ```
-   (It keeps the last frame's own otherwise, so nothing breaks before the change.)
+All four lines are in the owning branch now, and this branch has merged it back:
+
+```js
+this.upper = parts.upper ?? new UpperClouds(renderer);      // skySystem.js
+this.fog = parts.fog ?? new FogSheet(renderer);
+this.lenses = parts.lenses ?? new Lenticulars(renderer);
+this.fieldWanted = !this.noClouds && (made || (maps && d.preset === 'model'));
+this.cloudVolume.place(rig.pos, this.frame);                // beforeScene
+```
+
+Nothing of B's own files was changed upstream, so the merge was clean and the frozen builds no
+longer need a patch of their own.
 
 ## Views on Haven with weather in them (the model, found in Node in seconds)
 
