@@ -112,6 +112,7 @@ uniform vec2 uFair;            // (no field: x the fair-weather cover, y how far
 uniform float uLayerOn;        // 0 at the governor's last step: the field's own heaps and decks go to the far shell and only the storm cells are marched
 uniform vec4 uBolt[BOLTS];     // flashes inside the cloud: xyz where (from the camera, m), w how bright
 uniform vec4 uShaft;           // x 0 no rain shafts, 1 the cells' alone, 2 the field's rain as well; y 1 while they are thinned (the governor), z the streaks' phase (0..1), w the highest base in reach (m)
+uniform float uShaftTop;       // m over the sea: the highest raining base in reach (nothing above it rains)
 in vec2 vUv;
 layout(location = 0) out vec4 fragColor;
 ${SKY_FIELD_GLSL}
@@ -390,7 +391,13 @@ void main() {
   // when the ray misses it, and 'empty' is t0 > t1: taking its smaller end then would start the
   // march at a metre from the eye and spread its steps over everything in between.)
   float sA = 1.0, sB = -1.0;
-  if (uShaft.x > 0.0) {
+  // Is there room for rain in this slice at all? The rain hangs below the highest raining base
+  // anywhere in reach (uShaftTop), so a stretch of the ray that stays above it holds none. The
+  // march must ask for the shafts BEFORE it can give a slice up (see below), and without this
+  // test the whole sky over the cloud paid for every cell's shaft chord in every slice.
+  float tm = clamp(-b, tA, tB), rTop = uSkyLow.y + uShaftTop;
+  bool rainRoom = rc * rc + 2.0 * b * tm + tm * tm < rTop * rTop;
+  if (uShaft.x > 0.0 && rainRoom) {
     // Where the rain is on this ray: each raining cell's own shaft (an exact chord, no read),
     // and, where a deck is raining within reach, the stretch under the highest base there.
     // (Every cell, not the two the march found: a ray that passes UNDER a storm — which is
@@ -657,7 +664,7 @@ export class CloudVolume {
       uProj: { value: new THREE.Vector4() }, uCloudSteer: SKY_UNIFORMS.uCloudSteer, uCloudRise: SKY_UNIFORMS.uCloudRise,
       uSkyLow: SKY_UNIFORMS.uSkyLow, tWxA: SKY_UNIFORMS.tWxA, tWxB: SKY_UNIFORMS.tWxB, tWxC: SKY_UNIFORMS.tWxC,
       uCells: SKY_UNIFORMS.uCells, uCellCount: SKY_UNIFORMS.uCellCount,
-      uBolt: { value: [new THREE.Vector4(), new THREE.Vector4()] }, uShaft: { value: new THREE.Vector4(1, 0, 0, 0) }, uLayerOn: { value: 1 },
+      uBolt: { value: [new THREE.Vector4(), new THREE.Vector4()] }, uShaft: { value: new THREE.Vector4(1, 0, 0, 0) }, uShaftTop: { value: 0 }, uLayerOn: { value: 1 },
     };
     const defs = { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, HAZE_UV: 1, SLICES, COLS, ROWS, NEAR_SLICES, BOLTS, CELL_MAX };
     this.march = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, defines: defs, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: MARCH, depthTest: false, depthWrite: false });
@@ -890,6 +897,11 @@ export class CloudVolume {
     this.shafts = hasField && !this.out.has('rain-shafts') && (this.rainNear || cellRain) ? (this.rainNear ? 2 : 1) : 0;
     const phase = ((sky?.noiseT ?? 0) * K.SHAFT_FALL / (v.scale ?? 5200) * 1.7) % 1;
     u.uShaft.value.set(this.shafts, this.shaftThin ? 1 : 0, phase < 0 ? phase + 1 : phase, this.bounds.baseHi || base);
+    // the highest base anything rains from, the deck's and the cells' (the gate above; a cell
+    // 100 km off can have its base over everything the field holds within the reach)
+    let shaftTop = this.shafts > 1.5 ? (this.bounds.baseHi || base) : 0;
+    for (const c of cells) if (c.rain > 0 && c.dist < CELL_FAR && c.base > shaftTop) shaftTop = c.base;
+    u.uShaftTop.value = shaftTop;
     // The target is as large as the view can ever be (eight pictures of a quarter of the canvas
     // each way) and only the part the governor's resolution asks for is used, as with the main
     // picture: made anew at every resolution step it cost an allocation in the middle of the

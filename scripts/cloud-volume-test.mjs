@@ -72,6 +72,11 @@ check('with no cloud layer there is nothing to march', cv.ready(cam, { mesh: { v
     `${block.split('\n').length} lines of the shaft's stretch`);
   // and the stepping under the rain reads the two cells the shafts were found in, not the two the
   // body's chords found (which may be none) and not all eight (which a line of storms would cost)
+  // and the sky over the cloud does not pay for the cells' chords: the slice is tested against
+  // the highest raining base first, and that height takes in the cells' own bases
+  check('the sky over the highest raining base pays nothing for the shafts',
+    fs.includes('bool rainRoom =') && /if \(uShaft\.x > 0\.0 && rainRoom\)/.test(fs)
+    && cv.march.fragmentShader.includes('uniform float uShaftTop;'));
   // a slice of the distance that holds the rain but no cloud is the rain's: the shaft is worked
   // out before the slice can be given up, or a shaft ended at a slice's boundary in mid-air
   check('a slice with the rain in it but no cloud is still marched',

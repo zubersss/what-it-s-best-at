@@ -260,6 +260,12 @@ today: **of the nine per cent of that view which stands in rain, eight and a hal
 cut off in mid-air**. `haven_ledge_Q_cell9.png` (the owning head) is the "before" and
 `haven_ledge_M_cell9.png` the "after".
 
+Asking for the shafts before a slice can be given up would have made the whole sky over the
+cloud pay for every cell's shaft chord in every slice, so the slice is first tested against the
+highest base anything rains from (a new `uShaftTop`, the deck's base and the cells' own): a
+stretch of the ray that stays above it holds no rain and is given up as before, which is most of
+the picture.
+
 One thing to watch in those pictures: the rain's own numbers (`SHAFT_K` 0.00014 a metre at
 rate^0.85) were tuned while most of a shaft was being thrown away. With the whole of it drawn, a
 39 mm/h core two kilometres deep comes to an optical depth of 6.3 — opaque, which is what a heavy
