@@ -7,7 +7,8 @@ import { CONFIG } from '../config.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { FACES } from './cubeSphere.js';
-import { HEAP_GLSL, SKY_UNIFORMS, SKY_NOISE_UNIFORM_GLSL, SKY_STEER_UNIFORM_GLSL } from '../sky/skyGlsl.js';
+import { SKY_UNIFORMS } from '../sky/skyGlsl.js';
+import { SHADE_READ_GLSL, SHADE_WET_GLSL, CLOUD_SHADE_UNIFORMS, CLOUD_WET_UNIFORMS } from '../sky/cloudShade.js';
 import { GRASS_GLSL, FLOWERS_GLSL, GRASS_GROUND } from '../life/grassRules.js';
 import { PAINT_LEAF } from '../life/trees.js';
 import { FAR_GREEN_GLSL } from '../life/farTreeForm.js';
@@ -30,27 +31,16 @@ vec3 albedoRange(vec3 t, vec2 r) {
   return x * (1.0 + (t / L - 1.0) * trust * trust);
 }`;
 
-// The cloud that stands between a place on the ground and the Sun: x the day's map there,
-// y the heap the layer shows there (0..1), z the layer's cover (see sky/clouds.js,
-// HEAP_GLSL). One rule for the vertices of the near ground and the pixels of the far (the
-// shader below says which asks where). P: planet-centred metres; r: its length.
-const CLOUD_OVER_GLSL = /* glsl */`
-uniform sampler2D tClouds;      // the home world's cloud map (its shadow on the ground)
-uniform vec4 uCloud;           // x how dark the shadow is (0: no clouds), y the cloud layer's radius (m), z the map's longitude shift (turns)
-precision highp sampler3D;
-// (tCloudNoise: the cloud volume's noise, the ground shaded by the heaps the layer shows;
-// uCloudSteer: the low layer's motion, the heaps going with its wind: sky/skyGlsl.js)
-${SKY_NOISE_UNIFORM_GLSL}${SKY_STEER_UNIFORM_GLSL}
-uniform vec4 uCloudHeap;       // x 1 - the layer's cover, y the fair-weather cover, w 1: shade by the heaps (0: by the day's map alone)
-uniform vec4 uCloudVol;        // the heaps' scales (the layer's uVol), w the low pattern's rise (m)
-${HEAP_GLSL}
-vec3 cloudOver(vec3 P, float r) {
-  vec3 uc = normalize(P + uSunDir * ((uCloud.y - r) / max(dot(P, uSunDir) / r, 0.08)));
-  float cd = textureLod(tClouds, vec2(atan(uc.y, uc.x) * 0.15915494 + uCloud.z, acos(clamp(uc.z, -1.0, 1.0)) * 0.31830989), 0.0).r;
-  vec2 hc = vec2(0.0);
-  if (uCloudHeap.w > 0.5) hc = cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudSteer, 0.0);
-  return vec3(cd, hc.x, hc.y);
-}`;
+// The cloud that stands between a place on the ground and the Sun, and how wet the ground is
+// there: both read from the one cloud-shade atlas and the weather field (src/sky/cloudShade.js),
+// which work them out once a frame for the whole country round the traveller. The ground used
+// to work the heaps out for itself - the day's map plus up to three reads of the cloud noise,
+// at its vertices near by and at every pixel of far ground - and the shadow then slid under it
+// as the traveller moved, because the cloud base followed the country underfoot. Now it is one
+// texture read: cloudShadeLight(rel) gives the share of the Sun and of the sky's light left at
+// a place `rel` metres from the camera, from a map fixed to the world.
+const CLOUD_OVER_GLSL = SHADE_READ_GLSL;
+
 // The near ground asks about the cloud over it at its vertices: patches up to this many
 // detail tiles across (their vertices are then at most 20 m apart, and the cloud's heaps
 // are cut from a noise whose cells are 80 m: between two vertices it is all but a straight
@@ -82,8 +72,9 @@ out vec3 vSun;               // the Sun's light reaching the place (directSun)
 out vec3 vHazeT;             // the air between the eye and the place: colour * T + L + G * (rho - 1), see hazeAffine (lightingGlsl.js)
 out vec3 vHazeL;
 out vec3 vHazeG;
-out vec4 vCloud;             // xyz: the cloud between the place and the Sun (cloudOver), on the near ground (CLOUD_VERT_TILES); w: the wind's gusts over the grass (a noise 240 m wide)
+out vec4 vCloud;             // x the Sun's share and y the sky's left by the cloud over the place (the atlas, at the vertices of the near ground: CLOUD_VERT_TILES), z how wet the ground is here, w the wind's gusts over the grass (a noise 240 m wide)
 ${CLOUD_OVER_GLSL}
+${SHADE_WET_GLSL}
 uniform vec4 uGrassTone;     // (w: how strongly the ground wears the grass; 0: none drawn)
 ${FLOWERS_GLSL}
 out vec2 vFlowerFields;      // the flower rule's two broad noises (grassRules.js: flowerMeadow, flowerHill), for the ground within 900 m
@@ -203,12 +194,16 @@ void main() {
   // shading must see the shading done here as well as the pixels')
   vSun = vec3(0.0);
   vHazeT = vec3(1.0); vHazeL = vec3(0.0); vHazeG = vec3(0.0);
-  vCloud = vec4(0.0, 0.0, 0.0, 0.5);
+  vCloud = vec4(1.0, 1.0, 0.0, 0.5);
   vFlowerFields = vec2(0.0, 0.5);
   if (uPlain > 0.5) return;
   vSun = directSun(uCamPlanetPos + rel);
   // (a vertex behind the eye has no place in the view: the edge of the view on its side)
-  if (uCloud.x > 0.0 && aI2.z <= float(CLOUD_VERT_TILES)) { vec3 P = uCamPlanetPos + rel; float rP = length(P); if (rP < uCloud.y) vCloud.xyz = cloudOver(P, rP); }
+  // (the cloud over the place, at the vertices of the near ground: the far ground asks at every
+  // pixel, see CLOUD_VERT_TILES. And how wet the ground is here, from the weather field: it was
+  // one number for the whole world, the traveller's own.)
+  if (aI2.z <= float(CLOUD_VERT_TILES)) vCloud.xy = cloudShadeLight(rel);
+  vCloud.z = cloudWet(normalize(uCamPlanetPos + rel), uWeather.z);
   // (the gusts that send waves over the grass: broad, 240 m to a cell of their noise, and
   // seen to 900 m: the patches that near have vertices a few tens of metres apart at most)
   // (and where the meadows are and which hillsides flower: noises 260 and 420 m to the cell,
@@ -310,7 +305,7 @@ in vec3 vHazeT;
 in vec3 vHazeL;
 in vec3 vHazeG;
 in vec2 vFlowerFields;         // the flower rule's two broad noises, worked out at the vertices (within 1 100 m)
-in vec4 vCloud;                // xyz: the cloud between the place and the Sun (cloudOver), on the near ground; w: the wind's gusts over the grass
+in vec4 vCloud;                // x the Sun's share and y the sky's left by the cloud over the place (the atlas, at the vertices of the near ground), z how wet the ground is here, w the wind's gusts over the grass
 flat in vec3 vTanU;
 flat in vec3 vTanV;
 flat in vec4 vChunk;           // x = layer, y = parent's layer (-1: none), z = extent in tiles of DETAIL_TILE metres
@@ -940,23 +935,14 @@ void main() {
   }
 
   // (wet ground is darker: water fills the gaps between the grains)
-  albedo *= 1.0 - 0.32 * uWeather.z * (1.0 - water) * (1.0 - farW);
+  albedo *= 1.0 - 0.32 * vCloud.z * (1.0 - water) * (1.0 - farW);
 
   // --- light
-  if (uCloud.x > 0.0 && length(planetPos) < uCloud.y) {
-    // the cloud that stands between this ground and the Sun (asked at the vertices of the
-    // near ground, here for the far: see CLOUD_VERT_TILES)
-    vec3 co = vCloud.xyz;
-    if (vChunk.z > float(CLOUD_VERT_TILES)) co = cloudOver(planetPos, length(planetPos));
-    float shade = smoothstep(0.2, 0.7, co.x);
-    // (and every heap the layer shows casts its own: a cloud with its shadow beside it on
-    // the land stands above the land; without, the clouds were a picture laid over it)
-    // (only what the layer shows: the day's map has faint cloud where the layer draws none,
-    // and its shade lay on the land as dark stains with nothing above them. Far off, where
-    // the heaps cannot be told apart, the mean shade of the field.)
-    if (uCloudHeap.w > 0.5) shade = mix(0.85 * smoothstep(0.06, 0.42, co.y), 0.5 * co.z, farW);
-    shadow *= 1.0 - uCloud.x * shade;
-  }
+  // The cloud that stands between this ground and the Sun: from the atlas, asked at the
+  // vertices of the near ground and here for the far (see CLOUD_VERT_TILES). Every heap the
+  // layer shows casts its own shadow, crisp at its edge, and from far off the atlas's own
+  // coarser windows hold the mean of it, so nothing shimmers.
+  shadow *= vChunk.z > float(CLOUD_VERT_TILES) ? cloudShadeLight(vRel).x : vCloud.x;
   shadow *= nearShadow(vRel, N);
   // Oren-Nayar roughness describes the grains and clods underfoot; at the scale of a whole
   // disc it kept the limb nearly as bright as the centre (71 % at 72 degrees off the
@@ -1002,11 +988,11 @@ void main() {
     float F = 0.02 + 0.98 * pow(1.0 - max(dot(V, Hh), 0.0), 5.0), Fv = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
     vec3 Rv = reflect(-V, N); Rv = normalize(Rv + up * max(0.0, 0.05 - dot(Rv, up)));
     col += water * (1.0 - foam) * (sunHere * shadow * (a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0) * 0.25 / max(dot(N, V), 0.2)) + Fv * skyLight(Rv, up) / PI);
-  } else if (uGloss.x > 0.0 || uWeather.z > 0.01) {
+  } else if (uGloss.x > 0.0 || vCloud.z > 0.01) {
     // the Sun's sheen on ice, and on ground the rain has wetted: a broad glint toward the
     // Sun, strongest at a grazing view; it fades with distance into the far ground's plain
     // brightness. Wet ground also mirrors a little of the sky at a low angle.
-    float wetK = uWeather.z * (1.0 - farW), gl = max(uGloss.x, 0.7 * wetK), gr = mix(uGloss.y, 0.22, step(uGloss.x, 0.7 * wetK));
+    float wetK = vCloud.z * (1.0 - farW), gl = max(uGloss.x, 0.7 * wetK), gr = mix(uGloss.y, 0.22, step(uGloss.x, 0.7 * wetK));
     vec3 Hh = normalize(uSunDir + V);
     float nh = max(dot(N, Hh), 0.0), a2 = gr * gr, dd = nh * nh * (a2 - 1.0) + 1.0;
     float F = 0.03 + 0.97 * pow(1.0 - max(dot(V, Hh), 0.0), 5.0);
@@ -1034,6 +1020,10 @@ export function makeTerrainShared(world, textures) {
     // w: the cover pattern (d0.a + 0.3 d1.a) is about normal; logistic scale = its spread / 1.702
     uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
     uPlain: { value: 0 }, uTide: { value: new THREE.Vector2(0, 0) }, uAirRelief: { value: 0 },
+    // the clouds' shade, the one atlas every lit thing reads (sky/cloudShade.js), and how wet
+    // the ground is per place; the four below are the cloud rule's own numbers, which the atlas
+    // reads to write itself with (nothing in the ground's shaders reads them any more)
+    ...CLOUD_SHADE_UNIFORMS, ...CLOUD_WET_UNIFORMS,
     tCloudNoise: { value: null }, uCloudHeap: { value: new THREE.Vector4(0, 0, 0, 0) }, uCloudVol: { value: new THREE.Vector4() }, uCloudSteer: SKY_UNIFORMS.uCloudSteer,
     uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) }, uGrassWave: { value: new THREE.Vector4(0, 0, 0, 0) },
     tRingColour: { value: textures.white }, uRingColour: { value: new THREE.Vector4(0, 0, 1, 0) },
