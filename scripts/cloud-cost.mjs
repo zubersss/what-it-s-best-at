@@ -36,8 +36,12 @@ const reads = await page.evaluate(({ BREAK }) => {
   if (!cv.active) return { error: 'the cloud volume is not drawn at this view' };
   const src = cv.march.fragmentShader;
   if (BREAK === 'read') {
-    // (one more read of the noise at every step: the fault the check guards against)
-    cv.march.fragmentShader = src.replace('    if (ld <= 0.001) continue;', '    if (ld <= 0.001) continue;\n    ld *= 0.5 + skyTex3(tCloudNoise, marchPattern(gCamQ, gDirQ, t) * 3.1).r;');
+    // (four more reads of the noise at EVERY step, whichever path the step takes: the fault the
+    // check guards against. Put inside the layer's path alone it was never run at a view whose
+    // cloud is all storm cells — the check then passed on a build broken on purpose.)
+    const at = 'void cloudStep(float t, float dt, bool far) {';
+    if (!src.includes(at)) return { error: 'the march has no cloudStep to break' };
+    cv.march.fragmentShader = src.replace(at, at + '\n  float brk = 0.0;\n  for (int bi = 0; bi < 4; bi++) brk += skyTex3(tCloudNoise, marchPattern(gCamQ, gDirQ, t + float(bi)) * 3.1).r;\n  if (brk < -1.0) return;');
   }
   cv.march.defines.CLOUD_READS = 1; cv.march.needsUpdate = true;
   // a render target read back as floats, whatever the driver gives (half floats decoded here)
