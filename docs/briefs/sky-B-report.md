@@ -495,7 +495,20 @@ ground's two shade programs 5 + 0; Haven's globe 7 + 0.
 (The same view on an earlier build with one cell in reach and no far slices marched 203 ms at
 1 100 x 515: what the far slices and the model's five cells add is most of the 790.)
 
-*(the fair day's pair lands as it finishes)*
+**And a view with no cloud in it at all costs nearly as much as a storm.** On the fair day over
+the opening place (`alt=2600&pitch=-4&t=4`, no cell in reach, and nothing of the volume on
+screen: cloud on 0 % of the picture) the owning head's march still came to **1 743 ms** against
+the storm's 1 971 — 88 % of it, for a picture with no cloud. The reason is in the design: the
+layer is a slab between two spheres, every ray that crosses it is marched through it whatever
+the field's cover is there, and the cover is read a step at a time. The field says the cover
+within the reach at that place and hour is 0.98 — the deck is simply out of the view or past the
+fade at 11 km, and the march paid for it all the same.
+
+That is not a thing to cure by guessing. A slice whose cover is nil could be skipped, but the
+cover would have to be read for the whole slice at once, and cutting a slice by a test of its
+own is the fault the lessons warn of ("an edge cut slice by slice"). What it does say is where
+the phone's cost table should be read first, and that the governor's last cloud step (the volume
+off, the shell everywhere) is the lever that matters most on a dear frame.
 
 What the march reads, which is what the phone will feel:
 
