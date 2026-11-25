@@ -546,7 +546,7 @@ if (BREAK === 'clock') {
   check(app.paused === false, '... and let go again when the test is over');
   // the route's clock is pinned: the game's own pace whatever the player had, given back at the end
   {
-    const appB = { timeRate: 600, paused: true, loadWorldData: () => Promise.resolve(), profile: { total: new Float64Array(64) }, terrain: { rebakes: 0, built: 0, buildMs: 0 }, governor: { log: [] }, hiddenCount: 0, setHero() {}, onBenchmarkDone() {}, input: { virtualDown() {}, virtualUp() {} } };
+    const appB = { timeRate: 600, paused: true, loadWorldData: () => Promise.resolve(), profile: { total: new Float64Array(64) }, terrain: { rebakes: 0, built: 0, buildMs: 0 }, governor: { log: [], fresh() {} }, world: { id: 'haven' }, hiddenCount: 0, setHero() {}, onBenchmarkDone() {}, input: { virtualDown() {}, virtualUp() {} } };
     const b = new Benchmark(appB);
     if (BREAK === 'clockpin') { const st = b.start; b.start = function (k) { const r = appB.timeRate, pz = appB.paused; st.call(this, k); appB.timeRate = r; appB.paused = pz; }; }
     b.start('haven');
