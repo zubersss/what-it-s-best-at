@@ -120,8 +120,14 @@ const res = await page.evaluate(({ frames }) => {
   let lay = 1e9, march = 1e9, none = 1e9;
   for (let i = 0; i < frames; i++) { lay = Math.min(lay, draw('lay')); march = Math.min(march, draw('march')); none = Math.min(none, draw('none')); }
   draw('lay');
-  const w = post.viewW, h = post.viewH, f = new Float32Array(w * h * 4);
-  gl.readPixels(0, 0, w, h, gl.RGBA, gl.FLOAT, f);
+  // (the main picture is half floats: read back as floats it comes out as nothing, and "cloud
+  // on N % of the picture" was then whatever the driver left in the buffer)
+  const half = (x) => { const sg = (x & 0x8000) ? -1 : 1, e = (x >> 10) & 0x1f, m = x & 0x3ff; return e === 0 ? sg * m * 5.9604644775390625e-8 : e === 31 ? (m ? NaN : sg * Infinity) : sg * Math.pow(2, e - 15) * (1 + m / 1024); };
+  const w = post.viewW, h = post.viewH;
+  const type = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE);
+  let f;
+  if (type === gl.FLOAT) { f = new Float32Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.FLOAT, f); }
+  else { const u16 = new Uint16Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.HALF_FLOAT, u16); f = new Float32Array(u16.length); for (let i = 0; i < u16.length; i++) f[i] = half(u16[i]); }
   const out = new Uint8Array(w * h * 3); let cloudy = 0;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = ((h - 1 - y) * w + x) * 4, o = (y * w + x) * 3;
