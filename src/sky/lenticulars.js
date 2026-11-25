@@ -196,6 +196,12 @@ export class Lenticulars {
         });
       }
     }
+    // Drawn from the FARTHEST to the nearest: they are see-through, and what is laid over what
+    // is the order they are drawn in. The nearest were taken first (that is what the cap is for),
+    // which is exactly the wrong order to draw them in — a lens behind another was blended over
+    // it, and the plates of one lens, which do overlap when it is seen from the side, were laid
+    // bottom over top.
+    list.sort((a, b) => (b.centre[0] ** 2 + b.centre[1] ** 2 + b.centre[2] ** 2) - (a.centre[0] ** 2 + a.centre[1] ** 2 + a.centre[2] ** 2));
   }
 
   draw(c) {

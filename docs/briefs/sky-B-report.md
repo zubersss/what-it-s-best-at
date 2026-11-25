@@ -263,6 +263,15 @@ traveller's axes put back.
 This is the lesson about the grass's anchor met again, in a new place: on Haven every term in
 x times D over R shows, and a frame taken at the traveller is one of them.
 
+**10. The lenses were drawn in the wrong order — found by reading, fixed
+(`node scripts/lens-list-test.mjs`).** The nearest lenses are TAKEN first, which is what the cap
+of twelve plates is for; they were then drawn in that same order, and a see-through plate drawn
+later is laid over the one before it. So a lens 25 km off was blended over one 5 km off, and the
+two or three plates of a single lens — which do overlap, seen from the side, which is how one
+stands under a range and looks at them — were laid bottom over top. They are now handed over
+farthest first. Seen to fail with the sort taken out ("1 km, 1 km, 0 km, 5 km, 25 km" instead of
+"25 km, 5 km, 1 km, 1 km, 0 km").
+
 **The parity of every JS twin with its GLSL** (`scripts/sky-system-test.mjs`, which runs the
 shared texts through `scripts/lib/glslRun.mjs` at a grid of points): passes on the merged build,
 as do `sky-steer-test`, `sky-format-test`, `sky-cell-test`, `sky-model-test`, `governor-sim`,
