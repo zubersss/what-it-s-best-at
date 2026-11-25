@@ -737,3 +737,7 @@ finished benchmark leaves its text in `window.__benchResult`.
   finding is about, and land fixes after the checks, or say in the brief which are fixed.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.
+- Look at the game as the player gets it, with no switch in the URL. The sky's field fell back
+  to a stub's test pattern ("fair") whenever no `sky:` switch was given: four helpers pictured
+  their work under `debug=sky:model`, every check asked only "is the field on", and the merged
+  build drew no storm of the day. A test of a default asks what the default is.
