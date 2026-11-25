@@ -820,23 +820,34 @@ void main() {
   // turned from it, and long swaths combed along the wind, some 60 m by 18. On ground whose
   // colour is grass (gold or green, not rock, sand or snow) and not under the canopy; each
   // a tint about the ground's own tone, the swaths faded where they are under a few pixels.
-  if (uPaint.x > 0.0 && flatW > 0.0 && dist > 30.0 && dist < 4000.0) {
-    float grassy = smoothstep(0.42, 0.24, albedo.b / max(albedo.r, 1e-4)) * smoothstep(0.62, 0.45, dot(albedo, vec3(0.2126, 0.7152, 0.0722))) * (1.0 - vShell) * flatW * (1.0 - smoothstep(2500.0, 4000.0, dist));
+  // (the broad stretches out to 8 km, the rest to 4: from 1 km up a ring of plain ochre
+  // began 3 km off, where the ground's grass gives way to the map's colour)
+  if (uPaint.x > 0.0 && flatW > 0.0 && dist > 30.0 && dist < 8000.0) {
+    // (grass, and beyond the ground's grass the map's dull ochre of it: from 1 km up the
+    // land past 2 km was one plain tone, failing a test made for the grass's own gold)
+    // (and only where the ground is looked down on, as from the air: at eye height the same
+    // ground is seen nearly edge on, the swaths and stretches cannot be told apart, and
+    // they cost the opening view a tenth of its ground's shading for nothing)
+    float grassy0 = smoothstep(0.66, 0.42, albedo.b / max(albedo.r, 1e-4)) * smoothstep(0.62, 0.45, dot(albedo, vec3(0.2126, 0.7152, 0.0722))) * (1.0 - vShell) * flatW * smoothstep(0.08, 0.2, dot(V, up));
+    float grassy = grassy0 * (1.0 - smoothstep(2500.0, 4000.0, dist)), grassyB = grassy0 * (1.0 - smoothstep(5500.0, 8000.0, dist));
+    if (grassyB > 0.0) {
+      float broad = flNoise(planetPos / 230.0 + vec3(3.7, 1.3, 8.1)) - 0.5;
+      albedo *= mix(vec3(1.0), broad > 0.0 ? vec3(1.3, 1.08, 0.62) : vec3(0.66, 0.92, 0.78), grassyB * smoothstep(0.03, 0.3, abs(broad)));
+    }
     if (grassy > 0.0) {
       vec3 n0 = normalize(nt.xyz);
-      float hollow = smoothstep(0.96, 0.78, nt.a);
-      albedo *= mix(vec3(1.0), vec3(0.84, 1.04, 0.92), 0.7 * hollow * grassy);
+      // (hollows: a cooler olive, and darkest along their bottoms, where water runs after rain)
+      float hollow = smoothstep(0.97, 0.8, nt.a), damp = smoothstep(0.86, 0.7, nt.a);
+      albedo *= mix(vec3(1.0), vec3(0.74, 0.96, 0.84), hollow * grassy);
+      albedo *= mix(vec3(1.0), vec3(0.62, 0.7, 0.62), 0.8 * damp * grassy);
       float toSun = clamp((dot(n0, uSunDir) - dot(up, uSunDir)) * 5.0, -1.0, 1.0);
-      albedo *= 1.0 + grassy * toSun * vec3(0.06, 0.02, -0.10) + grassy * min(toSun, 0.0) * vec3(0.06, 0.0, -0.12);
+      albedo *= 1.0 + grassy * toSun * vec3(0.14, 0.05, -0.22) + grassy * min(toSun, 0.0) * vec3(0.12, 0.0, -0.2);
       vec3 wd = uWind.xyz - up * dot(uWind.xyz, up); float wl = length(wd); wd = wl > 1e-3 ? wd / wl : uTanU;
       vec3 q = planetPos / 18.0 + wd * (dot(planetPos, wd) * (1.0 / 60.0 - 1.0 / 18.0));
       vec3 fq = fwidth(planetPos);
       float kw = 1.0 - smoothstep(4.0, 9.0, max(fq.x, max(fq.y, fq.z)));
       // (the swaths: the wind's side of the grass paler and drier, its lee greener and darker)
-      if (kw > 0.0) { float sw = flNoise(q) + 0.5 * flNoise(q * 2.3 + 7.1) - 0.75; albedo *= 1.0 + kw * grassy * sw * vec3(0.42, 0.34, 0.12); }
-      // (and broad stretches, some hundreds of metres, greener or drier gold)
-      float broad = flNoise(planetPos / 230.0 + vec3(3.7, 1.3, 8.1)) - 0.5;
-      albedo *= mix(vec3(1.0), broad > 0.0 ? vec3(1.12, 1.03, 0.78) : vec3(0.82, 1.02, 0.86), grassy * min(1.0, abs(broad) * 2.6));
+      if (kw > 0.0) { float sw = flNoise(q) + 0.5 * flNoise(q * 2.3 + 7.1) - 0.75; albedo *= 1.0 + kw * grassy * sw * vec3(0.95, 0.75, 0.3); }
     }
   }
 
@@ -850,7 +861,7 @@ void main() {
     float seaK = 1.0 - smoothstep(2.0, 6.0, vHeight - uSea.y);
     if (seaK > 0.0) {
       float left = waterDepth + uTide.x * seaK;
-      float ph = texture(tDetail, vDetailUv * 0.37).b;
+      float ph = texture(tDetail, vDetailUv * 0.375).b;   // (6 cycles over the 16 tiles the patches agree on: a fractional count broke along patch edges)
       // (only at the water's edge: a hand's depth in a calm, knee-deep in a storm)
       left += (0.07 + 0.16 * uWave.x) * sin(uWave.z * 0.85 + 12.566 * ph) * seaK * (1.0 - smoothstep(0.0, 1.0, abs(left)));
       float bared = (1.0 - smoothstep(0.0, 0.03, left)) * smoothstep(0.0, 0.05, waterDepth);
@@ -891,7 +902,7 @@ void main() {
     // (far off, where no single crest is seen: the share of the sea that is white in this
     // wind, in streaks; a gale's sea is grey-white to the horizon, not a blue sheet)
     float white = clamp(3.84e-6 * pow(max(uWind.w, 0.0), 3.41), 0.0, 0.45) * (1.0 - inland);
-    if (white > 0.004) foam = max(foam, white * smoothstep(0.3, 0.7, texture(tDetail, vDetailUv * 1.3 - drift * 2.0).b + 0.3 * white) * water * (1.0 - 0.7 * near));
+    if (white > 0.004) foam = max(foam, white * smoothstep(0.3, 0.7, texture(tDetail, vDetailUv * 1.3125 - drift * 2.0).b + 0.3 * white) * water * (1.0 - 0.7 * near));
     // colour: light goes down to the bed and comes back, red lost first; what is left of
     // it shows the bed (pale sand), the rest is the water's own blue
     vec3 through = exp(-vec3(0.42, 0.07, 0.035) * (waterDepth * 2.3));

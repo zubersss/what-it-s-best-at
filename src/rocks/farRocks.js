@@ -28,12 +28,12 @@ import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { HEAP_GLSL } from '../sky/clouds.js';
 import { CONFIG } from '../config.js';
+import { shadowTileDistance, tileShare } from '../shadows/nearShadow.js';
 import { ROCK_SHAPE_GLSL, rockGeometry } from './rocks.js';
 import { rocksFarDef, tileDeg, tileLon, rockTop, SMALL_SHARE, shareOf, ROCKS_FAR_DEFAULTS, tileCap } from './rockBlock.js';
 
 const POOL = [14, 14, 14, 16];            // tiles held at once, by level (fixed: memory cannot creep)
 const CASTERS = 1024;                 // the most rocks drawn into the near shadow map
-const FINE_REACH = 45;                // a rock nearer than this can reach the shadow map's fine tile (20 m half-width, and its shadow's length)
 const CASTER_STEP = 20;               // metres the traveller goes before they are chosen again
 const VIS_TURN = 0.9998;              // the land's shadow on the rocks is asked again when the Sun has moved 1.1 degrees
 const COLLIDE_FROM = 3.4;             // levels whose rocks are this large and more carry a walker (m)
@@ -93,6 +93,8 @@ export class FarRocks {
     this.terrain = terrain;
     this.group = new THREE.Group();
     this.base = rockGeometry(0); this.tris = this.base.index.count / 3;
+    // (the block's largest radius over its scale: how far a rock reaches, for the shadow map's fine tile)
+    { const p = this.base.attributes.position; let m = 0; for (let i = 0; i < p.count; i++) m = Math.max(m, Math.hypot(p.getX(i), p.getY(i), p.getZ(i))); this.lumpRadius = m; }
     this.lump = { pos: this.base.attributes.position.array, idx: this.base.index.array };      // (the block's own faces, for whoever stands on one: riseAt)
     const sh = terrain.shared;
     this.uFar = { value: new THREE.Vector4(420, 0, 1, CONFIG.NEAR_SHADOW_RADIUS) }; this.uShareSize = { value: new THREE.Vector2(3.4, 8) };
@@ -241,7 +243,7 @@ export class FarRocks {
       for (const name in this.casterAt) geo.setAttribute(name, this.casterAt[name]);
       geo.instanceCount = 0;
       this.caster = new THREE.Mesh(geo, this.depthMaterial); this.caster.frustumCulled = false;
-      this.casterAnchor = new THREE.Vector3(); this.casterFine = 0; this.casterDirty = true; this.casterAt0 = 0;
+      this.casterAnchor = new THREE.Vector3(); this.casterDirty = true; this.casterAt0 = 0;
     }
     this.frame = 0; this.asked = 0; this.missing = 0; this.fraction = 1; this.count = 0; this.drawn = [0, 0]; this.triangles = 0;
     this.coverSerial = -1; this.visSun = [0, 0, 0]; this.sun = [0, 0, 1]; this.sunHalf = 0.0046;
@@ -307,11 +309,20 @@ export class FarRocks {
   // caster, on while its tile has rocks within the map's reach (app.js adds them).
   // What the near shadow map draws of the far rocks: the one small mesh, on while it holds
   // any; `fine`: how many of its first can reach the fine tile.
-  get casters() { return [{ mesh: this.caster, on: () => this.group.visible && this.caster.geometry.instanceCount > 0, fine: () => this.casterFine }]; }
+  get casters() { return [{ mesh: this.caster, on: () => this.group.visible && this.caster.geometry.instanceCount > 0, fine: () => this.fineCount() }]; }
+
+  // How many of the casters the fine tile draws: up to the last one whose shadow falls in it,
+  // asked by the shadow pass with the tile in place (nearShadow.js: tileShare). They were
+  // put in order of their distance from that tile when chosen (_fillCaster), so it is the
+  // first few dozen. (Those within 45 m of where they were chosen, as it was, left out the
+  // rocks out to 51 m along a Sun 20 degrees up whose shadows lie in the tile.)
+  fineCount() { return tileShare(1, this.caster.geometry.instanceCount, this.casterAt.aOff.array, 4, this.caster.position, this.casterAt.aScale.array, this.lumpRadius); }
 
   // Chooses the rocks that cast into the near shadow map: those within its reach of the
-  // traveller, nearest first, the first CASTERS of them. A pass over the tiles that reach
-  // that far, when the traveller has gone CASTER_STEP metres or a tile has come or gone.
+  // traveller, the nearest CASTERS of them, put in order of how far across the Sun's rays
+  // they lie from the fine tile (shadowTileDistance: the shadow map's own axes, as last drawn),
+  // so that the ones it draws come first. A pass over the tiles that reach that far, when the
+  // traveller has gone CASTER_STEP metres or a tile has come or gone.
   _fillCaster(p) {
     const R = CONFIG.NEAR_SHADOW_RADIUS * 1.6, list = this._cl || (this._cl = []), at = this.casterAt;
     list.length = 0;
@@ -326,16 +337,21 @@ export class FarRocks {
       }
     }
     list.sort((x, y) => x.d - y.d);
-    const n = Math.min(CASTERS, list.length); let fine = 0;
+    const n = Math.min(CASTERS, list.length);
+    if (list.length > n) list.length = n;
+    for (const e of list) {
+      const f = e.b.full, i4 = e.i * 4, i3 = e.i * 3;
+      e.d = shadowTileDistance(1, e.b.origin.x - p.x + f.off[i4], e.b.origin.y - p.y + f.off[i4 + 1], e.b.origin.z - p.z + f.off[i4 + 2]) - this.lumpRadius * Math.max(f.scale[i3], f.scale[i3 + 1], f.scale[i3 + 2]);
+    }
+    list.sort((x, y) => x.d - y.d);
     for (let k = 0; k < n; k++) {
-      const { d, b, i } = list[k], f = b.full, i4 = i * 4, k4 = k * 4;
+      const { b, i } = list[k], f = b.full, i4 = i * 4, k4 = k * 4;
       at.aOff.array[k4] = b.origin.x - p.x + f.off[i4]; at.aOff.array[k4 + 1] = b.origin.y - p.y + f.off[i4 + 1]; at.aOff.array[k4 + 2] = b.origin.z - p.z + f.off[i4 + 2]; at.aOff.array[k4 + 3] = f.off[i4 + 3];
       for (let c = 0; c < 4; c++) { at.aQuat.array[k4 + c] = f.quat[i4 + c]; at.aShape.array[k4 + c] = f.shape[i4 + c]; }
       for (let c = 0; c < 3; c++) at.aScale.array[k * 3 + c] = f.scale[i * 3 + c];
-      if (d < FINE_REACH) fine = k + 1;
     }
     if (n) for (const name in at) { const a = at[name]; a.clearUpdateRanges(); a.addUpdateRange(0, n * a.itemSize); a.needsUpdate = true; }
-    this.caster.geometry.instanceCount = n; this.casterFine = fine; this.casterDirty = false; this.casterAt0 = this.frame;
+    this.caster.geometry.instanceCount = n; this.casterDirty = false; this.casterAt0 = this.frame;
     this.casterAnchor.copy(p); list.length = 0;
   }
 

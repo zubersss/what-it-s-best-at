@@ -298,10 +298,9 @@ export class App {
     this.farRocks.off = params.debug.includes('farrocksoff');      // ?debug=farrocksoff: none of them, for before/after pictures
     // Trees (worlds that have them): drawn with the ground, and they cast shadows
     this.trees = new Trees(world, this.terrain); this.trees.renderer = renderer;
-    for (const set of this.trees.sets.flat(2)) {
-      this.nearScene.add(set.mesh);
-      this.nearShadow.addCaster(set.cast, this.trees.depthMaterial, () => set.mesh.visible && (set.lod <= 1 || this.trees.shadowsFar));
-    }
+    for (const set of this.trees.sets.flat(2)) this.nearScene.add(set.mesh);
+    // (what casts their shadows, and when: life/trees.js, casters)
+    for (const c of this.trees.casters) this.nearShadow.addCaster(c.mesh, this.trees.depthMaterial, c.on, c.fineCount);
     // (the far forest: the same trees as those near by, thinned with distance, out to some
     // kilometres; they rise out of the forest the ground shader raises as a whole)
     this.farForest = new FarForest(this.trees, this.terrain); this.nearScene.add(this.farForest.mesh);
@@ -420,6 +419,7 @@ export class App {
     if (this.hero) this.hero.started = false;
     this.heroVisKnown = false;            // (its terrain shadow is asked again for the new place)
     this.jumpedAt = performance.now();
+    this.governor?.jumped();              // (a trial or a step up begun at the view left behind is not this view's to judge)
   }
 
   // --- the clock ----------------------------------------------------------------------
@@ -1203,7 +1203,7 @@ export class App {
       // (under the flying figure too: no dust is raised from water)
       this.updateTide(dt);
       if (this.world.surface.sea) {
-        const f = rig.onFoot ? rig.feet : rig.pos, l = f.length(), h = this.terrain.hs.height(f.x / l, f.y / l, f.z / l, 1), up = h - (this.world.surface.sea.level ?? 0);
+        const f = rig.travellerAt, l = f.length(), h = this.terrain.hs.height(f.x / l, f.y / l, f.z / l, 1), up = h - (this.world.surface.sea.level ?? 0);
         // (what the tide has left of it; lakes and rivers keep theirs)
         rig.water = Math.max(0, this.terrain.hs.waterDepth + (up < 4 ? this.tide || 0 : 0));
       } else rig.water = 0;
