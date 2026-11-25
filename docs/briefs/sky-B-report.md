@@ -116,8 +116,16 @@ by the shared forms, and it throws near pixels out FIRST. With no field it is th
   solid and dark beneath). Each is cut where a tower passes through it, and they are drawn above
   or below the camera by their height. 1 read where the sky is clear (then the pixel is thrown
   out), 2–3 where there is cloud.
-- `FogSheet`: 129 x 129 points over 60 km on a lattice fixed to the world, each lifted to field
-  C's fog top, depth-tested, one noise read a pixel.
+- `FogSheet`: 129 x 129 points over 60 km on a lattice fixed to the world (snapped in whole
+  steps, so its points stay on the same places as one flies), each lifted to field C's fog top,
+  depth-tested, one noise read a pixel. Whether there is any fog within reach is asked of the
+  field over a square of 25 places, every 3 km of travel or 60 s of the clock.
+- `Lenticulars` (src/sky/lenticulars.js): up to 12 plates, each a stretched ball — 7 to 11 km
+  along the ridge, a tenth as deep — standing still over its own summit. Every pixel takes the
+  metres of cloud its own ray crosses, so a lens is a lens from any side and fades out at its
+  own edge; two tones with a clean line and a pearly rim where it is seen edge on; no texture
+  read at all. The list comes from the model (`field.lenses(t)`, or a snapshot's LENS records),
+  nearest first, nothing from beyond the horizon, read every ten seconds of the clock.
 
 ## Checks (each with its numbers, and how it was seen to fail)
 
