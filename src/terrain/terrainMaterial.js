@@ -832,7 +832,10 @@ void main() {
   if (uPaint.x > 0.0 && flatW > 0.0 && dist > 30.0 && dist < 8000.0) {
     // (grass, and beyond the ground's grass the map's dull ochre of it: from 1 km up the
     // land past 2 km was one plain tone, failing a test made for the grass's own gold)
-    float grassy0 = smoothstep(0.66, 0.42, albedo.b / max(albedo.r, 1e-4)) * smoothstep(0.62, 0.45, dot(albedo, vec3(0.2126, 0.7152, 0.0722))) * (1.0 - vShell) * flatW;
+    // (and only where the ground is looked down on, as from the air: at eye height the same
+    // ground is seen nearly edge on, the swaths and stretches cannot be told apart, and
+    // they cost the opening view a tenth of its ground's shading for nothing)
+    float grassy0 = smoothstep(0.66, 0.42, albedo.b / max(albedo.r, 1e-4)) * smoothstep(0.62, 0.45, dot(albedo, vec3(0.2126, 0.7152, 0.0722))) * (1.0 - vShell) * flatW * smoothstep(0.08, 0.2, dot(V, up));
     float grassy = grassy0 * (1.0 - smoothstep(2500.0, 4000.0, dist)), grassyB = grassy0 * (1.0 - smoothstep(5500.0, 8000.0, dist));
     if (grassyB > 0.0) {
       float broad = flNoise(planetPos / 230.0 + vec3(3.7, 1.3, 8.1)) - 0.5;
