@@ -255,9 +255,9 @@ void cloudShafts(float t0, float t1, float country) {
     // the field's rain, under its own base; virga where that base stands high over the land
     float rate = 0.0;
     if (h < base) rate = fieldRain * (1.0 - smoothstep(0.35, 1.0, (base - country) / ${glf(K.VIRGA)}) * (1.0 - smoothstep(2.0, 6.0, fieldRain)));
-    for (int c = 0; c < 2; c++) {
-      if (c >= gCells) break;
-      rate = max(rate, cellRain(gCellK[c], p));
+    for (int k = 0; k < CELL_MAX; k++) {
+      if (k >= uCellCount) break;
+      rate = max(rate, cellRain(k, p));
     }
     if (rate <= 0.02) continue;
     // (a misty foot over the country, and nothing within 600 m of the eye: there D's streaks are)
@@ -430,9 +430,12 @@ void main() {
   if (uShaft.x > 0.0) {
     // Where the rain is on this ray: each raining cell's own shaft (an exact chord, no read),
     // and, where a deck is raining within reach, the stretch under the highest base there.
-    for (int c = 0; c < 2; c++) {
-      if (c >= gCells) break;
-      vec2 q = cellShaftChord(gCellK[c], uCamPlanetPos, dir);
+    // (Every cell, not the two the march found: a ray that passes UNDER a storm — which is
+    // every ray aimed at the rain itself, seen from the side — never meets the cell's own body,
+    // and the shafts were then drawn nowhere but under a cell one was looking into.)
+    for (int k = 0; k < CELL_MAX; k++) {
+      if (k >= uCellCount) break;
+      vec2 q = cellShaftChord(k, uCamPlanetPos, dir);
       if (q.y > q.x) { sA = min(sA > sB ? q.x : sA, q.x); sB = max(sB, q.y); }
     }
     if (uShaft.x > 1.5) {
