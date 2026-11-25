@@ -54,6 +54,17 @@ Pictures `haven_ledge_<view>_after6.png` beside `_r6before.png` (before: 73d6ef1
   two runs: this machine's counts drift by a tenth and more between runs, and only the
   comparisons made in one run hold.)
 
+- **A6c** (the owner's note after A6b): blossom in groves some 130 m across inside its
+  400 m drifts, by water too (642 flowering trees in the opening tile, 788 in A6, 1 140
+  before); the far trees' shared tone follows the slope twice as hard (0.6 of the slope's
+  sunlight share), so the 1 km clumps lie along the ridges' lit and shaded sides. Pairs with
+  a clear sky, same session: `ledge_300_p60_clear_after7` / `ledge_1000_p60_clear_after7`
+  beside `_r7before` (the head without these changes). The grey-sage patches at the lower
+  right of `ledge_300_p60` are not glades: `ledge_300_p60_clear_t4_after7` (four hours on)
+  shows them as steep ground, partly in the mountain's shade, partly in the Sun as grey
+  scree with gold grass between: the ground's rock and the shade's colour (the air helper's),
+  not a wood's clearing. The pink that remains at the right of that view is one grove.
+
 ## Fifth round (2026-11-25): the steppe from the air, stronger
 
 The owning session: steppe_300_p60_after4 was still almost one ochre tone. Now (block 2):
