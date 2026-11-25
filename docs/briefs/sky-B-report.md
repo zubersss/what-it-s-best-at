@@ -50,8 +50,13 @@ Measured by matching the two pictures (a high-pass filter, then the best shift):
   reason for change 2 below ("the field always on"): on this branch, with the field on, the
   shell's heaps are the same heaps the volume marches and they take the same steering.
 
-**Earth** and **`npm run stability --only haven_climb`**: queued on the same frozen build
-(this machine runs one browser at a time); filled in here when they land.
+**Earth** (`world=earth`, the same frozen build): drawn, settled in 1 174 s, no error, no
+program over a phone's limits — `scratchpad/shots/earth_ledge_B0_earth.png`.
+
+**`npm run stability --only haven_climb`** on step 0's build was dropped: by the time the
+browser reached it, step 0 was two merges behind (package A had landed), and an hour of this
+machine's one browser spent on a build nobody will run again buys nothing. The climb is run on
+the owning branch's head instead, with the crossing under heaps and a storm pass beside it.
 
 **The one thing to fix (step 0's, not mine).** At the opening view the run never counts as
 settled: `window.__shotReady` waits for `post.stableReads >= 3` (the exposure meter's
