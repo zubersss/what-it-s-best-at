@@ -362,7 +362,15 @@ renderer. A's model paints the real cover.
    crosses (the plate is a stretched ball: a quadratic), and the back faces are drawn so that a
    ray always has one, from outside the plate or within it. Checked by hand: from below the ray
    crosses its 286 m of depth, along its length 7 000 m, across the wind 2 600 m (520d0e2).
-7. **The anvil from 35 km** (`haven_ledge_M_storm35.png`) was the brightest thing in the frame —
+7. **And the twelve that were in the list were the wrong twelve.** A page probe at that same
+   view (`scratchpad/lens-probe.mjs`) found the field handing over twelve lenses and the module
+   making twelve plates of them — the nearest of which stood **433 km away**. The model lays its
+   dozen over the whole world, by its high summits, and they were taken in the order it gives;
+   on a world 250 km in radius the horizon from 3.6 km up is 42 km, so nearly all of them were
+   under it, and the one nine kilometres ahead never got a plate. They are sorted by distance
+   now, and anything beyond the horizon for its own height is dropped (the check is in
+   `scripts/lens-list-test.mjs`).
+8. **The anvil from 35 km** (`haven_ledge_M_storm35.png`) was the brightest thing in the frame —
    a smooth cream disc on a stalk, at 209/180/152 against a sky at 71/94/131. Seen from below an
    anvil is grey: 0.45 of its sunlit top became 0.32, and the cirrus strokes now thin and thicken
    the sheet itself, so it is drawn-out ice rather than a plate (225dcd2). What stays, and is not
