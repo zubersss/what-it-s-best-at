@@ -70,10 +70,19 @@ export const MODES = {
 // the shadows near the traveller are): once taken it comes back only as `_released` says.
 // The last steps leave the scene what it is: a step thins, it does not remove what a place
 // is about (the cloud layer and the rain stay whatever is switched off).
+// The sky's steps go through the sky's own setters (sky/skySystem.js SKY_SAVINGS: app.sky.setSaving),
+// so that each package's module takes its saving its own way. Four of them are the clouds
+// plan's (docs/briefs/clouds-weather-plan.md, GOVERNOR), on the ladder from step 0 with the
+// setters of parts not built yet: cloud-upper, rain-shafts, cloud-shade-rate, cloud-shade-coarse.
+// Their `live` is the sky's (false until their packages land: passed by) and `has` says whether
+// the part is built at all (the benchmark's cost test measures only those). Their `buys` are the
+// plan's estimates until the phone has measured them. 'clouds' (every cloud shadow off) goes when
+// package C lands: 'cloud-shade-coarse' takes its place, the shadows kept, coarser.
 // (reach: 0 whenever none are drawn, in the air above the trees' height for one: the count is
 // the last list's, kept after a take-off)
 const nearTrees = (app) => (app.trees?.count ?? 0) > 0 && (app.trees.reach ?? 1) > 0 && !app.trees.hidden;
 const cloudVolume = (app) => !!app.cloudVolume?.wanted;
+const skyStep = (id, buys, label) => ({ id, buys, label, live: (app) => !!app.sky?.live(id), has: (app) => !!app.sky?.hasSaving(id), apply: (app, off) => { app.sky?.setSaving(id, off); } });
 export const FEATURE_STEPS = [
   // --- 1. bought 2.5 ms and more on the phone
   // (5.0 ms at the opening view; the clumps left are wider: the ground stays covered)
@@ -90,6 +99,10 @@ export const FEATURE_STEPS = [
   { id: 'grass', buys: 1.6, label: 'half the grass', live: (app) => (app.grass?.keepBlades ?? 0) > 0 && !!app.grass.mesh?.visible, apply: (app, off) => { app.grass?.setFraction(off ? 0.5 : 1); } },
   // (pollen in the air over flowers: 3 200 points at most, a point each; not yet measured on the phone, a guess)
   { id: 'pollen', buys: 0.3, label: 'less pollen in the air', live: (app) => !!app.pollen?.mesh?.visible, apply: (app, off) => { app.pollen?.setShare(off ? 0.4 : 1); } },
+  // (the clouds plan's, not yet built nor measured: the plan's estimates)
+  skyStep('cloud-upper', 0.5, 'middle and high cloud plainer'),
+  skyStep('rain-shafts', 0.5, 'plainer rain shafts under the clouds'),
+  skyStep('cloud-shade-rate', 0.3, "the clouds' shadows a little behind (every other frame)"),
   // (the patches: the cost test cannot ask about them, the ground would have to settle
   // again each time; a guess. They are also what the governor gives up when the page's own
   // work is what is slow: see _down.)
@@ -99,12 +112,14 @@ export const FEATURE_STEPS = [
   // coming down from space saw a flat map under a flat picture of clouds.
   // (the layer itself is never switched off: a hurricane with a clear sky is not one, and the
   // layer is one texture on the sky)
+  // (the clouds plan's: the shadows kept, coarser; it takes the place of 'clouds' when its package lands)
+  skyStep('cloud-shade-coarse', 0.5, 'coarser cloud shadows'),
   // (4.0 ms at the opening view)
-  { id: 'clouds', buys: 4.0, label: "the clouds' shadows on the ground", live: (app) => !!app.clouds?.mesh?.visible, apply: (app, off) => { if (app.clouds) app.clouds.shadows = !off; } },
+  { id: 'clouds', buys: 4.0, label: "the clouds' shadows on the ground", live: (app) => !!app.clouds?.mesh?.visible, apply: (app, off) => { app.sky?.setSaving('clouds', off); } },
   // (3.5 ms at the opening view, 2.1 from the air)
   { id: 'far-relief', buys: 3.5, label: 'relief shading of far ground', live: (app) => (app.terrain?.shared?.uRelief?.value.x ?? 1) > 0, apply: (app, off) => { app.quality.w = off ? 0 : 1; } },
   // (9.4 ms from the air on build 6ac24ff)
-  { id: 'cloud-volume', buys: 9.4, label: 'clouds with depth (they stay as a layer)', live: cloudVolume, apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.enabled = !off; } },
+  { id: 'cloud-volume', buys: 9.4, label: 'clouds with depth (they stay as a layer)', live: cloudVolume, apply: (app, off) => { app.sky?.setSaving('cloud-volume', off); } },
   // --- 4. nothing that could be measured on the phone (each line: its largest reading in the three views)
   // (The first four headed the ladder from the ninth results and bought nothing on the tenth:
   // a trial at the opening view took them before the savings that cure, and they came and
@@ -112,7 +127,7 @@ export const FEATURE_STEPS = [
   // once the cloud volume is off: live only while the volume is drawn. The robe -1.1 / -1.0 /
   // 1.2: the page's own work, which cannot shorten a frame the GPU is late on. The fine
   // shadow tile -0.4 / 1.3. The glow 0.4 in one view.)
-  { id: 'cloud-steps', buys: 0.3, label: 'coarser clouds near you', live: (app) => cloudVolume(app) && app.cloudVolume.enabled !== false, apply: (app, off) => { if (app.cloudVolume) app.cloudVolume.steps = off ? 22 : 36; } },
+  { id: 'cloud-steps', buys: 0.3, label: 'coarser clouds near you', live: (app) => cloudVolume(app) && app.cloudVolume.enabled !== false, apply: (app, off) => { app.sky?.setSaving('cloud-steps', off); } },
   { id: 'cloak', buys: 0.3, label: 'robe and hair simulated more loosely', live: (app) => !!app.hero?.group?.visible, apply: (app, off) => { app.hero.robe.halfRate = off; } },
   // (the shadow map's fine tile, some 20 m round the traveller at 3.9 cm a texel: without it
   // every shadow there, trees' and rocks' alike, is drawn from the 14.6 cm tile)
@@ -138,7 +153,7 @@ export const FEATURE_STEPS = [
   { id: 'far-rocks', buys: 0.3, label: 'small rocks from less far', apply: (app, off) => { app.farRocks?.setFraction(off ? 0.62 : 1); } },
   // (0.5 ms in dry weather, where there is none to thin; half of 5 600 streaks; thinning
   // 1 400 to 560 saved nothing that could be measured on the phone in a storm either)
-  { id: 'rain', buys: 0.3, label: 'thinner rain and snow', live: (app) => !!app.rain?.mesh?.visible, apply: (app, off) => { if (app.rain) app.rain.share = off ? 0.5 : 1; } },
+  { id: 'rain', buys: 0.3, label: 'thinner rain and snow', live: (app) => !!app.rain?.mesh?.visible, apply: (app, off) => { app.sky?.setSaving('rain', off); } },
   // (nothing: -0.4)
   { id: 'leaves', buys: 0.3, label: 'leaves in the wind', apply: (app, off) => { if (app.leaves) app.leaves.enabled = !off; if (app.petals) app.petals.enabled = !off; } },          // (petals: thinned to a third, not taken away)
   // (nothing: -0.7)

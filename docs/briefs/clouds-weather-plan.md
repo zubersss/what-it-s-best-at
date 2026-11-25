@@ -86,6 +86,7 @@ The game still looks as it does today, except that the drift is fixed. Step 0 de
 - __shotReady waiting on field.busy and the probe;
 - the debug switches: debug=sky:<preset>, debug=storm, debug=flash on Haven, and debug=noclouds removing all of it;
 - four briefs in docs/briefs/ (sky-A-model.md, sky-B-clouds.md, sky-C-shade.md, sky-D-storm.md), with a report to be written beside each.
+(Built on the branch sky0/join: `docs/briefs/sky-step0.md` says what stands, the names that differ from this plan's among it, and what is left; the four briefs and their reports are beside it.)
 Helpers start from the session branch head. Branches merge as soon as they build, and the others merge them in. The main session alone edits app.js, skySystem.js, governor.js, benchmark.js and the charter, and moves the look numbers that B and D report into src/worlds/haven.js.
 
 OUT OF SCOPE HERE

@@ -78,18 +78,19 @@ export class Pollen {
           // (fading at the box's sides and at the top and bottom of its rise: wrapping is never seen)
           float edge = (1.0 - smoothstep(0.38 * box, 0.5 * box, max(abs(p.x), abs(p.y)))) * smoothstep(0.0, 0.08, zf) * (1.0 - smoothstep(0.85, 1.0, zf));
           vec4 clip = projectionMatrix * viewMatrix * vec4(rel, 1.0);
-          if (clip.w < 0.05) OUT_OF_PICTURE
+          // (none right in front of the lens: a mote a hand from the eye was a blurred disc in the sky)
+          if (clip.w < 0.6) OUT_OF_PICTURE
           // its size on the picture: never under a pixel and a third (a mote there is as bright as its true size would be)
           // (a grain of pollen in the Sun is a glint wider than itself: drawn as 2 cm)
           // (looked at toward the Sun a mote blooms into a soft warm halo: drawn wider, as bright in all)
-          float c = max(dot(normalize(rel), uSunDir), 0.0), c2 = c * c, halo = 1.0 + 2.5 * c2 * c2 * c2 * c2 * (seed ? 0.0 : 1.0);
-          float px = (seed ? 0.045 : 0.02) * uGrassView * abs(projectionMatrix[1][1]) / clip.w, drawn = clamp(px * halo, 2.0, 26.0);
+          float c = max(dot(normalize(rel), uSunDir), 0.0), c2 = c * c, halo = 1.0 + 1.5 * c2 * c2 * c2 * c2 * (seed ? 0.0 : 1.0);
+          float px = (seed ? 0.045 : 0.02) * uGrassView * abs(projectionMatrix[1][1]) / clip.w, drawn = clamp(px * halo, 1.5, 22.0);
           float dim = min(1.0, (px * px) / (drawn * drawn) * 6.0 * halo);
           vec3 sun, sky, air; lightAt(at, sun, sky, air);
           // (a mote throws the Sun's light forward: looked at toward the Sun it is a spark)
           float phase = 0.5 + 1.2 * c2 + 7.0 * c2 * c2 * c2 * c2;
           vec3 tint = seed ? vec3(0.95, 0.95, 0.90) : mix(vec3(1.0, 0.80, 0.34), vec3(1.0, 0.92, 0.6), aSeed.w);
-          vCol = tint * (sun * phase * (seed ? 1.6 : 3.5) + sky * 0.35) * (keep * edge * dim);
+          vCol = tint * (sun * phase * (seed ? 1.6 : 3.5) + sky * 0.35) * (keep * edge * dim * smoothstep(0.6, 1.6, clip.w));
           vSeed = seed ? 1.0 + aSeed.x * 6.0 : 0.0;
           gl_Position = clip; gl_PointSize = drawn;
         }`,

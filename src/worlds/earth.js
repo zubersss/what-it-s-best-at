@@ -135,7 +135,11 @@ export default {
 
   // The weather of one real day (scripts/fetch-earth-weather.py): 8 September 2017, with
   // hurricanes Irma, Jose and Katia in the Atlantic at once.
-  weather: { day: '2017-09-08', rain: 'data/earth_rain_2048.jpg', tops: 'data/earth_cloudtop_1024.jpg', cloud: 'data/earth_clouds_512.jpg', storms: 'data/earth_storms.json' },
+  // steering: the clouds' wind by height (weather/sky/steer.js): a plain westerly, 8 m/s on the
+  // equator (6.5 m/s at the Grand Canyon), the same every day; no lean of its axis, which on a
+  // world this large would add tens of m/s.
+  weather: { recipe: 'maps', day: '2017-09-08', rain: 'data/earth_rain_2048.jpg', tops: 'data/earth_cloudtop_1024.jpg', cloud: 'data/earth_clouds_512.jpg', storms: 'data/earth_storms.json',
+    steering: { low: { fixed: 8 }, tilt: 0, high: { veer: 0 } } },
 
   // Trees: where the land-cover map says forest, woodland or savanna, of the species the
   // region really grows (life/cover.js), as tall as the canopy was measured.
@@ -148,10 +152,11 @@ export default {
   // Clouds of one real day (the globe's own cloud map) as a layer overhead (see sky/clouds.js).
   // Near the traveller the layer is a volume to fly through: its base at 1 400 m, its
   // tops up to 3 200 m higher where the map is thick, out to 16 km (cloudVolume.js).
-  // dense: how solid; change: how fast its shapes turn over; fair: fields of small heaps
-  // where the day's map shows no cloud; clear: the cloud is thin this near the eye (m).
+  // dense: how solid; fair: fields of small heaps
+  // where the day's map shows no cloud; clear: the cloud is thin this near the eye (m). (How the
+  // heaps move and grow is the steering's: weather.steering, src/weather/sky/steer.js.)
   clouds: { map: 'data/earth_clouds_4096.jpg', lon0: -180, altitude: 4500, cover: 0.45, shadow: 0.85,
-    volume: { base: 1400, thick: 3600, reach: 16000, above: 30000, scale: 4200, dense: 3.4, change: 0.009, fair: 0.44, clear: 120 } },
+    volume: { base: 1400, thick: 3600, reach: 16000, above: 30000, scale: 4200, dense: 3.4, fair: 0.44, clear: 120 } },
 
   sky: { stars: { url: 'data/stars_bsc5.f32' } },
 
