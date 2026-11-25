@@ -94,7 +94,7 @@ const res = await page.evaluate(({ SEC, BREAK }) => {
   const slice = 4;                       // (5 to 9 km from the eye: cloud, and far enough to move)
   frame();
   const A = slicePic(slice);
-  const t0 = sky.t, jd0 = a.jd;
+  const t0 = sky.t, jd0 = a.ephemeris.jd;
   const dist = 7000;
   const dirMid = { x: rig.forward.x, y: rig.forward.y, z: rig.forward.z };
   const P = [rig.pos.x + dirMid.x * dist, rig.pos.y + dirMid.y * dist, rig.pos.z + dirMid.z * dist];
@@ -115,6 +115,9 @@ const res = await page.evaluate(({ SEC, BREAK }) => {
   const anchorRun = (metres) => {
     // the camera moved across its own view, still looking the same way (the same world point ahead)
     rig.pos.set(keep.x + rig.right.x * metres, keep.y + rig.right.y * metres, keep.z + rig.right.z * metres);
+    // (the camera the shaders read is the app's own uniform, which only the app's frame sets:
+    // moved by hand here, and checked below that it really moved)
+    cv.uniforms.uCamPlanetPos.value.copy(rig.pos);
     if (BREAK === 'follow') { const v = cv.def.volume; cv.base = (v.base ?? 1500) + 0.02 * metres; cv.uniforms.uLayer.value.x = a.world.radius + cv.base; }
     frame();
     const pic = slicePic(slice);
@@ -131,6 +134,11 @@ const res = await page.evaluate(({ SEC, BREAK }) => {
   };
   const base = anchorRun(0);
   const moved = [100, 10000].map((m) => ({ m, ...anchorRun(m) }));
+  // the camera really moved for the shaders (a test that moves the camera must say so)
+  const camMoved = moved.map((x) => {
+    const a0 = base.u.uCamPlanetPos, a1 = x.u.uCamPlanetPos;
+    return Math.round(Math.hypot(a1[0] - a0[0], a1[1] - a0[1], a1[2] - a0[2]));
+  });
   rig.pos.copy(keep); frame();
   // the same point of the world in both pictures: every pixel of the moved picture followed to
   // the height at which the masses are widest, and projected back into the first
@@ -173,7 +181,7 @@ const res = await page.evaluate(({ SEC, BREAK }) => {
   const pic = (p) => { let s = ''; const u = new Uint8Array(p.w * p.h * 3); for (let i = 0; i < p.w * p.h; i++) { const v = Math.round(255 * Math.min(1, p.a[i])); u[i * 3] = u[i * 3 + 1] = u[i * 3 + 2] = v; } for (let i = 0; i < u.length; i += 32768) s += String.fromCharCode.apply(null, u.subarray(i, i + 32768)); return { w: p.w, h: p.h, b64: btoa(s) }; };
   return {
     shift, want, q: shift.q, slice, wind: sky.steer.windAt('low', t0, 0, 0).speed,
-    secs: SEC, anchored, changed, cells: sky.frame.cells.length,
+    secs: SEC, anchored, changed, camMoved, cells: sky.frame.cells.length,
     pics: { a: pic(A), b: pic(B) },
   };
 }, { SEC, BREAK });
@@ -190,6 +198,7 @@ check(`the clouds go where the day's low wind carries them (within 10 degrees an
   len(want) > 1.2 && dAng <= 10 && ratio > 0.8 && ratio < 1.2);
 // ---- anchoring ----
 for (const x of res.anchored) console.log(`  the camera ${x.m} m away, aimed at the same place: the same cloud there to ${x.q.toFixed(3)} (${x.n} pixels, ${(100 * x.diff).toFixed(1)} % apart on average)`);
+check(`the camera really moved for the shaders (${res.camMoved.join(' and ')} m)`, res.camMoved[0] > 90 && res.camMoved[1] > 9000);
 check('nothing of the cloud moves because the traveller moved (the same cloud over the same place from 100 m and 10 km away)',
   res.anchored.every((x) => x.n > 200 && x.q > 0.9 && x.diff < 0.12));
 const allowed = ['uCamPlanetPos', 'uCamRight', 'uCamUp', 'uCamFwd', 'uProj', 'uBolt', 'uSliceZ', 'uShaft', 'uLayer', 'uCells', 'uCellCount', 'uViewport', 'uHazeUv'];
@@ -217,7 +226,7 @@ if (!flag('no-handover')) {
       const d0 = Math.hypot(C[0] - keep.x, C[1] - keep.y, C[2] - keep.z);
       const back = want - d0;
       rig.pos.set(keep.x - rig.forward.x * back, keep.y - rig.forward.y * back, keep.z - rig.forward.z * back);
-      a.sky.weatherStep({ now: performance.now(), dt: 0, jd: a.jd, timeRate: 0, paused: true, rig, day: 0, sunE: 1, viewW: a.post.viewW, viewH: a.post.viewH });
+      a.sky.weatherStep({ now: performance.now(), dt: 0, jd: a.ephemeris.jd, timeRate: 0, paused: true, rig, day: 0, sunE: 1, viewW: a.post.viewW, viewH: a.post.viewH });
       a.sky.beforeScene({ renderer: r, post: a.post, rig, worldRadius: R, time: 0, treesWanted: false });
       const w = cv.tw, hh = cv.th, u = new Uint16Array(w * hh * 4);
       r.setRenderTarget(cv.smooth);
