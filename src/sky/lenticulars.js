@@ -27,6 +27,7 @@ export const LENS_LOOK = Object.freeze({
 });
 const L = LENS_LOOK;
 const NO_LENS = [];
+const LENS_EVERY = 10;            // s of the game clock between one reading of the field's list and the next
 
 // The lenses standing now, each { x, y, z, base, length, width, heading, plates, strength }:
 // the field's own call where there is one (the model hands back objects), else the LENS records
@@ -48,6 +49,7 @@ function lensList(field, t) {
     if (!v) return NO_LENS;
     return ArrayBuffer.isView(v) ? fromRecords(v) : v;
   }
+  /* eslint-disable-next-line no-unreachable */
   const snaps = field.snaps;
   if (!snaps || !snaps.size) return NO_LENS;
   const want = field.pair ? field.pair[0] : t;
@@ -119,7 +121,7 @@ void main() {
 export class Lenticulars {
   constructor(renderer) {
     this.renderer = renderer;
-    this.off = false; this.list = [];
+    this.off = false; this.list = []; this._lenses = null; this._lensT = null; this._lensField = null;
     this.uniforms = { ...lightingUniforms(), uCentre: { value: new THREE.Vector3() }, uAlong: { value: new THREE.Vector3() }, uAcross: { value: new THREE.Vector3() }, uUpAxis: { value: new THREE.Vector3() }, uStrength: { value: 1 }, uCamLocal: { value: new THREE.Vector3() } };
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1 }, uniforms: this.uniforms,
@@ -136,7 +138,15 @@ export class Lenticulars {
     const sky = c.sky, list = this.list;
     list.length = 0;
     if (!sky || sky.noClouds || this.off || !sky.field?.on) return;
-    const all = lensList(sky.field, sky.t), R = sky.R, cam = c.rig.pos;
+    // The list itself is asked for rarely: a lens stands still over its summit and grows and
+    // fades over half an hour, and the model works a whole weather moment out for every t it is
+    // given (3.1 ms a call here, against 0.014 for one it has already seen). The plates are
+    // built from it every frame all the same: where they stand is where the traveller is.
+    const R = sky.R, cam = c.rig.pos;
+    if (!this._lenses || this._lensT == null || sky.field !== this._lensField || Math.abs(sky.t - this._lensT) > LENS_EVERY) {
+      this._lenses = lensList(sky.field, sky.t); this._lensT = sky.t; this._lensField = sky.field;
+    }
+    const all = this._lenses;
     // The model lays them over the whole world (a dozen at a time, by its high summits), and this
     // draws at most L.MAX plates: so the NEAREST are taken, and any that stands beyond the
     // horizon from here is dropped. (Taking them in the order the model gives filled the twelve
