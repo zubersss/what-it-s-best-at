@@ -20,7 +20,8 @@ export const CLOSE_M = 20, NEAR_M = 60;
 export const REBUILD_M = 25;                 // the whole list is made again when the eye has moved this far
 
 // The radii in use: the governor's trees-far step shortens both (fraction), its
-// tree-leaves step takes the close mesh away (closeOn false).
+// tree-leaves step takes the close mesh away (closeOn false), and with it the near trees'
+// shadows of skeleton and sprays (castMake).
 export const radii = (fraction, closeOn = true) => ({ close: closeOn ? CLOSE_M * fraction : 0, near: NEAR_M * fraction });
 
 // How far the eye may move before the close and near lists are made again: a quarter of the
@@ -47,6 +48,18 @@ export const inFarList = (d2, near) => d2 >= Math.max(0, near - REBUILD_M) ** 2;
 export const nearCandidates = (near) => near + REBUILD_M;
 // A tree's make by its distance squared from the eye at the choice: 0 close, 1 near, 2 the far card.
 export const makeOf = (d2, close, near) => (d2 < close * close ? 0 : d2 < near * near ? 1 : 2);
+// Which of a tree's meshes casts its shadow (0 close, 1 near, 2 the far cards), by the make it
+// is drawn with and whether the lists were made with a close radius (the governor's
+// tree-leaves step takes it away). With one: the near mesh while the tree is drawn with
+// skeleton and sprays (never the close mesh: every spray of every tree within 150 m was as
+// many triangles again as the view itself), its cards once it is drawn so, so that a shadow
+// changes where its tree does, at the near radius (cast as cards from the close radius on,
+// 25 to 70 % of a tree's shadow changed in one frame 20 m from the walker). Without one,
+// every tree casts its cards, as every tree did then whenever the close mesh was given up:
+// the saving takes back the shadow pass's added work with the leaves (north wood, tree
+// triangles a wide tile draw: 113k with near meshes, 28k as cards), and the governor's floor
+// draws what it drew before (0.6k there; with near meshes 38k, and no saving left to give up).
+export const castMake = (lod, close) => (close ? Math.max(1, lod) : 2);
 // The far card's cut, as the vertex shader makes it (length(iA.xyz - uLodCut.xyz) < uLodCut.w):
 // a hair inside the near radius, so that a tree exactly on it is drawn twice for one choice
 // rather than by nobody (single precision on the GPU against double here).

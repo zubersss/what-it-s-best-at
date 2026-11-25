@@ -1,39 +1,57 @@
-// The trees' shadows while the traveller moves (no browser; some seconds). Findings shadows-2
-// and shadows-3 of docs/briefs/shadows-governor-10.md, with the real Trees (life/trees.js) and
-// the real NearShadow (shadows/nearShadow.js) run frame by frame on the trees Haven plants
-// in its north wood (terrain workers' rule, life/treeBlock.js). Each check failed on 5024b61.
+// The trees' shadows while the traveller moves, and what the governor's tree savings take back
+// (no browser; some seconds). Findings shadows-2 and shadows-3 of
+// docs/briefs/shadows-governor-10.md and the review of their fix, with the real Trees
+// (life/trees.js) and the real NearShadow (shadows/nearShadow.js) run frame by frame on the
+// trees Haven plants in its north wood (terrain workers' rule, life/treeBlock.js). The shadow
+// pass is handed the trees' casters as app.js hands them (read from its source).
 //
 //   1. The gusts: when the lists are made again from a new anchor (every 25 m of a walk), no
 //      tree's lean changes. Each tree's bend at the top of its crown, as TREE_VERT's own lines
 //      work it out (run in JavaScript), before and after the rebuild at the same moment. (The
 //      gust's phase was measured from the anchor: every tree, and its shadow, lurched 13 to
-//      22 cm at once.)
-//   2. Which mesh casts a tree's shadow: walking through the wood (4.5 m/s), every tree the
-//      near trees draw casts exactly one shadow every frame, and the mesh that casts it
-//      changes only in the frame the tree's own picture changes between its near mesh and its
-//      far cards (the near radius); never at the close radius, 20 m from the walker, where it
-//      changed 25 to 70 % of a tree's shadow in one frame.
-//   3. The fine tile draws only the first instances of each list (Trees.fineCount): every
-//      tree it leaves out cannot reach it (its every vertex, swayed by the wind at a dozen
-//      moments, falls outside the tile's square), and neither can any tree the count's rule
-//      rules out on its own (this catches a rule that is short by the wind's reach: broken on
-//      purpose, it left out trees in the north wood). And what the shadow pass draws, the rule
-//      of 5024b61 beside this one, at the opening and in the north wood: printed.
+//      22 cm at once. Failed on 5024b61.)
+//   2. Which mesh casts a tree's shadow: walking through the wood (4.5 m/s) with every saving
+//      on, with the trees' full shapes to two thirds of their distance (trees-far) and without
+//      the close mesh (tree-leaves), every tree the near trees draw casts exactly one shadow
+//      every frame, and the mesh that casts it changes only in the frame the tree's own
+//      picture changes between its near mesh and its far cards (the near radius); never at
+//      the close radius, 20 m from the walker, where it changed 25 to 70 % of a tree's shadow
+//      in one frame. (Failed on 5024b61.)
+//   3. The fine tile draws only the first instances of each list (Trees.fineCount). Every
+//      vertex is placed by TREE_VERT's own lines as the shadow pass compiles them (the body of
+//      treePosition read from the shader and run in JavaScript; a line this test cannot read
+//      stops it). First, every vertex of every mesh that casts, in still air and in a storm, in
+//      summer and bare, lies within treeReach of its trunk, the rule the count is made by (a
+//      TREE_VERT with crowns 15 % wider fails here at 18 720 vertices, a rule without the
+//      wind's reach at 7 438). Then, tile by tile at the opening and in the north wood (low,
+//      middle and high Sun; a 20 m/s storm; the near trees casting their cards): every tree
+//      the fine tile leaves out cannot reach it, swayed at a dozen moments, and neither can any
+//      tree the count's rule rules out on its own. And what the shadow pass draws, the rule of
+//      5024b61 beside this one: printed.
+//   4. What the governor's tree savings take back, in tree triangles a wide tile draw, at the
+//      opening and in the north wood, for every combination of 'tree-leaves', 'trees-far' and
+//      'tree-shadows': without the close mesh the shadow pass draws no more than on 5024b61
+//      (the near trees cast their cards again: the saving takes back the near meshes' shadows
+//      with the leaves, and the floor costs what it did); and no saving, given up on top of
+//      any others, adds to it. (Failed on 5a05e2b: there the near trees cast their near mesh
+//      whatever the governor did, 113k triangles in the wood with 'tree-leaves' given up
+//      where 5024b61 drew 28k, and 38k at the floor where it drew 0.6k.)
 //
 // Run: node scripts/tree-shadow-test.mjs      (exit 1 on a failed check)
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import { NearShadow } from '../src/shadows/nearShadow.js';
-import { Trees, TREE_VERT } from '../src/life/trees.js';
+import * as TREES from '../src/life/trees.js';
 import { loadWorld } from './lib/loadWorld.mjs';
 import { setMadeCover } from './lib/madeCover.mjs';
 import { treeBlock, blockDeg, blockLon } from '../src/life/treeBlock.js';
 import { radii } from '../src/life/treeLod.js';
 
 globalThis.fetch = () => new Promise(() => {}); globalThis.createImageBitmap = () => new Promise(() => {});      // (the trees' picture: not needed)
+const { Trees, TREE_VERT, treeReach } = TREES;          // (treeReach: not in a build before it, where part 3's first check is left out)
 const fail = [];
 const check = (ok, what) => { if (!ok) fail.push(what); return ok; };
-const RAD = Math.PI / 180;
+const RAD = Math.PI / 180, M = ['close', 'near', 'far'];
 
 // ---- the game's objects, as app.js makes them (the near shadow first: the trees' materials take its uniforms)
 let calls = [], current = null;
@@ -48,17 +66,19 @@ const workers = { idle: 0, run: () => null };
 const terrain = { shared: { uWind: { value: wind } }, coverSerial: 1, ringSerial: 1, epoch: 1, workers, tiles: { busy: true }, wanted: [] };
 const trees = new Trees(world, terrain);
 trees.atlasReady = true;
-const castOf = new Map();          // the shadow's mesh of a set: 0 close, 1 near, 2 far (which of its trio's meshes the caster draws)
-const setOf = new Map();
-for (const trio of trees.sets.flat()) for (const s of trio) {
-  castOf.set(s, trio.findIndex((o) => o.geo.attributes.position === s.cast.geometry.attributes.position));
-  setOf.set(s.cast, s);
-  ns.addCaster(s.cast, trees.depthMaterial, () => s.mesh.visible && (s.lod <= 1 || trees.shadowsFar), trees.fineCount ? () => trees.fineCount(s) : null);
-}
-// (app.js must hand the near shadow the trees' fine count, as above)
+// The casters as app.js hands them to the near shadow (a build before trees.casters: one a set, set.cast)
 const appSrc = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
-if (trees.fineCount) check(/addCaster\(set\.cast,[^\n]*this\.trees\.fineCount\(set\)/.test(appSrc), 'app.js does not hand the near shadow the trees\' fine count');
-console.log('the shadow of a close tree is its ' + ['close', 'near', 'far'][castOf.get(trees.sets[0][0][0])] + ' mesh, of a near tree its ' + ['close', 'near', 'far'][castOf.get(trees.sets[0][0][1])] + ' mesh, of a far one its ' + ['close', 'near', 'far'][castOf.get(trees.sets[0][0][2])] + ' mesh');
+const casters = trees.casters ?? trees.sets.flat(2).map((s) => ({ set: s, mesh: s.cast, bound: s.castBound, on: () => s.mesh.visible && (s.lod <= 1 || trees.shadowsFar), fineCount: trees.fineCount ? () => trees.fineCount(s) : null }));
+if (trees.casters) check(/for \(const (\w+) of this\.trees\.casters\) this\.nearShadow\.addCaster\(\1\.mesh, this\.trees\.depthMaterial, \1\.on, \1\.fineCount\)/.test(appSrc), 'app.js does not hand the near shadow the trees\' casters as this test does');
+const casterOf = new Map();
+for (const c of casters) {
+  const trio = trees.sets.flat().find((t) => t.includes(c.set));
+  c.make = trio.findIndex((o) => o.geo.attributes.position === c.mesh.geometry.attributes.position);       // (which of its trio's shapes it draws)
+  casterOf.set(c.mesh, c);
+  ns.addCaster(c.mesh, trees.depthMaterial, c.on, c.fineCount);
+}
+const makesOf = (lod) => casters.filter((c) => c.set === trees.sets[0][0][lod]).map((c) => M[c.make]).join(' or ');
+console.log(`a close tree's shadow is cast by its ${makesOf(0)} mesh, a near tree's by its ${makesOf(1)} mesh, a far one's by its ${makesOf(2)} mesh`);
 
 // ---- a place's trees, as the workers plant them, handed to the trees as arrived blocks
 const R = world.radius;
@@ -75,6 +95,8 @@ function plant(lat, lon) {
   }
   trees.serial = terrain.coverSerial * 100000 + terrain.ringSerial;          // (the blocks are of these maps)
 }
+// The governor's three tree savings (perf/governor.js: tree-leaves, trees-far, tree-shadows), as their steps apply them
+const savings = (leaves, far, shadows) => { trees.closeOn = !leaves; trees.dirty = true; trees.setFraction(far ? 0.66 : 1); trees.shadowsFar = !shadows; };
 // The eye 1.7 m over the ground at a place (the ground: the nearest tree's foot)
 const frameAt = (lat, lon) => {
   const up = new THREE.Vector3(Math.cos(lat * RAD) * Math.cos(lon * RAD), Math.cos(lat * RAD) * Math.sin(lon * RAD), Math.sin(lat * RAD));
@@ -92,6 +114,7 @@ const groundUnder = (dir) => {
 };
 const rig = { pos: new THREE.Vector3(), agl: 1.7, velocity: new THREE.Vector3(), onFoot: true, footVel: new THREE.Vector3(), localUp: [0, 0, 1] };
 const place = (dir) => { const d = dir.clone().normalize(); rig.pos.copy(d).multiplyScalar(groundUnder(d) + 1.7); rig.localUp = [d.x, d.y, d.z]; };
+const sunAt = (F, elev, az) => F.up.clone().multiplyScalar(Math.sin(elev * RAD)).addScaledVector(F.east, Math.cos(elev * RAD) * Math.sin(az * RAD)).addScaledVector(F.north, Math.cos(elev * RAD) * Math.cos(az * RAD)).normalize();
 const DAY = 172, sh = trees.shared;
 
 // TREE_VERT's own lines for the lean, run in JavaScript: a tree's bend at the top of its crown
@@ -102,6 +125,52 @@ const vert = TREE_VERT.split('\n'), grab = (name) => {
 };
 const bendOf = new Function('sin', 'dot', 'uSeason', 'iA', 'iB', 'uTreeWind', 'uGustPhase', 'p', 'aSway',
   `const gust = ${grab('gust')}; const swing = ${grab('swing')}; return ${grab('bend')};`).bind(null, Math.sin, (a, b) => a.x * b.x + a.y * b.y + a.z * b.z);
+
+// Where TREE_VERT puts a vertex, as the shadow pass compiles it (TREE_DEPTH defined): the body
+// of treePosition, line by line, made into JavaScript. Scalar lines are taken as they are; the
+// few that work on vectors must be in a form this knows, or the test stops (teach it, and
+// Trees.fineCount, what the new line does). Returns the vertex from the camera.
+const placeVertex = (() => {
+  const lines = [], stack = [];
+  for (const l of TREE_VERT.split('\n')) {
+    const t = l.replace(/\/\/.*$/, '').trim(); let m;
+    if ((m = /^#ifdef\s+(\w+)/.exec(t))) { stack.push(m[1] === 'TREE_DEPTH'); continue; }
+    if ((m = /^#ifndef\s+(\w+)/.exec(t))) { stack.push(m[1] !== 'TREE_DEPTH'); continue; }
+    if (t.startsWith('#else')) { stack.push(!stack.pop()); continue; }
+    if (t.startsWith('#endif')) { stack.pop(); continue; }
+    if (t.startsWith('#')) throw new Error(`TREE_VERT has a directive this test cannot follow: "${t}" (teach the test)`);
+    if (stack.every(Boolean)) lines.push(t);
+  }
+  const at = lines.findIndex((l) => /^vec3 treePosition\(/.test(l)), end = lines.findIndex((l, k) => k > at && l === '}');
+  if (at < 0 || end < 0) throw new Error('TREE_VERT has no treePosition this test can find: teach the test');
+  // (split at the commas outside brackets)
+  const parts = (s) => { const o = []; let d = 0, cur = ''; for (const ch of s) { if (ch === '(') d++; if (ch === ')') d--; if (ch === ',' && d === 0) { o.push(cur.trim()); cur = ''; } else cur += ch; } o.push(cur.trim()); return o; };
+  const js = (e) => e.replace(/\.xyz\b/g, '');
+  const decl = (list, kw = 'const') => parts(list).map((d) => { const m = /^(\w+)\s*=\s*(.+)$/.exec(d); if (!m) throw new Error(`TREE_VERT: "${d}" (teach the test)`); return `${kw} ${m[1]} = ${js(m[2])};`; }).join(' ');
+  const out = [];
+  for (const l of lines.slice(at + 1, end)) {
+    if (!l) continue;
+    let m;
+    if (l === 'foot = uAnchorRel + iA.xyz;') out.push('const foot = { x: uAnchorRel.x + iA.x, y: uAnchorRel.y + iA.y, z: uAnchorRel.z + iA.z };');
+    else if (l === 'vec3 p = position;') out.push('const p = { x: position.x, y: position.y, z: position.z };');
+    else if ((m = /^float (.+);$/.exec(l))) out.push(decl(m[1]));
+    else if ((m = /^p\.xz \*= (.+);$/.exec(l))) out.push(`{ const k = ${js(m[1])}; p.x *= k; p.z *= k; }`);
+    else if ((m = /^vec3 l = vec3\((.+)\) \* iA\.w;$/.exec(l))) { const c = parts(m[1]); if (c.length !== 3) throw new Error(`TREE_VERT: "${l}" (teach the test)`); out.push(`const l = { x: (${js(c[0])}) * iA.w, y: (${js(c[1])}) * iA.w, z: (${js(c[2])}) * iA.w };`); }
+    else if (/^treeCull = /.test(l) || l === 'leaf = aLeaf;') continue;          // (whether it is drawn, and what it is: not where)
+    else if (l === 'vec3 flutter = vec3(0.0);') out.push('const flutter = { x: 0, y: 0, z: 0 };');
+    else if ((m = /^if \((.+?)\) \{ float (.+?); flutter = \(uTreeEast \* sin\((.+?)\) \+ uTreeUp \* sin\((.+?)\) \+ uTreeNorth \* sin\((.+?)\)\) \* amp; \}$/.exec(l))) {
+      out.push(`if (${js(m[1])}) { ${decl(m[2])} const fe = sin(${js(m[3])}) * amp, fu = sin(${js(m[4])}) * amp, fn = sin(${js(m[5])}) * amp;`
+        + ' flutter.x = uTreeEast.x * fe + uTreeUp.x * fu + uTreeNorth.x * fn; flutter.y = uTreeEast.y * fe + uTreeUp.y * fu + uTreeNorth.y * fn; flutter.z = uTreeEast.z * fe + uTreeUp.z * fu + uTreeNorth.z * fn; }');
+    } else if (l === 'return foot + (uTreeEast * l.x + uTreeUp * l.y + uTreeNorth * l.z + uTreeWind.xyz * bend + flutter) * fade;') {
+      out.push('return { x: foot.x + (uTreeEast.x * l.x + uTreeUp.x * l.y + uTreeNorth.x * l.z + uTreeWind.x * bend + flutter.x) * fade, y: foot.y + (uTreeEast.y * l.x + uTreeUp.y * l.y + uTreeNorth.y * l.z + uTreeWind.y * bend + flutter.y) * fade, z: foot.z + (uTreeEast.z * l.x + uTreeUp.z * l.y + uTreeNorth.z * l.z + uTreeWind.z * bend + flutter.z) * fade };');
+    } else throw new Error(`TREE_VERT's treePosition has a line this test cannot read: "${l}" (teach the test, and Trees.fineCount, what it does)`);
+  }
+  const names = ['position', 'aLeaf', 'aSway', 'iA', 'iB', 'uAnchorRel', 'uTreeEast', 'uTreeUp', 'uTreeNorth', 'uTreeWind', 'uGustPhase', 'uSeason'];
+  const fn = new Function('sin', 'cos', 'min', 'max', 'dot', 'vec3', 'env', `const { ${names.join(', ')} } = env; ${out.join('\n')}`);
+  const dot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z, vec3 = (x, y = x, z = x) => ({ x, y, z });
+  return (env) => fn(Math.sin, Math.cos, Math.min, Math.max, dot, vec3, env);
+})();
+
 // every tree drawn now, by its own number and place: [set, instance]
 const drawn = () => {
   const out = new Map(), a = sh.uAnchorRel.value, cut = sh.uLodCut.value, rad = sh.uTreeRadius.value, A = trees.anchor;
@@ -121,8 +190,9 @@ const F0 = frameAt(...NORTH_WOOD);
 
 // ---- 1. the gusts through a rebuild ------------------------------------------------------
 {
+  savings(false, false, false);
   const leans = () => {
-    const out = new Map(), A = trees.anchor;
+    const out = new Map();
     for (const [key, list] of drawn()) {
       const [s, i] = list[0], I = s.iA.array, B = s.iB.array;
       const iA = { x: I[4 * i], y: I[4 * i + 1], z: I[4 * i + 2], w: I[4 * i + 3] }, iB = { x: B[4 * i], y: B[4 * i + 1], z: B[4 * i + 2], w: B[4 * i + 3] };
@@ -152,16 +222,24 @@ const F0 = frameAt(...NORTH_WOOD);
 }
 
 // ---- 2. which mesh casts each tree's shadow, walking -------------------------------------
-{
+for (const [label, leaves, far, walk] of [['every saving on', false, false, 120], ["the governor's trees-far given up", false, true, 80], ["the governor's tree-leaves given up", true, false, 80]]) {
   plant(...NORTH_WOOD); wind.set(F0.east.x, F0.east.y, F0.east.z, 6);
-  const hd = 6 * RAD, dir = F0.north.clone().multiplyScalar(Math.cos(hd)).addScaledVector(F0.east, Math.sin(hd)), speed = 4.5, fps = 30, walk = 120;
+  savings(leaves, far, false);
+  const hd = 6 * RAD, dir = F0.north.clone().multiplyScalar(Math.cos(hd)).addScaledVector(F0.east, Math.sin(hd)), speed = 4.5, fps = 30;
   const g0 = F0.up.clone().multiplyScalar(R);
   rig.footVel.copy(dir).multiplyScalar(speed);
-  let prev = null, frames = 0, swaps = 0, atNear = 0, notAtNear = 0, twice = 0, onLine = 0, worst = null, closeRule = 0;
-  const { close, near } = radii(1, true), cut = sh.uLodCut.value, M = ['close', 'near', 'far'];
+  let prev = null, frames = 0, swaps = 0, atNear = 0, notAtNear = 0, twice = 0, onLine = 0, worst = null, closeRule = 0, changes = 0, wrongCount = 0, wrongWhat = null;
+  const { close, near } = radii(far ? 0.66 : 1, !leaves), cut = sh.uLodCut.value;
   for (let f = 0; f * speed / fps <= walk; f++, frames++) {
     place(g0.clone().addScaledVector(dir, f * speed / fps));
     trees.update(rig, DAY, f / fps);
+    // (the casters on for each set now: exactly one for a set that is drawn and casts, none for any other)
+    const castNow = new Map();
+    for (const c of casters) if (c.on()) castNow.set(c.set, [...(castNow.get(c.set) || []), c.make]);
+    for (const s of trees.sets.flat(2)) {
+      const want = s.mesh.visible && (s.lod <= 1 || trees.shadowsFar) ? 1 : 0, got = (castNow.get(s) || []).length;
+      if (got !== want) { wrongCount++; wrongWhat = wrongWhat || `a ${M[s.lod]} list drawn ${s.mesh.visible ? 'and' : 'but not'} casting with ${got} meshes at frame ${f}`; }
+    }
     const now = new Map();
     for (const [key, list] of drawn()) {
       // (a tree within a centimetre of the near radius at a choice is drawn by both its near mesh and
@@ -171,12 +249,12 @@ const F0 = frameAt(...NORTH_WOOD);
         const d = card ? Math.hypot(I[4 * i] - cut.x, I[4 * i + 1] - cut.y, I[4 * i + 2] - cut.z) : -1;
         if (list.length === 2 && card && list.some(([s]) => s.lod < 2) && d >= cut.w && d < cut.w + 0.02) onLine++; else twice++;
       }
-      const P = list.map(([s]) => s.lod).sort().join(''), C = [...new Set(list.map(([s]) => castOf.get(s)))].sort().join('');
+      const P = list.map(([s]) => s.lod).sort().join(''), C = [...new Set(list.flatMap(([s]) => castNow.get(s) || []))].sort().join('');
       now.set(key, { P, C, nearish: /[01]/.test(P), far: P.includes('2') });
     }
     if (prev) for (const [key, t] of now) {
       const o = prev.get(key); if (!o) continue;
-      if (o.P !== t.P && !o.far && !t.far) closeRule++;
+      if (o.P !== t.P) { changes++; if (!o.far && !t.far) closeRule++; }
       if (o.C === t.C) continue;
       swaps++;
       if (o.nearish !== t.nearish || o.far !== t.far) atNear++;
@@ -185,79 +263,145 @@ const F0 = frameAt(...NORTH_WOOD);
     prev = now;
   }
   const secs = walk / speed;
-  console.log(`2. ${walk} m through the north wood at ${speed} m/s (close ${close} m, near ${near} m): ${closeRule} trees crossed the close radius; ${swaps} shadows changed mesh, ${atNear} where the tree's own picture went between its near mesh and its cards (${(atNear / secs).toFixed(1)} a second), ${notAtNear} anywhere else (${(notAtNear / secs).toFixed(1)} a second)`);
-  check(closeRule > 20, `2. the walk crossed the close radius only ${closeRule} times: it tests nothing`);
-  check(twice === 0, `2. ${twice} times a tree was drawn by two lists at once away from the near radius`);
-  check(notAtNear === 0, `2. a tree's shadow changed its mesh where its picture did not change between near mesh and cards: ${notAtNear} times (${worst})`);
+  console.log(`2. ${label}: ${walk} m through the north wood at ${speed} m/s (close ${close.toFixed(1)} m, near ${near.toFixed(1)} m): ${changes} times a tree's picture changed (${closeRule} at the close radius); ${swaps} shadows changed mesh, ${atNear} where the tree's own picture went between its near mesh and its cards (${(atNear / secs).toFixed(1)} a second), ${notAtNear} anywhere else (${(notAtNear / secs).toFixed(1)} a second)`);
+  check(changes > 20 && (leaves || closeRule > 20), `2. ${label}: the walk changed a tree's picture only ${changes} times (${closeRule} at the close radius): it tests nothing`);
+  check(wrongCount === 0, `2. ${label}: ${wrongCount} times a set did not cast with exactly one mesh (${wrongWhat})`);
+  check(twice === 0, `2. ${label}: ${twice} times a tree was drawn by two lists at once away from the near radius`);
+  check(notAtNear === 0, `2. ${label}: a tree's shadow changed its mesh where its picture did not change between near mesh and cards: ${notAtNear} times (${worst})`);
 }
 
 // ---- 3. the fine tile's count, and what the shadow pass draws ----------------------------
 {
-  const vertsOf = (s) => { const g = s.cast.geometry; return { P: g.attributes.position.array, L: g.attributes.aLeaf.array, S: g.attributes.aSway.array }; };
   const trisOf = (geo) => geo.attributes.position.count / 3;
   const oldCast = (s) => { const trio = trees.sets.flat().find((t) => t.includes(s)); return trio[Math.min(2, s.lod + 1)]; };
-  // Can instance i of set s reach the fine tile drawn with camera cam? Its vertices as TREE_VERT places them,
-  // swayed by the wind at a dozen moments (the bend from TREE_VERT's own lines; the flutter as TREE_VERT has it).
-  const reaches = (s, i, cam, W) => {
-    const I = s.iA.array, B = s.iB.array, a = sh.uAnchorRel.value, E = sh.uTreeEast.value, N = sh.uTreeNorth.value, U = sh.uTreeUp.value;
-    const iA = { x: I[4 * i], y: I[4 * i + 1], z: I[4 * i + 2], w: I[4 * i + 3] }, iB = { x: B[4 * i], y: B[4 * i + 1], z: B[4 * i + 2], w: B[4 * i + 3] };
-    const { P, L, S } = vertsOf(s), c = Math.cos(iB.y), sn = Math.sin(iB.y), v = new THREE.Vector3();
-    const flutterK = /amp = aSway\.y \* iA\.w \* \(([\d.]+) \+ ([\d.]+) \* uTreeWind\.w\)/.exec(TREE_VERT);
-    if (!flutterK) throw new Error('TREE_VERT\'s flutter is not in the form this test knows: teach the test');
+  // Can instance i of caster c reach the fine tile drawn with camera cam? Its every vertex as TREE_VERT places it, at a dozen moments.
+  const env = { position: { x: 0, y: 0, z: 0 }, aLeaf: 0, aSway: { x: 0, y: 0 }, iA: null, iB: null, uAnchorRel: null, uTreeEast: null, uTreeUp: null, uTreeNorth: null, uTreeWind: null, uGustPhase: 0, uSeason: { x: 0, y: 0, z: 0 } };
+  const reaches = (c, i, cam) => {
+    const s = c.set, I = s.iA.array, B = s.iB.array, g = c.mesh.geometry, P = g.attributes.position.array, L = g.attributes.aLeaf.array, S = g.attributes.aSway.array, v = new THREE.Vector3();
+    env.iA = { x: I[4 * i], y: I[4 * i + 1], z: I[4 * i + 2], w: I[4 * i + 3] }; env.iB = { x: B[4 * i], y: B[4 * i + 1], z: B[4 * i + 2], w: B[4 * i + 3] };
+    env.uAnchorRel = sh.uAnchorRel.value; env.uTreeEast = sh.uTreeEast.value; env.uTreeUp = sh.uTreeUp.value; env.uTreeNorth = sh.uTreeNorth.value;
+    env.uTreeWind = wind; env.uGustPhase = sh.uGustPhase ? sh.uGustPhase.value : 0; env.uSeason.x = sh.uSeason.value.x; env.uSeason.y = sh.uSeason.value.y;
     let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
     for (let t = 0; t < 12; t++) {
-      const time = 3.7 * t, season = { x: 0, y: 0, z: time };
+      env.uSeason.z = 3.7 * t;
       for (let j = 0, n = P.length / 3; j < n; j++) {
-        const px = P[3 * j] * iB.x, py = P[3 * j + 1], pz = P[3 * j + 2] * iB.x, sw = { x: S[2 * j], y: S[2 * j + 1] };
-        const lx = (px * c - pz * sn) * iA.w, ly = py * iA.w, lz = (px * sn + pz * c) * iA.w;
-        const bend = bendOf(season, iA, iB, W, sh.uGustPhase ? sh.uGustPhase.value : 0, { x: px, y: py }, sw);
-        v.set(a.x + iA.x, a.y + iA.y, a.z + iA.z).addScaledVector(E, lx).addScaledVector(U, ly).addScaledVector(N, lz).addScaledVector(W, bend);
-        if (L[j] > 1.5 && L[j] < 3.5) {
-          const ph = P[3 * j] * 41 + P[3 * j + 1] * 57 + P[3 * j + 2] * 73 + iB.z * 31, amp = sw.y * iA.w * (+flutterK[1] + +flutterK[2] * W.w);
-          v.addScaledVector(E, Math.sin(time * 7.3 + ph) * amp).addScaledVector(U, Math.sin(time * 9.1 + ph * 1.7) * amp).addScaledVector(N, Math.sin(time * 6.1 + ph * 0.6) * amp);
-        }
-        v.project(cam);
+        env.position.x = P[3 * j]; env.position.y = P[3 * j + 1]; env.position.z = P[3 * j + 2]; env.aLeaf = L[j]; env.aSway.x = S[2 * j]; env.aSway.y = S[2 * j + 1];
+        const w = placeVertex(env);
+        v.set(w.x, w.y, w.z).project(cam);
         x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y);
       }
     }
     return x1 > -1 && x0 < 1 && y1 > -1 && y0 < 1;
   };
-  let ruledAll = 0;
-  for (const [pname, at] of [['the opening', OPENING], ['the north wood', NORTH_WOOD]]) {
-    plant(...at);
-    const F = frameAt(...at);
-    for (const [elev, az, W] of [[19.5, 200, 12], [45, 120, 12], [70, 300, 3]]) {
-      wind.set(F.east.x * 0.6 + F.north.x * 0.8, F.east.y * 0.6 + F.north.y * 0.8, F.east.z * 0.6 + F.north.z * 0.8, W);
-      place(F.up); trees.update(rig, DAY, 0);
-      const sun = F.up.clone().multiplyScalar(Math.sin(elev * RAD)).addScaledVector(F.east, Math.cos(elev * RAD) * Math.sin(az * RAD)).addScaledVector(F.north, Math.cos(elev * RAD) * Math.cos(az * RAD)).normalize();
-      calls = []; ns._has = false;
-      ns.render(rig.pos, sun, rig.localUp);
-      let wideNow = 0, fineNow = 0, today = 0, left = 0, wrong = 0, picture = 0, ruled = 0, wrongRule = 0;
-      for (const s of trees.sets.flat(2)) { if (!s.count) continue; today += s.count * trisOf(oldCast(s).geo); picture += s.count * s.tris; }
-      for (const call of calls) {
-        const s = setOf.get(call.mesh); if (!s) continue;
-        const tris = trisOf(call.mesh.geometry) * call.count;
-        if (call.k === 0) wideNow += tris;
-        if (call.k !== 1) continue;
-        fineNow += tris;
-        call.cam.updateMatrixWorld(true);
-        for (let i = call.count; i < s.count; i++) { left++; if (reaches(s, i, call.cam, wind)) wrong++; }
-        // (and the rule tree by tree, where it matters: each tree the count's rule says cannot reach, alone)
-        if (trees.fineCount) for (let i = 0; i < Math.min(call.count, s.count); i++) {
-          const one = { count: 1, castBound: s.castBound, iA: { array: s.iA.array.subarray(4 * i, 4 * i + 4) }, iB: { array: s.iB.array.subarray(4 * i, 4 * i + 4) } };
-          if (trees.fineCount(one) === 0) { ruled++; if (reaches(s, i, call.cam, wind)) wrongRule++; }
+  // (the placement read from the shader agrees with the lean part 1 reads: a tree's top, no flutter)
+  {
+    plant(...OPENING); savings(false, false, false); place(frameAt(...OPENING).up); trees.update(rig, DAY, 0);
+    const s = trees.sets.flat(2).find((x) => x.count > 0 && x.lod < 2), I = s.iA.array, B = s.iB.array;
+    env.iA = { x: I[0], y: I[1], z: I[2], w: I[3] }; env.iB = { x: B[0], y: B[1], z: B[2], w: B[3] };
+    Object.assign(env, { uAnchorRel: sh.uAnchorRel.value, uTreeEast: sh.uTreeEast.value, uTreeUp: sh.uTreeUp.value, uTreeNorth: sh.uTreeNorth.value, uTreeWind: wind, uGustPhase: sh.uGustPhase ? sh.uGustPhase.value : 0 });
+    env.uSeason.z = 5; env.position = { x: 0, y: 1, z: 0 }; env.aLeaf = 0; env.aSway = { x: 1, y: 0 };
+    const top = placeVertex(env), bend = bendOf(env.uSeason, env.iA, env.iB, wind, env.uGustPhase, { x: 0, y: 1 }, env.aSway);
+    const want = new THREE.Vector3(env.uAnchorRel.x + env.iA.x, env.uAnchorRel.y + env.iA.y, env.uAnchorRel.z + env.iA.z).addScaledVector(env.uTreeUp, env.iA.w).addScaledVector(wind, bend);
+    check(Math.hypot(top.x - want.x, top.y - want.y, top.z - want.z) < 1e-6, '3. TREE_VERT read line by line does not put a tree\'s top where its own lean says: the test reads the shader wrongly');
+  }
+  // Every vertex of every mesh that casts lies within treeReach of its trunk (the rule fineCount
+  // counts by), placed by TREE_VERT's own lines: two crowns, a summer tree and a bare one, still
+  // air to a storm, eight moments of wind. Tile by tile below, only the trees near a tile's edge
+  // can show a rule that is short; here every vertex can.
+  if (treeReach) {
+    const seen = new Set(), h = 20, env3 = { position: { x: 0, y: 0, z: 0 }, aLeaf: 0, aSway: { x: 0, y: 0 }, iA: { x: 0, y: 0, z: 0, w: h }, iB: null, uAnchorRel: { x: 0, y: 0, z: 0 }, uTreeEast: { x: 1, y: 0, z: 0 }, uTreeUp: { x: 0, y: 1, z: 0 }, uTreeNorth: { x: 0, y: 0, z: 1 }, uTreeWind: null, uGustPhase: 1.3, uSeason: { x: 0, y: 0, z: 0 } };
+    let verts = 0, used = 0, over = 0, worst = '';
+    for (const c of casters) {
+      const g = c.mesh.geometry; if (seen.has(g.attributes.position)) continue; seen.add(g.attributes.position);
+      const P = g.attributes.position.array, L = g.attributes.aLeaf.array, S = g.attributes.aSway.array, lo = h * c.bound.lo, hi = h * c.bound.hi;
+      for (const [crown, turn, own, drops, bare] of [[0.7, 0.4, 0.13, 0, 0], [1.3, 2.2, 0.71, 1, 1]]) for (const W of [0, 8, 20]) {
+        env3.iB = { x: crown, y: turn, z: own, w: drops }; env3.uSeason.y = bare; env3.uTreeWind = { x: 0.6, y: 0, z: 0.8, w: W };
+        const lim = treeReach(c.bound, h, crown, W);
+        for (let t = 0; t < 8; t++) {
+          env3.uSeason.z = 2.3 * t + 0.7;
+          for (let j = 0, n = P.length / 3; j < n; j++) {
+            env3.position.x = P[3 * j]; env3.position.y = P[3 * j + 1]; env3.position.z = P[3 * j + 2]; env3.aLeaf = L[j]; env3.aSway.x = S[2 * j]; env3.aSway.y = S[2 * j + 1];
+            const v = placeVertex(env3), y = Math.min(hi, Math.max(lo, v.y)), d = Math.hypot(v.x, v.y - y, v.z);
+            verts++; used = Math.max(used, d / lim);
+            if (d > lim * (1 + 1e-9) + 1e-9) { over++; if (!worst) worst = `a vertex of a ${M[c.make]} mesh ${d.toFixed(2)} m from the trunk of a tree ${h} m tall, crown ${crown}, wind ${W} m/s, where treeReach allows ${lim.toFixed(2)} m`; }
+          }
         }
       }
-      const n = (x) => `${(x / 1000).toFixed(1)}k`;
-      console.log(`3. ${pname}, Sun ${elev} deg, wind ${W} m/s: tree triangles per tile draw (wide, fine): today ${n(today)}, ${n(today)}; now ${n(wideNow)}, ${n(fineNow)} (the trees in the picture: ${n(picture)}); ${left} instances left out of the fine tile, ${wrong} of them could reach it; ${ruled} more ruled out one by one, ${wrongRule} of them could reach it`);
-      check(calls.some((c) => c.k === 1 && setOf.has(c.mesh)), `3. ${pname}: no tree was drawn into the fine tile (the test draws nothing)`);
-      check(wrong === 0, `3. ${pname}, Sun ${elev} deg: ${wrong} trees whose shadow can fall on the fine tile were left out of it`);
-      check(wrongRule === 0, `3. ${pname}, Sun ${elev} deg: the fine count's rule says ${wrongRule} trees cannot reach the fine tile that can`);
-      ruledAll += ruled;
     }
+    console.log(`3. ${seen.size} meshes that cast, ${verts} vertices placed by TREE_VERT: the farthest from its trunk is at ${(100 * used).toFixed(1)} % of treeReach; ${over} beyond it`);
+    check(verts > 1e5, `3. only ${verts} vertices were placed: the check of treeReach tests nothing`);
+    check(over === 0, `3. ${over} vertices lie farther from their trunk than treeReach (the fine count's rule) allows: ${worst}`);
+  } else console.log('3. (no treeReach in this build: the vertex-by-vertex check of the fine count\'s rule is left out)');
+  let ruledAll = 0;
+  const CASES = [
+    ['the opening', OPENING, 19.5, 200, 12, false], ['the opening', OPENING, 45, 120, 12, false], ['the opening', OPENING, 70, 300, 3, false],
+    ['the north wood', NORTH_WOOD, 19.5, 200, 12, false], ['the north wood', NORTH_WOOD, 45, 120, 12, false], ['the north wood', NORTH_WOOD, 70, 300, 3, false],
+    ['the north wood, a storm', NORTH_WOOD, 19.5, 40, 20, false], ['the north wood, tree-leaves given up', NORTH_WOOD, 30, 160, 12, true],
+  ];
+  for (const [pname, at, elev, az, W, leaves] of CASES) {
+    plant(...at);
+    const F = frameAt(...at);
+    wind.set(F.east.x * 0.6 + F.north.x * 0.8, F.east.y * 0.6 + F.north.y * 0.8, F.east.z * 0.6 + F.north.z * 0.8, W);
+    savings(leaves, false, false);
+    place(F.up); trees.update(rig, DAY, 0);
+    calls = []; ns._has = false;
+    ns.render(rig.pos, sunAt(F, elev, az), rig.localUp);
+    let wideNow = 0, fineNow = 0, today = 0, left = 0, wrong = 0, picture = 0, ruled = 0, wrongRule = 0;
+    for (const s of trees.sets.flat(2)) { if (!s.count) continue; today += s.count * trisOf(oldCast(s).geo); picture += s.count * s.tris; }
+    for (const call of calls) {
+      const c = casterOf.get(call.mesh); if (!c) continue;
+      const s = c.set, tris = trisOf(call.mesh.geometry) * call.count;
+      if (call.k === 0) wideNow += tris;
+      if (call.k !== 1) continue;
+      fineNow += tris;
+      call.cam.updateMatrixWorld(true);
+      for (let i = call.count; i < s.count; i++) { left++; if (reaches(c, i, call.cam)) wrong++; }
+      // (and the rule tree by tree, where it matters: each tree the count's rule says cannot reach, alone)
+      if (trees.fineCount) for (let i = 0; i < Math.min(call.count, s.count); i++) {
+        const one = { count: 1, castBound: c.bound, iA: { array: s.iA.array.subarray(4 * i, 4 * i + 4) }, iB: { array: s.iB.array.subarray(4 * i, 4 * i + 4) } };
+        if (trees.fineCount(one, c.bound) === 0) { ruled++; if (reaches(c, i, call.cam)) wrongRule++; }
+      }
+    }
+    const n = (x) => `${(x / 1000).toFixed(1)}k`;
+    console.log(`3. ${pname}, Sun ${elev} deg, wind ${W} m/s: tree triangles per tile draw (wide, fine): 5024b61 ${n(today)}, ${n(today)}; now ${n(wideNow)}, ${n(fineNow)} (the trees in the picture: ${n(picture)}); ${left} instances left out of the fine tile, ${wrong} of them could reach it; ${ruled} more ruled out one by one, ${wrongRule} of them could reach it`);
+    check(calls.some((c) => c.k === 1 && casterOf.has(c.mesh)), `3. ${pname}: no tree was drawn into the fine tile (the test draws nothing)`);
+    check(wrong === 0, `3. ${pname}, Sun ${elev} deg, wind ${W} m/s: ${wrong} trees whose shadow can fall on the fine tile were left out of it`);
+    check(wrongRule === 0, `3. ${pname}, Sun ${elev} deg, wind ${W} m/s: the fine count's rule says ${wrongRule} trees cannot reach the fine tile that can`);
+    ruledAll += ruled;
   }
   check(!trees.fineCount || ruledAll > 200, `3. the count's rule was tried on only ${ruledAll} trees it rules out inside the lists: it is hardly tested`);
 }
 
+// ---- 4. what the governor's tree savings take back from the shadow pass ------------------
+{
+  const trisOf = (geo) => geo.attributes.position.count / 3;
+  const oldCast = (s) => { const trio = trees.sets.flat().find((t) => t.includes(s)); return trio[Math.min(2, s.lod + 1)]; };
+  const n = (x) => `${(x / 1000).toFixed(1)}k`;
+  for (const [pname, at] of [['the opening', OPENING], ['the north wood', NORTH_WOOD]]) {
+    const F = frameAt(...at), wide = new Map(), rows = [];
+    for (let bits = 0; bits < 8; bits++) {
+      const leaves = !!(bits & 1), far = !!(bits & 2), shadows = !!(bits & 4);
+      plant(...at); wind.set(F.east.x, F.east.y, F.east.z, 6);
+      savings(leaves, far, shadows);
+      place(F.up); trees.update(rig, DAY, 0);
+      calls = []; ns._has = false;
+      ns.render(rig.pos, sunAt(F, 45, 120), rig.localUp);
+      let now = 0, then = 0;
+      for (const call of calls) if (call.k === 0 && casterOf.has(call.mesh)) now += trisOf(call.mesh.geometry) * call.count;
+      // (5024b61: a close tree cast its near mesh, any other its cards; the far list only while 'tree-shadows' was not given up)
+      for (const s of trees.sets.flat(2)) if (s.count && s.mesh.visible && (s.lod <= 1 || !shadows)) then += s.count * trisOf(oldCast(s).geo);
+      wide.set(bits, now);
+      const name = [leaves && 'tree-leaves', far && 'trees-far', shadows && 'tree-shadows'].filter(Boolean).join(' + ') || 'none';
+      rows.push(`${name}: ${n(now)} (5024b61 ${n(then)})`);
+      if (leaves) check(now <= then * 1.0001 + 1, `4. ${pname}, given up ${name}: the shadow pass draws ${n(now)} tree triangles into the wide tile, more than 5024b61's ${n(then)}: the close mesh's saving does not take back the near meshes' shadows`);
+    }
+    console.log(`4. ${pname}, tree triangles a wide tile draw, by the savings given up: ${rows.join('; ')}`);
+    for (let bits = 0; bits < 8; bits++) for (const [bit, name] of [[1, 'tree-leaves'], [2, 'trees-far'], [4, 'tree-shadows']]) {
+      if (bits & bit) continue;
+      check(wide.get(bits | bit) <= wide.get(bits) + 1, `4. ${pname}: giving up ${name} on top of ${bits ? ['tree-leaves', 'trees-far', 'tree-shadows'].filter((x, k) => bits & (1 << k)).join(' + ') : 'nothing'} adds to the shadow pass (${n(wide.get(bits))} to ${n(wide.get(bits | bit))})`);
+    }
+  }
+}
+
 if (fail.length) { console.log('FAIL:\n  ' + [...new Set(fail)].join('\n  ')); process.exit(1); }
-console.log('ok: no tree lurches at a rebuild; a tree\'s shadow changes its mesh only where the tree does; the fine tile has every tree that can reach it');
+console.log('ok: no tree lurches at a rebuild; a tree\'s shadow changes its mesh only where the tree does, with or without the governor\'s savings; the fine tile has every tree that can reach it, by TREE_VERT\'s own placement; the savings take back the near meshes\' shadows');

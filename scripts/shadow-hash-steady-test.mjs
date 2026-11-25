@@ -13,7 +13,10 @@
 // ground ahead, in every draw of the wide and the fine tile, it works out what the trees'
 // depth shader (life/trees.js, as built by Trees) hashes for the pixel that spot falls on:
 // the shader's own expression for it, read from its source. A spot must keep one hash
-// input in each tile for the whole walk.
+// input in each tile for the whole walk. And with the Sun moving, when the near shadow takes
+// its light axes anew, a spot may be hashed anew only where the lattice's own small turn
+// takes it into another texel (no more than a fifth of them; a hash counted from a point
+// moved at the renewal drew every one anew).
 //
 // Run: node scripts/shadow-hash-steady-test.mjs      (exit 1 on a failed check)
 import * as THREE from 'three';
@@ -57,37 +60,49 @@ const elev = 19.5 * Math.PI / 180;
 const ground = up.clone().multiplyScalar(R);
 let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 
+// One walk: frames of 1/30 s at 4.5 m/s from the start, the Sun at elevation elevOf(f).
+// Per tile: the texels each spot was hashed as, and at the frames in `renewals` (the light's
+// axes taken anew) how many spots were hashed differently from that tile's draw before.
+function walk(every, alternate, dir, frames, elevOf, renewals = []) {
+  ns.every = every; ns.alternate = alternate; ns._anchored = false; ns._has = false;
+  // 400 spots on the ground, 4 to 10 m ahead of the start and up to 3 m to the side
+  const side = new THREE.Vector3().crossVectors(up, dir);
+  const spots = Array.from({ length: 400 }, () => ground.clone().addScaledVector(dir, 4 + 6 * rnd()).addScaledVector(side, 6 * rnd() - 3));
+  const keys = [new Map(), new Map()], last = [new Map(), new Map()], draws = [0, 0], anew = [[0, 0], [0, 0]];
+  for (let f = 0; f < frames; f++) {
+    const cam = ground.clone().addScaledVector(up, 1.7).addScaledVector(dir, 0.15 * f);       // 4.5 m/s, 30 frames a second
+    const e = elevOf(f), sun = up.clone().multiplyScalar(Math.sin(e)).addScaledVector(east, Math.cos(e)).normalize();
+    seen = [];
+    ns.render(cam, sun, [up.x, up.y, up.z]);
+    for (const s of seen) {
+      const k = s.vp.x > 0 ? (s.vp.y > 0 ? 2 : 1) : 0;
+      if (k === 2) continue;
+      draws[k]++;
+      s.cam.updateMatrixWorld(true);
+      spots.forEach((p, i) => {
+        const ndc = p.clone().sub(cam).project(s.cam);
+        if (Math.abs(ndc.x) > 0.95 || Math.abs(ndc.y) > 0.95) return;          // (not in this tile)
+        let qx = Math.floor(s.vp.x + (ndc.x * 0.5 + 0.5) * s.vp.z), qy = Math.floor(s.vp.y + (ndc.y * 0.5 + 0.5) * s.vp.w);
+        if (form === 'ground') {
+          if (!s.shift) { check(false, 'the near shadow hands the trees no uShadowHashShift'); return; }
+          check(Number.isInteger(s.shift.x) && Number.isInteger(s.shift.y), 'uShadowHashShift is not a whole number of texels');
+          qx += s.shift.x; qy += s.shift.y;
+          check(qx >= 0 && qy >= 0, 'a hashed texel came out negative (uvec2 of a negative int)');
+        }
+        const key = qx + ',' + qy, was = last[k].get(i);
+        if (renewals.includes(f) && was !== undefined) { anew[k][1]++; if (was !== key) anew[k][0]++; }
+        last[k].set(i, key);
+        const m = keys[k].get(i) || new Set(); m.add(key); keys[k].set(i, m);
+      });
+    }
+  }
+  return { keys, draws, anew };
+}
+
+// 1. The Sun still: a spot keeps one hash input in each tile for the whole walk.
 for (const [mode, every, alternate] of [['Sharp', 2, true], ['Smooth', 2, false]]) {
   for (const [walkName, dir] of [['toward the Sun', east], ['across it', north], ['away from it', east.clone().negate()]]) {
-    ns.every = every; ns.alternate = alternate; ns._anchored = false; ns._has = false;
-    const sun = up.clone().multiplyScalar(Math.sin(elev)).addScaledVector(east, Math.cos(elev)).normalize();
-    // 400 spots on the ground, 4 to 10 m ahead of the start and up to 3 m to the side
-    const side = new THREE.Vector3().crossVectors(up, dir);
-    const spots = Array.from({ length: 400 }, () => ground.clone().addScaledVector(dir, 4 + 6 * rnd()).addScaledVector(side, 6 * rnd() - 3));
-    const keys = [new Map(), new Map()], draws = [0, 0];
-    for (let f = 0; f < 40; f++) {
-      const cam = ground.clone().addScaledVector(up, 1.7).addScaledVector(dir, 0.15 * f);       // 4.5 m/s, 30 frames a second
-      seen = [];
-      ns.render(cam, sun, [up.x, up.y, up.z]);
-      for (const s of seen) {
-        const k = s.vp.x > 0 ? (s.vp.y > 0 ? 2 : 1) : 0;
-        if (k === 2) continue;
-        draws[k]++;
-        s.cam.updateMatrixWorld(true);
-        spots.forEach((p, i) => {
-          const ndc = p.clone().sub(cam).project(s.cam);
-          if (Math.abs(ndc.x) > 0.95 || Math.abs(ndc.y) > 0.95) return;          // (not in this tile)
-          let qx = Math.floor(s.vp.x + (ndc.x * 0.5 + 0.5) * s.vp.z), qy = Math.floor(s.vp.y + (ndc.y * 0.5 + 0.5) * s.vp.w);
-          if (form === 'ground') {
-            if (!s.shift) { check(false, 'the near shadow hands the trees no uShadowHashShift'); return; }
-            check(Number.isInteger(s.shift.x) && Number.isInteger(s.shift.y), 'uShadowHashShift is not a whole number of texels');
-            qx += s.shift.x; qy += s.shift.y;
-            check(qx >= 0 && qy >= 0, 'a hashed texel came out negative (uvec2 of a negative int)');
-          }
-          const m = keys[k].get(i) || new Set(); m.add(qx + ',' + qy); keys[k].set(i, m);
-        });
-      }
-    }
+    const { keys, draws } = walk(every, alternate, dir, 40, () => elev);
     for (const k of [0, 1]) {
       let moved = 0, n = 0;
       for (const m of keys[k].values()) { n++; if (m.size > 1) moved++; }
@@ -96,6 +111,23 @@ for (const [mode, every, alternate] of [['Sharp', 2, true], ['Smooth', 2, false]
       check(n > 100 && draws[k] >= 10, `${mode}, ${walkName}: the ${name} tile was hardly drawn (${draws[k]} times, ${n} spots in it): the walk tests nothing`);
       check(moved === 0, `${mode}, walking ${walkName}: ${moved} of ${n} spots in the ${name} tile had their leaf flecks drawn anew as the tile followed the traveller`);
     }
+  }
+}
+
+// 2. The Sun moving (Haven's day turns it 0.03 degrees every 7 s, and the near shadow then
+// takes its light axes anew and draws every tile): walking, at each renewal a spot is hashed
+// anew only where the turn of the lattice itself takes it into another texel. The turn is
+// about the anchor, a few metres from these spots: it moves them by millimetres, and some
+// tenth of them cross a fine texel's edge (3.9 cm). A hash counted from an anchor that is
+// itself moved at the renewal (a whole number of texels, as a lattice-tied anchor is) would
+// draw every fleck anew there: that is what this catches.
+for (const [mode, every, alternate] of [['Sharp', 2, true], ['Smooth', 2, false]]) {
+  for (const [walkName, dir] of [['toward the Sun', east], ['across it', north], ['away from it', east.clone().negate()]]) {
+    const { anew } = walk(every, alternate, dir, 120, (f) => elev + Math.floor(f / 30) * 0.035 * Math.PI / 180, [30, 60, 90]);
+    const share = anew.map(([a, n]) => (n ? a / n : 0));
+    console.log(`${mode}, walking ${walkName}, the Sun moving: at three renewals of the light's axes, spots hashed anew: wide ${(100 * share[0]).toFixed(0)} %, fine ${(100 * share[1]).toFixed(0)} %`);
+    check(anew[0][1] > 300 && anew[1][1] > 300, `${mode}, ${walkName}, the Sun moving: too few spots in the tiles at the renewals (${anew[0][1]}, ${anew[1][1]}): it tests nothing`);
+    check(share[0] <= 0.2 && share[1] <= 0.2, `${mode}, walking ${walkName}, the Sun moving: at a renewal of the light's axes ${(100 * Math.max(...share)).toFixed(0)} % of the spots had their leaf flecks drawn anew, more than the lattice's turn moves (the hash is counted from a point that moved?)`);
   }
 }
 if (fail.length) { console.log('FAIL:\n  ' + [...new Set(fail)].join('\n  ')); process.exit(1); }
