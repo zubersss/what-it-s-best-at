@@ -68,17 +68,30 @@ if (fromObjects.length) {
   check('and the nearest one is, though it came last in the list', d.length === 1 && d[0] < 30000, `${d.map((x) => Math.round(x / 1000) + ' km').join(', ')}`);
 }
 
-// 5. a field with neither call nor snapshot draws nothing, and so does a sky with no clouds
+// 5. they are handed over farthest first: see-through plates are laid over one another in the
+// order they are drawn, and the nearest were TAKEN first only so that the cap takes those
+{
+  const far = { ...lens, x: Math.cos(0.1), y: Math.sin(0.1), z: 0, plates: 1 };   // 25 km off
+  const mid = { ...lens, x: Math.cos(0.02), y: Math.sin(0.02), z: 0, plates: 1 }; //  5 km off
+  L.update(frame({ on: true, lenses: () => [mid, far, { ...lens, plates: 3 }] }));
+  const d = L.list.map((p) => Math.hypot(...p.centre));
+  let falling = true;
+  for (let i = 1; i < d.length; i++) if (d[i] > d[i - 1] + 1e-6) falling = false;
+  check('the plates are handed over farthest first, so the near one is drawn over the far',
+    d.length === 5 && falling, `${d.map((x) => Math.round(x / 1000) + ' km').join(', ')}`);
+}
+
+// 6. a field with neither call nor snapshot draws nothing, and so does a sky with no clouds
 L.update(frame({ on: true }));
 check('a field with neither a list nor a snapshot draws nothing', L.list.length === 0);
 L.update({ rig: { pos: cam }, sky: { field: { on: true, lenses: () => [lens] }, t: 0, R, noClouds: true } });
 check('?debug=noclouds takes the lenses too', L.list.length === 0);
 
-// 6. a lens that has faded out is not drawn
+// 7. a lens that has faded out is not drawn
 L.update(frame({ on: true, lenses: () => [{ ...lens, strength: 0.01 }] }));
 check('a lens faded below 0.02 is not drawn', L.list.length === 0);
 
-// 7. the field's list is asked for rarely (the model works out a whole weather moment for every
+// 8. the field's list is asked for rarely (the model works out a whole weather moment for every
 // t it is given), but the plates follow the traveller every frame
 {
   let asked = 0;
@@ -98,6 +111,22 @@ check('a lens faded below 0.02 is not drawn', L.list.length === 0);
   L2.update({ rig: { pos: cam2 }, sky: { field, t: 60.1, R, noClouds: false } });
   const moved = Math.abs(L2.list[0].centre[1] - before[1]);
   check('the plates still follow the traveller in between', moved > 400, `${Math.round(moved)} m`);
+}
+
+// 9. the governor's step: the nearest few lenses, one plate each, and they are still there
+{
+  const L3 = new Lenticulars(null);
+  const three = [0.02, 0.04, 0.06, 0.08, 0.1].map((a) => ({ ...lens, x: Math.cos(a), y: Math.sin(a), z: 0, plates: 3 }));
+  L3.update(frame({ on: true, lenses: () => three }));
+  const full = L3.list.length;
+  check('every lens asks for its plates', full === LENS_LOOK.MAX, `${full} plates`);
+  L3.saving('lenses', true);
+  L3.update(frame({ on: true, lenses: () => three }));
+  check('the governor\'s step leaves the nearest few, one plate each', L3.list.length === LENS_LOOK.THIN_MAX && L3.list.length > 0, `${L3.list.length} plates`);
+  check('and it answers to the governor and to the benchmark', L3.has('lenses') === true && L3.live('lenses') === true);
+  L3.partOut('lenses', true);
+  L3.update(frame({ on: true, lenses: () => three }));
+  check('the benchmark can leave the lenses out', L3.list.length === 0 && L3.live('lenses') === false);
 }
 
 console.log(fails ? `lens-list-test: ${fails} FAILED` : 'lens-list-test: all passed');

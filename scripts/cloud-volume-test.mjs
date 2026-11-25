@@ -72,6 +72,21 @@ check('with no cloud layer there is nothing to march', cv.ready(cam, { mesh: { v
     `${block.split('\n').length} lines of the shaft's stretch`);
   // and the stepping under the rain reads the two cells the shafts were found in, not the two the
   // body's chords found (which may be none) and not all eight (which a line of storms would cost)
+  // and the sky over the cloud does not pay for the cells' chords: the slice is tested against
+  // the highest raining base first, and that height takes in the cells' own bases
+  check('the sky over the highest raining base pays nothing for the shafts',
+    fs.includes('bool rainRoom =') && /if \(uShaft\.x > 0\.0 && rainRoom\)/.test(fs)
+    && cv.march.fragmentShader.includes('uniform float uShaftTop;'));
+  // a slice of the distance that holds the rain but no cloud is the rain's: the shaft is worked
+  // out before the slice can be given up, or a shaft ended at a slice's boundary in mid-air
+  check('a slice with the rain in it but no cloud is still marched',
+    fs.indexOf('float sA = 1.0') < fs.indexOf('bool noCloud') && fs.includes('if (sB <= sA) { fragColor = vec4(0.0); return; }')
+    && /for \(int seg = 0; seg < 3 && !noCloud/.test(fs));
+  // and the sheets that lay the far slices take the shaft's chord too, or every pixel of a far
+  // storm's rain is marched and then thrown away for want of a depth to lay it at
+  const far = cv.farMat.fragmentShader;
+  check('the far sheets lay a pixel of rain at the rain\'s own distance',
+    far.includes('cellShaftChord(k, uCamPlanetPos, dir)') && far.includes('cellChord(k, uCamPlanetPos, dir)'));
   check('and the rain under it is the shafts\' own cells, at most two',
     fs.includes('cellRain(gShaftK[c], p)') && !fs.includes('cellRain(gCellK') && !fs.includes('cellRain(k, p)'));
 }
