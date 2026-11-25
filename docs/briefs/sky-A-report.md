@@ -2,7 +2,7 @@
 
 *To be written by the helper that builds brief `docs/briefs/sky-A-model.md`, beside it, as the
 work goes (the main session reads this file and the branch, not the transcript). Branch:
-`sky-A`.*
+`ccr-aa39490a-sky-A-model`.*
 
 ## What was built
 

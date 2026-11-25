@@ -2,7 +2,7 @@
 
 *To be written by the helper that builds brief `docs/briefs/sky-D-storm.md`, beside it, as the
 work goes (the main session reads this file and the branch, not the transcript). Branch:
-`sky-D`.*
+`ccr-aa39490a-sky-D-storm`.*
 
 ## What was built
 

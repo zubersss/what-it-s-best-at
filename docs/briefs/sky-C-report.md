@@ -2,7 +2,7 @@
 
 *To be written by the helper that builds brief `docs/briefs/sky-C-shade.md`, beside it, as the
 work goes (the main session reads this file and the branch, not the transcript). Branch:
-`sky-C`.*
+`ccr-aa39490a-sky-C-shade`.*
 
 ## What was built
 

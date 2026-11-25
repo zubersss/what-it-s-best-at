@@ -4,9 +4,10 @@ The common part of the four briefs (`sky-A-model.md`, `sky-B-clouds.md`, `sky-C-
 `sky-D-storm.md`). Read it with your own brief. The plan is
 `docs/briefs/clouds-weather-plan.md`; step 0 is its section "STEP 0, BY THE MAIN SESSION
 BEFORE ANY HELPER STARTS", built on the branch `sky0/join` and merged into the main
-session's branch. **Start from the head of the main session's branch**, never from `main`
-(a worktree begins from `main`: check out the session branch's head first), on a branch of
-your own (`sky-A`, `sky-B`, `sky-C`, `sky-D`).
+session's branch. **Start from the head of the main session's branch**
+(`origin/ccr-aa39490a-qiw63x`), never from `main` (a worktree begins from `main`: check out
+the session branch's head first), on a branch of your own (`ccr-aa39490a-sky-A-model`,
+`ccr-aa39490a-sky-B-clouds`, `ccr-aa39490a-sky-C-shade`, `ccr-aa39490a-sky-D-storm`).
 
 ## Read first
 
