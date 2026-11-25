@@ -258,6 +258,13 @@ scene's own moment.
 | `_M_front` | the opening place, a cell 25 km off raining 26 mm/h (t=33) | a rain deck and its shafts |
 | `earth_ledge_B0_earth.png`, `earth_ledge_B_earth.png` | Earth's ledge, step 0's build and this one | Earth has no field yet: what changed there anyway |
 
+**Kept in the repository.** The ones worth keeping are copied into `docs/shots/sky/` as
+`B-*.png` (package A's are `A-*`): `B-storm-20km-before/after/first`, `B-storm-35km`,
+`B-cell-sunlit` and `-before`, `B-cell-9km`, `B-ridge-hides-cell` and `-before`, `B-lens`,
+`B-lens-from-the-side`, `B-lens-none-drawn` (the fault), `B-floor` and `B-floor-hole` (the
+fault), `B-noclouds`, `B-from-30km`, `B-globe`, `B-ledge-afternoon`, `B-mist`, `B-front`,
+`B-ledge-storm`, `B-earth-before/after`, `B-B0-drift-0s/60s`.
+
 **The stub's own pictures** (before the model landed) are kept for the record:
 `haven_ledge_storm12.png` (the first storm picture, which showed the three faults of 9478d38),
 `haven_ledge_tower8.png` (a cell 8 km off), `haven_ledge_B0_noon*.png` (B0's pair),
