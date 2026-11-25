@@ -10,7 +10,9 @@
 //        checks fail: nosnap (the windows not snapped to whole texels, as the trees' shade map
 //        was), hold (the frame's anchor held for 30 km: the x D / R term a small world shows),
 //        noband (no blend band where one window hands over to the next), probe (the figure left
-//        in full Sun, as it was). The flat slide the ground did is in check 3 for good.
+//        in full Sun, as it was), layer (the cloud layer taken afresh from the country under the
+//        traveller every frame, as the game's own base was). The flat slide the ground did is in
+//        check 3 for good.
 //
 // TWO ADDRESSINGS ARE MEASURED, SIDE BY SIDE:
 //   'atlas'  what src/sky/cloudShade.js does: windows on a lattice fixed to the world, each
@@ -28,7 +30,7 @@ import { runGlsl } from './lib/glslRun.mjs';
 
 const argv = process.argv.slice(2);
 const BREAK = argv.includes('--break') ? argv[argv.indexOf('--break') + 1] : null;
-const BREAKS = ['nosnap', 'hold', 'noband', 'probe'];
+const BREAKS = ['nosnap', 'hold', 'noband', 'probe', 'layer'];
 if (BREAK && !BREAKS.includes(BREAK)) { console.log(`no break ${BREAK} (${BREAKS.join(', ')})`); process.exit(2); }
 if (BREAK) console.log(`(with a fault put in: ${BREAK})`);
 
@@ -63,6 +65,14 @@ const at = (lat, lon, r) => mul(dirAt(lat, lon), r);
 const spread = (i, k = 0) => { const x = Math.sin(i * 12.9898 + k * 78.233 + 0.5) * 43758.5453; return x - Math.floor(x); };
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
+// The cloud layer the shade is cast from. The game's layer stands `base` metres over "the
+// country" - the elevation averaged over a few kilometres round THE TRAVELLER (cloudVolume.js
+// setGround) - so it moved as the traveller did, and every shadow slid over the land with it.
+// The atlas latches it at the first frame of a world and holds it (shadeLayer); the map as it
+// was took it afresh every frame. Both are modelled here.
+const COUNTRY = (d) => { const [x, y] = eastNorth(d); return 1500 + 900 * Math.sin(x / 9000) * Math.cos(y / 11000); };
+const layerAt = (pos) => R + COUNTRY(norm(pos)) + 1200 + 0.3 * 3000;    // as sky/clouds.js has it
+
 // the ground: 1 500 m above the sea with swells of a few hundred metres over a few kilometres
 const O = dirAt(START.lat, START.lon), OF = localFrame(O);
 // metres east and north of the opening place, for a direction
@@ -90,10 +100,10 @@ function lightOf(ch, h) {
   const top = ch[3] * SKY_V0.TOP_M, below = 1 - sstep(top - SKY_V0.TOP_SOFT, top + SKY_V0.TOP_SOFT, h);
   return [(1 - STRENGTH * crisp(ch[0]) * below) * ch[1], ch[2]];
 }
-// the truth, worked out at the place itself with no map in between (for check 3)
-function truth(p, sun) {
-  const q = hitSphere(p, sun, Rs);
-  return lightOf(source(norm(q)), len(p) - R);
+// the truth, worked out at the place itself with no map in between (for check 4): along the
+// Sun's ray from the place to the cloud layer
+function truth(p, sun, layerR) {
+  return lightOf(source(norm(hitSphere(p, sun, layerR))), len(p) - R);
 }
 // where the ray p + t sun crosses the sphere of radius Rr (the nearer crossing on the Sun's side
 // for a place under it, the one behind for a place above it)
@@ -112,37 +122,44 @@ const SUN = sunAt(25, 35);
 
 // ---- the atlas as the game fills and reads it ---------------------------------------------------
 // One traveller position -> the atlas's bytes and the uniforms its readers are handed.
-let WORLD_BYTES = null;         // the world window is in latitude and longitude: filled once
 class Atlas {
   constructor() {
     this.st = M.shadeState();
     this.W = M.SHADE.ATLAS_W; this.H = M.SHADE.ATLAS_H;
     this.bytes = new Uint8Array(this.W * this.H * 4);
     this.sampler = sampler2D(this.bytes, this.W, this.H, 4, { wrapS: 'repeat', wrapT: 'clamp' });
-    this.u = null; this.near = ''; this.mid = ''; this.reanchors = 0; this.sun = SUN; this.hold = undefined;
-    if (!WORLD_BYTES) { this._fill('world'); WORLD_BYTES = this.bytes.slice(); }
-    else this.bytes.set(WORLD_BYTES);
+    this.u = null; this.near = ''; this.mid = ''; this.world = 0; this.reanchors = 0; this.sun = SUN; this.hold = undefined; this.layerR = 0;
   }
   // the traveller moved: the anchor and the windows follow (as a frame does), and whatever
   // window has moved is filled again
   step(pos) {
     const o = { snap: BREAK !== 'nosnap', hold: BREAK === 'hold' ? 30000 : this.hold };
+    // the cloud layer, latched at the first frame of the world (the game: shadeLayer)
+    this.layerR = BREAK === 'layer' ? layerAt(pos) : M.shadeLayer(this.st, layerAt(pos), 'haven');
     const r = M.shadeStep(this.st, pos, R, o);
     if (BREAK === 'noband') { this.st.bandNear = 0; this.st.bandMid = 0; }
     if (r.reanchored) this.reanchors++;
     this.u = M.shadeUniforms(this.st, pos, this.sun, R, STRENGTH);
-    const an = this.st.anchor.join();
-    const kn = `${an}|${this.st.nx},${this.st.ny}`, km = `${an}|${this.st.mx},${this.st.my}`;
+    const an = this.st.anchor.join(), lr = Math.round(this.layerR);
+    const kn = `${an}|${lr}|${this.st.nx},${this.st.ny}`, km = `${an}|${lr}|${this.st.mx},${this.st.my}`;
     if (kn !== this.near) { this._fill('near'); this.near = kn; }
     if (km !== this.mid) { this._fill('mid'); this.mid = km; }
+    // (the world window once an atlas: it is in latitude and longitude, and the cloud layer it
+    // is read at does not move - with --break layer it does, and the window is then left stale,
+    // which the checks that break watches do not read)
+    if (!this.world) { this._fill('world'); this.world = lr; }
     return r;
   }
+  // the direction the cloud over a texel is read at: along the Sun to the layer
+  up(d) { return norm(hitSphere(mul(d, Rs), this.sun, this.layerR)); }
   _fill(win) {
     const W = win === 'world' ? M.SHADE.WORLD_W : M.SHADE.WIN, H = win === 'world' ? M.SHADE.WORLD_H : M.SHADE.WIN;
     const d = [0, 0, 0], uv = [0, 0];
     for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
       M.shadeTexelDir(this.st, win, i, j, R, d);
-      const ch = win === 'near' ? source(d) : meanSource(this.st, win, i, j);
+      // (the writer: from the texel's own point on the reference sphere along the Sun to the
+      // cloud layer, as shadeChannels does)
+      const ch = win === 'near' ? source(this.up(d)) : meanSource(this, win, i, j);
       M.shadeTexelUV(win, i, j, uv);
       const o = (Math.round(uv[1] * this.H - 0.5) * this.W + Math.round(uv[0] * this.W - 0.5)) * 4;
       for (let k = 0; k < 4; k++) this.bytes[o + k] = Math.max(0, Math.min(255, Math.round(ch[k] * 255)));
@@ -156,12 +173,12 @@ class Atlas {
 // The world window's texel is the mean of the shade over it, written back as a raw value whose
 // crisp curve is that mean (the atlas's R channel is "the raw shade whose curve is the shade"):
 // point-sampled at 1.5 km a texel a heap's edge would be a blotch kilometres across.
-function meanSource(st, win, i, j) {
+function meanSource(m, win, i, j) {
   const n = win === 'world' ? M.SHADE.WORLD_SAMPLES : M.SHADE.MID_SAMPLES, d = [0, 0, 0];
   let s = 0, up = 0, sky = 0, top = 0;
   for (let b = 0; b < n; b++) for (let a = 0; a < n; a++) {
-    M.shadeTexelDir(st, win, i, j, R, d, (a + 0.5) / n - 0.5, (b + 0.5) / n - 0.5);
-    const ch = source(d);
+    M.shadeTexelDir(m.st, win, i, j, R, d, (a + 0.5) / n - 0.5, (b + 0.5) / n - 0.5);
+    const ch = source(m.up(d));
     s += crisp(ch[0]); up += ch[1]; sky += ch[2]; top += ch[3];
   }
   const k = 1 / (n * n);
@@ -177,6 +194,7 @@ class Today {
   }
   step(pos) {
     // life/treeShade.js: the map's middle is the ground under the traveller, its plane level there
+    this.layerR = layerAt(pos);
     const r = len(pos), g = groundOf(norm(pos)), agl = r - R - g;
     const c = mul(pos, Math.max(0.5, (r - Math.max(0, agl)) / r));
     const f = localFrame(c);
@@ -184,7 +202,10 @@ class Today {
     for (let j = 0; j < TODAY.SIZE; j++) for (let i = 0; i < TODAY.SIZE; i++) {
       const x = (i + 0.5) / TODAY.SIZE - 0.5, y = (j + 0.5) / TODAY.SIZE - 0.5;
       const p = add(c, add(mul(f.east, x * TODAY.WIDTH), mul(f.north, y * TODAY.WIDTH)));
-      const lit = 1 - STRENGTH * crisp(source(norm(p))[0]);
+      // (its writer: the flat slide to the cloud layer, the ground's own rule line for line)
+      const pl = len(p), up = mul(p, 1 / pl);
+      const uc = norm(add(p, mul(SUN, (this.layerR - pl) / Math.max(dot(up, SUN), 0.08))));
+      const lit = 1 - STRENGTH * crisp(source(uc)[0]);
       this.bytes[j * TODAY.SIZE + i] = Math.max(0, Math.min(255, Math.round(lit * 255)));
     }
     return { reanchored: false };
@@ -388,7 +409,7 @@ function flyCheck(kind) {
       m.cam = pos; m.step(pos);
       const g = groundPt(ea, no), gd = norm(g), h = len(g) - R;
       const places = [g, mul(gd, R + h + 30), mul(gd, R + h + 1)];
-      const got = places.map((p) => m.read(p)[0]), want = places.map((p) => truth(p, SUN)[0]);
+      const got = places.map((p) => m.read(p)[0]), want = places.map((p) => truth(p, SUN, m.layerR)[0]);
       const probe = BREAK === 'probe' ? 1 : M.shadeProbeJS(m.u, m.sampler, [g], R)[0].sun;
       same = Math.max(same, Math.abs(got[0] - probe));
       for (let k = 1; k < 3; k++) if (Math.abs(want[k] - want[0]) < 0.01) ds.push(Math.abs(got[k] - got[0]));

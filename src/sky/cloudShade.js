@@ -196,6 +196,22 @@ export function shadeTexelAt(st, d, win) {
   return [(t[0] - x0) / step, (t[1] - y0) / step];
 }
 
+// The radius at which the cloud rule's pattern is read, where a world's weather is not made by
+// rule yet (no field): the cloud layer's own radius, but LATCHED at the first frame of a world
+// and held. The layer the game draws stands `base` metres over "the country", and the country
+// is the elevation map averaged over +-0.4 degrees round THE TRAVELLER (sky/cloudVolume.js,
+// setGround): it therefore moves as the traveller does, by 25 to 51 m per 100 m flown, and the
+// shadows of the clouds slid over the land at 70 to 150 m per 100 m at a low Sun - the owner's
+// "they move when I move". Held still, the shade is fixed to the world; the cost is that where
+// the country is far higher or lower than it is where the world opened, the drawn cloud and its
+// shadow are not over one another. The field's own per-place base (A) ends both faults: where
+// there is a field, skyShade() takes the base from it and nothing here is used.
+export function shadeLayer(st, layerNow, world) {
+  if (st.world !== world) { st.world = world; st.layerR = 0; }
+  if (!(st.layerR > 0) && layerNow > 0) st.layerR = layerNow;
+  return st.layerR || layerNow || 0;
+}
+
 // What a frame hands the readers (and the atlas's own pass): plain arrays, the very numbers the
 // uniforms are filled from, so that the JS twins below answer exactly as the shaders do.
 //   cam: the camera (m, planet axes); sun: toward the Sun (unit); strength: how dark a full
@@ -416,6 +432,7 @@ uniform sampler2D tClouds;     // the day's cloud map (the rule as the game draw
 uniform vec4 uCloud;           // x how dark the shadow is, y the cloud layer's radius (m), z the map's longitude shift (turns)
 uniform vec4 uCloudHeap;       // x 1 - the layer's cover, y the fair-weather cover, w 1: shade by the heaps
 uniform vec4 uCloudVol;        // the heaps' scales, w the low pattern's rise (m)
+uniform vec4 uShadeLayer;      // x the radius the cloud rule's pattern is read at (m), held still against the world
 const float SHADE_CELL_LEN = ${glf(S.CELL_LEN)};
 const float SHADE_FOG_K = ${glf(S.FOG_K)};
 // The share of the Sun the storm towers take along the ray: each tower's exact chord
@@ -449,13 +466,13 @@ vec4 shadeChannels(vec3 P, vec3 toSun) {
     return s;
   }
   // the rule the game draws with: the day's map at the layer's own radius, and its heaps
-  vec4 hit = shadeHit(P, toSun, uCloud.y);
+  vec4 hit = shadeHit(P, toSun, uShadeLayer.x);
   vec3 uc = hit.w > 0.5 ? normalize(hit.xyz) : up;
   float cd = textureLod(tClouds, vec2(atan(uc.y, uc.x) * ${glf(1 / (2 * Math.PI))} + uCloud.z, acos(clamp(uc.z, -1.0, 1.0)) * ${glf(1 / Math.PI)}), 0.0).r;
   float raw = uCloudHeap.w > 0.5
     ? cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudSteer, 0.0).x
     : shadeRaw(smoothstep(0.2, 0.7, cd) * SHADE_SHADOW);
-  return vec4(raw, 1.0, 1.0, clamp((uCloud.y - uShadeA.w) / SHADE_TOP_M, 0.0, 1.0));
+  return vec4(raw, 1.0, 1.0, clamp((uShadeLayer.x - uShadeA.w) / SHADE_TOP_M, 0.0, 1.0));
 }`;
 
 // The near and the middle window: vUv runs over the window, so a fragment is a texel's centre.
@@ -554,9 +571,12 @@ export class CloudShade {
       tWxA: SKY_UNIFORMS.tWxA, tWxB: SKY_UNIFORMS.tWxB, tWxC: SKY_UNIFORMS.tWxC, uSkyLow: SKY_UNIFORMS.uSkyLow,
       uCells: SKY_UNIFORMS.uCells, uCellCount: SKY_UNIFORMS.uCellCount,
       uShadeDraw: { value: new THREE.Vector4() },
+      uShadeLayer: { value: new THREE.Vector4() },
     };
+    this.layer = rule.uShadeLayer.value;
     this.material = makePassMaterial(WIN_FRAG, rule);
     this.worldMaterial = makePassMaterial(WORLD_FRAG, { ...rule, uShadeDraw: { value: new THREE.Vector4(0, 0, 0, S.WORLD_SAMPLES) } });
+    this.worldMaterial.uniforms.uShadeLayer = rule.uShadeLayer;
     this.draw = this.material.uniforms.uShadeDraw.value;
     // The probe: the atlas read back for the figure and the things lit with it. It belongs to
     // the sky system's frame order (sky/skySystem.js calls probe.render after the shade map),
@@ -575,6 +595,8 @@ export class CloudShade {
     // out of the benchmark, or the governor's old 'clouds' step)
     const strength = sh.uCloud?.value?.x || 0;
     if (!renderer || !(strength > 0) || !R) { U.uShadeSun.value.w = 0; return; }
+    // the cloud layer the old rule's pattern is read at, held still against the world
+    this.layer.x = shadeLayer(this.st, sh.uCloud.value.y, sky?.world ?? null);
     shadeStep(this.st, rig.pos, R);
     this.st.near = this.near;
     shadeUniforms(this.st, rig.pos, sun, R, strength, this.u);
