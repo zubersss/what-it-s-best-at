@@ -28,7 +28,7 @@ const mix = (a, b, t) => a + (b - a) * t;
 export class Look {
   constructor() { this.def = null; this.now = { ...NEUTRAL, shade: [1, 1, 1], light: [1, 1, 1] }; }
 
-  setWorld(world) { this.def = world.look || null; this.aloft = 0; if (!this.def) { this.apply(null, 0); G.uHaze.value = 1; G.uAloft.value = 0; } }
+  setWorld(world) { this.def = world.look || null; this.aloft = 0; if (!this.def) { this.apply(null, 0); G.uHaze.value = 1; G.uAloft.value = 0; G.uSkyBoost.value = 1; } }
 
   // sunDeg: the Sun's height at the traveller (degrees); altitude (m); uniforms: the
   // composite pass's (post.compositeMat.uniforms); agl: metres over the ground.
@@ -46,7 +46,7 @@ export class Look {
     // where uHaze has the say): less haze over the ground below, and the shade lifted.
     { const s = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
       this.aloft = d?.aloft ? s(20, 150, agl) * (1 - s(20000, 40000, agl)) : 0;
-      G.uAloft.value = this.aloft * (d?.aloft?.clear ?? 0); }
+      G.uAloft.value = this.aloft * (d?.aloft?.clear ?? 0); G.uSkyBoost.value = 1 + this.aloft * (d?.aloft?.sky ?? 0); }
     if (this.debug?.includes('nohaze')) G.uHaze.value = 0;          // ?debug=nohaze: none of the haze over the ground (before/after pictures)
     if (!d) { this.apply(null, 0); return; }
     const x = Math.min(1, Math.max(0, (Math.log10(Math.max(1, altitude)) - 4.6) / 1.0)), near = 1 - (1 - 0.33) * x * x * (3 - 2 * x);
