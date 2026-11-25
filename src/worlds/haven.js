@@ -179,6 +179,12 @@ export default {
       wall: { label: 'The range across the valley', heading: 250, pitch: 3, fov: 26 },
       ship: { label: 'The lander', east: -20, north: -12, heading: 230, pitch: 3, fov: 50 },
       dusk: { label: 'Evening', heading: 275, pitch: 0, fov: 60, timeOffsetHours: 9.6 },
+      // The day's weather (sky A's model, seed 23; the hours from find-weather --scene, the
+      // places and headings asked of the model): not benchmarked (only the first five are).
+      mist: { label: 'Morning mist', heading: 240, pitch: -14, fov: 55, timeOffsetHours: -0.5 },
+      storm: { label: 'Afternoon storm', heading: 243, pitch: 4, fov: 45, timeOffsetHours: 8.25 },
+      front: { label: 'A front coming', heading: 280, pitch: 4, fov: 55, timeOffsetHours: 33 },
+      crown: { label: 'Wind on the Crown', lat: 13.362, lon: 68.95, heading: 0, pitch: 8, fov: 45, timeOffsetHours: 53 },
     },
   },
   places: [

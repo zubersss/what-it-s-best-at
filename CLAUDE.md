@@ -304,7 +304,8 @@ the view stays where it is, the character is put away and a GO trip ends; `F` ag
 you down in the first-person walk; `G` brings the character back), `Z` hold for telephoto, mouse wheel = zoom amount,
 `H` HUD (one line → full read-out with the time slider → off), `M` Smooth ↔ Sharp,
 `[` `]` time −/+, `1`–`9` bookmarks (the views of the world's main site first: five on the Moon, six on
-Mars; then its landmarks),
+Mars; then its landmarks; on Haven the day's weather: mist, storm, front, wind on the Crown;
+the menu's "Views" lists them all),
 `P` pause time.
 
 Touch: left part of the screen = move stick (push to the rim for super speed on foot /
