@@ -10,7 +10,7 @@
 // to be cut cleanly at any size.
 //
 // Plain JavaScript with no canvas: it runs in Node.
-import { ATLAS_W, ATLAS_H, SPRAY, SPRAY_COLS, SPRAYS, IMP_W, IMP_H, IMP_HALF, IMP_TALL, impostorCell } from './treeAtlasLayout.js';
+import { ATLAS_W, ATLAS_H, SPRAY, SPRAY_COLS, SPRAYS, IMP_W, IMP_H, IMP_HALF, IMP_TALL, impostorCell, CROWN, CROWNS, crownCell } from './treeAtlasLayout.js';
 
 const WOOD = 2, PETAL = 1;          // what a polygon is (0: a leaf); halved when averaged down
 
@@ -206,6 +206,46 @@ const DRAW = {
   roseB: (c, R) => rosette(c, R, (cc, RR) => leafy(cc, RR, BLOSSOM), 7),
 };
 
+// A crown from above (the far mesh's rosette: what a tree is to anyone looking down on it,
+// near trees and far forest alike). One solid rounded mass, never a star of sprays: a dark
+// inside, clumps over it, each a little dome of its own with a cut edge of leaves or
+// needles, the middle ones highest and lightest and the rim darker all round (which side the
+// Sun lights is the mesh's: its normals lean outward). Tone carries the shape; kind
+// (`B`: blossom) is petals over most of it with young leaves showing between.
+// (Stars of sprays laid round a middle read from the air as snowflakes and paper scraps: the
+// critic of 2026-11-24.)
+function crownTop(kind, R) {
+  const c = new Cell(CROWN), n = c.n, hash = (x, y) => { const h = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return h - Math.floor(h); };
+  const blossom = kind === 'B', needles = kind === 'N';
+  // clumps: [x, y, radius, height (0 rim .. 1 top)]
+  const clumps = [];
+  const ring = (count, dist, r0, h, turn) => { for (let k = 0; k < count; k++) { const a = turn + k / count * 6.2831853 + (R() - 0.5) * 0.5, d = dist * (0.88 + 0.24 * R()); clumps.push([0.5 + Math.cos(a) * d, 0.5 + Math.sin(a) * d, r0 * (0.85 + 0.3 * R()), h]); } };
+  ring(needles ? 11 : 9, 0.33, needles ? 0.105 : 0.125, 0.0, R() * 6.28);
+  ring(needles ? 7 : 6, 0.2, needles ? 0.12 : 0.14, 0.5, R() * 6.28);
+  ring(needles ? 3 : 2, 0.07, 0.15, 1.0, R() * 6.28);
+  // (each clump's edge: leaves or needles round it)
+  const teeth = needles ? 28 : 11, deep = needles ? 0.2 : 0.13;
+  const edge = (a, ph) => { const t = ((a * teeth / 6.2831853 + ph) % 1 + 1) % 1; return needles ? 1 - deep * Math.abs(t * 2 - 1) ** 0.6 : 1 - deep * (1 - Math.sin(Math.PI * t)) ; };
+  const set = (i, tone, kindOf) => { c.cov[i] = 1; c.tone[i] = tone; c.wood[i] = kindOf; };
+  // the dark inside, round under everything (the eye never sees through a crown to the ground)
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const u = (x + 0.5) / n - 0.5, v = (y + 0.5) / n - 0.5, d = Math.hypot(u, v); if (d < 0.36 + 0.02 * Math.sin(Math.atan2(v, u) * 7)) set(y * n + x, 0.22 + 0.08 * hash(x >> 3, y >> 3), 0); }
+  for (const [cx, cy, r, h] of clumps) {
+    const ph = R(), x0 = Math.max(0, Math.floor((cx - r) * n)), x1 = Math.min(n - 1, Math.ceil((cx + r) * n)), y0 = Math.max(0, Math.floor((cy - r) * n)), y1 = Math.min(n - 1, Math.ceil((cy + r) * n));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const u = (x + 0.5) / n - cx, v = (y + 0.5) / n - cy, d = Math.hypot(u, v), rr = r * edge(Math.atan2(v, u), ph);
+      if (d > rr) continue;
+      const g = Math.hypot((x + 0.5) / n - 0.5, (y + 0.5) / n - 0.5), dome = Math.sqrt(Math.max(0, 1 - (g / 0.5) ** 2)), bump = Math.sqrt(Math.max(0, 1 - (d / rr) ** 2));
+      // (the leaves' own grain: cells a few texels across, each a little lighter or darker)
+      const grain = hash(Math.floor(x / (needles ? 4 : 7)), Math.floor(y / (needles ? 4 : 7))) - 0.5;
+      const tone = Math.min(1, Math.max(0.2, 0.3 + 0.32 * dome + 0.22 * bump + 0.16 * h + 0.14 * grain));
+      // (in flower: petals over the clump, young leaves showing at its foot and here and there)
+      const k = blossom ? (bump < 0.25 || grain > 0.36 ? 0 : PETAL) : 0;
+      set(y * n + x, tone, k);
+    }
+  }
+  return c.down();
+}
+
 // The sprays: returns the whole picture so far, { W, H, cov, tone, wood } (numbers 0..1).
 export function makeSprays() {
   const A = { W: ATLAS_W, H: ATLAS_H, cov: new Float32Array(ATLAS_W * ATLAS_H), tone: new Float32Array(ATLAS_W * ATLAS_H), wood: new Float32Array(ATLAS_W * ATLAS_H) };
@@ -213,6 +253,7 @@ export function makeSprays() {
     const c = new Cell(SPRAY); DRAW[name](c, rng(1000 + i * 77));
     put(A, c.down(), (i % SPRAY_COLS) * SPRAY, Math.floor(i / SPRAY_COLS) * SPRAY);
   }
+  for (const [kind, k] of Object.entries(CROWNS)) { const [x, y] = crownCell(k); put(A, crownTop(kind, rng(5000 + k * 31)), x, y); }
   return A;
 }
 function put(A, d, x0, y0, w = d.size, h = d.size) {
