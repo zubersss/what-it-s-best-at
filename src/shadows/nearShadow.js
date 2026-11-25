@@ -104,10 +104,13 @@ export class NearShadow {
   // two when the axes are taken anew, one 60 m off 3 cm.
   _reanchor(camPos) {
     const A = this._anchor;
-    if (!this._anchored) { A.copy(camPos); this._anchored = true; return; }
+    if (!this._anchored) { A.copy(camPos); this._anchored = true; this._hashAt = this.tiles.map(() => [0, 0]); return; }
     const L = this.lattice, rel = this._rel.subVectors(camPos, A);
     const a = Math.round(rel.dot(this._lx) / L) * L, b = Math.round(rel.dot(this._ly) / L) * L, c = rel.dot(this._lz);
     A.addScaledVector(this._lx, a).addScaledVector(this._ly, b).addScaledVector(this._lz, c);
+    // (the trees' shadow pass counts its texels from where the lattice began, not from the anchor:
+    // the anchor's moves in whole texels of each tile, so a leaf's fleck keeps its hash)
+    this.tiles.forEach((t, k) => { const texel = 2 * t.R / t.n, h = this._hashAt[k]; h[0] += Math.round(a / texel); h[1] += Math.round(b / texel); });
   }
 
   // isVisible: optional predicate (a mesh inside a hidden group still reports visible).
@@ -252,7 +255,7 @@ export class NearShadow {
       // (the pixel at the atlas's t.x + n/2 is the tile's middle, which is a whole number of
       // texels from the anchor)
       const texel = 2 * t.R / t.n, st = this.state[k];
-      G.uShadowHashShift.value.set(Math.round(st.ax / texel) - t.n / 2 - t.x + 65536, Math.round(st.ay / texel) - t.n / 2 - t.y + 65536);
+      G.uShadowHashShift.value.set(Math.round(st.ax / texel) - t.n / 2 - t.x + (1 << 24) + this._hashAt[k][0], Math.round(st.ay / texel) - t.n / 2 - t.y + (1 << 24) + this._hashAt[k][1]);
       for (const c of this.casters) {
         const isFocus = !!c.mesh.userData.shadowFocus;
         if (!this._on(c) || isFocus !== (k === 2) || (!isFocus && !this._reaches(c, k))) continue;
