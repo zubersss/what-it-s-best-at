@@ -174,3 +174,29 @@ The fragment side is flat; the 2.6 km vertex reach and the rest add 1 to 2 % to 
    flowers; the meadow views are the ones to judge by.
 7. No stability run of the new flowers (a walk and low flight over the meadow): heads now
    tilt in fixed directions, so they should not swim, but it was not measured.
+
+## Round 4 (docs/briefs/round4.md, "Flowers and grass"; the second critic's gap 5)
+
+Pictures: `docs/shots/flowers-4/` (`_before`: 3b5adab, the owning head; `_after`: this
+round), `pair_<view>.png`; views `steppe` (`lat=-54.4271&lon=39.2697&t=5&heading=120`),
+`meadow`, `pollen` (the meadow toward a low Sun, `t=0&heading=72&pitch=3`), `meadow_a20`,
+`ledge`.
+
+- **Flowers in pools, plain grass between** (`grassRules.js`): within a meadow the drifts
+  are a noise of 14 m cells (was 9) with a sharp rise (`0.04 + 1.15 smoothstep(0.42, 0.62)`,
+  was `0.45 + 0.75 ...`): thick pools that colour the ground, plain grass with the odd flower
+  between, where before the whole meadow was an even sprinkle to the horizon. The ground's
+  tint takes the same rule (its means 0.461 and 0.211 for a pixel too wide to tell a drift).
+- **Grass varied by place** (`grass.js`, the blades; vertex work only, no texture read
+  more): swaths some 90 m across, fresher green and deeper or drier gold and brighter (0.4
+  of the dryness either way: `swathAt`, whole waves over the 2 560 m period like `lieAt`);
+  clumps a metre across of taller and shorter blades (0.6 to 1.4, counted from where the
+  grass began, as the tussocks are: `grass-place-test` passes); one blade in ten in dry
+  grass a seed head, half again as tall with a pale straw tip; the wind's waves as
+  stronger bands of light and dark (0.86 to 1.14, was 0.94 to 1.06). Not done: hollows by
+  the land's own shape (green where water gathers): the blades know only their table's
+  height and slope there; the swaths stand in for it.
+- **Pollen low**: heights packed toward the ground (most within a metre), gone by 1.9 m
+  (was 3.2): from eye height the motes lie against the grass, none in the open sky. Halos
+  toward the Sun smaller (1.8 times at most, drawn at most 12 pixels): no large discs.
+  Fewer motes drawn than before: its cost is flat or lower.

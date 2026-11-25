@@ -14,6 +14,8 @@ declare -A Q=(
   [region_300]="alt=1813&pitch=-60"
   [region_1k]="alt=2513&pitch=-60"
   [floor]="debug=floor"
+  [steppe]="lat=-54.4271&lon=39.2697&t=5&heading=120"
+  [pollen]="lat=-54.39501&lon=38.28479&t=0&heading=72&pitch=3"
   [meadow_300]="$MEADOW&alt=1768&pitch=-60"
   [meadow_1k]="$MEADOW&alt=2468&pitch=-60"
 )
