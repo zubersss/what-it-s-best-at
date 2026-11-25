@@ -424,7 +424,13 @@ renderer. A's model paints the real cover.
    where the anvils are drawn — so the cut took the anvil out exactly over the tower that made
    it, and the sheet floated round the stalk. The anvil's cover is worked out before the cut now,
    and where one lies the cut is not made (04c418a).
-10. **The anvil from 35 km** (`haven_ledge_M_storm35.png`) was the brightest thing in the frame —
+10. **And every anvil was drawn at the shell's height, not its own.** `cellShape.anvilLevel`
+    puts an anvil between 6 700 and 9 500 m by the height of the tower that made it; the high
+    shell stands at a flat 9 000. So a small storm's anvil floated two kilometres over its own
+    tower — the disc on a stalk. Each anvil's cover is now read where the pixel's own ray
+    crosses the sphere IT lies on, so it is drawn where it stands (efad75d). The shell is only
+    the surface that carries it.
+11. **The anvil from 35 km** (`haven_ledge_M_storm35.png`) was the brightest thing in the frame —
    a smooth cream disc on a stalk, at 209/180/152 against a sky at 71/94/131. Seen from below an
    anvil is grey: 0.45 of its sunlit top became 0.32, and the cirrus strokes now thin and thicken
    the sheet itself, so it is drawn-out ice rather than a plate (225dcd2). What stays, and is not
