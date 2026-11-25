@@ -121,17 +121,15 @@ by the shared forms, and it throws near pixels out FIRST. With no field it is th
 
 ## Checks (each with its numbers, and how it was seen to fail)
 
-**4. A phone's limits (`scripts/cloud-cost.mjs`, which runs `lib/glLimits.mjs` on every program
-three has linked).** Every program of the sky is inside them:
+**1. The reads a step (`node scripts/cloud-cost.mjs`).** The march is compiled a second time with
+`CLOUD_READS`, and every read of the noise and of the field adds one to a running total that the
+pixel hands back, so this is the count on real rays. First run, at an air view with no cloud in
+it, it read 1 a step; the run at a storm is below. `--break read` puts one more read into the
+loop, to see the check fail.
 
-| program | textures (fragment + vertex) | varyings |
-| --- | --- | --- |
-| the march | 11 + 0 | 1 |
-| the far low shell | 9 + 2 (field A in its vertex shader) | 1 |
-| the mid and high shells | 8 + 0 | 1 |
-| the fog sheet | 7 + 0 | 1 |
-| the far cell sheets | 2 + 0 | 1 |
-| (the ground, for scale) | 16 + 13 | 14 |
+**2. The motion (`node scripts/cloud-motion.mjs`).** Its first run showed a fault of its own: the
+view looked ALONG the day's wind, so the clouds came toward the eye and the picture moved one
+pixel in twenty seconds — nothing to measure. It looks across the wind now.
 
 **3. Anchoring (`node scripts/cloud-motion.mjs`).** The march is drawn from the camera's place,
 from 100 m away and from 10 km away, each aimed at the same point of the world, and every uniform
@@ -145,17 +143,35 @@ be the same sky. The camera the shaders read is the app's own uniform, so the ch
 one and says how far it moved (100 and 10 000 m): a test that moves the camera must check that
 the camera moved.
 
-**2. The motion (`node scripts/cloud-motion.mjs`).** Its first run showed a fault of its own: the
-view looked ALONG the day's wind, so the clouds came toward the eye and the picture moved one
-pixel in twenty seconds — nothing to measure. It looks across the wind now.
+**4. A phone's limits (`scripts/cloud-cost.mjs`, which runs `lib/glLimits.mjs` on every program
+three has linked).** Every program of the sky is inside them:
 
-**1. The reads a step (`node scripts/cloud-cost.mjs`).** The march is compiled a second time with
-`CLOUD_READS`, and every read of the noise and of the field adds one to a running total that the
-pixel hands back, so this is the count on real rays. First run, at an air view with no cloud in
-it, it read 1 a step; the run at a storm is below. `--break read` puts one more read into the
-loop, to see the check fail.
+| program | textures (fragment + vertex) | varyings |
+| --- | --- | --- |
+| the march | 11 + 0 | 1 |
+| the far low shell | 9 + 2 (field A in its vertex shader) | 1 |
+| the mid and high shells | 8 + 0 | 1 |
+| the fog sheet | 7 + 0 | 1 |
+| the far cell sheets | 2 + 0 | 1 |
+| (the ground, for scale) | 16 + 13 | 14 |
 
-**6. The hand-over at 16 km, where the near slices give way to the two far ones** (in
+**5. Stability** (`npm run stability --only haven_climb,haven_cross,haven_storm_pass`): running.
+
+**6. A ridge hides the foot of a cell beyond it** (the brief's sixth). The far cell sheets lay
+each pixel at the distance its own ray enters the nearest cell, so the depth they write is the
+cell's, not the slice's: a ridge in front of a storm hides its foot and its shaft, and a cell
+nearer than a ridge beyond it is drawn over that ridge. The view for it was found with the
+model's own cells and the world's height function
+(`scratchpad/cell-behind-ridge.mjs`, `scratchpad/ridge2.mjs`): from
+lat -57.7172, lon 38.6692 at 2 200 m, looking 299 degrees, a ridge stands 17.6 km off at 1.13
+degrees up and a cell 35.4 km off has its foot at -2.10 and its top at +8.99. The picture is
+`haven_ledge_M_ridge.png` (and `_Q_ridge` for the pair). The other way round could not be found
+on Haven at any hour of the three scene days — the model's cells stand over low ground, and no
+ridge beyond one of them is higher in the view than its own foot — so it is held by the rule
+instead: the depth written is the ray's entry into the cell (10 to 20 km), and any ground beyond
+that is farther.
+
+**7. The hand-over at 16 km, where the near slices give way to the two far ones** (in
 `cloud-motion.mjs`): a cell is looked at from 15.0, 15.8, 16.2 and 17.0 km and the cover and the
 light it shows are compared; the step across the hand-over must be no larger than the steps
 either side. Its first run drew the SAME picture four times (34 007 pixels, cover 0.845, light
