@@ -83,8 +83,8 @@ export class Pollen {
           // its size on the picture: never under a pixel and a third (a mote there is as bright as its true size would be)
           // (a grain of pollen in the Sun is a glint wider than itself: drawn as 2 cm)
           // (looked at toward the Sun a mote blooms into a soft warm halo: drawn wider, as bright in all)
-          float c = max(dot(normalize(rel), uSunDir), 0.0), c2 = c * c, halo = 1.0 + 2.5 * c2 * c2 * c2 * c2 * (seed ? 0.0 : 1.0);
-          float px = (seed ? 0.045 : 0.02) * uGrassView * abs(projectionMatrix[1][1]) / clip.w, drawn = clamp(px * halo, 2.0, 26.0);
+          float c = max(dot(normalize(rel), uSunDir), 0.0), c2 = c * c, halo = 1.0 + 1.5 * c2 * c2 * c2 * c2 * (seed ? 0.0 : 1.0);
+          float px = (seed ? 0.045 : 0.02) * uGrassView * abs(projectionMatrix[1][1]) / clip.w, drawn = clamp(px * halo, 1.5, 22.0);
           float dim = min(1.0, (px * px) / (drawn * drawn) * 6.0 * halo);
           vec3 sun, sky, air; lightAt(at, sun, sky, air);
           // (a mote throws the Sun's light forward: looked at toward the Sun it is a spark)

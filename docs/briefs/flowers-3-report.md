@@ -115,12 +115,32 @@ they pass the depth test: "shaded" over all the grass 1.79 to 1.82 at the openin
 to 2.35 in the meadow). The extra layers are the stems now drawn and the companions'
 taller heads: some 6 % more grass layers in all.
 
+### The ground's cost (asked by the owning session after the tenth benchmark)
+
+`scripts/ground-cost-run.sh <scratch> --only ledge,meadow,air300,meadow1k,air3k --before
+<file> --size 880x412 --dsf 2.2`, where the "before" shader is today's with the old flowers'
+block and the 1 100 m vertex reach put back (same browser session; a count of work on
+software WebGL, never a frame rate; `docs/shots/flowers-3/ground-cost.txt`; `meadow1k` is a
+view added to the script):
+
+| view | shaded, before -> after (ms of work; vertex work in it) | the shading alone |
+|---|---|---|
+| opening view | 7996 -> 8116 (+1.5 %) | 99 % of before |
+| meadow, eye height | 6229 -> 6350 (+1.9 %) | 100 % |
+| 300 m up | 5312 -> 5367 (+1.0 %) | 100 % |
+| meadow from 1 km | 2674 -> 2716 (+1.6 %) | 99 % |
+| 3 km up | 3343 -> 3334 (-0.3 %) | 94 % |
+
+The fragment side is flat; the 2.6 km vertex reach and the rest add 1 to 2 % to the whole
+(under the noise this measure has elsewhere). Kept.
+
 ## Pollen (`src/life/pollen.js`)
 
 - Thins with height: none above 3.2 m, full under 1 m (was to 6 m in an even spread: motes
   seen against the sky read as dust on the lens).
-- Toward the Sun a mote blooms into a soft halo (drawn up to 3.5 times wider, as bright in
-  all); never drawn under 2 pixels (1.5 read as squares).
+- Toward the Sun a mote blooms into a soft halo (drawn up to 2.5 times wider, as bright in
+  all), the smallest still 1.5 pixels: with the motes above 3.2 m and those at the lens gone,
+  fewer pixels are filled than before (the owning session asked for its cost flat or lower).
 - None nearer the eye than 0.6 m, faded to 1.6 m: a mote a hand from the lens was the
   blurred disc in the sky (`ledge_phone`, both builds; fixed after the frozen build).
 - Not done: plumes downwind (asked by the critic).
