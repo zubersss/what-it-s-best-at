@@ -455,23 +455,32 @@ and on this branch, at the phone's pixel count — `--size 880x412 --dsf 2.2`). 
 itself: the march and the lay are the difference from a frame with the clouds left out, taken in
 the same browser session, so the two runs can be set side by side:
 
-At the storm 20 km off, 3 km up (the merged build, 1100 x 515, two cells in reach, the far
-slices on, cloud on 5 % of the picture):
+At the storm 20 km off, 3 km up (two cells in reach, the far slices on, cloud on 5 % of the
+picture — read with the half floats decoded; before that it said 34 %, which was whatever the
+driver had left in the buffer):
 
-| | ms of work |
-| --- | --- |
-| laying the slices over an empty picture | 58 |
-| the march into its small picture | 790 |
+| | the owning head | this branch |
+| --- | --- | --- |
+| at 1 100 x 515 — laying the slices over an empty picture | | 58–60 ms |
+| at 1 100 x 515 — the march into its small picture | | 790–791 ms |
+| at the phone's pixel count (1 936 x 906) — laying | 203 ms | 209 ms |
+| at the phone's pixel count — the march | 1 971 ms | 2 006 ms |
+
+So at the phone's pixel count this branch's clouds cost **within two per cent** of the owning
+head's at the same view, and that head already carries most of package B (the four lines and the
+field). What the pair says is that the lenses, the anvils' torn edge, the mackerel sky's patches
+and the governor's floor are not where the cost is: the march is, and it is the same march.
+(Software WebGL counts work, never frames; the phone's own cost table decides. These numbers are
+from `buildC1`; what the rain's six fixes add is measured again in chain M9.)
 
 The six programs of the sky and what each asks of a phone (16 fragment textures, 15 varyings):
 the march 11 + 0 and 1 varying; the far low shell 9 + 2; the mid and high shells 8 + 0; the
 ground's two shade programs 5 + 0; Haven's globe 7 + 0.
 
-(The same view on an earlier build with one cell in reach and no far slices marched 203 ms: what
-the far slices and the model's five cells add is most of this. Software WebGL counts work, not
-frames; the phone's cost table is what decides.)
+(The same view on an earlier build with one cell in reach and no far slices marched 203 ms at
+1 100 x 515: what the far slices and the model's five cells add is most of the 790.)
 
-*(the runs at the phone's pixel count, and the fair day, land as they finish)*
+*(the fair day's pair lands as it finishes)*
 
 What the march reads, which is what the phone will feel:
 
