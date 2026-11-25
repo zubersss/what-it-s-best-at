@@ -300,7 +300,7 @@ export class App {
     this.trees = new Trees(world, this.terrain); this.trees.renderer = renderer;
     for (const set of this.trees.sets.flat(2)) {
       this.nearScene.add(set.mesh);
-      this.nearShadow.addCaster(set.cast, this.trees.depthMaterial, () => set.mesh.visible && (set.lod <= 1 || this.trees.shadowsFar));
+      this.nearShadow.addCaster(set.cast, this.trees.depthMaterial, () => set.mesh.visible && (set.lod <= 1 || this.trees.shadowsFar), () => this.trees.fineCount(set));
     }
     // (the far forest: the same trees as those near by, thinned with distance, out to some
     // kilometres; they rise out of the forest the ground shader raises as a whole)

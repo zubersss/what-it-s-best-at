@@ -75,6 +75,24 @@ async function loadAtlas(url) {
   return t;
 }
 
+// The wind in the trees (TREE_VERT), as numbers the shadow pass's fine count reads too:
+// the gusts' wave (radians a metre along the wind), how far a tree bends per metre of its
+// height and m/s of wind (in a gust, swinging), and how far a single leaf flutters (still
+// air, and more per m/s).
+export const GUST_K = 0.05, WIND_BEND = [0.004, 0.0025], WIND_FLUTTER = [0.0012, 0.0009];
+
+// How far a mesh reaches from the tree's foot, in tree heights (a tree is one unit tall, its
+// x and z scaled by its crown's width), and the most its vertices sway and flutter.
+function castBound(geo) {
+  const P = geo.attributes.position.array, S = geo.attributes.aSway.array;
+  let r = 0, lo = 0, hi = 0, sway = 0, flutter = 0;
+  for (let i = 0, j = 0; i < P.length; i += 3, j += 2) {
+    r = Math.max(r, Math.hypot(P[i], P[i + 2])); lo = Math.min(lo, P[i + 1]); hi = Math.max(hi, P[i + 1]);
+    sway = Math.max(sway, Math.abs(S[j])); flutter = Math.max(flutter, Math.abs(S[j + 1]));
+  }
+  return { r, lo, hi, sway, flutter };
+}
+
 export const TREE_VERT = /* glsl */`
 in vec4 iA;            // xyz: the tree's foot from the anchor (m, planet axes), w: its height (m)
 in vec4 iB;            // x: crown width, y: turn (radians), z: a number of its own (0..1), w: 1 if it drops its leaves
@@ -82,6 +100,7 @@ in float aLeaf; in vec2 aSway;      // aSway.x: how far the wind moves the verte
 in vec2 aUv;            // where in the trees' picture (a card of foliage, a whole tree's card); -1: a plain face
 uniform vec3 uAnchorRel, uTreeEast, uTreeNorth, uTreeUp;
 uniform vec4 uTreeWind;      // xyz: where the wind blows to (unit), w: its speed (m/s)
+uniform float uGustPhase;    // the gust's phase at the anchor (Trees.update): a tree's gust is its place's, whatever the anchor
 uniform vec3 uSeason;        // x: how far the leaves have turned, y: how bare the branches are, z: time (s)
 uniform float uTreeRadius;
 in float iF;                  // 1: a tree of the far list (its cards), drawn only outside uLodCut's radius (life/treeLod.js)
@@ -108,10 +127,12 @@ vec3 treePosition(out vec3 foot, out float leaf) {
   p.xz *= iB.x * (1.0 - 0.85 * gone) * edge;
   vec3 l = vec3(p.x * c - p.z * s, p.y, p.x * s + p.z * c) * iA.w;
   // wind: the whole tree leans a little and its crown swings, gust by gust, each tree in
-  // its own time; more the higher and the farther out a leaf is
-  float gust = 0.6 + 0.4 * sin(uSeason.z * 0.7 + dot(iA.xyz, uTreeWind.xyz) * 0.05 + iB.z * 6.28);
+  // its own time; more the higher and the farther out a leaf is (the gust's phase by the
+  // tree's place: from the anchor, plus the anchor's own, so that no tree lurches when the
+  // lists are made again from a new anchor)
+  float gust = 0.6 + 0.4 * sin(uSeason.z * 0.7 + dot(iA.xyz, uTreeWind.xyz) * ${GUST_K} + uGustPhase + iB.z * 6.28);
   float swing = sin(uSeason.z * (1.6 + iB.z) + iB.z * 40.0 + p.y * 3.0) * 0.5 + 0.5 * sin(uSeason.z * 3.7 + iB.z * 17.0 + p.x * 9.0);
-  float bend = aSway.x * iA.w * (0.004 * uTreeWind.w * gust + 0.0025 * uTreeWind.w * swing);
+  float bend = aSway.x * iA.w * (${WIND_BEND[0]} * uTreeWind.w * gust + ${WIND_BEND[1]} * uTreeWind.w * swing);
   // The far forest (life/farForest.js) draws the very same trees beyond this radius, with
   // the same picture at the same size: the two are cut against each other by distance from
   // the eye, and a tree is drawn by exactly one of them. (They used to shrink away over the
@@ -123,7 +144,7 @@ vec3 treePosition(out vec3 foot, out float leaf) {
   leaf = aLeaf;
   // (single leaves flutter, each in its own time, harder the harder it blows)
   vec3 flutter = vec3(0.0);
-  if (aLeaf > 1.5 && aLeaf < 3.5) { float ph = dot(position, vec3(41.0, 57.0, 73.0)) + iB.z * 31.0, amp = aSway.y * iA.w * (0.0012 + 0.0009 * uTreeWind.w); flutter = (uTreeEast * sin(uSeason.z * 7.3 + ph) + uTreeUp * sin(uSeason.z * 9.1 + ph * 1.7) + uTreeNorth * sin(uSeason.z * 6.1 + ph * 0.6)) * amp; }
+  if (aLeaf > 1.5 && aLeaf < 3.5) { float ph = dot(position, vec3(41.0, 57.0, 73.0)) + iB.z * 31.0, amp = aSway.y * iA.w * (${WIND_FLUTTER[0]} + ${WIND_FLUTTER[1]} * uTreeWind.w); flutter = (uTreeEast * sin(uSeason.z * 7.3 + ph) + uTreeUp * sin(uSeason.z * 9.1 + ph * 1.7) + uTreeNorth * sin(uSeason.z * 6.1 + ph * 0.6)) * amp; }
   return foot + (uTreeEast * l.x + uTreeUp * l.y + uTreeNorth * l.z + uTreeWind.xyz * bend + flutter) * fade;
 }
 vec3 treeNormal() {
@@ -176,7 +197,7 @@ export class Trees {
     this.shared = {
       ...lightingUniforms(), ...TREE_SHADE_UNIFORMS,
       uAnchorRel: { value: new THREE.Vector3() }, uTreeEast: { value: new THREE.Vector3(1, 0, 0) }, uTreeNorth: { value: new THREE.Vector3(0, 1, 0) }, uTreeUp: { value: new THREE.Vector3(0, 0, 1) },
-      uTreeWind: terrain.shared.uWind, uSeason: { value: new THREE.Vector3() }, uTreeRadius: { value: 240 }, uLodCut: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uTreeWind: terrain.shared.uWind, uGustPhase: { value: 0 }, uSeason: { value: new THREE.Vector3() }, uTreeRadius: { value: 240 }, uLodCut: { value: new THREE.Vector4(0, 0, 0, 0) },
       tTreeAtlas: { value: null },
     };
     // The trees' picture (made by scripts/make-tree-atlas.mjs). Until it has come, no tree is drawn.
@@ -341,6 +362,7 @@ export class Trees {
       // (a crown lets some of the Sun through: its shadow is flecked, not solid)
       fragmentShader: /* glsl */`${TREE_WOOD}
         uniform sampler2D tTreeAtlas; in float vLeaf; in vec2 vUv; in float vBare; in vec2 vBloom; layout(location = 0) out vec4 fragColor;
+        uniform ivec2 uShadowHashShift;     // this tile's texels counted on the ground (shadows/nearShadow.js)
         void main() {
           if (vUv.x >= 0.0) {
             vec3 cut = texture(tTreeAtlas, vUv).rgb;
@@ -350,8 +372,12 @@ export class Trees {
             bool wood = treeWood(cut), open = cut.b > 0.25 && !wood && vBloom.x >= 0.5;
             if (!open && !wood && vBloom.y > 0.5) discard;
           } else if (vLeaf > 0.5 && vBloom.y > 0.5) discard;
-          // (which pixels: scattered, not in rows; the shadow's soft edge blends them)
-          uvec2 q = uvec2(gl_FragCoord.xy); uint h = q.x * 1597334677u ^ q.y * 3812015801u; h ^= h >> 15; h *= 2246822507u; h ^= h >> 13;
+          // (which pixels: scattered, not in rows; the shadow's soft edge blends them. Each is
+          // the texel of the ground it falls on, not of the tile: a tile is drawn again a whole
+          // number of texels on as the traveller moves, and its own pixel would draw every
+          // fleck under every crown anew, fifteen times a second. One choice for all that a
+          // ray of the Sun passes, as before: a crown lets as much through, however deep.)
+          uvec2 q = uvec2(ivec2(gl_FragCoord.xy) + uShadowHashShift); uint h = q.x * 1597334677u ^ q.y * 3812015801u; h ^= h >> 15; h *= 2246822507u; h ^= h >> 13;
           if (vLeaf > 0.5 && float(h & 255u) < 80.0 + 150.0 * vBare) discard;
           fragColor = vec4(1.0);
         }`,
@@ -370,13 +396,17 @@ export class Trees {
       mesh.frustumCulled = false; mesh.visible = false; mesh.userData.lod = lod;
       return { geo, mesh, cap, iA, iB, iC, iD, iE, iF, count: 0, tris: base.attributes.position.count / 3, lod };
     })));
-    // What casts a tree's shadow: the next simpler mesh of the same tree (the nearest trees
-    // cast as their near mesh, those farther as their far mesh: two crossed pictures of
-    // the tree and a rosette in its crown). The shadow pass was drawing every spray of
-    // every tree within 150 m, as many triangles again as the view itself, into a map
-    // whose texels are 15 cm. set.cast: the mesh the shadow pass draws for the set.
+    // What casts a tree's shadow: its near mesh while the tree is drawn with skeleton and
+    // sprays (never the close mesh: every spray of every tree within 150 m was as many
+    // triangles again as the view itself), its far mesh (two crossed pictures of the tree
+    // and a rosette in its crown) once it is drawn so. A shadow then changes where the tree
+    // does, at the near radius, and nowhere nearer: cast by the far mesh from the close
+    // radius on, 25 to 70 % of a tree's shadow changed in one frame 20 m from the walker.
+    // The fine tile takes only the trees that can reach it (fineCount). set.cast: the mesh
+    // the shadow pass draws for the set.
     for (const variants of this.sets) for (const trio of variants) trio.forEach((s, lod) => {
-      const src = trio[Math.min(2, lod + 1)];
+      const src = trio[Math.max(1, lod)];
+      s.castBound = castBound(src.geo);
       if (src === s) { s.cast = s.mesh; return; }
       const g = new THREE.InstancedBufferGeometry();
       for (const name of ['position', 'normal', 'aLeaf', 'aSway', 'aUv']) g.setAttribute(name, src.geo.attributes[name]);
@@ -389,6 +419,7 @@ export class Trees {
     this.asked = 0; this.frame = 0; this.serial = -1;
     this.anchor = new THREE.Vector3(); this.builtAt = new THREE.Vector3(1e12, 0, 0); this.fineAt = new THREE.Vector3(1e12, 0, 0); this.nearest = 0; this.dirty = false;
     this.fraction = 1; this.shadowsFar = true; this.count = 0; this.triangles = 0; this.reach = 0;
+    this._gustO = new THREE.Vector3(); this._gustAt = new THREE.Vector3(); this._gustSet = false;
     this.names = '';                          // the species standing nearest, for anyone who asks
     this._e = [0, 0, 0]; this._n = [0, 0, 0]; this._u = [0, 0, 0];
     this.setWorld(world);
@@ -396,7 +427,7 @@ export class Trees {
 
   setWorld(world) {
     this.world = world; this.def = world.life?.trees || null;
-    this.blocks.clear(); this.asked = 0; this.gen = (this.gen || 0) + 1; this.sunStale = 0; this.sunDirty = false; this.dirty = true; this.serial = -1;
+    this.blocks.clear(); this.asked = 0; this.gen = (this.gen || 0) + 1; this.sunStale = 0; this.sunDirty = false; this.dirty = true; this.serial = -1; this._gustSet = false;
     this.shared.uSeason.value.set(0, 0, 0);
     for (const s of this.sets.flat(2)) { s.count = 0; s.geo.instanceCount = 0; if (s.castGeo) s.castGeo.instanceCount = 0; s.mesh.visible = false; }
     this.count = 0; this.triangles = 0; this.names = ''; this.falling = 0; this.reach = 0; this.blooming = []; this.day = 0;
@@ -501,6 +532,56 @@ export class Trees {
     const u = this.shared;
     u.uAnchorRel.value.subVectors(this.anchor, p);
     u.uTreeRadius.value = this.reach;
+    if (u.uGustPhase) u.uGustPhase.value = this._gustPhase();
+  }
+
+  // The gust's phase at the anchor (uGustPhase; TREE_VERT adds a tree's own from the anchor).
+  // The gusts are a wave that runs along the wind; its phase is measured from a point O that
+  // stays put while the lists are made again. Measured from the anchor itself, every tree's
+  // phase jumped at each new anchor and every tree (and its shadow) lurched 13 to 22 cm at
+  // once, every 25 m of a walk. O is taken again near each new anchor, a whole number of the
+  // wave's lengths along the wind from where it was: no tree's phase changes then.
+  _gustPhase() {
+    const w = this.shared.uTreeWind.value, A = this.anchor, O = this._gustO, w2 = w.x * w.x + w.y * w.y + w.z * w.z;
+    if (!(w2 > 1e-12)) return this.shared.uGustPhase.value;          // (no wind to run along)
+    if (!this._gustSet) { this._gustSet = true; O.copy(A); this._gustAt.copy(A); }
+    else if (!this._gustAt.equals(A)) {
+      const along = (A.x - O.x) * w.x + (A.y - O.y) * w.y + (A.z - O.z) * w.z, wave = 2 * Math.PI / GUST_K;
+      O.copy(A).addScaledVector(w, -(along - Math.round(along / wave) * wave) / w2);
+      this._gustAt.copy(A);
+    }
+    const ph = ((A.x - O.x) * w.x + (A.y - O.y) * w.y + (A.z - O.z) * w.z) * GUST_K;
+    return ph - 2 * Math.PI * Math.floor(ph / (2 * Math.PI));
+  }
+
+  // How many of a set's instances the shadow pass's fine tile draws (shadows/nearShadow.js,
+  // tile 1, fineCount): the first ones, as many as hold every tree whose shadow can fall on
+  // it. Read from where the tile is drawn this time (G.uShadowTile[1]: its middle, light
+  // space from the camera) and the light's axes (G.uShadowMatrix's first two rows). A tree is
+  // a cylinder about its trunk as wide as its crown and as tall as its tallest twig, and as
+  // much again as the wind can move its boughs and leaves (TREE_VERT). The lists are nearest
+  // first (the close and near ones from the eye, the far one from the anchor), so the trees
+  // that can reach the tile's square, 40 m across, come first: it drew every tree out to 240 m.
+  // (scripts/tree-shadow-test.mjs: none it leaves out can reach it, swayed by the wind.)
+  fineCount(s) {
+    const n = s.count, b = s.castBound;
+    if (!n || !b) return n;
+    const e = G.uShadowMatrix.value.elements, t = G.uShadowTile.value[1], R = 1 / t.z + 0.1;
+    const lx0 = e[0], lx1 = e[4], lx2 = e[8], ly0 = e[1], ly1 = e[5], ly2 = e[9];
+    const a = this.shared.uAnchorRel.value, up = this.shared.uTreeUp.value, W = this.shared.uTreeWind.value.w;
+    // (the anchor from the tile's middle, and a metre up, in light space)
+    const ax = a.x * lx0 + a.y * lx1 + a.z * lx2 - t.x, ay = a.x * ly0 + a.y * ly1 + a.z * ly2 - t.y;
+    const ux = up.x * lx0 + up.y * lx1 + up.z * lx2, uy = up.x * ly0 + up.y * ly1 + up.z * ly2;
+    // (how far the wind moves a bough or a leaf, per metre of the tree's height)
+    const wind = b.sway * (WIND_BEND[0] + WIND_BEND[1]) * W + b.flutter * (WIND_FLUTTER[0] + WIND_FLUTTER[1] * W) * 1.74;
+    const A = s.iA.array, B = s.iB.array;
+    for (let i = n - 1; i >= 0; i--) {
+      const k = 4 * i, h = A[k + 3], r = h * (b.r * B[k] + wind);
+      const x = ax + A[k] * lx0 + A[k + 1] * lx1 + A[k + 2] * lx2, y = ay + A[k] * ly0 + A[k + 1] * ly1 + A[k + 2] * ly2;
+      const x0 = x + ux * h * b.lo, x1 = x + ux * h * b.hi, y0 = y + uy * h * b.lo, y1 = y + uy * h * b.hi;
+      if (Math.max(x0, x1) + r > -R && Math.min(x0, x1) - r < R && Math.max(y0, y1) + r > -R && Math.min(y0, y1) - r < R) return i + 1;
+    }
+    return 0;
   }
 
   // The whole list, from the blocks that are in, measured from an anchor at the traveller's
