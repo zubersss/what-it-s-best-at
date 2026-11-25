@@ -30,6 +30,12 @@ read of the code found while those pictures were being taken** (checks 8 to 11 b
 That is what the brief's "have work that others built reviewed this way before it ships" is for:
 every one of them was found by reading, in files that had already passed a day of pictures.
 
+**Where to look in this file.** B0 (the job before the package) · What was built · Checks 1 to
+11 (each with its numbers and how it was seen to fail; 8 to 11 are the faults a cold read found
+on the last day) · Pictures · New scripts · The look numbers for `haven.js` · Cost · The
+checkpoint lines · What was asked of the main session (all done) · Views on Haven · What the
+pictures showed · A lesson for `CLAUDE.md` · Open · What is still running.
+
 ## B0 (the job before the package): step 0's GLSL on a GPU
 
 All of this is `f3a1eb7` (step 0's head), built once and served frozen from
