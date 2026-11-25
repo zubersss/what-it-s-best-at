@@ -26,7 +26,7 @@ const K = (name, habit, size, stem, petals, a, b, mid, pale = false) => ({ name,
 export const KINDS = [null,
   K('daisy', 'cup', 0.034, 0.62, 10, [0.82, 0.82, 0.76], [0.85, 0.80, 0.68], [0.80, 0.52, 0.03], true),
   K('poppy', 'cup', 0.056, 0.70, 4, [0.70, 0.045, 0.025], [0.78, 0.13, 0.03], [0.03, 0.02, 0.03]),
-  K('lupin', 'spike', 0.036, 0.90, 12, [0.16, 0.14, 0.58], [0.40, 0.20, 0.62], [0.50, 0.45, 0.70]),
+  K('lupin', 'spike', 0.036, 0.90, 12, [0.26, 0.26, 0.70], [0.50, 0.30, 0.70], [0.50, 0.45, 0.70]),
   K('buttercup', 'cup', 0.028, 0.55, 5, [0.82, 0.60, 0.03], [0.85, 0.72, 0.10], [0.70, 0.50, 0.03]),
   K('fireweed', 'spike', 0.036, 1.10, 12, [0.68, 0.16, 0.42], [0.55, 0.22, 0.55], [0.70, 0.30, 0.50]),
   K('orange poppy', 'cup', 0.046, 0.50, 4, [0.88, 0.36, 0.02], [0.85, 0.52, 0.03], [0.75, 0.30, 0.02]),
@@ -44,8 +44,8 @@ export const KINDS = [null,
   K('thrift', 'globe', 0.028, 0.40, 12, [0.72, 0.30, 0.58], [0.60, 0.26, 0.66], [0.72, 0.30, 0.58]),
   K('gentian', 'cup', 0.03, 0.14, 5, [0.06, 0.10, 0.62], [0.10, 0.16, 0.72], [0.70, 0.70, 0.60]),
   K('ox-eye daisy', 'cup', 0.062, 0.75, 12, [0.84, 0.84, 0.78], [0.86, 0.84, 0.74], [0.82, 0.56, 0.03], true),
-  K('sage', 'spike', 0.03, 0.50, 12, [0.38, 0.30, 0.62], [0.46, 0.40, 0.66], [0.46, 0.44, 0.52]),
-  K('bluebell', 'spike', 0.028, 0.36, 8, [0.18, 0.20, 0.66], [0.28, 0.26, 0.72], [0.30, 0.30, 0.70]),
+  K('sage', 'spike', 0.03, 0.50, 12, [0.46, 0.38, 0.70], [0.46, 0.40, 0.66], [0.46, 0.44, 0.52]),
+  K('bluebell', 'spike', 0.028, 0.36, 8, [0.26, 0.28, 0.72], [0.36, 0.32, 0.76], [0.30, 0.30, 0.70]),
   K('primrose', 'cup', 0.03, 0.16, 5, [0.86, 0.80, 0.42], [0.86, 0.84, 0.56], [0.82, 0.60, 0.05], true),
   K('paintbrush', 'spike', 0.034, 0.45, 10, [0.82, 0.12, 0.03], [0.86, 0.28, 0.03], [0.80, 0.40, 0.05]),
   K('cotton grass', 'globe', 0.03, 0.50, 12, [0.86, 0.86, 0.82], [0.84, 0.84, 0.78], [0.86, 0.86, 0.82], true),
@@ -130,7 +130,14 @@ const sat = (x) => Math.min(1, Math.max(0, x));
 // (4.7 m) passes it less `pool` times the other end of that drift; `hill`: how much harder
 // it is for them inside a hillside of one kind. (About a fifth of a meadow is each, in
 // clumps, more where one pools; see scripts/flower-rule-test.mjs.)
-export const COMPANY = { at: 0.77, pool: 0.24, hill: 0.16 };
+// A patch: the width of the blocks one kind leads (m), their edges pushed about by waves of
+// a block's width and more (bent strongly, never folded: from the air a block unbent was a
+// cobble of a quilt, and one bent by short waves folded into a mosaic).
+export const PATCH = 130;
+// How far into a patch (in a block's width) the next patch's kind mixes in from its edge.
+export const BLEND = 0.3;
+const smooth01 = (x) => { const t = sat(x); return t * t * (3 - 2 * t); };
+export const COMPANY = { at: 0.77, pool: 0.24, hill: 0.05 };
 // Which two companions stand among `lead` in a patch (h1, h2: the patch's own numbers):
 // each from the flora's `with`, by the number, the first after it in the list that is not
 // the leading kind, not the other companion, and of another habit than the leading kind's
@@ -162,19 +169,30 @@ export function flowersAt(X, Y, Z, flora, slope = 0, turf = false) {
   const meadow = noise3(X / 260 + 17, Y / 260, Z / 260 + 5), t0 = 0.64 - 0.28 * fl.rich;
   // (round a meadow a fringe where single drifts stand in plain grass; farther from one, nothing:
   // one noise settles most of the land, which matters to the ground's shader)
-  const rich = sat((meadow - t0) / 0.07), fringe = sat((meadow - t0 + 0.11) / 0.06);
+  const rich = sat((meadow - t0) / 0.1), fringe = sat((meadow - t0 + 0.11) / 0.06);
   let hill = 0;
   if (slope > 0.16) hill = sat((slope - 0.16) / 0.12) * sat((noise3(X / 420 + 5, Y / 420 + 3, Z / 420 + 11) - 0.5) / 0.08);
   if (fringe <= 0 && hill <= 0) return 0;
   const drift = noise3(X / 9 + 40, Y / 9, Z / 9);
-  const many = fl.many * Math.max(rich * (0.45 + 0.75 * sat((drift - 0.25) / 0.4)), 0.5 * fringe * sat((drift - 0.6) / 0.15), 1.1 * hill);
+  let many = fl.many * Math.max(rich * (0.45 + 0.75 * sat((drift - 0.25) / 0.4)), 0.5 * fringe * sat((drift - 0.6) / 0.15), 1.1 * hill);
   if (many <= 0.01) return 0;
   // (the patch: blocks of 110 m with bent edges, each of their three coordinates pushed about
   // by a wave of its own. By the levels of one smooth noise, the kinds lay in rings round
   // each other, the middle ones as thin bands; blocks unbent were a quilt of squares.)
-  const bx = Math.floor(X / 110 + 0.45 * Math.sin(Y / 41 + Z / 67)), by = Math.floor(Y / 110 + 0.45 * Math.sin(Z / 37 + X / 59)), bz = Math.floor(Z / 110 + 0.45 * Math.sin(X / 43 + Y / 61));
+  const vx = X / PATCH + 0.9 * Math.sin(Y / 190 + Z / 230) + 0.25 * Math.sin(Z / 47 + Y / 53), vy = Y / PATCH + 0.9 * Math.sin(Z / 181 + X / 241) + 0.25 * Math.sin(X / 43 + Z / 59), vz = Z / PATCH + 0.9 * Math.sin(X / 197 + Y / 223) + 0.25 * Math.sin(Y / 41 + X / 61);
+  const bx = Math.floor(vx), by = Math.floor(vy), bz = Math.floor(vz);
   const n = fl.lead.length, lead = hill > 0.5 ? fl.slope : fl.lead[Math.min(n - 1, Math.floor(hash3(bx, by, bz) * n))];
+  // (toward a patch's edge the next patch's kind mixes in, plant by plant, half and half at the
+  // edge itself: from the air one patch's colour fades into the next, never meets it along a line)
   let kind = lead;
+  if (hill <= 0.5) {
+    const fx = vx - bx, fy = vy - by, fz = vz - bz, ex = Math.min(fx, 1 - fx), ey = Math.min(fy, 1 - fy), ez = Math.min(fz, 1 - fz);
+    const e = Math.min(ex, ey, ez), w = 0.5 * (1 - smooth01(e / BLEND));
+    if (w > 0 && hash3(Math.floor(X / 0.9) + 5, Math.floor(Y / 0.9), Math.floor(Z / 0.9) + 9) < w) {
+      const nx = bx + (ex === e ? (fx < 0.5 ? -1 : 1) : 0), ny = by + (ex !== e && ey === e ? (fy < 0.5 ? -1 : 1) : 0), nz = bz + (ex !== e && ey !== e ? (fz < 0.5 ? -1 : 1) : 0);
+      kind = fl.lead[Math.min(n - 1, Math.floor(hash3(nx, ny, nz) * n))];
+    }
+  }
   // the companions: two to the patch, in clumps some metres across among the leading kind,
   // pooling here and there into drifts of their own (where one pools the other is scarce);
   // a hillside of one kind keeps its colour, with companions toward its edges
@@ -242,21 +260,30 @@ export const FLOWERS_GLSL = /* glsl */`
   // How many flowers a place has (0: none) and its patch: the kind that leads there, its
   // two companions, how far the place is inside a hillside of one kind. blur (0..1): the
   // fine drifts (9 m) by their mean, for a pixel too wide to tell them.
-  float flowerBase(vec3 P, int flora, float slope, vec2 fields, float blur, out int lead, out int ca, out int cb, out float hill) {
-    lead = 0; ca = 0; cb = 0; hill = 0.0;
+  float flowerBase(vec3 P, int flora, float slope, vec2 fields, float blur, out int lead, out int ca, out int cb, out float hill, out int next, out float nextShare) {
+    lead = 0; ca = 0; cb = 0; hill = 0.0; next = 0; nextShare = 0.0;
     if (flora <= 0 || flora >= FLORA_N) return 0.0;
     float meadow = fields.x, t0 = FLORA_RICH[flora];
-    float rich = clamp((meadow - t0) / 0.07, 0.0, 1.0), fringe = clamp((meadow - t0 + 0.11) / 0.06, 0.0, 1.0);
+    float rich = clamp((meadow - t0) / 0.1, 0.0, 1.0), fringe = clamp((meadow - t0 + 0.11) / 0.06, 0.0, 1.0);
     if (slope > 0.16) hill = clamp((slope - 0.16) / 0.12, 0.0, 1.0) * clamp((fields.y - 0.5) / 0.08, 0.0, 1.0);
     if (fringe <= 0.0 && hill <= 0.0) return 0.0;
     float drift = blur < 1.0 ? flNoise(P / 9.0 + vec3(40.0, 0.0, 0.0)) : 0.5;
     float inMeadow = mix(clamp((drift - 0.25) / 0.4, 0.0, 1.0), 0.587, blur), inFringe = mix(clamp((drift - 0.6) / 0.15, 0.0, 1.0), 0.192, blur);
     float many = FLORA_MANY[flora] * max(max(rich * (0.45 + 0.75 * inMeadow), 0.5 * fringe * inFringe), 1.1 * hill);
     if (many <= 0.01) return 0.0;
-    vec3 bc = floor(P / 110.0 + 0.45 * sin(P.yzx / vec3(41.0, 37.0, 43.0) + P.zxy / vec3(67.0, 59.0, 61.0)));
+    vec3 bv = P / ${PATCH.toFixed(1)} + 0.9 * sin(P.yzx / vec3(190.0, 181.0, 197.0) + P.zxy / vec3(230.0, 241.0, 223.0)) + 0.25 * sin(P.zxy / vec3(47.0, 43.0, 41.0) + P.yzx / vec3(53.0, 59.0, 61.0)), bc = floor(bv), bf = bv - bc;
     uvec3 bu = uvec3(ivec3(bc));
     int n = FLORA_COUNT[flora];
     lead = hill > 0.5 ? FLORA_SLOPE[flora] : FLORA_LEAD[flora * 6 + min(n - 1, int(flHash(bu) * float(n)))];
+    // (the next patch's kind toward the edge: which, and its share there; see flowersAt in JavaScript)
+    next = lead; nextShare = 0.0;
+    if (hill <= 0.5) {
+      vec3 be = min(bf, 1.0 - bf);
+      float e = min(be.x, min(be.y, be.z));
+      nextShare = 0.5 * (1.0 - smoothstep(0.0, ${BLEND.toFixed(3)}, e));
+      vec3 step3 = be.x == e ? vec3(bf.x < 0.5 ? -1.0 : 1.0, 0.0, 0.0) : be.y == e ? vec3(0.0, bf.y < 0.5 ? -1.0 : 1.0, 0.0) : vec3(0.0, 0.0, bf.z < 0.5 ? -1.0 : 1.0);
+      next = FLORA_LEAD[flora * 6 + min(n - 1, int(flHash(uvec3(ivec3(bc + step3))) * float(n)))];
+    }
     ca = flPick(flora, lead, flHash(bu + uvec3(7u, 3u, 0u)), -1);
     cb = flPick(flora, lead, flHash(bu + uvec3(0u, 11u, 5u)), ca);
     return min(0.9, many);
@@ -269,10 +296,11 @@ export const FLOWERS_GLSL = /* glsl */`
   // The flowers at a place, as JavaScript's flowersAt (without the turf): vec2(kind, how many),
   // of a pale kind less (see KINDS).
   vec2 flowersAt(vec3 P, int flora, float slope, vec2 fields) {
-    int lead, ca, cb; float hill;
-    float many = flowerBase(P, flora, slope, fields, 0.0, lead, ca, cb, hill);
+    int lead, ca, cb, next; float hill, nextShare;
+    float many = flowerBase(P, flora, slope, fields, 0.0, lead, ca, cb, hill, next, nextShare);
     if (many <= 0.0) return vec2(0.0);
     vec2 thr = flowerCompany(P, hill);
+    if (nextShare > 0.0 && flHash(uvec3(ivec3(floor(P / 0.9))) + uvec3(5u, 0u, 9u)) < nextShare) lead = next;
     int kind = flNoise(P / 6.5 + vec3(61.0, 0.0, 13.0)) > thr.x ? ca : flNoise(P / 4.7 + vec3(23.0, 51.0, 0.0)) > thr.y ? cb : lead;
     return vec2(float(kind), many * (kind > 1 && KIND_PALE[kind] > 0.5 ? 0.45 : 1.0));
   }
@@ -285,8 +313,8 @@ export const FLOWERS_GLSL = /* glsl */`
   // 0.5 on a share of about 0.5 (1 - (t - 0.5) / 0.45)^2 of the land): a meadow from the air
   // is soft drifts of its colours, never specks.
   vec4 flowerTint(vec3 P, int flora, float slope, vec2 fields, float fpx) {
-    int lead, ca, cb; float hill;
-    float many = flowerBase(P, flora, slope, fields, smoothstep(3.0, 8.0, fpx), lead, ca, cb, hill);
+    int lead, ca, cb, next; float hill, nextShare;
+    float many = flowerBase(P, flora, slope, fields, smoothstep(3.0, 8.0, fpx), lead, ca, cb, hill, next, nextShare);
     if (many <= 0.0) return vec4(0.0);
     vec2 thr = flowerCompany(P, hill), mean = 0.5 * pow(1.0 - clamp((thr - 0.5) / 0.45, 0.0, 1.0), vec2(2.0));
     float sharp = 1.0 - smoothstep(0.8, 2.5, fpx);
@@ -299,7 +327,8 @@ export const FLOWERS_GLSL = /* glsl */`
     }
     vec3 w = vec3(1.0 - share.x - share.y, share) * vec3(KIND_PALE[lead] > 0.5 ? 0.45 : 1.0, KIND_PALE[ca] > 0.5 ? 0.45 : 1.0, KIND_PALE[cb] > 0.5 ? 0.45 : 1.0);
     float sw = max(w.x + w.y + w.z, 1e-4);
-    vec3 col = (w.x * mix(KIND_A[lead], KIND_B[lead], 0.5) + w.y * mix(KIND_A[ca], KIND_B[ca], 0.5) + w.z * mix(KIND_A[cb], KIND_B[cb], 0.5)) / sw;
+    vec3 leadCol = mix(mix(KIND_A[lead], KIND_B[lead], 0.5), mix(KIND_A[next], KIND_B[next], 0.5), nextShare);
+    vec3 col = (w.x * leadCol + w.y * mix(KIND_A[ca], KIND_B[ca], 0.5) + w.z * mix(KIND_A[cb], KIND_B[cb], 0.5)) / sw;
     return vec4(col, many * sw);
   }
   // a flower's colour (own: 0..1, the flower's own number)

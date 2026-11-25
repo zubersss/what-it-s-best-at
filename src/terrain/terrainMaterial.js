@@ -756,7 +756,7 @@ void main() {
       if (fw.a > 0.0) {
         // (thickest in a drift's heart, nothing at its edge; near by broken softly by a noise
         // some metres across, never single specks)
-        float fk = smoothstep(0.0, 0.55, fw.a);
+        float fk = 0.5 * smoothstep(0.0, 0.6, fw.a);
         if (fpx < 1.5) fk *= mix(0.55 + 0.9 * flNoise(planetPos / 4.5 + vec3(7.0, 0.0, 3.0)), 1.0, smoothstep(0.4, 1.5, fpx));
         // (less where the ground is looked along far off, where colour piles up along the
         // skyline; looked down on, the whole of it. Where the grass's own paint gives way to the

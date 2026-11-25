@@ -66,8 +66,8 @@ export const RINGS = [
 // blades of the far grass are stalks in flower (BLADE_VERT), and the ground has its dusting.
 // light: which ring's stretch of the light table they read.
 const FLOWERS = [
-  { grid: 100, spacing: 0.32, seed: 91, table: 'near', out: [12, 15.5], petals: 14, leaves: 2, grow: 0.03, light: 1 },
-  { grid: 128, spacing: 0.8, seed: 131, table: 'mid', in: [12, 15.5], out: [38, 50], petals: 6, leaves: 0, grow: 0.03, light: 3 },
+  { grid: 100, spacing: 0.32, seed: 91, table: 'near', out: [12, 15.5], petals: 14, leaves: 2, grow: 0.018, light: 1 },
+  { grid: 128, spacing: 0.8, seed: 131, table: 'mid', in: [12, 15.5], out: [38, 50], petals: 6, leaves: 0, grow: 0.018, light: 3 },
 ];
 // The far blades in flower take over from the last single flowers wherever those are not
 // kept: over the stretch where they go out (its `out`), and as they go with the traveller's
@@ -359,7 +359,7 @@ const FLOWER_VERT = /* glsl */`
     vec3 ax = uGrassEast * cos(turn) + uGrassNorth * sin(turn), ay = cross(uGrassUp, ax);
     // which way the head faces: up, tilted its own way, and a little toward the Sun
     vec3 sunFlat = uSunDir - uGrassUp * dot(uSunDir, uGrassUp);
-    vec3 face = normalize(uGrassUp + ax * (0.25 + 0.45 * h3.y) + sunFlat * 0.3);
+    vec3 face = normalize(uGrassUp + ax * (0.3 + 0.65 * h3.y) + sunFlat * 0.3);
     vec3 col, rel, pn = face; float skyShare = 1.0;
     float petal = aPart - 1.0 - float(LEAVES);          // which petal (0 .. NPET - 1); NPET: the middle
     vec3 petalCol = clock ? vec3(0.80, 0.80, 0.76) : petalColour(kind, fract(h2.y + (habit > 1.5 || habit < 0.5 ? petal * 0.37 : 0.0)));
@@ -368,9 +368,9 @@ const FLOWER_VERT = /* glsl */`
     if (aPart < 0.5) {
       // the stem: a ribbon from the foot to the head, never thinner than about a pixel
       if (habit < 0.5 || habit > 4.5) OUT_OF_PICTURE
-      float sw = max(0.0045 * (1.0 + 0.4 * shp.z), 0.7 * px);
+      float sw = max(0.0045 * (1.0 + 0.4 * shp.z), 0.5 * px);
       rel = mix(foot, top, position.y) + side * position.x * sw * (1.0 - 0.4 * position.y);
-      col = grassColour(0.0, 0.35 + 0.55 * position.y); skyShare = 0.6 + 0.4 * position.y; pn = uGrassUp;
+      col = grassColour(0.1, 0.25 + 0.4 * position.y); skyShare = 0.5 + 0.3 * position.y; pn = uGrassUp;
     } else if (petal < 0.0) {
       // a leaf at the foot, out to one side and the other
       if (habit < 0.5 || habit > 4.5) OUT_OF_PICTURE
@@ -399,16 +399,17 @@ const FLOWER_VERT = /* glsl */`
       // (few petals: broad ones that overlap, a poppy's deep bowl; many: narrow rays, a daisy's, nearly flat)
       float wx = (n < 4.5 ? 2.0 : n < 6.5 ? 1.45 : 6.6 / n), deep = n < 4.5 ? 0.62 : n < 6.5 ? 0.42 : 0.18, big = shp.y > 0.08 ? 1.15 : 1.0;
       vec2 q0 = mid ? vec2(position.x * 1.1 * big, position.y * 0.34 * big - 0.17 * big) : vec2(position.x * wx, position.y), q = vec2(q0.x * c - q0.y * s, q0.x * s + q0.y * c);
-      float lift = mid ? 0.1 : deep * position.y * position.y;
+      float lift = mid ? 0.08 + 0.22 * position.y : deep * position.y * position.y;
       rel = top + (a * q.x + b * q.y + face * lift) * size;
       // (a petal's own lie: rising toward its tip, the bowl's inside facing in and up)
       pn = mid ? face : normalize(face - (a * c + b * s) * (2.0 * deep * position.y));
       col = mid ? KIND_MID[ki] : petalCol * (0.80 + 0.28 * position.y);
     } else if (habit < 2.5) {
       // a spike: florets one above another up the top of the stem, round it in turn, smaller toward the tip
+      // (full enough to read as one tall coloured spire among the grass, not a few specks)
       float n = min(shp.w, float(NPET));
       if (petal > n - 0.5) OUT_OF_PICTURE
-      float t = petal / max(n - 1.0, 1.0), a = petal * 2.39996 + turn, s = size * (1.35 - 0.75 * t) * (14.0 / (8.0 + float(NPET)));
+      float t = petal / max(n - 1.0, 1.0), a = petal * 2.39996 + turn, s = size * (1.35 - 0.75 * t) * (24.0 / (8.0 + float(NPET)));
       vec3 c = mix(foot, top, 0.56 + 0.44 * t), o = ax * cos(a) + ay * sin(a);
       // (a foxglove's bells hang; a lupin's florets stand out and up)
       float droop = ki == 12 || ki == 22 ? -0.75 : 0.35;

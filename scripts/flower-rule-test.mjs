@@ -6,7 +6,7 @@
 //     has about half the places, and three kinds and more show in nearly every square;
 //   - the companions are of other habits than the kind they stand among, where the flora has such;
 //   - the ground's mean share of the companions (flowerTint's formula) is the rule's own share;
-//   - on a thickly flowered hillside the flora's slope kind, companions only toward its edges;
+//   - on a thickly flowered hillside the flora's slope kind leads (two places in three), companions sparse inside, more at its edges;
 //   - asking for the turf kinds changes which kind, never how many; the same place answers the same twice;
 //   - the GLSL carries every flora and kind (the tables' sizes) and no backtick or reserved word of GLSL ES 3.
 import { KINDS, FLORAS, HABIT, COMPANY, flowerCompanions, flowersAt, floraAt, flowerTable, floraNamed, FLOWERS_GLSL, DEFAULT_FLOWERS } from '../src/life/grassRules.js';
@@ -55,7 +55,7 @@ for (let fi = 1; fi < FLORAS.length; fi++) {
   // a hillside: where it flowers thickly, the slope's kind alone
   let hill = 0, alone = 0;
   for (let j = 0; j < 4000; j += 20) for (let i = 0; i < 4000; i += 20) { const v = flowersAt(...at(i, j), fi, 0.32), w = flowersAt(...at(i, j), fi, 0); if (v - Math.floor(v) > 0.6 * f.many && !w) { hill++; if (Math.floor(v) === f.slope) alone++; } }
-  check(hill > 200 && alone / hill > 0.8, `${f.name}: hillsides of its slope kind, companions at the edges (${hill} places, ${(alone / Math.max(1, hill)).toFixed(2)} the slope kind)`);
+  check(hill > 200 && alone / hill > 0.62, `${f.name}: hillsides led by its slope kind, companions sparse inside and more at the edges (${hill} places, ${(alone / Math.max(1, hill)).toFixed(2)} the slope kind)`);
   // the turf kinds: which, never how many
   let diff = 0, turfed = 0, any = 0;
   for (let j = 0; j < 400; j += 2) for (let i = 0; i < 400; i += 2) { const p = at(1000 + i, 1000 + j), v = flowersAt(...p, fi, 0, false), w = flowersAt(...p, fi, 0, true); if (v) any++; if (Math.abs((v - Math.floor(v)) - (w - Math.floor(w))) > 1e-9 || !v !== !w) diff++; if (v && Math.floor(w) !== Math.floor(v)) { turfed++; check(Math.floor(w) === f.turf, `${f.name}: the turf kind is the flora's`); } if (flowersAt(...p, fi, 0, true) !== w) diff++; }
