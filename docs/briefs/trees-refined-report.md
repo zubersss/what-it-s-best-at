@@ -4,6 +4,61 @@ Branch `ccr-aa39490a-trees-refined`. Brief: `trees-refined.md` beside this file.
 Pictures: `docs/shots/trees-refined/`. Written as the work went; the newest state is at
 the top of each section.
 
+## Third round (the picture critic, `haven-rich-critic.md`, gaps 1 and 4)
+
+**Gap 1, the near trees from 90 to 300 m up: flat stickers, white snowflakes, tan scraps.**
+What a tree is to anyone looking down on it is the far mesh's rosette (near trees from 60 to
+240 m, and the far forest, which reads its picture off the same mesh). It was a star of
+sprays laid round a middle, the very picture a bunch's dark heart is made of: from the air
+a leaf-shaped stencil in one tone, a snowflake on a tree in flower. Now the crown top has
+pictures of its own (`treeAtlasGen.crownTop`, in the atlas's five free whole-tree cells,
+`CROWNS` in `treeAtlasLayout.js`): a dark inside under everything (nothing is seen through),
+clumps over it, each a small dome with a cut edge of leaves or needles, the middle ones
+highest and lightest, the rim darker all round; the blossom one is petals over the clumps
+with young leaves at their feet. Which side the Sun lights is the mesh's (its normals lean
+outward), as before. The far forest takes the new picture with no change to its code (it
+reads the rosette's place in the atlas off the far mesh): near and far stay one tree.
+A cherry's palest is now a pale pink (white was mixed in at 0.72, and from above every
+texel looks up: a white splat); the blackthorn's flowers are white (they were a beige the
+painted light turned tan: the "tan scraps on the canopy"). Hearts inside bunches keep the
+old rosettes.
+- `crowns_from_above_sketch_before_after3.png` (`far-tree-above.mjs`, no browser): woods
+  at 150 and 450 m looked down on at 15, 35, 60 and 90 degrees, old left, new right: from
+  60 degrees down a quilt of rounded crowns with darker rims instead of leafy stars.
+- `above100_before_after3.png`: the opening place from 100 m, 60 degrees down (top: the
+  second round; bottom: this one): the cherries rounded pink clouds, not white stars.
+  The blackthorns there are still tan (that build predates their colour).
+- `air90_before_after3.png`: 90 m up, 20 degrees down: little changes at that angle (the
+  crown tops come in from about 50 degrees down); the white stars along the bottom are pink.
+
+**Gap 4, the cherry close by: a jumble of salmon sheets and floating black rods.** The
+blossom tree (shape 8) is rebuilt on its skeleton: the limbs leave the fork as curves
+(five-point quadratic tubes, tapering all the way) and fork twice, into branches and then
+twigs, and every twig end and every fork's underside carries a cluster; the clusters'
+sprays are turned to face out of the crown and up (`twigs(..., face)`), so from outside
+they are flowers and not cards on edge, and only the ends and one knee carry them, with
+sky between. The middle-distance mesh is the same tree, and the whole-tree pictures were
+made again from it.
+- `cherry_preview_after3.png` (`tree-preview`): the three makes and the close mesh from 4 m.
+- `cherry_6m_before_after3.png`: the wild cherry by the opening place from 6 m up the
+  slope, looking back at it: before, sheets crossing at every angle; after, a trunk forking
+  into curving limbs that carry clouds of blossom, deep rose inside, pale outside.
+
+**Cost.** The crown top is the same quad as the rosette it replaces (no triangle, no layer
+more). A close cherry is 4 778 triangles (was 4 128), a near one 744 (was 520). Overdraw at
+the opening view (`overdraw.mjs --part trees --query pitch=-3`, 880 x 412): 8 076 triangles
+handed over (was 7 908), 0.49 layers a pixel over the picture and 3.27 where the trees are
+(was 0.49 and 3.28). The forest view has no flowering trees: unchanged.
+
+**Known problems.**
+1. From 50 to 68 degrees down the whole-tree pictures are still drawing in (the far tree's
+   rule, `farTreeForm.js`): a tree there is a narrowed side picture over its new crown top.
+2. The crown tops are lit by four corner normals: the light falls across them as a
+   gradient, and their roundness otherwise comes from the picture's own tone (static).
+3. Out of flower and in winter the crown tops follow the near trees' rules (a bare tree's
+   crown top drops its leaves: it shows nothing from above).
+4. Not measured on a phone.
+
 ## Second round (brief `trees-refined-2.md`): the cold review's seven, fixed in motion
 
 The cold review (`haven-rich-review.md`, trees-1 to trees-7, wiring-1 and 2, and the owning
