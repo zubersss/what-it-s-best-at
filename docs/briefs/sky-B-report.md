@@ -8,10 +8,12 @@ at each place (so the sky no longer follows the traveller), heaps and decks cut 
 rule that the volume, the far shell and C's shade atlas all read, storm cells with their own
 shape, their two tones, their slate depth, their anvils and their rain shafts, out to 200 km;
 altocumulus and cirrus on shells above, mist lying in the basins, lenticular plates standing
-over the ranges, and Haven's globe wearing the weather of the hour. **Four lines in
-`src/sky/skySystem.js` are the main session's to add** ("Asked of the main session"): without
-them nothing of `upperClouds.js`, `fogSheet.js` or `lenticulars.js` is ever built, and Haven's
-field is only on under `?debug=sky:...`.
+over the ranges, and Haven's globe wearing the weather of the hour. The four lines
+`src/sky/skySystem.js` needed are in the owning branch now, and this branch has merged it back,
+so what is left here is **eleven commits the model's own pictures found**: the lenses (never
+drawn at all, twice over), the anvils (a hole over every tower, and all of them at the shell's
+height instead of their own), the storms at the governor's floor (a ring of clear sky where a
+tower should be), and the three cadences that keep the page's work down.
 
 ## B0 (the job before the package): step 0's GLSL on a GPU
 
