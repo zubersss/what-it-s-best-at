@@ -386,7 +386,15 @@ renderer. A's model paints the real cover.
    under it, and the one nine kilometres ahead never got a plate. They are sorted by distance
    now, and anything beyond the horizon for its own height is dropped (the check is in
    `scripts/lens-list-test.mjs`).
-8. **The anvil from 35 km** (`haven_ledge_M_storm35.png`) was the brightest thing in the frame —
+8. **At the governor's floor the sky had a hole in it** (`haven_ledge_M_floor.png`): a dark ring
+   of clear sky in the mackerel field where the tower should have stood. The shells cut
+   themselves where a tower passes through — and the tower was never marched. "The volume off
+   near the traveller, the cells still marched" asked the LAST frame's cell list, which only
+   `render()` sets, and `render()` does not run while the volume is off: it could never start.
+   It now asks the cells the sky system has already packed for the shaders this frame, which is
+   what the march reads anyway (bd3e9e6). The floor is the picture that found it, which is the
+   lesson about looking at `?debug=floor` after adding steps.
+9. **The anvil from 35 km** (`haven_ledge_M_storm35.png`) was the brightest thing in the frame —
    a smooth cream disc on a stalk, at 209/180/152 against a sky at 71/94/131. Seen from below an
    anvil is grey: 0.45 of its sunlit top became 0.32, and the cirrus strokes now thin and thicken
    the sheet itself, so it is drawn-out ice rather than a plate (225dcd2). What stays, and is not
