@@ -745,7 +745,9 @@ void main() {
     // edge (as a soft ramp the edge was an airbrushed blur, and its half-canopy half-ground
     // colour a glowing yellow-olive fringe along every wood). (The domes' heights average
     // FAR_GROUND.clumpZ at every scale: the edge stays where the map puts it.)
-    float kcE = (1.0 - smoothstep(0.05, 0.16, fwC)) * smoothstep(0.12, 0.45, dot(V, up)), kgE = 1.0 - smoothstep(0.14, 0.42, fwC);
+    // (the single crowns only where they were worked out: within 3 km they are not, and read
+    // as nought they opened the canopy in holes along its triangles, straight-edged facets)
+    float kcE = (1.0 - smoothstep(0.05, 0.16, fwC)) * smoothstep(0.12, 0.45, dot(V, up)) * smoothstep(3000.0, 4500.0, dist), kgE = 1.0 - smoothstep(0.14, 0.42, fwC);
     // (where a pattern was not worked out, its weight is nought or the canopy is not drawn at all)
     float patH = mix(mix(mix(${FAR_GROUND.clumpZ.toFixed(3)}, cz.z, kz), cg.z, kgE), cr.z, kcE);
     float sharp = max(max(kz, kgE), kcE);
