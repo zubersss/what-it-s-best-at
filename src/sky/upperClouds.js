@@ -163,7 +163,11 @@ void main() {
   if (alpha < 0.004) discard;
   // light: the Sun through the air at this height (so it goes gold and then pink after the land's
   // sunset), the sky from above and below
-  float mu0 = dot(up, uSunDir), cs = dot(normalize(-vRel), uSunDir);
+  // (the cosine between the way one is LOOKING and the Sun, as the march and the far shell have
+  // it (cloudVolume.js gCs, clouds.js cs): from the vector toward the eye instead, which is what
+  // stood here, every ice effect was put opposite the Sun — the bright rim and the 22-degree halo
+  // ringing the antisolar point, where a real sky has neither.)
+  float mu0 = dot(up, uSunDir), cs = dot(normalize(vRel), uSunDir);
   vec3 sun = directSun(planetPos) * smoothstep(-0.09, 0.06, mu0);
   // (ice: a bright rim toward the Sun, and the 22-degree halo of a cirrostratus veil)
   float fwd = 0.75 + 0.9 * pow(max(cs, 0.0), 8.0);

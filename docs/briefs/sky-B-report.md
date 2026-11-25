@@ -272,6 +272,19 @@ stands under a range and looks at them — were laid bottom over top. They are n
 farthest first. Seen to fail with the sort taken out ("1 km, 1 km, 0 km, 5 km, 25 km" instead of
 "25 km, 5 km, 1 km, 1 km, 0 km").
 
+**11. The cirrus's ice effects were put opposite the Sun — found by reading, fixed.** The upper
+shells worked out the cosine between the line of sight and the Sun from the vector pointing
+TOWARD the eye, where the march (`cloudVolume.js`, `gCs = dot(dir, uSunDir)`) and the far low
+shell (`clouds.js`, `cs = dot(-V, uSunDir)` with `V` toward the eye) both take it from the way one
+is looking. Its sign was therefore flipped: the bright rim ice shows toward the Sun and the
+22-degree halo of a cirrostratus veil were both drawn round the ANTISOLAR point, where a real sky
+has neither, and nothing at all appeared within 30 degrees of the Sun. It is now
+`dot(normalize(vRel), uSunDir)`, as its two siblings have it. The pictures do not settle this one
+(a halo at 0.062 and a rim of cos^8 are faint against a cirrus sheet, and no picture of the set
+looks within 22 degrees of the Sun with high cloud in it); the physics and the two files beside
+it do, and the numbers `HALO` and the rim's strength were tuned with the fault in, so they may
+want another look once a picture faces the Sun.
+
 **The parity of every JS twin with its GLSL** (`scripts/sky-system-test.mjs`, which runs the
 shared texts through `scripts/lib/glslRun.mjs` at a grid of points): passes on the merged build,
 as do `sky-steer-test`, `sky-format-test`, `sky-cell-test`, `sky-model-test`, `governor-sim`,
