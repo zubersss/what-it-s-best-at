@@ -722,11 +722,11 @@ void main() {
       // (and within the far trees' reach the trees are the crowns: the canopy under them is
       // the dark between them, its own domes only a hint, or each tree stood on an oval of
       // its own, the same oval over and over)
-      // (the single crowns, 8 m, not at all there: the far trees' own tops are those, and the
-      // two together were an even field of small round blobs, "bubble wrap"; the stands, 21 m,
-      // at half strength)
-      float underTrees = mix(0.55, 1.0, smoothstep(3000.0, 5600.0, dist));
-      kc *= smoothstep(3000.0, 4500.0, dist); kg *= underTrees;
+      // (neither the single crowns, 8 m, nor the stands, 21 m, within the far trees' reach: the
+      // trees' own tops are the crowns there. With the crowns, an even field of small round
+      // blobs, "bubble wrap"; with the stands alone, their tilted domes met along straight
+      // lines, large angular facets. The wood's larger tones come from the shared tone below.)
+      kc *= smoothstep(3000.0, 4500.0, dist); kg *= smoothstep(3000.0, 4500.0, dist);
       if (kg > 0.0) {
         cg = crowns(vDetailUv + 0.37, 3.0);
         N = normalize(N + (uTanU * cg.x + uTanV * cg.y) * (farCrownTilt(true) * kg));
@@ -747,7 +747,7 @@ void main() {
     // FAR_GROUND.clumpZ at every scale: the edge stays where the map puts it.)
     // (the single crowns only where they were worked out: within 3 km they are not, and read
     // as nought they opened the canopy in holes along its triangles, straight-edged facets)
-    float kcE = (1.0 - smoothstep(0.05, 0.16, fwC)) * smoothstep(0.12, 0.45, dot(V, up)) * smoothstep(3000.0, 4500.0, dist), kgE = 1.0 - smoothstep(0.14, 0.42, fwC);
+    float kcE = (1.0 - smoothstep(0.05, 0.16, fwC)) * smoothstep(0.12, 0.45, dot(V, up)) * smoothstep(3000.0, 4500.0, dist), kgE = (1.0 - smoothstep(0.14, 0.42, fwC)) * smoothstep(3000.0, 4500.0, dist);
     // (where a pattern was not worked out, its weight is nought or the canopy is not drawn at all)
     float patH = mix(mix(mix(${FAR_GROUND.clumpZ.toFixed(3)}, cz.z, kz), cg.z, kgE), cr.z, kcE);
     float sharp = max(max(kz, kgE), kcE);
