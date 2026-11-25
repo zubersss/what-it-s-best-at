@@ -899,12 +899,18 @@ export class CloudVolume {
       r.clear(true, false, false);
       r.render(this.scene, this.camera);
     }
+    this._fresh = true;        // (this frame's small picture is this frame's: see layFar)
   }
 
   // The far cell sheets, first in the picture: colour with each pixel's own depth, then a
   // depth-only pass where a core is nearly solid. c: { renderer, rig, near, far }.
+  // (This one is called every frame, drawn or not: a frame in which the march did not run —
+  // debug=noclouds, the benchmark with the clouds left out — must lay nothing, or the picture
+  // would show the last frame that did.)
   layFar(c) {
-    if (!this.active || !this.farOn) return;
+    const fresh = this._fresh;
+    this._fresh = false;
+    if (!fresh || !this.active || !this.farOn) return;
     const u = this.farMat.uniforms;
     u.tCloudPass.value = this.smooth.texture; u.tCloudAll.value = this.all.texture;
     u.uPixel.value.set(1 / this.tw, 1 / this.th); u.uUsed.value.set(this.tw / this.fw, this.th / this.fh);
