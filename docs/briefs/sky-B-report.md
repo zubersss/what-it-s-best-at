@@ -515,6 +515,8 @@ t=3 and t=9, with the heaps' bases at 1 250 m and their tops at 2 575.
   is there is the wisps — the great soft patches torn out of a cloud within a kilometre of the
   eye, which cost no read of their own. A raining base keeps its clean line. Its constant was
   taken out rather than left dead.
+- **A stray `peek.png`** (12 KB) sits at the top of the repository: it came in with package C
+  and is now in the owning branch. Not mine to delete, but worth sweeping up.
 - **The rise's fades** cost one more read of the masses and one of the look toward the Sun (16 %
   of the game clock). The alternative — reading the look toward the Sun at one phase — makes the
   two tones speckle while the phases blend, so it was not taken.
