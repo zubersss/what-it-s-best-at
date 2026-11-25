@@ -137,6 +137,14 @@ What they showed, and what it changed (each of these is in the branch):
   rain: on Haven the air is at 1.5 degrees by about 2 km up, so rain at the eye above that is
   snow. The camera moved to 500 m over the ground outside the cell, where the nearest stroke is
   4.5 km off at 9 degrees of elevation.
+- **windy**: the opening view 11 h on, with a mature cell 6 km off and the field's wind at
+  22.4 m/s (storm 0.60, overcast 0.78 at the traveller): leaves are torn off and stream through
+  the air across the whole view, where before nothing moved. It is the windiest moment of the
+  two days round the scene, found with `storm-sites.mjs`; at that hour it is also evening, so
+  the picture is a dusk one.
+  The pair is the plainest of all: before, a calm bright meadow at dusk with every blade
+  upright; after, the same place a stop darker and bluer, the grass laid over and leaves
+  streaming through the air.
 - **anvil**: a clear pair. Before, a warm golden hillside under a bright blue sky (exposure
   5.07); after, the same ground cool and dark under a near-black sky (exposure 3.37), because
   everything lit through the shared chunk now stands in 0.04 of the Sun and 0.27 of the sky,
