@@ -42,6 +42,7 @@ import * as THREE from 'three';
 import { SNAP_STEP, STRIPS, fieldLayout, blendByte, checkSnapshot, makeSkyAt, makeSnapshot } from '../weather/sky/format.js';
 import { makeProducer } from '../weather/sky/producer.js';
 import { readWxLand } from '../weather/sky/land.js';
+import { ListClock } from '../weather/sky/listClock.js';
 import { SKY_UNIFORMS } from './skyGlsl.js';
 import { makePassMaterial, fullscreenGeometry } from '../render/fullscreen.js';
 
@@ -76,7 +77,7 @@ export class SkyField {
 
   setWorld(world, opts) {
     this.id++;
-    this.producer = null; this.opts = null; this.slots = []; this.asking = null;
+    this.producer = null; this.opts = null; this.slots = []; this.asking = null; this._listsOf = null;
     this.uploaded = false; this.strip = 0; this.pair = null; this.fade = 1;
     this.lastT = null; this.bytesThisFrame = 0; this.loading = false;
     SKY_UNIFORMS.uSkyLow.value[3] = 0;
@@ -415,9 +416,15 @@ export class SkyField {
   // ---- what a place has ------------------------------------------------------------------------
 
   at(place, t, out = makeSkyAt()) { return this.producer ? this.producer.at(place, t, out) : Object.assign(out, CLEAR, { field: { ...CLEAR.field } }); }
-  cells(t) { return this.producer ? this.producer.cells(t) : []; }
+  // (the cells and the anvils every frame from moments two seconds apart, by the producer of the
+  // moment: listClock.js)
+  _lists() {
+    const p = this.producer;
+    if (this._listsOf !== p) { this._listsOf = p; this._cells = new ListClock((t) => p.cells(t)); this._anvils = p.anvils ? new ListClock((t) => p.anvils(t)) : null; }
+  }
+  cells(t) { if (!this.producer) return []; this._lists(); return this._cells.at(t); }
   strikes(t0, t1) { return this.producer ? this.producer.strikes(t0, t1) : []; }
-  anvils(t) { return this.producer?.anvils ? this.producer.anvils(t) : []; }
+  anvils(t) { if (!this.producer?.anvils) return []; this._lists(); return this._anvils.at(t); }
   lenses(t) { return this.producer?.lenses ? this.producer.lenses(t) : []; }
   systems(t) { return this.producer?.systems ? this.producer.systems(t) : []; }
   // The 'now' bytes (Node only: what the GPU's maps hold), and the snapshots by their time: what
