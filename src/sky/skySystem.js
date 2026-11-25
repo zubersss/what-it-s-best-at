@@ -112,6 +112,10 @@ const SKY_PRESETS = [...STUB_PRESETS, 'model'];   // (sky A)
 import { cellGeometry, anvilGeometry, setCellUniforms, CELL_MAX } from '../weather/sky/cellShape.js';
 import { SKY_UNIFORMS, steerQuat, skyRiseOf } from './skyGlsl.js';
 import { SkyField } from './skyField.js';
+// (sky B: the stand-ins replaced by the parts themselves)
+import { UpperClouds } from './upperClouds.js';
+import { FogSheet } from './fogSheet.js';
+import { Lenticulars } from './lenticulars.js';
 
 // Above this many seconds of game time a second the clouds' noise keeps to it and is set back to
 // the game clock when the clock slows again (one re-cut, as at a bookmark): at an hour a second
@@ -186,9 +190,9 @@ export class SkySystem {
     this.bolt = parts.bolt ?? new Bolt(G);
     this.rainbow = parts.rainbow ?? new Rainbow(G);
     this.field = parts.field ?? new SkyField(renderer);
-    this.upper = parts.upper ?? stubPart('upper');
-    this.fog = parts.fog ?? stubPart('fog');
-    this.lenses = parts.lenses ?? stubPart('lenses');
+    this.upper = parts.upper ?? new UpperClouds(renderer);          // (sky B)
+    this.fog = parts.fog ?? new FogSheet(renderer);                  // (sky B)
+    this.lenses = parts.lenses ?? new Lenticulars(renderer);         // (sky B)
     this.probe = parts.probe ?? stubPart('probe');
     this.shared.uCloud.value = this.clouds.shadow;
     // (the far low shell: drawn in the picture after the shells above the camera, in a scene of
@@ -233,7 +237,9 @@ export class SkySystem {
     // The field: a world whose weather is made by rule, under a debug switch (step 0: nothing on
     // screen reads it yet). Made at the first frame, when the place the view opens at is known.
     const made = world.weather?.recipe === 'made', d = this.debug;
-    this.fieldWanted = made && !this.noClouds && !!(d.preset || d.storm || d.flash);
+    // (sky B: the field is always on where the weather is made by rule: the volume, the shells,
+    // the fog and the lenses all draw from it)
+    this.fieldWanted = made && !this.noClouds;
     this.raster = data?.rasters?.[0] || null;
     this.field.setWorld(null, null);
   }
@@ -419,7 +425,7 @@ export class SkySystem {
     // (clouds: near the traveller the layer is a volume. Its small picture is marched now,
     // before the main picture is begun, and laid over the ground further down: nothing
     // interrupts the main picture, see sky/cloudVolume.js)
-    this.cloudVolume.place(rig.pos);
+    this.cloudVolume.place(rig.pos, this.frame);          // (sky B: the march's bounds from the field)
     this.clouds.shadows = !(this.saving.has('clouds') || this.out.has('cloud-shade'));
     const cloudFar = this.clouds.update(rig.pos, c.worldRadius, this.cloudVolume);
     // (?debug=noclouds: a clear sky, for pictures of the land from high above; their shadows go with them)

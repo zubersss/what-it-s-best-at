@@ -618,7 +618,8 @@ if (BREAK === 'clock') {
   }
   {
     const { sky } = run('', true);
-    check(!sky.field.on && !sky.field.busy, 'with no switch Haven has no field yet (nothing on screen reads one in step 0)');
+    // (sky B: the field is always on where the weather is made by rule: the clouds draw from it)
+    check(sky.field.on || sky.field.busy, 'with no switch Haven has its field: the weather made by rule (sky B: the clouds draw from it)');
   }
   check(hourAtEpoch(haven.weather) === 15 && STUB_PRESETS.length === 4, "the stub's day: 15 h local at the weather clock's zero, so the scene's 17:00 UTC is 08:00 at the opening place");
 }
@@ -772,7 +773,9 @@ function ts0() { let t = T0; while (steer.risePhases(t).wa < 1 || steer.risePhas
   sky.weatherStep(ctx(sky, rig, jdOf(T_SCENE_MS)));
   check(Math.abs(G.uWeather.value.x - 0.15) < 1e-6 && Math.abs(G.uWeather.value.y - 0.45) < 1e-6, `the shade probe's value (C) is the shade on the figure and the things near it: uWeather ${G.uWeather.value.x.toFixed(2)}, ${G.uWeather.value.y.toFixed(2)}`);
   parts.probe.value = null;
-  // the flashes reach the volume's uBolt setter
+  // the flashes reach the volume's uBolt setter (a weather that takes the strokes itself, as D's
+  // does: with the field always on the stand-in would set the flash from the field's own strokes)
+  const tsWas = wx.takesStrikes; wx.takesStrikes = true;
   wx.flash = null; wx.bolts = [{ pos: [1, 2, 3], power: 4 }];
   sky.weatherStep(ctx(sky, rig, jdOf(T_SCENE_MS)));
   const fromD = parts.cloudVolume.bolts?.length === 1 && parts.cloudVolume.bolts[0].power === 4;
@@ -782,6 +785,7 @@ function ts0() { let t = T0; while (steer.risePhases(t).wa < 1 || steer.risePhas
   wx.update = function () { this.flash = { dir: new THREE.Vector3(0, 0, 1), dist: 5000, ground: true, power: 1 }; this.flashLight.set(0, 0, 0.5); };
   sky.weatherStep(ctx(sky, rig, jdOf(T_SCENE_MS)));
   const ground = parts.cloudVolume.bolts === null;
+  wx.takesStrikes = tsWas;
   const cv = new CloudVolume(null); cv.setBolts([{ pos: [0, 0, 0], power: 1 }, { pos: [1, 0, 0], power: 0 }, { pos: [2, 0, 0], power: 2 }, { pos: [3, 0, 0], power: 3 }]);
   check(fromD && fromFlash && ground && cv.bolts.length === BOLTS && cv.bolts[1].power === 2, `the flashes reach the volume's uBolt setter: D's list, else a flash in the cloud (where it is, x6 its light), none for a stroke to the ground; the volume keeps ${BOLTS} of power`);
   // D's strokes have a slot of their own
