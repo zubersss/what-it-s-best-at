@@ -515,7 +515,7 @@ t=3 and t=9, with the heaps' bases at 1 250 m and their tops at 2 575.
    whose top is at 10.3 km stands below it — so it reads as a disc floating over a stalk. For an
    anvil that grows out of its tower, the flare belongs in the cell's own shape
    (`weather/sky/cellShape.js`) and must be marched with it.
-5. **The cell's own outline** (`cellShape.js`, step 0's, not mine) draws a narrow chimney with a
+12. **The cell's own outline** (`cellShape.js`, step 0's, not mine) draws a narrow chimney with a
    rounded cap: at 20 km the hull is 25 degrees wide and what is drawn is about 10. A
    cumulonimbus is about as wide as it is tall. Worth a look by whoever owns that file.
 
