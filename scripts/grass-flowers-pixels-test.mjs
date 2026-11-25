@@ -122,7 +122,9 @@ if (bladeFlower && singleKeep) {
   }
   // beyond the hand-over, the share in flower as it was: 100 m off, a third of the way to straight down (measured
   // here on the code before the fade, 41705a3: poppies thick, daisies (a pale kind, on fewer blades) thick, poppies thin)
-  const was = { 2.9: 0.5217, 1.9: 0.2609, 2.35: 0.2033 }, M = 4000;
+  // (times one half since flowers-3: looked down on, a far blade's colour fades, 1 - smoothstep(0.1, 0.5, rise), and the
+  // ground's tint carries the meadow there; at a third of the way to straight down that is half)
+  const lookDown = 0.5, was = { 2.9: 0.5217 * lookDown, 1.9: 0.2609 * lookDown, 2.35: 0.2033 * lookDown }, M = 4000;
   for (const fk in was) {
     let m = 0; for (let i = 0; i < M; i++) m += bladeFlower((i + 0.5) / M, 0.5, +fk, 0.3, 100); m /= M;
     check(Math.abs(m - was[fk]) < 0.002, `flowers ${fk}: beyond the hand-over the same share in flower as before (${m.toFixed(4)}, was ${was[fk]})`);

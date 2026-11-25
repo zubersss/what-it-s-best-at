@@ -68,6 +68,10 @@ export class Pollen {
           // (how high: most of them low over the flowers; rising slowly, some twice as fast)
           float zf = fract(aSeed.z + uAir.z * (1.0 + floor(aSeed.w * 2.0)) / ${TALL.toFixed(1)}), t = uAir.w;
           float hgt = 0.15 + ${TALL.toFixed(1)} * zf * zf * (box < ${BOX.toFixed(1)} ? 0.45 : 1.0);
+          // (thinning with height: low over the flowers, few at the eye's height and none high up,
+          // where motes against the sky read as dust on the lens)
+          keep *= 1.0 - smoothstep(1.0, 3.2, hgt);
+          if (keep <= 0.0) OUT_OF_PICTURE
           // (and wandering a little, each its own way)
           vec3 wander = vec3(sin(t * ${WANDER[0].toFixed(2)} + aSeed.x * 40.0), cos(t * ${WANDER[1].toFixed(2)} + aSeed.y * 40.0), sin(t * ${WANDER[2].toFixed(2)} + aSeed.z * 40.0) * 0.6) * (seed ? 0.5 : 0.22);
           vec3 rel = uGrassEast * (p.x + wander.x) + uGrassNorth * (p.y + wander.y) + uGrassUp * (ground + hgt + wander.z);
@@ -77,11 +81,13 @@ export class Pollen {
           if (clip.w < 0.05) OUT_OF_PICTURE
           // its size on the picture: never under a pixel and a third (a mote there is as bright as its true size would be)
           // (a grain of pollen in the Sun is a glint wider than itself: drawn as 2 cm)
-          float px = (seed ? 0.045 : 0.02) * uGrassView * abs(projectionMatrix[1][1]) / clip.w, drawn = clamp(px, 1.5, 22.0);
-          float dim = min(1.0, (px * px) / (drawn * drawn) * 6.0);
+          // (looked at toward the Sun a mote blooms into a soft warm halo: drawn wider, as bright in all)
+          float c = max(dot(normalize(rel), uSunDir), 0.0), c2 = c * c, halo = 1.0 + 2.5 * c2 * c2 * c2 * c2 * (seed ? 0.0 : 1.0);
+          float px = (seed ? 0.045 : 0.02) * uGrassView * abs(projectionMatrix[1][1]) / clip.w, drawn = clamp(px * halo, 2.0, 26.0);
+          float dim = min(1.0, (px * px) / (drawn * drawn) * 6.0 * halo);
           vec3 sun, sky, air; lightAt(at, sun, sky, air);
           // (a mote throws the Sun's light forward: looked at toward the Sun it is a spark)
-          float c = max(dot(normalize(rel), uSunDir), 0.0), c2 = c * c, phase = 0.5 + 1.2 * c2 + 7.0 * c2 * c2 * c2 * c2;
+          float phase = 0.5 + 1.2 * c2 + 7.0 * c2 * c2 * c2 * c2;
           vec3 tint = seed ? vec3(0.95, 0.95, 0.90) : mix(vec3(1.0, 0.80, 0.34), vec3(1.0, 0.92, 0.6), aSeed.w);
           vCol = tint * (sun * phase * (seed ? 1.6 : 3.5) + sky * 0.35) * (keep * edge * dim);
           vSeed = seed ? 1.0 + aSeed.x * 6.0 : 0.0;
