@@ -717,11 +717,11 @@ void main() {
       // (and within the far trees' reach the trees are the crowns: the canopy under them is
       // the dark between them, its own domes only a hint, or each tree stood on an oval of
       // its own, the same oval over and over)
-      // (the single crowns, 8 m, not at all there: the far trees' own tops are those, and the
-      // two together were an even field of small round blobs, "bubble wrap"; the stands, 21 m,
-      // at half strength)
-      float underTrees = mix(0.55, 1.0, smoothstep(3000.0, 5600.0, dist));
-      kc *= smoothstep(3000.0, 4500.0, dist); kg *= underTrees;
+      // (neither the single crowns, 8 m, nor the stands, 21 m, within the far trees' reach: the
+      // trees' own tops are the crowns there. With the crowns, an even field of small round
+      // blobs, "bubble wrap"; with the stands alone, their tilted domes met along straight
+      // lines, large angular facets. The wood's larger tones come from the shared tone below.)
+      kc *= smoothstep(3000.0, 4500.0, dist); kg *= smoothstep(3000.0, 4500.0, dist);
       if (kg > 0.0) {
         cg = crowns(vDetailUv + 0.37, 3.0);
         N = normalize(N + (uTanU * cg.x + uTanV * cg.y) * (farCrownTilt(true) * kg));
@@ -740,7 +740,9 @@ void main() {
     // edge (as a soft ramp the edge was an airbrushed blur, and its half-canopy half-ground
     // colour a glowing yellow-olive fringe along every wood). (The domes' heights average
     // FAR_GROUND.clumpZ at every scale: the edge stays where the map puts it.)
-    float kcE = (1.0 - smoothstep(0.05, 0.16, fwC)) * smoothstep(0.12, 0.45, dot(V, up)), kgE = 1.0 - smoothstep(0.14, 0.42, fwC);
+    // (the single crowns only where they were worked out: within 3 km they are not, and read
+    // as nought they opened the canopy in holes along its triangles, straight-edged facets)
+    float kcE = (1.0 - smoothstep(0.05, 0.16, fwC)) * smoothstep(0.12, 0.45, dot(V, up)) * smoothstep(3000.0, 4500.0, dist), kgE = (1.0 - smoothstep(0.14, 0.42, fwC)) * smoothstep(3000.0, 4500.0, dist);
     // (where a pattern was not worked out, its weight is nought or the canopy is not drawn at all)
     float patH = mix(mix(mix(${FAR_GROUND.clumpZ.toFixed(3)}, cz.z, kz), cg.z, kgE), cr.z, kcE);
     float sharp = max(max(kz, kgE), kcE);
@@ -764,7 +766,10 @@ void main() {
   // forest floor's grey-sage litter in the canopy's shade ("holes in the picture"). Wherever
   // the land carries trees and the ground shows between them, from 250 m off and from above.
   if (canopyTall > 0.3) {
-    float glade = (1.0 - shellOut) * smoothstep(250.0, 500.0, dist) * smoothstep(0.15, 0.35, dot(V, up)) * flatW;
+    // (only where the canopy is open: the canopy's own weight is worked out at the vertices,
+    // and a little under full across a wood, so a share of it drew the glade's colour in
+    // straight-edged facets along the triangles)
+    float glade = smoothstep(0.45, 0.15, shellOut) * smoothstep(250.0, 500.0, dist) * smoothstep(0.15, 0.35, dot(V, up)) * flatW;
     if (glade > 0.0) {
       albedo = mix(albedo, grassColour(uGrassTone.x, 0.62) * mapTint * (0.85 + 0.3 * texture(tDetail, vDetailUv).b), 0.85 * glade);
       ao = mix(ao, ao / mix(1.0, 0.55, canopyShade), glade); canopyShade *= 1.0 - glade;
