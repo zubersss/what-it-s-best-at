@@ -16,8 +16,13 @@
 //    (The base once stood over the ground smoothed round the traveller: the whole sky moved by
 //    up to 51 m for every 100 m flown.)
 //
+// 3. THE HAND-OVER AT THE REACH. A storm cell is looked at from four distances astride the
+//    16 km where the near slices give way to the two far ones, and the light and the cover it
+//    shows are compared: the step across the hand-over must be no larger than the steps either
+//    side of it. (The same function marches it near and far; this says so in the picture.)
+//
 //   node scripts/cloud-motion.mjs [--distdir <build>] [--query "..."] [--seconds 20]
-//                                 [--break still|follow] [--out dir]
+//                                 [--break still|follow] [--out dir] [--no-handover]
 // --break still holds the steering between the two frames (nothing moves: motion must fail);
 // --break follow makes the march's base follow the traveller again (anchoring must fail).
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -195,6 +200,53 @@ if (OUT) {
   await mkdir(OUT, { recursive: true });
   for (const [k, p] of Object.entries(res.pics)) await writeFile(path.join(OUT, `cloud_motion_${k}.png`), png(p.w, p.h, Buffer.from(p.b64, 'base64'), 3));
 }
+// ---- 3. the hand-over at the reach ----------------------------------------------------------
+if (!flag('no-handover')) {
+  await goto(`${base}?world=haven&shot=ledge&alt=3000&pitch=0&heading=45&t=7&debug=storm`);
+  await page.waitForFunction(() => window.__shotReady === true || window.__shotError, null, { timeout: 900000, polling: 500 });
+  const h = await page.evaluate(() => {
+    const a = window.__app, r = a.renderer, gl = r.getContext(), cv = a.cloudVolume, rig = a.rig, sky = a.sky;
+    const half = (x) => { const s = (x & 0x8000) ? -1 : 1, e = (x >> 10) & 0x1f, f = x & 0x3ff; return e === 0 ? s * f * 5.9604644775390625e-8 : s * Math.pow(2, e - 15) * (1 + f / 1024); };
+    const cell = sky.frame.cells[0];
+    if (!cell) return { error: 'no storm cell in reach (debug=storm)' };
+    const R = a.world.radius, C = [cell.x * (R + cell.base), cell.y * (R + cell.base), cell.z * (R + cell.base)];
+    const keep = rig.pos.clone();
+    const rows = [];
+    for (const want of [15000, 15800, 16200, 17000]) {
+      // the camera moved back along its own view until the cell stands `want` metres away
+      const d0 = Math.hypot(C[0] - keep.x, C[1] - keep.y, C[2] - keep.z);
+      const back = want - d0;
+      rig.pos.set(keep.x - rig.forward.x * back, keep.y - rig.forward.y * back, keep.z - rig.forward.z * back);
+      a.sky.weatherStep({ now: performance.now(), dt: 0, jd: a.jd, timeRate: 0, paused: true, rig, day: 0, sunE: 1, viewW: a.post.viewW, viewH: a.post.viewH });
+      a.sky.beforeScene({ renderer: r, post: a.post, rig, worldRadius: R, time: 0, treesWanted: false });
+      const w = cv.tw, hh = cv.th, u = new Uint16Array(w * hh * 4);
+      r.setRenderTarget(cv.smooth);
+      gl.readPixels(0, 0, w, hh, gl.RGBA, gl.HALF_FLOAT, u);
+      r.setRenderTarget(null);
+      // the whole of the cloud in the picture, whatever slice it is in
+      let sum = 0, light = 0, n = 0;
+      for (let i = 0; i < w * hh; i++) {
+        const al = half(u[i * 4 + 3]);
+        if (al <= 0.01) continue;
+        sum += al; light += half(u[i * 4]) / Math.max(al, 1e-3); n++;
+      }
+      rows.push({ d: Math.round(Math.hypot(C[0] - rig.pos.x, C[1] - rig.pos.y, C[2] - rig.pos.z)), alpha: sum / Math.max(n, 1), light: light / Math.max(n, 1), pixels: n, far: cv.farOn });
+    }
+    rig.pos.copy(keep);
+    return { rows };
+  });
+  if (h.error) { console.log(h.error); bad++; }
+  else {
+    for (const x of h.rows) console.log(`  the cell ${(x.d / 1000).toFixed(1)} km away: ${x.pixels} pixels, mean cover ${x.alpha.toFixed(3)}, mean light ${x.light.toFixed(3)}${x.far ? ' (the far slices on)' : ''}`);
+    const d = h.rows.map((x) => x.alpha), l = h.rows.map((x) => x.light);
+    const step = (v) => [Math.abs(v[1] - v[0]), Math.abs(v[2] - v[1]), Math.abs(v[3] - v[2])];
+    const sa = step(d), sl = step(l);
+    const ok = (st) => st[1] <= 2 * (st[0] + st[2]) / 2 + 0.03;
+    check(`no step at the hand-over at 16 km: the cover changes ${sa.map((x) => x.toFixed(3)).join(', ')} and the light ${sl.map((x) => x.toFixed(3)).join(', ')} across the four distances (the middle pair crosses it)`,
+      h.rows.every((x) => x.pixels > 50) && ok(sa) && ok(sl));
+  }
+}
+
 if (errors.length) { console.log('PAGE ERRORS: ' + errors.slice(0, 3).join(' | ')); bad++; }
 await close();
 if (bad) { console.log(`cloud-motion: ${bad} FAILED`); process.exit(1); }
