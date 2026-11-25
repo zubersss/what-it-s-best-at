@@ -259,6 +259,18 @@ four helpers, one package each. Meanwhile the third round finishes (flowers' fin
 the air helper's L-DONE, from above's steppe A5) and goes to the owner as the next link
 with the shadow and governor fixes.
 
+**04:05**: the third round is done and merged (head 5ab3400): from above A5 (the steppe
+from the air), the air L-DONE (shade in cool sky light, rivers not beads, the water's
+patterns whole), flowers F-DONE (companions, bowls and spikes in space, drifts from the
+air), and the shadow and governor fixes (`fix/shadow-tiles`, `fix/shadow-trees` with its
+repair, `fix/governor10` with its repair, and the remedy that keeps the flecks' hash when
+the lattice turns: f55d3f5; `npm run treeshadows`). The machine here restarted four times
+since midnight (each about two hours apart): long runs here go in resumable halves; the
+final pictures and tests of the combined delivery were handed to the air helper's machine
+(`docs/shots/final-11/`, "FINAL pushed"). Here: the wood walk before and after
+(`scratchpad/stab_wood.sh`, resumable) and the sky's step 0 (workflow `sky-step0`, resumed
+at its repair). Then the visual critic on final-11, the pull request and the checkpoint.
+
 ### The far view sent: trees, grass and rock as far as one can see
 
 *2026-11-24. Merged as pull request #34; the phone link shows build 6ac24ff (this line was
