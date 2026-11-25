@@ -35,12 +35,12 @@ export const UPPER_LOOK = Object.freeze({
   MID_SHADE: 0.72,                // its shaded side (two tones, as the heaps have)
   MID_PATCH: 0.28,                // how much the field clumps into patches and lanes (0: an even screen)
   MID_PATCH_K: 0.21,              // how large those patches are, against a cloudlet
-  ANVIL_TORN: 0.26,               // how far the cirrus strokes move an anvil's edge (a torn fringe)
+  ANVIL_TORN: 0.42,               // how far the cirrus strokes move an anvil's edge (a torn fringe)
   HIGH_STRETCH: 7,                // how far the high noise is drawn out along its own wind
   HIGH_ALPHA: 0.5,                // cirrus is never more than half there ...
   HIGH_ANVIL: 0.97,               // ... but an anvil is solid
-  HIGH_UNDER: 0.32,               // an anvil's underside, against its top (grey, not white: it is shut out of the Sun by its own depth)
-  ANVIL_GRAIN: 0.18,              // how much the strokes thin and thicken its sheet
+  HIGH_UNDER: 0.2,                // an anvil's underside, against its top (grey, not white: it is shut out of the Sun by its own depth)
+  ANVIL_GRAIN: 0.3,               // how much the strokes thin and thicken its sheet
   HALO: 0.062,                    // how strong the 22-degree halo is
 });
 const U = UPPER_LOOK;

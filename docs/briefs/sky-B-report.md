@@ -270,8 +270,22 @@ chords the shaders use):
 | the cell's portrait (`_M_cellsun`) | 15.3 % | 8.1 % | 7.4 % | 7.8 % |
 | the storm 20 km off (`_M_storm20`) | 5.7 % | 3.0 % | 2.8 % | 2.8 % |
 
-The last column is the share of the picture whose rain was drawn wrongly or not at all before
-today: **of the nine per cent of that view which stands in rain, eight and a half were missing or
+The map of that view says the same in a picture of its own (`node scripts/sky-map.mjs --t 8.25
+--view "-52.2848,29.7865,4500,243,3,70"`): the tower stands in the middle, its anvil spreads over
+the top, and the rain (`r`) fills the bottom third of the view, where nothing was drawn.
+
+```
+|......................TTTTTTTTTTTTTTTTTTTTTAaa....................|
+|.....................TTTTTTTTTTTTTTTTTTTTTTT......................|
+|hhhhhhhhhhhhhhh......TTTTTTTTTTTTTTTTTTTTTTTTc   .......c.........|
+|hhhhhhhhhhhhh............TTTTTTTTTTTTTTr..                     ...|
+|hhhhhhhhhhhh  ...........rrrrrrrrrrrrrrrr    ....                 |
+|hhhhhhh...vv.............rrrrrrrrrrrrrrrr      .....              |
+|vvvvvv. .................rrrrrrrrrrrrrrrr                         |
+```
+
+The last column of the table is the share of the picture whose rain was drawn wrongly or not at
+all before today: **of the nine per cent of that view which stands in rain, eight and a half were missing or
 cut off in mid-air**. `haven_ledge_Q_cell9.png` (the owning head) is the "before" and
 `haven_ledge_M_cell9.png` the "after".
 
@@ -386,6 +400,9 @@ scene's own moment.
 | `_M_up30`, `_M_globe` | from 30 km up; the globe from three radii off | the shells and the globe from far |
 | `_M_mist` | the opening place at first light, looking into the low ground (t=-0.5) | the fog sheet |
 | `_M_storm`, `_Q_storm` | the opening place, the storm 64 km off (t=8.25) | the far cell sheets from the ground |
+| `_M_cirrus_sun`, `_M_cirrus_away` | the steppe at dusk, the Sun 2.5 deg up at azimuth 277, high cloud 0.80 (t=34.5) | the cirrus, the 22-deg halo and the Sun-side rim — the view check 11's sign fix shows in |
+| `_M_deck_below` | under a deck: sheet 0.89 over the opening place, its base 2 043 m, the camera at 1 800 (t=30) | a deck's grey underside |
+| `_M_flash` | a storm 12 km west at night, the Sun 14 deg down, a stroke held at its brightest (t=13.4) | the flash inside the cloud (`uBolt`) |
 | `_M_front` | the opening place, a cell 25 km off raining 26 mm/h (t=33) | a rain deck and its shafts |
 | `earth_ledge_B0_earth.png`, `earth_ledge_B_earth.png` | Earth's ledge, step 0's build and this one | Earth has no field yet: what changed there anyway |
 
@@ -407,6 +424,7 @@ fault), `B-noclouds`, `B-from-30km`, `B-globe`, `B-ledge-afternoon`, `B-mist`, `
 | --- | --- |
 | `scripts/lens-list-test.mjs` | the lenses' list: either shape the field hands over (the model's objects, a snapshot's LENS records), the plates each lens becomes and where they stand, the nearest taken and the ones over the horizon dropped, `noclouds` and a faded lens drawing nothing |
 | `scripts/cloud-volume-test.mjs` | the volume's decisions: drawn or not, and the storms still marched when the governor has switched the volume off — on the very first frame; and the rain shafts, which a ray crosses without crossing the cloud (check 8) |
+| `scripts/sky-map.mjs` | what stands where in a view, as a map of letters in one second: the anvils, the volume's own low cloud against the far shell's, the mid veil, the high cloud (`scripts/lib/skyModel.mjs` loads the model for both of these) |
 | `scripts/rain-pixels.mjs` | how much of a view the rain stands in, and how much of it a shader that finds the storms by their body alone must throw away (the model's own cells; a tool, not a test — it fails only if the hour has no raining cell) |
 | `scripts/fog-sheet-test.mjs` | the fog's lattice is the world's: nothing of it moves between two anchors, two travellers in one cell are given the same sheet, and it is drawn only where there is fog (check 9) |
 | `scripts/cloud-motion.mjs` (new, the brief's) | the motion, the anchoring, the uniform audit and the hand-over at 16 km, in one browser run |
@@ -480,9 +498,13 @@ driver had left in the buffer):
 | at 1 100 x 515 — the march into its small picture | | 790–791 ms |
 | at the phone's pixel count (1 936 x 906) — laying | 203 ms | 209 ms |
 | at the phone's pixel count — the march | 1 971 ms | 2 006 ms |
+| the fair day at the phone's pixel count — laying | 177 ms | 175 ms |
+| the fair day at the phone's pixel count — the march | 1 743 ms | 1 762 ms |
 
 So at the phone's pixel count this branch's clouds cost **within two per cent** of the owning
-head's at the same view, and that head already carries most of package B (the four lines and the
+head's at both views (the brief's "no higher than today's on a fair day": 1 937 ms of march plus
+lay against 1 920, which is 0.9 % on a machine whose own runs of the same view differ by that
+much), and that head already carries most of package B (the four lines and the
 field). What the pair says is that the lenses, the anvils' torn edge, the mackerel sky's patches
 and the governor's floor are not where the cost is: the march is, and it is the same march.
 (Software WebGL counts work, never frames; the phone's own cost table decides. These numbers are
@@ -495,7 +517,22 @@ ground's two shade programs 5 + 0; Haven's globe 7 + 0.
 (The same view on an earlier build with one cell in reach and no far slices marched 203 ms at
 1 100 x 515: what the far slices and the model's five cells add is most of the 790.)
 
-*(the fair day's pair lands as it finishes)*
+**And a view the volume draws nothing in costs nearly as much as a storm.** On the fair day over
+the opening place (`alt=2600&pitch=-4&t=4`) the march came to **1 743 ms on the owning head and
+1 762 on this branch** (laying 177 and 175) — 88 % of the storm's, for a picture with no cloud of
+the volume's in it at all (cloud on 0 % of what it lays).
+
+A map of that view made in Node in a second (`node scripts/sky-map.mjs --t 4 --view
+"-48.54992,49.05567,2600,222,-4,50"`: the model's own field cast along the view's rays) says why there is nothing: of the cloud in that view, **all but one corner
+stands beyond the volume's 16 km reach** and is drawn by the far shell. The march still pays for
+it, because the layer is a slab between two spheres, every ray that crosses the slab is marched
+through it whatever the cover is there, and the cover is read a step at a time.
+
+That is not a thing to cure by guessing. A slice whose cover is nil could be skipped, but the
+cover would have to be read for the whole slice at once, and cutting a slice by a test of its
+own is the fault the lessons warn of ("an edge cut slice by slice"). What it does say is where
+the phone's cost table should be read first, and that the governor's last cloud step (the volume
+off, the shell everywhere) is the lever that matters most on a dear frame.
 
 What the march reads, which is what the phone will feel:
 
@@ -573,7 +610,10 @@ else if (id === 'lenses') this.lenses.partOut(id, out);
 and then a step for each in `src/perf/governor.js`, cheapest visual loss first: the lenses
 before the fog (a lens is a small thing high up; the fog is what a valley at first light is
 about). Each thins and leaves the thing itself: with both steps on there is still a lens over
-every near summit and fog in every basin — `?debug=floor` shows it.
+every near summit and fog in every basin (`scripts/fog-sheet-test.mjs` and
+`scripts/lens-list-test.mjs` hold them to that). Until the wiring lands they are not in the
+ladder, so the `?debug=floor` pictures in this report do NOT have them on: a floor picture with
+the fog and the lenses thinned is one to take after that line is in.
 
 ## Views on Haven with weather in them (the model, found in Node in seconds)
 
@@ -777,6 +817,7 @@ was this morning, `buildD1` = this branch with the rain's six fixes and the lens
 | M4 | stability: the climb on the owning head (B0), then the climb, the crossing under heaps and a storm pass on this branch; then `npm run smoke` on a tree |
 | M8 | the reads check again, now that it proves its own numbers, and the same with four reads a step put in on purpose (it must fail) |
 | M9 | what the rain's fixes cost at the phone's pixel count, against `buildC1`'s 209 / 2 006 ms |
+| M10 | four of the brief's pictures that were still missing: the cirrus and the mackerel sky at dusk with the Sun two degrees up (toward it and away — the view that shows check 11's fix), a deck from below, and a storm at night with a stroke held at its brightest |
 
 The pictures of the cells, their rain and the lenses (M5, M6) are taken from `buildD1`: the six
 faults of checks 8 to 11 were found while the chains ran, and a picture from `buildC1` would show
