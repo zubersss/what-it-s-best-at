@@ -138,6 +138,24 @@ void main() {
       // life/treeBlock.js: all of them up to a slope of 0.5, none from 0.95; the canopy
       // used to end at 39 degrees where trees stand to 43, and they stood on bare ground.)
       vec4 nv = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), clamp(log2(187.0 / max(aI2.z, 1.0)), 1.0, 3.0));
+      // (but a coarse level of a patch's own map knows only its own side of an edge: at
+      // the patch's edge its texel is the mean of that side alone, and two neighbours
+      // disagreed by enough to cross the test below, a straight cut through a wood seen
+      // from 3 km. Toward an edge the slope is taken instead from the fine map along the
+      // edge's own line, every 60 m for 240 m, which both neighbours read alike.)
+      vec2 ge = min(aGrid, 1.0 - aGrid);
+      float wx = 1.0 - smoothstep(0.0, 0.12, ge.x), wy = 1.0 - smoothstep(0.0, 0.12, ge.y), wE = wx + wy - wx * wy;
+      if (wE > 0.0) {
+        float dg = 60.0 / (aI2.z * float(DETAIL_TILE));
+        vec3 ax = vec3(0.0), ay = vec3(0.0);
+        for (int i = -2; i <= 2; i++) {
+          ax += textureLod(tNormal, vec3((vec2(aGrid.x, clamp(aGrid.y + float(i) * dg, 0.0, 1.0)) * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 0.0).xyz;
+          ay += textureLod(tNormal, vec3((vec2(clamp(aGrid.x + float(i) * dg, 0.0, 1.0), aGrid.y) * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 0.0).xyz;
+        }
+        vec3 c0 = textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 0.0).xyz;
+        vec3 ne = (c0 * (wx * wy) + normalize(ax) * (wx * (1.0 - wy)) + normalize(ay) * (wy * (1.0 - wx))) / wE;
+        nv.xyz = mix(normalize(nv.xyz), normalize(ne), wE);
+      }
       // (a little short of the trees' 43 degrees: the canyon's walls must not go green again)
       k *= smoothstep(0.76, 0.885, dot(normalize(nv.xyz), up)) * (1.0 - step(1.02, textureLod(tNormal, vec3((aGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), aI2.w), 1.0).a));
       // (crowns: a whole number of them across the detail tile, so patches agree; only near
@@ -194,7 +212,9 @@ void main() {
   // (and where the meadows are and which hillsides flower: noises 260 and 420 m to the cell,
   // which every pixel of grass within 900 m used to work out for itself before it knew
   // whether a flower was near)
-  if (uGrassTone.a > 0.0 && far < 1100.0) { vec3 Pg = uCamPlanetPos + rel; vCloud.w = flNoise(Pg / 240.0 + vec3(3.0, 11.0, 5.0)); vFlowerFields = vec2(flowerMeadow(Pg), flowerHill(Pg)); }
+  // (the meadows' two noises to 2.6 km, where the ground's tint of flowers is seen from the
+  // air; the gusts only to 1.1 km)
+  if (uGrassTone.a > 0.0 && far < 2600.0) { vec3 Pg = uCamPlanetPos + rel; if (far < 1100.0) vCloud.w = flNoise(Pg / 240.0 + vec3(3.0, 11.0, 5.0)); vFlowerFields = vec2(flowerMeadow(Pg), flowerHill(Pg)); }
   if (length(uCamPlanetPos) * 0.001 <= uRTop) hazeAffine(rel, gl_Position.xy / max(abs(gl_Position.w), 1e-6) * 0.5 + 0.5, vHazeT, vHazeL, vHazeG);
 }`;
 
@@ -672,14 +692,8 @@ void main() {
     // where the land-cover map's soft steps were, broken along them. Gone where a clump is
     // under two pixels, and beyond 40 km.
     float kz = smoothstep(0.05, 0.16, fwC) * (1.0 - smoothstep(0.3, 0.9, fwC)) * (1.0 - smoothstep(20000.0, 40000.0, dist));
-    vec4 cz = vec4(0.0);
-    float shellW = vShell;
-    if (kz > 0.0) {
-      cz = crowns(vDetailUv + 0.71, 1.5);
-      // (the edge: where the canopy is thinning out by the map, the clumps' tops stay and
-      // their gaps go first)
-      shellW = mix(vShell, clamp((vShell - 0.5) * 2.2 + 0.5 + 1.1 * (cz.z - ${FAR_GROUND.clumpZ.toFixed(3)}), 0.0, 1.0), kz);
-    }
+    vec4 cz = vec4(0.0), cg = vec4(0.0), cr = vec4(0.0);
+    if (kz > 0.0) cz = crowns(vDetailUv + 0.71, 1.5);
     float nearC = 1.0 - smoothstep(0.03, 0.5, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
     vec2 cgn = farCanopyGrain(c1, c2, nearC);
     N = normalize(N + (uTanU * cgn.x + uTanV * cgn.y) * vShell);
@@ -699,19 +713,37 @@ void main() {
     {
       // (a crown fades out between five pixels and one and a half: 0.25 / fwC pixels across)
       float kc = (1.0 - smoothstep(0.05, 0.16, fwC)) * vShell * ownC, kg = (1.0 - smoothstep(0.14, 0.42, fwC)) * vShell * ownC;
+      // (seen at a low angle a dome is a flat oval, and a wood of them one dark oval stamped
+      // over and over, "like bubble wrap": the single crowns give way to the stands there)
+      kc *= smoothstep(0.12, 0.45, dot(V, up));
+      // (and within the far trees' reach the trees are the crowns: the canopy under them is
+      // the dark between them, its own domes only a hint, or each tree stood on an oval of
+      // its own, the same oval over and over)
+      float underTrees = mix(0.55, 1.0, smoothstep(3000.0, 5600.0, dist));
+      kc *= underTrees; kg *= underTrees;
       if (kg > 0.0) {
-        vec4 cg = crowns(vDetailUv + 0.37, 3.0);
+        cg = crowns(vDetailUv + 0.37, 3.0);
         N = normalize(N + (uTanU * cg.x + uTanV * cg.y) * (farCrownTilt(true) * kg));
         leaves *= mix(1.0, farCrownShade(cg, true) / ${FAR_GROUND.standMean.toFixed(3)}, kg);
       }
       if (kc > 0.0) {
-        vec4 cr = crowns(vDetailUv, 8.0);
+        cr = crowns(vDetailUv, 8.0);
         // (strongly: at a phone's pixel a crown is a few pixels, and a faint one was a net
         // laid over the forest, not trees)
         N = normalize(N + (uTanU * cr.x + uTanV * cr.y) * (farCrownTilt(false) * kc));
         leaves *= mix(1.0, farCrownShade(cr, false) / ${FAR_GROUND.crownMean.toFixed(3)}, kc);
       }
     }
+    // The wood's edge: where the land-cover map thins the canopy out, it thins into scattered
+    // crowns, the tops of the finest crowns one can see standing longest, each with a clean
+    // edge (as a soft ramp the edge was an airbrushed blur, and its half-canopy half-ground
+    // colour a glowing yellow-olive fringe along every wood). (The domes' heights average
+    // FAR_GROUND.clumpZ at every scale: the edge stays where the map puts it.)
+    float kcE = (1.0 - smoothstep(0.05, 0.16, fwC)) * smoothstep(0.12, 0.45, dot(V, up)), kgE = 1.0 - smoothstep(0.14, 0.42, fwC);
+    // (where a pattern was not worked out, its weight is nought or the canopy is not drawn at all)
+    float patH = mix(mix(mix(${FAR_GROUND.clumpZ.toFixed(3)}, cz.z, kz), cg.z, kgE), cr.z, kcE);
+    float sharp = max(max(kz, kgE), kcE);
+    float shellW = mix(vShell, smoothstep(0.3, 0.7, clamp((vShell - 0.5) * 2.4 + 0.5 + 1.4 * (patH - ${FAR_GROUND.clumpZ.toFixed(3)}), 0.0, 1.0)), sharp * step(vShell, 0.999));
     albedo = mix(albedo, leaves, shellW * ownC);
     ao *= mix(1.0, 0.72 + 0.5 * clamp(c1.b + c2.b, -0.4, 0.5), vShell * ownC);
     // (the clumps: their light and shade on whatever colour the wood has there, its own or,
@@ -783,6 +815,31 @@ void main() {
     float lay = smoothstep(0.42, 0.58, 0.6 * pa + 0.4 * pb);
     albedo *= mix(vec3(1.0), mix(vec3(0.85, 0.90, 0.85), vec3(1.15, 1.11, 1.0), lay), uPaint.x * (1.0 - farW) * flatW * smoothstep(60.0, 400.0, length(vRel)));
   }
+  // --- open grassland from the air: broad painted variation that follows the land (the
+  // critic: "a flat mustard felt", "a single ochre colour with soft blotches"). Greener in
+  // the hollows, sunlit gold on the slopes turned to the Sun and a cooler olive on those
+  // turned from it, and long swaths combed along the wind, some 60 m by 18. On ground whose
+  // colour is grass (gold or green, not rock, sand or snow) and not under the canopy; each
+  // a tint about the ground's own tone, the swaths faded where they are under a few pixels.
+  if (uPaint.x > 0.0 && flatW > 0.0 && dist > 30.0 && dist < 4000.0) {
+    float grassy = smoothstep(0.42, 0.24, albedo.b / max(albedo.r, 1e-4)) * smoothstep(0.62, 0.45, dot(albedo, vec3(0.2126, 0.7152, 0.0722))) * (1.0 - vShell) * flatW * (1.0 - smoothstep(2500.0, 4000.0, dist));
+    if (grassy > 0.0) {
+      vec3 n0 = normalize(nt.xyz);
+      float hollow = smoothstep(0.96, 0.78, nt.a);
+      albedo *= mix(vec3(1.0), vec3(0.84, 1.04, 0.92), 0.7 * hollow * grassy);
+      float toSun = clamp((dot(n0, uSunDir) - dot(up, uSunDir)) * 5.0, -1.0, 1.0);
+      albedo *= 1.0 + grassy * toSun * vec3(0.06, 0.02, -0.10) + grassy * min(toSun, 0.0) * vec3(0.06, 0.0, -0.12);
+      vec3 wd = uWind.xyz - up * dot(uWind.xyz, up); float wl = length(wd); wd = wl > 1e-3 ? wd / wl : uTanU;
+      vec3 q = planetPos / 18.0 + wd * (dot(planetPos, wd) * (1.0 / 60.0 - 1.0 / 18.0));
+      vec3 fq = fwidth(planetPos);
+      float kw = 1.0 - smoothstep(4.0, 9.0, max(fq.x, max(fq.y, fq.z)));
+      // (the swaths: the wind's side of the grass paler and drier, its lee greener and darker)
+      if (kw > 0.0) { float sw = flNoise(q) + 0.5 * flNoise(q * 2.3 + 7.1) - 0.75; albedo *= 1.0 + kw * grassy * sw * vec3(0.42, 0.34, 0.12); }
+      // (and broad stretches, some hundreds of metres, greener or drier gold)
+      float broad = flNoise(planetPos / 230.0 + vec3(3.7, 1.3, 8.1)) - 0.5;
+      albedo *= mix(vec3(1.0), broad > 0.0 ? vec3(1.12, 1.03, 0.78) : vec3(0.82, 1.02, 0.86), grassy * min(1.0, abs(broad) * 2.6));
+    }
+  }
 
   // --- the tide, and the wash of the waves up the shore. The map's shore is the highest
   // tide; the sea stands uTide.x under it (the Moon's and the Sun's pull, worked out for
@@ -839,7 +896,13 @@ void main() {
     // colour: light goes down to the bed and comes back, red lost first; what is left of
     // it shows the bed (pale sand), the rest is the water's own blue
     vec3 through = exp(-vec3(0.42, 0.07, 0.035) * (waterDepth * 2.3));
-    vec3 body = vec3(0.30, 0.27, 0.20) * through + uSeaColor * (1.0 - through.b);
+    // (far off, where a texel of the ground's maps is as wide as a river and its banks (by
+    // distance, not by pixels: the phone has five times as many), the
+    // shallows are a lighter, greener water and not the pale sand of the bed: a pixel there
+    // is part water and part bank, and the bed's sand drew every river as a dashed line of
+    // pale beads and every lake with a pale dotted rim. Seen from the air: uAloft)
+    vec3 bed = mix(vec3(0.30, 0.27, 0.20), vec3(0.12, 0.25, 0.23), smoothstep(1500.0, 6000.0, dist) * smoothstep(0.0, 0.4, uAloft));
+    vec3 body = bed * through + uSeaColor * (1.0 - through.b);
     albedo = mix(albedo, mix(body, vec3(0.75), foam), water);
     ao = mix(ao, 1.0, water);
   }

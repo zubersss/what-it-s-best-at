@@ -166,8 +166,22 @@ void main() {
   // The grade of a painted look (render/look.js): the darks lean one way and the lights
   // the other (blue shade under a warm Sun, violet under a red one), colours stronger,
   // a little more contrast. Nothing when uGrade.z is 0 and x, y are 1.
-  if (uGrade.z > 0.0 || uGrade.x != 1.0 || uGrade.y != 1.0) {
+  if (uGrade.z > 0.0 || uGrade.x != 1.0 || uGrade.y != 1.0 || uGrade.w > 0.0) {
     float l = dot(c, vec3(0.3, 0.55, 0.15));
+    // From up in the air (uGrade.w) the shade is lifted toward a light coloured one, about
+    // two thirds as bright as the light (the grade's shade colour, cooled toward violet):
+    // from above the shadows of clouds and mountains filled a third of the view in a
+    // green-black. Only the darks; nothing on foot.
+    if (uGrade.w > 0.0) {
+      // (the shade's own colour brought up, so that a wood in shade is still a wood, then
+      // leant a third of the way to the cool shade colour)
+      float sh = uGrade.w * (1.0 - smoothstep(0.03, 0.3, l));
+      vec3 v = uGradeShade * vec3(1.12, 0.85, 1.25); v /= dot(v, vec3(0.3, 0.55, 0.15));
+      c *= 1.0 + 1.2 * sh;
+      float lc = dot(c, vec3(0.3, 0.55, 0.15));
+      c = mix(c, lc * v, 0.3 * sh) + 0.025 * sh * v;
+      l = dot(c, vec3(0.3, 0.55, 0.15));
+    }
     c = mix(vec3(l), c, uGrade.x);
     c *= mix(vec3(1.0), mix(uGradeShade, uGradeLight, smoothstep(0.12, 0.7, l)), uGrade.z);
     c = clamp((c - 0.45) * uGrade.y + 0.45, 0.0, 1.0);

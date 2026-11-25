@@ -329,7 +329,7 @@ export class App {
     this.nearShadow.every = this.shotMode ? 1 : 2; this.nearShadow.alternate = MODES[this.governor.mode].fps < 45;
     // Weather (worlds that have it): wind, rain, wet ground, shade, lightning
     this.weather = new Weather(); this.weather.setWorld(world);
-    this.look = new Look(); this.look.setWorld(world);          // the world's look, if it has one of its own (render/look.js)
+    this.look = new Look(); this.look.debug = params.debug; this.look.setWorld(world);          // the world's look, if it has one of its own (render/look.js)
     this.rain = new Rain(G);
     this.bolt = new Bolt(G);
     this.rainbow = new Rainbow(G);
@@ -1239,7 +1239,7 @@ export class App {
     }
     G.uPlanetRadius.value = world.radius;
     G.uCamPlanetPos.value.copy(rig.pos);
-    { const r = rig.pos.length(); this.look.update(Math.asin(Math.max(-1, Math.min(1, (rig.pos.x * eph.sunDir[0] + rig.pos.y * eph.sunDir[1] + rig.pos.z * eph.sunDir[2]) / r))) * 57.29578, r - world.radius, post.compositeMat.uniforms, post); }
+    { const r = rig.pos.length(); this.look.update(Math.asin(Math.max(-1, Math.min(1, (rig.pos.x * eph.sunDir[0] + rig.pos.y * eph.sunDir[1] + rig.pos.z * eph.sunDir[2]) / r))) * 57.29578, r - world.radius, post.compositeMat.uniforms, post, rig.agl); }
     this.terrain.tintAt(rig.pos, G.uGroundTint.value);
 
     prof.mark(1);

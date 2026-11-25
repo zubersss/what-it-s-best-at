@@ -148,9 +148,10 @@ export class FarForest {
       ${TREE_SHADE_VERT}
       ${SHADOW_GLSL}
       out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out vec2 vUv; out vec2 vOwn; out float vShade; out float vShadowA;
+      out vec3 vDome; out vec3 vDomeE; out vec3 vDomeN;     // the crown's top seen from above: where in it (xy, -1..1), how much (z); its two axes
       vec3 unpack(float p) { float r = floor(p / 65536.0), g = floor((p - r * 65536.0) / 256.0); return vec3(r, g, p - r * 65536.0 - g * 256.0) * (${COLOUR_TOP.toFixed(3)} / 255.0); }
       // (not drawn: thrown out of the picture whole, never left as a sliver of no size)
-      #define NONE { vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vUv = vec2(0.0); vOwn = vec2(0.0); vShade = 0.0; vShadowA = 0.0; gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+      #define NONE { vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vUv = vec2(0.0); vOwn = vec2(0.0); vShade = 0.0; vShadowA = 0.0; vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
       void main() {
         vec3 foot = uTileRel + iA.xyz;
         float d = length(foot);
@@ -190,7 +191,7 @@ export class FarForest {
           float stretch = min(len / max(sunUp, 0.12), ${SHADOW_LONG.toFixed(1)}), wideM = 2.0 * g.z * iB.x * iA.w * grow, longM = g.w * iA.w * grow * stretch;
           // (a little over the ground, and more far off, where the depth buffer is coarse)
           vRel = foot + across * ((position.y - 0.5) * wideM) + along * ((1.0 - position.z) * longM) + uTileUp * (0.4 + 0.0015 * d);
-          vN = uTileUp; vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vOwn = vec2(0.0); vShade = 0.0;
+          vN = uTileUp; vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vOwn = vec2(0.0); vShade = 0.0; vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0);
           vShadowA = a * shadowAlpha(wideM * longM, dens, keep);
           rect = uRectTree[cell]; vUv = vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
           gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
@@ -228,6 +229,10 @@ export class FarForest {
         vRel = foot + uTileEast * (l.x * c - l.z * s) + uTileUp * l.y + uTileNorth * (l.x * s + l.z * c);
         vN = normalize(uTileEast * (nl.x * c - nl.z * s) + uTileUp * nl.y + uTileNorth * (nl.x * s + nl.z * c));
         vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); vOwn = vec2(iB.w, fall + 4.0 * flowers); vShade = sunLeft; vShadowA = 0.0;
+        // (the crown's top: lit as a dome pixel by pixel in the fragment shader; by its four
+        // corners alone it was one flat tone, no lit cap and no shaded side)
+        vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0);
+        if (position.x > 1.5) { vDome = vec3((position.y - 0.5) * 2.0, (0.5 - position.z) * 2.0, smoothstep(${TOP0.toFixed(3)}, ${TOP1.toFixed(3)}, down) * smoothstep(uFar.z, uFar.z + 200.0, d)); vDomeE = uTileEast * c + uTileNorth * s; vDomeN = uTileNorth * c - uTileEast * s; }
         vUv = vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
         gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
       }`;
@@ -239,6 +244,7 @@ export class FarForest {
       uniform vec3 uSeason;                // x: how far the leaves have turned, y: how bare, z: time
       uniform vec4 uShadow, uFar;
       in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in vec2 vUv; in vec2 vOwn; in float vShade; in float vShadowA;
+      in vec3 vDome; in vec3 vDomeE; in vec3 vDomeN;
       layout(location = 0) out vec4 fragColor;
       ${PAINT_LEAF}
       ${TREE_WOOD}
@@ -263,10 +269,21 @@ export class FarForest {
         float fall = vOwn.y - (flowers ? 4.0 : 0.0);
         bool wood = treeWood(cut);          // (one rule with the near trees: TREE_WOOD, life/trees.js)
         vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel), N = normalize(vN);
+        // Seen from above, the crown's top is a dome: its cap faces the sky, its rim leans out,
+        // so the Sun's side is lit and the far side a crescent in the shade's colour (the
+        // critic: "no lit top, no shaded side").
+        if (vDome.z > 0.0 && !wood) {
+          float r2 = min(dot(vDome.xy, vDome.xy), 1.0);
+          N = normalize(mix(N, normalize(vDomeE * vDome.x + vDomeN * vDome.y + up * (1.1 * sqrt(1.0 - 0.8 * r2))), vDome.z));
+        }
         // leaves in their season: green, then this tree's own gold, orange or red
         float turn = fall > 0.5 ? clamp(uSeason.x * 1.6 - vOwn.x * 0.6, 0.0, 1.0) : 0.0;
         vec3 autumn = fall > 1.5 ? vec3(0.42, 0.26, 0.03) : mix(vec3(0.40, 0.20, 0.03), vec3(0.30, 0.045, 0.02), smoothstep(0.35, 0.8, fract(vOwn.x * 7.3)));
         vec3 leafC = mix(vLeafC * (0.5 + 0.22 * fract(vOwn.x * 13.7)), autumn * 0.6, turn);
+        // (a tree in flower keeps its petals' pink at every distance: through the leaves'
+        // painted green and the far olive it came out tan, "dead patches or litter")
+        float bloomW = flowers ? smoothstep(-0.005, 0.03, vLeafC.r - vLeafC.g) : 0.0;
+        vec3 bloomC = leafC * 1.3;
         if (uPaint.x > 0.0) leafC = paintLeaf(leafC) * mix(0.5, 1.12, smoothstep(-0.5, 0.6, dot(N, up)));
         leafC *= 0.46 + 0.6 * cut.g;
         // Far off a tree is a dark shape on the ground behind it, never bluer than that
@@ -278,6 +295,7 @@ export class FarForest {
         // canopy the ground raises beyond the trees)
         float dFar = length(vRel), farW = farGreenW(dFar);
         leafC = farGreen(leafC, dFar);
+        leafC = mix(leafC, bloomC * (0.46 + 0.6 * cut.g), bloomW);
         // (wood on a card is the near trees' twig colour, trees.js: grey-brown, darker than the
         // trunk; as vTrunkC * 0.6 every bark pixel changed tone at the line, review farforest-6)
         vec3 albedo = wood ? mix(vTrunkC, dot(vTrunkC, vec3(0.333)) * vec3(1.06, 1.0, 0.9), 0.75) * 0.4 : leafC;
@@ -287,6 +305,9 @@ export class FarForest {
         float through = wood ? 0.0 : max(-nl, 0.0) * 0.28 + 0.4 * pow(max(dot(-V, uSunDir), 0.0), 4.0);
         float open = (wood ? 0.45 : mix(0.5, 1.0, smoothstep(-0.6, 0.8, dot(N, up)))) * (uPaint.x > 0.0 && !wood ? 0.8 : 1.0);
         vec3 sun = directSun(planetPos) * vShade;          // (the land's own shadow, from the worker)
+        // (a crown's top in the land's shade takes the sky as the canopy round it does: open to
+        // the sky it was a pale blue-grey disc on the darker canopy, a "ghost")
+        open *= mix(1.0, mix(0.68, 1.0, vShade), vDome.z);
         // Looked down on, a trunk stands under its own crown, in its shade: on the upright
         // pictures it is drawn right through the crown's top, and a pale trunk in the Sun was a
         // bright line across every birch and aspen of a wood seen from above. (Not at the line

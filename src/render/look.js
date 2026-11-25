@@ -5,6 +5,10 @@
 //           colour: 1,           how much cleaner surface colours are
 //           facets: 0.6,         how much steep rock is lit by its faces (a cut-stone look)
 //           shafts: 1,           the Sun's beams through trees and cloud (post.js)
+//           aloft: { clear, sky, lift },  from up in the air: how much of the haze a line of
+//                                sight straight down is spared (0..1), how much more of the
+//                                sky's light falls on things (the shade), and how much the
+//                                picture's darks are lifted toward a light coloured shade
 //           grade: { day, low, dusk, night } }   the picture's grade by the Sun's height
 //
 // A grade: { sat, contrast, tint (0..1: how much of the two tints), shade: [r, g, b] (the
@@ -24,11 +28,11 @@ const mix = (a, b, t) => a + (b - a) * t;
 export class Look {
   constructor() { this.def = null; this.now = { ...NEUTRAL, shade: [1, 1, 1], light: [1, 1, 1] }; }
 
-  setWorld(world) { this.def = world.look || null; if (!this.def) { this.apply(null, 0); G.uHaze.value = 1; } }
+  setWorld(world) { this.def = world.look || null; this.aloft = 0; if (!this.def) { this.apply(null, 0); G.uHaze.value = 1; G.uAloft.value = 0; } }
 
   // sunDeg: the Sun's height at the traveller (degrees); altitude (m); uniforms: the
-  // composite pass's (post.compositeMat.uniforms).
-  update(sunDeg, altitude, uniforms, post) {
+  // composite pass's (post.compositeMat.uniforms); agl: metres over the ground.
+  update(sunDeg, altitude, uniforms, post, agl = 0) {
     this.uniforms = uniforms;
     // (the Sun's beams: only with the Sun up and low air to shine through)
     if (post) post.shafts = this.def ? (this.def.shafts ?? 0) * Math.min(1, Math.max(0, (sunDeg + 2) / 6)) * Math.min(1, Math.max(0, 1 - (altitude - 8000) / 8000)) : 0;
@@ -38,6 +42,12 @@ export class Look {
     // the whole of it, on a slant: from 10 km the land lay under a blue-grey veil, and from
     // orbit the globe was a pale ball beside the Earth one sees from Mars.)
     { const hx = Math.min(1, Math.max(0, Math.log10(Math.max(1, altitude) / 2500))); G.uHaze.value = d ? 1 - (1 - (d.spaceHaze ?? 0.45)) * hx * hx * (3 - 2 * hx) : 1; }
+    // Up in the air (from 20 m over the ground, all of it from 150 m; gone again by 40 km,
+    // where uHaze has the say): less haze over the ground below, and the shade lifted.
+    { const s = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+      this.aloft = d?.aloft ? s(20, 150, agl) * (1 - s(20000, 40000, agl)) : 0;
+      G.uAloft.value = this.aloft * (d?.aloft?.clear ?? 0); }
+    if (this.debug?.includes('nohaze')) G.uHaze.value = 0;          // ?debug=nohaze: none of the haze over the ground (before/after pictures)
     if (!d) { this.apply(null, 0); return; }
     const x = Math.min(1, Math.max(0, (Math.log10(Math.max(1, altitude)) - 4.6) / 1.0)), near = 1 - (1 - 0.33) * x * x * (3 - 2 * x);
     const g = d.grade || {};
@@ -53,11 +63,14 @@ export class Look {
 
   apply(n, paint) {
     const d = this.def;
-    G.uPaint.value.set(paint, d?.shade ?? 1, d?.colour ?? 1, d?.facets ?? 0);
+    // (from up in the air the sky's light on things counts for more: the shade lifted to a
+    // light coloured one, the ground's own colour in the sky's light, never navy)
+    G.uPaint.value.set(paint, (d?.shade ?? 1) * (1 + (this.aloft || 0) * (d?.aloft?.sky ?? 0)), d?.colour ?? 1, d?.facets ?? 0);
     const u = this.uniforms; if (!u) return;
-    if (!n || paint <= 0) { u.uGrade.value.set(1, 1, 0, 0); return; }
+    if (!n || paint <= 0 || this.debug?.includes('nograde')) { u.uGrade.value.set(1, 1, 0, 0); return; }   // (?debug=nograde: the picture without the look's grade)
     // (the grade fades with the painted look itself)
-    u.uGrade.value.set(mix(1, n.sat, paint), mix(1, n.contrast, paint), n.tint * paint, 0);
+    // (w: the shade lifted toward the grade's own shade colour, from up in the air)
+    u.uGrade.value.set(mix(1, n.sat, paint), mix(1, n.contrast, paint), n.tint * paint, (this.aloft || 0) * (d?.aloft?.lift ?? 0) * paint);
     u.uGradeShade.value.set(n.shade[0], n.shade[1], n.shade[2]); u.uGradeLight.value.set(n.light[0], n.light[1], n.light[2]);
   }
 }
