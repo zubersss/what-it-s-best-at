@@ -164,8 +164,10 @@ const heapText = BREAK === 'heap' ? HEAP_GLSL.replace('vec3 qv = skyToLow(steer,
   } catch (e) { err = e.message; }
   check(!err, `the shared rule, the field rule and the march's marchPattern() and density() run as GLSL ES 3${err ? ': ' + err : ''}`);
   check(marchRayOk, "the march turns its camera, its ray and the Sun's direction into the low layer's axes once a ray (skyToLow of uCloudSteer)");
-  // every reader of the rule hands it the steering, and none reads a drift
-  const readers = { terrain: '../src/terrain/terrainMaterial.js', treeShade: '../src/life/treeShade.js', farRocks: '../src/rocks/farRocks.js', shell: '../src/sky/clouds.js', volume: '../src/sky/cloudVolume.js' };
+  // every reader of the rule hands it the steering, and none reads a drift. (Package C: the
+  // ground, the trees' shade and the far rocks no longer read the rule at all - they read the
+  // one cloud-shade atlas, which reads the rule for them: src/sky/cloudShade.js.)
+  const readers = { atlas: '../src/sky/cloudShade.js', shell: '../src/sky/clouds.js', volume: '../src/sky/cloudVolume.js' };
   const badR = [];
   for (const [k, f] of Object.entries(readers)) {
     const s = read(f);
@@ -174,9 +176,15 @@ const heapText = BREAK === 'heap' ? HEAP_GLSL.replace('vec3 qv = skyToLow(steer,
     if (!/uCloudSteer: (SKY_UNIFORMS|sh)\.uCloudSteer/.test(s)) badR.push(`${k} does not take the one uCloudSteer object`);
     // (the shared uniforms declared only through the guarded texts, and the heaps' scales a vec4: its w the rise)
     if (/uniform\s+(highp\s+)?(vec4\s+uCloudSteer|sampler3D\s+tCloudNoise|vec4\s+uCloudRise)\b/.test(s.replace(/\/\/.*$/gm, ''))) badR.push(`${k} declares a shared uniform by a line of its own`);
-    if (['terrain', 'treeShade', 'farRocks'].includes(k) && !/uniform vec4 [^;]*\buCloudVol\b/.test(s)) badR.push(`${k}'s uCloudVol is not a vec4 (the rise is its w)`);
+    if (k === 'atlas' && !/uniform vec4 [^;]*\buCloudVol\b/.test(s)) badR.push(`${k}'s uCloudVol is not a vec4 (the rise is its w)`);
   }
-  check(!badR.length, `the ground, the trees' shade map, the far rocks, the shell and the volume all read the clouds on the steering and the rise, through the guarded uniforms${badR.length ? ': ' + badR.join('; ') : ''}`);
+  // and what is lit reads the shade from the atlas, none of them working the rule out again
+  for (const [k, f] of [['the ground', '../src/terrain/terrainMaterial.js'], ["the trees' shade", '../src/life/treeShade.js'], ['the far rocks', '../src/rocks/farRocks.js']]) {
+    const s = read(f).replace(/\/\/.*$/gm, '');
+    if (/cloudHeap\s*\(|HEAP_GLSL/.test(s)) badR.push(`${k} works the heaps out itself`);
+    if (!/tCloudShade|SHADE_READ_GLSL|cloudShade\.js/.test(s)) badR.push(`${k} does not read the shade atlas`);
+  }
+  check(!badR.length, `the atlas, the shell and the volume read the clouds on the steering and the rise through the guarded uniforms, and the ground, the trees' shade and the far rocks read the atlas${badR.length ? ': ' + badR.join('; ') : ''}`);
   const cl = new CloudLayer(null), cv = new CloudVolume(null);
   check(cl.uniforms.uCloudSteer === SKY_UNIFORMS.uCloudSteer && cv.uniforms.uCloudSteer === SKY_UNIFORMS.uCloudSteer, 'the shell and the volume hold the very uniform object the sky system fills');
 }
