@@ -230,7 +230,10 @@ either side. Its first run drew the SAME picture four times (34 007 pixels, cove
 0.439, to four decimals) and passed: it moved rig.pos but not the camera the shaders read. It
 now moves that uniform and fails if the four pictures are identical.
 
-*(the rest as they run)*
+**The parity of every JS twin with its GLSL** (`scripts/sky-system-test.mjs`, which runs the
+shared texts through `scripts/lib/glslRun.mjs` at a grid of points): passes on the merged build,
+as do `sky-steer-test`, `sky-format-test`, `sky-cell-test`, `sky-model-test`, `governor-sim`,
+`cloud-volume-test` and `lens-list-test`.
 
 ## Pictures (paths; before and after)
 
