@@ -174,7 +174,7 @@ void froxelHaze(float dk, float pathA, float pathB, vec2 uvIn, float cosT, out v
 // and blended in by height.
 float hazeAloft(vec3 rd, vec3 up) {
   if (uAloft <= 0.0) return 1.0;
-  return 1.0 - uAloft * smoothstep(0.06, 0.62, -dot(rd, up));
+  return 1.0 - uAloft * smoothstep(0.04, 0.5, -dot(rd, up));
 }
 vec3 hazeOverGround(vec3 color, vec3 rel, vec3 rho) {
   vec3 h = hazeOverGroundFull(color, rel, rho);

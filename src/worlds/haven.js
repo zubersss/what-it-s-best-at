@@ -101,7 +101,7 @@ export default {
     paint: 1, shade: 1.35, colour: 0.7, facets: 0.6, shafts: 1, reliefLight: 1,
     // From up in the air: the ground below nearly clear of the haze (the land toward the
     // horizon keeps all of it), and the shade lifted to a light cool one (render/look.js)
-    aloft: { clear: 0.82, sky: 1.6, lift: 0.5 },
+    aloft: { clear: 0.9, sky: 2.6, lift: 0.9 },
     grade: {
       day: { sat: 1.18, contrast: 1.06, tint: 1, shade: [0.84, 1.02, 1.04], light: [1.05, 1.0, 0.93] },
       low: { sat: 1.3, contrast: 1.08, tint: 1, shade: [0.95, 0.86, 1.02], light: [1.12, 0.98, 0.8] },
