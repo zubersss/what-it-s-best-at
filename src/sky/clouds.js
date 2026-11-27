@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { G } from '../render/globals.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
-import { HEAP_GLSL, SKY_UNIFORMS, SKY_NOISE_UNIFORM_GLSL, SKY_STEER_UNIFORM_GLSL, SKY_FIELD_GLSL, SKY_V0 } from './skyGlsl.js';
+import { HEAP_GLSL, SKY_UNIFORMS, SKY_NOISE_UNIFORM_GLSL, SKY_STEER_UNIFORM_GLSL, SKY_FIELD_GLSL, SKY_V0, CLOUD_RULE } from './skyGlsl.js';
 import { CLOUD_LOOK as TONE } from './cloudLook.js';
 
 // The rule the shell, the volume and every shadow share (fair-weather fields, heaps carved
@@ -135,9 +135,11 @@ void main() {
       vec3 pp = uHeights == 1 ? planetPos : planetPos + rd * ((hi - h0) * inv);
       vec3 qs = skyToLow(uCloudSteer, pp) * uSkyLow.x;
       vec3 qf = skyFormQ(qs, normalize(qs), share);
-      vec2 n = skyMass2(tCloudNoise, qf, uSkyLow.y + hi, uCloudRise.x);
+      float low = skyMassLow(tCloudNoise, qf);
+      vec2 n = skyMassOf(skyLowNoise2(tCloudNoise, qf, uSkyLow.y + hi, uCloudRise.x), low);
       // (a sheet thinner than the layer lies at its foot: asked at a height inside it)
-      float d = max(skyHeapAt(n.x, L.x, yi), skySheetAt(n.x, L.y, min(yi, 0.5 * share), share));
+      // (uHeights 3: the dome's height from the coarse reading mostly, as the volume has it)
+      float d = max(uHeights == 1 ? skyHeapAt(n.x, L.x, yi) : skyHeapAtT(n.x, mix(n.x, low, ${glf(CLOUD_RULE.TOP_LOW)}), skyCarve(L.x), L.x, yi), skySheetAt(n.x, L.y, min(yi, 0.5 * share), share));
       d = skyEdgeEat(d, n.y * fine);
       float a = smoothstep(0.0, 0.45, d);
       yHit += through * a * yi; wHit += through * a;

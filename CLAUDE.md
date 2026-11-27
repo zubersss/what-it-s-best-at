@@ -779,6 +779,12 @@ finished benchmark leaves its text in `window.__benchResult`.
 - A noise texture that repeats every few kilometres shows as rows from the air however the
   cover varies: cut the masses from two readings at scales with no common period (the fine
   one alone gave crumbs a kilometre wide in rows 4.2 km apart).
+- A heap cover is not a lid. Cut from a 3-D noise at the cover itself, 0.6 was three quarters
+  of the sky from above; the field's heaps are cut at a map of it (`CLOUD_RULE.CARVE*`) so
+  that full cover is half the sky, and a lid is a sheet. `node scripts/sky-above.mjs` prints
+  the share of the land under cloud for the hour: read it before any picture of a sky.
+- The model's land is the elevation map, and that holds lake BEDS: its fog lay under the
+  water of every lake. Anything laid "on the ground" by rule must ask where the water is.
 - Two clocks: `?t=` (and a bookmark's `timeOffsetHours`) counts hours from the scene's own
   moment; the weather's clock counts seconds from `weather.epoch` (521 hours apart on Haven).
   A Node scan of the model at `t = H * 3600` asks about another day than the game shows at

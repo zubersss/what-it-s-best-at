@@ -153,10 +153,16 @@ void main() {
     float lump = smoothstep(0.46, 0.62, lumpN + 0.35 * cover);
     alpha = min(${glf(U.MID_ALPHA)}, mix(lump * cover * 1.8, 0.75 + 0.25 * cover, veil));
     // (its two tones: the side of each cloudlet turned from the Sun. Not in a veil, which is flat.)
-    if (uUpper.w < 0.5 && veil < 1.0) {
+    // SEEN FROM ABOVE the layer lies over the land, and a veil of it thin enough to see through
+    // is a grey film on the country ("stickers"): from above a veil keeps its lumps' two tones
+    // (its top is rolled, and the Sun lies across it), and what is less than half there is cut
+    // to a clean edge, as the heaps are. From below nothing changes.
+    bool above = uUpper.z < 0.5;
+    if (uUpper.w < 0.5 && (veil < 1.0 || above)) {
       float n1 = upperNoise((q + steerMid(uSunDir) * 0.12) * k);
-      shade = mix(mix(${glf(U.MID_SHADE)}, 1.06, smoothstep(-0.03, 0.05, n - n1)), 1.0, veil);
+      shade = mix(mix(${glf(U.MID_SHADE)}, 1.06, smoothstep(-0.03, 0.05, n - n1)), 1.0, above ? 0.35 * veil : veil);
     }
+    if (above) alpha = mix(alpha, ${glf(U.MID_ALPHA)} * smoothstep(0.3, 0.5, alpha), uPaint.x);
   }
   // (nothing smaller than a pixel: from far above, a field of cloudlets is its own mean)
   float small = smoothstep(0.4, 1.4, px * uUpper.y / ${glf(U.MID_CELL)});
