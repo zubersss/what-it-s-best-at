@@ -247,6 +247,12 @@ ${FLOWERS_GLSL}
 uniform vec4 uWind;            // xyz: where the wind blows to (unit, planet axes), w: its speed (m/s)
 uniform vec3 uWave;            // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
 uniform float uLitter;         // fallen leaves under the trees, 0..1 by the season
+// [seasons] The far canopy's trees that drop their leaves, by the season (worked out by the one
+// rule, life/season.js canopyYear, and only read here): eight entries by height. rgb: their
+// leaves' colour on this day (branches where they are bare); a: the level of the canopy's
+// patch noise over which a patch is theirs (their share of the wood there; 9: none).
+uniform vec4 uCanopyYear[8];
+uniform vec4 uCanopyAlt;       // x: the first entry's height (m); y: entries a metre; z: metres of height a degree toward the pole counts for; w: the latitude the entries are for (degrees from the equator)
 ${WAVE_GLSL}
 uniform float uTime;
 uniform float uWaterQ;         // living water's governor step: 1 = its fine motion in full, 0 = thinned (a river's lanes from the nearest whole-number pair alone, not the four blended)
@@ -374,17 +380,22 @@ ${ALBEDO_RANGE_GLSL}
 // and the trees on it specks of another colour in both.
 ${PAINT_LEAF}
 ${FAR_GREEN_GLSL}
-vec3 farCanopyColour(vec3 tint, vec3 c1, vec3 c2, float turn, float dist) {
+vec3 farCanopyColour(vec3 tint, vec3 c1, vec3 c2, float height, float absLat, float dist) {
   vec3 leaf = vec3(0.045, 0.085, 0.03) * 0.61;
   if (uPaint.x > 0.0) leaf = paintLeaf(leaf);
   vec3 leaves = farGreen(leaf * (1.12 * 0.76), dist) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
-  // (in their season, in patches: the trees that turn among those that do not. Few patches:
-  // turn is 1 from autumn to the end of winter, and with two thirds of the canopy turned a
-  // wood of firs and pines, which keep their needles, was gold and rust all winter under
-  // green trees: the gold scales of the opening place in its first morning, which is the
-  // last day of its winter. The canopy does not know what grows in it; one patch in six
-  // turns, as the aspens and cottonwoods among Haven's conifers do.)
-  return mix(leaves, mix(vec3(0.17, 0.10, 0.02), vec3(0.13, 0.035, 0.015), smoothstep(-0.1, 0.25, c1.r)) * (0.8 + 0.6 * (c2.b + 0.5)), turn * 0.85 * smoothstep(0.2, 0.34, c2.r + 0.5 * c1.g));
+  // [seasons] In patches, the trees that drop their leaves among those that keep them: as
+  // many patches as the wood at this height has of them, in their leaves' colour on this
+  // day (pale green, summer's green, gold and red, bare branches). The canopy does not know
+  // which trees stand in it; the rule that the trees themselves ask does (uCanopyYear).
+  float x = clamp((height + uCanopyAlt.z * (absLat - uCanopyAlt.w) - uCanopyAlt.x) * uCanopyAlt.y, 0.0, 6.999);
+  int i = int(x); vec4 yr = mix(uCanopyYear[i], uCanopyYear[i + 1], x - float(i));
+  if (yr.a > 2.0) return leaves;
+  vec3 theirs = yr.rgb * 0.61;
+  if (uPaint.x > 0.0) theirs = paintLeaf(theirs);
+  // (each patch its own tone, and some redder than the mean, as each tree is)
+  theirs = farGreen(theirs * (1.12 * 0.76), dist) * (0.8 + 0.6 * (c2.b + 0.5)) * mix(vec3(1.0), vec3(1.12, 0.78, 0.8), smoothstep(-0.1, 0.25, c1.r) * smoothstep(0.0, 0.3, (yr.r - yr.g) / max(yr.r, 1e-4)));
+  return mix(leaves, theirs, 0.85 * smoothstep(yr.a, yr.a + 0.14, c2.r + 0.5 * c1.g));
 }
 // The far canopy's grain: how it tilts the surface, along the tile's two axes, where a
 // pixel is narrower than the canopy's unevenness (nearC 1: all of it; 0: none).
@@ -715,7 +726,7 @@ void main() {
     // (a canopy seen from the side shows the sides of its crowns: lit with the Sun behind
     // the eye, dark against it, as the trees drawn one by one are; from straight above, its top)
     N = normalize(N + (V - up * dot(V, up)) * (1.1 * vShell));
-    vec3 leaves = farCanopyColour(mapTint, c1, c2, uLitter, dist);
+    vec3 leaves = farCanopyColour(mapTint, c1, c2, vHeight, degrees(asin(clamp(abs(up.z), 0.0, 1.0))), dist);
     // (not from far off: there the forest is what the picture from space shows, not one
     // flat green laid over it in blocks: the canopy's map has pixels a kilometre wide)
     // (by distance, not by the patch's texel: a patch a step finer than its neighbours was
@@ -1102,7 +1113,7 @@ export function makeTerrainShared(world, textures) {
     // reads to write itself with (nothing in the ground's shaders reads them any more)
     ...CLOUD_SHADE_UNIFORMS, ...CLOUD_WET_UNIFORMS,
     tCloudNoise: { value: null }, uCloudHeap: { value: new THREE.Vector4(0, 0, 0, 0) }, uCloudVol: { value: new THREE.Vector4() }, uCloudSteer: SKY_UNIFORMS.uCloudSteer,
-    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) }, uGrassWave: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, uCanopyYear: { value: Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, 0, 9)) }, uCanopyAlt: { value: new THREE.Vector4(0, 0, 0, 45) }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) }, uGrassWave: { value: new THREE.Vector4(0, 0, 0, 0) },
     tRingColour: { value: textures.white }, uRingColour: { value: new THREE.Vector4(0, 0, 1, 0) },
     tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoShift: { value: 0 }, uAlbedoSteep: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
     uAlbedoRange: { value: new THREE.Vector2() }, uRockHue: { value: new THREE.Vector2() }, uCoverContrast: { value: 1 }, uBedrockSlope: { value: 0 },
