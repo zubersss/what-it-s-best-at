@@ -224,6 +224,16 @@ before the clear is what the picture and the shadow tiles now do).
   triangles of grass for 1 795 392; the frame 1.90 million for 2.99**.
   `docs/shots/speed-2/grass_whole_above_blocks_below_ledge.jpg`. From 50 m over the meadow
   the grass is 361 560 triangles for 1 795 392 (that view had not settled: no pixel count).
+- *The merged build (dde2792: twelve blocks a side, the layers rule moved, seasons 3 to 5 and
+  the sky's cuts merged in), with every saving on* (`--query debug=floor`, the same view):
+  blocks against whole again no pixel more than one level apart (0.017 % of them by one);
+  625 680 triangles of grass for 1 915 344, the frame 1.32 million for 2.61. The thinned
+  meadow is whole and even: `docs/shots/speed-2/ledge_floor_grass_by_blocks.jpg`.
+- `npm run smoke` passed on 5fece89 (the Mars benchmark with the new lines and two new
+  checks for them; every shader inside a phone's limits). In its cost test, on a software
+  renderer whose baseline climbed from 1 257 to 5 785 ms over the test, the ground's shading
+  read 1 226 and 1 249 ms in its two takes: the groups hold under a drifting baseline, where
+  the single savings of the same test all read 20 to 190 ms "saved" (the drift).
 - A first try at "before and after" with two builds' pictures of the opening view could not
   say it: the two runs were ready on different frames (181 and 184), and the grass's wave is
   added up frame by frame, so every near blade stood a pixel to one side in one of them (3 %
