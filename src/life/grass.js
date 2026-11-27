@@ -34,6 +34,7 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
 import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
 import { fullscreenGeometry } from '../render/fullscreen.js';
+import { NB, NBLOCKS, blockWide, TableSummary, latticePhase, visibleBlocks } from './grassBlocks.js';
 import { AMOUNT, DRY, KINDS, floraAt, flowersAt, flowerTable, FLOWERS_GLSL, GRASS_GLSL, GRASS_GROUND, WAVE_K } from './grassRules.js';
 
 const SHADE_N = 36, SHADE_CELL = 40, SHADE_MOVE = 120;   // the land's shadow for the far grass: places a side, metres between them, how far the traveller goes before it is asked again
@@ -84,6 +85,7 @@ const HANDOVER = FLOWERS[FLOWERS.length - 1].out, FLOWER_EDGE = 0.03;
 // out, blade by blade (looked along at eye height a full field is twenty deep, and all but
 // the front few are hidden), and the share of a field that is kept whatever the angle.
 const LAYERS = 5, LAYERS_FLOOR = 0.12;
+const FLOWER_REACH = 2.2;        // how far a flower's foot may be outside the picture before the plant is thrown out (m; a ring's is its `reach`)
 // The light on the ground round the traveller (GrassLight below): places a side for each ring.
 const LIGHT_N = 96;
 
@@ -128,21 +130,6 @@ export const GRASS_PRELUDE = /* glsl */`
   vec2 hash2(vec2 p) { vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); q += dot(q, q.yzx + 33.33); return fract((q.xx + q.yz) * q.zy); }
   // the ground's height at a place, measured up from the camera (g: its table entry)
   float groundUp(vec4 g, vec2 at) { return g.r + uGrassCurve.x - dot(at, at) * uGrassCurve.y - uGrassCam.z; }
-  // this instance's cell: its middle from the camera (m), and its number on the ground
-  // (instances are drawn in a scrambled order: a smaller count thins the field evenly)
-  // Instance c draws the cells whose number counted from where the grass began is c modulo
-  // GRID, whatever the anchor: the cells a thinned field keeps are the ground's. (Counted from
-  // the anchor, with a saving on, half the field was dealt afresh at every step of it.) The
-  // window round the eye starts HALF behind it, a whole number of cells: with an odd GRID half
-  // the box was half a cell, every middle fell on an edge between two cells, and rounding chose
-  // the cell's number afresh as the eye moved.
-  vec2 latticeCell(out vec2 own) {
-    int id = (gl_InstanceID * 7919) % (GRID * GRID);
-    vec2 c = vec2(float(id % GRID), float(id / GRID));
-    vec2 rc = mod((c - uLatOrigin.zw + 0.5) * SPACING - uGrassCam.xy, BOX) - HALF;
-    own = mod(floor((rc + uGrassCam.xy) / SPACING) + uLatOrigin.xy, 4096.0) + SEED;
-    return rc;
-  }
   // stretches of taller and shorter, greener and drier grass, some metres across (in the
   // ground's own coordinates: a whole number of waves in PERIOD)
   float lieAt(vec2 at) {
@@ -180,17 +167,50 @@ export const GRASS_PRELUDE = /* glsl */`
   // (behind the eye or off the side of the picture, by more than m metres)
   bool outside(vec4 cc, float m) { return cc.w < -m || abs(cc.x) > cc.w + m * (1.0 + projectionMatrix[0][0]) || abs(cc.y) > cc.w + m * (1.0 + abs(projectionMatrix[1][1])); }`;
 
+// This instance's cell: its middle from the camera (m), and its number on the ground.
+// The field is a window of GRID x GRID cells round the eye, cut into NB x NB blocks of BW
+// cells a side; only the blocks the shader could keep anything of are handed over
+// (life/grassBlocks.js: uBlocks, uBlockN of them), the instances dealt to them in turn. The
+// window's cell w stands (w + uLatPhase) * SPACING - HALF from the eye: the middle of the
+// ground's own cell there, whatever the anchor (HALF a whole number of cells: with half a
+// cell, every middle fell on an edge between two cells, and rounding chose the cell's number
+// afresh as the eye moved). Its number is counted from where the grass began.
+// A thinned field (the governor's savings) keeps the cells whose own numbers say so
+// (keptCell): the ground's cells, not the window's, or half the field was dealt afresh at
+// every step of the eye.
+const LATTICE_GLSL = /* glsl */`
+  uniform vec4 uBlocks[${NBLOCKS / 4}]; uniform int uBlockN; uniform vec2 uLatPhase;
+  vec2 latticeCell(out vec2 own) {
+    int k = gl_InstanceID % uBlockN, lid = gl_InstanceID / uBlockN;
+    float code = uBlocks[k >> 2][k & 3];
+    vec2 w = vec2(mod(code, ${NB}.0), floor(code / ${NB}.0)) * float(BW) + vec2(float(lid % BW), float(lid / BW));
+    // (the last row and column of blocks reach past the field: no cell there)
+    if (max(w.x, w.y) >= float(GRID)) { own = vec2(0.0); return vec2(1.0e6); }
+    // (the ground's cell under the window's, counted from the anchor, and its middle from the
+    // eye: from the cell's whole number, so that a place is the same to the last bit whatever
+    // the eye's own rounding)
+    vec2 n = floor(((w + uLatPhase) * SPACING - HALF + uGrassCam.xy) / SPACING);
+    vec2 rc = (n + 0.5) * SPACING - uGrassCam.xy;
+    own = mod(n + uLatOrigin.xy, 4096.0) + SEED;
+    return rc;
+  }
+  // (evenly over the ground: a lattice rule of the cell's own number, not a hash)
+  bool keptCell(vec2 own, float share) { return fract(dot(own - SEED, vec2(0.7548776662, 0.5698402910))) < share; }`;
+
 // A blade: one triangle standing on the ground. Near the eye a thin leaf among hundreds
 // to the square metre; far off a broad tooth, a few to a cell some metres wide.
 const BLADE_VERT = /* glsl */`
   in float aBlade;
   uniform sampler2D tTable; uniform vec4 uTab;
   ${GRASS_PRELUDE}
+  ${LATTICE_GLSL}
   #ifdef FAR
   ${FLOWERS_GLSL}
   #endif
   void main() {
-    vec2 cell, rc = latticeCell(cell), h = hash2(cell), hb = hash2(cell + 71.3 + aBlade * 7.7), hc = hash2(cell * 1.7 + 5.3 + aBlade * 13.1);
+    vec2 cell, rc = latticeCell(cell);
+    if (!keptCell(cell, GOVSHARE)) OUT_OF_PICTURE
+    vec2 h = hash2(cell), hb = hash2(cell + 71.3 + aBlade * 7.7), hc = hash2(cell * 1.7 + 5.3 + aBlade * 13.1);
     // (each blade anywhere in its cell and a little beyond: an even field, no rows)
     vec2 foot2 = rc + (hc - 0.5) * (1.15 * SPACING), at = foot2 + uGrassCam.xy;
     float dist = length(foot2);
@@ -331,9 +351,12 @@ const FLOWER_VERT = /* glsl */`
   in float aPart;
   uniform sampler2D tTable; uniform vec4 uTab;
   ${GRASS_PRELUDE}
+  ${LATTICE_GLSL}
   ${FLOWERS_GLSL}
   void main() {
-    vec2 cell, rc = latticeCell(cell), h = hash2(cell), h2 = hash2(cell + 23.9), h3 = hash2(cell + 57.1);
+    vec2 cell, rc = latticeCell(cell);
+    if (!keptCell(cell, uGrassGov.x)) OUT_OF_PICTURE
+    vec2 h = hash2(cell), h2 = hash2(cell + 23.9), h3 = hash2(cell + 57.1);
     vec2 rel2 = rc + (h - 0.5) * 0.9 * SPACING, at = rel2 + uGrassCam.xy;
     float dist = length(rel2);
     float ring = (1.0 - smoothstep(OUT0, OUT1, dist)) * uGrassKeep.x;
@@ -349,7 +372,7 @@ const FLOWER_VERT = /* glsl */`
     // hid the grass. As many of a kind's heads to the square metre as cover the same ground.)
     float headSize = KIND_SHAPE[clamp(int(kind + 0.5), 0, KIND_N - 1)].y;
     if (kind < 0.5 || h2.x >= fract(gn.a + 0.001) * 1.1 * min(1.0, pow(0.036 / headSize, 2.0))) OUT_OF_PICTURE
-    if (outside(projectionMatrix * viewMatrix * vec4(uGrassEast * rel2.x + uGrassNorth * rel2.y + uGrassUp * groundUp(gn, at), 1.0), 2.2)) OUT_OF_PICTURE
+    if (outside(projectionMatrix * viewMatrix * vec4(uGrassEast * rel2.x + uGrassNorth * rel2.y + uGrassUp * groundUp(gn, at), 1.0), ${FLOWER_REACH.toFixed(1)})) OUT_OF_PICTURE
     vec2 grad; vec4 g = tableAt(tTable, uTab, at, grad);
     float keep = step(0.1, g.g) * keepOf(ring, h.x);
     if (keep <= 0.0) OUT_OF_PICTURE
@@ -553,6 +576,7 @@ class Table {
     this.tex.minFilter = this.tex.magFilter = THREE.NearestFilter; this.tex.needsUpdate = true;
     this.info = { value: new THREE.Vector4(0, 0, cell, n) };      // the shader's: the origin modulo the table's span, cell, places a side
     this.pending = n * n; this.key = ''; this.changed = false;
+    this.sum = new TableSummary(n); this.sum.build(this.data);      // (for leaving out the blocks of a field with nothing in them: grassBlocks.js)
     this.flora = new Uint8Array(n * n);                           // each entry's flora (the far ground's flowers are the table's majority)
     // (rows and columns from the camera's outward: the nearest are worked out first)
     const half = n >> 1; this.order = [0]; for (let k = 1; k < half; k++) this.order.push(k, -k); this.order.push(-half);
@@ -626,21 +650,27 @@ export class Grass {
     this.lightReaders = [];
     // a field: one cell's triangles, drawn once for every place of its lattice
     const field = (f, geo, vertexShader, defines, tris, light) => {
-      geo.instanceCount = f.grid * f.grid;
+      // (a field is handed over block by block: all of them until cull() has said which, grassBlocks.js)
+      const bw = blockWide(f.grid), half = (Math.floor(f.grid / 2) * f.spacing).toFixed(4);
+      geo.instanceCount = NBLOCKS * bw * bw;
+      const blocks = { value: Float32Array.from({ length: NBLOCKS }, (_, i) => i) }, blockN = { value: NBLOCKS }, phase = { value: new THREE.Vector2() };
       const lat = { value: new THREE.Vector4() }, t = this.tables[f.table];
       const material = new THREE.ShaderMaterial({
         glslVersion: THREE.GLSL3, side: THREE.DoubleSide, vertexShader, fragmentShader: FRAG,
-        uniforms: { ...this.shared, uLatOrigin: lat, tTable: { value: t.tex }, uTab: t.info, tLight: { value: this.light.texture }, uLight: this.lightU[light] },
-        defines: { GRID: f.grid, SPACING: f.spacing.toFixed(4), BOX: (f.grid * f.spacing).toFixed(3), HALF: (Math.floor(f.grid / 2) * f.spacing).toFixed(4), SEED: f.seed.toFixed(1), OUT0: f.out[0].toFixed(2), OUT1: f.out[1].toFixed(2), ...defines },
+        uniforms: { ...this.shared, uLatOrigin: lat, uBlocks: blocks, uBlockN: blockN, uLatPhase: phase, tTable: { value: t.tex }, uTab: t.info, tLight: { value: this.light.texture }, uLight: this.lightU[light] },
+        defines: { GRID: f.grid, SPACING: f.spacing.toFixed(4), BOX: (f.grid * f.spacing).toFixed(3), HALF: half, BW: bw, SEED: f.seed.toFixed(1), OUT0: f.out[0].toFixed(2), OUT1: f.out[1].toFixed(2), ...defines },
       });
       const mesh = new THREE.Mesh(geo, material); mesh.frustumCulled = false;
-      return { f, geo, mesh, lat, all: f.grid * f.grid, tris, row: light };
+      // (what cull() asks of a block: the shader's own numbers. A foot stands up to `jitter` from its cell's middle.)
+      const blades = defines.BLADES != null;
+      const cullBy = { grid: f.grid, spacing: f.spacing, half: Number(half), jitter: (blades ? 0.575 : 0.45) * f.spacing, reach: blades ? f.reach : FLOWER_REACH, in0: f.in ? f.in[0] : null, out1: f.out[1], flowers: !blades };
+      return { f, geo, mesh, lat, blocks, blockN, phase, bw, cullBy, table: t, want: false, all: f.grid * f.grid, tris, row: light };
     };
     const plain = (pos, attr, values) => { const g = new THREE.InstancedBufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3)); g.setAttribute(attr, new THREE.BufferAttribute(new Float32Array(values), 1)); return g; };
     // a ring of grass: each blade a triangle; x: across the blade (-1, 1, 0 at the tip), y: up it, and which blade it is
     const ring = (f, k) => {
       const p = [], b = []; for (let i = 0; i < f.blades; i++) { p.push(-1, 0, 0, 1, 0, 0, 0, 1, 0); b.push(i, i, i); }
-      const d = { BLADES: f.blades, WIDE: f.wide.toFixed(4), GROW: f.grow.toFixed(4), TALL: f.tall.toFixed(3), YAW: f.yaw.toFixed(2), BACK: f.back.toFixed(2), REACH: f.reach.toFixed(1), KEEP: f.far ? 'uGrassKeep.y' : 'uGrassKeep.x', GOV: f.far ? '(uGrassGov.y * uGrassKeep.w)' : 'uGrassGov.x' };
+      const d = { BLADES: f.blades, WIDE: f.wide.toFixed(4), GROW: f.grow.toFixed(4), TALL: f.tall.toFixed(3), YAW: f.yaw.toFixed(2), BACK: f.back.toFixed(2), REACH: f.reach.toFixed(1), KEEP: f.far ? 'uGrassKeep.y' : 'uGrassKeep.x', GOV: f.far ? '(uGrassGov.y * uGrassKeep.w)' : 'uGrassGov.x', GOVSHARE: f.far ? 'uGrassGov.y' : 'uGrassGov.x' };
       if (f.in) { d.IN0 = f.in[0].toFixed(2); d.IN1 = f.in[1].toFixed(2); }
       if (f.far) d.FAR = 1;
       return field(f, plain(p, 'aBlade', b), BLADE_VERT, d, f.blades, k);
@@ -673,9 +703,10 @@ export class Grass {
   setWorld(world) { this.def = world.life?.grass || null; this.flowerTable = flowerTable(world.life?.flowers, world.life?.trees?.line || null); this.has = false; this.mesh.visible = false; this.seaLevel = world.surface.sea ? (world.surface.sea.level ?? 0) : null; }
 
   // The governor: draw this share of the tufts and flowers ...
-  setFraction(f) { this.fraction = f; for (const fl of this.fields) fl.geo.instanceCount = Math.round(fl.all * Math.min(1, f)); }
+  // (the share goes to the shader, uGrassGov: the cells kept are the ground's own, keptCell)
+  setFraction(f) { this.fraction = f; }
   // ... and of the clumps (those left are wider: the ground stays covered).
-  setMidShare(f) { this.midShare = f; for (const fl of this.clumps) fl.geo.instanceCount = Math.round(fl.all * Math.min(1, f)); }
+  setMidShare(f) { this.midShare = f; }
 
   // Every frame, once the picture's size is set for it (after post.setScale): the height of
   // the picture the grass and the pollen are drawn into (post.viewH), in which they measure a
@@ -803,6 +834,23 @@ export class Grass {
   // begun (after the shadow maps and the clouds' shade are made). Only the rows something
   // drawn reads: none from some 220 m up to 3 km, where the grass is only the ground's own
   // colour, and the clumps' alone from 90 m (each third by its own program, see LIGHT_PARTS).
+  // Every frame, when the camera is as the picture will be drawn with (after update()): hands
+  // the GPU only the blocks of each field that the shader could keep anything of
+  // (grassBlocks.js). Whoever draws the grass without calling this draws every block.
+  cull(camera) {
+    const v = this._view;
+    if (!this.mesh.visible || !v || this.cullOff) return;
+    camera.updateMatrixWorld();
+    const P = camera.projectionMatrix.elements, V = camera.matrixWorldInverse.elements, pv = v.pv;
+    for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) pv[c * 4 + r] = P[r] * V[c * 4] + P[4 + r] * V[c * 4 + 1] + P[8 + r] * V[c * 4 + 2] + P[12 + r] * V[c * 4 + 3];
+    v.p00 = P[0]; v.p11 = P[5];
+    for (const f of [...this.fields, ...this.clumps]) {
+      if (!f.want) continue;
+      const n = visibleBlocks(f.cullBy, v, f.table, f.blocks.value);
+      f.whole = false; f.blockN.value = Math.max(1, n); f.geo.instanceCount = n * f.bw * f.bw; f.mesh.visible = n > 0;
+    }
+  }
+
   renderLight(renderer, camera) {
     const rows = this.lightRows();
     if (!rows) return;
@@ -879,8 +927,16 @@ export class Grass {
     }
     S.uGrassKeep.value.set(kb, kc, this.midShare, 1 / Math.sqrt(Math.max(0.25, this.midShare)));
     S.uGrassGov.value.set(Math.min(1, this.fraction), Math.min(1, this.midShare));
-    for (const f of this.fields) f.mesh.visible = kb > 0;
-    for (const f of this.clumps) f.mesh.visible = kc > 0 && this.midShare > 0;
+    for (const f of this.fields) f.want = kb > 0;
+    for (const f of this.clumps) f.want = kc > 0 && this.midShare > 0;
+    // (every block of every field, until cull() has said which are in this frame's picture)
+    for (const f of [...this.fields, ...this.clumps]) {
+      f.mesh.visible = f.want;
+      f.phase.value.set(latticePhase(ce, f.f.spacing), latticePhase(cn, f.f.spacing));
+      if (f.blockN.value !== NBLOCKS || !f.whole) { for (let i = 0; i < NBLOCKS; i++) f.blocks.value[i] = i; f.blockN.value = NBLOCKS; f.geo.instanceCount = NBLOCKS * f.bw * f.bw; f.whole = true; }
+    }
+    this._view = this._view || { E: e, N: n, U: u, pv: new Float64Array(16) };
+    Object.assign(this._view, { E: e, N: n, U: u, ce, cn, cu, ox: this.origin[0], oy: this.origin[1], curveX: S.uGrassCurve.value.x, curveY: S.uGrassCurve.value.y });
     // The tables: every entry should hold the place nearest the camera among those it
     // stands for, from the maps there are now. Those that do not are worked out, nearest
     // first, a few hundred a frame (all at once for a picture).
@@ -895,7 +951,7 @@ export class Grass {
       if (k === 'near' ? kb <= 0 : k === 'far' ? kc <= 0 : kc <= 0 && !!this._tone) continue;
       const ci = Math.round((ce + this.origin[0]) / T.cell), cj = Math.round((cn + this.origin[1]) / T.cell);
       budget = T.fill(ci, cj, this.gen, Math.max(budget, k === 'near' && T.pending > 0 ? 200 : 0), (i, j, o, cell) => this._sample(T, i, j, o, cell));
-      if (T.changed) { T.changed = false; T.tex.needsUpdate = true; renderer.initTexture(T.tex); if (k === 'mid') this._toneDirty = true; }
+      if (T.changed) { T.changed = false; T.sum.build(T.data); T.tex.needsUpdate = true; renderer.initTexture(T.tex); if (k === 'mid') this._toneDirty = true; }
     }
     this._landShadow(ce, cn, kc, renderer);
     // The light table's stretches: each ring's, its middle on a place of its own grid nearest the traveller.
