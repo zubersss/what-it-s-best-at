@@ -43,6 +43,14 @@ traveller sees at noon), the sky's code review, and the fourth round's critic ga
 
 ### The joined build of 2026-11-27 afternoon: the frame-rate cuts, the mist, the seasons' ground, smoother clouds
 
+**Sent 2026-11-27 15:10 UTC: PR #42, main at 6fac2be** (pictures of that build:
+`docs/shots/joined/`). The checkpoint asks the owner for a plain Haven benchmark in Sharp,
+the paced `?bench=haven&scale=0.775` run, a word on how the character moves, and the Meshy
+plan. **Next**: the owner's reply; meanwhile merge the helpers' newer work (the sky's
+`8e58ba3`, the speed helper's `c4850cc` once its browser checks are in), check it as this
+build was checked (`scripts/all-node-checks.sh`, `smoke --no-bench`, `smoke --dsf 0.5`,
+three pictures), and send it as the link after.
+
 This branch at `e8f01b1` and later holds, beyond the link of the rigged character (main
 63b8282): the **sky helper's two lists** to `17d10e2` (the mist drawn again, `HELD = false`
 in `fogSheet.js`, fading out as the eye sinks under its top, so from a lake's shore there is
