@@ -391,7 +391,8 @@ part `fog` of the benchmark's list measures it; it has never been measured (it n
 (feathered and lit by the dawn, still only the rim: the rest under the water),
 `view_mist.png` (now: the bookmark, key 6), `mist_shore_blue.png` (eye height on the east
 shore before the shade's light and before the mist lay on the water),
-`mist_shore_after.png` (the same place now; taken after this commit if it is not here yet).
+`mist_shore_after.png` (the same place now: the mist over the eye is a warm veil with soft
+streaks; the water below the eye's level is clear, which is the limit named under it).
 
 **Not done**: standing IN the mist, what lies below the eye's level is not veiled by it (the
 sheet is over the eye there; the weather's own veil at the traveller goes by the model's fog
@@ -441,4 +442,7 @@ None of this is measured on the phone.
 
 At the opening hour the model has no heaps within 30 km, a mackerel sky (middle cloud 0.3) over
 the western half and a bank of stratus 15 to 20 km to the north-west: not a lid.
-`open_ledge_after.png` is the opening view on this head.
+`open_ledge_after.png` is the opening view on this head (`shot=ledge`, nothing else in the
+URL): the mackerel sky with blue between, and mist on the lake down in the valley, which the
+first morning never had (its lake's mist was under the water). The reference set's
+`docs/shots/haven_ledge.png` is the same view before all of this.
