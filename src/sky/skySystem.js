@@ -137,6 +137,7 @@ export const SKY_SAVINGS = Object.freeze({
   clouds: "the clouds' shadows (today: off; C: replaced by cloud-shade-coarse)",
   'cloud-volume': 'the volume off near the traveller: the shell everywhere (B: the cells still marched)',
   rain: 'half the streaks',
+  'cloud-far': 'the far heaps read at one height of their layer, not three: flat again, in the same places (sky-faults)',
   'cloud-upper': 'B: the mid and high shells in one octave, no relief',
   'rain-shafts': 'B: no streak read in the shafts, one look into the field',
   'cloud-shade-rate': "C: the shade map's middle window every other frame",
@@ -506,6 +507,7 @@ export class SkySystem {
       case 'cloud-volume': this.cloudVolume.enabled = !off; break;
       case 'rain': this.rain.share = off ? 0.5 : 1; break;
       case 'clouds': this.clouds.shadows = !(this.saving.has('clouds') || this.out.has('cloud-shade')); break;
+      case 'cloud-far': if (this.clouds.uniforms?.uHeights) this.clouds.uniforms.uHeights.value = off ? 1 : 3; break;
       case 'cloud-upper': this.upper.saving(id, off); break;
       case 'rain-shafts': this.cloudVolume.saving?.(id, off); break;
       case 'cloud-shade-rate': case 'cloud-shade-coarse': this.treeShade.saving?.(id, off); this.probe.saving(id, off); break;
@@ -519,6 +521,7 @@ export class SkySystem {
       case 'cloud-steps': case 'cloud-volume': return !!this.cloudVolume.wanted;
       case 'clouds': return !!this.clouds.mesh.visible;
       case 'rain': return !!this.rain.mesh.visible;
+      case 'cloud-far': return !!this.clouds.mesh.visible && !!this.field?.on;
       case 'cloud-upper': return !!this.upper.live(id);
       case 'rain-shafts': return !!this.cloudVolume.live?.(id);
       case 'cloud-shade-rate': case 'cloud-shade-coarse': return !!this.treeShade.live?.(id);
@@ -531,6 +534,7 @@ export class SkySystem {
   hasSaving(id) {
     switch (id) {
       case 'cloud-steps': case 'cloud-volume': case 'clouds': case 'rain': return true;
+      case 'cloud-far': return !!this.clouds.uniforms?.uHeights;
       case 'cloud-upper': return !!this.upper.has(id);
       case 'rain-shafts': return !!this.cloudVolume.has?.(id);
       case 'cloud-shade-rate': case 'cloud-shade-coarse': return !!this.treeShade.has?.(id);

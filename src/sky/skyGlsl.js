@@ -121,6 +121,22 @@ export const CLOUD_RULE = Object.freeze({
   EDGE0: 0.08, EDGE1: 0.34,                                     // the map's cover: smoothstep(lo - EDGE0, lo + EDGE1, m)
   LOBE_K: 5.3, LOBE_OFFSET: 0.37, LOBE_AMP: 0.26,               // the smaller lobes that push a heap's outline in and out
   CUT: 0.85, FLOOR: 0.15, FLOOR_MIN: 0.2, GAIN: 2.2,            // the heap from the noise: clamp((n - (1 - c) CUT) / max(c CUT + FLOOR, FLOOR_MIN) GAIN)
+  // HEAPS STAY HEAPS: the field's heap cover c is how much heap cloud the air holds (1: as much as
+  // fair weather can), and the masses are cut from the noise at k = (CARVE0 + CARVE1 c), eased in
+  // from nothing over the first CARVE_IN of cover. At c = 1 a little over half the sky is cloud
+  // seen from straight above, at 0.5 a quarter, at 0.3 a seventh: separate heaps with gaps as
+  // wide as themselves, never a lid (a lid is a SHEET, the field's other cover). Cut at k = c, a
+  // cover of 0.6 was three quarters of the sky from above and 0.8 all of it: the union of every
+  // level of a noise as deep as the layer (node scripts/sky-above.mjs prints the share).
+  CARVE0: 0.34, CARVE1: 0.24, CARVE_IN: 0.12,
+  // THE GREAT MASSES: the field's cloud is cut from two readings of the noise, its own (lumps a
+  // kilometre across, repeating every `scale`: 4.2 km on Haven) and one MASS_K times as coarse
+  // (masses three kilometres across, repeating every 13.5 km and never in step with the first),
+  // MASS_W of the coarse one, stretched back to one reading's spread. Cut from the fine reading
+  // alone, a field of heaps was crumbs a kilometre wide standing in rows 4.2 km apart: the
+  // noise's own lattice, "rows of dashes" from the air. The coarse one does not rise: the masses
+  // stand while their lumps boil up through them.
+  MASS_K: 0.31, MASS_W: 0.55, MASS_OFFSET: [0.37, 0.11, 0.73],
   // the heap's dome (as the volume has drawn it): its top from the noise, and the rounded foot
   DOME_LO: 0.36, DOME_EDGE: 0.32, DOME_COVER: 0.4, FOOT: 0.1, CROWN: 0.14,
   // the lobes eat at the edges of the masses, not their hearts
@@ -137,23 +153,31 @@ const C = CLOUD_RULE;
 // the volume reads the noise along its ray, the far shell and the shade atlas once at the
 // height where the masses are widest, and all of them cut it by these.
 export const SKY_FORM_GLSL = glslOnce('SKY_FORM', /* glsl */`
-// the top of a heap cut from the noise n where the cover is c, as a share of the layer's depth
-float skyHeapTop(float n, float c) {
-  float over = n - (1.0 - c) * ${glf(C.CUT)};
+// the cover the masses are cut at, from the field's heap cover c (CLOUD_RULE: heaps stay heaps)
+float skyCarve(float c) { return (${glf(C.CARVE0)} + ${glf(C.CARVE1)} * c) * smoothstep(0.0, ${glf(C.CARVE_IN)}, c); }
+// (the forms take the cut k and the cover c apart: the field's cloud is cut at skyCarve(c), the
+// rule of a world without a field at its cover itself, as it always was)
+// the top of a heap cut at k from the noise n where the cover is c, as a share of the layer's depth
+float skyHeapTopK(float n, float k, float c) {
+  float over = n - (1.0 - k) * ${glf(C.CUT)};
   return mix(${glf(C.DOME_LO)}, 1.0, smoothstep(0.0, ${glf(C.DOME_EDGE)}, over)) * (1.0 - ${glf(C.DOME_COVER)} + ${glf(C.DOME_COVER)} * c);
 }
-// how solid a heap's body is where the noise reads n under a cover c (no profile: the height at
-// which the masses are widest, as the far shell and the shade atlas read them)
-float skyHeapBody(float n, float c) {
-  return clamp((n - (1.0 - c) * ${glf(C.CUT)}) / max(c * ${glf(C.CUT)} + ${glf(C.FLOOR)}, ${glf(C.FLOOR_MIN)}) * ${glf(C.GAIN)}, 0.0, 1.0);
+// how solid a heap's body is where the noise reads n, cut at k (no profile: the height at which
+// the masses are widest, as the far shell and the shade atlas read them)
+float skyHeapBodyK(float n, float k) {
+  return clamp((n - (1.0 - k) * ${glf(C.CUT)}) / max(k * ${glf(C.CUT)} + ${glf(C.FLOOR)}, ${glf(C.FLOOR_MIN)}) * ${glf(C.GAIN)}, 0.0, 1.0);
 }
 // A heap at the height y in its layer (0 base .. 1 top): rounded below, a dome over its middle
 // (with one height for all, a sky full of them was a flat-topped deck).
-float skyHeapAt(float n, float c, float y) {
-  float top = skyHeapTop(n, c);
+float skyHeapAtK(float n, float k, float c, float y) {
+  float top = skyHeapTopK(n, k, c);
   float profile = smoothstep(0.0, ${glf(C.FOOT)}, y) * (1.0 - smoothstep(top - ${glf(C.CROWN)}, top, y));
-  return skyHeapBody(n * profile, c);
+  return skyHeapBodyK(n * profile, k);
 }
+// the field's heaps: cut at skyCarve(c)
+float skyHeapTop(float n, float c) { return skyHeapTopK(n, skyCarve(c), c); }
+float skyHeapBody(float n, float c) { return skyHeapBodyK(n, skyCarve(c)); }
+float skyHeapAt(float n, float c, float y) { return skyHeapAtK(n, skyCarve(c), c, y); }
 // the smaller lobes (e: the noise's second channel) eating at a mass's edge, not its heart
 float skyEdgeEat(float d, float e) {
   if (d <= 0.0) return d;
@@ -181,18 +205,37 @@ vec3 skyFormQ(vec3 q, vec3 up, float sheetShare) {
 // the part of the layer's depth the sheet fills, y the height in the layer (0 base .. 1 top).
 // The volume marches it, the far shell reads it where the masses are widest, and the shade atlas
 // follows it toward the Sun: one rule.
-float skyLowAt(highp sampler3D noise, vec3 q, float r, float a, float cover, float sheet, float share, float y, bool fine) {
-  vec2 n = skyLowNoise2(noise, q, r, a);
+float skyLowAtL(highp sampler3D noise, vec3 q, float r, float a, float cover, float sheet, float share, float y, bool fine, float low) {
+  vec2 n = skyMassOf(skyLowNoise2(noise, q, r, a), low);
   float d = max(skyHeapAt(n.x, cover, y), skySheetAt(n.x, sheet, y, share));
+  return fine ? skyEdgeEat(d, n.y) : d;
+}
+float skyLowAt(highp sampler3D noise, vec3 q, float r, float a, float cover, float sheet, float share, float y, bool fine) {
+  return skyLowAtL(noise, q, r, a, cover, sheet, share, y, fine, skyMassLow(noise, q));
+}
+// The heaps of a world WITHOUT a field (the day's map and fair-weather fields: Earth), as the
+// volume has always marched them: the fine reading alone, cut at the cover itself.
+float skyPlainAt(highp sampler3D noise, vec3 q, float r, float a, float cover, float y, bool fine) {
+  vec2 n = skyLowNoise2(noise, q, r, a);
+  float d = skyHeapAtK(n.x, cover, cover, y);
   return fine ? skyEdgeEat(d, n.y) : d;
 }`);
 
 // The JS twins of the forms (the parity test runs the GLSL above against these).
-export const skyHeapTopJS = (n, c) => (C.DOME_LO + (1 - C.DOME_LO) * sstep(0, C.DOME_EDGE, n - (1 - c) * C.CUT)) * (1 - C.DOME_COVER + C.DOME_COVER * c);
-export const skyHeapBodyJS = (n, c) => clamp((n - (1 - c) * C.CUT) / Math.max(c * C.CUT + C.FLOOR, C.FLOOR_MIN) * C.GAIN, 0, 1);
-export function skyHeapAtJS(n, c, y) {
-  const top = skyHeapTopJS(n, c), profile = sstep(0, C.FOOT, y) * (1 - sstep(top - C.CROWN, top, y));
-  return skyHeapBodyJS(n * profile, c);
+export const skyCarveJS = (c) => (C.CARVE0 + C.CARVE1 * c) * sstep(0, C.CARVE_IN, c);
+export const skyHeapTopKJS = (n, k, c) => (C.DOME_LO + (1 - C.DOME_LO) * sstep(0, C.DOME_EDGE, n - (1 - k) * C.CUT)) * (1 - C.DOME_COVER + C.DOME_COVER * c);
+export const skyHeapBodyKJS = (n, k) => clamp((n - (1 - k) * C.CUT) / Math.max(k * C.CUT + C.FLOOR, C.FLOOR_MIN) * C.GAIN, 0, 1);
+export function skyHeapAtKJS(n, k, c, y) {
+  const top = skyHeapTopKJS(n, k, c), profile = sstep(0, C.FOOT, y) * (1 - sstep(top - C.CROWN, top, y));
+  return skyHeapBodyKJS(n * profile, k);
+}
+export const skyHeapTopJS = (n, c) => skyHeapTopKJS(n, skyCarveJS(c), c);
+export const skyHeapBodyJS = (n, c) => skyHeapBodyKJS(n, skyCarveJS(c));
+export const skyHeapAtJS = (n, c, y) => skyHeapAtKJS(n, skyCarveJS(c), c, y);
+// (a world without a field: the fine reading alone, cut at the cover itself)
+export function skyPlainAtJS(noise, q, r, a, cover, y, fine) {
+  const n = skyLowNoise2JS(noise, q, r, a), d = skyHeapAtKJS(n[0], cover, cover, y);
+  return fine ? skyEdgeEatJS(d, n[1]) : d;
 }
 export const skyEdgeEatJS = (d, e) => (d <= 0 ? d : clamp((d - e * C.EAT * (1 - d)) / (1 - C.EAT * (1 - d) * e + 1e-3), 0, 1));
 export function skySheetAtJS(n, sheet, y, share) {
@@ -202,7 +245,7 @@ export function skySheetAtJS(n, sheet, y, share) {
   return sstep(0, Math.max(C.SHEET_BASE * share, 1e-3), y) * (1 - sstep(top - Math.max(C.SHEET_CROWN * share, 1e-3), top, y)) * body;
 }
 export function skyLowAtJS(noise, q, r, a, cover, sheet, share, y, fine) {
-  const n = skyLowNoise2JS(noise, q, r, a);
+  const n = skyMass2JS(noise, q, r, a);
   const d = Math.max(skyHeapAtJS(n[0], cover, y), skySheetAtJS(n[0], sheet, y, share));
   return fine ? skyEdgeEatJS(d, n[1]) : d;
 }
@@ -263,7 +306,14 @@ vec2 skyLowNoise2(highp sampler3D noise, vec3 q, float r, float a) {
   }
   return n;
 }
-float skyLowNoise(highp sampler3D noise, vec3 q, float r, float a) { return skyLowNoise2(noise, q, r, a).x; }`) + SKY_FORM_GLSL;
+float skyLowNoise(highp sampler3D noise, vec3 q, float r, float a) { return skyLowNoise2(noise, q, r, a).x; }
+// The great masses (CLOUD_RULE.MASS_*): the coarse reading at the pattern point q, and the two
+// readings put together (n: skyLowNoise2's; its second channel, the lobes, is left as it is).
+// What the FIELD's cloud is cut from; the rule of a world without a field reads the fine one alone.
+float skyMassLow(highp sampler3D noise, vec3 q) { return skyTex3(noise, q * ${glf(C.MASS_K)} + vec3(${C.MASS_OFFSET.map(glf).join(', ')})).r; }
+vec2 skyMassOf(vec2 n, float low) { return vec2(SKY_NOISE_MEAN + (mix(n.x, low, ${glf(C.MASS_W)}) - SKY_NOISE_MEAN) * ${glf(1 / Math.hypot(C.MASS_W, 1 - C.MASS_W))}, n.y); }
+vec2 skyMass2(highp sampler3D noise, vec3 q, float r, float a) { return skyMassOf(skyLowNoise2(noise, q, r, a), skyMassLow(noise, q)); }
+float skyMass(highp sampler3D noise, vec3 q, float r, float a) { return skyMass2(noise, q, r, a).x; }`) + SKY_FORM_GLSL;
 // its JS twin (noise: anything with sample([x, y, z]) -> [r, g, b, a], filtered as the GPU does)
 export function skyLowNoise2JS(noise, q, r, a) {
   const wa = riseWeight(a), mean = [RISE_RULE.NOISE_MEAN, RISE_RULE.NOISE_MEAN_G];
@@ -277,6 +327,10 @@ export function skyLowNoise2JS(noise, q, r, a) {
   return n;
 }
 export const skyLowNoiseJS = (noise, q, r, a) => skyLowNoise2JS(noise, q, r, a)[0];
+export const skyMassLowJS = (noise, q) => noise.sample([q[0] * C.MASS_K + C.MASS_OFFSET[0], q[1] * C.MASS_K + C.MASS_OFFSET[1], q[2] * C.MASS_K + C.MASS_OFFSET[2]])[0];
+export const skyMassOfJS = (n, low) => [RISE_RULE.NOISE_MEAN + (n[0] + (low - n[0]) * C.MASS_W - RISE_RULE.NOISE_MEAN) / Math.hypot(C.MASS_W, 1 - C.MASS_W), n[1]];
+export const skyMass2JS = (noise, q, r, a) => skyMassOfJS(skyLowNoise2JS(noise, q, r, a), skyMassLowJS(noise, q));
+export const skyMassJS = (noise, q, r, a) => skyMass2JS(noise, q, r, a)[0];
 
 // ---- 1. the rule as drawn today -------------------------------------------------------------
 
@@ -395,7 +449,7 @@ vec4 skyShade(vec3 p, vec3 toSun) {
   float s = max(widest - h, 0.0) / max(dot(up, toSun), ${glf(V.MU_MIN)});
   vec3 uq = normalize(p + toSun * s);
   vec4 L = skyLow(uq);
-  float n = skyLowNoise(tCloudNoise, skyToLow(uCloudSteer, uq) * ((uSkyLow.y + widest) * uSkyLow.x), uSkyLow.y + widest, uCloudRise.x);
+  float n = skyMass(tCloudNoise, skyToLow(uCloudSteer, uq) * ((uSkyLow.y + widest) * uSkyLow.x), uSkyLow.y + widest, uCloudRise.x);
   float raw = max(skyHeapBody(n, L.x), L.y);
   vec4 b = wxRead(tWxB, uq);
   float upper = exp(-${glf(V.MID_K)} * wxMid(b) - ${glf(V.HIGH_K)} * wxHigh(b));
@@ -444,7 +498,7 @@ export function skyShadeJS(maps, noise, u, p, toSun) {
   const qp = [p[0] + toSun[0] * s, p[1] + toSun[1] * s, p[2] + toSun[2] * s], ql = Math.hypot(qp[0], qp[1], qp[2]), uq = [qp[0] / ql, qp[1] / ql, qp[2] / ql];
   const L = skyLowJS(maps, uq), q = skyToLowJS(u.uCloudSteer, uq), sc = (k[1] + widest) * k[0];
   q[0] *= sc; q[1] *= sc; q[2] *= sc;
-  const n = skyLowNoiseJS(noise, q, k[1] + widest, u.uCloudRise?.[0] ?? 0);
+  const n = skyMassJS(noise, q, k[1] + widest, u.uCloudRise?.[0] ?? 0);
   const raw = Math.max(skyHeapBodyJS(n, L[0]), L[1]);
   const b = readMap(maps.B, uq), upper = Math.exp(-V.MID_K * b[0] - V.HIGH_K * b[1]), sky = 1 - V.SKY_K * Math.max(L0[1], 0.6 * L0[0]);
   return [raw * k[3], 1 + (upper - 1) * k[3], 1 + (sky - 1) * k[3], clamp(L[3] / V.TOP_M, 0, 1) * k[3]];

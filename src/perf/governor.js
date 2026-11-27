@@ -100,6 +100,11 @@ export const FEATURE_STEPS = [
   // (pollen in the air over flowers: 3 200 points at most, a point each; not yet measured on the phone, a guess)
   { id: 'pollen', buys: 0.3, label: 'less pollen in the air', live: (app) => !!app.pollen?.mesh?.visible, apply: (app, off) => { app.pollen?.setShare(off ? 0.4 : 1); } },
   // (the clouds plan's, not yet built nor measured: the plan's estimates)
+  // (sky-faults: the far heaps read at three heights along each line of sight, so that a heap far
+  // off has a top, a side and an underside; with the step on they are read once, flat, in the
+  // same places. A guess until the phone's cost table says: up to six more looks into the noise
+  // on each pixel of far cloud, none on clear sky.)
+  skyStep('cloud-far', 1.0, 'far clouds flatter'),
   skyStep('cloud-upper', 0.5, 'middle and high cloud plainer'),
   skyStep('rain-shafts', 0.5, 'plainer rain shafts under the clouds'),
   skyStep('cloud-shade-rate', 0.3, "the clouds' shadows a little behind (every other frame)"),
