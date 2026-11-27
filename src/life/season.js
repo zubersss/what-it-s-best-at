@@ -176,7 +176,7 @@ export function treeSeason(sp, day, lat, alt, own, out = {}) {
 // what time of year it is), and that line climbs again by MELT metres an hour of thaw
 // (snowFell, asked of the weather by the app; snowDrop: what the shaders get).
 // The shaders (render/snowGlsl.js) take these numbers and work nothing out about the year.
-export const SNOW = Object.freeze({ SEASON: 10, COLD: 1.4, LAG: 0.04, OWN_AT: 0, ADD_ABOVE: 2.5, GONE_BELOW: 2.8, MELT: 45, FRESH_HOURS: 36, FRESH_STEP: 3, FRESH_MOST: 900 });
+export const SNOW = Object.freeze({ SEASON: 10, COLD: 1.4, LAG: 0.04, OWN_AT: 0, ADD_ABOVE: 2.5, GONE_BELOW: 4.5, MELT: 45, FRESH_HOURS: 36, FRESH_STEP: 3, FRESH_MOST: 900 });
 // How much warmer (degrees C) than on the day the land's own snow is for, at a point of a
 // latitude's year (before the latitude's share).
 export const snowWarmth = (y) => { const w = SNOW.SEASON * (Math.sin(2 * Math.PI * (y - SNOW.LAG)) - Math.sin(2 * Math.PI * (SNOW.OWN_AT - SNOW.LAG))); return w < 0 ? w * SNOW.COLD : w; };
