@@ -85,6 +85,22 @@ shells (two draws over every pixel of sky, some 8 reads each). Fixed on the sky 
 branch (`1067ffc`: the plan made on the view's own world, each sky part measured twice);
 the next link carries it and asks for the benchmark that names the part.
 
+**What the speed helper found in the same results (`45d79bd`, merged).** (a) *The frame
+nobody owned*: with every group out the ground is still drawn, flat, with the small
+things (leaves, petals, pollen, the lander): 20 / 7 / 27 ms (opening view / wood / air)
+between that and "nothing drawn". The table has rows `ground-mesh` and `small-things`
+now; the ground-cost helper has it. (b) *Uploads inside a pass* are all vertex buffers, no
+texture (the lying leaves' 75 KB a frame, cured since; the ground's patch list 8 KB): left.
+(c) *The "unknown" hitches ten seconds in* were shaders made at first use (the trees',
+the far forest's, the shadow casters'): every scene's shaders are now made while loading
+(`App.precompile`); one left, the sky field's, with the sky helper;
+`scripts/shader-first-use.mjs` lists them. (d) **The governor's order is by the families
+now (a behaviour change)**: the cloud march's coarser steps first, then the trees', the
+Sun's beams (live only while drawn), close-up detail, the patches; then cloud shadows, the
+cloud volume, far relief; then what bought nothing, the grass's three among them (they
+headed the order; the whole grass left out now costs time, it hides dearer ground).
+`npm run govsim` passes on a model of these results.
+
 **Decided.** (1) The sky's cost goes before the sky's look: the sky helper finds which pass
 and which pixels pay the 24 ms and halves it, and makes the savings buy the rest. (2) The
 speed helper: names what is left with every group out, names the uploads inside a pass and
