@@ -299,3 +299,14 @@ far ground's tones a little plainer and its relief shading gone. The brief asked
 third at the opening view too: its near ground is the grass's to hide, and its far ground
 is 15 to 25 % cheaper; the rest of the way is the baked far ground of section 5, which
 waits for a benchmark to say it is needed.
+
+## 7. Switches that put two cuts back, for the phone to weigh
+
+`?debug=groundskypixel` (the sky's light asked at every pixel, as before section 3) and
+`?debug=groundbothmaps` (a patch's own normal and shadow read wherever its parent's are, as
+before section 2's first cut); one uniform, `uGroundOld`. The benchmark's cost test has a
+"what it adds" row for each (`ground-sky-pixel`, `ground-both-maps`, `src/perf/benchmark.js`
+PARTS_OUT, beside the trees' two). With both on the picture is the same to one level
+(autumn from 5 km). The other cuts have no switch: the relief map is packed when it loads,
+and the layers' tail and the strata's test would each need the old constants back in the
+shader for a row nobody could read above the noise.
