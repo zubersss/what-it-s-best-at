@@ -598,10 +598,10 @@ class Table {
         if (budget <= 0) {
           // (an entry that still holds another place says "no grass" until it is worked
           // out: nothing stands on ground a table's width away)
-          if (!here && D[q * 4 + 1] !== 0) { D[q * 4 + 1] = 0; D[q * 4 + 3] = 0; this.changed = true; }
+          if (!here && D[q * 4 + 1] !== 0) { D[q * 4 + 1] = 0; D[q * 4 + 3] = 0; this.changed = true; this.sum.touch(a, b); }
           pending++; continue;
         }
-        sample(i, j, q * 4, this.cell); H[q * 2] = i; H[q * 2 + 1] = j; G[q] = gen; budget--; this.changed = true;
+        sample(i, j, q * 4, this.cell); H[q * 2] = i; H[q * 2 + 1] = j; G[q] = gen; budget--; this.changed = true; this.sum.touch(a, b);
       }
     }
     this.pending = pending;
@@ -951,7 +951,7 @@ export class Grass {
       if (k === 'near' ? kb <= 0 : k === 'far' ? kc <= 0 : kc <= 0 && !!this._tone) continue;
       const ci = Math.round((ce + this.origin[0]) / T.cell), cj = Math.round((cn + this.origin[1]) / T.cell);
       budget = T.fill(ci, cj, this.gen, Math.max(budget, k === 'near' && T.pending > 0 ? 200 : 0), (i, j, o, cell) => this._sample(T, i, j, o, cell));
-      if (T.changed) { T.changed = false; T.sum.build(T.data); T.tex.needsUpdate = true; renderer.initTexture(T.tex); if (k === 'mid') this._toneDirty = true; }
+      if (T.changed) { T.changed = false; T.sum.refresh(T.data); T.tex.needsUpdate = true; renderer.initTexture(T.tex); if (k === 'mid') this._toneDirty = true; }
     }
     this._landShadow(ce, cn, kc, renderer);
     // The light table's stretches: each ring's, its middle on a place of its own grid nearest the traveller.

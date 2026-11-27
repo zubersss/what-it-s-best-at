@@ -19,7 +19,8 @@ export const blockWide = (grid) => Math.ceil(grid / NB);      // cells a side of
 const SLACK = 0.05;                  // metres the box is larger than the shader's own numbers say (32-bit sums there, 64-bit here)
 
 // A ground table summed up, Q x Q entries to a cell: the lowest and highest ground, the most
-// grass and the highest flower number among them. Made again whenever the table changes.
+// grass and the highest flower number among them. Kept in step with the table: touch() for
+// every entry written, refresh() before the next question (build(): the whole of it).
 export class TableSummary {
   constructor(n, q = 4) {
     this.n = n; this.q = q; this.m = n / q;
@@ -27,6 +28,29 @@ export class TableSummary {
     const k = this.m * this.m;
     this.lo = new Float32Array(k); this.hi = new Float32Array(k); this.amount = new Float32Array(k); this.flower = new Float32Array(k);
     this.out = { lo: 0, hi: 0, amount: 0, flower: 0 };
+    this.dirty = new Uint8Array(k); this.list = new Int32Array(k); this.dirtyN = 0;
+  }
+
+  // Entry (i, j) of the table (0 .. n - 1) has changed: its cell is summed up again by refresh().
+  touch(i, j) { const c = Math.floor(j / this.q) * this.m + Math.floor(i / this.q); if (!this.dirty[c]) { this.dirty[c] = 1; this.list[this.dirtyN++] = c; } }
+
+  // The cells touched since the last time, summed up again (a walk changes a few rows of a
+  // table a frame: the whole of it summed again was half a millisecond a frame).
+  refresh(data) {
+    const { n, q, m, lo, hi, amount, flower } = this;
+    for (let k = 0; k < this.dirtyN; k++) {
+      const c = this.list[k], i0 = (c % m) * q, j0 = Math.floor(c / m) * q;
+      let l = Infinity, h = -Infinity, a = 0, f = 0;
+      for (let j = j0; j < j0 + q; j++) for (let i = i0; i < i0 + q; i++) {
+        const o = (j * n + i) * 4, v = data[o];
+        if (v < l) l = v;
+        if (v > h) h = v;
+        if (data[o + 1] > a) a = data[o + 1];
+        if (data[o + 3] > f) f = data[o + 3];
+      }
+      lo[c] = l; hi[c] = h; amount[c] = a; flower[c] = f; this.dirty[c] = 0;
+    }
+    this.dirtyN = 0;
   }
 
   // data: the table's four numbers an entry (height, amount of grass, dryness, flowers)

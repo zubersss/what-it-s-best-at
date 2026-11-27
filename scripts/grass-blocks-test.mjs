@@ -1,5 +1,5 @@
 // The grass handed over block by block (life/grassBlocks.js) leaves out nothing the shader
-// would have drawn (no browser, some seconds): node scripts/grass-blocks-test.mjs [--break reach|ring|table|height]
+// would have drawn (no browser, some seconds): node scripts/grass-blocks-test.mjs [--break reach|ring|table|height|stale]
 //
 // The real Grass over a made-up land (hills, a steep ridge, stretches with no grass, drifts of
 // flowers) on a world of Haven's size, its tables filled; then the eye is turned through
@@ -64,8 +64,9 @@ if (failed) { console.log('grass blocks: the replay cannot run'); process.exit(1
 // --- the faults (--break)
 if (brk === 'reach') for (const fl of fields) fl.cullBy.reach = -8;                    // blocks at the picture's edge are left out
 if (brk === 'ring') for (const fl of fields) fl.cullBy.out1 *= 0.8;                    // the ring's outer stretch is left out
-if (brk === 'height') for (const k in grass.tables) { const s = grass.tables[k].sum, b = s.build.bind(s); s.build = (d) => { b(d); s.hi.set(s.lo); }; }      // the ground taken for level at its lowest
-if (brk === 'table') for (const k in grass.tables) { const s = grass.tables[k].sum, b = s.build.bind(s); s.build = (d) => { b(d); for (let i = 0; i < s.amount.length; i += 3) s.amount[i] = 0; }; }      // a third of the land taken for bare
+if (brk === 'height') for (const k in grass.tables) { const s = grass.tables[k].sum, b = s.refresh.bind(s); s.refresh = (d) => { b(d); s.hi.set(s.lo); }; }      // the ground taken for level at its lowest
+if (brk === 'table') for (const k in grass.tables) { const s = grass.tables[k].sum, b = s.refresh.bind(s); s.refresh = (d) => { b(d); for (let i = 0; i < s.amount.length; i += 3) s.amount[i] = 0; }; }      // a third of the land taken for bare
+if (brk === 'stale') for (const k in grass.tables) grass.tables[k].sum.touch = () => {};      // the summary never hears of a change to its table
 
 // --- the eye
 const rig = { agl: 1.7, pos: new THREE.Vector3() };
@@ -79,12 +80,13 @@ const look = (heading, pitch, fov) => {
 };
 
 const mod = (x, y) => x - y * Math.floor(x / y);
+let cullMs = 0, culls = 0;
 const stats = fields.map(() => ({ handed: 0, of: 0, could: 0, missing: 0, views: 0 }));
 // one view: the fields' blocks as cull() chose them, against the shader's tests cell by cell
 function check(label) {
   grass.update(rig, 1 / 30, renderer);
   if (!grass.mesh.visible) return;
-  grass.cull(camera);
+  { const t = performance.now(); grass.cull(camera); cullMs += performance.now() - t; culls++; }
   const S = grass.shared, cam = S.uGrassCam.value, curve = S.uGrassCurve.value, E = grass._e, N = grass._n, U = grass._u;
   const P = camera.projectionMatrix.elements, pv = new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse).elements;
   fields.forEach((fl, k) => {
@@ -142,6 +144,19 @@ for (const [e, n] of [[0, 0], [48, 13], [130, -40], [205, -20], [-90, 160]]) for
   for (const [heading, pitch, fov] of [[222, -2, 60], [64, 12, 40], [250, 3, 26], [10, -35, 60], [135, -80, 60], [300, 55, 50], [180, -12, 75]]) { look(heading, pitch, fov); check(`at ${e},${n} from ${agl} m, heading ${heading} pitch ${pitch}`); views++; }
 }
 console.log(`${views} views, ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+{
+  // (what the choosing costs the page, on this machine: a frame's cull of all eight fields, and the tables summed up again as they are when they change)
+  for (let i = 0; i < 200; i++) grass.cull(camera);
+  const t1 = performance.now(); for (let i = 0; i < 500; i++) grass.cull(camera); const per = (performance.now() - t1) / 500;
+  // (a walk: 3 m a frame, the tables filled at the game's own pace, the summaries kept in step)
+  grass.eager = false; let sum = 0, steps = 0;
+  for (let i = 0; i < 120; i++) { place(i * 3, 20, 1.7); const t = performance.now(); grass.update(rig, 1 / 30, renderer); const whole = performance.now() - t; const t3 = performance.now(); for (const k in grass.tables) grass.tables[k].sum.refresh(grass.tables[k].data); void whole; sum += performance.now() - t3; steps++; }
+  // (the summaries after the walk against the tables summed up whole)
+  for (const k in grass.tables) { const T = grass.tables[k], s = T.sum, keep = [s.lo.slice(), s.hi.slice(), s.amount.slice(), s.flower.slice()]; s.build(T.data); if (![s.lo, s.hi, s.amount, s.flower].every((a, q) => a.every((v, i) => v === keep[q][i]))) broken(`the ${k} table's summary, kept in step over a walk, is not the table summed up whole`); }
+  grass.eager = true; sum /= steps;
+  console.log(`choosing the blocks: ${per.toFixed(3)} ms a frame here`);
+  if (per > 0.5) broken(`choosing the blocks costs the page ${per.toFixed(2)} ms a frame: too much`);
+}
 console.log('field              views drawn  blocks handed over  cells that could be drawn in a block left out');
 let handed = 0, of = 0;
 fields.forEach((fl, k) => {
