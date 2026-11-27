@@ -157,7 +157,7 @@ carpet painted under it.
   beyond, less toward the equator, the coldest and warmest a fortnight of the life's year
   after the solstices), and the snow follows as a line in height: new snow lies above the
   land's line + 400 m + the season's shift (in midwinter some 1 300 m below the land's own
-  snow: the opening place, 1 400 m up, is at its edge), and the land's own snow is gone below its line - 450 m + the shift (in summer
+  snow: the opening place, 1 400 m up, is at its edge), and the land's own snow is gone below its line - 725 m + the shift (in summer
   only the highest ground keeps any). The two margins are why nothing changes on the
   opening morning. **Fresh snow**: where the day's weather has let snow fall in the last
   day and a half at the traveller's place it lies down to the height it fell to, at most
@@ -213,3 +213,44 @@ morning).
 
 **Not done.** The grass's season is the traveller's latitude's (the grass is only drawn
 round the traveller), not each blade's height's.
+
+## Cost
+
+**The ground's shading** (`scripts/ground-cost-run.sh`, software WebGL at the phone's pixel
+count, `--dsf 2.2`: a count of work, never a frame rate), pieces 3 to 5 against the shader of
+ffa98ac (piece 2), on the opening morning with no season switch:
+
+| view | before | after | | picture against before |
+|---|---|---|---|---|
+| the opening view | 4 441 ms | 4 529 ms | 102 % | mean 0.08 levels, 0.16 % of pixels over 2 |
+| in the north wood | 4 439 ms | 4 296 ms | 97 % | none |
+| from 3 km up | 1 944 ms | 1 856 ms | 96 % | 0.86 % of pixels over 2 levels (see below) |
+| all three | 10 823 ms | 10 681 ms | 99 % | |
+
+So within what the tool can tell apart (its own runs differ by a few per cent). What runs
+on the opening morning, where there is neither new snow nor a carpet: the snow block's test
+of the map's paleness and one `asin` for each ground pixel that has the land's colour map
+(its two noise reads only where the land is pale or within 700 m under the season's line,
+2 150 m and up at the opening); the litter block where a wood's floor is near the eye
+(leaves do lie on the first day of spring, a third of autumn's: the two detail reads the
+old scatter had, and a loop over eight uniform vectors within 90 m).
+**Governor steps** (`governor.js`, pinned in `sky-system-test`): `leaf-carpet` (the per-tree
+loop off; the wood's scatter and the lying leaves stay) and `snow-edge` (the line's noise
+off; the line stays, plain); the existing `leaves` step thins the falling, lying and kicked
+leaves to a third. Neither new step has been measured on the phone.
+
+**From 3 km the opening day did change, and should not have**: with the land's own snow
+taken off below its line - 450 m, the lowest of the painted snow patches (the painted line
+wanders 600 m by the patch) were bared on the very day they are for. The margin is 725 m
+now (`SNOW.GONE_BELOW` 4.5 degrees).
+
+**Uploads.** The lying leaves' buffer (4 800 leaves, 75 KB) went to the GPU whole at every
+making of the trees' lists and on each of the 200 frames the leaves take to be laid (found
+by the speed helper's count). Now the stretch laid that frame (384 bytes), nothing at rest,
+nothing when the list is made again from the same anchor
+(`node scripts/leaf-rest-test.mjs`).
+
+**Not measured**: the trees' layers (`scripts/overdraw.mjs`): the shaders draw the same
+cut-outs, fewer where a tree is losing leaves; the snow on crowns is one more varying.
+The phone itself: a benchmark is the judge.
+

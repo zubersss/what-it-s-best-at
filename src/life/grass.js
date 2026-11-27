@@ -253,7 +253,9 @@ const BLADE_VERT = /* glsl */`
     // rounding to carry a foot over an edge.)
     float own = hash2(mod(floor(at * 2.0) + uGrassLie * 2.0, ${2 * PERIOD}.0) + 3.3).x;
     #endif
-    if (own >= dens) OUT_OF_PICTURE
+    // (under new snow the blades go, one by one as it deepens: beaten flat alone, their tips stood
+    // out of the snow as a sprinkle of sunlit specks)
+    if (own >= dens * (1.0 - clamp(uGrassYear.w - 1.0, 0.0, 1.0))) OUT_OF_PICTURE
     vec3 nrm = normalize(uGrassUp - uGrassEast * grad.x - uGrassNorth * grad.y);
     float base = groundUp(g, at);
     vec3 foot = uGrassEast * foot2.x + uGrassNorth * foot2.y + uGrassUp * base, toCam = normalize(-foot);
