@@ -536,3 +536,22 @@ go together; upward the lumps rise through the masses at the steering's 0.5 m/s.
 the clock at most 5.3 % of a heap's cloud appears or goes in its own frame (cover 0.5; 3.8 %
 at full cover): heaps drift whole, their lumps creeping. In the game, `npm run stability`'s
 way, two new moves (`haven_heaps_air`, `haven_heaps_ground`): results below when in.
+
+**(2), in the game** (`node scripts/stability.mjs --only haven_heaps_air` and
+`haven_heaps_ground`, settled frames one camera step apart, on the build of this list):
+- from 3 km among the heaps at noon, two stations (`motion_heaps_air_0.png`, `_1.png`):
+  0.11 % and 0.10 % of the pixels change between frames, flicker 0.001 % and 0.003 %. The
+  difference picture is thin lines along the heaps' edges (the camera's own step) and one
+  small speckled patch inside a near heap at the bottom right of station 0 (the march's
+  grain where the eye is close to cloud). Nothing pops.
+- from the ground under heaps at noon, one station (`motion_heaps_ground_0.png`; the run said
+  "not ready in time" and took what was on screen): 39 % changed and 7.8 % flicker, ALL of
+  it in the grass, which waves; the sky's part of the difference picture is black. The
+  heaps overhead are steady, white on top and lilac underneath.
+- not run: `--streaming` (pops while ground arrives), the hand-over at 16 km in a long
+  flight, the shade map's new turns seen on the ground while walking, the mist's veil coming
+  on as one walks into it.
+
+**(3)** was cured under the second list. **(4) The anvil: not done.**
+
+SKY-SECOND-DONE (2026-11-27), with the anvil left.
