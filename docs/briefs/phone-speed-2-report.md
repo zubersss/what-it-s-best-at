@@ -7,30 +7,29 @@ the owner's own benchmark files, said as such.
 
 ## What to ask of the owner, and what to read first in the answer
 
-Two runs, phone on its side as in play, after the link has this branch:
-`?bench=haven&scale=0.775` (everything on, the picture held at 2.25 MP: now paced as play is)
-and the plain Haven benchmark from the start screen (the governor at work). A third,
-`?bench=haven&scale=0.775&debug=floor`, only if the first is not steady.
+*(As of the evening of 2026-11-27, after the thirteenth results were read and acted on. The
+first ask of this report, the paced run at a held size, is answered: the slide is closed.)*
 
-1. **The stops of the first run against each other.** The counts say every stop hands the
-   GPU the same frame; the run of 42da110 slid from 29 to 14 frames a second over them,
-   unpaced. If the paced run's five stops are alike, the slide was heat and that question is
-   closed. If they still slide, something outside the page's own work grows, and the new
-   line under each stop (passes, draw calls, triangles, uploads) will show the page's side
-   of it to be flat.
-2. **"saved by leaving a group out"** at the three views: eight groups, each with its two
-   takes in brackets. A group whose two takes agree is a number; this is the table the cuts
-   and the governor's order are to be made from. The sky's group is the sky helper's.
-3. **"every group out at once ... what is left then"**: what a frame costs with nothing of
-   the world drawn (the page's own work, the glow's and the last passes, the measuring).
-4. **The triangles in the line under each Haven stop**: about 1.9 million where the count
-   of today's link has 3.0 (the grass by blocks), and what the frame rate did for it.
-5. The last pass's row now reads "what it adds"; the canvas was at the screen's own size in
-   every cost test before, so "everything on" should itself be lower than 59 ms.
-6. Two more rows that read "what it adds": **the far forest's** and **the near trees' light
-   and air at every pixel instead of at their corners**. These switch the old way back on;
-   a positive number is what the change of this delivery saves, most at the view in the
-   forest.
+The same two runs, phone on its side as in play, once the link has this branch and the sky's
+and the ground's helpers' cuts: `?bench=haven&scale=0.775` (everything on, held, paced) and
+the plain Haven benchmark (the governor at work, its new order). To read first:
+
+1. **The forest's group** at the ledge and in the wood (15.0 and 15.2 ms on the thirteenth),
+   and beside it the two rows that read "what it adds": **the far forest's** and **the near
+   trees' light and air at every pixel instead of at their corners**. Those switch the old way
+   back on: a positive number is what this delivery's cut saves there. Under 1 ms in the wood:
+   the trees' cost is not in those looks, and the next cut is their triangles. Negative at
+   every view: the vertices cost more than the pixels saved, and the switch is one line.
+2. **The group "the ground not drawn at all ... with leaves, petals, pollen, falls and the
+   lander"** less the group "the ground's shading": what the ground's triangles themselves
+   cost (20 and 27 ms stood unasked-for at the ledge and from the air). And "what is left
+   then" with every group out, which should now be near "nothing drawn at all".
+3. **The hitch list**: no "unknown" ten seconds in (the shaders are made while loading now);
+   any that is left says in brackets what the page did in that frame, and what it uploaded.
+4. **The plain run's steps**: the governor should take the cloud march's coarser steps first,
+   then the trees', then the Sun's beams, and hold a sharper picture than 1.88 MP at the
+   stops it can; "savings switched" in the tens, not the seventies.
+5. **The families** again, as on the thirteenth: the order is set from them.
 
 ## Step 1: the counts, and what they say
 
