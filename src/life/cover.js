@@ -5,6 +5,8 @@
 // about a particular place live here, only what a forester would know of the region.
 // (Plain data and arithmetic: it runs in the terrain workers and in Node.)
 
+import { localDay } from './season.js';
+
 // How closed each class's canopy is (share of tree sites taken) and how tall where no
 // measurement says (m). Index: the class; 0 = unknown.
 export const COVER_DENSITY = [0, 1, 1, 1, 1, 1, 0.5, 0.12, 0.55, 0.22, 0.02, 0.25, 0.01, 0.03, 0.15, 0, 0, 0];
@@ -97,7 +99,7 @@ export const SPECIES = [
 // is in flower, most toward the end).
 export function bloomOf(sp, day, lat) {
   const b = sp.blossom; if (!b) return { open: 0, fall: 0 };
-  const d = (((day + (lat < 0 ? 182.6 : 0)) % 365.25) + 365.25) % 365.25, sm = (a, c, x) => { const k = Math.min(1, Math.max(0, (x - a) / (c - a))); return k * k * (3 - 2 * k); };
+  const d = localDay(day, lat), sm = (a, c, x) => { const k = Math.min(1, Math.max(0, (x - a) / (c - a))); return k * k * (3 - 2 * k); };
   const open = sm(b.from, b.from + 10, d) * (1 - sm(b.to - 12, b.to, d));
   return { open, fall: open > 0 ? Math.max(0.5 * open, sm(b.from + 12, b.to - 10, d) * open) : 0 };
 }
