@@ -41,6 +41,40 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### The joined build of 2026-11-27 afternoon: the frame-rate cuts, the mist, the seasons' ground, smoother clouds
+
+This branch at `e8f01b1` and later holds, beyond the link of the rigged character (main
+63b8282): the **sky helper's two lists** to `17d10e2` (the mist drawn again, `HELD = false`
+in `fogSheet.js`, fading out as the eye sinks under its top, so from a lake's shore there is
+no lid; no cloud march and no laid layers under a clear sky; the shade windows drawn only
+when something moved; the march's targets invalidated; a smooth outline for the near heaps;
+"everything out" in the benchmark takes the sky out too), the **speed helper's cuts** to
+`5534aac` (grass handed over block by block: 1.96 M triangles at the opening view for 3.05;
+partial clears given up; the benchmark counts GL work by stop, tests savings in groups, and
+`?scale=` runs are paced), and the **seasons' pieces 3 to 5** to `0047aad` (leaves that lie
+and are kicked up, snow that comes and goes with the season, grass and flowers by the
+season; governor steps `leaf-carpet` and `snow-edge`, not yet measured on a phone).
+
+**Checked on the joined head**: the build; every check that needs no browser; a full
+`npm run smoke` on the head before the helpers' last three merges and a quick one
+(`--no-bench`) after them; noon from the air, the mist's view (key 6) and the opening view
+with the character running, looked at.
+
+**Asked of the owner**: one plain Haven benchmark in Sharp (the first with the sky's true
+cost cut, the grass by blocks and the rigged character: its cost table's `figure` row says
+what a lighter mesh for the figure would buy, 153 000 triangles today); the paced
+`?bench=haven&scale=0.775` run; how the character moves; which Meshy plan the model was
+made on.
+
+**Known wrong, in hand with the helpers**: in winter the fallen leaves lie as bright dots
+on top of new snow (seasons, asked); the lying leaves' buffer may be handed to the GPU
+every frame (seasons, asked to count); mist on the water seen from its own shore is simply
+not there (the cure is the weather veil knowing of it: sky); the storm's anvil is flat
+(sky); nothing of the sky's new turns has been looked at in motion (`npm run stability`,
+two hours: sky); the land's own painted snow is grey-lilac in shade beside white new snow.
+**Not yet looked at**: the owner's picture of huge flat grass blades near the camera on a
+steep slope; steady flight is nearly a still pose.
+
 ### Where the helpers stand (2026-11-27 12:15 UTC) and what the next link needs
 
 This branch (head 6da582c and later) is ahead of the link (main 63b8282) by: **seasons
