@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { AMOUNT } from './grassRules.js';
+import { SNOW_GLSL, SNOW_UNIFORMS } from '../render/snowGlsl.js';
 
 const COUNT = 420, BOX = 44;            // leaves, and the side of the square of ground they fall over (m)
 
@@ -140,7 +141,7 @@ export class Shed {
     };
     const vec4s = () => Array.from({ length: SLOTS }, () => new THREE.Vector4());
     this.uniforms = {
-      ...lightingUniforms(),
+      ...lightingUniforms(), ...SNOW_UNIFORMS,
       uLeafEast: trees.shared.uTreeEast, uLeafNorth: trees.shared.uTreeNorth, uLeafUp: trees.shared.uTreeUp, uLeafSeason: trees.shared.uSeason, uAnchorRel: trees.shared.uAnchorRel,
       uPetalTree: { value: vec4s() },        // xyz: a flowering tree's foot from the anchor (m), w: its crown's radius (m)
       uPetalTop: { value: vec4s() },         // x: its height (m), y: how fast its petals come off (0..1), z: the slot's falling petals faded in (0..1: a slot moving to another tree fades out and in), w: how much of its lying share lies (0..1)
@@ -153,6 +154,8 @@ export class Shed {
       in vec4 aSeed; in float aSlot;
       uniform vec3 uLeafEast, uLeafNorth, uLeafUp, uLeafSeason, uAnchorRel, uPetalWind; uniform float uLeafPx;
       uniform vec4 uPetalTree[${SLOTS}]; uniform vec4 uPetalTop[${SLOTS}]; uniform vec3 uPetalCol[${SLOTS}]; uniform vec3 uLieCol[${SLOTS}];
+      uniform vec3 uCamPlanetPos; uniform float uPlanetRadius;
+      ${SNOW_GLSL}
       out vec3 vRel; out vec4 vSeed; out float vSpin; out float vFade; out vec3 vCol;
       void place(vec3 rel, float fade, float size) {
         vRel = rel; vSeed = aSeed; vFade = fade;
@@ -205,8 +208,11 @@ export class Shed {
         int s = int(aSlot); vCol = uLieCol[s];
         vec3 rel = uAnchorRel + aLie.xyz;
         vSpin = aSeed.x * 40.0;
+        // (what fell before the snow lies under it: none where new snow lies, by the ground's own answer)
+        vec3 pp = uCamPlanetPos + rel, ups = normalize(pp);
+        float clear = 1.0 - smoothstep(0.15, 0.5, snowSeason(length(pp) - uPlanetRadius, ups, ups, 0.0, 0.0).x);
         // (as many as the tree is letting go; none from far off, where a petal is under a pixel)
-        place(rel, aLie.w * step(aSeed.z, uPetalTop[s].w) * (1.0 - smoothstep(${o.lieFar[0].toFixed(1)}, ${o.lieFar[1].toFixed(1)}, length(rel))), ${o.size[2].toFixed(3)} + ${o.size[3].toFixed(3)} * aSeed.y);
+        place(rel, clear * aLie.w * step(aSeed.z, uPetalTop[s].w) * (1.0 - smoothstep(${o.lieFar[0].toFixed(1)}, ${o.lieFar[1].toFixed(1)}, length(rel))), ${o.size[2].toFixed(3)} + ${o.size[3].toFixed(3)} * aSeed.y);
       }`));
     for (const m of [this.falling, this.lying]) { m.frustumCulled = false; m.visible = false; }
     this.mesh = new THREE.Group(); this.mesh.add(this.falling, this.lying);
@@ -465,7 +471,7 @@ export class Kicked {
     if (!low || speed < 2.2 || this.since < Math.max(0.07, 0.5 / Math.max(speed, 1))) return;
     const f = onFoot && rig.feet ? rig.feet : null, P = rig.pos, len = P.length(), gx = f ? f.x : P.x * (1 - rig.agl / len), gy = f ? f.y : P.y * (1 - rig.agl / len), gz = f ? f.z : P.z * (1 - rig.agl / len);
     const ly = this.lyingAt(gx, gy, gz, this._ly || (this._ly = [0, 0, 0, 0]));
-    if (ly[3] < 0.12) return;
+    if (ly[3] * (1 - (this.snow || 0)) < 0.12) return;          // (snow: how much lies on the leaves here, set by the app: none are kicked up from under it)
     const s = this.next; this.next = (this.next + 1) % KICKS; this.since = 0; this.lastAt = now; this.kicks++;
     this.abs[s][0] = gx; this.abs[s][1] = gy; this.abs[s][2] = gz;
     u.uKick.value[s].set(gx - P.x, gy - P.y, gz - P.z, now);
