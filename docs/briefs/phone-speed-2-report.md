@@ -5,6 +5,29 @@ its heading. **Nothing here is a frame rate**: the phone cannot be reached from 
 Every number is a count of what the page hands the GPU (true on any device) or a reading of
 the owner's own benchmark files, said as such.
 
+## What to ask of the owner, and what to read first in the answer
+
+Two runs, phone on its side as in play, after the link has this branch:
+`?bench=haven&scale=0.775` (everything on, the picture held at 2.25 MP: now paced as play is)
+and the plain Haven benchmark from the start screen (the governor at work). A third,
+`?bench=haven&scale=0.775&debug=floor`, only if the first is not steady.
+
+1. **The stops of the first run against each other.** The counts say every stop hands the
+   GPU the same frame; the run of 42da110 slid from 29 to 14 frames a second over them,
+   unpaced. If the paced run's five stops are alike, the slide was heat and that question is
+   closed. If they still slide, something outside the page's own work grows, and the new
+   line under each stop (passes, draw calls, triangles, uploads) will show the page's side
+   of it to be flat.
+2. **"saved by leaving a group out"** at the three views: eight groups, each with its two
+   takes in brackets. A group whose two takes agree is a number; this is the table the cuts
+   and the governor's order are to be made from. The sky's group is the sky helper's.
+3. **"every group out at once ... what is left then"**: what a frame costs with nothing of
+   the world drawn (the page's own work, the glow's and the last passes, the measuring).
+4. **The triangles in the line under each Haven stop**: about 1.9 million where the count
+   of today's link has 3.0 (the grass by blocks), and what the frame rate did for it.
+5. The last pass's row now reads "what it adds"; the canvas was at the screen's own size in
+   every cost test before, so "everything on" should itself be lower than 59 ms.
+
 ## Step 1: the counts, and what they say
 
 `scripts/gl-count.mjs` (see CLAUDE.md, "Run and test"): the real game from a frozen build in
@@ -202,9 +225,11 @@ before the clear is what the picture and the shadow tiles now do).
    flower in the ground table) could pass for some foot in it, asked of a box that holds every
    place the shader could ask them of. So nothing is left out that would have been drawn: the
    picture is the same (a blade's place moves by less than a hundredth of a millimetre: the
-   sum that places it is another). In the test's 105 views **19 % of the blocks are handed
-   over**: of 1.74 million triangles of grass and flowers some 0.35 million, and the frame's
-   3.05 million become about 1.65.
+   sum that places it is another). In the test's 105 views **15 % of the blocks are handed
+   over** (12 x 12 blocks; 19 % with 8 x 8, 14 % with 16 x 16, and the choosing costs the page
+   0.15, 0.21 and 0.38 ms a frame on the build machine). At the opening view, a hillside
+   meadow that fills the lower picture, 8 x 8 handed over 39 % of the grass's triangles (see
+   "Seen in the browser").
    **Changed for the player, with a grass saving on only**: a thinned field ("half the
    grass", "thinner grass in the middle distance") keeps cells by a rule of the cell's own
    number on the ground (`keptCell`), no longer by the order of the instances: another half,
@@ -222,7 +247,12 @@ before the clear is what the picture and the shadow tiles now do).
    (`post.js` `beginScene`, `nearShadow.js`): `gl.invalidateFramebuffer` /
    `invalidateSubFramebuffer`, so a tile-based GPU need not read last frame's colour and
    depth back in. Nothing outside the cleared part is ever read. No change to the picture.
-3. **The figure's nine part matrices are uniforms** (`heroSculpt.js`): a vertex with no loose
+3. **The grass's layers rule is asked before a blade's look is worked out** (`BLADE_VERT`).
+   Looked along at eye height a field is twenty blades deep and five are kept: three blades
+   in four of those in the picture were thrown out only after their stretch's lie and swath
+   (nine sines), their clump and their seed head had been worked out, at each of three
+   vertices. The same sums in another order: the blades kept are drawn as they were.
+4. **The figure's nine part matrices are uniforms** (`heroSculpt.js`): a vertex with no loose
    cloth (body, boots, hands, head) read nine texels of a float texture and now reads none;
    a cloth vertex reads its particles as before. The same numbers: no change to the picture.
 
