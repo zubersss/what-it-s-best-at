@@ -476,7 +476,13 @@ void main() {
   // across the vertical is the flow. The normal itself is put back.
   float river = riverShare(nt.xyz, up);
   vec3 flowT = vec3(0.0);                       // the flow here (m/s, planet axes, along the ground)
-  if (river > 0.0) { flowT = riverFlow(nt.xyz, up); N = normalize(nt.xyz - (nt.xyz - up * dot(nt.xyz, up)) * river); }
+  if (river > 0.0) {
+    flowT = riverFlow(nt.xyz, up); N = normalize(nt.xyz - (nt.xyz - up * dot(nt.xyz, up)) * river);
+    // (where a pixel is only part river the rest of it is ground, whose own tilt is in the
+    // same numbers: no more than a brisk river's speed is believed there)
+    float fs = length(flowT), most = mix(2.5, 9.0, smoothstep(0.5, 0.95, river));
+    if (fs > most) flowT *= most / fs;
+  }
   // (how far the detail tile's coordinates go in a pixel, from the place itself: the
   // coordinates jump by whole tiles from patch to patch, and their own change across a
   // patch's edge drew a hairline over the river there)

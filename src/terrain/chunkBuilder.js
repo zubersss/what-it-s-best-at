@@ -140,7 +140,8 @@ export class ChunkBuilder {
           if (lap > 0) {
             const cv = Math.min(1, lap / (2 * coverHalf)), inside = sd < a, k = inside ? 0.3 + 0.7 * (1 - (sd / a) * (sd / a)) : 0.3;
             Cv[o * 2] = cv; Cv[o * 2 + 1] = inside ? near[2] * (1 - (sd / a) * (sd / a)) + 0.02 : 0.4 * near[2];
-            Fl[o * 2] = near[3] * k; Fl[o * 2 + 1] = near[4] * k;
+            // (in the water the flow is the height code's own, exactly; beside it the nearest river's, slowed as at a bank)
+            if (hs.flowE === 0 && hs.flowN === 0) { Fl[o * 2] = near[3] * k; Fl[o * 2 + 1] = near[4] * k; }
           }
         }
         D[o * 3] = dir[0]; D[o * 3 + 1] = dir[1]; D[o * 3 + 2] = dir[2];
@@ -239,7 +240,12 @@ export class ChunkBuilder {
       const fe = Fl[s * 2], fn = Fl[s * 2 + 1], covered = Cv[s * 2] > 0, cv = covered ? Cv[s * 2] : Wd[s] > 0 && (fe !== 0 || fn !== 0) ? 1 : 0;
       let a4 = ao;
       if (cv > 0) {
-        rvn[0] = nx; rvn[1] = ny; rvn[2] = nz; rvd[0] = D[s * 3]; rvd[1] = D[s * 3 + 1]; rvd[2] = D[s * 3 + 2];
+        rvd[0] = D[s * 3]; rvd[1] = D[s * 3 + 1]; rvd[2] = D[s * 3 + 2];
+        // (in the river's water the normal written is the vertical, not the water's own: a river
+        // falls as it runs, and the tilt of its surface read back as more flow (on a slope of
+        // one in six 2.5 m/s more: every mountain brook was white water from end to end). The
+        // shader lights water as level anyway. Beside the water it is the ground's.)
+        if (Wd[s] > 0) { rvn[0] = rvd[0]; rvn[1] = rvd[1]; rvn[2] = rvd[2]; } else { rvn[0] = nx; rvn[1] = ny; rvn[2] = nz; }
         riverNormal(rvn, rvd, fe, fn, cv, rvn); nx = rvn[0]; ny = rvn[1]; nz = rvn[2];
         if (covered) a4 = 1 + cv * Cv[s * 2 + 1];
       }

@@ -94,5 +94,37 @@ const rg = runGlsl(RIVER_GLSL.replace(/vec4 riverRun\([\s\S]*?\n}\n/, ''), {}); 
   for (const f of files) scan(f, fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8'));
   check(bad.length === 0, `no word GLSL ES 3 reserves is used as a name in ${files.length} files of shader text${bad.length ? ': ' + [...new Set(bad)].join(', ') : ''}`);
 }
+// --- 5. a steep brook's speed, as the shader reads it from a real patch of ground, is the
+// speed the height code answers there (the water's own slope must not read as more flow:
+// it did, 2.5 m/s more on a slope of one in six, and every mountain brook was white)
+{
+  const { ringsAt, havenSource, dirOf, haven } = await import('./lib/havenWater.mjs');
+  const { ChunkBuilder } = await import('../src/terrain/chunkBuilder.js');
+  const { dirToFace, nodeEdge, FACES } = await import('../src/terrain/cubeSphere.js');
+  const { CONFIG } = await import('../src/config.js');
+  const { RIVER_STRIDE } = await import('../src/terrain/height/dem.js');
+  const PLACE = [15.86948, 131.68975], rings = ringsAt(PLACE[0], PLACE[1]), hs = havenSource(rings), fine = rings[2], sg = fine.packed.segs, R = haven.radius;
+  const fromHalf = (h) => { const sgn = h & 0x8000 ? -1 : 1, e = (h >> 10) & 31, f = h & 1023; return sgn * (e === 0 ? f * 2 ** -24 : (1 + f / 1024) * 2 ** (e - 15)); };
+  // stretches of steep, fast brook that are no fall and no fall's pool
+  const picks = [];
+  for (let o = 0; o < sg.length && picks.length < 6; o += RIVER_STRIDE * 97) {
+    const fall = (sg[o + 4] - sg[o + 5]) / (Math.hypot(sg[o + 2] - sg[o], sg[o + 3] - sg[o + 1]) * fine.cell || 1);
+    if (fall > 0.08 && fall < 0.5 && sg[o + 10] > 1.5 && sg[o + 10] < 4.5 && sg[o] > 60 && sg[o + 1] > 60 && sg[o] < fine.W - 60 && sg[o + 1] < fine.W - 60) picks.push({ lat: fine.g.latOf((sg[o + 1] + sg[o + 3]) / 2 - 0.5), lon: fine.g.lonOf((sg[o] + sg[o + 2]) / 2 - 0.5), fall });
+  }
+  const builder = new ChunkBuilder(hs, CONFIG, { bakeChunk: () => null }), NR = CONFIG.NORMAL_RES, T = NR + 1, level = 13, size = 2 / (1 << level), uv = [0, 0];
+  let worst = 0, n = 0, steepest = 0;
+  for (const p of picks) {
+    const d = dirOf(p.lat, p.lon); hs.height(d[0], d[1], d[2], 0.5);
+    const want = Math.hypot(hs.flowE, hs.flowN); if (!(want > 0)) continue;
+    let face = 0, bestN = -2; for (let f = 0; f < 6; f++) { const q = FACES[f].n, dn = d[0] * q[0] + d[1] * q[1] + d[2] * q[2]; if (dn > bestN) { bestN = dn; face = f; } }
+    dirToFace(face, d[0], d[1], d[2], uv);
+    const ix = Math.floor((uv[0] + 1) / size), iy = Math.floor((uv[1] + 1) / size), nm = builder.build(face, level, ix, iy, [0, 0, 1], 0.005).normals;
+    const i = Math.round(((uv[0] + 1) / size - ix) * NR), j = Math.round(((uv[1] + 1) / size - iy) * NR), o = (j * T + i) * 4, nt = [fromHalf(nm[o]), fromHalf(nm[o + 1]), fromHalf(nm[o + 2])];
+    if (rg.fn.riverShare(nt, d) < 0.99) continue;          // (the texel nearest the place is not all river: a bank's)
+    const fl = rg.fn.riverFlow(nt, d), got = Math.hypot(fl[0], fl[1], fl[2]);
+    worst = Math.max(worst, Math.abs(got - want)); steepest = Math.max(steepest, p.fall); n++;
+  }
+  check(n >= 3 && worst < 0.12, `a steep brook's speed read from a real patch's normal map is the height code's (${n} places on slopes up to ${(steepest * 100).toFixed(0)} in 100 (texels of ${(nodeEdge(level, R) / NR).toFixed(2)} m); at most ${worst.toFixed(3)} m/s apart)`);
+}
 console.log(fails ? `${fails} failures` : "living water's rules: all kept");
 process.exit(fails ? 1 : 0);
