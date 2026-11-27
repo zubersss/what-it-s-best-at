@@ -44,7 +44,7 @@ and its flight forward. Picture 1100 x 515 (the terrain's detail does not go by 
 the grass's far blades do a little).
 
 Run on today's head (a5948f1, the phone link's c7195f9 plus notes: the whole print-out is
-`docs/benchmarks/2026-11-27-gl-count-a5948f1.txt`) and on 49e4294.
+`docs/benchmarks/2026-11-27-gl-count-a5948f1.txt`) and on 49e4294 (two stops).
 
 ### Today's head, a frame at rest, stop by stop
 
@@ -84,7 +84,20 @@ saving on: 52, 43, 30, 23, 26) is not more work.** The first stop of run B ran a
 a second, unpaced: a GPU flat out for a minute. The likeliest reading is heat (the phone
 slowing itself), and a run that is paced as play is will tell: see step 2.
 
-**3. What differs between the two builds?** 49e4294 is being counted as this is written (one headless browser at a time; a stop takes ten minutes): its table goes here.
+**3. What differs between the two builds?** In what is handed to the GPU, next to nothing
+(49e4294 counted at the ledge and at dusk: `docs/benchmarks/2026-11-27-gl-count-49e4294.txt`).
+At the ledge the two frames are the same pass for pass and material for material: 23 passes,
+154 against 156 draw calls, 3.04 against 3.05 million triangles, the same grass, far forest,
+rocks and figure (the sculpt was in 49e4294 already, its 120 000 triangles and its shadow
+mesh). Two things differ: the figure's palette is 24 KB a frame for 9 (the cloth turns the
+sculpt now); and at dusk 49e4294 made 21 passes where today's makes 24: the sky field's three
+maps were not drawn there (the fault the sky helper cured: the day's clouds absent at most
+hours) and a 1024 x 32 texture of 128 KB was uploaded every frame in their place.
+**So what the phone lost between its two runs is not in the counts.** It is in what the same
+passes cost (the cloud march now meets the day's real cloud at every hour: more of its
+pixels have cloud to march through; the sky helper's ground), and in how the two runs were
+taken: 49e4294 with the governor, paced, at 2.67 MP with savings on; 42da110 at a held size
+with nothing given up, unpaced. The two are not a before and an after.
 
 ### Where the frame's weight is (ledge, at rest, a frame)
 
