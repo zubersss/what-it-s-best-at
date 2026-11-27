@@ -41,6 +41,151 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### The owner's rigged character (2026-11-27): a skeleton, eight clips and its own colours
+
+The owner sent `Chinese_Swordsman_AllAnims_30mb.glb` ("here is the model with the animations
+rigged"), made with Meshy as asked: kept as sent in `assets-src/hero-rig/`. In it: one
+surface of 153 000 triangles cut into many small pieces for its picture (163 000 vertices),
+a Mixamo skeleton of 24 joints, **eight clips** (Idle 2.0 s, Walk 1.03, Run 0.63, Sprint
+0.47, Jump 1.87, Hover 2.97, Flight 2.97, Landing 3.97), and three 4 096 pictures (colour,
+normal, metal/roughness); meshopt-compressed and quantised (glTF-Transform).
+
+**It replaces the hand-made binding** (the sculpt bound to the game's limbs and cloth, all
+of the sections below): that path stays in the repository and is what a device gets if the
+rigged files do not load or its shaders cannot be made, and is no longer worked on.
+
+**How** (`node scripts/make-hero-rig.mjs`, 2 s):
+- `scripts/hero/glb.mjs` reads the GLB in Node (meshopt and quantisation decoded).
+- Written: `public/data/hero_rig.bin` (10 MB: the skeleton with parents before children,
+  the clips read 30 times a second, three meshes: the whole surface, a lighter one, and the
+  shape alone welded and reduced to 24 000 triangles for the shadow map) and
+  `public/data/hero_rig.jpg` (the colour picture at 2 048). Nothing of the surface or the
+  motion is changed. One matrix (`root`) fits the figure to the game's frame: the soles
+  0.93 m under the origin as it stands in Idle, 1.88 m tall (the file: 1.65 m).
+- `src/hero/heroRig.js` (plain numbers, the game and Node alike): a clip read at a time,
+  the joints' places, the matrices the surface is drawn with.
+- `src/hero/heroAnim.js` chooses the clips from the state `hero.js` already works out:
+  Idle, Walk, Run, Sprint by the pace, the three gaits in step (one phase, each read from
+  where its left foot is furthest forward) and played faster or slower with the pace; a
+  jump or a fall on foot: the Jump clip's rising and falling frames by the vertical speed;
+  after a touch-down the Landing clip from its contact, more of it the harder the landing,
+  played 1.7 times as fast as made; in the air Hover, and Flight by how much it flies (read
+  there and back: it is not a loop). Where the game moves the body itself the clip's hips
+  are held (a jump's rise, the flight's lean: the game lays the body along its flight).
+  Each clip is put on the game's ground by its own measure (the gaits tread 5 cm over
+  Idle's floor in the file).
+- `src/hero/heroRigMesh.js` draws it: skinned in the vertex shader from 72 uniform vectors
+  (no texture read for a vertex), coloured from its picture, lit by the game's light, both
+  sides (the robe opens). `hero.js`: with a rig the body no longer leans, twists, bobs or
+  crouches by itself and **the cloth is not worked out at all** (0.4 to 0.7 ms a frame of
+  the page's work saved).
+- `node scripts/hero-rig-preview.mjs --clip Run` (frames of a clip, or `--state
+  "foot=1,speed=5.5"` for the game's own choice) draws it without a browser in a second.
+
+**Changed for the player**: the character is the owner's own, with the owner's motion and
+colours; no simulated cloth (the robe and hair go with the skeleton; they do not stream).
+
+**The robe and hair in the air** (no cloth is simulated): every vertex has a number for how
+loose it hangs (`loose`: its distance from the middle line of each bone against the girth of
+what the bone carries, measured as the file stands; the hair by its colour in the picture
+and how far below the nape), and what is loose trails down the air going past the figure
+and flutters (`heroRig.js` `flowed`, the same sum in the vertex shader; `hero.js` works out
+the flow: against the motion, up to 0.22 m for free cloth, a light breeze standing still).
+A cheap stand-in for cloth: it shears, it does not fold or collide.
+
+**Not done / to look at next**: the normal and roughness pictures are not used; steady flight is the Flight clip
+read slowly there and back with the hips held (little life); footfall dust still keeps the
+old gait's time; the file is 10 MB (positions as floats, an unwelded lighter mesh); cost on
+the phone not measured (153 000 triangles, and no cloth simulation).
+
+### The owner on build 8c8ff89 (2026-11-27): "a constant t pose", "the running cape still look horrible"; Meshy
+
+The owner, with two screenshots (a run on a slope, super speed among boulders): "The running
+cape still look horrible the models is doing a constant t pose now as well instead of using
+the hands to run". And then: the model was made **on Meshy**.
+
+**Done (on the link since c7195f9, PR #40):**
+- The arms hang a little out from the sides (`hero.js`, `OUT` 0.24) and drive the run, bent,
+  forward and back; at super speed they trail. Holding them where the sculpt holds them
+  (8c8ff89) cured the torn hip and read as a T-pose: not acceptable to the owner.
+- What lets the arms come in: **across a join the lesser garment gives way** (body, skirt,
+  sleeve, hair: `heroBind.mjs`, `membership`, `RANK`). The skirt keeps its own rule right up
+  to a sleeve; the sleeve is the skirt's at the join and its own from some way off. So an
+  arm at the side stretches its own sleeve where it is joined (a fold) and no longer dents
+  the skirt through itself (the hole at the hip).
+- On foot the wind of the figure's own pace pushes the cloth with 0.6 of its weight (it was
+  three times, set for the old short cloak: the gown flew out flat behind a runner); 1.5 at
+  super speed.
+- Drawn-out edges now: hover 250, walk 1 000, run 1 400 (bound 1 600); super speed 1 300,
+  the kneel 4 200 (bound 4 500). More than with the arms held out (8, 88, 398): that is the
+  price of arms that move on a model whose sleeves are fused to its body.
+
+**The real cure is a rigged model, and the owner is getting one.** Meshy rigs a humanoid and
+gives it walking and running, with a library of some 500 more motions; its "3D Agent" chat
+can remesh, rig and animate in one conversation. The owner was given the words to paste:
+remesh to about 150 000 triangles keeping the A-pose, rig as a humanoid, add idle, walk,
+run, sprint, jump, fall, landing and any flying or hovering motion, keep textures, one GLB
+with the skeleton and all animations (Mixamo skeleton, the default). Meshy will not rig a
+model over 300 000 faces. **When that file comes**: a new path beside this one (do not
+patch the binding further): read the GLB's skin (joints, weights, inverse bind matrices)
+and its clips, play them by the game's states (stand, walk, run by speed, super, jump,
+fall, land, hover, fly, boost; blend by the same numbers `hero.js` already works out:
+`foot`, `flight`, `boost`, `air`, gait from speed), and keep the simulated cloth only as a
+small extra on the hair and the ends of sleeves and skirt if it still looks right. Colours
+come from the file's own texture if it has one (ask: the first file had none).
+`docs/ASSETS.md`: made by the owner with Meshy; check Meshy's terms for the owner's plan
+when recording the rigged file (the owner's account, the owner's right to use its output).
+
+**Also in the owner's screenshots, not yet looked at**: grass blades near the camera drawn as
+huge flat triangles on a steep slope; 21 to 27 fps with 10 savings on at 2.06 MP.
+
+### The owner on build 42da110 (2026-11-27): the outfit still glitchy, the hands wrong; Haven at 18 fps
+
+The owner, with two runs of the benchmark at a fixed size: "the cape and outfit for the
+model is still glitchy when in movement and not and the hands as well they look strange
+not like the model file I gave you".
+
+**What was wrong, seen by drawing the game's own standing pose** (`hero-preview --pose idle`;
+until then only the sculpt's stance, flight and the run had been looked at):
+- *The hands.* Only the fingers were skin: the cuff's silk label ran over the back of the
+  hand and the thumb (a white glove). And the hands were half cloth: the blend of garments
+  across a join spread the sleeve's cloth into the hand, which was then drawn out of shape
+  by the sleeve. Now everything joined to a hand's skin within 10.5 cm of its middle is
+  skin (`make-hero.mjs`), and skin and boots are the body's alone (`heroBind.mjs`,
+  `membership`).
+- *Glitchy standing still.* The game's poses brought the arms in to the sides (0.13 rad
+  out; the sculpt holds them 0.585 out). Each wide sleeve was pressed through the skirt and
+  the join between them tore it at the hip. **The arms are now held out as sculpted in
+  every pose** (`hero.js`, `OUT`): standing, the figure is the model as it was sent, with
+  the cloth breathing. The run no longer pumps bent arms: a small swing, swept back as the
+  pace rises, sleeves streaming.
+- *The rule that kept the gown off the legs (42da110) tore the skirt* in a ragged line at
+  the thigh in every pose (where a vertex passed the end of a leg's capsule). Taken out
+  again: without it the gown is whole and the legs show only where the gown is open, as
+  sculpted. (The 3 600 gown vertices "inside a leg" were its lining.)
+- Drawn-out edges now (`hero-bind-test`, full mesh): hover 8, walk 88, fly 24, fast 90,
+  take-off 36, run 398 (bound 600); super speed 492, the kneel 1 208 (bound 3 000).
+
+**Read those two runs with care** (the speed helper's first counts, 2026-11-27 09:26,
+`docs/briefs/phone-speed-2-report.md` on `ccr-6f4f9272-speed`): `?scale=` switched the
+frame pacing off, so both ran flat out (52 fps at the first stop of the floor run) and slid
+stop by stop, most likely with heat; the "two refreshes or five" pattern is an unpaced
+58 ms frame, not work done every other frame. By count every Haven stop at rest hands the
+GPU the same frame (23 passes, about 150 draw calls, 3.0 M triangles, 32 KB of uploads),
+nothing grows with time, no texture is uploaded inside a pass; 57 % of all triangles are
+grass and flowers; 7 passes a frame begin without a whole clear, 5 of them the sky's. The
+plain benchmark (28.8 fps, the opening view at 23.9) remains the honest measure.
+
+**Haven is too heavy** (`docs/benchmarks/2026-11-27-haven-42da110-fixed-size.txt`, the
+picture held at 2.25 MP, so the governor took no step): everything on, Haven 18.1 fps, its
+stops after the first at 14 to 17 with half the frames over 83 ms; every saving on, 34.8,
+and still a third or more of the frames late at three stops of five. That answers the last
+reader's question (savings do cure, and are not enough), and makes the job cost, not the
+governor: `docs/briefs/phone-speed-2.md`, for a helper. Rivers that run (the water
+helper's piece 1) are held back from the link until the phone has room: this branch
+carries a revert of that merge for the link's sake, **to be reverted again once the link
+is out** (and the water branch must not merge this branch in between).
+
 ### The owner on the character and the eleventh phone results (2026-11-27, on build 49e4294)
 
 The owner: "The model was made by me and when im running as the model it looks glitchy
@@ -55,12 +200,9 @@ back on 29).
 **Done for the character since that build** (all in the next link):
 - *The cloth turns the sculpt as well as moving it* (see "The owner's sculpt in the game":
   49e4294 moved it only, and every carved fold was sheared: the "glitchy cape").
-- *The legs no longer come through the gown.* Measured: 3 600 gown vertices inside a leg's
-  capsule in a run, up to 11.5 cm deep. Now every cloth vertex stays on the side of each
-  leg it was sculpted on (`heroPalette.js`, `keepOff`; the vertex shader does the same): a
-  third remain, all of them cloth that stood that near a leg in the sculpt. Pushed straight
-  out from the leg's line instead, cloth that had crossed the line went out the far side
-  and tore.
+- *The legs kept out of the gown by a rule* (every cloth vertex on the side of each leg it
+  was sculpted on): **taken out again after 42da110**, it tore the skirt at the thigh (see
+  above).
 - *Flight: arms swept back, sleeves streaming* (`hero.js`, the cruise, boost and take-off
   poses). One arm reaching ahead is right for a caped suit and wrong for a robe: the sleeve
   hid the hand, hung ahead of the head, and drew the join between sleeve and skirt out into
@@ -116,7 +258,8 @@ character, and sends the links.
 | Job | Brief | Branch | Session | Says when done |
 | --- | --- | --- | --- | --- |
 | The sky's known faults (empty noon sky first, the far storm, the disc, the weather views, clouds from above) | `sky-faults.md` | `ccr-6f4f9272-sky-faults` | `session_01R5Bri3JsgPNqFWmnrwMeAB` | `SKY-FAULTS-DONE` |
-| Living water (roadmap 12.3: rivers that run, rapids and falls, water from the air, surf and tide, puddles and swollen streams) | `living-water.md` | `ccr-6f4f9272-water` | `session_01R5Brhz8fvucj2b9DbzR7fj` | `WATER-DONE` |
+| Living water (roadmap 12.3) **parked 2026-11-27 08:05** to free a session for the speed job: piece 1 (rivers that run) is merged and on the link; waterfalls and the far ribbon are done on its branch (head 1df6f92, last commit seen to draw: e395cfe); the sea, puddles and spate are built and never pictured. To take it up again: a new session from `living-water-report.md`, "Parked on 2026-11-27" | `living-water.md` | `ccr-6f4f9272-water` | `session_01R5Brhz8fvucj2b9DbzR7fj` (archived) | parked |
+| Haven at a steady 30 on the phone (counts first, then cuts, then the governor) | `phone-speed-2.md` | `ccr-6f4f9272-speed` | `session_01R5Bri3Vc6gREhGM2yuwUwB` | `SPEED-DONE` |
 | Seasons (roadmap 12.4: a year of its own and one rule, leaves that turn, fall and pile up, snow that comes and goes, grass and flowers by the season) | `seasons.md` | `ccr-6f4f9272-seasons` | `session_01R5Bri2SJsiHEniM3EYxxpQ` | `SEASONS-DONE` |
 
 Water and seasons both edit the ground's shader (`terrainMaterial.js`): each keeps its

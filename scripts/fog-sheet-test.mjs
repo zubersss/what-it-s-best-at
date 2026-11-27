@@ -65,6 +65,30 @@ check('and at an anchor it moves by about one step, not by a swing of the whole 
   check('two travellers in the same cell are given the same lattice', far < 1e-6, `${far.toExponential(1)} m apart`);
 }
 
+// The weather model's own fog is found: it lies in hollows, BELOW the country (the ground
+// smoothed over 15 km), and a sheet that asked for fog standing over the country drew none of it.
+// Haven's scene morning at 07:00 (?t=-1) over the basin 35 km west-south-west of the opening place.
+// (--break country: the old question, fog top less country, which must fail here)
+{
+  const { havenProducer, tWeather } = await import('./sky-scan.mjs');
+  const prod = havenProducer(), tw = tWeather(-1);
+  const la = -51.4 * Math.PI / 180, lo = 37.6 * Math.PI / 180;
+  const over = new THREE.Vector3(Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)).multiplyScalar(R + 1500);
+  const brk = process.argv.includes('--break') && process.argv[process.argv.indexOf('--break') + 1] === 'country';
+  const at = (q, t, out) => { const o = prod.at(q, t, out); if (brk) o.field.fogTop = Math.max(0, o.field.fogTop - o.field.country); return o; };
+  const wet = new FogSheet(null); wet.uniforms.tCloudNoise.value = {};
+  wet.update({ rig: { pos: over }, sky: { R, t: tw, field: { on: true, at }, noClouds: false } });
+  check("the model's morning fog in the hollows is drawn (Haven, 22 September 07:00, the basin west of the ledge)", wet.ready === true, `the highest fog top in reach ${Math.round(wet._fog)} m`);
+  // ... and the shader lays the sheet at the fog's top, not at the country's height
+  const vs = wet.material.vertexShader;
+  check('the sheet stands at the fog top of the texels that have fog', /fogAt\(dir\)/.test(vs) && !/max\(top, country\)/.test(vs));
+  // ... and it declares the eye it is drawn relative to. (It did not: the shader could not be
+  // compiled, and since nothing ever asked for the sheet to be drawn, nothing said so. The build
+  // does not compile shaders.)
+  const bare = vs.replace(/\/\/.*$/gm, '');
+  check("the sheet's vertex shader declares the eye's place it uses", !/\buCamPlanetPos\b/.test(bare.replace(/uniform\s+vec3\s+uCamPlanetPos\s*;/, '')) || /uniform\s+vec3\s+uCamPlanetPos\s*;/.test(bare));
+}
+
 // and with no fog in reach it is not drawn at all
 {
   const dry = new FogSheet(null); dry.uniforms.tCloudNoise.value = {};

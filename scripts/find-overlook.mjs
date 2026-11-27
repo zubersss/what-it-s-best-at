@@ -3,7 +3,8 @@
 // way), and low ground or water far below. Searches round a place with the world's own
 // height function (no browser).
 //   node scripts/find-overlook.mjs --world haven --lat -48.472 --lon 48.823 --heading 157 [--reach 3000] [--step 30] [--swing 50] [--below 1450] [--count 6]
-// (--below: no higher than this, to stay under the tree line; --swing: degrees either side of the heading)
+// (--below: no higher than this, to stay under the tree line; --swing: degrees either side of the heading;
+// --sky: for a view of the weather: the far skyline as low as can be, where the default wants mountains in it)
 // Prints the best few; look at one with scripts/peek.mjs before taking it.
 import { loadWorld } from './lib/loadWorld.mjs';
 const opt = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
@@ -11,6 +12,7 @@ const { world, hs } = await loadWorld(opt('world', 'haven'));
 const R = world.radius, RAD = Math.PI / 180, lat0 = +opt('lat', world.scene.start.lat), lon0 = +opt('lon', world.scene.start.lon);
 const reach = +opt('reach', 3000), step = +opt('step', 30), swing = +opt('swing', 50);
 const H0 = +opt('heading', world.scene.start.heading), MAXH = +opt('below', 1e9);
+const SKY = process.argv.includes('--sky');
 const dirOf = (lat, lon) => { const cl = Math.cos(lat * RAD); return [cl * Math.cos(lon * RAD), cl * Math.sin(lon * RAD), Math.sin(lat * RAD)]; };
 const mLat = R * RAD, mLon = R * RAD * Math.cos(lat0 * RAD);
 const hAt = (e, n, wl = 8) => { const d = dirOf(lat0 + n / mLat, lon0 + e / mLon); const h = hs.height(d[0], d[1], d[2], wl); return hs.waterDepth > 0 ? -1e6 - 0 * h : h; };
@@ -34,7 +36,8 @@ for (let n = -reach; n <= reach; n += step) for (let e = -reach; e <= reach; e +
       if (r > 300 && r < 3000 && el > -0.02) { ok = false; break; }
     }
     if (!ok || drop60 < 10 || drop300 < 70) continue;
-    const peaks = top < 0.005 ? -80 : Math.min(top, 0.09) * 1800;
+    // (--sky: a view of the weather, not of mountains: the lower the far skyline the better)
+    const peaks = SKY ? -Math.max(top, 0) * 4000 : top < 0.005 ? -80 : Math.min(top, 0.09) * 1800;
     const score = Math.min(drop300, 220) + peaks + (water ? 90 : 0) - 0.6 * Math.abs(a - H0);
     if (!best || score > best.score) best = { score, a, drop60, drop300, top, water };
   }

@@ -23,7 +23,7 @@ sizes, real maps or the explorer's side of things, and allowed a full restart ("
 gets my idea across").
 
 So the game is: you fly a robed, long-haired character (the owner's own design, and since
-2026-11-27 the owner's own sculpt: `docs/PROGRESS.md`, "The owner's sculpt in the game") over **a small made-up world** (`haven`,
+2026-11-27 the owner's own model, rigged and animated: `docs/PROGRESS.md`, "The owner's rigged character") over **a small made-up world** (`haven`,
 milestone 12 in `docs/ROADMAP.md`): small enough that the horizon bends from a few
 kilometres up and mountains stand on its edge from space, its land shaped by rule to be
 beautiful (peaks, stepped plateaus, canyons, valleys, a sea), its water following the
@@ -210,7 +210,7 @@ node scripts/overdraw.mjs [--part trees,farForest,grass,leaves] [--view "in the 
 node scripts/make-world.mjs [--width 4096] [--seed 7] [--preview dir] [--only-preview]   # makes the small world's land (Haven): elevation with drainage, lakes, rain (a minute; --width 2048 --only-preview: nine seconds, with pictures to judge it by)
 node scripts/make-world-maps.mjs   # ... and from that its colour, slope, water and cloud maps (needs Python's PIL for the JPEGs); prints the albedo map's mean for the world file
 node scripts/find-haven-site.mjs [--open] [--lat 28,52]   # places on Haven to begin at: level ground over low ground and water, high ground near by
-node scripts/find-overlook.mjs --world haven --lat .. --lon .. --heading .. [--below 1500]   # the very spot: level underfoot, the ground falling away in front, mountains on the far skyline (then look with peek.mjs)
+node scripts/find-overlook.mjs --world haven --lat .. --lon .. --heading .. [--below 1500] [--sky]   # the very spot: level underfoot, the ground falling away in front, mountains on the far skyline (--sky: a LOW far skyline, for a view of the weather; then look with peek.mjs)
 node scripts/far-trees-test.mjs     # the far forest's trees are the near trees: a thinned tile is a subset of the full one, at the same places (no browser)
 node scripts/far-tree-above.mjs [--old] [--out file.png] [--dist 450,1200,3000] [--down 15,35,60,90] [--sun 25]   # the far trees seen from above, sketched without a browser in seconds: a closed wood and lone trees at three distances and four angles (the rule is life/farTreeForm.js)
 node scripts/far-tree-form-test.mjs  # that rule's promises (nothing changes from the ground, nothing switches, a wood's cover from above, a lone tree's size, shadows); node scripts/far-tree-shade-test.mjs [--was]   # the land's shadow on a far tile's trees against a ray from every tree (15 s)
@@ -235,6 +235,8 @@ node scripts/parts-out.mjs --world haven --shot ledge [--query ..] [--box 0.2,0.
 scripts/ground-cost-run.sh <scratch dir> [--only ledge,air3k] [--before old-terrainMaterial.js] [--save dir] [--parts file.mjs] [--size 880x412 --dsf 2.2]   # what the ground's shading costs, as a count of work on software WebGL (never a frame rate): the game's ground alone at ten views, the shader of an earlier commit beside the new one in the same browser session, and how far their pictures are apart (git show <commit>:src/terrain/terrainMaterial.js > old-terrainMaterial.js). Runs scripts/ground-cost.mjs from a copy of the tree: the dev server reloads the page at any source edit
 node scripts/make-hero.mjs [--tris 120000] [--low 24000] [--stage look]   # the owner's sculpt (assets-src/hero/) into the game's character file (public/data/hero.bin), 25 s: materials and garments by the seeds in scripts/hero/seeds.mjs, colours, two reduced meshes, the binding to the figure's parts and cloth (scripts/hero/heroBind.mjs). Run again after changing a seed, a joint or a cloth sheet
 node scripts/hero-preview.mjs --out f.png [--pose stand|hover|fly|fast|walk|run] [--yaws 0,90,180] [--labels|--garments|--parts|--cloth] [--lod 1] [--twosided]   # that file drawn without a browser in a second, posed by the game's own code
+node scripts/make-hero-rig.mjs [--low 24000] [--texture 2048]   # the owner's rigged character (assets-src/hero-rig/*.glb: skeleton, clips, pictures) into public/data/hero_rig.bin and .jpg, 2 s (needs Python's PIL for the picture)
+node scripts/hero-rig-preview.mjs --clip Run [--frames 6] [--yaw 90] | --state "foot=1,speed=5.5" [--times 0,0.2] [--out f.png]   # the rigged character drawn without a browser: frames of a clip, or the game's own choice of clips for a state (hero/heroAnim.js)
 node scripts/hero-bind-test.mjs [--list]   # the character's binding: standing it gives the sculpt back, in the game's poses the surface is not torn (no browser, 10 s; --list: the worst edges by cause)
 node scripts/hero-cost.mjs   # what the character costs the page each frame, without a browser (seconds): the cloth at 60 and 30 frames a second, the whole figure; fails if the cloth's points have moved from scripts/lib/robe-reference.json
 node scripts/grass-place-test.mjs   # a place's blades and tussocks are the place's, never the anchor's: anchor steps, the 2 560 m wrap, a grass saving on (no browser, seconds)
@@ -251,6 +253,7 @@ node scripts/sky-list-test.mjs [--break hold|nofast]   # the storm cells and anv
 node scripts/sky-slots-test.mjs [--break reslot]   # the sky field's snapshots on the GPU: every blend of the 'now' maps reads the pair's own two snapshots, forwards, backwards and after jumps (a renderer that only keeps count; no browser, seconds)
 node scripts/sky-scan.mjs [--t 4] [--lat .. --lon ..] [--span 120] [--stub fair]   # the sky field's numbers round a place at an hour of the game (?t=): heap, sheet, base, thickness, country, mid, high (no browser, seconds)
 node scripts/sky-above.mjs [--t 4] [--span 120] [--stub fair] [--out file.png]   # the low cloud from straight above as the game cuts it: the hour's cover (left) and the cloud carved from it (right), with the share of the land under cloud (no browser, 20 s)
+node scripts/sky-probe.mjs --distdir <build> [--shot ledge] --query "alt=2500&heading=243&t=8.25" --out dir/name [--try "upper=__app.sky.partOut('cloud-upper',true);;flat=__app.sky.setSaving('cloud-far',true)"] [--size 440x206]   # one view of the real game loaded once, then pictured again with a switch tried each time (seconds a switch, where a page load is minutes): for telling WHICH part of the sky draws or hides a thing
 node scripts/sky-steer-test.mjs · node scripts/sky-format-test.mjs · node scripts/sky-cell-test.mjs   # each cloud layer's wind (closed form against a frame-by-frame sum), the weather field's snapshot format (JS and GLSL decoders), a storm cell's shape (JS against its GLSL) (no browser)
 npm run probe          # top-down shaded relief of the height function (no browser)
 node scripts/sky-table.mjs [--lat .. --lon ..]   # where the sky bodies are from a place over time (no browser)
@@ -749,9 +752,17 @@ finished benchmark leaves its text in `window.__benchResult`.
   joins it had ragged holes; drawn two-sided its inner face showed through as dark rags.
   What works: carry by the body's parts, add the cloth's shift, blend garments across their
   joins, draw the outside only; and the cloth must turn the surface as well as move it (moved
-  alone, every carved fold was sheared into crumpled foil). And measure a tear before guessing at it: a count of edges
+  alone, every carved fold was sheared into crumpled foil). The game's poses must keep the
+  limbs where the sculpt holds them wherever its clothes hang free (arms brought in to the
+  sides pressed each sleeve through the skirt), and skin belongs to the body alone (hands
+  half given to the sleeve's cloth were drawn out of shape). Look at the game's own standing
+  pose, not only the sculpt's stance and the poses that are fun. And measure a tear before guessing at it: a count of edges
   drawn out in a pose, by cause (`node scripts/hero-bind-test.mjs --list`), named the fused
   joins in one run after three guesses had not.
+- When a model has no skeleton, ask its maker for one before binding it by hand. A day went
+  into binding the owner's sculpt to the game's limbs and cloth (tears, a T-pose, a flying
+  gown); the owner's tool rigged and animated it in minutes, and the file read into the game
+  in an hour. Ask what the tool that made an asset can export first.
 - Look at the game as the player gets it, with no switch in the URL. The sky's field fell back
   to a stub's test pattern ("fair") whenever no `sky:` switch was given: four helpers pictured
   their work under `debug=sky:model`, every check asked only "is the field on", and the merged
@@ -763,6 +774,23 @@ finished benchmark leaves its text in `window.__benchResult`.
   Node check passing. A renderer that only keeps count (`scripts/sky-slots-test.mjs`) is
   enough to test such a thing. And a round hour in `?t=` is a special moment (f = 0 between
   two snapshots): take a picture at an odd minute as well.
+- On a world 250 km in radius the ground drops 8 km under the horizon's level 64 km away
+  (d x d / 2R): a storm tower 10 km high "64 km off" shows its top third over the far hills,
+  and its air path is 60 km of thick low air. What is meant to be seen whole is seen from
+  30 km (13 degrees of tower) or from the air. And the ground that looks at a thing may all
+  be wood: a bookmark can be a view from the air (`alt`, m over the sea).
+- A part built against a test pattern answers the pattern's question: the fog sheet drew fog
+  standing "over the country" (the stub's fog) and none of the model's, which lies in hollows
+  below it. When the real producer arrives, ask each reader what it reads of it.
+- A noise texture that repeats every few kilometres shows as rows from the air however the
+  cover varies: cut the masses from two readings at scales with no common period (the fine
+  one alone gave crumbs a kilometre wide in rows 4.2 km apart).
+- A heap cover is not a lid. Cut from a 3-D noise at the cover itself, 0.6 was three quarters
+  of the sky from above; the field's heaps are cut at a map of it (`CLOUD_RULE.CARVE*`) so
+  that full cover is half the sky, and a lid is a sheet. `node scripts/sky-above.mjs` prints
+  the share of the land under cloud for the hour: read it before any picture of a sky.
+- The model's land is the elevation map, and that holds lake BEDS: its fog lay under the
+  water of every lake. Anything laid "on the ground" by rule must ask where the water is.
 - Two clocks: `?t=` (and a bookmark's `timeOffsetHours`) counts hours from the scene's own
   moment; the weather's clock counts seconds from `weather.epoch` (521 hours apart on Haven).
   A Node scan of the model at `t = H * 3600` asks about another day than the game shows at
