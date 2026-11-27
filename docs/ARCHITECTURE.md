@@ -786,9 +786,37 @@ as Earth is; what differs is where the maps come from.
   out of flower its petal texels are leaves, near and far alike. One material:
   the shared lighting, light wrapped round and through crowns, shadows asked for a
   little outside the crown; wind (lean and swing by height and distance from the trunk);
-  the seasons (leaves turn, then draw in to the branches, by the date and hemisphere,
-  away from the tropics). Crowns cast flecked shadows (their depth pass drops four
+  the seasons (each tree its own: see "The year" just below). Crowns cast flecked shadows (their depth pass drops four
   pixels in ten).
+- **The year** (`life/season.js`; `scripts/season-test.mjs` holds it to its promises).
+  One place says what time of year it is and what a tree's leaves are doing, and nothing
+  that draws works any of it out for itself.
+  - *The calendar*: 365.25 life days, counted as in the northern half of a world (day 80
+    the spring equinox, the south half a year on); species say when they flower and what
+    colours they turn (`cover.js`). A world's file says how fast it runs: none (Earth: the
+    date itself), or `year: { days, at: [date, lifeDay] }` (Haven: 48 days; its scene's
+    morning is day 265, the first of spring at the opening place). `app.lifeDay` is the
+    day now; the Sun is not on this year (it stays on its orbit).
+  - *A tree* (`treeSeason(species, day, lat, alt, own)`): buds on day 87 + half its
+    winter's hardness, pale green; turns from day 262 less the hardness, through yellow to
+    its species' two colours (a tree between them by its own number), dulls and drops its
+    leaves over the 16th to 48th day of that; `hardness` is 8 days a kilometre up and one a
+    degree toward the pole from 45; between 25 and 38 degrees the season fades out;
+    evergreens answer their own green.
+  - *Handed over* by `cover.js` `treeLook` (the colour in steps of 0.75 / 255, the leaves
+    gone in 31 steps, how far in flower): the near trees put it in each tree's `iC` and
+    `iB.w`, the far forest packs the same into `iC.y` and beside the tree's own number in
+    `iB.w`; both ask with the whole life day (`trees.seasonDay`), and tiles with such trees
+    are filled again when it changes. Leaves gone: plain leaf masses draw in and vanish
+    past the half, a spray loses leaves one by one, a whole tree's picture (near from 60 m,
+    and the far forest) loses clumps (`TREE_THIN`, blocks of texels that double with the
+    distance). `paintLeaf` and `farGreen` leave a leaf with more red than green alone.
+  - *The ground's far canopy* reads `uCanopyYear` (eight entries by height from
+    `cover.js` `canopyYear`: the mean colour of the leaf-dropping trees of the wood at that
+    height on the day, bare ones as branches, and the noise level that makes their
+    patches their share of the wood), moved by each pixel's own latitude.
+  - *Going to a season*: `untilSeason` (whole days forward); the menu's Season row and
+    `?season=`.
 - **Beyond the trees** the ground shader raises the forest as a whole: the vertex shader
   lifts the ground by the canopy's height (uneven as crowns are; not on rock faces or
   water) from 0.8 to 1.25 of the trees' radius outward, or everywhere from above 1 500 m;

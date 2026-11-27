@@ -13,7 +13,7 @@
 import * as THREE from 'three';
 import { parseHero } from './heroFile.js';
 import { HERO_FRAG } from './heroModel.js';
-import { PARTS, PALETTE_W, LEG_OVER, paletteTexels, fillPalette, legsOf } from './heroPalette.js';
+import { PARTS, PALETTE_W, paletteTexels, fillPalette } from './heroPalette.js';
 
 const SKIN = /* glsl */`
 uniform highp sampler2D uPalette;
@@ -37,27 +37,7 @@ void carriers(out vec4 r0, out vec4 r1, out vec4 r2) {
     }
   }
 }
-// (and the cloth kept off the legs, each vertex on the side of a leg it was sculpted on:
-// heroPalette.js, keepOff)
-uniform vec4 uLegA[4]; uniform vec3 uLegB[4];
-in float aClear;
-vec3 moved(vec4 r0, vec4 r1, vec4 r2) {
-  vec4 p = vec4(position, 1.0); vec3 q = vec3(dot(r0, p), dot(r1, p), dot(r2, p));
-  if (aClear > 0.0) {
-    for (int k = 0; k < 4; k++) {
-      int m = (5 + k) * 3;
-      vec3 a = uLegA[k].xyz, ab = uLegB[k] - a, l = vec3(dot(pal(m), p), dot(pal(m + 1), p), dot(pal(m + 2), p)) - a;
-      float bb = dot(ab, ab);
-      vec3 n = l - ab * clamp(dot(l, ab) / bb, 0.0, 1.0);
-      float dl = length(n); if (dl < 1e-4) continue;
-      n /= dl;
-      vec3 dq = q - a - ab * clamp(dot(q - a, ab) / bb, 0.0, 1.0);
-      float s = dot(dq, n), want = min(dl, uLegA[k].w + ${LEG_OVER.toFixed(4)}), push = sqrt(max(0.0, want * want - (dot(dq, dq) - s * s))) - s;
-      if (push > 0.0) q += n * (push * aClear);
-    }
-  }
-  return q;
-}`;
+vec3 moved(vec4 r0, vec4 r1, vec4 r2) { vec4 p = vec4(position, 1.0); return vec3(dot(r0, p), dot(r1, p), dot(r2, p)); }`;
 
 const VERT = /* glsl */`
 ${SKIN}
@@ -84,7 +64,6 @@ function geometryOf(m) {
   g.setAttribute('aParts', new THREE.BufferAttribute(m.parts, 4));
   g.setAttribute('aMovers', new THREE.BufferAttribute(m.movers, 4));
   g.setAttribute('aShares', new THREE.BufferAttribute(m.shares, 4, true));
-  g.setAttribute('aClear', new THREE.BufferAttribute(m.clear, 1, true));
   g.setIndex(new THREE.BufferAttribute(m.index, 1));
   // (the surface moves in the shader: a sphere round the whole figure, cloth streaming and all)
   g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 2.2);
@@ -102,12 +81,10 @@ export class HeroSculpt {
     this.data = new Float32Array(PALETTE_W * h * 4);
     this.palette = new THREE.DataTexture(this.data, PALETTE_W, h, THREE.RGBAFormat, THREE.FloatType);
     this.palette.minFilter = this.palette.magFilter = THREE.NearestFilter; this.palette.generateMipmaps = false;
-    this.legs = new Float32Array(28);
-    this.uLegA = { value: Array.from({ length: 4 }, () => new THREE.Vector4()) }; this.uLegB = { value: Array.from({ length: 4 }, () => new THREE.Vector3()) };
-    this.uniforms = { ...hero.uniforms, uPalette: { value: this.palette }, uLegA: this.uLegA, uLegB: this.uLegB };       // (the figure's own light: one set of uniform objects)
+    this.uniforms = { ...hero.uniforms, uPalette: { value: this.palette } };       // (the figure's own light: one set of uniform objects)
     this.material = new THREE.ShaderMaterial({ name: 'HeroSculpt', glslVersion: THREE.GLSL3, defines: { ...hero.material.defines, SCULPT: 1 }, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: HERO_FRAG, side: THREE.FrontSide });
     this.depthMaterial = new THREE.ShaderMaterial({
-      name: 'HeroSculptDepth', glslVersion: THREE.GLSL3, side: THREE.DoubleSide, colorWrite: false, uniforms: { uPalette: this.uniforms.uPalette, uLegA: this.uLegA, uLegB: this.uLegB },
+      name: 'HeroSculptDepth', glslVersion: THREE.GLSL3, side: THREE.DoubleSide, colorWrite: false, uniforms: { uPalette: this.uniforms.uPalette },
       vertexShader: DEPTH_VERT, fragmentShader: `layout(location = 0) out vec4 fragColor; void main() { fragColor = vec4(1.0); }`,
     });
     this.geometries = file.lods.map(geometryOf);
@@ -140,8 +117,6 @@ export class HeroSculpt {
     for (let i = 0; i < PARTS; i++) { parts[i].updateMatrix(); this._m[i].multiplyMatrices(hero.body.matrix, parts[i].matrix).multiply(this._inv[i]); }
     fillPalette(this.data, this._e, hero.robe.pos, this.shared);
     this.palette.needsUpdate = true;
-    const L = legsOf(hero, this.legs);
-    for (let k = 0; k < 4; k++) { this.uLegA.value[k].set(L[k * 7], L[k * 7 + 1], L[k * 7 + 2], L[k * 7 + 6]); this.uLegB.value[k].set(L[k * 7 + 3], L[k * 7 + 4], L[k * 7 + 5]); }
     const g = this.geometries[this.light ? this.geometries.length - 1 : 0]; if (this.mesh.geometry !== g) this.mesh.geometry = g;
     this.shadowMesh.matrix.copy(hero.group.matrixWorld); this.shadowMesh.matrixWorld.copy(hero.group.matrixWorld);
     return this.palette;

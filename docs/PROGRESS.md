@@ -41,6 +41,43 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### The owner on build 42da110 (2026-11-27): the outfit still glitchy, the hands wrong; Haven at 18 fps
+
+The owner, with two runs of the benchmark at a fixed size: "the cape and outfit for the
+model is still glitchy when in movement and not and the hands as well they look strange
+not like the model file I gave you".
+
+**What was wrong, seen by drawing the game's own standing pose** (`hero-preview --pose idle`;
+until then only the sculpt's stance, flight and the run had been looked at):
+- *The hands.* Only the fingers were skin: the cuff's silk label ran over the back of the
+  hand and the thumb (a white glove). And the hands were half cloth: the blend of garments
+  across a join spread the sleeve's cloth into the hand, which was then drawn out of shape
+  by the sleeve. Now everything joined to a hand's skin within 10.5 cm of its middle is
+  skin (`make-hero.mjs`), and skin and boots are the body's alone (`heroBind.mjs`,
+  `membership`).
+- *Glitchy standing still.* The game's poses brought the arms in to the sides (0.13 rad
+  out; the sculpt holds them 0.585 out). Each wide sleeve was pressed through the skirt and
+  the join between them tore it at the hip. **The arms are now held out as sculpted in
+  every pose** (`hero.js`, `OUT`): standing, the figure is the model as it was sent, with
+  the cloth breathing. The run no longer pumps bent arms: a small swing, swept back as the
+  pace rises, sleeves streaming.
+- *The rule that kept the gown off the legs (42da110) tore the skirt* in a ragged line at
+  the thigh in every pose (where a vertex passed the end of a leg's capsule). Taken out
+  again: without it the gown is whole and the legs show only where the gown is open, as
+  sculpted. (The 3 600 gown vertices "inside a leg" were its lining.)
+- Drawn-out edges now (`hero-bind-test`, full mesh): hover 8, walk 88, fly 24, fast 90,
+  take-off 36, run 398 (bound 600); super speed 492, the kneel 1 208 (bound 3 000).
+
+**Haven is too heavy** (`docs/benchmarks/2026-11-27-haven-42da110-fixed-size.txt`, the
+picture held at 2.25 MP, so the governor took no step): everything on, Haven 18.1 fps, its
+stops after the first at 14 to 17 with half the frames over 83 ms; every saving on, 34.8,
+and still a third or more of the frames late at three stops of five. That answers the last
+reader's question (savings do cure, and are not enough), and makes the job cost, not the
+governor: `docs/briefs/phone-speed-2.md`, for a helper. Rivers that run (the water
+helper's piece 1) are held back from the link until the phone has room: this branch
+carries a revert of that merge for the link's sake, **to be reverted again once the link
+is out** (and the water branch must not merge this branch in between).
+
 ### The owner on the character and the eleventh phone results (2026-11-27, on build 49e4294)
 
 The owner: "The model was made by me and when im running as the model it looks glitchy
@@ -55,12 +92,9 @@ back on 29).
 **Done for the character since that build** (all in the next link):
 - *The cloth turns the sculpt as well as moving it* (see "The owner's sculpt in the game":
   49e4294 moved it only, and every carved fold was sheared: the "glitchy cape").
-- *The legs no longer come through the gown.* Measured: 3 600 gown vertices inside a leg's
-  capsule in a run, up to 11.5 cm deep. Now every cloth vertex stays on the side of each
-  leg it was sculpted on (`heroPalette.js`, `keepOff`; the vertex shader does the same): a
-  third remain, all of them cloth that stood that near a leg in the sculpt. Pushed straight
-  out from the leg's line instead, cloth that had crossed the line went out the far side
-  and tore.
+- *The legs kept out of the gown by a rule* (every cloth vertex on the side of each leg it
+  was sculpted on): **taken out again after 42da110**, it tore the skirt at the thigh (see
+  above).
 - *Flight: arms swept back, sleeves streaming* (`hero.js`, the cruise, boost and take-off
   poses). One arm reaching ahead is right for a caped suit and wrong for a robe: the sleeve
   hid the hand, hung ahead of the head, and drew the join between sleeve and skirt out into
@@ -78,9 +112,33 @@ back on 29).
 eases between the run and a stop beyond the gait's fade; super speed's sleeves whip
 roughly (bounded in `hero-bind-test`).
 
-**The results**: a reader with the governor's simulation is on them (its findings go here);
-the sky's costs at the ledge (fog and mist 8.1 ms, cloud-steps 7.9, cloud-volume 4.5,
-middle and high cloud 4.5, lens clouds 3.2) go to the sky helper.
+**The results, read** (one reader with the governor's simulation, 2026-11-27; no file
+changed, because no change it tried survived the simulation):
+- against the tenth: frames of three refreshes or more 8.4 -> 6.3 %, the picture 2.59 ->
+  3.41 MP on average; Haven's heavy stops as late as before with 1 MP more (ledge 25.9 ->
+  23.9 fps, sun 28.9 -> 27.8, ship 26.7 -> 27.1); the Moon steady.
+- **the one large, believable number: with nothing drawn a frame takes 47.0 / 54.5 / 39.6 ms
+  in the three cost views, where the tenth had 22.7 / 26.1 / 26.2.** Something paid every
+  frame whatever is on screen has come in since e9d4888, 13 to 28 ms of it by this measure,
+  and the benchmark's "everything out" does not take it out: the sky's own passes are the
+  first suspect (the clouds' shade map, the field's maps, the fog sheet, the upper cloud),
+  the shadow maps the second. Handed to the sky helper. Every single saving in the tables
+  is noise (from the air `tree-leaves` reads 18.2 ms with no tree drawn).
+- it is not the tenth's hunting: savings follow the route (off at the ledge and the sun, back
+  at the wall, off again at the ship, a cycle in 36 s); no trial on Haven reached a verdict,
+  a jump closing each after 12 s. 2.67 MP is not the floor (1.60 is) but the level a Sharp
+  visit starts at and holds from both sides (`governor.js`, KEEP).
+- a hole the simulation's cases miss: at one view for five minutes with a share of frames
+  late whatever is drawn, the governor ends with most savings on in 6 to 8 runs of 8 (a
+  trial closes "as cured" after three quiet seconds without checking; the share left alone
+  is capped at 12 %). Nine kinds of change were tried; each failed an existing case or
+  moved the failure. Scratch files of the attempt were in the session's scratchpad
+  (`gov11/`), not kept.
+- **what would settle it, on the phone**: two runs of the Haven benchmark with the picture
+  held at one size, `?bench=haven&scale=0.775` and `?bench=haven&scale=0.775&debug=floor`:
+  the same late shares at the ledge and the ship in both means the governor should hold
+  quality and its trial rules need a rework; clean with every saving on means savings do
+  cure and the cost test should measure them in groups. Asked of the owner.
 
 ### Helpers running since 2026-11-27 04:40 UTC (the owner: "you can use more than one session ... no more than 4")
 

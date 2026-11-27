@@ -5,7 +5,7 @@
 // about a particular place live here, only what a forester would know of the region.
 // (Plain data and arithmetic: it runs in the terrain workers and in Node.)
 
-import { localDay } from './season.js';
+import { localDay, treeSeason, TREE_YEAR } from './season.js';
 
 // How closed each class's canopy is (share of tree sites taken) and how tall where no
 // measurement says (m). Index: the class; 0 = unknown.
@@ -92,6 +92,25 @@ export const SPECIES = [
   /* 64 */ S('wild cherry', ARCH.BLOSSOM, 0.8, 1.25, [0.07, 0.13, 0.035], [0.2, 0.13, 0.11], 1, { colour: [0.62, 0.34, 0.42], from: 62, to: 118 }),
   /* 65 */ S('blackthorn', ARCH.BLOSSOM, 0.5, 1.35, [0.06, 0.11, 0.04], [0.12, 0.1, 0.09], 1, { colour: [0.74, 0.72, 0.72], from: 55, to: 105 }),
 ];
+// The colours a species turns in autumn (linear albedo): two, and a tree somewhere between
+// them by its own number (life/season.js, treeSeason: the leaves go by yellow to these, then
+// dull as they fall). A species that drops its leaves and is not named here takes its kind's
+// (`fall` 1: orange to red, 2: gold).
+const AUTUMN = {
+  5: [[0.50, 0.33, 0.03], [0.46, 0.25, 0.025]],      // aspen: clear gold, some to orange
+  6: [[0.46, 0.31, 0.04], [0.40, 0.26, 0.04]],       // cottonwood: yellow
+  8: [[0.30, 0.20, 0.05], [0.24, 0.13, 0.04]],       // blue oak: dull yellow to brown
+  10: [[0.46, 0.20, 0.025], [0.36, 0.04, 0.02]],     // sugar maple: orange to scarlet
+  11: [[0.30, 0.10, 0.03], [0.24, 0.045, 0.025]],    // red oak: russet to deep red
+  12: [[0.40, 0.24, 0.04], [0.32, 0.16, 0.04]],      // beech: gold to copper
+  17: [[0.32, 0.14, 0.04], [0.26, 0.10, 0.035]],     // bald cypress: rust
+  26: [[0.46, 0.30, 0.03], [0.42, 0.24, 0.03]], 33: [[0.46, 0.30, 0.03], [0.42, 0.24, 0.03]],   // larches: gold
+  28: [[0.38, 0.20, 0.035], [0.30, 0.13, 0.035]],    // European beech: copper
+  30: [[0.50, 0.36, 0.04], [0.44, 0.30, 0.04]], 43: [[0.50, 0.36, 0.04], [0.44, 0.30, 0.04]],   // birches: pale yellow
+  64: [[0.44, 0.17, 0.03], [0.34, 0.05, 0.03]],      // wild cherry: orange to crimson
+  65: [[0.36, 0.24, 0.04], [0.22, 0.07, 0.06]],      // blackthorn: yellow to plum
+};
+for (const k in AUTUMN) SPECIES[k].autumn = AUTUMN[k];
 
 // How far in flower a tree is on a day of the year (0..365.25) at a latitude: open (0..1:
 // how many of its flowers are out; they open over the first ten days and are gone over
@@ -102,6 +121,34 @@ export function bloomOf(sp, day, lat) {
   const d = localDay(day, lat), sm = (a, c, x) => { const k = Math.min(1, Math.max(0, (x - a) / (c - a))); return k * k * (3 - 2 * k); };
   const open = sm(b.from, b.from + 10, d) * (1 - sm(b.to - 12, b.to, d));
   return { open, fall: open > 0 ? Math.max(0.5 * open, sm(b.from + 12, b.to - 10, d) * open) : 0 };
+}
+
+// A tree as it is drawn on a life day: the one answer for the near trees (life/trees.js)
+// and the far forest (life/farForest.js), in the steps both hand to the GPU, so the same
+// tree is the same on both sides of the line where they meet. sp: its species; day: the
+// life day (both ask with the whole day, Math.floor); x, y, z: where it stands from the
+// world's middle (m, planet axes); R: the world's radius; own: its own number. Into out:
+//   r, g, b  its leaves' colour (life/season.js, treeSeason), in steps of COLOUR_TOP / 255
+//   gone     how much of its leaves is off it, in GONE_STEPS steps
+//   open     how far it is in flower (bloomOf's, a few days before or after its neighbours), 0 if it has none
+//   thin     how much of a whole tree's picture is thinned away: `gone`, less as it is in
+//            flower (a crown in flower is its blossom, leaves or none)
+export const COLOUR_TOP = 0.75, GONE_STEPS = 31;
+export const packed = (v) => Math.round(Math.min(1, Math.max(0, v / COLOUR_TOP)) * 255) / 255 * COLOUR_TOP;
+export function treeLook(sp, day, x, y, z, R, own, out) {
+  out.r = sp.leaf[0]; out.g = sp.leaf[1]; out.b = sp.leaf[2]; out.gone = 0; out.open = 0; out.thin = 0;
+  if (!sp.fall && !sp.blossom) return out;
+  const len = Math.sqrt(x * x + y * y + z * z), lat = Math.asin(z / len) * 180 / Math.PI;
+  if (sp.fall) {
+    treeSeason(sp, day, lat, len - R, own, out);
+    out.r = packed(out.r); out.g = packed(out.g); out.b = packed(out.b); out.gone = Math.round(out.gone * GONE_STEPS) / GONE_STEPS;
+  }
+  if (sp.blossom) {
+    const b = sp.blossom, d = localDay(day + (own - 0.5) * 8, lat), k0 = Math.min(1, Math.max(0, (d - b.from) / 10)), k1 = Math.min(1, Math.max(0, (d - b.to + 12) / 12));
+    out.open = k0 * k0 * (3 - 2 * k0) * (1 - k1 * k1 * (3 - 2 * k1));
+  }
+  out.thin = out.gone * (1 - out.open);
+  return out;
 }
 
 // Which species a class means at a place: [species, weight] lists. lat, lon (east,
@@ -219,3 +266,44 @@ export function pick(list, u) {
 
 // The altitude above which no tree grows at a latitude (m), roughly.
 export function treeLine(lat) { return 4100 - 85 * Math.max(0, Math.abs(lat) - 25); }
+
+// The far canopy's trees that drop their leaves, by the season: what the ground draws where
+// the forest is too far off for trees (terrain/terrainMaterial.js, uCanopyYear and
+// uCanopyAlt; it reads this and works nothing out). Eight entries by height, from the sea to
+// the tree line at the latitude: the colour of those trees' leaves on the day (the mean of
+// the wood's species there by their weights and of trees early and late; bare ones counted
+// as their branches' grey-brown), and the level of the canopy's patch noise over which a
+// patch is theirs, set so that their patches are their share of the wood (9: no such trees).
+// world: its file (life.flora and life.trees.line on a made world; the real regions'
+// species on a world without); day: the life day; lat, lon: where the traveller is (the
+// shader moves the entries by each pixel's own latitude: `perDeg` metres of height a degree).
+// year: Float32Array-like of 8 x 4 or an array of 8 { x, y, z, w }; returns { alt0, step, perDeg, lat }.
+const BRANCHES = [0.11, 0.085, 0.06], OWNS = Array.from({ length: 24 }, (_, k) => (k + 0.5) / 24), NOISE_SD = 0.28;
+const probit = (p) => 4.91 * (Math.pow(p, 0.14) - Math.pow(1 - p, 0.14));
+export function canopyYear(world, day, lat, lon, year) {
+  const flora = world.life?.flora, ld = world.life?.trees?.line;
+  const line = Math.max(200, ld ? ld.base - ld.perDeg * Math.max(0, Math.abs(lat) - (ld.from ?? 0)) : treeLine(lat)), step = line / 7, ts = {};
+  for (let i = 0; i < 8; i++) {
+    const h = i * step; let share = 0, r = 0, g = 0, b = 0, all = 0;
+    // (a made world: its closed forest and its parkland, seven parts to three; a real one: the mixed forest of the region)
+    const lists = flora ? [[floraFor(flora, CLASS.ENF, h / line, false), 0.7], [floraFor(flora, CLASS.WOODY_SAVANNA, h / line, false), 0.3]] : [[speciesFor(CLASS.MIXED, lat, ((lon + 540) % 360) - 180, h, false), 1]];
+    for (const [list, part] of lists) {
+      let total = 0; for (const e of list) total += e[1];
+      for (const e of list) {
+        const sp = SPECIES[e[0]], w = part * e[1] / total; all += w;
+        if (!sp.fall) continue;
+        for (const own of OWNS) {
+          treeSeason(sp, day, lat, h, own, ts);
+          const k = w / OWNS.length; share += k;
+          r += k * (ts.r + (BRANCHES[0] - ts.r) * ts.gone); g += k * (ts.g + (BRANCHES[1] - ts.g) * ts.gone); b += k * (ts.b + (BRANCHES[2] - ts.b) * ts.gone);
+        }
+      }
+    }
+    share /= Math.max(all, 1e-6);
+    const none = share < 0.004, level = none ? 9 : NOISE_SD * probit(1 - Math.min(0.996, share)) - 0.07;
+    const c = none ? [0, 0, 0] : [r / (share * all), g / (share * all), b / (share * all)];
+    if (year.length === 32) { year[i * 4] = c[0]; year[i * 4 + 1] = c[1]; year[i * 4 + 2] = c[2]; year[i * 4 + 3] = level; }
+    else { const v = year[i]; v.x = c[0]; v.y = c[1]; v.z = c[2]; v.w = level; }
+  }
+  return { alt0: 0, step, perDeg: TREE_YEAR.LAT_DAYS / TREE_YEAR.ALT_DAYS * 1000, lat: Math.abs(lat) };
+}

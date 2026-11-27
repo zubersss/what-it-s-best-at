@@ -22,7 +22,7 @@ import { Hero } from '../../src/hero/hero.js';
 import { ELBOW, HAND, KNEE, ANKLE, SHOULDER, HIP, SCULPT_ARM, SCULPT_LEG } from '../../src/hero/heroModel.js';
 import { LABELS } from './seeds.mjs';
 import { adjacency, Heap } from './lib.mjs';
-import { PARTS, NEAR, paletteTexels, particleFrames, fillPalette, legsOf, keepOff } from '../../src/hero/heroPalette.js';
+import { PARTS, NEAR, paletteTexels, particleFrames, fillPalette } from '../../src/hero/heroPalette.js';
 
 const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const L = Object.fromEntries(LABELS.map((n, i) => [n, i]));
@@ -124,6 +124,21 @@ function membership(m) {
     }
     [a, b] = [b, a];
   }
+  // Across a join the lesser garment gives way: the body before the skirt before a sleeve
+  // before the hair. On the lesser side a vertex is all the greater garment's at the join
+  // itself and its own from some way off; on the greater side it is its own throughout. (Half
+  // and half on both sides, an arm brought in to the side dragged the skirt's own cloth in
+  // with its sleeve, and the skirt was dented through itself at the hip: a ragged hole.)
+  const RANK = [0, 1, 2, 2, 3];
+  for (let v = 0; v < n; v++) {
+    const g = G[v], o = v * 5; let above = 0;
+    for (let h = 0; h < 5; h++) if (RANK[h] < RANK[g]) above += a[o + h];
+    const A = Math.min(1, 2 * above);
+    for (let h = 0; h < 5; h++) { if (h === g) a[o + h] = 1 - A; else if (RANK[h] < RANK[g]) a[o + h] = above > 1e-6 ? A * a[o + h] / above : 0; else a[o + h] = 0; }
+  }
+  // (skin and boots are the body's alone, whatever cloth lies against them: a hand half
+  //  given to its sleeve's cloth was drawn out of shape by it)
+  for (let v = 0; v < n; v++) if (m.label[v] === L.skin || m.label[v] === L.boot || m.label[v] === L.brow || m.label[v] === L.lip) { a.fill(0, v * 5, v * 5 + 5); a[v * 5] = 1; }
   return a;
 }
 
@@ -217,9 +232,6 @@ export async function bind(m, say = () => {}) {
       shares[v * 4 + most] = left;
     }
   }
-  // ---- which vertices are cloth enough to be kept off the legs (hero/heroPalette.js, keepOff)
-  const clear = new Uint8Array(n);
-  for (let v = 0; v < n; v++) clear[v] = Math.min(255, 2 * (shares[v * 4] + shares[v * 4 + 1] + shares[v * 4 + 2] + shares[v * 4 + 3]));     // (by its share of cloth: all of the push from half cloth up, none where it is the body's own)
   say(`bound: ${n} vertices, ${bound} of them to the cloth`);
   // (the cloth as the sculpt stands, what carries each particle, and the parts)
   const rest = Float32Array.from(pos), carried = new Float32Array(np * 3);
@@ -238,11 +250,11 @@ export async function bind(m, say = () => {}) {
   robe.patches.forEach((p) => { const id = (ix, iy) => p.base + iy * p.nx + ix; for (let iy = 0; iy < p.ny; iy++) for (let ix = 0; ix < p.nx; ix++) grid.set([id(Math.max(ix - 1, 0), iy), id(Math.min(ix + 1, p.nx - 1), iy), id(ix, Math.max(iy - 1, 0)), id(ix, Math.min(iy + 1, p.ny - 1))], id(ix, iy) * 4); });
   const frame = particleFrames(pos, grid, new Float32Array(np * 9));
   const partsRest = new Float32Array(PARTS * 16); hero.parts.forEach((p, i) => partsRest.set(p.matrix.elements, i * 16));
-  return { parts, movers, shares, clear, shared: { rest, carried, grid, frame, near, nearW, partsRest } };
+  return { parts, movers, shares, shared: { rest, carried, grid, frame, near, nearW, partsRest } };
 }
 
 // ---- the figure posed (what the vertex shader of hero/heroSculpt.js does, in JavaScript) ----
-export function deform(m, M, legs = null) {
+export function deform(m, M) {
   const n = m.position.length / 3, P = m.position, N = m.normal, outP = new Float32Array(n * 3), outN = new Float32Array(n * 3);
   for (let v = 0; v < n; v++) {
     const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2], nx = N[v * 3], ny = N[v * 3 + 1], nz = N[v * 3 + 2], a = m.parts[v * 4] * 12, b = m.parts[v * 4 + 1] * 12, w = m.parts[v * 4 + 2] / 255, t = m.parts[v * 4 + 3] / 255, u = 1 - w - t;
@@ -257,7 +269,6 @@ export function deform(m, M, legs = null) {
       const sh = m.shares[v * 4 + j] / 255; if (!sh) continue; const c = (PARTS + m.movers[v * 4 + j]) * 12;
       for (let k = 0; k < 3; k++) { const o = c + k * 4; q[k] += sh * (M[o] * x + M[o + 1] * y + M[o + 2] * z + M[o + 3]); r[k] += sh * (M[o] * nx + M[o + 1] * ny + M[o + 2] * nz); }
     }
-    if (legs && m.clear && m.clear[v]) keepOff(q, x, y, z, legs, M, m.clear[v] / 255);
     const rl = Math.hypot(r[0], r[1], r[2]) || 1;
     outP.set(q, v * 3); outN.set([r[0] / rl, r[1] / rl, r[2] / rl], v * 3);
   }
@@ -275,13 +286,14 @@ export function paletteOf(hero, shared) {
 // The sculpt as the game would draw it in a pose, after `seconds` of that pose: 'stand' (as
 // the sculpt stands), 'hover', 'fly', 'fast', 'walk', 'run', 'super', 'land', 'launch'. In the figure's group frame.
 export async function posed(m, shared, pose, seconds = 3) {
-  if (pose === 'stand') { const h = standing(); return deform(m, paletteOf(h, shared), legsOf(h)); }
+  if (pose === 'stand') return deform(m, paletteOf(standing(), shared));
   const hero = new Hero(); hero.group.visible = true;
   const rig = { localUp: [0, 1, 0], forward: new THREE.Vector3(0, 0, 1), right: new THREE.Vector3(-1, 0, 0), up: new THREE.Vector3(0, 1, 0), pitch: 0, agl: 50, heroRel: new THREE.Vector3(0, 0, 4), velocity: new THREE.Vector3(0, 0, 0), throttle: 0, boost: false, onFoot: false, airborne: false, yawRate: 0, vUp: 0, clock: 0, facing: new THREE.Vector3(0, 0, 1) };
   if (pose === 'fly') { rig.velocity.set(0, 0, 25); rig.throttle = 1; }
   if (pose === 'fast') { rig.velocity.set(0, 0, 80); rig.throttle = 1; rig.boost = true; }
   if (pose === 'walk') { rig.onFoot = true; rig.velocity.set(0, 0, 1.5); rig.agl = 0; }
   if (pose === 'run') { rig.onFoot = true; rig.velocity.set(0, 0, 4.5); rig.agl = 0; }
+  if (pose === 'idle') { rig.onFoot = true; rig.agl = 0; }                 // (standing in the game: on foot, not moving)
   // (the app's own on-foot poses: FOOT_POSES in app.js)
   if (pose === 'super') { rig.onFoot = true; rig.velocity.set(0, 0, 45); rig.throttle = 1; rig.agl = 0; }
   if (pose === 'land') { rig.onFoot = true; rig.velocity.set(0.6, 0, 0); rig.agl = 0; rig.landedAt = -0.35; rig.landSpeed = 14; }
@@ -289,5 +301,5 @@ export async function posed(m, shared, pose, seconds = 3) {
   const tick = pose === 'land' ? 0 : 1 / 60;       // (the kneel is held a third of a second after the landing, as the app's picture of it is)
   const env = { gravity: 9.8, air: 1, groundClearance: null };
   for (let i = 0; i < Math.round(seconds * 60); i++) { rig.clock += tick; hero.update(1 / 60, rig, env); }
-  return deform(m, paletteOf(hero, shared), legsOf(hero));
+  return deform(m, paletteOf(hero, shared));
 }
