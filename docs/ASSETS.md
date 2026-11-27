@@ -161,3 +161,22 @@ it is copied or traced from the owner's reference pictures or from any other sou
 references set the manner (finely cut foliage on a skeleton, crowns shaded as one mass,
 far trees as silhouettes), not the drawings. Ours to use without condition.
 
+
+## The character (`public/data/hero.bin`, from `assets-src/hero/`)
+
+The figure the traveller flies is the owner's own model: a sculpt of a robed, long-haired
+figure, sent by the owner on 2026-11-27 as `Silver_Plumage_Sentinel_compressed.glb` (a
+zip of one file; kept as sent in `assets-src/hero/`). It is one fused surface of 1.84
+million triangles with a shape and nothing else: no colours, no picture, no skeleton, no
+animation. `scripts/make-hero.mjs` makes the game's file from it: materials and garments
+by seeds placed by hand (`scripts/hero/seeds.mjs`), the colours of the owner's design
+(white-silver silk, lilac under-robe, magenta-purple hair, silver ornament), two reduced
+meshes (120 000 and 24 000 triangles, by meshoptimizer, MIT, a build tool only), and the
+binding to the game's own figure and cloth (`scripts/hero/heroBind.mjs`).
+
+**Rights.** The file came from the owner as "the new file for the character model", and
+the design is the owner's (`docs/PROGRESS.md`, "The owner's character"). Where the sculpt
+itself was made (by hand, or with a tool or service that has terms of its own) is not
+recorded in the file (its only mark is the exporter's, `xpostprocessing-quantized`), and
+**the owner has been asked to say, for this record.** Until then it is used as the
+owner's own work, on the owner's word.

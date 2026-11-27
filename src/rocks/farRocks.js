@@ -26,7 +26,7 @@
 import * as THREE from 'three';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
-import { HEAP_GLSL, SKY_NOISE_UNIFORM_GLSL, SKY_STEER_UNIFORM_GLSL } from '../sky/skyGlsl.js';
+import { SHADE_READ_GLSL, CLOUD_SHADE_UNIFORMS } from '../sky/cloudShade.js';
 import { CONFIG } from '../config.js';
 import { shadowTileDistance, tileShare } from '../shadows/nearShadow.js';
 import { ROCK_SHAPE_GLSL, rockGeometry } from './rocks.js';
@@ -68,25 +68,15 @@ bool rockPlace(out vec3 centre, out float grow) {
 
 
 // Sunlight on a rock (vertex shader): the land's shadow from the worker, and the cloud that
-// stands between it and the Sun, as the ground has it (terrainMaterial.js).
+// stands between it and the Sun, read from the one cloud-shade atlas as the ground reads it
+// (src/sky/cloudShade.js). It was worked out here, from the day's map and up to three reads of
+// the cloud noise, at every vertex of every rock.
 const SUN_VERT = /* glsl */`
 #ifndef HAS_CAM_U
 uniform vec3 uCamPlanetPos, uSunDir; uniform float uPlanetRadius;
 #endif
-uniform sampler2D tClouds; uniform vec4 uCloud; uniform vec4 uCloudHeap; uniform vec4 uCloudVol;
-${SKY_NOISE_UNIFORM_GLSL}${SKY_STEER_UNIFORM_GLSL}
-${HEAP_GLSL}
-float rockSun(vec3 planetPos, vec3 up) {
-  float sun = aMisc.x;
-  if (uCloud.x > 0.0 && length(planetPos) < uCloud.y) {
-    vec3 uc = normalize(planetPos + uSunDir * ((uCloud.y - length(planetPos)) / max(dot(up, uSunDir), 0.08)));
-    float cd = textureLod(tClouds, vec2(atan(uc.y, uc.x) * 0.15915494 + uCloud.z, acos(clamp(uc.z, -1.0, 1.0)) * 0.31830989), 0.0).r;
-    float shade = smoothstep(0.2, 0.7, cd);
-    if (uCloudHeap.w > 0.5) { float hp = cloudHeap(tCloudNoise, uc, cd, uCloudHeap.x, uCloudHeap.y, uCloudVol, uCloudSteer, 0.0).x; shade = 0.85 * smoothstep(0.06, 0.42, hp); }
-    sun *= 1.0 - uCloud.x * shade;
-  }
-  return sun;
-}`;
+${SHADE_READ_GLSL}
+float rockSun(vec3 planetPos, vec3 up) { return aMisc.x * cloudShade(planetPos - uCamPlanetPos); }`;
 
 export class FarRocks {
   // terrain: the Terrain (its workers, its cloud and strata uniforms).
@@ -102,8 +92,8 @@ export class FarRocks {
     this.uniforms = {
       ...lightingUniforms(), uFar: this.uFar, uShareSize: this.uShareSize,
       uRockAlbedo: { value: new THREE.Vector3(0.2, 0.15, 0.1) }, uDustAlbedo: { value: new THREE.Vector3(0.2, 0.17, 0.12) }, uRoughness: { value: 0.5 }, uDustCap: { value: 0.55 },
-      // (the ground's own: the clouds' shadow and the beds of coloured rock, read as the ground reads them)
-      tClouds: sh.tClouds, uCloud: sh.uCloud, tCloudNoise: sh.tCloudNoise, uCloudHeap: sh.uCloudHeap, uCloudVol: sh.uCloudVol, uCloudSteer: sh.uCloudSteer,
+      // (the ground's own: the clouds' shade from the one atlas, and the beds of coloured rock)
+      ...CLOUD_SHADE_UNIFORMS,
       tStrata: sh.tStrata, uStrata: sh.uStrata,
     };
     const vertex = /* glsl */`${VERT}

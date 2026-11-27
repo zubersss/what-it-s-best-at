@@ -7,6 +7,7 @@ import { G } from '../render/globals.js';
 import { noise3 } from '../terrain/height/noise.js';
 import { ATMO_UNIFORMS, ATMO_COMMON } from '../atmosphere/atmosphereGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
+import { SKY_UNIFORMS } from './skyGlsl.js';
 import { PointSources } from './stars.js';
 import { AU_M } from '../worlds/solarSystem.js';
 
@@ -161,6 +162,7 @@ uniform vec3 uLightE;          // solar irradiance at the body
 uniform vec3 uShineDir, uShineE;
 uniform vec3 uOcean;           // the sea's own albedo (the map's seas are near black)
 uniform vec3 uCloudCol;        // cloud albedo
+uniform float uCloudField;     // 1: the cloud map is the sky's field (its heap and sheet covers)
 uniform vec3 uLights;          // radiance of a fully lit city pixel
 uniform vec3 uAirTau;          // vertical optical depth of the air, per colour
 uniform vec4 uGlobe;           // x 1 = the colour map is one grey channel, y glint roughness, z glint strength, w 1 = airless dusty ground (no limb darkening)
@@ -218,13 +220,17 @@ void main() {
     N = normalize(N - uReliefK * t / max(length(mat3(modelMatrix)[0]), 1e-12));
   }
   float water = textureGrad(tWater, uv, gx, gy).r;
-  float c0 = textureGrad(tClouds, uv, gx, gy).r;
+  // (the home world's globe wears its own weather: the sky's field in the place of a day's map,
+  // whose first two channels are the heap cover and the sheet cover. uCloudField says which.)
+  vec4 cT = textureGrad(tClouds, uv, gx, gy);
+  float c0 = uCloudField > 0.5 ? max(cT.r, cT.g) : cT.r;
   // The clouds stand above the ground: the same map a little way toward the Sun is the
   // cloud that shades this spot (a shadow on the sea beside every cloud), and tells which
   // side of a cloud this is (its sunward edge bright, its far side in its own shade).
   vec3 ps = normalize(p + uLightObj * 0.0035);
   vec2 uvs = vec2(atan(ps.y, ps.x) / TWO_PI + 0.5 + uMapShift, 0.5 - asin(clamp(ps.z, -1.0, 1.0)) / PI);
-  float c1 = textureGrad(tClouds, uvs, gx, gy).r;
+  vec4 cT1 = textureGrad(tClouds, uvs, gx, gy);
+  float c1 = uCloudField > 0.5 ? max(cT1.r, cT1.g) : cT1.r;
   float cloud = smoothstep(0.04, 0.9, c0);
   float shadow = 1.0 - 0.55 * smoothstep(0.15, 0.8, c1) * (1.0 - cloud);
   float relief = clamp(1.0 + 1.3 * (c0 - c1), 0.55, 1.25);
@@ -452,6 +458,7 @@ export class SkyBodies {
         if (s.maps?.colour?.bands) { u.tColour.value.dispose(); u.tColour.value = bandMap(s.maps.colour, i * 7.3 + 2); }
         u.uOcean = { value: new THREE.Vector3(...(s.ocean || [0, 0, 0])) }; u.uCloudCol = { value: new THREE.Vector3(...(s.cloud || [0.8, 0.8, 0.8])) };
         u.uLights = { value: new THREE.Vector3(...(s.lights || [0, 0, 0])) };
+        u.uCloudField = { value: 0 };
         const air = s.air || { tau: [0, 0, 0], scaleHeight: 8000 };
         u.uAirTau = { value: new THREE.Vector3(...air.tau) };
         const grey = !!s.maps?.colour?.linear, tint = s.tint || [1, 1, 1], gain = s.gain ?? 1;      // (linear: a one-channel map of linear values)
@@ -545,10 +552,13 @@ export class SkyBodies {
       this.pending++;
       mapTexture(b.maps[key][which], key === 'colour' && !b.maps[key].linear, this.renderer, (t) => {
         if (t) {
-          const uni = b.u[name], old = uni.value;
+          // (while the globe wears the sky's field, its own cloud map waits in b.cloudOwn: it is
+          // that one a new map takes the place of, not what the globe is reading)
+          const uni = b.u[name], wearing = name === 'tClouds' && !!b.cloudOwn, old = wearing ? b.cloudOwn : uni.value;
           // (a full map arriving after the body shrank away again is not wanted any more)
           if (which === 'full' && b.got !== 3) { t.dispose(); this.pending--; return; }
-          uni.value = t; this.mapsAt = performance.now();
+          if (wearing) b.cloudOwn = t; else uni.value = t;
+          this.mapsAt = performance.now();
           if (which === 'far' || !b.maps[key].far || b.small[name]) old.dispose(); else b.small[name] = old;      // the small copy is kept for when it is far again
           if (key === 'relief') b.u.uReliefK.value = b.def.surface.relief ?? 1;
         }
@@ -561,7 +571,8 @@ export class SkyBodies {
   // Back to the small copies of a globe's maps (the full ones are freed).
   _dropFull(b) {
     for (const [key, name] of b.files) {
-      const small = b.small[name], uni = b.u[name];
+      const small = b.small[name], wearing = name === 'tClouds' && !!b.cloudOwn;
+      const uni = wearing ? { get value() { return b.cloudOwn; }, set value(v) { b.cloudOwn = v; } } : b.u[name];
       if (small && uni.value !== small) { uni.value.dispose(); uni.value = small; }
       else if (!small && !b.maps[key].far && b.maps[key].full) { uni.value.dispose(); uni.value = NONE[name](); if (key === 'relief') b.u.uReliefK.value = 0; }      // (a map with no small copy: none from afar, as before it came)
       delete b.small[name];
@@ -591,6 +602,16 @@ export class SkyBodies {
     const homeB = this.byId.get(this.world.body);
     // (the small copies always; the full ones once the traveller is on the way up)
     if (homeB && homeB.maps) { if (homeB.got === 0) this._loadMaps(homeB, 'far'); else if (homeB.got === 2 && rig.agl > 0.03 * Rhome) this._loadMaps(homeB, 'full'); }
+    // The home world's globe wears the weather of the hour, not a day's fixed map: the sky's
+    // field (sky/skyField.js), whose A map holds the heap and sheet covers. From the Moon, Haven
+    // shows the clouds the traveller flew through.
+    if (homeB && homeB.u && homeB.u.uCloudField) {
+      const fieldMap = SKY_UNIFORMS.uSkyLow.value[3] > 0.5 ? SKY_UNIFORMS.tWxA.value : null;
+      if (fieldMap) {
+        if (!homeB.cloudOwn) homeB.cloudOwn = homeB.u.tClouds.value;
+        homeB.u.tClouds.value = fieldMap; homeB.u.uCloudField.value = 1;
+      } else if (homeB.cloudOwn) { homeB.u.tClouds.value = homeB.cloudOwn; homeB.cloudOwn = null; homeB.u.uCloudField.value = 0; }
+    }
     // Far-pass distances: each resolved body gets a slot behind the one before it, far
     // enough that the two cannot cross however large either looms (a moon in transit in
     // front of its planet; rings count as part of their planet). Then all are scaled to

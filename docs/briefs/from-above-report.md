@@ -6,6 +6,65 @@ ranked: `from-above-look.md`. Pictures: `docs/shots/from-above/`,
 `<place>_<metres over the ground>_p<degrees looked down>[_phone|_floor|_clear]`), taken with
 `scripts/from-above-shots.sh <frozen build> <suffix> [view ...]`.
 
+## Sixth round (2026-11-25, `round4.md` "From above", the critic's second gaps)
+
+Pictures `haven_ledge_<view>_after6.png` beside `_r6before.png` (before: 73d6ef1):
+`ledge_300_p60` (critic's 3), `ledge_1000_p60` (4), `ledge_300_p20_phone` (6).
+
+- **Blossom in drifts, not polka dots.** Where the trees that flower stand is now a rule of
+  the place (`life/treeBlock.js`, `pickDrift`): their weight in the flora is multiplied by
+  a broad noise some 400 m to a cell (0.08 to 5), and 1.6 near water. The same rule for the
+  near and the far trees (far-trees-test passes). At the opening tile 788 flowering trees in
+  drifts against 1 140 spread evenly. From 300 m: a drift on one hillside, plain green
+  elsewhere.
+- **Fir spires among round crowns.** A conifer's top seen from above no longer spreads
+  past 2.4 crown widths (the round crowns still spread to 8 in a closed wood) and is drawn
+  darker (0.7): dark spires in the canopy.
+- **Clumps from a kilometre.** Every far tree takes a tone shared with its neighbours (a
+  noise of the place, 150 m and 55 m, worked out per tree in the vertex shader), 0.66 to
+  1.28, and lighter and warmer on slopes turned to the Sun, from 250 m out; the canopy
+  between them takes the same kind of tone from the detail tile's 64 m blob, from 400 m.
+- **Bubble wrap.** The canopy's own 8 m domes are gone within 3 km (the far trees' tops are
+  the crowns there); the 21 m stands at half strength. (One crowns() call fewer per pixel
+  there.)
+- **The edge.** The canopy's broken edge is also broken by the detail tile's 13 and 64 m
+  blobs, so it wanders instead of following the land-cover map's square pixels.
+- **Glades.** Where a wooded place shows its ground from the air (from 250 m off, looked
+  down on), it is the meadow's gold and green, not the forest floor's grey-sage litter in
+  the canopy's shade. (The grey patches in `ledge_300_p60` that remain are meadow in the
+  mountain's shadow: the painted shade, the air helper's.)
+
+- **Cost** (`ground-cost-run.sh`, the shader at 73d6ef1 against this head): the opening view
+  1 992 -> 1 979 ms of shading (99 %), in the north wood 1 857 -> 1 700 (92 %), 300 m up
+  1 372 -> 1 336 (97 %), 3 km up 809 -> 829 (102 %). Not raised. (The far trees' tone is a
+  few dozen operations per tree in the vertex shader.)
+
+- **A6b: the angular facets** (the owning session, `ledge_300_p60_after6`, lower left). Two
+  builds, each with one suspect switched off, said which: the 21 m stand domes. With the 8 m
+  crowns gone their tilted domes met along straight lines, large flat-shaded facets; the
+  shared tone (the other suspect) is soft. The stands are gone within the far trees' reach
+  too (from 3 to 4.5 km they come in), and the broken edge reads neither pattern there. On
+  the way two smaller faults were fixed: the edge read the 8 m crowns as nought where they
+  are no longer worked out, and a glade's colour came in wherever the canopy's weight (a
+  vertex quantity) was a little under full, along the triangles; glades now only where the
+  canopy is open. Pairs `ledge_300_p60_after6b`, `ledge_300_p20_phone_after6b`,
+  `ledge_1000_p60_after6b` beside `_r6before`; `ledge_300_p60_after6c` and `ledge_300_p20_phone_after6c` again on the head with dfbf8c1 merged (the sky packages): the same, no facets. Cost against the shader at d1a0174 (A6): the
+  opening view 95 %, the wood 97 %, 300 m up 92 %, 3 km up 89 %. (A run against 73d6ef1 in
+  between read 106 to 120 % for the same shader; the same "before" read 1 283 and 1 372 ms on
+  two runs: this machine's counts drift by a tenth and more between runs, and only the
+  comparisons made in one run hold.)
+
+- **A6c** (the owner's note after A6b): blossom in groves some 130 m across inside its
+  400 m drifts, by water too (642 flowering trees in the opening tile, 788 in A6, 1 140
+  before); the far trees' shared tone follows the slope twice as hard (0.6 of the slope's
+  sunlight share), so the 1 km clumps lie along the ridges' lit and shaded sides. Pairs with
+  a clear sky, same session: `ledge_300_p60_clear_after7` / `ledge_1000_p60_clear_after7`
+  beside `_r7before` (the head without these changes). The grey-sage patches at the lower
+  right of `ledge_300_p60` are not glades: `ledge_300_p60_clear_t4_after7` (four hours on)
+  shows them as steep ground, partly in the mountain's shade, partly in the Sun as grey
+  scree with gold grass between: the ground's rock and the shade's colour (the air helper's),
+  not a wood's clearing. The pink that remains at the right of that view is one grove.
+
 ## Fifth round (2026-11-25): the steppe from the air, stronger
 
 The owning session: steppe_300_p60_after4 was still almost one ochre tone. Now (block 2):

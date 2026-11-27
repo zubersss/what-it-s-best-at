@@ -146,7 +146,12 @@ export default {
   // and the clock they run on. seed: which days; epoch: the weather clock's zero; dayStart: the
   // hour (UTC) at which the world's day begins: solar midnight at the opening place (the scene's
   // 17:00 UTC is 08:00 there).
-  weather: { recipe: 'made', seed: 1, epoch: '2024-09-01T00:00:00Z', dayStart: 9 },
+  weather: { recipe: 'made', seed: 23, epoch: '2024-09-01T00:00:00Z', dayStart: 9,
+    land: 'data/haven_wxland_1024.u8', peaks: 'data/haven_peaks.json',
+    // the day's low wind (m/s on the steering's great circle): calm days near 2, gales near 22,
+    // skewed toward the light end; easterly on 15 % of days (src/weather/sky/steer.js)
+    steering: { low: { max: 20, least: 1.2, easterly: 0.15, easterlyMax: 9, shape: 1.15, change: 0.25 } },
+  },
 
   sky: { stars: { url: 'data/stars_bsc5.f32' } },
 
@@ -174,6 +179,12 @@ export default {
       wall: { label: 'The range across the valley', heading: 250, pitch: 3, fov: 26 },
       ship: { label: 'The lander', east: -20, north: -12, heading: 230, pitch: 3, fov: 50 },
       dusk: { label: 'Evening', heading: 275, pitch: 0, fov: 60, timeOffsetHours: 9.6 },
+      // The day's weather (sky A's model, seed 23; the hours from find-weather --scene, the
+      // places and headings asked of the model): not benchmarked (only the first five are).
+      mist: { label: 'Morning mist', heading: 240, pitch: -14, fov: 55, timeOffsetHours: -0.5 },
+      storm: { label: 'Afternoon storm', heading: 243, pitch: 4, fov: 45, timeOffsetHours: 8.25 },
+      front: { label: 'A front coming', heading: 280, pitch: 4, fov: 55, timeOffsetHours: 33 },
+      crown: { label: 'Wind on the Crown', lat: 13.362, lon: 68.95, heading: 0, pitch: 8, fov: 45, timeOffsetHours: 53 },
     },
   },
   places: [

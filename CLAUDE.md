@@ -22,8 +22,8 @@ most beautiful [biomes] on earth including this one."** The owner does not care 
 sizes, real maps or the explorer's side of things, and allowed a full restart ("whatever
 gets my idea across").
 
-So the game is: you fly a robed, long-haired character (the owner's own design:
-`docs/PROGRESS.md`, "The owner's character") over **a small made-up world** (`haven`,
+So the game is: you fly a robed, long-haired character (the owner's own design, and since
+2026-11-27 the owner's own sculpt: `docs/PROGRESS.md`, "The owner's sculpt in the game") over **a small made-up world** (`haven`,
 milestone 12 in `docs/ROADMAP.md`): small enough that the horizon bends from a few
 kilometres up and mountains stand on its edge from space, its land shaped by rule to be
 beautiful (peaks, stepped plateaus, canyons, valleys, a sea), its water following the
@@ -233,6 +233,9 @@ npm run assets         # re-download and convert the small NASA/Yale files into 
 python3 scripts/fetch-maps.py   # the rest of public/data/ (needs: pip install rasterio numpy pillow), see docs/ASSETS.md
 node scripts/parts-out.mjs --world haven --shot ledge [--query ..] [--box 0.2,0.6,0.8,1] [--distdir build]   # who draws that? one view taken with one part out at a time (grass, clumps, trees, far forest, rocks, shadow casters), and how much of the picture each changes
 scripts/ground-cost-run.sh <scratch dir> [--only ledge,air3k] [--before old-terrainMaterial.js] [--save dir] [--parts file.mjs] [--size 880x412 --dsf 2.2]   # what the ground's shading costs, as a count of work on software WebGL (never a frame rate): the game's ground alone at ten views, the shader of an earlier commit beside the new one in the same browser session, and how far their pictures are apart (git show <commit>:src/terrain/terrainMaterial.js > old-terrainMaterial.js). Runs scripts/ground-cost.mjs from a copy of the tree: the dev server reloads the page at any source edit
+node scripts/make-hero.mjs [--tris 120000] [--low 24000] [--stage look]   # the owner's sculpt (assets-src/hero/) into the game's character file (public/data/hero.bin), 25 s: materials and garments by the seeds in scripts/hero/seeds.mjs, colours, two reduced meshes, the binding to the figure's parts and cloth (scripts/hero/heroBind.mjs). Run again after changing a seed, a joint or a cloth sheet
+node scripts/hero-preview.mjs --out f.png [--pose stand|hover|fly|fast|walk|run] [--yaws 0,90,180] [--labels|--garments|--parts|--cloth] [--lod 1] [--twosided]   # that file drawn without a browser in a second, posed by the game's own code
+node scripts/hero-bind-test.mjs [--list]   # the character's binding: standing it gives the sculpt back, in the game's poses the surface is not torn (no browser, 10 s; --list: the worst edges by cause)
 node scripts/hero-cost.mjs   # what the character costs the page each frame, without a browser (seconds): the cloth at 60 and 30 frames a second, the whole figure; fails if the cloth's points have moved from scripts/lib/robe-reference.json
 node scripts/grass-place-test.mjs   # a place's blades and tussocks are the place's, never the anchor's: anchor steps, the 2 560 m wrap, a grass saving on (no browser, seconds)
 node scripts/grass-flowers-pixels-test.mjs   # the far blades' flowers fade in where the single flowers fade out (no circle), pixel sizes by the drawn picture, pollen's clock (no browser)
@@ -243,6 +246,7 @@ node scripts/shadow-axes-test.mjs   # a still spot's shadow hardly moves when th
 node scripts/terrain-bake-sun-test.mjs   # a patch built mid-walk is baked for the same Sun as its neighbours (no browser)
 npm run treeshadows   # the trees' shadows in motion, without a browser (about 40 s): flecks fixed to the ground through tile re-centres and axes renewals, no lurch at a rebuild, the shadow's mesh changing only where the picture does, the fine tile's count
 node scripts/sky-system-test.mjs [--break <fault>]   # the sky's step 0 (docs/briefs/sky-step0.md): the shared cloud rule's GLSL against its JS, the clouds going with the day's low wind and rising on the game clock, the guards that let a shader take two shared texts, the frame order and the interfaces the sky packages build on, the governor's and the benchmark's hooks, the debug switches (no browser, 10 s; --break puts one fault in to see its check fail)
+node scripts/sky-list-test.mjs [--break hold|nofast]   # the storm cells and anvils asked every frame from moments 2 s apart and blended: within a few cm of the model's own answer, forwards and backwards, and the model asked about once in 60 frames (no browser, 3 s)
 node scripts/sky-steer-test.mjs · node scripts/sky-format-test.mjs · node scripts/sky-cell-test.mjs   # each cloud layer's wind (closed form against a frame-by-frame sum), the weather field's snapshot format (JS and GLSL decoders), a storm cell's shape (JS against its GLSL) (no browser)
 npm run probe          # top-down shaded relief of the height function (no browser)
 node scripts/sky-table.mjs [--lat .. --lon ..]   # where the sky bodies are from a place over time (no browser)
@@ -304,7 +308,8 @@ the view stays where it is, the character is put away and a GO trip ends; `F` ag
 you down in the first-person walk; `G` brings the character back), `Z` hold for telephoto, mouse wheel = zoom amount,
 `H` HUD (one line → full read-out with the time slider → off), `M` Smooth ↔ Sharp,
 `[` `]` time −/+, `1`–`9` bookmarks (the views of the world's main site first: five on the Moon, six on
-Mars; then its landmarks),
+Mars; then its landmarks; on Haven the day's weather: mist, storm, front, wind on the Crown;
+the menu's "Views" lists them all),
 `P` pause time.
 
 Touch: left part of the screen = move stick (push to the rim for super speed on foot /
@@ -405,8 +410,9 @@ finished benchmark leaves its text in `window.__benchResult`.
   vectors. A shader over a phone's limit draws nothing there and works in every headless
   test (the whole ground vanished on the phone at 17). `scripts/lib/glLimits.mjs` checks
   every program in `npm run smoke` and in screenshot runs. The terrain's fragment
-  shader is full, at 16 of 16 (its vertex shader reads 4 more, which a phone counts
-  apart): a new map there must take the place of one.
+  shader is at 15 of 16 since the clouds' shade atlas took the place of the cloud map and its
+  noise (its vertex shader reads more, which a phone counts apart): one map is free, and after
+  it a new map must take the place of one.
 - three uploads a changed texture at the draw call that first uses it, in the middle of
   the render pass, and with `generateMipmaps` has the GPU build the mips there. A phone's
   tile-based GPU must write the half-drawn picture out and read it back for that: every
@@ -734,3 +740,20 @@ finished benchmark leaves its text in `window.__benchResult`.
   finding is about, and land fixes after the checks, or say in the brief which are fixed.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.
+- A sculpt is a statue: one fused skin, sleeve joined to skirt where they touch, nothing
+  behind what touches. Bound to moving cloth sheet by sheet it tore into shards; cut at the
+  joins it had ragged holes; drawn two-sided its inner face showed through as dark rags.
+  What works: carry by the body's parts, add the cloth's shift, blend garments across their
+  joins, draw the outside only. And measure a tear before guessing at it: a count of edges
+  drawn out in a pose, by cause (`node scripts/hero-bind-test.mjs --list`), named the fused
+  joins in one run after three guesses had not.
+- Look at the game as the player gets it, with no switch in the URL. The sky's field fell back
+  to a stub's test pattern ("fair") whenever no `sky:` switch was given: four helpers pictured
+  their work under `debug=sky:model`, every check asked only "is the field on", and the merged
+  build drew no storm of the day. A test of a default asks what the default is.
+- Two clocks: `?t=` (and a bookmark's `timeOffsetHours`) counts hours from the scene's own
+  moment; the weather's clock counts seconds from `weather.epoch` (521 hours apart on Haven).
+  A Node scan of the model at `t = H * 3600` asks about another day than the game shows at
+  `?t=H`: `t_weather = (Date.parse(scene.dateUTC) - Date.parse(weather.epoch)) / 1000 + H * 3600`
+  (or `new Steer(weather, R).t(date)`). Views, stability cases and benchmark hours picked from
+  the model go through it.

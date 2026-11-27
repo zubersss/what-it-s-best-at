@@ -75,7 +75,23 @@ const MOVES = [
   // changes with distance shows between frames. What it cannot show: a tile of trees
   // arriving or being filled again while one flies, which --streaming shows.)
   { id: 'haven_above_flight', world: 'haven', shot: 'ledge', query: 'lat=22.983&lon=129.507&alt=2190&pitch=-45', step: { level: 4 }, stride: 300, slow: true },
+  // (the clouds' shade, package C: the one atlas is fixed to the world, so nothing of it may
+  // move as the traveller does. Flying low over country a third of which is in cloud shadow,
+  // and walking at a shadow's edge: the shadows must hold still against the ground while the
+  // camera creeps, and the world window's rows, which are redrawn a sixteenth at a time, must
+  // not show a strip of their own in the distance. The clock is held, as it is in every
+  // picture, so the clouds themselves do not move.)
+  { id: 'haven_cloudshade_flight', world: 'haven', shot: 'ledge', query: 'lat=-48.25389&lon=40.80403&alt=3400&heading=250&pitch=-14', step: { fwd: 1 }, stride: 250, slow: true },
+  { id: 'haven_shadeedge_walk', world: 'haven', shot: 'ledge', query: 'lat=-47.79320&lon=49.37973&heading=244&pitch=-6', step: { fwd: 0.055 }, stride: 160, slow: true },
   { id: 'haven_climb', world: 'haven', shot: 'ledge', query: 'alt=1663&pitch=-60', step: { up: 2 }, stride: 175, slow: true },      // (stations at 150, 500 and 850 m: from 1.2 km up the opening place is in cloud)
+  // (flying level under the heaps with the clock held: no cloud may move between frames, and
+  // none of its light may crawl, as the traveller crosses 300 m of country)
+  // (under the model's own broken heaps on the second scene day: 0.55 cover, their bases 2 101 m
+  // over ground at 1 444, the low wind 11.8 m/s toward 86 degrees, and the camera 300 m under
+  // them looking across that wind. The stub's thin test pattern had nothing in this view: its
+  // `t=` is counted from the scene's own moment, not from the weather's epoch.)
+  { id: 'haven_cross', world: 'haven', shot: 'ledge', query: 'lat=-41.674&lon=59.442&alt=1800&pitch=8&heading=176&t=32&debug=sky:model', step: { fwd: 1 }, stride: 300, slow: true },
+  { id: 'haven_storm_pass', world: 'haven', shot: 'ledge', query: 'alt=2600&pitch=4&heading=45&t=6&debug=storm', step: { fwd: 1 }, stride: 300, slow: true },
   { id: 'earth_forest_flight', world: 'earth', shot: 'ledge', query: 'lat=36.3&lon=247.9&alt=3000&heading=0&pitch=-25&t=5', step: { fwd: 1.5 }, stride: 300, slow: true },
 ];
 // The list above is tuned by hand for the worlds it names. A world in the registry that

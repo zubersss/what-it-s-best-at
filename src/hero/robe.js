@@ -41,7 +41,7 @@ function patches() {
   // round it and sewn together along the bottom, widening to a deep opening at the wrist.
   const sleeve = (s) => ({
     name: s > 0 ? 'sleeveL' : 'sleeveR', nx: 7, ny: 6, sx: 2, sy: 2, pins: 'col', pinCol: 3, seam: 0.03, out: 0,
-    rest: (u, v) => [s * 0.26, 0.40 - v * 0.52, (u - 0.5) * 2 * (0.10 + 0.32 * v)],
+    rest: (u, v) => [s * 0.26, 0.40 - v * 0.47, (u - 0.5) * 2 * (0.10 + 0.40 * v)],
     normal: [s, 0, 0],
     body: [-0.30, 0.62, 0.155], spheres: [], limbs: s > 0 ? [0, 1, 4, 5, 6, 7] : [2, 3, 4, 5, 6, 7],
     folds: (u, v) => 0.012 * v * Math.cos(2 * Math.PI * 3.0 * u + 1.0),
@@ -74,6 +74,7 @@ function patches() {
 
 export class Robe {
   constructor() {
+    this.drawn = true;                       // false: the cloth is worked out and its own mesh left as it is
     this.patches = patches();
     let n = 0, rn = 0;
     for (const p of this.patches) { p.base = n; p.rbase = rn; p.RX = (p.nx - 1) * p.sx + 1; p.RY = (p.ny - 1) * p.sy + 1; n += p.nx * p.ny; rn += p.RX * p.RY; }
@@ -212,7 +213,7 @@ export class Robe {
       this.pos[i * 3] = e[0] * x + e[3] * y + e[6] * z; this.pos[i * 3 + 1] = e[1] * x + e[4] * y + e[7] * z; this.pos[i * 3 + 2] = e[2] * x + e[5] * y + e[8] * z;
     }
     this.prev.set(this.pos);
-    if (this.positionAttr) this._draw();
+    if (this.positionAttr && this.drawn) this._draw();
   }
 
   // dt seconds. rot: wearer-local -> world axes. gravity: world-axes vector (m/s^2).
@@ -231,7 +232,7 @@ export class Robe {
     let stepped = false;
     while (this.accum >= step) { this._step(rot, gravity, accel, wind, air, step); this.accum -= step; stepped = true; }
     if (!stepped) this._pin(rot);                 // (the pinned points follow the body on every frame)
-    this._draw();
+    if (this.drawn) this._draw();                 // (not when the sculpt is what is drawn: hero/heroSculpt.js reads the particles themselves)
   }
 
   // The pinned points go where the body (and for the sleeves the arms) put them.

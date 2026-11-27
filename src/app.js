@@ -49,6 +49,7 @@ import { Rocks } from './rocks/rocks.js';
 import { FarRocks } from './rocks/farRocks.js';
 import { Lander } from './ship/lander.js';
 import { Hero } from './hero/hero.js';
+import { HeroSculpt } from './hero/heroSculpt.js';
 import { Dust } from './fx/dust.js';
 import { createHeightSource, loadRasters } from './terrain/height/heightSource.js';
 import { Terrain } from './terrain/terrain.js';
@@ -335,7 +336,16 @@ export class App {
     // rocks and lander in front of a lingering cloud still hide it)
     this.dustScene = new THREE.Scene();
     this.dustScene.add(this.dust.points);
-    for (const m of this.hero.casters) this.nearShadow.addCaster(m, this.hero.depthMaterial, () => this.hero.group.visible);
+    for (const m of this.hero.casters) this.nearShadow.addCaster(m, this.hero.depthMaterial, () => this.hero.group.visible && !this.hero.sculpt);
+    // The owner's sculpt for the figure (hero/heroSculpt.js). Without the file, or on a
+    // device that cannot draw it, the figure built in code stays.
+    try {
+      const res = await fetch('data/hero.bin');
+      if (!res.ok) throw new Error(`data/hero.bin: ${res.status}`);
+      const sculpt = new HeroSculpt(this.hero, await res.arrayBuffer());
+      this.hero.useSculpt(sculpt);
+      this.nearShadow.addCaster(sculpt.shadowMesh, sculpt.depthMaterial, () => this.hero.group.visible);
+    } catch (e) { console.warn('the sculpted character is not used:', e.message); }
     await this.terrain.workers.ready;
 
     // ?debug=floor: every saving the governor has, and Smooth's share of the patches: what a
@@ -539,6 +549,9 @@ export class App {
         { label: this.audio.on ? 'Sound: on' : 'Sound: off', sub: 'tap to change', stay: true, on: this.audio.on, act: () => this.toggleSound() },
         { label: 'To the start', sub: `of ${this.world.name}`, act: () => this.applyBookmark(Object.keys(this.world.scene.bookmarks)[0]) },
       ] },
+      // (every view of this world's file, by its label: the keys 1 to 9 on a keyboard)
+      { title: 'Views', items: Object.entries(this.world.scene.bookmarks).filter(([, b]) => b.label).map(([name, b], k) => (
+        { label: b.label, sub: k < 9 ? `key ${k + 1}` : '', on: this.bookmark === name, act: () => this.applyBookmark(name) })) },
       { title: 'Camera and picture', items: [
         { label: 'Free camera', sub: 'leave the character', act: () => this.input.virtualTap('KeyF') },
         { label: 'Read-out', sub: 'one line / all / off', act: () => this.hud.toggle() },
@@ -1460,8 +1473,11 @@ export class App {
     // Through the telephoto the figure a few metres ahead would fill the screen: it steps
     // out of the picture while the lens is long (its shadow stays).
     const zoomed = rig.fov < rig.baseFov * 0.55;
-    hero.body.visible = hero.cape.visible = !zoomed;
+    hero.show(!zoomed);
     hero.group.updateMatrixWorld(true);
+    // (the sculpt's movers, handed to the GPU now: a texture first used in the middle of the
+    // picture is uploaded there)
+    if (hero.sculpt) this.renderer.initTexture(hero.sculpt.update());
     this.updateDust(dt, env);
     // Terrain shadow on the character: eased toward the workers' last answer (requestHeroVis),
     // so stepping into a canyon's shadow dims it over a moment instead of in one frame.

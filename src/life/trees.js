@@ -15,7 +15,7 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
 import { makeTreeGeometries, VARIANTS } from './treeGeometry.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
-import { EDGE0, EDGE1 } from './farTreeForm.js';
+import { EDGE0, EDGE1, TOP0, TOP1 } from './farTreeForm.js';
 import { SPECIES, bloomOf } from './cover.js';
 import { blockDeg, TREE_FLOATS, blockLon } from './treeBlock.js';
 import { REBUILD_M, radii, fineStep, toMake, inFarList, nearCandidates, makeOf, castMake, CUT_IN } from './treeLod.js';
@@ -108,6 +108,7 @@ in vec4 iA;            // xyz: the tree's foot from the anchor (m, planet axes),
 in vec4 iB;            // x: crown width, y: turn (radians), z: a number of its own (0..1), w: 1 if it drops its leaves
 in float aLeaf; in vec2 aSway;      // aSway.x: how far the wind moves the vertex, y: how much it flutters (0 where a spray is held)
 in vec2 aUv;            // where in the trees' picture (a card of foliage, a whole tree's card); -1: a plain face
+in vec3 aCrown;         // the far mesh's crown coordinates (treeGeometry.js crownCoords): z 1, 2 an upright card, 3 the crown's top
 uniform vec3 uAnchorRel, uTreeEast, uTreeNorth, uTreeUp;
 uniform vec4 uTreeWind;      // xyz: where the wind blows to (unit), w: its speed (m/s)
 uniform float uGustPhase;    // the gust's phase at the anchor (Trees.update): a tree's gust is its place's, whatever the anchor
@@ -134,6 +135,11 @@ vec3 treePosition(out vec3 foot, out float leaf) {
 #else
   float edge = aLeaf > 3.5 ? 1.0 - smoothstep(${EDGE0.toFixed(3)}, ${EDGE1.toFixed(3)}, dot(-normalize(foot + uTreeUp * (iA.w * 0.7)), uTreeUp)) : 1.0;
 #endif
+  // The crown's top, from low down, draws in inside the side pictures (lying flat at crown
+  // height and wider than the crown seen from the side, it was a pink or green pad laid on
+  // every tree from 20 degrees down); from above it is the crown, whole (the far trees' rule,
+  // TOP0 to TOP1). It is its old size again from 180 m to the 240 m line, as the far forest's.
+  if (aCrown.z > 2.5) p.xz *= mix(mix(0.55, 1.0, smoothstep(${TOP0.toFixed(3)}, ${TOP1.toFixed(3)}, dot(-normalize(foot + uTreeUp * (iA.w * 0.7)), uTreeUp))), 1.0, smoothstep(180.0, 240.0, length(foot)));
   p.xz *= iB.x * (1.0 - 0.85 * gone) * edge;
   vec3 l = vec3(p.x * c - p.z * s, p.y, p.x * s + p.z * c) * iA.w;
   // wind: the whole tree leans a little and its crown swings, gust by gust, each tree in
@@ -223,6 +229,7 @@ export class Trees {
         in vec4 iE;                      // rgb: its petals' colour, w: how far in flower it is (0..1; -1: a tree that never flowers)
         out vec4 vBloom; out vec2 vTall;  // (vTall: the tree's height in metres; how bare it is)
         out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out float vLeaf; out float vY; out vec2 vOwn; out vec3 vTreeM; out vec2 vUv; out float vCloud;
+        out vec3 vCrown; out vec3 vCardX;          // (the far mesh's crown coordinates, treeGeometry.js crownCoords; and its card's own x in the world)
         ${TREE_SHADE_VERT}
         void main() {
           vec3 foot; float leaf;
@@ -231,13 +238,14 @@ export class Trees {
           if (treeCull) { vCloud = 1.0; vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vLeaf = 0.0; vY = 0.0; vOwn = vec2(0.0); vTreeM = vec3(0.0); vUv = vec2(0.0); vBloom = vec4(0.0); vTall = vec2(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
           vTreeM = vec3(position.x * iB.x, position.y, position.z * iB.x) * iA.w + iB.z * 37.0;        // metres in the tree's own frame (for the pattern of its leaves)
           vRel = rel; vN = treeNormal(); vLeaf = leaf; vY = position.y; vLeafC = iC; vTrunkC = iD.rgb; vOwn = vec2(iB.z, iB.w); vUv = aUv; vBloom = iE; vTall = vec2(iA.w, aLeaf < 3.5 ? min(iB.w, 1.0) * uSeason.y : 0.0);
-          vCloud = cloudShade(foot + uTreeUp * (iA.w * 0.7)) * iD.w;          // (the clouds' shadow, from the map of it: life/treeShade.js)
+          vCloud = cloudShade(foot + uTreeUp * (iA.w * 0.7)) * iD.w;
+          { float c = cos(iB.y), s = sin(iB.y); vec3 ax = aCrown.z > 1.5 && aCrown.z < 2.5 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0); vCardX = uTreeEast * (ax.x * c - ax.z * s) + uTreeNorth * (ax.x * s + ax.z * c); vCrown = aCrown; }          // (the clouds' shadow, from the map of it: life/treeShade.js)
           gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
         }`,
       fragmentShader: /* glsl */`${LIGHTING_PARS}
         uniform vec3 uSeason;
         uniform sampler2D tTreeAtlas;        // sprays of foliage and whole trees, as cut-outs: r cover, g tone, b wood (life/treeAtlasGen.js)
-        in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in float vLeaf; in float vY; in vec2 vOwn; in vec3 vTreeM; in vec2 vUv; in float vCloud; in vec4 vBloom; in vec2 vTall;
+        in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in float vLeaf; in float vY; in vec2 vOwn; in vec3 vTreeM; in vec2 vUv; in float vCloud; in vec4 vBloom; in vec2 vTall; in vec3 vCrown; in vec3 vCardX;
         layout(location = 0) out vec4 fragColor;
         float leafHash(vec3 p) { p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
         // bunches of leaves: cells about 40 cm across, each a tone of its own
@@ -282,6 +290,21 @@ export class Trees {
           vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel);
           vec3 N = normalize(vN);
           if (vLeaf < 0.5) N *= sign(dot(N, V));                // (trunks are open tubes: light the side that is seen)
+          // A far-made tree's pictures (60 to 240 m) lit as one rounded mass: each pixel's normal
+          // from its place in the crown (a ball: the cap toward the Sun warm and lit, the far
+          // side in the cool shade); on the crown top looked down on, a dome. (Lit by four
+          // corner normals, a crown was one flat tone with a gradient across it: a sticker.)
+          // It gives way to the corner normals from 180 m to the 240 m line, where the far
+          // forest, lit by its corners, takes over.
+          if (card && vCrown.z > 0.5) {
+            float kb = 1.0 - smoothstep(180.0, 240.0, length(vRel));
+            if (kb > 0.0) {
+              vec3 R = normalize(vCardX), Nb; float u = clamp(vCrown.x, -1.0, 1.0), w = clamp(vCrown.y, -1.0, 1.0), h = sqrt(max(0.08, 1.0 - u * u - w * w));
+              if (vCrown.z > 2.5) Nb = normalize(R * u * 0.85 + cross(up, R) * w * 0.85 + up * h);
+              else { vec3 F = cross(R, up); F *= dot(F, V) < 0.0 ? -1.0 : 1.0; Nb = normalize(R * u * 0.85 + up * (w * 0.85 + 0.15) + F * h); }
+              N = normalize(mix(N, Nb, kb));
+            }
+          }
           // (a plain leaf seen from its under side: the side that looks away from the sky)
           float under = vLeaf > 0.5 && !card && dot(N, V) < 0.0 ? 1.0 : 0.0;
           // leaves in their season: green, then each tree's own gold, orange or red
@@ -324,8 +347,10 @@ export class Trees {
           vec3 twigC = mix(vTrunkC, dot(vTrunkC, vec3(0.333)) * vec3(1.06, 1.0, 0.9), 0.75) * 0.4;
           // (bark is dark: a fir's or a pine's trunk in the Sun is grey-brown to red-brown, never a
           // pale peeled pole; only the pale trunks, birch and aspen, keep their tone)
-          float paleT = step(0.4, dot(vTrunkC, vec3(0.333)));
-          vec3 albedo = wood ? (card || vLeaf > 0.1 ? twigC : vTrunkC * mix(0.28, 0.6, paleT)) : leafC;
+          float paleT = step(0.4, dot(vTrunkC, vec3(0.333))), redT = (1.0 - paleT) * smoothstep(1.7, 2.3, vTrunkC.r / max(vTrunkC.b, 1e-3));
+          // (a pine's red plates are lighter than a fir's grey-brown furrows: at 0.28 a ponderosa
+          // was a black pole against the morning sky)
+          vec3 albedo = wood ? (card || vLeaf > 0.1 ? twigC : vTrunkC * mix(mix(0.28, 0.45, redT), 0.6, paleT)) : leafC;
           // (bark: furrows, plates or bands by rule, BARK above; a trunk is round even in the
           // shade of the wood, where no light says so: darker toward its edges)
           if (wood && !card) {
@@ -354,7 +379,10 @@ export class Trees {
           // (and in the shade of the wood a crown is never black: by day some light has always
           // come down through the leaves above it, green from the passage)
           vec3 glow = !wood ? leafC * directSun(planetPos) * (0.07 * smoothstep(0.0, 0.25, dot(up, uSunDir))) * vec3(0.9, 1.2, 0.5) : vec3(0.0);
-          vec3 col = (albedo * (sun * lit + skyLight(N, up) * open + planetShine(N)) + leafC * sun * through * vec3(1.1, 1.25, 0.6) + glow) / PI;
+          // (a trunk's shade side is coloured, never black: the sunlit ground round it throws warm
+          // light up onto its sides, most onto the side away from the Sun)
+          vec3 bounce = wood && !card ? albedo * directSun(planetPos) * vCloud * (0.14 * smoothstep(0.0, 0.3, dot(up, uSunDir))) * (1.0 - 0.6 * abs(dot(N, up))) * vec3(1.0, 0.72, 0.6) : vec3(0.0);
+          vec3 col = (albedo * (sun * lit + skyLight(N, up) * open + planetShine(N)) + bounce + leafC * sun * through * vec3(1.1, 1.25, 0.6) + glow) / PI;
           col = aerialPerspective(forestAir(col, vRel, up, 1.0), vRel);
           fragColor = vec4(col * uExposure, 1.0);
         }`,
@@ -397,7 +425,7 @@ export class Trees {
     // one mesh per shape, variant and distance: [shape][variant][0 close, 1 near, 2 far]
     this.sets = this.geos.map((variants) => variants.map((pair) => pair.map((base, lod) => {
       const cap = [CLOSE_CAP, NEAR_CAP, FAR_CAP][lod], geo = new THREE.InstancedBufferGeometry();
-      for (const name of ['position', 'normal', 'aLeaf', 'aSway', 'aUv']) geo.setAttribute(name, base.attributes[name]);
+      for (const name of ['position', 'normal', 'aLeaf', 'aSway', 'aUv', 'aCrown']) geo.setAttribute(name, base.attributes[name]);
       const at = (n) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(cap * n), n); a.setUsage(THREE.DynamicDrawUsage); return a; };
       const iA = at(4), iB = at(4), iC = at(3), iD = at(4), iE = at(4);
       geo.setAttribute('iA', iA); geo.setAttribute('iB', iB); geo.setAttribute('iC', iC); geo.setAttribute('iD', iD); geo.setAttribute('iE', iE);
@@ -424,7 +452,7 @@ export class Trees {
         let mesh = s.mesh;
         if (src !== s) {
           const g = new THREE.InstancedBufferGeometry();
-          for (const name of ['position', 'normal', 'aLeaf', 'aSway', 'aUv']) g.setAttribute(name, src.geo.attributes[name]);
+          for (const name of ['position', 'normal', 'aLeaf', 'aSway', 'aUv', 'aCrown']) g.setAttribute(name, src.geo.attributes[name]);
           g.setAttribute('iA', s.iA); g.setAttribute('iB', s.iB); g.setAttribute('iE', s.iE); g.setAttribute('iF', s.iF);
           g.instanceCount = 0; s.castGeos.push(g);
           mesh = new THREE.Mesh(g, this.depthMaterial); mesh.frustumCulled = false;
