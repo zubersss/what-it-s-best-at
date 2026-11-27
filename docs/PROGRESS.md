@@ -85,11 +85,12 @@ shells (two draws over every pixel of sky, some 8 reads each). Fixed on the sky 
 branch (`1067ffc`: the plan made on the view's own world, each sky part measured twice);
 the next link carries it and asks for the benchmark that names the part.
 
-**What the speed helper found in the same results (`45d79bd`, merged).** (a) *The frame
-nobody owned*: with every group out the ground is still drawn, flat, with the small
-things (leaves, petals, pollen, the lander): 20 / 7 / 27 ms (opening view / wood / air)
-between that and "nothing drawn". The table has rows `ground-mesh` and `small-things`
-now; the ground-cost helper has it. (b) *Uploads inside a pass* are all vertex buffers, no
+**What the speed helper found in the same results (`45d79bd`, merged).** (a) *With every group out the ground is still drawn, flat, with the small things*: the
+20 / 7 / 27 ms between that and "nothing drawn" were first read as the ground's triangles
+and then **taken back by the helper itself**: plain milliseconds from different moments of
+a test whose baseline drifted from 54 to 125 ms, largest where the drift was. Not a
+finding. The table now measures "the ground not drawn at all" as a group against
+baselines, and says how much less "nothing drawn" is than everything on just before it. (b) *Uploads inside a pass* are all vertex buffers, no
 texture (the lying leaves' 75 KB a frame, cured since; the ground's patch list 8 KB): left.
 (c) *The "unknown" hitches ten seconds in* were shaders made at first use (the trees',
 the far forest's, the shadow casters'): every scene's shaders are now made while loading
