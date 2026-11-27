@@ -198,6 +198,16 @@ before the clear is what the picture and the shadow tiles now do).
   and the two takes are printed side by side: a number that does not repeat is not one. Then
   every group out at once, and what is left. The single savings and parts are still measured
   after the groups (12 frames a measure instead of 16: the test is as long as it was).
+- **The governor's savings in families** (the same way, `SAVING_GROUPS`): the grass's three,
+  the trees' and leaves' six, the sky's eleven, the shadows' five, the ground's four, rocks
+  and the figure, glow. A family that buys nothing need not be looked into; one that buys
+  much is, by its "one saving alone" numbers. This is the table the governor's order (step 4)
+  is to be made from. To keep the test as long as it was: a single saving is measured over 8
+  frames, a part over 10, a group or a family over 12, and a part that is a whole group by
+  itself is not measured a second time.
+- **The page's own work by part**: "rocks and trees" (2.5 ms a frame at the ledge on the
+  phone) is now rocks near by, far rocks, trees, far forest, leaves and grass, each by
+  itself, and six parts are printed under a stop instead of four.
 - **The canvas is held at the picture's size during the cost test**, as play has it. It was
   held at the screen's own size: every measure of the last three benchmarks carried a last
   pass over 3.74 MP that play at 2.25 MP does not pay. The row for the last pass now prints
