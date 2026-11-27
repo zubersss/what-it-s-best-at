@@ -310,3 +310,18 @@ not taken it off, the ground takes new snow's white (not on rock). `own_snow_aut
 brightness does not move (122.4 to 122.3 on the opening day from 3 km), in winter nothing
 changes (all of it is new snow then). Risk taken: pale high ground that is not snow would
 turn white too; I found none in these views.
+
+**The opening day's greyer woods from 3 km: the bare trees' share, and right by the rule.**
+On Haven's opening day (life day 265, 0.007 of the year at the place) 9 to 16 % of the
+wood's trees by height are the kinds that drop their leaves, and all of them are bare
+(branches, 0.110 0.085 0.060): the wood as a whole is 1.07 to 1.11 in red and blue and 0.92
+to 0.95 in green of what it is in high summer. Trees in leaf count as 1 exactly (high
+summer over high summer; `season-test` holds it). The opening morning's rule was that
+nothing changes that the season does not change: these trees were bare near by since
+piece 2, and from afar they now are too.
+
+**The line where the wood's own colour gives way to the tinted map** (3 to 19 km, a
+smooth fade): `far_wood_autumn_line.png`, autumn from 5 km up, 800 m on, and 8 km further
+along the view. No change of the wood's tone with distance that I can see; the greener
+ground in the middle distance is meadow and stays where it is when the eye moves 8 km.
+Looked at, not measured: a number would need the wood's colour sampled by distance.

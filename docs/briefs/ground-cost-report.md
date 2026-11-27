@@ -279,3 +279,34 @@ shade 1.2. No single read is left that has no weight. Further than this is not t
   third fewer reads). **A benchmark of this build is the next fact**: the row for the
   ground's shading against 14.4 (opening view) and 17.0 (from the air) of the thirteenth
   results, and the new step in the cost table.
+
+## 6. Hidden ground (the brief's point 5), and where this stands
+
+The ground is drawn last of the solid things near by (`src/app.js`, the draw order: grass
+and leaves, then the trees nearest first, the rocks, then the ground): what they cover is
+thrown out by the depth test unshaded, and the patches themselves are drawn nearest first.
+That is why the grass buys less than nothing on the phone and the wood's ground costs 2 ms.
+What is still shaded and then covered: the ground under the far trees and the far rocks'
+shade, which are drawn after it on purpose (a far tree's foot stands in the raised canopy).
+Nothing to gain there without drawing the far forest first, which is the speed helper's.
+
+**Where this stands** (2026-11-27, commit 432dbe9): everything on, a pixel of ground reads
+14.4 textures at the opening view (was 16.7), 13.5 from 300 m (18.6), 12.8 from 3 km (18.8):
+14, 27 and 32 % fewer, with pictures that differ from before by one level at most. A phone
+that turns the ground's savings on (`far-relief`, `ground-far`; `detail` and `water` near by,
+`snow-edge` in winter) reads 9 to 10 from the air and about 12 at the opening view, the
+far ground's tones a little plainer and its relief shading gone. The brief asked for a
+third at the opening view too: its near ground is the grass's to hide, and its far ground
+is 15 to 25 % cheaper; the rest of the way is the baked far ground of section 5, which
+waits for a benchmark to say it is needed.
+
+## 7. Switches that put two cuts back, for the phone to weigh
+
+`?debug=groundskypixel` (the sky's light asked at every pixel, as before section 3) and
+`?debug=groundbothmaps` (a patch's own normal and shadow read wherever its parent's are, as
+before section 2's first cut); one uniform, `uGroundOld`. The benchmark's cost test has a
+"what it adds" row for each (`ground-sky-pixel`, `ground-both-maps`, `src/perf/benchmark.js`
+PARTS_OUT, beside the trees' two). With both on the picture is the same to one level
+(autumn from 5 km). The other cuts have no switch: the relief map is packed when it loads,
+and the layers' tail and the strata's test would each need the old constants back in the
+shader for a row nobody could read above the noise.

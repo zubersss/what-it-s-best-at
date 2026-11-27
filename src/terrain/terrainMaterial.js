@@ -242,6 +242,7 @@ uniform lowp sampler2DArray tShadow;    // one layer per chunk: baked sun visibi
 // (the parent chunk's layers of the same two arrays: shading morphs toward them exactly as
 // the vertices morph toward the parent's shape)
 uniform sampler2D tStrata;
+uniform vec2 uGroundOld;      // [ground cost] the ways before the cuts, put back so that a phone can say what each cut bought (?debug=groundskypixel, groundbothmaps; the benchmark's rows): x 1: the sky's light asked at every pixel, y 1: the patch's own maps read wherever its parent's are
 uniform float uGroundThin;    // [ground cost] the governor's step ground-far (1: on): the far ground's finer tones from fewer reads (the painted patches from one, the strata on rock only, the forest floor's tufts from one)
 uniform sampler2D tDetail;
 uniform vec4 uDetailMean;        // the detail texture's last level: the one number it comes to seen from far enough
@@ -500,7 +501,7 @@ void main() {
   vec3 ownN = vec3((ownG * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), vChunk.x), ownS = vec3((ownG * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1), vChunk.x);
   vec3 parN = vec3((parG * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), vChunk.y), parS = vec3((parG * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1), vChunk.y);
   vec4 nt; float shadow;
-  if (pk < 0.996) {
+  if (pk < 0.996 || uGroundOld.y > 0.5) {
     nt = texture(tNormal, ownN); shadow = texture(tShadow, ownS).r;
     if (pk > 0.004) { nt = mix(nt, texture(tNormal, parN), pk); shadow = mix(shadow, texture(tShadow, parS).r, pk); }
   } else { nt = texture(tNormal, parN); shadow = texture(tShadow, parS).r; }
@@ -1167,7 +1168,7 @@ void main() {
   vec3 direct = sunHere * shadow * diffuse;
   // [ground cost] (the sky's light for the place from the vertices; on the few patches so wide
   // that the vertical turns across a triangle, the land at the horizon, asked here as before)
-  bool skyWide = vChunk.z > float(SKY_VERT_TILES);
+  bool skyWide = vChunk.z > float(SKY_VERT_TILES) || uGroundOld.x > 0.5;
   vec3 skyThereP = skyWide ? (uSkyGainMix > 0.0 ? skyThere(up) : vec3(0.0)) : vSkyThere;
   vec3 ambient = (skyLight(N, up, skyThereP) * ao + planetShine(N)) * contactSky(vRel, N) / PI;
   if (canopyShade > 0.0) ambient = mix(ambient, dot(ambient, vec3(0.3, 0.55, 0.15)) * mix(vec3(0.85, 1.1, 0.5), vec3(1.25, 0.95, 0.45), uLitter), 0.85 * canopyShade);
@@ -1216,7 +1217,7 @@ export function makeTerrainShared(world, textures) {
     uCover: { value: new THREE.Vector4() },
     // w: the cover pattern (d0.a + 0.3 d1.a) is about normal; logistic scale = its spread / 1.702
     uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
-    uWaterQ: { value: 1 }, uGroundThin: { value: 0 }, uPlain: { value: 0 }, uTide: { value: new THREE.Vector2(0, 0) }, uAirRelief: { value: 0 },
+    uWaterQ: { value: 1 }, uGroundThin: { value: 0 }, uGroundOld: { value: new THREE.Vector2(0, 0) }, uPlain: { value: 0 }, uTide: { value: new THREE.Vector2(0, 0) }, uAirRelief: { value: 0 },
     // the clouds' shade, the one atlas every lit thing reads (sky/cloudShade.js), and how wet
     // the ground is per place; the four below are the cloud rule's own numbers, which the atlas
     // reads to write itself with (nothing in the ground's shaders reads them any more)

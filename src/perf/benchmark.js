@@ -358,6 +358,9 @@ export const PARTS_OUT = [
   { id: 'tree-air-pixel', label: "the near trees' light and air at every pixel instead of at their vertices (what it adds)", adds: true, has: (app) => !!app.trees?.def, set: (app, out) => { app.trees.shared.uTreeOld.value = out ? 1 : 0; } },
   // (the middle and high cloud's Sun and sky light at every pixel, as it was, instead of at the shells' vertices)
   { id: 'upper-light-pixel', label: "the middle and high cloud's light at every pixel instead of at its vertices (what it adds)", adds: true, has: (app) => !!app.sky?.hasPart('clouds-all'), set: (app, out) => { if (app.sky?.upper) app.sky.upper.lightAtPixel = out; } },
+  // (the ground's two cuts that a switch can put back, docs/briefs/ground-cost-report.md: what the old way adds)
+  { id: 'ground-sky-pixel', label: "the sky's light on the ground at every pixel instead of at its vertices (what it adds)", adds: true, set: (app, out) => { app.terrain.shared.uGroundOld.value.x = out ? 1 : 0; } },
+  { id: 'ground-both-maps', label: "a patch's own maps read wherever its parent's are (what it adds)", adds: true, set: (app, out) => { app.terrain.shared.uGroundOld.value.y = out ? 1 : 0; } },
   // (last: what is left with nothing drawn at all)
   // (and every pass the sky makes into targets of its own: with the scenes alone hidden those all ran)
   { id: 'everything', label: 'everything', set: (app, out) => { app.nearScene.visible = app.farScene.visible = app.heroScene.visible = app.dustScene.visible = !out; if (app.sky?.hasPart('sky-all')) app.sky.partOut('sky-all', out); } },

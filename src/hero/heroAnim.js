@@ -69,9 +69,13 @@ export class HeroAnim {
     add('Jump', jt, foot * air, false, 2);
     // ---- flying -------------------------------------------------------------------------------
     // (Flight is not a loop: it drifts through a flying pose; read there and back)
-    const fd = rig.clips.Flight.duration, ft = this.time % (2 * fd);
     add('Hover', this.time, (1 - foot) * (1 - fly), true, 1);
-    add('Flight', ft < fd ? ft : 2 * fd - ft, (1 - foot) * fly, false, 2);
+    // (the flying pose: arms stretched ahead, legs trailing, made by rule on the owner's skeleton
+    // (scripts/make-hero-rig.mjs, "Superman"; the owner: "the superman animation flying pose
+    // instead of mine"): a loop. A file without it flies in the model's own Flight clip, read
+    // there and back as before.)
+    if (rig.clips.Superman) add('Superman', this.time, (1 - foot) * fly, true, 2);
+    else { const fd = rig.clips.Flight.duration, ft = this.time % (2 * fd); add('Flight', ft < fd ? ft : 2 * fd - ft, (1 - foot) * fly, false, 2); }
     // ---- blended ------------------------------------------------------------------------------
     // (hold 1: the hips' place is the standing one, the clip's sway about its own mean kept;
     //  hold 2: the hips' place and turn are the standing ones: the game lays the body along

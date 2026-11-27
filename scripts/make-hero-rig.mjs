@@ -69,6 +69,66 @@ for (const a of J.animations) {
   say(`clip ${a.name}: ${frames} frames, ${((frames - 1) / FPS).toFixed(2)} s${scaled ? `, ${scaled} scale keys off 1 (left out)` : ''}`);
 }
 
+// ---- a flying pose made by rule: "Superman" --------------------------------------------------
+// The owner (2026-11-27): "could we get the superman animation flying pose instead of mine keep
+// the other ones though". The game lays the body along its flight (heroAnim's hold 2: the hips
+// keep their standing place and turn), so the pose is made standing: arms stretched up past the
+// head and a little toward the chest, legs straight down with one knee eased, the toes pointed,
+// the back arched and the head tipped back to look along the flight. Each bone of a chain is
+// swung the shortest way from where the standing pose (Idle's first frame) has it to the
+// direction wanted, parents first; a slow breath and a small flutter of the legs make it a loop.
+{
+  const idx = (n) => { const i = names.indexOf(n); if (i < 0) throw new Error(`no joint ${n} in the skeleton: the Superman pose needs it`); return i; };
+  const qmul = (a, b) => [a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0], a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]];
+  const qinv = (q) => [-q[0], -q[1], -q[2], q[3]];
+  const qrot = (q, v) => { const [x, y, z, w] = q, tx = 2 * (y * v[2] - z * v[1]), ty = 2 * (z * v[0] - x * v[2]), tz = 2 * (x * v[1] - y * v[0]); return [v[0] + w * tx + y * tz - z * ty, v[1] + w * ty + z * tx - x * tz, v[2] + w * tz + x * ty - y * tx]; };
+  const norm = (v) => { const l = Math.hypot(...v) || 1; return v.map((e) => e / l); };
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const fromTo = (a, b) => { const c = cross(a, b), d = dot(a, b); if (d < -0.9999) { const o = norm(cross(a, Math.abs(a[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0])); return [o[0], o[1], o[2], 0]; } const q = [c[0], c[1], c[2], 1 + d], l = Math.hypot(...q); return q.map((e) => e / l); };
+  const idle = shared.rot_Idle, idlePos = shared.pos_Idle;
+  const base = { rot: Array.from({ length: NJ }, (_, j) => Array.from(idle.subarray(j * 4, j * 4 + 4))), pos: Array.from({ length: NJ }, (_, j) => Array.from(idlePos.subarray(j * 3, j * 3 + 3))) };
+  // (the standing figure's own axes, in the skeleton's space: up from the hips to the head, left
+  // from shoulder to shoulder, the chest's way from heel to toe)
+  const world = (rot) => { const wq = [], wp = []; for (let j = 0; j < NJ; j++) { const p = parents[j]; if (p < 0) { wq[j] = rot[j]; wp[j] = base.pos[j]; } else { wq[j] = qmul(wq[p], rot[j]); const o = qrot(wq[p], base.pos[j]); wp[j] = [wp[p][0] + o[0], wp[p][1] + o[1], wp[p][2] + o[2]]; } } return { wq, wp }; };
+  const w0 = world(base.rot), sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const UP = norm(sub(w0.wp[idx('Head')], w0.wp[idx('Hips')]));
+  let LEFT = sub(w0.wp[idx('LeftArm')], w0.wp[idx('RightArm')]); LEFT = norm(sub(LEFT, UP.map((e) => e * dot(LEFT, UP))));
+  let FWD = cross(LEFT, UP); { const toe = sub(w0.wp[idx('LeftToeBase')], w0.wp[idx('LeftFoot')]); if (dot(FWD, toe) < 0) FWD = FWD.map((e) => -e); }
+  const dir = (up, fwd, left) => norm([0, 1, 2].map((e) => UP[e] * up + FWD[e] * fwd + LEFT[e] * left));
+  // a bone and the joint it points at
+  const CHILD = { Spine: 'Spine1', Spine1: 'Spine2', Spine2: 'Neck', Neck: 'Head', Head: 'HeadTop_End', LeftShoulder: 'LeftArm', LeftArm: 'LeftForeArm', LeftForeArm: 'LeftHand', RightShoulder: 'RightArm', RightArm: 'RightForeArm', RightForeArm: 'RightHand', LeftUpLeg: 'LeftLeg', LeftLeg: 'LeftFoot', LeftFoot: 'LeftToeBase', RightUpLeg: 'RightLeg', RightLeg: 'RightFoot', RightFoot: 'RightToeBase' };
+  // the pose at a moment of its loop (u: 0..1)
+  const poseAt = (u) => {
+    const s = Math.sin(2 * Math.PI * u), s2 = Math.sin(4 * Math.PI * u + 0.9), breath = 0.5 + 0.5 * Math.sin(2 * Math.PI * u - 1.1);
+    const want = {
+      // the back arched (away from the chest), the head tipped back to look where it flies
+      Spine: dir(1, -0.05, 0), Spine1: dir(1, -0.10 - 0.02 * breath, 0), Spine2: dir(1, -0.16 - 0.03 * breath, 0.01 * s),
+      Neck: dir(1, -0.55, 0.02 * s), Head: dir(0.62, -1, 0.03 * s),
+      // the shoulders raised, the arms stretched ahead past the head, a hand's width apart;
+      // the right arm straight, the left eased at the elbow
+      LeftShoulder: dir(0.9, 0.05, 0.6), RightShoulder: dir(0.9, 0.05, -0.6),
+      RightArm: dir(1, 0.20 + 0.02 * s, -0.10), RightForeArm: dir(1, 0.14 + 0.02 * s, 0.02),
+      LeftArm: dir(1, 0.30 - 0.02 * s, 0.20), LeftForeArm: dir(1, 0.06 - 0.02 * s, -0.12),
+      // the legs trailing straight, close together, one knee eased; the toes pointed
+      LeftUpLeg: dir(-1, -0.04 + 0.03 * s2, 0.03), LeftLeg: dir(-1, -0.20 - 0.05 * s2, 0.02), LeftFoot: dir(-1, 0.22, 0.02),
+      RightUpLeg: dir(-1, 0.02 - 0.03 * s2, -0.03), RightLeg: dir(-1, -0.07 + 0.04 * s2, -0.02), RightFoot: dir(-1, 0.22, -0.02),
+    };
+    const rot = base.rot.map((q) => q.slice()), wq = [];
+    for (let j = 0; j < NJ; j++) {
+      const p = parents[j], cur = p < 0 ? rot[j] : qmul(wq[p], rot[j]), c = CHILD[names[j]], t = want[names[j]];
+      if (c && t) { const d0 = norm(qrot(cur, base.pos[idx(c)])); wq[j] = qmul(fromTo(d0, t), cur); rot[j] = p < 0 ? wq[j] : qmul(qinv(wq[p]), wq[j]); }
+      else wq[j] = cur;
+    }
+    return rot;
+  };
+  const dur = 4, frames = Math.round(dur * FPS) + 1, rot = new Float32Array(frames * NJ * 4), pos = new Float32Array(frames * NJ * 3);
+  for (let f = 0; f < frames; f++) { const r = poseAt((f % (frames - 1)) / (frames - 1)); for (let j = 0; j < NJ; j++) { pos.set(base.pos[j], (f * NJ + j) * 3); const l = Math.hypot(...r[j]); rot.set(r[j].map((e) => e / l), (f * NJ + j) * 4); } }
+  for (let j = 0; j < NJ; j++) for (let f = 1; f < frames; f++) { const a0 = ((f - 1) * NJ + j) * 4, a1 = (f * NJ + j) * 4; let d = 0; for (let e = 0; e < 4; e++) d += rot[a0 + e] * rot[a1 + e]; if (d < 0) for (let e = 0; e < 4; e++) rot[a1 + e] = -rot[a1 + e]; }
+  clips.push({ name: 'Superman', duration: (frames - 1) / FPS, fps: FPS, frames, made: true }); shared.rot_Superman = rot; shared.pos_Superman = pos;
+  say(`clip Superman: ${frames} frames, ${dur.toFixed(2)} s, made by rule from the standing pose`);
+}
+
 // ---- the surface ----------------------------------------------------------------------------------
 const P = g.accessor(prim.attributes.POSITION), N = g.accessor(prim.attributes.NORMAL), UV = g.accessor(prim.attributes.TEXCOORD_0), JN = g.accessor(prim.attributes.JOINTS_0, { raw: true }), WT = g.accessor(prim.attributes.WEIGHTS_0), I = Uint32Array.from(g.accessor(prim.indices, { raw: true })), nv = P.length / 3;
 const joints = new Uint8Array(nv * 4), weights = new Uint8Array(nv * 4);
