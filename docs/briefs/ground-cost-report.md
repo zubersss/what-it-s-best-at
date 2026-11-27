@@ -142,3 +142,59 @@ north in one texel) and its raster loop off the pixel: 2 reads and the loop; (3)
 only where rock shows; (4) the close-up layers' tail given up where what is read is the
 mean to within a level; (5) the leaf-trees' loop only in a wood. Then the baked far ground
 (the brief's point 3) if the phone still asks.
+
+## 2. The first cuts (reads that had no weight)
+
+All in `src/terrain/terrainMaterial.js` (blocks marked `[ground cost]`), and the relief
+map's loading in `src/terrain/terrain.js`. The cloud's shade (`tCloudShade`) is not touched.
+
+1. **The patch's maps or its parent's, not both.** A patch is drawn out to twice the distance
+   at which its blend toward the parent is complete, so on 74 to 82 % of the ground beyond
+   300 m (counted: `--tiers`, the "why" lines) the parent's normal and shadow were the whole
+   answer and the patch's own two were read and weighted nought. Each is read now only where
+   it has weight (under 0.4 % of the other left out at either end).
+2. **The far relief from two reads, not four.** The slope map's file keeps its east and north
+   halves (one grey JPEG); on the GPU they are one texel, east in red and north in green
+   (`Terrain.loadReliefMap` packs them when the world loads, half at a time; the same memory).
+3. **The close-up layers' tail.** The two close-up detail layers were read out to where a
+   sampler answers with the texture's last level (a pixel eight repeats long). From where a
+   pixel is one repeat long what it answers is the 4 x 4 and 2 x 2 levels, hundredths about
+   the mean: it fades to the mean by two repeats and nothing is read beyond.
+4. **The strata only where they can be seen.** Scree takes a third of the bands and nearly
+   all gentle ground is a few hundredths scree: both reads only where the bands change the
+   colour by more than 0.4 %, the fine bands (a thirtieth of the colour on Haven) by the same
+   test on their own; a world without strata reads nothing.
+5. The far canopy's broad blob and the glade's tone were second reads of the detail tile at
+   the place its first read has already (`d0`): one read less on every pixel of far wood.
+
+**The count** (reads a pixel, the ground alone at 1936 x 906; before -> after):
+
+| view | reads a pixel | the patch's maps | strata and far relief | detail tile, long footprint | detail tile, plain |
+|---|---|---|---|---|---|
+| the opening view | 16.7 -> 14.7 | 2.9 -> 2.3 | 2.0 -> 1.3 | 3.0 -> 2.6 | 4.3 -> 4.0 |
+| from 300 m | 18.6 -> 14.3 | 3.9 -> 2.4 | 3.7 -> 2.4 | 3.9 -> 3.0 | 4.1 -> 3.3 |
+| from 3 km | 18.8 -> 14.6 | 3.6 -> 2.6 | 5.0 -> 2.9 | 2.9 -> 2.0 | 2.3 -> 1.9 |
+
+At the opening view the ground beyond 300 m (what the grass does not hide) went from 17.6
+to 19.1 reads a pixel to 15 or under.
+
+**The pictures** (the ground alone at 1936 x 906, before above, after in the middle, the
+difference times eight below): `docs/shots/ground-cost/cut1_<ledge|air300|air3k>_<morning|noon>.jpg`.
+Against the pictures of the shader before, taken in a run of their own: **0.00 % of the
+pixels over 2 levels in all six**; largest difference 2 to 3 levels in the morning, 3 to 6 at
+noon; mean 0.01 to 0.28.
+
+**The proxy** (software WebGL; a count of work, never a frame rate; before -> after, ms):
+morning 4 584 -> 3 899, 3 172 -> 2 680, 2 090 -> 1 770 (85, 84, 85 %); noon 4 484 -> 4 089,
+3 322 -> 3 101, 1 854 -> 1 865 (91, 93, 101 %). It moves less than the count and at noon
+from 3 km not at all: it runs both sides of a branch wherever a 2 x 2 block of pixels is
+divided, and weighs a long-footprint read far above the others. The count is the measure;
+the phone's next benchmark the judge.
+
+Not done yet toward "a third": the sky's light as far as it does not hang on the surface's
+normal goes to the vertices next (one read on every pixel from 3 km up, one to two on every
+pixel of wood). What is then left from the air, a pixel: the patch's maps 2.5, the land's
+colour 1, the detail tile 4 to 6 (its first read, the canopy's, the floor's two, the painted
+patches' two with a long footprint), relief and strata 2.5 to 3, the sky's light 1, **and the
+cloud's shade: 2 on every pixel of a patch wider than 800 m, which from 3 km is all of
+them** (the sky helper's part).

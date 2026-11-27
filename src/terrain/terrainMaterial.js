@@ -274,7 +274,7 @@ uniform float uAlbedoSteep;    // how much of the map's tint steep rock takes (1
 uniform float uAlbedoShift;    // 0.5 for a map whose left edge is longitude -180 (Earth's), else 0
 uniform vec2 uAlbedoFade;      // sines of the latitudes between which the map fades out toward the poles
 uniform vec2 uAlbedoRange;     // soft limits of the map's brightness relative to its mean (y = 0: none), held near the ground only
-uniform sampler2D tRelief;     // the ground's slope everywhere: east slope in the top half, north in the bottom (fetch-maps.py)
+uniform sampler2D tRelief;     // the ground's slope everywhere: east slope in red, north in green (the file, fetch-maps.py, has them as its top and bottom halves; Terrain.loadReliefMap)
 uniform vec4 uRelief;          // x = strength (0 = no map), y = metres per map texel (north-south), z = texels across, w unused
 uniform vec2 uReliefFade;      // sines of the latitudes between which it fades out toward the poles
 // How sharp the elevation data is at each place, from the world's raster list (setDemList):
@@ -306,10 +306,10 @@ float demLog2Res(float lon, float lat) {
 }
 
 // Slope (east, north; metres per metre) of the relief map at a level of detail.
+// [ground cost] (east in red, north in green of one texel: Terrain.loadReliefMap packs the file's two halves)
 vec2 reliefSlope(vec2 uv, float lod) {
-  float e = textureLod(tRelief, vec2(uv.x, uv.y * 0.5), lod).r * 2.0 - 1.0;
-  float n = textureLod(tRelief, vec2(uv.x, 0.5 + uv.y * 0.5), lod).r * 2.0 - 1.0;
-  return vec2(e * abs(e), n * abs(n));
+  vec2 s = textureLod(tRelief, uv, lod).rg * 2.0 - 1.0;
+  return s * abs(s);
 }
 in vec2 vGrid;
 in vec2 vDetailUv;
@@ -461,17 +461,23 @@ void main() {
   if (uPlain > 0.5) { fragColor = vec4(vec3(0.05), 1.0); return; }
   float vHeight = vHMS.x, vMorph = vHMS.y, vShell = vHMS.z;
   vec3 uTanU = vTanU, uTanV = vTanV;
-  vec4 nt = texture(tNormal, vec3((vGrid * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), vChunk.x));
-  float shadow = texture(tShadow, vec3((vGrid * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1), vChunk.x)).r;
+  // The patch's own normal and baked shadow, and its parent's: near the distance where this
+  // patch hands over to its parent (and for a moment after it first appears) the two blend,
+  // so detail arrives and leaves without a pop.
+  // [ground cost] Each is read only where it has weight. A patch is drawn out to twice the
+  // distance at which its blend is complete: on three quarters of the ground beyond 300 m
+  // the parent's maps were all of the answer and the patch's own were read for nothing
+  // (ground-cost --tiers). The coordinates are worked out here, outside the branches, so
+  // the samplers have their footprints.
   float pk = vMorph * step(0.0, vChunk.y);
-  if (pk > 0.004) {
-    // Near the distance where this chunk hands over to its parent (and for a moment
-    // after it first appears) normals, cavities and baked shadows blend into the
-    // parent's, so detail arrives and leaves without a pop.
-    vec2 pg = vParentOff + vGrid * 0.5;
-    nt = mix(nt, texture(tNormal, vec3((pg * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), vChunk.y)), pk);
-    shadow = mix(shadow, texture(tShadow, vec3((pg * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1), vChunk.y)).r, pk);
-  }
+  vec2 ownG = vGrid, parG = vParentOff + vGrid * 0.5;
+  vec3 ownN = vec3((ownG * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), vChunk.x), ownS = vec3((ownG * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1), vChunk.x);
+  vec3 parN = vec3((parG * float(NORMAL_RES) + 0.5) / float(NORMAL_RES + 1), vChunk.y), parS = vec3((parG * float(SHADOW_RES) + 0.5) / float(SHADOW_RES + 1), vChunk.y);
+  vec4 nt; float shadow;
+  if (pk < 0.996) {
+    nt = texture(tNormal, ownN); shadow = texture(tShadow, ownS).r;
+    if (pk > 0.004) { nt = mix(nt, texture(tNormal, parN), pk); shadow = mix(shadow, texture(tShadow, parS).r, pk); }
+  } else { nt = texture(tNormal, parN); shadow = texture(tShadow, parS).r; }
   vec3 N = normalize(nt.xyz);
   // (the fourth number: cavity shading, 0..1, on land; 1 + the water's depth in metres on water)
   float waterDepth = max(nt.a - 1.0, 0.0);
@@ -513,11 +519,16 @@ void main() {
     // number, that number is used and nothing is read. The picture is the same;
     // seen at a low angle that is all the ground beyond some 90 m for the fine layer and
     // 300 m for the coarse one. DETAIL_LAST: see makeTerrainMaterial.)
+    // [ground cost] (and given up earlier than that: from where a pixel is a whole repeat of
+    // the layer long, DETAIL_FADE, what a sampler answers is the texture's 4 x 4 and 2 x 2
+    // levels, some hundredths about the mean; it fades to the mean by two repeats and
+    // nothing is read beyond. These were one to two long-footprint reads on every pixel
+    // from 100 m at eye height out to 4 km from the air.)
     vec4 a, b;
     if (w.z > 0.0) {
       float f2 = max(dot(gx, gx), dot(gy, gy));
       a = uDetailMean; b = uDetailMean;
-      if (f2 < DETAIL_LAST / 81.0) { a = textureGrad(tDetail, vDetailUv * 9.0, gx * 9.0, gy * 9.0); if (f2 < DETAIL_LAST / 6889.0) b = textureGrad(tDetail, vDetailUv * 83.0, gx * 83.0, gy * 83.0); }
+      if (f2 < DETAIL_LAST / 81.0) { a = mix(textureGrad(tDetail, vDetailUv * 9.0, gx * 9.0, gy * 9.0), uDetailMean, smoothstep(DETAIL_FADE, DETAIL_LAST, f2 * 81.0)); if (f2 < DETAIL_LAST / 6889.0) b = mix(textureGrad(tDetail, vDetailUv * 83.0, gx * 83.0, gy * 83.0), uDetailMean, smoothstep(DETAIL_FADE, DETAIL_LAST, f2 * 6889.0)); }
       d1 += (a - 0.5) * w.z; d2 += (b - 0.5) * w.z;
       grain += (uTanU * ((a.r - 0.5) * 0.9 + (b.r - 0.5) * 0.8) + uTanV * ((a.g - 0.5) * 0.9 + (b.g - 0.5) * 0.8)) * w.z;
     }
@@ -525,7 +536,7 @@ void main() {
       vec2 uv = vec2(vDetailUv.y, hy), sx = vec2(gx.y, hg.x), sy = vec2(gy.y, hg.y);
       float f2 = max(dot(sx, sx), dot(sy, sy));
       a = uDetailMean; b = uDetailMean;
-      if (f2 < DETAIL_LAST / 81.0) { a = textureGrad(tDetail, uv * 9.0, sx * 9.0, sy * 9.0); if (f2 < DETAIL_LAST / 6889.0) b = textureGrad(tDetail, uv * 83.0, sx * 83.0, sy * 83.0); }
+      if (f2 < DETAIL_LAST / 81.0) { a = mix(textureGrad(tDetail, uv * 9.0, sx * 9.0, sy * 9.0), uDetailMean, smoothstep(DETAIL_FADE, DETAIL_LAST, f2 * 81.0)); if (f2 < DETAIL_LAST / 6889.0) b = mix(textureGrad(tDetail, uv * 83.0, sx * 83.0, sy * 83.0), uDetailMean, smoothstep(DETAIL_FADE, DETAIL_LAST, f2 * 6889.0)); }
       d1 += (a - 0.5) * w.x; d2 += (b - 0.5) * w.x;
       grain += (uTanV * ((a.r - 0.5) * 0.9 + (b.r - 0.5) * 0.8) + up * ((a.g - 0.5) * 0.9 + (b.g - 0.5) * 0.8)) * w.x;
     }
@@ -533,7 +544,7 @@ void main() {
       vec2 uv = vec2(vDetailUv.x, hy), sx = vec2(gx.x, hg.x), sy = vec2(gy.x, hg.y);
       float f2 = max(dot(sx, sx), dot(sy, sy));
       a = uDetailMean; b = uDetailMean;
-      if (f2 < DETAIL_LAST / 81.0) { a = textureGrad(tDetail, uv * 9.0, sx * 9.0, sy * 9.0); if (f2 < DETAIL_LAST / 6889.0) b = textureGrad(tDetail, uv * 83.0, sx * 83.0, sy * 83.0); }
+      if (f2 < DETAIL_LAST / 81.0) { a = mix(textureGrad(tDetail, uv * 9.0, sx * 9.0, sy * 9.0), uDetailMean, smoothstep(DETAIL_FADE, DETAIL_LAST, f2 * 81.0)); if (f2 < DETAIL_LAST / 6889.0) b = mix(textureGrad(tDetail, uv * 83.0, sx * 83.0, sy * 83.0), uDetailMean, smoothstep(DETAIL_FADE, DETAIL_LAST, f2 * 6889.0)); }
       d1 += (a - 0.5) * w.y; d2 += (b - 0.5) * w.y;
       grain += (uTanU * ((a.r - 0.5) * 0.9 + (b.r - 0.5) * 0.8) + up * ((a.g - 0.5) * 0.9 + (b.g - 0.5) * 0.8)) * w.y;
     }
@@ -628,12 +639,17 @@ void main() {
   // The bands of the rock: read only where one can show (on rock and scree; on gentle ground
   // only on worlds whose dust shows them, or where bedrock lies bare): most ground is gentle.
   vec3 band = vec3(1.0);
-  if (rockW + screeW > 0.0 || uStrataFlat > 0.0 || bedM > 0.0) {
+  // [ground cost] (and only where they have weight enough to see: scree takes a third of
+  // them, and nearly all gentle ground is a few hundredths scree: two reads on 70 % of the
+  // ground for a tint of under a third of a level. STRATA_LEAST: the largest change of the
+  // colour that is given up, 0.4 %; a world without strata reads nothing)
+  if ((max(rockW + 0.35 * screeW, bedM) + uStrataFlat) * (uStrata.y + uStrata.w) > STRATA_LEAST) {
     // (the strata's picture has one level: read as that, it needs no footprint, which
     // inside a branch it could not have)
     vec3 tint = textureLod(tStrata, vec2(hs * uStrata.x, 0.25), 0.0).rgb * 2.0;
-    vec3 tintFine = textureLod(tStrata, vec2(hs * uStrata.z, 0.75), 0.0).rgb * 2.0;
-    band = mix(vec3(1.0), tint, uStrata.y) * mix(vec3(1.0), tintFine, uStrata.w);
+    band = mix(vec3(1.0), tint, uStrata.y);
+    // (the fine bands by the same test: on the made world they are a thirtieth of the colour at most)
+    if ((max(rockW + 0.35 * screeW, bedM) + uStrataFlat) * uStrata.w > STRATA_LEAST) band *= mix(vec3(1.0), textureLod(tStrata, vec2(hs * uStrata.z, 0.75), 0.0).rgb * 2.0, uStrata.w);
   }
   // (on gentle ground the bands follow the height, so from far away they would draw
   // contour lines across the plains: they show near the ground only)
@@ -750,7 +766,7 @@ void main() {
   // =====================================================================================
   float shellOut = vShell;      // (how much of the ground here is canopy, the broken edge counted)
   if (canopyTall > 0.3 && vShell > 0.0) {
-    vec3 c1 = texture(tDetail, vDetailUv * 5.0).rgb - 0.5, c2 = texture(tDetail, vDetailUv * 1.0).rgb - 0.5;
+    vec3 c1 = texture(tDetail, vDetailUv * 5.0).rgb - 0.5, c2 = d0.rgb - 0.5;   // [ground cost] (c2: the tile at one repeat, which d0 has read already)
     float fwC = fwidth(vDetailUv.x) + fwidth(vDetailUv.y);
     // Where the crowns are under a pixel (from 3 km up, and out to some tens of km), the wood
     // is clumps: domes some 43 m across (one and a half to a tile), a dome each, as the far
@@ -840,7 +856,7 @@ void main() {
     // straight-edged facets along the triangles)
     float glade = smoothstep(0.45, 0.15, shellOut) * smoothstep(250.0, 500.0, dist) * smoothstep(0.15, 0.35, dot(V, up)) * flatW;
     if (glade > 0.0) {
-      albedo = mix(albedo, grassColour(uGrassTone.x, 0.62) * mapTint * (0.85 + 0.3 * texture(tDetail, vDetailUv).b), 0.85 * glade);
+      albedo = mix(albedo, grassColour(uGrassTone.x, 0.62) * mapTint * (0.85 + 0.3 * d0.b), 0.85 * glade);
       ao = mix(ao, ao / mix(1.0, 0.55, canopyShade), glade); canopyShade *= 1.0 - glade;
     }
   }
@@ -1231,9 +1247,9 @@ export const DETAIL_PERIOD = 16;
 export function makeTerrainMaterial(shared, pool) {
   return new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
-    // DETAIL_LAST: the square of the footprint (in repeats of the texture a pixel) from which a
-    // sampler with at most 4 taps along the long side answers with the last level: (4 / 1)^2, and as much again in case a GPU chooses its level a step finer than the rule
-    defines: { ...atmosphereDefines(), DETAIL_LAST: '64.0', CLOUD_VERT_TILES: CLOUD_VERT_TILES.toFixed(1), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, DETAIL_TILE, DETAIL_PERIOD, VERT_W: pool.VW, MORPH_START: CONFIG.MORPH_START, GRASS_FAR0: GRASS_GROUND.far[0].toFixed(1), GRASS_FAR1: GRASS_GROUND.far[1].toFixed(1), GRASS_FLOWER_SHARE: GRASS_GROUND.flowers.toFixed(3), GRASS_SLOPE0: GRASS_GROUND.slope[0].toFixed(3), GRASS_SLOPE1: GRASS_GROUND.slope[1].toFixed(3) },
+    // DETAIL_LAST: the square of the footprint (in repeats of a close-up layer a pixel) beyond which the layer is not read; DETAIL_FADE: from where it fades to its mean.
+    // (A sampler with at most 4 taps along the long side answers with the last level, the mean itself, from (4 / 1)^2, or 64 on a GPU that chooses its level a step finer: the reads stopped there until the ground-cost work.)
+    defines: { ...atmosphereDefines(), DETAIL_LAST: '4.0', DETAIL_FADE: '1.0', STRATA_LEAST: '0.004', CLOUD_VERT_TILES: CLOUD_VERT_TILES.toFixed(1), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, DETAIL_TILE, DETAIL_PERIOD, VERT_W: pool.VW, MORPH_START: CONFIG.MORPH_START, GRASS_FAR0: GRASS_GROUND.far[0].toFixed(1), GRASS_FAR1: GRASS_GROUND.far[1].toFixed(1), GRASS_FLOWER_SHARE: GRASS_GROUND.flowers.toFixed(3), GRASS_SLOPE0: GRASS_GROUND.slope[0].toFixed(3), GRASS_SLOPE1: GRASS_GROUND.slope[1].toFixed(3) },
     vertexShader: VERT, fragmentShader: FRAG,
     uniforms: {
       ...shared,
