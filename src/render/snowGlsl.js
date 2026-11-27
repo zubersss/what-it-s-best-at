@@ -28,6 +28,13 @@ bool snowMay(float height, vec3 up) {
   float line = uSnowLand.x - uSnowLand.y * alat + uSnowYear.z + (up.z >= 0.0 ? uSnowYear.x : uSnowYear.y) * clamp(alat / 45.0, 0.0, 1.0) * uSnowLand.z;
   return height > line - uSnowLand.w - 700.0;
 }
+// (where the land's own, painted, snow can lie: within some 800 to 1 100 m under its line and
+// above; far below it whatever is pale in the land's colour is sand or salt. 0..1)
+float snowOwnZone(float height, vec3 up) {
+  if (uSnowLand.z <= 0.0) return 0.0;
+  float own = uSnowLand.x - uSnowLand.y * degrees(asin(clamp(abs(up.z), 0.0, 1.0)));
+  return smoothstep(own - 1100.0, own - 800.0, height);
+}
 vec2 snowSeason(float height, vec3 up, vec3 N, float slope, float rough) {
   if (uSnowLand.z <= 0.0) return vec2(0.0);
   float alat = degrees(asin(clamp(abs(up.z), 0.0, 1.0)));

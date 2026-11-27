@@ -1,9 +1,9 @@
 // The season's one rule (src/life/season.js) against its promises. No browser, a second.
-//   node scripts/season-test.mjs [--break year|opening|evergreen|far|ground|jump|litter|snow|grass|whole]
+//   node scripts/season-test.mjs [--break year|opening|evergreen|far|ground|jump|litter|snow|grass|whole|farwood]
 // --break puts one fault in to see its check fail (a test that cannot fail is worse than none).
 import { getWorld } from '../src/worlds/index.js';
 import fs from 'node:fs';
-import { SPECIES, bloomOf, treeLook, packed, COLOUR_TOP, canopyYear, floraFor } from '../src/life/cover.js';
+import { SPECIES, bloomOf, treeLook, packed, COLOUR_TOP, canopyYear, canopyFar, floraFor } from '../src/life/cover.js';
 import * as S from '../src/life/season.js';
 import { LAND_DEFAULTS } from '../src/terrain/tiles/madeLand.js';
 import { KINDS, kindsShut } from '../src/life/grassRules.js';
@@ -238,6 +238,20 @@ for (const w of [hv, earth]) for (const lat of [lat0, 45]) {
     if (d < 0 || d >= S.yearMs(w) || d % S.dayMs(w) !== 0 || off > 1.01 || S.seasonName(y).name !== n) { ok = false; detail += ` ${n}: ${d / S.dayMs(w)} days, ${off.toFixed(2)} days off`; }
   }
   check(`${w.id} at ${lat}: each season is a whole number of days on, and is that season`, ok, detail);
+}
+
+// The wood as a whole, from so far that no patch of trees is a pixel (cover.js canopyFar, the
+// ground's uCanopyFar): no change in high summer, warmer than green in autumn where trees that
+// drop their leaves stand, nothing ever where only evergreens do.
+{
+  const far = Array.from({ length: 8 }, () => ({ x: 0, y: 0, z: 0, w: 0 })), at = (y) => 80 + (y + (brk === 'farwood' ? 0.22 : 0)) * S.LIFE_YEAR;
+  canopyFar(haven, at(S.SEASONS.summer), 45, 50, far);
+  const summer = far.every((v) => Math.abs(v.x - 1) < 1e-6 && Math.abs(v.y - 1) < 1e-6 && Math.abs(v.z - 1) < 1e-6);
+  check('the far wood: high summer leaves the land\'s colour as it is', summer, far.map((v) => v.x.toFixed(2)).join(' '));
+  canopyFar(haven, at(S.SEASONS.autumn), 45, 50, far);
+  const mixed = far.filter((v) => v.w > 0.05), ever = far.filter((v) => v.w < 0.004);
+  check('the far wood: autumn turns it warm where trees drop their leaves, by their share', mixed.length > 0 && mixed.every((v) => v.x / v.y > 1.05), mixed.map((v) => `${(100 * v.w).toFixed(0)} %: ${(v.x / v.y).toFixed(2)}`).join(', '));
+  check('the far wood: a height with evergreens alone never changes', ever.every((v) => Math.abs(v.x - 1) < 1e-6 && Math.abs(v.y - 1) < 1e-6), `${ever.length} of 8 heights`);
 }
 
 console.log(failed ? `\n${failed} FAILED` : '\nseason: all checks passed');

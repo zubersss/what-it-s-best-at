@@ -989,9 +989,14 @@ void main() {
   // past the land's own snow, it lies on the ground and on the canopy raised beyond the
   // trees: white, a little blue in the shade (the light does that), the ground's own colour
   // showing at its edge in patches. Not on water.
-  if (snowHere.x > 0.0 && waterDepth <= 0.0) {
-    float lieS = smoothstep(0.25, 0.75, snowHere.x + (texture(tDetail, vDetailUv * 3.0).g - 0.5) * 0.5 * (1.0 - smoothstep(200.0, 900.0, dist)));
-    albedo = mix(albedo, vec3(0.80, 0.83, 0.88), lieS * (1.0 - 0.45 * shellOut));
+  // (and the land's own snow, painted into its colour map, where it still lies: the same
+  // white. Its colour came through the ground's palette, a pale grey with the dust's hue,
+  // lilac in the shade, beside new snow that was white.)
+  float snowOwn = snowHere.z * (1.0 - snowHere.y) * (snowHere.z > 0.0 ? snowOwnZone(vHeight, up) : 0.0);
+  if ((snowHere.x > 0.0 || snowOwn > 0.0) && waterDepth <= 0.0) {
+    float lieS = 0.0;
+    if (snowHere.x > 0.0) lieS = smoothstep(0.25, 0.75, snowHere.x + (texture(tDetail, vDetailUv * 3.0).g - 0.5) * 0.5 * (1.0 - smoothstep(200.0, 900.0, dist)));
+    albedo = mix(albedo, vec3(0.80, 0.83, 0.88), max(lieS, snowOwn * (1.0 - rockW)) * (1.0 - 0.45 * shellOut));
   }
 
   // --- the tide, and the wash of the waves up the shore. The map's shore is the highest
