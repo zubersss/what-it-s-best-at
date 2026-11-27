@@ -233,7 +233,7 @@ python3 scripts/fit-orbits.py      # orbits fitted to JPL Horizons (needs ssd.jp
 npm run assets         # re-download and convert the small NASA/Yale files into public/data/
 python3 scripts/fetch-maps.py   # the rest of public/data/ (needs: pip install rasterio numpy pillow), see docs/ASSETS.md
 node scripts/parts-out.mjs --world haven --shot ledge [--query ..] [--box 0.2,0.6,0.8,1] [--distdir build]   # who draws that? one view taken with one part out at a time (grass, clumps, trees, far forest, rocks, shadow casters), and how much of the picture each changes
-scripts/ground-cost-run.sh <scratch dir> [--only ledge,air3k] [--before old-terrainMaterial.js] [--save dir] [--parts file.mjs] [--size 880x412 --dsf 2.2]   # what the ground's shading costs, as a count of work on software WebGL (never a frame rate): the game's ground alone at ten views, the shader of an earlier commit beside the new one in the same browser session, and how far their pictures are apart (git show <commit>:src/terrain/terrainMaterial.js > old-terrainMaterial.js). Runs scripts/ground-cost.mjs from a copy of the tree: the dev server reloads the page at any source edit
+scripts/ground-cost-run.sh <scratch dir> [--only ledge,air3k] [--before old-terrainMaterial.js] [--save dir] [--compare dir] [--parts file.mjs] [--tiers] [--step ground-far] [--add t=6] [--size 880x412 --dsf 2.2]   # what the ground's shading costs, as a count of work on software WebGL (never a frame rate): the game's ground alone at ten views, the shader of an earlier commit beside the new one in the same browser session, and how far their pictures are apart (git show <commit>:src/terrain/terrainMaterial.js > old-terrainMaterial.js). Runs scripts/ground-cost.mjs from a copy of the tree: the dev server reloads the page at any source edit. --tiers: what a pixel of the ground reads, counted by the shader itself (texture reads by map and kind, noises, loop turns; by distance and by block; why the parent's maps and the strata were asked for): a count true on any device
 node scripts/make-hero.mjs [--tris 120000] [--low 24000] [--stage look]   # the owner's sculpt (assets-src/hero/) into the game's character file (public/data/hero.bin), 25 s: materials and garments by the seeds in scripts/hero/seeds.mjs, colours, two reduced meshes, the binding to the figure's parts and cloth (scripts/hero/heroBind.mjs). Run again after changing a seed, a joint or a cloth sheet
 node scripts/hero-preview.mjs --out f.png [--pose stand|hover|fly|fast|walk|run] [--yaws 0,90,180] [--labels|--garments|--parts|--cloth] [--lod 1] [--twosided]   # that file drawn without a browser in a second, posed by the game's own code
 node scripts/make-hero-rig.mjs [--low 24000] [--texture 2048]   # the owner's rigged character (assets-src/hero-rig/*.glb: skeleton, clips, pictures) into public/data/hero_rig.bin and .jpg, 2 s (needs Python's PIL for the picture)
@@ -849,6 +849,17 @@ finished benchmark leaves its text in `window.__benchResult`.
   rule ends a thing, with noise at two scales in it. And a change to where trees stand is
   looked at from the opening place before anything else: three trees had appeared within
   15 m of it (`node scripts/find-tree.mjs` on the old checkout and the new says which).
+- A patch of the ground is drawn out to twice the distance at which its blend toward its
+  parent is complete (a patch splits by its nearest point, its pixels reach a patch's width
+  further): on three quarters of the far ground the parent's maps were the whole answer and
+  the patch's own were read and weighted nought. A blend's two ends are each a branch. And a
+  shader's own count of what it reads (`ground-cost --tiers`) found in an hour what reading
+  the shader had not: every pixel made 15 to 20 reads at every distance.
+- A `--before` comparison draws an old shader with today's textures and uniforms: once a
+  cut changes what a texture holds (the relief map's two halves packed into one texel) the
+  old shader reads rubbish and the comparison says 29 % of the picture moved. Compare then
+  against pictures saved by a run of the old tree (`--save`, `--compare`). And a queue of
+  runs that each copy the working tree copies whatever was edited in between: copy once.
 - The same thing drawn three ways must take its season from one answer (near meshes, whole
   tree pictures, the far forest): bare aspens were full green crowns from 60 m on for as
   long as only the nearest mesh asked. And a rule's colours must be looked at after

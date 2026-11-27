@@ -127,6 +127,10 @@ export const FEATURE_STEPS = [
   { id: 'clouds', buys: 4.0, label: "the clouds' shadows on the ground", live: (app) => !!app.clouds?.mesh?.visible, apply: (app, off) => { app.sky?.setSaving('clouds', off); } },
   // (3.5 ms at the opening view, 2.1 from the air)
   { id: 'far-relief', buys: 3.5, label: 'relief shading of far ground', live: (app) => (app.terrain?.shared?.uRelief?.value.x ?? 1) > 0, apply: (app, off) => { app.quality.w = off ? 0 : 1; } },
+  // (not measured on the phone yet. From the air it takes 2 of the 13 texture reads a pixel of
+  // ground makes: the land's painted patches from one read, the rock's bands on rock only,
+  // the forest floor's tufts from one. Nothing is removed: docs/briefs/ground-cost-report.md)
+  { id: 'ground-far', buys: 2.0, label: "the far ground's finer tones", apply: (app, off) => { const u = app.terrain?.shared?.uGroundThin; if (u) u.value = off ? 1 : 0; } },
   // (9.4 ms from the air on build 6ac24ff)
   { id: 'cloud-volume', buys: 9.4, label: 'clouds with depth (they stay as a layer)', live: cloudVolume, apply: (app, off) => { app.sky?.setSaving('cloud-volume', off); } },
   // --- 4. nothing that could be measured on the phone (each line: its largest reading in the three views)

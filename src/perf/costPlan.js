@@ -26,7 +26,7 @@ export const SAVING_GROUPS = [
   { id: 'trees', label: 'the trees and leaves (trees-far, far-trees, tree-leaves, tree-shadows, leaves, leaf-carpet)', steps: ['trees-far', 'far-trees', 'tree-leaves', 'tree-shadows', 'leaves', 'leaf-carpet'] },
   { id: 'sky', label: "the sky's (the eleven cloud, fog and rain savings)", steps: ['cloud-far', 'cloud-upper', 'rain-shafts', 'cloud-shade-rate', 'lenses', 'fog-sheet', 'cloud-shade-coarse', 'clouds', 'cloud-volume', 'cloud-steps', 'rain'] },
   { id: 'shadows', label: 'the shadows (fine-shadows, soft-shadows, contact, far-rock-shadows, air-shadow)', steps: ['fine-shadows', 'soft-shadows', 'contact', 'far-rock-shadows', 'air-shadow'] },
-  { id: 'ground', label: "the ground's (detail, far-relief, water, snow-edge)", steps: ['detail', 'far-relief', 'water', 'snow-edge'] },
+  { id: 'ground', label: "the ground's (detail, far-relief, ground-far, water, snow-edge)", steps: ['detail', 'far-relief', 'ground-far', 'water', 'snow-edge'] },
   { id: 'things', label: 'rocks and the figure (rocks, far-rocks, cloak, figure, dust)', steps: ['rocks', 'far-rocks', 'cloak', 'figure', 'dust'] },
   { id: 'glow', label: 'glow (bloom, sun-beams, edge-glow)', steps: ['bloom', 'sun-beams', 'edge-glow'] },
 ];
