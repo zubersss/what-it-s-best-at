@@ -275,7 +275,29 @@ before the clear is what the picture and the shadow tiles now do).
    in four of those in the picture were thrown out only after their stretch's lie and swath
    (nine sines), their clump and their seed head had been worked out, at each of three
    vertices. The same sums in another order: the blades kept are drawn as they were.
-4. **The figure's nine part matrices are uniforms** (`heroSculpt.js`): a vertex with no loose
+4. **Single flowers: only the cells that can carry one are handed over**
+   (`grassBlocks.js`, `flowerCells`; after the count of dde2792: flowers were still 237 000
+   triangles there, a fifth of the frame's runs of a vertex shader, for some hundred flowers in
+   the picture). A field of flowers handed every cell of its window to the shader: 36
+   triangles a cell near the eye, 16 farther out, and the shader said no to ninety-nine in a
+   hundred (a kind grows where the ground table says, and of the cells there the share its
+   density gives, each by a number of its own). The page now works that number out as the
+   shader does (its `hash2`, in 32-bit sums) and lists a cell unless it is clear of the most
+   flowers the ground could carry anywhere its plant could ask, with a margin of 0.03 for a GPU
+   that rounds a sum another way (a last place of the dot product moves the number by some
+   0.003) and both ends of 0..1 kept (where a number that wraps is one side on one machine and
+   the other on the next). **The shader still decides, by its own number**: nothing is left out
+   that it would have drawn. In the test's views 0.2 to 0.4 % of the cells are on the lists.
+   The lists are made again only when the window has moved by a cell, a table has changed or
+   other blocks are in view (a cell's number is kept: a moved window asks about its new row).
+   And a flower part's four corners are shared by its two triangles (it was six runs of the
+   vertex shader for four places).
+5. **The choosing costs the page little, and nothing while nothing moves.** A block is asked
+   first with the whole table's lowest and highest ground (four in five go there); with the
+   eye, the picture and the tables as they were a frame before, the last choosing is put on
+   again (0.007 ms). While the eye moves: 0.25 ms a frame on the build machine with a browser
+   drawing beside it, 0.54 ms on a frame that makes the flowers' lists again.
+6. **The figure's nine part matrices are uniforms** (`heroSculpt.js`): a vertex with no loose
    cloth (body, boots, hands, head) read nine texels of a float texture and now reads none;
    a cloth vertex reads its particles as before. The same numbers: no change to the picture.
 
