@@ -67,7 +67,11 @@ made to go with it. No new animation system, no skeleton file, nothing bought.
    it is shifted by up to four cloth particles (a particle's shift: where it is now less
    where the parts alone would have carried it). Garments (body, skirt, each sleeve, hair)
    come from a second set of seeds, put right by where they are, and **blended across
-   their joins** over some 6 cm of surface.
+   their joins** over some 6 cm of surface. Where rules are blended each keeps its share
+   and they divide the four particles between them (taking the four that count most from
+   all together tipped from one garment's particles to the other's between neighbours,
+   and tore there). A particle's shift is evened out over 24 neighbours of its garment
+   (the simulated skirt is three panels that part at their slits; the gown is one piece).
 The game (`hero/heroSculpt.js`) does that sum in the vertex shader from one small float
 texture written once a frame (`hero/heroPalette.js`: the same sums in the game and in the
 tools), and draws only the surface's outside. The cloth's own mesh is no longer worked out.
@@ -81,7 +85,11 @@ tools), and draws only the surface's outside. The cloth's own mesh is no longer 
 - drawing both sides: the cloth's two faces lie a centimetre apart and cross in motion,
   the inner one showing through as dark rags. Only the outside is drawn.
 
-**Tools.** `node scripts/hero-preview.mjs --out f.png [--pose stand|hover|fly|fast|walk|run]
+**Seen in the game** (Mars, the ledge, `?hero=1&heropose=hover|stand&posedir=front|fly|walk&posedir=side&fov=36`):
+whole and right in each; from behind in flight one looks up the gown at the boots.
+
+**Tools.** `node scripts/hero-bind-test.mjs [--list]` (standing gives the sculpt back; in
+the game's poses the surface is not torn). `node scripts/hero-preview.mjs --out f.png [--pose stand|hover|fly|fast|walk|run]
 [--yaws 0,90,180] [--labels | --garments | --parts | --cloth] [--lod 1] [--twosided]`
 draws the file without a browser in a second (the game's own pose and cloth code runs in
 Node). `scripts/hero-cost.mjs` still guards the cloth; its reference was written anew
@@ -96,7 +104,13 @@ arm.
 - pearls, tassels, brows and lips have no seeds yet (they take the colour of what they lie
   on: the face has no brows or mouth colour); a hair-coloured band inside the collar;
 - where a sleeve touches the skirt the cloth between them stretches when the arm moves far
-  (a fold, by design; it can look like a web with the arm raised high);
+  (a fold, by design). In flight one arm is held out ahead and that fold is drawn out into
+  a thin sheet from its sleeve back to the skirt (`node scripts/hero-bind-test.mjs` counts
+  it: some 2 700 edges in `fly`, bounded at 6 500). The cure would be to take the sleeves
+  off the skirt in the sculpt itself (close the two skins where they touch), a modelling
+  job, or a flight pose with both arms back;
+- the hair over the brow is the sculpt's fringe (flush with the face, down to the eyes): it
+  is hair-coloured on purpose;
 - the cloth's shading follows the sculpt's own normals mixed with the surface as it lies
   now: a skirt streaming straight back in fast flight is lit less truly than a hanging one;
 - cost on the phone is not measured: 120 000 triangles and 13 texture reads a vertex; the
