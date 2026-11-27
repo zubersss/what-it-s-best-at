@@ -41,6 +41,47 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### The owner on the character and the eleventh phone results (2026-11-27, on build 49e4294)
+
+The owner: "The model was made by me and when im running as the model it looks glitchy
+specially the legs and the cape is still really glitchy on flight and when im running also
+the running animation and flying animation could all use alot of work I want the cape to
+flow much smoother without overlap glitching happening to the outfit the model is wearing",
+with a Haven benchmark in Sharp (`docs/benchmarks/2026-11-27-haven-49e4294.txt`: 28.8 fps,
+6.3 % late; Haven ledge 23.9 fps with 32 % late at 2.67 MP, sun 13 %, ship 19 %; the page's
+own work 8.0 ms, the character 1.3 to 2.1 of it; 69 quality steps, features off 29 times and
+back on 29).
+
+**Done for the character since that build** (all in the next link):
+- *The cloth turns the sculpt as well as moving it* (see "The owner's sculpt in the game":
+  49e4294 moved it only, and every carved fold was sheared: the "glitchy cape").
+- *The legs no longer come through the gown.* Measured: 3 600 gown vertices inside a leg's
+  capsule in a run, up to 11.5 cm deep. Now every cloth vertex stays on the side of each
+  leg it was sculpted on (`heroPalette.js`, `keepOff`; the vertex shader does the same): a
+  third remain, all of them cloth that stood that near a leg in the sculpt. Pushed straight
+  out from the leg's line instead, cloth that had crossed the line went out the far side
+  and tore.
+- *Flight: arms swept back, sleeves streaming* (`hero.js`, the cruise, boost and take-off
+  poses). One arm reaching ahead is right for a caped suit and wrong for a robe: the sleeve
+  hid the hand, hung ahead of the head, and drew the join between sleeve and skirt out into
+  a sheet (4 000 drawn-out edges in fast flight; 270 now). The arms ride the air and the
+  legs trade places slowly, so the pose is alive.
+- *A sleeve standing on end over the back in flight*: the breeze that keeps the cloth
+  alive blew "from ahead" in the body's frame, which is toward the back of an upright
+  figure and upward for a flying one. It now turns toward the feet with the flight amount.
+- *The run*: a stride instead of a pendulum (the thigh further and quicker forward, the knee
+  folding as the leg comes through and giving as the foot takes the weight), more lean, the
+  shoulders turning against the legs, the weight tipping over the standing foot, the body
+  riding the stride (1.2 to 4 cm).
+**Changed for the player on purpose**: the flight and take-off poses, the run's motion.
+**Not done**: the hands are open in every pose; the head does not turn or look; nothing
+eases between the run and a stop beyond the gait's fade; super speed's sleeves whip
+roughly (bounded in `hero-bind-test`).
+
+**The results**: a reader with the governor's simulation is on them (its findings go here);
+the sky's costs at the ledge (fog and mist 8.1 ms, cloud-steps 7.9, cloud-volume 4.5,
+middle and high cloud 4.5, lens clouds 3.2) go to the sky helper.
+
 ### Helpers running since 2026-11-27 04:40 UTC (the owner: "you can use more than one session ... no more than 4")
 
 Three helper sessions on machines of their own, each with a brief in `docs/briefs/`, a
