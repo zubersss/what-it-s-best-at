@@ -744,7 +744,8 @@ finished benchmark leaves its text in `window.__benchResult`.
   behind what touches. Bound to moving cloth sheet by sheet it tore into shards; cut at the
   joins it had ragged holes; drawn two-sided its inner face showed through as dark rags.
   What works: carry by the body's parts, add the cloth's shift, blend garments across their
-  joins, draw the outside only. And measure a tear before guessing at it: a count of edges
+  joins, draw the outside only; and the cloth must turn the surface as well as move it (moved
+  alone, every carved fold was sheared into crumpled foil). And measure a tear before guessing at it: a count of edges
   drawn out in a pose, by cause (`node scripts/hero-bind-test.mjs --list`), named the fused
   joins in one run after three guesses had not.
 - Look at the game as the player gets it, with no switch in the URL. The sky's field fell back

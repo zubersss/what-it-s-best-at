@@ -86,6 +86,14 @@ export class Hero {
     this.robe.drawn = false;
     this.show(this.shown);
   }
+  // ... and gives it back (a device that cannot make the sculpt's shaders).
+  dropSculpt() {
+    if (!this.sculpt) return null;
+    const sculpt = this.sculpt; this.group.remove(sculpt.mesh); this.sculpt = null;
+    this.robe.drawn = true;
+    this.show(this.shown);
+    return sculpt;
+  }
   // The figure in the picture or out of it (its shadow stays either way).
   show(on) {
     this.shown = on;

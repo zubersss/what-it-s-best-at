@@ -2,24 +2,27 @@
 // posed by the game's own code without a browser (for scripts/hero-preview.mjs).
 //
 // A vertex is carried by one or two of the body's nine rigid parts (the torso with the head,
-// upper arms, forearms with the hands, thighs, shins with the feet), by how near it is to
-// each part's middle line as the sculpt stands; and, where the cloth is loose (the skirt
-// below the hips, the sleeves away from the arms, the hair down the back), shifted by the
-// simulated cloth's particles near it (hero/heroPalette.js), by a weight that falls smoothly
-// to nothing with distance and toward the garment's edge. Which loose cloth a vertex may
-// hang on is its garment (hero/seeds.mjs, garments).
+// upper arms, forearms with the hands, thighs, shins with the feet) and the torso, by how
+// near it is to each part's middle line as the sculpt stands; and, where the cloth is loose
+// (the skirt below the hips, the sleeves away from the arms, the hair down the back), it
+// goes by its share of cloth with the simulated cloth instead (hero/heroPalette.js): with
+// the three particles round the place on its garment's sheets nearest it. Which loose cloth
+// a vertex may hang on is its garment (hero/seeds.mjs, garments), blended across the joins
+// between garments.
 //
 // Written a vertex: parts (u8 x 4: first part, second part, the second's share and the
 // torso's share in 255ths; the rest is the first's), movers (u16 x 4: particles) and shares
 // (u8 x 4: their weights in 255ths; they add up to the vertex's share of cloth). And once:
 // rest (each particle's place as the sculpt stands), carried (which parts carry it rigidly:
-// three numbers), partsRest (the nine parts' places then, 4 x 4 each).
+// three numbers), grid and frame (its neighbours along its sheet and the sheet's axes
+// there), near and nearW (the neighbours its turn and move are evened out over), partsRest
+// (the nine parts' places then, 4 x 4 each).
 import * as THREE from 'three';
 import { Hero } from '../../src/hero/hero.js';
 import { ELBOW, HAND, KNEE, ANKLE, SHOULDER, HIP, SCULPT_ARM, SCULPT_LEG } from '../../src/hero/heroModel.js';
 import { LABELS } from './seeds.mjs';
 import { adjacency, Heap } from './lib.mjs';
-import { PARTS, NEAR, paletteTexels, fillPalette } from '../../src/hero/heroPalette.js';
+import { PARTS, NEAR, paletteTexels, particleFrames, fillPalette } from '../../src/hero/heroPalette.js';
 
 const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const L = Object.fromEntries(LABELS.map((n, i) => [n, i]));
@@ -128,13 +131,45 @@ export async function bind(m, say = () => {}) {
   tidy(m, say);
   const hero = standing(), robe = hero.robe, pos = robe.pos, np = robe.count, n = m.position.length / 3, P = m.position;
   // ---- the cloth's particles by garment, and how far each reaches --------------------------
-  const kind = new Uint8Array(np), reach = [0, 0.17, 0.26, 0.26, 0.15];
+  const kind = new Uint8Array(np), SHARE = 255;
   robe.patches.forEach((p) => { const k = p.name.startsWith('skirt') ? 1 : p.name === 'sleeveL' ? 2 : p.name === 'sleeveR' ? 3 : 4; for (let i = 0; i < p.nx * p.ny; i++) kind[p.base + i] = k; });
-  // ---- a garment's rule at a place: the nine parts' shares, and the cloth's particles ------
-  // (the particles: the four of the garment that pull hardest, less the fifth's pull, so one
-  //  coming into the four comes in from nothing; the reach is the garment's, or, where the
-  //  sculpt's cloth hangs further than the simulated sheet does, far enough to meet it)
-  const top = new Float64Array(5), topI = new Int32Array(5);
+  // ---- the simulated sheets as triangles (two a cell of each patch's grid), by garment ----
+  const sheet = [[], [], [], [], []];
+  robe.patches.forEach((p) => {
+    const g = kind[p.base], id = (ix, iy) => p.base + iy * p.nx + ix;
+    for (let iy = 0; iy + 1 < p.ny; iy++) for (let ix = 0; ix + 1 < p.nx; ix++) sheet[g].push([id(ix, iy), id(ix + 1, iy), id(ix + 1, iy + 1)], [id(ix, iy), id(ix + 1, iy + 1), id(ix, iy + 1)]);
+  });
+  // the place on triangle a, b, c (particles) nearest a point: its three weights and how far (squared)
+  const bary = [0, 0, 0];
+  const nearest = (x, y, z, a, b, c) => {
+    const ax = pos[a * 3], ay = pos[a * 3 + 1], az = pos[a * 3 + 2], abx = pos[b * 3] - ax, aby = pos[b * 3 + 1] - ay, abz = pos[b * 3 + 2] - az, acx = pos[c * 3] - ax, acy = pos[c * 3 + 1] - ay, acz = pos[c * 3 + 2] - az;
+    const apx = x - ax, apy = y - ay, apz = z - az, d1 = abx * apx + aby * apy + abz * apz, d2 = acx * apx + acy * apy + acz * apz;
+    let v, w;
+    if (d1 <= 0 && d2 <= 0) { v = 0; w = 0; } else {
+      const bpx = apx - abx, bpy = apy - aby, bpz = apz - abz, d3 = abx * bpx + aby * bpy + abz * bpz, d4 = acx * bpx + acy * bpy + acz * bpz;
+      if (d3 >= 0 && d4 <= d3) { v = 1; w = 0; } else {
+        const vc = d1 * d4 - d3 * d2;
+        if (vc <= 0 && d1 >= 0 && d3 <= 0) { v = d1 / (d1 - d3); w = 0; } else {
+          const cpx = apx - acx, cpy = apy - acy, cpz = apz - acz, d5 = abx * cpx + aby * cpy + abz * cpz, d6 = acx * cpx + acy * cpy + acz * cpz;
+          if (d6 >= 0 && d5 <= d6) { v = 0; w = 1; } else {
+            const vb = d5 * d2 - d1 * d6;
+            if (vb <= 0 && d2 >= 0 && d6 <= 0) { v = 0; w = d2 / (d2 - d6); } else {
+              const va = d3 * d6 - d5 * d4;
+              if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) { w = (d4 - d3) / (d4 - d3 + d5 - d6); v = 1 - w; } else { const dn = 1 / (va + vb + vc); v = vb * dn; w = vc * dn; }
+            }
+          }
+        }
+      }
+    }
+    bary[0] = 1 - v - w; bary[1] = v; bary[2] = w;
+    return (apx - abx * v - acx * w) ** 2 + (apy - aby * v - acy * w) ** 2 + (apz - abz * v - acz * w) ** 2;
+  };
+  // ---- a garment's rule at a place: the nine parts' shares, and the cloth's particles: the
+  //      three round the place on the garment's simulated sheets nearest it, by how near each
+  //      is to that place. (So the shift is the sheet's own there, running smoothly over it:
+  //      the particles "that pull hardest" by a rounded weight gave a shift that changed its
+  //      slope every few centimetres, and the gown was crinkled like foil in every pose: the
+  //      fold between neighbouring faces changed by 17 degrees on average) --------------------
   const rule = (g, x, y, z, lab, w9, cloth, f) => {
     const [b0, b1, w1] = partsOf(x, y, z, lab, g); w9[b0] += f * (1 - w1); w9[b1] += f * w1;
     let wc = 0;
@@ -142,16 +177,11 @@ export async function bind(m, say = () => {}) {
     else if (g === 1) wc = ss(0.12, -0.04, y);                       // the skirt below the hips,
     else if (g) { const [along, rad] = armPlace(x, y, z, g - 2); wc = ss(0.06, 0.13, rad) * ss(0.02, 0.12, along); }   // a sleeve away from its arm
     if (wc * f < 0.004) return;
-    let near = 1e9; for (let i = 0; i < np; i++) if (kind[i] === g) near = Math.min(near, (pos[i * 3] - x) ** 2 + (pos[i * 3 + 1] - y) ** 2 + (pos[i * 3 + 2] - z) ** 2);
-    const r2 = Math.max(reach[g] * reach[g], 2.6 * near); top.fill(0); topI.fill(-1);
-    for (let i = 0; i < np; i++) {
-      if (kind[i] !== g) continue;
-      const d2 = (pos[i * 3] - x) ** 2 + (pos[i * 3 + 1] - y) ** 2 + (pos[i * 3 + 2] - z) ** 2; if (d2 >= r2) continue;
-      const w = (1 - d2 / r2) ** 2; let k = 4; if (w <= top[4]) continue;
-      while (k > 0 && top[k - 1] < w) { top[k] = top[k - 1]; topI[k] = topI[k - 1]; k--; }
-      top[k] = w; topI[k] = i;
-    }
-    if (top[0] > 0) cloth.push({ share: wc * f, w: Array.from(top), i: Array.from(topI) });
+    let best = 1e9, bt = null, w0 = 0, w1b = 0, w2 = 0;
+    for (const t of sheet[g]) { const d = nearest(x, y, z, t[0], t[1], t[2]); if (d < best) { best = d; bt = t; w0 = bary[0]; w1b = bary[1]; w2 = bary[2]; } }
+    if (!bt) return;
+    const order = [[w0, bt[0]], [w1b, bt[1]], [w2, bt[2]]].sort((p, q) => q[0] - p[0]);
+    cloth.push({ share: wc * f, w: order.map((o) => o[0]), i: order.map((o) => o[1]) });
   };
   // ---- every vertex: its garment's rule, and near a join with another garment a blend of
   //      both rules: so both sides of a join are moved alike, and what is drawn between a
@@ -167,24 +197,23 @@ export async function bind(m, say = () => {}) {
     const sum = (b0 ? w9[b0] : 0) + (b1 ? w9[b1] : 0) + w9[0];
     if (!b0) { parts[v * 4] = 0; parts[v * 4 + 1] = 0; }
     else { parts[v * 4] = b0; parts[v * 4 + 1] = b1 || b0; parts[v * 4 + 2] = b1 ? Math.round(255 * w9[b1] / sum) : 0; parts[v * 4 + 3] = Math.min(255 - parts[v * 4 + 2], Math.round(255 * w9[0] / sum)); }
-    // cloth: four particles in all. One garment's rule has all four; where rules are blended
+    // cloth: four particles in all. One garment's rule has its three; where rules are blended
     // each keeps its whole share and they divide the four between them (two and two; two, one
-    // and one): were the four that count most taken from all together, the choice would tip
-    // from one garment's particles to the other's between two neighbours, and tear there.
-    // (within a rule: its first few, each less the pull of the next one left out, so one
-    // coming in comes in from nothing)
+    // and one), each keeping the nearest of its three: were the ones that count most taken
+    // from all together, the choice would tip from one garment's particles to the other's
+    // between two neighbours, and tear there.
     if (cloth.length) {
       cloth.sort((p, q) => q.share - p.share); cloth.length = Math.min(4, cloth.length);
-      const slots = cloth.length === 1 ? [4] : cloth.length === 2 ? [2, 2] : cloth.length === 3 ? [2, 1, 1] : [1, 1, 1, 1];
+      const slots = cloth.length === 1 ? [3] : cloth.length === 2 ? [2, 2] : cloth.length === 3 ? [2, 1, 1] : [1, 1, 1, 1];
       let k = 0, total = 0; const wts = [0, 0, 0, 0];
       cloth.forEach((c, r) => {
         const cnt = slots[r]; let sum = 0;
-        for (let q = 0; q < cnt; q++) sum += Math.max(0, c.w[q] - c.w[cnt]);
-        for (let q = 0; q < cnt; q++, k++) { movers[v * 4 + k] = Math.max(0, c.i[q]); wts[k] = sum > 1e-9 ? c.share * Math.max(0, c.w[q] - c.w[cnt]) / sum : q === 0 ? c.share : 0; total += wts[k]; }
+        for (let q = 0; q < cnt; q++) sum += c.w[q];
+        for (let q = 0; q < cnt; q++, k++) { movers[v * 4 + k] = c.i[q]; wts[k] = sum > 1e-9 ? c.share * c.w[q] / sum : q === 0 ? c.share : 0; total += wts[k]; }
       });
-      let left = Math.round(255 * Math.min(1, total)); if (left > 0) bound++;
+      let left = Math.round(SHARE * Math.min(1, total)); if (left > 0) bound++;
       const most = wts.indexOf(Math.max(...wts));
-      for (let q = 0; q < 4; q++) { if (q === most) continue; const w = Math.min(left, Math.round(255 * wts[q])); shares[v * 4 + q] = w; left -= w; }
+      for (let q = 0; q < 4; q++) { if (q === most) continue; const w = Math.min(left, Math.round(SHARE * wts[q])); shares[v * 4 + q] = w; left -= w; }
       shares[v * 4 + most] = left;
     }
   }
@@ -201,8 +230,12 @@ export async function bind(m, say = () => {}) {
     let sum = 0; for (const c of list) sum += c[1];
     for (let k = 0; k < NEAR; k++) { near[i * NEAR + k] = k < list.length ? list[k][0] : i; nearW[i * NEAR + k] = k < list.length ? list[k][1] / sum : 0; }
   }
+  // (each particle's neighbours along its sheet's two grid lines, and the sheet's axes there as the sculpt stands)
+  const grid = new Uint16Array(np * 4);
+  robe.patches.forEach((p) => { const id = (ix, iy) => p.base + iy * p.nx + ix; for (let iy = 0; iy < p.ny; iy++) for (let ix = 0; ix < p.nx; ix++) grid.set([id(Math.max(ix - 1, 0), iy), id(Math.min(ix + 1, p.nx - 1), iy), id(ix, Math.max(iy - 1, 0)), id(ix, Math.min(iy + 1, p.ny - 1))], id(ix, iy) * 4); });
+  const frame = particleFrames(pos, grid, new Float32Array(np * 9));
   const partsRest = new Float32Array(PARTS * 16); hero.parts.forEach((p, i) => partsRest.set(p.matrix.elements, i * 16));
-  return { parts, movers, shares, shared: { rest, carried, near, nearW, partsRest } };
+  return { parts, movers, shares, shared: { rest, carried, grid, frame, near, nearW, partsRest } };
 }
 
 // ---- the figure posed (what the vertex shader of hero/heroSculpt.js does, in JavaScript) ----
@@ -211,12 +244,16 @@ export function deform(m, M) {
   for (let v = 0; v < n; v++) {
     const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2], nx = N[v * 3], ny = N[v * 3 + 1], nz = N[v * 3 + 2], a = m.parts[v * 4] * 12, b = m.parts[v * 4 + 1] * 12, w = m.parts[v * 4 + 2] / 255, t = m.parts[v * 4 + 3] / 255, u = 1 - w - t;
     const q = [0, 0, 0], r = [0, 0, 0];
+    let cloth = 0; for (let k = 0; k < 4; k++) cloth += m.shares[v * 4 + k] / 255;
     for (let k = 0; k < 3; k++) {
       const o = k * 4;
-      q[k] = (M[a + o] * x + M[a + o + 1] * y + M[a + o + 2] * z + M[a + o + 3]) * u + (M[b + o] * x + M[b + o + 1] * y + M[b + o + 2] * z + M[b + o + 3]) * w + (M[o] * x + M[o + 1] * y + M[o + 2] * z + M[o + 3]) * t;
-      r[k] = (M[a + o] * nx + M[a + o + 1] * ny + M[a + o + 2] * nz) * u + (M[b + o] * nx + M[b + o + 1] * ny + M[b + o + 2] * nz) * w + (M[o] * nx + M[o + 1] * ny + M[o + 2] * nz) * t;
+      q[k] = (1 - cloth) * ((M[a + o] * x + M[a + o + 1] * y + M[a + o + 2] * z + M[a + o + 3]) * u + (M[b + o] * x + M[b + o + 1] * y + M[b + o + 2] * z + M[b + o + 3]) * w + (M[o] * x + M[o + 1] * y + M[o + 2] * z + M[o + 3]) * t);
+      r[k] = (1 - cloth) * ((M[a + o] * nx + M[a + o + 1] * ny + M[a + o + 2] * nz) * u + (M[b + o] * nx + M[b + o + 1] * ny + M[b + o + 2] * nz) * w + (M[o] * nx + M[o + 1] * ny + M[o + 2] * nz) * t);
     }
-    for (let k = 0; k < 4; k++) { const sh = m.shares[v * 4 + k] / 255; if (!sh) continue; const o = (PARTS * 3 + m.movers[v * 4 + k]) * 4; q[0] += sh * M[o]; q[1] += sh * M[o + 1]; q[2] += sh * M[o + 2]; }
+    for (let j = 0; j < 4; j++) {
+      const sh = m.shares[v * 4 + j] / 255; if (!sh) continue; const c = (PARTS + m.movers[v * 4 + j]) * 12;
+      for (let k = 0; k < 3; k++) { const o = c + k * 4; q[k] += sh * (M[o] * x + M[o + 1] * y + M[o + 2] * z + M[o + 3]); r[k] += sh * (M[o] * nx + M[o + 1] * ny + M[o + 2] * nz); }
+    }
     const rl = Math.hypot(r[0], r[1], r[2]) || 1;
     outP.set(q, v * 3); outN.set([r[0] / rl, r[1] / rl, r[2] / rl], v * 3);
   }
@@ -232,7 +269,7 @@ export function paletteOf(hero, shared) {
 }
 
 // The sculpt as the game would draw it in a pose, after `seconds` of that pose: 'stand' (as
-// the sculpt stands), 'hover', 'fly', 'fast', 'walk', 'run'. In the figure's group frame.
+// the sculpt stands), 'hover', 'fly', 'fast', 'walk', 'run', 'super', 'land', 'launch'. In the figure's group frame.
 export async function posed(m, shared, pose, seconds = 3) {
   if (pose === 'stand') return deform(m, paletteOf(standing(), shared));
   const hero = new Hero(); hero.group.visible = true;
@@ -241,7 +278,12 @@ export async function posed(m, shared, pose, seconds = 3) {
   if (pose === 'fast') { rig.velocity.set(0, 0, 80); rig.throttle = 1; rig.boost = true; }
   if (pose === 'walk') { rig.onFoot = true; rig.velocity.set(0, 0, 1.5); rig.agl = 0; }
   if (pose === 'run') { rig.onFoot = true; rig.velocity.set(0, 0, 4.5); rig.agl = 0; }
+  // (the app's own on-foot poses: FOOT_POSES in app.js)
+  if (pose === 'super') { rig.onFoot = true; rig.velocity.set(0, 0, 45); rig.throttle = 1; rig.agl = 0; }
+  if (pose === 'land') { rig.onFoot = true; rig.velocity.set(0.6, 0, 0); rig.agl = 0; rig.landedAt = -0.35; rig.landSpeed = 14; }
+  if (pose === 'launch') { rig.onFoot = true; rig.airborne = true; rig.vUp = 2.5; rig.upHeld = 0.3; rig.agl = 1.6; }
+  const tick = pose === 'land' ? 0 : 1 / 60;       // (the kneel is held a third of a second after the landing, as the app's picture of it is)
   const env = { gravity: 9.8, air: 1, groundClearance: null };
-  for (let i = 0; i < Math.round(seconds * 60); i++) { rig.clock += 1 / 60; hero.update(1 / 60, rig, env); }
+  for (let i = 0; i < Math.round(seconds * 60); i++) { rig.clock += tick; hero.update(1 / 60, rig, env); }
   return deform(m, paletteOf(hero, shared));
 }
