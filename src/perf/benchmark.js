@@ -10,7 +10,7 @@ import { MODES, FEATURE_STEPS, LATE } from './governor.js';
 import { latLonToDir } from '../core/ephemeris.js';
 import { BUILD } from '../core/build.js';
 import { GlTally, TALLY } from './glTally.js';
-import { GROUPS, costConfigs, baselineAt } from './costPlan.js';
+import { GROUPS, SAVING_GROUPS, costConfigs, baselineAt, framesFor } from './costPlan.js';
 
 const LAP = 180, STOP = 12, FLIGHT = 60;
 // The routes: the first world's five views, a flight, the second world's five views.
@@ -42,9 +42,9 @@ export class Benchmark {
     this.pt = new Float64Array(11 * PARTS.length); this.ptLast = Float64Array.from(app.profile.total);
     this.cost = null; this.costLines = null;
     // what the page hands the GPU, per stop (perf/glTally.js: counted for the length of the run only)
-    // (no renderer: a test's stand-in for the app, in Node; nothing is counted then)
-    const glc = app.renderer?.getContext?.();
-    if (glc) { this.tally = this.tally || new GlTally(glc); this.tally.install(); this.tally.take(null); }
+    // (no context: a test's stand-in for the game; then nothing is counted)
+    if (!this.tally) { const gl = app.renderer?.getContext?.(); this.tally = gl ? new GlTally(gl) : null; }
+    this.tally?.install(); this.tally?.take(null);
     this.gl = new Float64Array(11 * TALLY.length); this.glFrames = new Float64Array(11);
     this.rebakesFrom = app.terrain.rebakes || 0;
     this.n = 0;
@@ -229,7 +229,7 @@ export class Benchmark {
       const d = idx.map((i) => dts[i]);
       L.push(`  ${name}: ${fps(d).toFixed(1)} · ${(100 * d.filter(isLate).length / d.length).toFixed(1)} % · ${avg(idx.map((i) => sc[i])).toFixed(1)} ms · ${mp(avg(idx.map((i) => px[i])))} · ${refreshes(d)}`);
       // (the three largest parts of that work, ms a frame)
-      L.push(`      ${Profile.text(Array.from(this.pt.subarray(k * PARTS.length, (k + 1) * PARTS.length), (v) => v / idx.length), 0.2).split(' · ').slice(0, 4).join(' · ')}`);
+      L.push(`      ${Profile.text(Array.from(this.pt.subarray(k * PARTS.length, (k + 1) * PARTS.length), (v) => v / idx.length), 0.2).split(' · ').slice(0, 6).join(' · ')}`);
       // (what was handed to the GPU, a frame: counts, true whatever the frames' lengths say)
       if (this.glFrames?.[k]) L.push(`      ${GlTally.text(this.gl, k * TALLY.length, this.glFrames[k])}`);
     }
@@ -357,7 +357,9 @@ export class CostTest {
     // minute of this, from heat and from ground still arriving, and each saving is set against
     // the measures of "everything on" on either side of it, not against the first)
     const steps = FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-') && (!FEATURE_STEPS[i].has || FEATURE_STEPS[i].has(app)));
-    this.configs = costConfigs(steps, this.parts, this.groups, held, small);
+    // (the savings in families: of the savings there are here)
+    this.families = SAVING_GROUPS.map((g) => ({ ...g, idx: g.steps.map((id) => FEATURE_STEPS.findIndex((f) => f.id === id)).filter((i) => steps.includes(i)) })).filter((g) => g.idx.length);
+    this.configs = costConfigs(steps, this.parts, this.groups, held, small, this.families);
     // (the canvas at the picture's size while the parts are measured, as in play: held at the
     // screen's own size, as it was, every measure carried a last pass over 3.74 MP that play
     // does not pay: App.fitCanvas)
@@ -385,14 +387,14 @@ export class CostTest {
     for (const i of this.off) FEATURE_STEPS[i].apply(app, false);
     for (const i of this.out) this.parts[i].set(app, false);
     // (parts left out: one, a group's, or every group's at once)
-    this.out = which <= -100 ? this.groups[-100 - which].idx.slice() : which <= -10 ? [-10 - which] : which === -3 ? [...new Set(this.groups.flatMap((g) => g.idx))] : [];
+    this.out = which <= -200 ? [] : which <= -100 ? this.groups[-100 - which].idx.slice() : which <= -10 ? [-10 - which] : which === -3 ? [...new Set(this.groups.flatMap((g) => g.idx))] : [];
     for (const i of this.out) this.parts[i].set(app, true);
-    this.off = which === -2 ? FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-')) : which >= 0 ? [which] : [];
+    this.off = which <= -200 ? this.families[-200 - which].idx.slice() : which === -2 ? FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-')) : which >= 0 ? [which] : [];
     for (const i of this.off) FEATURE_STEPS[i].apply(app, true);
     g.fixed = scale; g._applyScale();
   }
 
-  _config(ci) { this.ci = ci; this._set(this.configs[ci][0], this.configs[ci][1]); this.state = 'measure'; this.k = 0; this.n = 0; this.sum = 0; }
+  _config(ci) { this.ci = ci; this._set(this.configs[ci][0], this.configs[ci][1]); this.state = 'measure'; this.k = 0; this.n = 0; this.sum = 0; this.take = framesFor(this.configs[ci][0]); }
 
   // Every frame, at its start. False when the test is over.
   update() {
@@ -415,7 +417,7 @@ export class CostTest {
     }
     // (a software renderer, a second a frame: two frames each tell as much)
     // (and it cannot wait for frames without new ground there: sixty frames at most here, six there)
-    if (this.n >= (this.slow ? 2 : TAKE) || this.k >= (this.slow ? 6 : 60)) {
+    if (this.n >= (this.slow ? 2 : this.take || TAKE) || this.k >= (this.slow ? 6 : 60)) {
       this.ms[this.ci] = this.n ? this.sum / this.n : NaN;
       if (this.ci + 1 < this.configs.length) this._config(this.ci + 1);
       else { this._report(); if (!this._next()) { this.restore(); return false; } }
@@ -446,13 +448,21 @@ export class CostTest {
     // (the groups: each take against everything on just before and after it)
     {
       const takes = this.groups.map(() => []); let all = NaN;
-      for (let k = 1; k < n - 4; k++) { if (c[k][0] <= -100) takes[-100 - c[k][0]].push(onAt(k) - ms[k]); else if (c[k][0] === -3) all = onAt(k) - ms[k]; }
+      for (let k = 1; k < n - 4; k++) { if (c[k][0] <= -100 && c[k][0] > -200) takes[-100 - c[k][0]].push(onAt(k) - ms[k]); else if (c[k][0] === -3) all = onAt(k) - ms[k]; }
       const mean = (t) => t.reduce((x, y) => x + y, 0) / Math.max(1, t.length);
       const rows = this.groups.map((g, i) => [g.label, mean(takes[i]), takes[i]]).filter((r) => r[2].length && !isNaN(r[1])).sort((x, y) => y[1] - x[1]);
       this.lines.push(`  saved by leaving a group out (twice each, against everything on just before and after; the two takes in brackets):`);
       for (const r of rows) this.lines.push(`    ${r[0]}: ${f(r[1])} (${r[2].map(f).join(' · ')})`);
       const sum = rows.reduce((x, r) => x + r[1], 0);
       this.lines.push(`    every group out at once: ${f(all)} saved (the groups one by one add up to ${f(sum)}) · what is left then: ${f(on - all)}`);
+    }
+    // (the savings in families, the same way)
+    if (this.families.length) {
+      const takes = this.families.map(() => []);
+      for (let k = 1; k < n - 4; k++) if (c[k][0] <= -200) takes[-200 - c[k][0]].push(onAt(k) - ms[k]);
+      const rows = this.families.map((g, i) => [g.label, takes[i].reduce((x, y) => x + y, 0) / Math.max(1, takes[i].length), takes[i]]).filter((r) => r[2].length && !isNaN(r[1])).sort((x, y) => y[1] - x[1]);
+      this.lines.push(`  saved by a family of savings switched on whole (twice each, the same way):`);
+      for (const r of rows) this.lines.push(`    ${r[0]}: ${f(r[1])} (${r[2].map(f).join(' · ')})`);
     }
     const saved = [];
     for (let k = 1; k < n - 4; k++) { if (c[k][0] < 0) continue; const d = onAt(k) - ms[k]; if (!isNaN(d)) saved.push([FEATURE_STEPS[c[k][0]].id, d]); }

@@ -198,6 +198,16 @@ before the clear is what the picture and the shadow tiles now do).
   and the two takes are printed side by side: a number that does not repeat is not one. Then
   every group out at once, and what is left. The single savings and parts are still measured
   after the groups (12 frames a measure instead of 16: the test is as long as it was).
+- **The governor's savings in families** (the same way, `SAVING_GROUPS`): the grass's three,
+  the trees' and leaves' six, the sky's eleven, the shadows' five, the ground's four, rocks
+  and the figure, glow. A family that buys nothing need not be looked into; one that buys
+  much is, by its "one saving alone" numbers. This is the table the governor's order (step 4)
+  is to be made from. To keep the test as long as it was: a single saving is measured over 8
+  frames, a part over 10, a group or a family over 12, and a part that is a whole group by
+  itself is not measured a second time.
+- **The page's own work by part**: "rocks and trees" (2.5 ms a frame at the ledge on the
+  phone) is now rocks near by, far rocks, trees, far forest, leaves and grass, each by
+  itself, and six parts are printed under a stop instead of four.
 - **The canvas is held at the picture's size during the cost test**, as play has it. It was
   held at the screen's own size: every measure of the last three benchmarks carried a last
   pass over 3.74 MP that play at 2.25 MP does not pay. The row for the last pass now prints
@@ -234,6 +244,18 @@ before the clear is what the picture and the shadow tiles now do).
   renderer whose baseline climbed from 1 257 to 5 785 ms over the test, the ground's shading
   read 1 226 and 1 249 ms in its two takes: the groups hold under a drifting baseline, where
   the single savings of the same test all read 20 to 190 ms "saved" (the drift).
+- *The flowers' lists (b4ee34b), the same check*: blocks and lists against the whole field,
+  no pixel more than one level apart (0.013 % of them by one); **519 780 triangles of grass
+  and flowers for 1 838 800, the frame 1.75 million for 3.07**. (The opening view is a meadow
+  in full flower: its lists hold a fifth of the near cells. Flowers: 129 000 triangles for
+  237 000 by blocks alone and 622 000 on today's link.)
+- *The newest build* (c657162 and the switch after it: flowers' lists, trees' shared corners,
+  the cost test's families): `npm run smoke` passed, 18 checks, every shader linked and inside
+  a phone's limits; the forest view of the cost test draws whole with the trees from shared
+  corners (`docs/shots/speed-2/forest_trees_shared_corners.jpg`: 1.81 million triangles in the
+  frame, 3.17 on today's link with the figure in it). In that smoke run's cost test a family
+  that buys something repeats (the ground's savings: 468.8 and 455.6 ms on the software
+  renderer) and one that does not, does not (the sky's on Mars: -82.4 and 235.9).
 - A first try at "before and after" with two builds' pictures of the opening view could not
   say it: the two runs were ready on different frames (181 and 184), and the grass's wave is
   added up frame by frame, so every near blade stood a pixel to one side in one of them (3 %
@@ -275,7 +297,36 @@ before the clear is what the picture and the shadow tiles now do).
    in four of those in the picture were thrown out only after their stretch's lie and swath
    (nine sines), their clump and their seed head had been worked out, at each of three
    vertices. The same sums in another order: the blades kept are drawn as they were.
-4. **The figure's nine part matrices are uniforms** (`heroSculpt.js`): a vertex with no loose
+4. **Single flowers: only the cells that can carry one are handed over**
+   (`grassBlocks.js`, `flowerCells`; after the count of dde2792: flowers were still 237 000
+   triangles there, a fifth of the frame's runs of a vertex shader, for some hundred flowers in
+   the picture). A field of flowers handed every cell of its window to the shader: 36
+   triangles a cell near the eye, 16 farther out, and the shader said no to ninety-nine in a
+   hundred (a kind grows where the ground table says, and of the cells there the share its
+   density gives, each by a number of its own). The page now works that number out as the
+   shader does (its `hash2`, in 32-bit sums) and lists a cell unless it is clear of the most
+   flowers the ground could carry anywhere its plant could ask, with a margin of 0.03 for a GPU
+   that rounds a sum another way (a last place of the dot product moves the number by some
+   0.003) and both ends of 0..1 kept (where a number that wraps is one side on one machine and
+   the other on the next). **The shader still decides, by its own number**: nothing is left out
+   that it would have drawn. In the test's views 0.2 to 0.4 % of the cells are on the lists.
+   The lists are made again only when the window has moved by a cell, a table has changed or
+   other blocks are in view (a cell's number is kept: a moved window asks about its new row).
+   And a flower part's four corners are shared by its two triangles (it was six runs of the
+   vertex shader for four places).
+5. **The choosing costs the page little, and nothing while nothing moves.** A block is asked
+   first with the whole table's lowest and highest ground (four in five go there); with the
+   eye, the picture and the tables as they were a frame before, the last choosing is put on
+   again (0.007 ms). While the eye moves: 0.25 ms a frame on the build machine with a browser
+   drawing beside it, 0.54 ms on a frame that makes the flowers' lists again.
+6. **The near trees' corners are shared between their triangles** (`treeGeometry.js`,
+   `sharedCorners`; `trees.js`). A tree's mesh was handed over corner by corner, three to a
+   triangle, though its cards are quads and its boughs strips: 193 602 corners over the 81
+   meshes are 94 929 distinct vertices. The same triangles in the same order, every attribute
+   of every corner the same to the last bit (`node scripts/tree-shared-corners-test.mjs`,
+   `--break merge|order`). In the forest view of the cost test the trees and their shadow
+   casters were 773 000 runs of a vertex shader a frame; about half now.
+7. **The figure's nine part matrices are uniforms** (`heroSculpt.js`): a vertex with no loose
    cloth (body, boots, hands, head) read nine texels of a float texture and now reads none;
    a cloth vertex reads its particles as before. The same numbers: no change to the picture.
 
@@ -298,6 +349,32 @@ Two things in it that are others' and were handed on: the rigged figure is 153 0
 triangles, 8 % of the frame; and the seasons' lying leaves hand their whole buffer
 (`treeLeaves.lieGeo`, 75 KB) to the GPU every frame at rest, inside the picture's pass.
 
+### What a frame is made of now, in runs of the vertex shader (the counter's new column)
+
+The phone's tables have said for three benchmarks that a frame's cost hardly goes by the
+picture's size; what does not go by it is mostly geometry, and a tile-based GPU runs the
+vertex shader for every vertex handed over (twice: once to sort the triangles into its
+tiles, once to draw). Triangles undercount a mesh whose corners are not shared: a blade of
+grass is three runs for one triangle. The counter (`gl-count.mjs`) counts runs since
+3dc70c9. On today's link (a5948f1), the forest view of the cost test, a frame at rest:
+**8.9 million runs**, of them grass blades 3.37 M, single flowers 1.87 M, the far forest
+about 0.8 M, the near trees 0.52 M and their shadow casters 0.25 M, the ground about 0.5 M,
+the cloud layer's and the upper cloud's meshes 0.27 M (not indexed: said to the sky helper),
+the figure 0.07 M. After this branch's cuts the grass and flowers are about a third of what
+they were and the trees half; the next in line, not done:
+
+- *The far forest and the far rocks by parts of a tile.* A tile of far trees (889 m and up)
+  or far rocks is handed over whole when any of it is in the picture: at the opening view
+  44 800 far trees are handed over for 27 800 standing all round, 10 800 far rocks for 1 400
+  in the picture. Each tile's list cut in four by place (four draws, each culled by its own
+  bounds) would hand over about half. A change to how the tiles are filled and drawn in
+  `farForest.js` and `farRocks.js`: an afternoon each, with their own tests to bring in step.
+- *Blades by how many a block can keep.* Looked along at eye height five layers of blades are
+  kept of twenty; which blades go is by a number of each one's own, so all are handed over.
+  If the number went by the blade's place in its cell, a block could hand over only as many
+  blades a cell as its steepest look keeps. Changes which blades are kept (not how many, nor
+  where), and saves little on a hillside that faces the eye, as the opening view's does.
+
 Looked at and left:
 - *A middle mesh for the figure*: the sculpt made again at 60 000 triangles
   (`make-hero --tris 60000`, into a scratch file) could not be told from the 120 000 one at
@@ -310,3 +387,52 @@ Looked at and left:
   (`hero-preview --h 330 --lod 0|1`), the rope trims, the belt and the hands are visibly
   softer. Not a cut without a change; left to the governor.
 - *Buffers handed over inside a pass* (above): not the known fault; left.
+
+## Step 4: the governor (waits for the phone)
+
+Not begun, on purpose. Its order of savings and what each is taken to buy (`FEATURE_STEPS`,
+`buys`) were set from cost tables whose every single number has since been shown to be the
+baseline's drift (the eleventh results' reader; and the smoke run above, where every single
+saving "saved" 20 to 190 ms of a frame that grew by 4 500). The new benchmark's two tables
+(groups of parts, families of savings; two takes each) are what an order can be made from.
+When they are in:
+1. `buys` from the families first (a family whose two takes agree), then within a family
+   from its "one saving alone" numbers where those are large and of the family's size.
+2. The grass's two savings were at the head of the order for buying 5.0 and 1.6 ms. They
+   now thin by the shader's first line instead of by not handing blades over, on a field of
+   which a third is handed over at all: what they buy is to be read again, and the order
+   with it.
+3. The hole the last reader found (one view held for five minutes with late frames nothing
+   cures: most savings left on in six to eight runs of eight) is a question about a device
+   whose late frames nothing cures. Whether the phone is one, paced, is what the first run
+   asked for says (the five stops alike or not). `npm run govsim` before anything is sent.
+
+## Lessons (for CLAUDE.md, the main session's to take or leave)
+
+- **A run at a held size was not a run of the game**: `?scale=` switched the frame pacing off
+  with the governor, the phone drew flat out and slowed stop by stop. A benchmark that is to
+  say what play is like must be paced as play is; and when stops that hand the GPU the same
+  frame run at 29 and at 14 frames a second, it is the device, not the page.
+- **Count what is handed over before reading a cost table.** A count is true on any device
+  and takes ten minutes a view (`scripts/gl-count.mjs`); it said in one run that 57 % of the
+  triangles were grass of which two thirds were thrown out again, that nothing alternates
+  and nothing piles up, and that two builds a day apart hand over the same frame. Triangles
+  undercount what is not indexed: count runs of the vertex shader.
+- **A change to the game can break a check that stands in for the game** (a stub of the
+  renderer without a call the game now makes; a Benchmark made without a renderer): two of
+  mine went out that way, the game itself whole. `./scripts/all-node-checks.sh` before a push.
+- **Conflict marks inside a shader's text build.** A merge left `<<<<<<<` in `grass.js`
+  inside a template string: the build passed, every Node check that does not compile the
+  shader would have, and the grass would have been gone on the phone. After a merge, look for
+  the marks in `src/` whatever the build says (`grep -rn '<<<<<<<' src scripts`).
+- **Two runs of the game are not the same picture.** The grass's wave is added up frame by
+  frame and two runs are never ready on the same frame: a before and an after from two
+  builds differ along every near blade. A pair is taken in one session, the picture held
+  still (`scripts/grass-cull-pair.mjs` shows how).
+- **The shader's own tests can be asked on the page, of a box**: what the vertex shader
+  throws out by a rule of place (a ring, the picture's edge, a table that says "nothing
+  here") need not be handed over, and if the page's test is the shader's own asked of a box
+  that holds every place the shader could ask it of, the picture is the same and a replay in
+  Node can prove it cell by cell. Where the rule is a number of the thing's own (a hash),
+  work the number out as the shader does, in 32-bit sums, and leave a margin for a GPU that
+  rounds another way; the shader still decides.

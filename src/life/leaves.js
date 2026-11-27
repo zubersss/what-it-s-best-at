@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { AMOUNT } from './grassRules.js';
+import { SNOW_GLSL, SNOW_UNIFORMS } from '../render/snowGlsl.js';
 
 const COUNT = 420, BOX = 44;            // leaves, and the side of the square of ground they fall over (m)
 
@@ -140,7 +141,7 @@ export class Shed {
     };
     const vec4s = () => Array.from({ length: SLOTS }, () => new THREE.Vector4());
     this.uniforms = {
-      ...lightingUniforms(),
+      ...lightingUniforms(), ...SNOW_UNIFORMS,
       uLeafEast: trees.shared.uTreeEast, uLeafNorth: trees.shared.uTreeNorth, uLeafUp: trees.shared.uTreeUp, uLeafSeason: trees.shared.uSeason, uAnchorRel: trees.shared.uAnchorRel,
       uPetalTree: { value: vec4s() },        // xyz: a flowering tree's foot from the anchor (m), w: its crown's radius (m)
       uPetalTop: { value: vec4s() },         // x: its height (m), y: how fast its petals come off (0..1), z: the slot's falling petals faded in (0..1: a slot moving to another tree fades out and in), w: how much of its lying share lies (0..1)
@@ -153,6 +154,8 @@ export class Shed {
       in vec4 aSeed; in float aSlot;
       uniform vec3 uLeafEast, uLeafNorth, uLeafUp, uLeafSeason, uAnchorRel, uPetalWind; uniform float uLeafPx;
       uniform vec4 uPetalTree[${SLOTS}]; uniform vec4 uPetalTop[${SLOTS}]; uniform vec3 uPetalCol[${SLOTS}]; uniform vec3 uLieCol[${SLOTS}];
+      uniform vec3 uCamPlanetPos; uniform float uPlanetRadius;
+      ${SNOW_GLSL}
       out vec3 vRel; out vec4 vSeed; out float vSpin; out float vFade; out vec3 vCol;
       void place(vec3 rel, float fade, float size) {
         vRel = rel; vSeed = aSeed; vFade = fade;
@@ -205,8 +208,11 @@ export class Shed {
         int s = int(aSlot); vCol = uLieCol[s];
         vec3 rel = uAnchorRel + aLie.xyz;
         vSpin = aSeed.x * 40.0;
+        // (what fell before the snow lies under it: none where new snow lies, by the ground's own answer)
+        vec3 pp = uCamPlanetPos + rel, ups = normalize(pp);
+        float clear = 1.0 - smoothstep(0.15, 0.5, snowSeason(length(pp) - uPlanetRadius, ups, ups, 0.0, 0.0).x);
         // (as many as the tree is letting go; none from far off, where a petal is under a pixel)
-        place(rel, aLie.w * step(aSeed.z, uPetalTop[s].w) * (1.0 - smoothstep(${o.lieFar[0].toFixed(1)}, ${o.lieFar[1].toFixed(1)}, length(rel))), ${o.size[2].toFixed(3)} + ${o.size[3].toFixed(3)} * aSeed.y);
+        place(rel, clear * aLie.w * step(aSeed.z, uPetalTop[s].w) * (1.0 - smoothstep(${o.lieFar[0].toFixed(1)}, ${o.lieFar[1].toFixed(1)}, length(rel))), ${o.size[2].toFixed(3)} + ${o.size[3].toFixed(3)} * aSeed.y);
       }`));
     for (const m of [this.falling, this.lying]) { m.frustumCulled = false; m.visible = false; }
     this.mesh = new THREE.Group(); this.mesh.add(this.falling, this.lying);
@@ -242,7 +248,9 @@ export class Shed {
     this._slots(A, lie, dt || 1 / 30);
     // a few a frame: where the ground is under each (the ground as it is drawn), in the world
     const seed = this.lieGeo.attributes.aSeed.array, e = u.uLeafEast.value, n = u.uLeafNorth.value, R = this.terrain.radius, d = this._d, P = rig.pos;
-    let changed = false;
+    // (lo, hi: the first and the last leaf changed this frame: only that stretch of the buffer is
+    // handed to the GPU, a few hundred bytes while the leaves are being laid, not all of it)
+    let changed = false, lo = LYING, hi = -1;
     for (let c = 0, scanned = 0; c < PER_FRAME && this.left > 0 && scanned < LYING; scanned++) {
       const i = this.next; this.next = (this.next + 1) % LYING;
       if (this.put[i]) continue;
@@ -264,7 +272,7 @@ export class Shed {
       const hs = this.terrain.hs, cover = hs?.coverAt ? hs.coverAt(d[0], d[1], d[2]) : -1, amount = cover < 0 ? 0 : (AMOUNT[cover & 255] || 0) * (1 - 0.4 * (cover >> 16) / 255);
       const lift = this.lift[i] = amount > 0.05 ? (0.2 + 0.26 * seed[i * 4 + 3]) * (0.6 + 0.6 * amount) : 0.03, r = R + g + lift;
       this.abs[i * 3] = d[0] * r; this.abs[i * 3 + 1] = d[1] * r; this.abs[i * 3 + 2] = d[2] * r; this.put[i] = 1; this.left--;
-      lie.array[i * 4] = d[0] * r - A.x; lie.array[i * 4 + 1] = d[1] * r - A.y; lie.array[i * 4 + 2] = d[2] * r - A.z; lie.array[i * 4 + 3] = 1; changed = true;
+      lie.array[i * 4] = d[0] * r - A.x; lie.array[i * 4 + 1] = d[1] * r - A.y; lie.array[i * 4 + 2] = d[2] * r - A.z; lie.array[i * 4 + 3] = 1; changed = true; if (i < lo) lo = i; if (i > hi) hi = i;
     }
     // Once all lie, a few a frame are set again on the ground as it is drawn now: finer ground
     // comes in as one walks up to a tree, and a petal kept where it lies (it is no longer put
@@ -280,9 +288,13 @@ export class Shed {
       const r = R + g + this.lift[i];
       if (Math.abs(r - l) < 0.002) continue;
       this.abs[i * 3] = d[0] * r; this.abs[i * 3 + 1] = d[1] * r; this.abs[i * 3 + 2] = d[2] * r;
-      lie.array[i * 4] = d[0] * r - A.x; lie.array[i * 4 + 1] = d[1] * r - A.y; lie.array[i * 4 + 2] = d[2] * r - A.z; changed = true;
+      lie.array[i * 4] = d[0] * r - A.x; lie.array[i * 4 + 1] = d[1] * r - A.y; lie.array[i * 4 + 2] = d[2] * r - A.z; changed = true; if (i < lo) lo = i; if (i > hi) hi = i;
     }
-    if (changed) lie.needsUpdate = true;
+    if (changed) {
+      // (a stretch that wraps round the end of the pool is most of it: then all of it)
+      lie.clearUpdateRanges?.(); if (hi - lo < LYING / 2) lie.addUpdateRange?.(lo * 4, (hi - lo + 1) * 4);
+      lie.needsUpdate = true; this.sentFloats = (hi - lo < LYING / 2 ? hi - lo + 1 : LYING) * 4;
+    } else this.sentFloats = 0;
   }
 
   // The flowering trees listed again (list: from the anchor A). Each slot is given the tree it
@@ -316,8 +328,13 @@ export class Shed {
       if (this.cur[s] && this.want[s] && same(this.cur[s].abs, this.want[s].abs)) this.cur[s] = this.want[s];
     }
     // every lying petal where it lies, from the new anchor
-    for (let i = 0; i < LYING; i++) if (lie.array[i * 4 + 3] > 0) { lie.array[i * 4] = this.abs[i * 3] - A.x; lie.array[i * 4 + 1] = this.abs[i * 3 + 1] - A.y; lie.array[i * 4 + 2] = this.abs[i * 3 + 2] - A.z; }
-    lie.needsUpdate = true; this.anchor.copy(A);
+    // (only when the anchor has moved: the list is made again at every making of the trees' lists,
+    // most often from the same anchor, and the whole buffer, 75 KB of leaves, was handed to the
+    // GPU each time for nothing)
+    if (!this.anchor.equals(A)) {
+      for (let i = 0; i < LYING; i++) if (lie.array[i * 4 + 3] > 0) { lie.array[i * 4] = this.abs[i * 3] - A.x; lie.array[i * 4 + 1] = this.abs[i * 3 + 1] - A.y; lie.array[i * 4 + 2] = this.abs[i * 3 + 2] - A.z; }
+      lie.clearUpdateRanges?.(); lie.needsUpdate = true; this.anchor.copy(A);
+    }
     for (let s = 0; s < SLOTS; s++) this._show(s, A);
   }
 
@@ -332,7 +349,7 @@ export class Shed {
       if (moving && (!c || this.fade[s] <= 0)) {
         this.cur[s] = w; this.fade[s] = 0; this._show(s, A);
         for (let i = s; i < LYING; i += SLOTS) { if (this.put[i]) { this.put[i] = 0; this.left++; } if (!w) lie.array[i * 4 + 3] = 0; }
-        if (!w) lie.needsUpdate = true;
+        if (!w) { lie.clearUpdateRanges?.(); lie.needsUpdate = true; }
         this.left = 0; for (let i = 0; i < LYING; i++) if (!this.put[i] && this.feet[i % SLOTS]) this.left++;          // (to be laid: under a slot that has a tree)
       } else this.fade[s] = Math.min(1, Math.max(0, this.fade[s] + (moving ? -dt : dt) / 0.5));
       top[s].z = this.fade[s];
@@ -465,7 +482,7 @@ export class Kicked {
     if (!low || speed < 2.2 || this.since < Math.max(0.07, 0.5 / Math.max(speed, 1))) return;
     const f = onFoot && rig.feet ? rig.feet : null, P = rig.pos, len = P.length(), gx = f ? f.x : P.x * (1 - rig.agl / len), gy = f ? f.y : P.y * (1 - rig.agl / len), gz = f ? f.z : P.z * (1 - rig.agl / len);
     const ly = this.lyingAt(gx, gy, gz, this._ly || (this._ly = [0, 0, 0, 0]));
-    if (ly[3] < 0.12) return;
+    if (ly[3] * (1 - (this.snow || 0)) < 0.12) return;          // (snow: how much lies on the leaves here, set by the app: none are kicked up from under it)
     const s = this.next; this.next = (this.next + 1) % KICKS; this.since = 0; this.lastAt = now; this.kicks++;
     this.abs[s][0] = gx; this.abs[s][1] = gy; this.abs[s][2] = gz;
     u.uKick.value[s].set(gx - P.x, gy - P.y, gz - P.z, now);

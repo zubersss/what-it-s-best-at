@@ -2,7 +2,10 @@
 // part's time is averaged over the last second or so. The benchmark prints it per stop
 // (a slow frame on the phone is otherwise one number with no address), and the full
 // read-out shows it live.
-export const PARTS = ['sky and weather', 'steering', 'terrain', 'rocks and trees', 'character', 'air', 'shadow map', 'far view', 'ground', 'clouds', 'rain and figure', 'finishing'];
+// ('rocks and trees' was one part of 2.5 ms a frame at Haven's stops on the phone, and nobody
+// could say whose: it is rocks near by and the lander now, and the far rocks, the trees, the
+// far forest, the leaves and the grass each have their own, at the end of the list)
+export const PARTS = ['sky and weather', 'steering', 'terrain', 'rocks near by', 'character', 'air', 'shadow map', 'far view', 'ground', 'clouds', 'rain and figure', 'finishing', 'far rocks', 'trees', 'far forest', 'leaves', 'grass'];
 
 export class Profile {
   constructor() {

@@ -479,6 +479,11 @@ as before.
     picture is the same. The blocks' numbers go to the shader as `uBlocks`, the instances
     are dealt to them in turn. Whoever draws the grass without calling `cull` draws every
     block. `node scripts/grass-blocks-test.mjs` replays the shader's tests cell by cell.
+    A field of single flowers goes further: of those blocks only the cells that can carry a
+    flower are listed (`flowerCells`: the cell's own number, worked out as the shader's
+    `hash2` works it out, against the most flowers the ground table has round it, with a
+    margin; the shader still decides), as an instanced attribute `aCell`. The choosing is
+    skipped while the eye, the picture and the tables are as they were a frame before.
   - *Flowers* (`KINDS`, `FLORAS` in `grassRules.js`): twenty-six kinds in six habits: turf
     (tiny heads among the blades), cup (petals round a middle: daisies to poppies and the
     big single heads), spike (florets up a tall stem), umbel (a flat-topped spray), globe

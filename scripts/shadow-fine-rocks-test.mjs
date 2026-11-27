@@ -82,7 +82,7 @@ function farField(far, at) {
 // The renderer: what each draw of the shadow pass was given (the tile, the mesh, how many of its instances, the camera)
 let target = null; const draws = [];
 const renderer = {
-  setRenderTarget(t) { target = t; }, clear() {}, getContext: () => ({ invalidateFramebuffer() {}, FRAMEBUFFER: 0, COLOR_ATTACHMENT0: 0 }),
+  setRenderTarget(t) { target = t; }, clear() {}, getContext: () => ({ invalidateFramebuffer() {}, invalidateSubFramebuffer() {}, FRAMEBUFFER: 0, COLOR_ATTACHMENT0: 0 }),
   render(mesh, cam) {
     const v = target.viewport, k = v.x === 0 ? 0 : v.y === 0 ? 1 : 2;
     draws.push({ k, mesh, n: mesh.geometry.instanceCount, cam: cam.clone() });
