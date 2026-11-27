@@ -1,13 +1,15 @@
 // The sculpted character's binding (public/data/hero.bin, scripts/hero/heroBind.mjs) against
 // its promises, without a browser (some 10 s):
 //   1. standing as the sculpt stands, the game's sums give the sculpt back (within 2 mm);
-//   2. in the game's poses (hover, walk, run, fly, fast, after three seconds of each) the
-//      surface is not torn: few edges are drawn out by more than 5 cm. The sculpt is one
-//      fused surface, and a binding that moves the two sides of a join apart draws shards
-//      between them (5 400 such edges in the hover when the cloth was bound sheet by sheet;
-//      some 300 now). In flight one arm is held out ahead, and what joins its sleeve to the
-//      skirt is drawn out into a sheet between them: known, and bounded here (WEB) so that
-//      it is seen if it grows.
+//   2. in the game's poses (hover, walk, run, super speed, the kneel after a hard landing,
+//      fly, fast, the take-off; after three seconds of each) the surface is not torn: few
+//      edges are drawn out by more than 5 cm and to three times their length. The sculpt is
+//      one fused surface, and a binding that moves the two sides of a join apart draws
+//      shards between them (5 400 such edges in the hover when the cloth was bound sheet by
+//      sheet; under 300 now). In flight and at the take-off one arm is held out or up, and
+//      what joins its sleeve to the skirt is drawn out into a sheet between them; in the
+//      kneel the bent legs come through the gown. Known, and bounded here (WEB) so that it
+//      is seen if it grows.
 //
 //   node scripts/hero-bind-test.mjs [--list]      --list: the worst edges of each pose, by cause
 import fs from 'node:fs';
@@ -24,11 +26,11 @@ for (const [li, m] of hero.lods.entries()) {
     for (let i = 0; i < P.length; i++) worst = Math.max(worst, Math.abs(Q[i] - P[i]));
     check(worst < 0.002, `mesh ${li}: standing, the sums give the sculpt back (furthest ${(worst * 1000).toFixed(2)} mm)`);
   }
-  for (const pose of ['hover', 'walk', 'run', 'fly', 'fast']) {
+  for (const pose of ['hover', 'walk', 'run', 'super', 'land', 'fly', 'fast', 'launch']) {
     const { position: Q } = await posed(m, hero.shared, pose, 3), bad = [];
     let finite = true; for (let i = 0; i < Q.length; i++) if (!Number.isFinite(Q[i])) finite = false;
     for (let t = 0; t < I.length; t += 3) for (let e = 0; e < 3; e++) { const i = I[t + e], j = I[t + (e + 1) % 3], l0 = d(P, i, j), r = d(Q, i, j) - l0; if (r > 0.05 && r > 2 * l0) bad.push([r, i, j]); }
-    const limit = Math.round((pose === 'fly' || pose === 'fast' ? WEB : LIMIT) * Math.sqrt(I.length / hero.lods[0].index.length));       // (a join is a line: the edges across it go by the root of the count)
+    const limit = pose === 'fly' || pose === 'fast' || pose === 'launch' || pose === 'land' ? WEB : LIMIT;      // (the same for the lighter mesh: it has fewer edges and longer ones, and by no steady rule fewer drawn out)
     check(finite && bad.length <= limit, `mesh ${li}: ${pose}: ${bad.length} edges drawn out by more than 5 cm and to three times their length (at most ${limit})${finite ? '' : ', and a place that is no number'}`);
     if (list) {
       bad.sort((p, q) => q[0] - p[0]);

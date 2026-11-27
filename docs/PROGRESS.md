@@ -41,6 +41,27 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### Helpers running since 2026-11-27 04:40 UTC (the owner: "you can use more than one session ... no more than 4")
+
+Three helper sessions on machines of their own, each with a brief in `docs/briefs/`, a
+branch of its own begun from this one, a report beside its brief, and one line to this
+session after each piece. This session merges their branches as they build, keeps the
+character, and sends the links.
+
+| Job | Brief | Branch | Session | Says when done |
+| --- | --- | --- | --- | --- |
+| The sky's known faults (empty noon sky first, the far storm, the disc, the weather views, clouds from above) | `sky-faults.md` | `ccr-6f4f9272-sky-faults` | `session_01R5Bri3JsgPNqFWmnrwMeAB` | `SKY-FAULTS-DONE` |
+| Living water (roadmap 12.3: rivers that run, rapids and falls, water from the air, surf and tide, puddles and swollen streams) | `living-water.md` | `ccr-6f4f9272-water` | `session_01R5Brhz8fvucj2b9DbzR7fj` | `WATER-DONE` |
+| Seasons (roadmap 12.4: a year of its own and one rule, leaves that turn, fall and pile up, snow that comes and goes, grass and flowers by the season) | `seasons.md` | `ccr-6f4f9272-seasons` | `session_01R5Bri2SJsiHEniM3EYxxpQ` | `SEASONS-DONE` |
+
+Water and seasons both edit the ground's shader (`terrainMaterial.js`): each keeps its
+edits in marked blocks and merges this branch before every announced push; clashes are
+resolved here. If a helper's turns keep ending in an error, `get_session` says why (a usage
+limit: start a new session from the brief and the report). Do not read a helper's
+transcript with `list_events` (it floods the context): ask it, or read its branch.
+Still to do here once the sky helper's fixes are in: the cold code review of the sky that
+was lost with the other session, and a fresh set of final pictures with the visual critic.
+
 ### The owner's sculpt in the game (2026-11-27)
 
 **What came.** `Silver_Plumage_Sentinel_compressed.glb` (kept in `assets-src/hero/`): the
@@ -64,17 +85,18 @@ made to go with it. No new animation system, no skeleton file, nothing bought.
    map, and the picture under the governor's `figure` saving);
 5. *fitted* to the game's frame (hips at the origin, soles at -0.93 m);
 6. *bound* (`scripts/hero/heroBind.mjs`): each vertex is carried by up to two rigid parts
-   beside the torso, by how near it is to their middle lines, and where it is loose cloth
-   it is shifted by up to four cloth particles (a particle's shift: where it is now less
-   where the parts alone would have carried it). Garments (body, skirt, each sleeve, hair)
+   beside the torso, by how near it is to their middle lines; and where it is loose cloth
+   it goes instead, by its share of cloth, with the simulated cloth: with the three
+   particles round the place on its garment's simulated sheets nearest it, each of which
+   **turns and moves** the sculpt round it as a small rigid piece (the sheet's own axes
+   now against its axes as the sculpt stood). Garments (body, skirt, each sleeve, hair)
    come from a second set of seeds, put right by where they are, and **blended across
-   their joins** over some 6 cm of surface. Where rules are blended each keeps its share
-   and they divide the four particles between them (taking the four that count most from
-   all together tipped from one garment's particles to the other's between neighbours,
-   and tore there). A particle's shift is evened out over 24 neighbours of its garment
-   (the simulated skirt is three panels that part at their slits; the gown is one piece).
+   their joins** over some 6 cm of surface; where rules are blended each keeps its share
+   and they divide four particles between them. A particle's turn and move are evened out
+   over 24 neighbours of its garment (the simulated skirt is three panels that part at
+   their slits; the gown is one piece).
 The game (`hero/heroSculpt.js`) does that sum in the vertex shader from one small float
-texture written once a frame (`hero/heroPalette.js`: the same sums in the game and in the
+texture of matrices written once a frame (`hero/heroPalette.js`: the same sums in the game and in the
 tools), and draws only the surface's outside. The cloth's own mesh is no longer worked out.
 
 **What was tried and did not work** (do not go back to these):
@@ -83,8 +105,28 @@ tools), and draws only the surface's outside. The cloth's own mesh is no longer 
   where they touch, and it tore into shards along every such join;
 - cutting the surface apart at the joins: no shards, but ragged holes (behind a sleeve that
   touches the skirt there is no skirt: the statue has one skin);
+- moving a cloth vertex by its particles' shifts alone (no turn): no tears, and every fold
+  carved into the gown was sheared as the sheet under it turned: crumpled foil in every
+  pose but standing, worst from behind in flight (the first link, 49e4294, has this). Nor
+  was it the weights' rounding or which particles were chosen (measured: the fold between
+  neighbouring faces changed by 17 degrees on average either way);
 - drawing both sides: the cloth's two faces lie a centimetre apart and cross in motion,
   the inner one showing through as dark rags. Only the outside is drawn.
+- cutting only the sleeves off the skirt and closing each side's hole (a fan to its middle,
+  then lacing it shut side to side): the stretched sheet in flight went (2 700 drawn-out
+  edges to 400), but the holes are areas, not lines (half the closing triangles were over
+  12 cm long as the sculpt stands), and the closings stood out of the sleeves as spikes in
+  the walk. To do it properly each hole needs a real patch (triangulated in its own plane,
+  with points inside it that are bound as cloth). Not worth it yet: in the game's flight
+  view, from behind, the sheet is hidden by the body.
+
+**A cold review of the game's side** (one reader, 2026-11-27, replays in Node; nothing that
+would break on a phone: RGBA32F by the path three's own bone texture takes, six
+attributes, eight textures). Mended from it: the cloth's normal and the hair's direction for its glints now turn with
+the cloth (they are carried by the same matrices as the place); the test runs super speed,
+the kneel and the take-off too; the feet's contact shade sits at the soles again; the
+start no longer waits for ever on the file (30 s); a device that cannot make the sculpt's
+shaders gets the built figure.
 
 **Seen in the game** (Mars, the ledge, `?hero=1&heropose=hover|stand&posedir=front|fly|walk&posedir=side&fov=36`):
 whole and right in each; from behind in flight one looks up the gown at the boots.
@@ -112,8 +154,12 @@ arm.
   job, or a flight pose with both arms back;
 - the hair over the brow is the sculpt's fringe (flush with the face, down to the eyes): it
   is hair-coloured on purpose;
-- the cloth's shading follows the sculpt's own normals mixed with the surface as it lies
-  now: a skirt streaming straight back in fast flight is lit less truly than a hanging one;
+- the kneel after a hard landing bends the legs far inside the gown: the knee shows through
+  ragged cloth for the moment it lasts (`hero-preview --pose land`);
+- the figure built in code, drawn only if the file is missing or a device cannot make the
+  sculpt's shaders (asked once, twenty frames after they are first used: `App.updateHero`,
+  `HeroSculpt.drawable`), now has the sculpt's joints and its old pieces: it stands 4 cm
+  off the ground with arms too long. An emergency figure, not a second character;
 - cost on the phone is not measured: 120 000 triangles and 13 texture reads a vertex; the
   governor's step `figure` (the 24 000-triangle mesh) exists and its `buys` is a guess
   until a benchmark's cost table shows it;

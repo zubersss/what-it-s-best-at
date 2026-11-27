@@ -61,7 +61,8 @@ export class SkyField {
     this.renderer = renderer;
     this.producer = null; this.layout = null; this.id = 0; this.opts = null;
     this.worker = null; this.asking = null;
-    this.slots = [];                 // { t, snap, rows: [A, B, C] uploaded so far, ready }
+    this.slots = [];                 // { t, snap, rows: [A, B, C] uploaded so far, ready, slot: its texture }
+    this.held = [];                  // the time of the snapshot each slot's textures were last written with
     this.textures = null;            // the 'now' maps (what the shaders read)
     this.strip = 0;                  // which sixteenth of the rows is blended next
     this.uploaded = false;           // the first 'now' maps are there
@@ -77,7 +78,7 @@ export class SkyField {
 
   setWorld(world, opts) {
     this.id++;
-    this.producer = null; this.opts = null; this.slots = []; this.asking = null; this._listsOf = null;
+    this.producer = null; this.opts = null; this.slots = []; this.held = []; this.asking = null; this._listsOf = null;
     this.uploaded = false; this.strip = 0; this.pair = null; this.fade = 1;
     this.lastT = null; this.bytesThisFrame = 0; this.loading = false;
     SKY_UNIFORMS.uSkyLow.value[3] = 0;
@@ -261,22 +262,32 @@ export class SkyField {
 
   // the slot of a time, if it is there
   _slot(t) { return this.slots.find((s) => s.t === t) || null; }
-  // keep it, newest first, and let the oldest go
+  // Keep it, newest first, and let go the one farthest in time from it (the pair round the clock
+  // is the newcomer and its neighbour: running forwards the oldest goes, backwards the newest).
+  // A snapshot KEEPS THE TEXTURE it was uploaded to for as long as it is held: `slot` is the
+  // index of a free one, given once. (It was the snapshot's position in the list, numbered again
+  // at every arrival: the second snapshot of the first pair took the first one's number and was
+  // uploaded over it, and the first was then read from a texture nothing had been written to. The
+  // maps the game drew were f x the newer snapshot, f the clock's place between the two: no low
+  // cloud at all at the start of every two minutes, bases at half their height in the middle.)
   _take(t, snap) {
     if (this._slot(t)) return;
-    const { width: W, height: H, cWidth: CW, cHeight: CH } = this.layout;
+    const { width: W, height: H } = this.layout;
     if (snap.width !== W || snap.height !== H) return;        // (a snapshot of a world since left)
-    const s = { t, snap, rows: [0, 0, 0], ready: !this.renderer, slot: 0 };
+    const s = { t, snap, rows: [0, 0, 0], ready: !this.renderer, slot: -1 };
+    while (this.slots.length >= SLOTS) {
+      let far = 0;
+      for (let k = 1; k < this.slots.length; k++) if (Math.abs(this.slots[k].t - t) > Math.abs(this.slots[far].t - t)) far = k;
+      this.slots.splice(far, 1);
+    }
+    s.slot = this._freeSlot();
     this.slots.push(s);
     this.slots.sort((a, b) => b.t - a.t);
-    if (this.slots.length > SLOTS) {
-      const gone = this.slots.pop();
-      if (gone === s) { this.slots.pop(); this.slots.push(s); }   // (never drop the one just asked for)
-      void gone;
-    }
-    // (the slot's place among the textures: by its position in the list, so a pair never shares one)
-    this.slots.forEach((q, k) => { q.slot = k; });
-    void CW; void CH;
+  }
+  // the index of a texture no held snapshot is in
+  _freeSlot() {
+    for (let k = 0; k < SLOTS; k++) if (!this.slots.some((q) => q.slot === k)) return k;
+    return 0;
   }
   // ask the worker for a time (one at a time; made here when there is no worker, as in Node)
   _ask(t) {
@@ -342,6 +353,7 @@ export class SkyField {
       const [key, w, h, ch] = maps[m];
       if (s.rows[m] >= h) continue;
       const row0 = s.rows[m], rows = Math.min(STRIP_ROWS, h - row0);
+      this.held[s.slot] = s.t;                 // (what this texture holds: scripts/sky-slots-test.mjs)
       if (this.renderer) {
         const gl = this._gl, st = this.renderer.state;
         st.bindTexture(gl.TEXTURE_2D, this._tex[s.slot][key]);
