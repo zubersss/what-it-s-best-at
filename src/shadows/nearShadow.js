@@ -252,9 +252,10 @@ export class NearShadow {
       // (one tile alone: only its own square of the atlas is cleared and written)
       tgt.scissorTest = !all; tgt.scissor.set(t.x, t.y, t.n, t.n);
       r.setRenderTarget(tgt);
+      // (?. below: the Node tests' stand-in for the context has no such call)
       // (one tile's square given up before it is cleared: a clear of a part does not tell a
       // tile-based GPU that the square begins anew, and it reads the old depth back in first)
-      if (!all) { const gl = r.getContext(); gl.invalidateSubFramebuffer(gl.FRAMEBUFFER, ATLAS_BOTH, t.x, t.y, t.n, t.n); r.clear(true, true, false); }
+      if (!all) { const gl = r.getContext(); gl.invalidateSubFramebuffer?.(gl.FRAMEBUFFER, ATLAS_BOTH, t.x, t.y, t.n, t.n); r.clear(true, true, false); }
       this.drawn += t.n * t.n;
       // (the pixel at the atlas's t.x + n/2 is the tile's middle, which is a whole number of
       // texels from the anchor)

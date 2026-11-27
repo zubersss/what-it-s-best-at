@@ -485,7 +485,7 @@ if (BREAK === 'clock') {
 // ---- 9. the governor ---------------------------------------------------------------------------------
 {
   // (the order of fix/governor10, the tenth phone results: the steps that bought nothing go last)
-  const LADDER = ['grass-mid', 'trees-far', 'far-trees', 'tree-leaves', 'grass', 'pollen', 'cloud-far', 'cloud-upper', 'rain-shafts', 'cloud-shade-rate', 'lenses', 'fog-sheet', 'terrain-1', 'terrain-2', 'cloud-shade-coarse', 'clouds', 'far-relief', 'cloud-volume', 'cloud-steps', 'cloak', 'figure', 'fine-shadows', 'bloom', 'detail', 'water', 'soft-shadows', 'contact', 'edge-glow', 'dust', 'rocks', 'far-rock-shadows', 'far-rocks', 'rain', 'leaves', 'sun-beams', 'air-shadow', 'tree-shadows'];
+  const LADDER = ['grass-mid', 'trees-far', 'far-trees', 'tree-leaves', 'grass', 'pollen', 'cloud-far', 'cloud-upper', 'rain-shafts', 'cloud-shade-rate', 'lenses', 'fog-sheet', 'terrain-1', 'terrain-2', 'cloud-shade-coarse', 'clouds', 'far-relief', 'cloud-volume', 'cloud-steps', 'cloak', 'figure', 'fine-shadows', 'bloom', 'detail', 'water', 'soft-shadows', 'contact', 'edge-glow', 'dust', 'rocks', 'far-rock-shadows', 'far-rocks', 'rain', 'leaves', 'leaf-carpet', 'snow-edge', 'sun-beams', 'air-shadow', 'tree-shadows'];
   check(FEATURE_STEPS.map((f) => f.id).join(',') === LADDER.join(','), "the governor's ladder: as it was, with the plan's four sky steps (cloud-upper, rain-shafts, cloud-shade-rate in the second group, cloud-shade-coarse before 'clouds') and living water's one ('water', after 'detail')");
   // the plan's four: through the sky's setters; not live and not built while their parts are stand-ins
   {

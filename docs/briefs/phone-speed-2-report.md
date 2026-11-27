@@ -279,7 +279,32 @@ before the clear is what the picture and the shadow tiles now do).
    cloth (body, boots, hands, head) read nine texels of a float texture and now reads none;
    a cloth vertex reads its particles as before. The same numbers: no change to the picture.
 
+### The merged build counted (dde2792, the ledge at rest; `docs/benchmarks/2026-11-27-gl-count-dde2792-ledge.txt`)
+
+| | today's link (a5948f1) | this branch (dde2792) |
+|---|---|---|
+| passes | 23 | 20 (the sky helper's cuts: the field's maps on some frames only) |
+| draw calls | 156 | 154 |
+| triangles | 3.05 M | **1.96 M** |
+| grass blades | 1 120 000 | 391 000 |
+| single flowers | 622 000 | 237 000 |
+| the ground | 429 000 | 429 000 |
+| far forest and its shadows | 317 000 | 317 000 |
+| far rocks and their shadows | 243 000 | 243 000 |
+| the figure, and its shadow mesh | 120 000 + 24 000 (the sculpt) | 153 000 + 24 000 (the rigged figure, new) |
+| uploads at rest | 32 KB | 83 KB |
+
+Two things in it that are others' and were handed on: the rigged figure is 153 000
+triangles, 8 % of the frame; and the seasons' lying leaves hand their whole buffer
+(`treeLeaves.lieGeo`, 75 KB) to the GPU every frame at rest, inside the picture's pass.
+
 Looked at and left:
+- *A middle mesh for the figure*: the sculpt made again at 60 000 triangles
+  (`make-hero --tris 60000`, into a scratch file) could not be told from the 120 000 one at
+  the size the figure has on the phone (4.9 % of the pixels more than 8 levels apart, all of
+  them single pixels along edges; the 24 000 mesh: 13.7 %, and visibly softer). Not put in:
+  the sculpt's file is being replaced by a rigged one. Said to the main session for the new
+  file's meshes.
 - *The figure from its lighter mesh* (24 000 triangles for 120 000; the governor's `figure`
   saving does it): drawn side by side at the size it has on the phone
   (`hero-preview --h 330 --lod 0|1`), the rope trims, the belt and the hands are visibly
