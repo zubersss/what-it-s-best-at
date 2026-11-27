@@ -78,9 +78,33 @@ back on 29).
 eases between the run and a stop beyond the gait's fade; super speed's sleeves whip
 roughly (bounded in `hero-bind-test`).
 
-**The results**: a reader with the governor's simulation is on them (its findings go here);
-the sky's costs at the ledge (fog and mist 8.1 ms, cloud-steps 7.9, cloud-volume 4.5,
-middle and high cloud 4.5, lens clouds 3.2) go to the sky helper.
+**The results, read** (one reader with the governor's simulation, 2026-11-27; no file
+changed, because no change it tried survived the simulation):
+- against the tenth: frames of three refreshes or more 8.4 -> 6.3 %, the picture 2.59 ->
+  3.41 MP on average; Haven's heavy stops as late as before with 1 MP more (ledge 25.9 ->
+  23.9 fps, sun 28.9 -> 27.8, ship 26.7 -> 27.1); the Moon steady.
+- **the one large, believable number: with nothing drawn a frame takes 47.0 / 54.5 / 39.6 ms
+  in the three cost views, where the tenth had 22.7 / 26.1 / 26.2.** Something paid every
+  frame whatever is on screen has come in since e9d4888, 13 to 28 ms of it by this measure,
+  and the benchmark's "everything out" does not take it out: the sky's own passes are the
+  first suspect (the clouds' shade map, the field's maps, the fog sheet, the upper cloud),
+  the shadow maps the second. Handed to the sky helper. Every single saving in the tables
+  is noise (from the air `tree-leaves` reads 18.2 ms with no tree drawn).
+- it is not the tenth's hunting: savings follow the route (off at the ledge and the sun, back
+  at the wall, off again at the ship, a cycle in 36 s); no trial on Haven reached a verdict,
+  a jump closing each after 12 s. 2.67 MP is not the floor (1.60 is) but the level a Sharp
+  visit starts at and holds from both sides (`governor.js`, KEEP).
+- a hole the simulation's cases miss: at one view for five minutes with a share of frames
+  late whatever is drawn, the governor ends with most savings on in 6 to 8 runs of 8 (a
+  trial closes "as cured" after three quiet seconds without checking; the share left alone
+  is capped at 12 %). Nine kinds of change were tried; each failed an existing case or
+  moved the failure. Scratch files of the attempt were in the session's scratchpad
+  (`gov11/`), not kept.
+- **what would settle it, on the phone**: two runs of the Haven benchmark with the picture
+  held at one size, `?bench=haven&scale=0.775` and `?bench=haven&scale=0.775&debug=floor`:
+  the same late shares at the ledge and the ship in both means the governor should hold
+  quality and its trial rules need a rework; clean with every saving on means savings do
+  cure and the cost test should measure them in groups. Asked of the owner.
 
 ### Helpers running since 2026-11-27 04:40 UTC (the owner: "you can use more than one session ... no more than 4")
 
