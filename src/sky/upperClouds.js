@@ -25,6 +25,7 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { G } from '../render/globals.js';
 import { SKY_FIELD_GLSL, SKY_UNIFORMS } from './skyGlsl.js';
 import { STEER_GLSL } from '../weather/sky/steer.js';
+import { CLOUD_LOOK } from './cloudLook.js';
 import { CELL_GLSL, ANVIL_GLSL, CELL_MAX, ANVIL_MAX, ANVIL_VEC4, CELL_UNIFORMS, CELL_SHAPE } from '../weather/sky/cellShape.js';
 
 // A round shell with each corner handed to the GPU once: three's polyhedra are triangle soup
@@ -55,10 +56,10 @@ export const UPPER_LOOK = Object.freeze({
   HIGH_UNDER: 0.2,                // an anvil's underside, against its top (grey, not white: it is shut out of the Sun by its own depth)
   ANVIL_GRAIN: 0.3,               // how much the strokes thin and thicken its sheet
   ANVIL_STEPS: 8, ANVIL_STEPS_THIN: 4,   // steps through an anvil's depth along a line of sight (thinned: the governor's cloud-upper)
-  ANVIL_UNDER_EDGE: 0.5,          // its underside toward its thin edge, against its top (HIGH_UNDER under its deep middle)
+  ANVIL_UNDER_EDGE: 0.32,         // its underside toward its thin edge, against its top (HIGH_UNDER under its deep middle)
   ANVIL_FIND: 5, ANVIL_FIND_THIN: 2,   // halvings that find where a line of sight enters it
-  ANVIL_DEEP0: 0.2, ANVIL_DEEP1: 0.75,   // its depth where it is entered (a share of its deepest) between which its underside goes from the rim's tone to its darkest
-  ANVIL_SKY: 0.35, ANVIL_SKY_EDGE: 0.8,  // the share of the sky's light its underside keeps: under its deep middle, at its rim
+  ANVIL_DEEP0: 0.14, ANVIL_DEEP1: 0.55,   // its depth where it is entered (a share of its deepest) between which its underside goes from the rim's tone to its darkest
+  ANVIL_SKY: 0.22, ANVIL_SKY_EDGE: 0.5,  // the share of the sky's light its underside keeps: under its deep middle, at its rim
   ANVIL_EXT: 260,                 // m of anvil that takes 63 % of what is behind it
   ANVIL_LIT0: 0.3, ANVIL_LIT1: 0.85,   // how high in the anvil (0 its underside .. 1 its top) what is seen goes from the underside's grey to the lit top
   HALO: 0.062,                    // how strong the 22-degree halo is
@@ -141,7 +142,7 @@ void main() {
   // an anvil stands between 6.7 and 9.5 km by the height of the tower that made it, and the
   // shell is at 9. (And before the clear sky is thrown away: seen from 30 km off, the ray meets
   // the anvil's slab kilometres from where it meets the shell, where the field may have none.)
-  float an = 0.0, anH = 0.0, anDeep = 0.0, skyShade = 1.0;
+  float an = 0.0, anH = 0.0, anDeep = 0.0, skyShade = 1.0, anUnder = 0.0;
   if (high && uAnvilCount > 0) {
     vec3 ray = normalize(vRel);
     float left = 1.0;
@@ -197,7 +198,8 @@ void main() {
       shade = mix(shade, mix(under, 1.12, max(smoothstep(${glf(U.ANVIL_LIT0)}, ${glf(U.ANVIL_LIT1)}, anH), side)) * (0.93 + 0.14 * n), smoothstep(0.05, 0.5, an));
       // (and the sky's own light is shut out of it as the Sun's is: lit by the whole sky, its
       // underside was the tone of the cloudlets round it. It is the dark, heavy thing in its sky.)
-      skyShade = mix(1.0, mix(${glf(U.ANVIL_SKY_EDGE)}, ${glf(U.ANVIL_SKY)}, heavy), smoothstep(0.05, 0.5, an) * (1.0 - max(smoothstep(${glf(U.ANVIL_LIT0)}, ${glf(U.ANVIL_LIT1)}, anH), side)));
+      anUnder = smoothstep(0.05, 0.5, an) * (1.0 - max(smoothstep(${glf(U.ANVIL_LIT0)}, ${glf(U.ANVIL_LIT1)}, anH), side));
+      skyShade = mix(1.0, mix(${glf(U.ANVIL_SKY_EDGE)}, ${glf(U.ANVIL_SKY)}, heavy), anUnder);
     }
   } else {
     // Altocumulus: rows of small rounded cloudlets, each with a lit and a shaded side; thick, it
@@ -254,7 +256,9 @@ void main() {
       vec2 ch = anvilChord(k2, uCamPlanetPos, ray);
       if (ch.y > ch.x && ch.x > dist) left *= anvilSeen(k2, uCamPlanetPos, ray).z;
     }
-    alpha *= 1.0 - ${glf(U.WINDOW)} * (1.0 - left);
+    // (all of it, not the tower's share: a fifth of a sunlit cloudlet left on a slate underside
+    // was still a cream blotch)
+    alpha *= left;
   }
   if (alpha < 0.004) discard;
   // light: the Sun through the air at this height (so it goes gold and then pink after the land's
@@ -269,7 +273,12 @@ void main() {
   float fwd = 0.75 + 0.9 * pow(max(cs, 0.0), 8.0);
   if (high) fwd += ${glf(U.HALO)} * (1.0 - smoothstep(0.0, 0.02, abs(cs - 0.927))) * smoothstep(0.1, 0.4, cover);
   vec3 col = vec3(0.9) * (sun * fwd * shade + skyLight(uUpper.z > 0.5 ? -up : up, up) * (0.8 * skyShade)) / PI;
-  col = aerialPerspective(col, vRel);
+  // (its shade is the tower's slate, not the warm grey of the ground's light)
+  col *= mix(vec3(1.0), vec3(${glf(CLOUD_LOOK.CELL_TINT[0])}, ${glf(CLOUD_LOOK.CELL_TINT[1])}, ${glf(CLOUD_LOOK.CELL_TINT[2])}), 0.8 * anUnder);
+  // (an anvil keeps the share of the air's veil its tower keeps (CLOUD_LOOK.CELL_HAZE): through
+  // all of it, 15 km of low air laid one warm beige over its underside whatever its own shade,
+  // and it was the tone of the cloudlets round it)
+  col = mix(col, aerialPerspective(col, vRel), mix(1.0, ${glf(CLOUD_LOOK.CELL_HAZE)}, high ? smoothstep(0.05, 0.5, an) : 0.0));
   fragColor = vec4(col * uExposure * alpha, alpha);
 }`;
 
