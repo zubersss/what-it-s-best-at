@@ -83,6 +83,33 @@ rocks and the figure), with `npm run govsim` before anything is sent. (3) No lig
 for the figure. (4) The plain benchmark is asked for again on the build after those cuts,
 not now.
 
+### A wood's edge dead straight from the air (2026-11-27, found by the sky helper's motion strip)
+
+From 3 km over the opening place, toward 30 degrees, the wood ended at a ruler line four
+kilometres long (`docs/shots/joined/wood_edge_from_3km_before_after.png`, left).
+**Cause**: the tree line was a contour twice over (the land rule's, by temperature, and
+the trees' own in `treeBlock.js`, by height, which emptied the parkland band below it), and
+the flank there is one of those the maker leaves at one slope: a straight contour.
+**Cure**: one rule ends a wood. The land rule's line wiggles by two noises (`treeRag`
+2 degrees C: a kilometre and a half and some hundreds of metres across, some 150 m of
+height either way); how closed the canopy is goes by the wood's own share
+(`1.5 f f`, what the three class steps times the trees' thinning came to at the opening
+place), not in three steps; Haven's trees keep their own limit 260 m over that line as a
+last stop (`life.trees.line.above`, `band`) and their stunting over the 350 m under it.
+The colour map from the air was made again (`make-world.mjs` gave the same land to the
+byte, `make-world-maps.mjs` the new `haven_day_*.jpg`).
+**A side effect caught in its picture**: three trees appeared within 15 m of the opening
+place (two firs across the mountain): the opening place is kept clear of trees within
+22 m (`life.trees.clear`, as the rocks keep theirs), and the view is as it was
+(`opening_run_treeline.png`).
+**Behaviour changes**: every wood's upper edge on Haven is ragged, with glades below it and
+tongues above (the tree line itself has not moved on average); woods near the line are a
+little thinner or denser from place to place than before. `scripts/land-sketch.mjs` draws
+the rule from above in seconds (`wood_edge_rule_before_after.png`).
+**Checked**: every no-browser test (the sky model's timing line is a coin toss on this
+machine: the sky helper is asked to make it a ratio); the opening view, from 3 km, from
+6 km. Not yet on the link.
+
 ### The second joined build of 2026-11-27 (17:30 UTC): more cuts, mist from the shore, a clean winter (sent: PR #43, main daa009f)
 
 On top of main 6fac2be, this branch at `219fe4b`: the **speed helper** to `830d621` (only
