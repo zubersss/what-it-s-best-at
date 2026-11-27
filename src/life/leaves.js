@@ -248,7 +248,9 @@ export class Shed {
     this._slots(A, lie, dt || 1 / 30);
     // a few a frame: where the ground is under each (the ground as it is drawn), in the world
     const seed = this.lieGeo.attributes.aSeed.array, e = u.uLeafEast.value, n = u.uLeafNorth.value, R = this.terrain.radius, d = this._d, P = rig.pos;
-    let changed = false;
+    // (lo, hi: the first and the last leaf changed this frame: only that stretch of the buffer is
+    // handed to the GPU, a few hundred bytes while the leaves are being laid, not all of it)
+    let changed = false, lo = LYING, hi = -1;
     for (let c = 0, scanned = 0; c < PER_FRAME && this.left > 0 && scanned < LYING; scanned++) {
       const i = this.next; this.next = (this.next + 1) % LYING;
       if (this.put[i]) continue;
@@ -270,7 +272,7 @@ export class Shed {
       const hs = this.terrain.hs, cover = hs?.coverAt ? hs.coverAt(d[0], d[1], d[2]) : -1, amount = cover < 0 ? 0 : (AMOUNT[cover & 255] || 0) * (1 - 0.4 * (cover >> 16) / 255);
       const lift = this.lift[i] = amount > 0.05 ? (0.2 + 0.26 * seed[i * 4 + 3]) * (0.6 + 0.6 * amount) : 0.03, r = R + g + lift;
       this.abs[i * 3] = d[0] * r; this.abs[i * 3 + 1] = d[1] * r; this.abs[i * 3 + 2] = d[2] * r; this.put[i] = 1; this.left--;
-      lie.array[i * 4] = d[0] * r - A.x; lie.array[i * 4 + 1] = d[1] * r - A.y; lie.array[i * 4 + 2] = d[2] * r - A.z; lie.array[i * 4 + 3] = 1; changed = true;
+      lie.array[i * 4] = d[0] * r - A.x; lie.array[i * 4 + 1] = d[1] * r - A.y; lie.array[i * 4 + 2] = d[2] * r - A.z; lie.array[i * 4 + 3] = 1; changed = true; if (i < lo) lo = i; if (i > hi) hi = i;
     }
     // Once all lie, a few a frame are set again on the ground as it is drawn now: finer ground
     // comes in as one walks up to a tree, and a petal kept where it lies (it is no longer put
@@ -286,9 +288,13 @@ export class Shed {
       const r = R + g + this.lift[i];
       if (Math.abs(r - l) < 0.002) continue;
       this.abs[i * 3] = d[0] * r; this.abs[i * 3 + 1] = d[1] * r; this.abs[i * 3 + 2] = d[2] * r;
-      lie.array[i * 4] = d[0] * r - A.x; lie.array[i * 4 + 1] = d[1] * r - A.y; lie.array[i * 4 + 2] = d[2] * r - A.z; changed = true;
+      lie.array[i * 4] = d[0] * r - A.x; lie.array[i * 4 + 1] = d[1] * r - A.y; lie.array[i * 4 + 2] = d[2] * r - A.z; changed = true; if (i < lo) lo = i; if (i > hi) hi = i;
     }
-    if (changed) lie.needsUpdate = true;
+    if (changed) {
+      // (a stretch that wraps round the end of the pool is most of it: then all of it)
+      lie.clearUpdateRanges?.(); if (hi - lo < LYING / 2) lie.addUpdateRange?.(lo * 4, (hi - lo + 1) * 4);
+      lie.needsUpdate = true; this.sentFloats = (hi - lo < LYING / 2 ? hi - lo + 1 : LYING) * 4;
+    } else this.sentFloats = 0;
   }
 
   // The flowering trees listed again (list: from the anchor A). Each slot is given the tree it
@@ -322,8 +328,13 @@ export class Shed {
       if (this.cur[s] && this.want[s] && same(this.cur[s].abs, this.want[s].abs)) this.cur[s] = this.want[s];
     }
     // every lying petal where it lies, from the new anchor
-    for (let i = 0; i < LYING; i++) if (lie.array[i * 4 + 3] > 0) { lie.array[i * 4] = this.abs[i * 3] - A.x; lie.array[i * 4 + 1] = this.abs[i * 3 + 1] - A.y; lie.array[i * 4 + 2] = this.abs[i * 3 + 2] - A.z; }
-    lie.needsUpdate = true; this.anchor.copy(A);
+    // (only when the anchor has moved: the list is made again at every making of the trees' lists,
+    // most often from the same anchor, and the whole buffer, 75 KB of leaves, was handed to the
+    // GPU each time for nothing)
+    if (!this.anchor.equals(A)) {
+      for (let i = 0; i < LYING; i++) if (lie.array[i * 4 + 3] > 0) { lie.array[i * 4] = this.abs[i * 3] - A.x; lie.array[i * 4 + 1] = this.abs[i * 3 + 1] - A.y; lie.array[i * 4 + 2] = this.abs[i * 3 + 2] - A.z; }
+      lie.clearUpdateRanges?.(); lie.needsUpdate = true; this.anchor.copy(A);
+    }
     for (let s = 0; s < SLOTS; s++) this._show(s, A);
   }
 
@@ -338,7 +349,7 @@ export class Shed {
       if (moving && (!c || this.fade[s] <= 0)) {
         this.cur[s] = w; this.fade[s] = 0; this._show(s, A);
         for (let i = s; i < LYING; i += SLOTS) { if (this.put[i]) { this.put[i] = 0; this.left++; } if (!w) lie.array[i * 4 + 3] = 0; }
-        if (!w) lie.needsUpdate = true;
+        if (!w) { lie.clearUpdateRanges?.(); lie.needsUpdate = true; }
         this.left = 0; for (let i = 0; i < LYING; i++) if (!this.put[i] && this.feet[i % SLOTS]) this.left++;          // (to be laid: under a slot that has a tree)
       } else this.fade[s] = Math.min(1, Math.max(0, this.fade[s] + (moving ? -dt : dt) / 0.5));
       top[s].z = this.fade[s];
