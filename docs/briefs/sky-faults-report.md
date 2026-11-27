@@ -335,4 +335,110 @@ New checks that fail when what they guard is broken: `sky-slots-test --break res
 `fog-sheet-test --break country`.
 
 SKY-FAULTS-DONE (2026-11-27): faults 1 to 4 cured as written above; fault 5's heaps and far
-heaps redone and the list of what is left is under it.
+heaps redone and the list of what is left is under it. (Sent before I had read four notes from
+the owner's session that were queued while I worked: what they asked is below.)
+
+## After the brief: what the owner's session asked in its notes (2026-11-27, later)
+
+### The mist must be mist, not a plate (`view_mist.png` was a flat white sheet with a ruler's edge)
+
+**What the plate was made of**: one level sheet at the fog's top, as opaque at its rim as in
+its middle (it knew nothing of the ground under it: where the ground rose through it the depth
+test cut it, a hard line), lit by the Sun whether or not a mountain stood in the way.
+
+**What it is now** (`src/sky/fogSheet.js`):
+- **It knows the real surface under it.** Every point of its lattice (129 x 129 over 60 km,
+  fixed to the world) asks the page's own height function once what stands there, water
+  counted as its surface, and keeps it in a small texture (four bytes a point). The mist's
+  depth at a place is its top less that: where a hollow is a lake whose water stands over the
+  model's fog, there is none (the model's fog on lake beds is no longer drawn at all).
+- **Thin at its edges, thick in its middle**: what it takes of the picture behind it goes by
+  the length of mist on the line of sight (63 % in 55 m), so the shore and the water show
+  through its rim and its middle is white. Seen from inside it, the same rule: looked up
+  through, little; looked along, all of it. No ceiling over one who stands in it.
+- **Feathered and broken**: its depth is thinned and thickened by lumps 900 m across that
+  drift with the ground wind, and finer wisps take up to 16 m from it: the edge is where the
+  ground rises through that, in tongues.
+- **A soft top**: its vertices rise and fall with the same lumps, by up to a third of its
+  depth (28 m at most).
+- **The dawn's colour**: the land's own shadow on it is asked of the same height function (a
+  short look toward the Sun from each point of the lattice, 32 points a frame); in a
+  mountain's shadow it keeps 0.4 of the Sun's light and is cool, where the low Sun reaches it
+  it is warm.
+- **Mist lies on water.** The valley of the mist view is a LAKE in the game (the land's maker
+  floods every pit; its surface is at 489 m, the model's fog top between 390 and 506 m across
+  it: `scripts/sky-probe.mjs --print` asked the running game). The model knows the land's bed
+  and not its water, so all but a rim of its mist was under the lake. Where the field has fog
+  and the place is water, the mist now stands on the water: nothing at the shore, 34 m over
+  water 30 m deep and more.
+- **It asks again.** A lake's water reaches the page after its land does: a lattice asked once
+  when the page began had the bed for ever (the first three pictures of this piece). The
+  surface is asked again in strides through the lattice (32 points a frame); when one has
+  changed by more than 2 m or has become water, all of it is asked again at the next frame.
+- Checks (`scripts/fog-sheet-test.mjs`): the lattice holds the real surface under each point,
+  a lake as its water; a step of the anchor moves what is known and asks only the new column
+  (`--break noshift` fails it).
+
+**Cost** (counts): drawn only while the field has fog within 27 km. Then: one sheet of 32 768
+triangles (8 192 under the governor's `fog-sheet`), a vertex 4 fetches of the field, one of its
+own land and one read of the noise, a pixel of mist 2 reads of the noise. The page's own work:
+16 641 questions of the height function the first time fog comes within reach or after a jump
+(17 ms on this machine, once; the land's shadow after it spread over 16 frames), 129 a lattice
+step (469 m flown), and at most 32 x 6 a frame for the shadow (0.2 ms here). On the phone the
+part `fog` of the benchmark's list measures it; it has never been measured (it never drew).
+
+**Pictures**: `mist_plate_before.png` (as it was: a plate on the lake's rim), `mist_rim_only.png`
+(feathered and lit by the dawn, still only the rim: the rest under the water),
+`view_mist.png` (now: the bookmark, key 6), `mist_shore_blue.png` (eye height on the east
+shore before the shade's light and before the mist lay on the water),
+`mist_shore_after.png` (the same place now; taken after this commit if it is not here yet).
+
+**Not done**: standing IN the mist, what lies below the eye's level is not veiled by it (the
+sheet is over the eye there; the weather's own veil at the traveller goes by the model's fog
+top, which knows nothing of the mist on the water): from the shore the sky is mist and the
+water at one's feet is clear; its top's lumps are 469 m apart at the least (the lattice); the
+model's fog under lakes is hidden, not moved onto the water (package A's land planes).
+
+### What of the sky is paid every frame, and what was cut
+
+**Found**: the benchmark's row "everything out" hid the four scenes and left every pass the
+sky makes into targets of its own running: the field's three blends, the shade map's two
+windows and its world strip, the probe (a pass, a read back, a fence and a flush), the march,
+its smoothing pass and its gathered pass, and inside the picture six full-screen layers, the
+upper shells and the far shell. That is the 13 to 28 ms the eleventh results showed with
+"nothing drawn" (the speed helper's GL counts say the same: 8 of the frame's 23 passes).
+
+**The benchmark can now leave each out** (`sky/skySystem.js SKY_PARTS`, `perf/benchmark.js`):
+`cloud-march` (the volume: march, two small passes, six layers), `cloud-shell` (the far low
+cloud), `sky-field` (the field's uploads and blend), `sky-all` (every pass of the sky), beside
+the seven it had; and **"everything" now takes the sky out too**, so that row is again what
+measuring costs.
+
+**Cut, with no change to the picture**:
+1. **No march under a clear sky.** With no low cloud within the volume's reach (49 places of
+   the field, asked every 800 m or 20 s) and no storm cell in the shaders, the march, its two
+   small passes and the six layers laid from it are not made at all (they drew nothing, at
+   about 1.1 MP of march, as many of smoothing and 13.5 MP of blending on the phone by the
+   speed helper's count). The governor's `cloud-steps` and `cloud-volume` are then not live.
+   The opening morning is such a sky.
+2. **The shade map's two windows only when their picture can have changed**: their lattice has
+   stepped, the Sun has moved, or 8 (near) and 24 (middle) frames have gone by for the clouds'
+   drift (fewer as the clock runs faster). Standing or walking: 30 and 10 draws in 240 frames
+   where there were 240 and 240 (`node scripts/sky-turns-test.mjs`; `--break always` fails).
+   Flying 80 m a frame they are drawn every frame, as before.
+3. **The probe every fourth frame** in play (its value was eased over frames already).
+4. **The field's blend in turns**: one of its three maps a frame, not all three.
+
+**Not cut, and why**: the six layers when there IS cloud near (a layer with nothing in it is
+still a full-screen pass: the page cannot know which slices are empty without reading the
+march back); the upper shells and the far shell over clear sky (one read of the field a pixel
+and a discard; their triangles are 43 600 and 48 000); the passes that begin without a whole
+clear (the speed helper's finding: `invalidateFramebuffer` before the partial clears of the
+field's, the shade map's and the march's targets is the next thing to try, in `src/sky/`).
+None of this is measured on the phone.
+
+### The first morning's sky
+
+At the opening hour the model has no heaps within 30 km, a mackerel sky (middle cloud 0.3) over
+the western half and a bank of stratus 15 to 20 km to the north-west: not a lid.
+`open_ledge_after.png` is the opening view on this head.

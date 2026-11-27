@@ -398,9 +398,15 @@ export class SkyField {
     }
     const maps = [['A', W, H], ['B', W, H], ['C', CW, CH]];
     const n = whole ? STRIPS : 1;
+    // (in turns: one map's strip a frame, the strip moving on when all three have had it. Three
+    // passes into three targets every frame were paid whatever was on screen; the field changes
+    // over two minutes, and a strip that waits 1.6 s instead of 0.5 is one part in 75 of that.)
+    this.turn = whole ? 0 : (this.turn || 0);
     for (let q = 0; q < n; q++) {
       const st = this.strip;
-      for (const [key, w, h] of maps) {
+      for (let m = 0; m < maps.length; m++) {
+        if (!whole && m !== this.turn) continue;
+        const [key, w, h] = maps[m];
         const r0 = Math.floor(st * h / STRIPS), r1 = Math.floor((st + 1) * h / STRIPS);
         if (r1 <= r0) continue;
         mat.uniforms.t0.value = a.ex[key]; mat.uniforms.t1.value = b.ex[key];
@@ -411,6 +417,7 @@ export class SkyField {
         r.render(this._quad, this._cam);
         r.setScissorTest(false);
       }
+      if (!whole) { this.turn = (this.turn + 1) % maps.length; if (this.turn !== 0) continue; }
       this.strip = (st + 1) % STRIPS;
       if (this.strip === 0) this._shown();
     }

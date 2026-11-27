@@ -252,6 +252,7 @@ node scripts/sky-slots-test.mjs [--break reslot]   # the sky field's snapshots o
 node scripts/sky-scan.mjs [--t 4] [--lat .. --lon ..] [--span 120] [--stub fair]   # the sky field's numbers round a place at an hour of the game (?t=): heap, sheet, base, thickness, country, mid, high (no browser, seconds)
 node scripts/sky-above.mjs [--t 4] [--span 120] [--stub fair] [--out file.png]   # the low cloud from straight above as the game cuts it: the hour's cover (left) and the cloud carved from it (right), with the share of the land under cloud (no browser, 20 s)
 node scripts/sky-probe.mjs --distdir <build> [--shot ledge] --query "alt=2500&heading=243&t=8.25" --out dir/name [--try "upper=__app.sky.partOut('cloud-upper',true);;flat=__app.sky.setSaving('cloud-far',true)"] [--size 440x206]   # one view of the real game loaded once, then pictured again with a switch tried each time (seconds a switch, where a page load is minutes): for telling WHICH part of the sky draws or hides a thing
+node scripts/sky-turns-test.mjs [--break always]   # what the sky draws every frame whatever is on screen: the shade map's windows only when their lattice has stepped, the Sun has moved or the clouds have drifted (a renderer that keeps count; no browser, seconds)
 node scripts/sky-steer-test.mjs · node scripts/sky-format-test.mjs · node scripts/sky-cell-test.mjs   # each cloud layer's wind (closed form against a frame-by-frame sum), the weather field's snapshot format (JS and GLSL decoders), a storm cell's shape (JS against its GLSL) (no browser)
 npm run probe          # top-down shaded relief of the height function (no browser)
 node scripts/sky-table.mjs [--lat .. --lon ..]   # where the sky bodies are from a place over time (no browser)
@@ -785,6 +786,14 @@ finished benchmark leaves its text in `window.__benchResult`.
   the share of the land under cloud for the hour: read it before any picture of a sky.
 - The model's land is the elevation map, and that holds lake BEDS: its fog lay under the
   water of every lake. Anything laid "on the ground" by rule must ask where the water is.
+- "Everything out" in the benchmark must take out every pass into a target of its own, not
+  only the scenes: the sky's eight passes ran under it and the row meant to be the cost of
+  measuring was 13 to 28 ms of sky. When a part is added that draws outside the scenes, add
+  it to that row (`sky-all`).
+- A flat sheet is a plate however it is lit. What lies in hollows (mist) must know the ground
+  under it: its depth there decides how much it hides, and its edge is where the ground rises
+  through it. And a white thing lit by the sky alone is the zenith's deep blue: from its own
+  shore the mist in a mountain's shadow was a sea.
 - Two clocks: `?t=` (and a bookmark's `timeOffsetHours`) counts hours from the scene's own
   moment; the weather's clock counts seconds from `weather.epoch` (521 hours apart on Haven).
   A Node scan of the model at `t = H * 3600` asks about another day than the game shows at

@@ -769,6 +769,8 @@ export class CloudVolume {
     const v = this.def?.volume;
     // (wanted: it would be drawn here if the governor's saving were not on: the governor asks)
     this.wanted = !!(v && this.noise && layer.mesh.visible && cam.length() - this.radius < (v.above ?? 30000));
+    // (with a field: nothing to march under a clear sky with no storm cell anywhere in the shaders)
+    if (this.wanted && this._sky?.field?.on && !(this.coverNear > 0.03) && !(SKY_UNIFORMS.uCellCount.value > 0)) this.wanted = false;
     // (with the layer off, the cells are still marched while one stands within reach: by the
     // cells the sky system has already packed for the shaders this frame, which is what the
     // march will read. By the frame's own list this could never start: the frame reaches the
@@ -801,7 +803,7 @@ export class CloudVolume {
     if (!field?.on) {
       this.lift = this.groundAt ? this.groundAt(cam) : 0;
       this.base = (v.base ?? 1500) + this.lift; this.top = this.base + (v.thick ?? 3000);
-      this.bounds.base = this.base; this.bounds.baseHi = this.base; this.bounds.top = this.top; this.rainNear = false;
+      this.bounds.base = this.base; this.bounds.baseHi = this.base; this.bounds.top = this.top; this.rainNear = false; this.coverNear = 1;
       return;
     }
     // (a square of 25 places over the reach, which is as far as the layer is marched: the lowest
@@ -813,9 +815,11 @@ export class CloudVolume {
     if (a0 && Math.abs(sky.t - this._placeT) < 20 && (cam.x - a0[0]) ** 2 + (cam.y - a0[1]) ** 2 + (cam.z - a0[2]) ** 2 < 800 * 800) return;
     this._placeAt = [cam.x, cam.y, cam.z]; this._placeT = sky.t;
     const reach = this.reach, out = this._at || (this._at = makeSkyAt());
-    let lo = Infinity, loHi = 0, hi = -Infinity, rain = 0;
+    let lo = Infinity, loHi = 0, hi = -Infinity, rain = 0, cov = 0;
     const look = (p) => {
       const a = field.at(p, sky.t, out);
+      if (a.field.heap > cov) cov = a.field.heap;
+      if (a.field.sheet > cov) cov = a.field.sheet;
       if (a.base < lo) lo = a.base;
       if (a.base > loHi) loHi = a.base;
       if (a.top > hi) hi = a.top;
@@ -826,11 +830,18 @@ export class CloudVolume {
     const up = [cam.x / r, cam.y / r, cam.z / r];
     const north = [up[1] * east[2] - up[2] * east[1], up[2] * east[0] - up[0] * east[2], up[0] * east[1] - up[1] * east[0]];
     const p = [0, 0, 0];
-    for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) {
-      const ce = i * reach * 0.5, cn = j * reach * 0.5;
+    // (49 places, 5.3 km apart to a little beyond the reach)
+    for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) {
+      const ce = i * reach / 3 * 1.1, cn = j * reach / 3 * 1.1;
       for (let k = 0; k < 3; k++) p[k] = cam.getComponent(k) + east[k] * ce + north[k] * cn;
       look(p);
     }
+    // Is there any low cloud within reach at all? Under a clear sky the march, its two small
+    // passes and the six layers laid from it were all made every frame and drew nothing: now
+    // they are not made (ready()). A cover the places miss (a cap a kilometre wide between
+    // two of them) is drawn by the far shell, which then reaches to the traveller, until a
+    // place finds it.
+    this.coverNear = cov;
     if (!(lo < Infinity)) { lo = v.base ?? 1500; loHi = lo; hi = lo + (v.thick ?? 3000); }
     // (snapped to 250 m with a margin either way, and only changed when the step has lasted: a
     // bound that followed every frame's reading would shorten the march by a different amount

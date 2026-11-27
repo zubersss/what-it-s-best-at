@@ -146,7 +146,12 @@ export const SKY_SAVINGS = Object.freeze({
   'fog-sheet': 'B: the fog on a lattice of half as many points a side (a quarter of the triangles)',
 });
 // The parts the benchmark's cost test can leave out one at a time (perf/benchmark.js PARTS_OUT).
-export const SKY_PARTS = Object.freeze(['clouds-all', 'cloud-shade', 'cloud-upper', 'cells-far', 'rain-shafts', 'fog', 'lenses']);
+// (sky-faults: 'cloud-march' the volume alone — its march, its two small passes and the six layers
+// laid from it; 'cloud-shell' the far low shell alone; 'sky-field' the field's uploads and the
+// blend of its 'now' maps, which then keep what they hold; 'sky-all' every pass the sky makes,
+// for the benchmark's "everything": with the four scenes hidden all of these still ran, and the
+// row meant to be the cost of measuring was 13 to 28 ms of sky.)
+export const SKY_PARTS = Object.freeze(['clouds-all', 'cloud-shade', 'cloud-upper', 'cells-far', 'rain-shafts', 'fog', 'lenses', 'cloud-march', 'cloud-shell', 'sky-field', 'sky-all']);
 
 // ?debug= -> what the sky does with it
 export function skyDebug(str = '') {
@@ -195,6 +200,8 @@ export class SkySystem {
     this.field = parts.field ?? new SkyField(renderer);
     this.upper = parts.upper ?? new UpperClouds(renderer);          // (sky B)
     this.fog = parts.fog ?? new FogSheet(renderer);                  // (sky B)
+    // (the mist asks the page's own height function what stands under it: fogSheet.js _land)
+    if (this.fog && 'land' in this.fog) this.fog.land = () => this.terrain?.hs || null;
     this.lenses = parts.lenses ?? new Lenticulars(renderer);         // (sky B)
     this.probe = parts.probe ?? stubPart('probe');
     this.shared.uCloud.value = this.clouds.shadow;
@@ -280,7 +287,7 @@ export class SkySystem {
     if (this.fieldWanted) this._makeField(rig);
     f.here = null; f.cells = NONE; f.strikes = NONE;
     if (this.field.on) {
-      this.field.update(this.t);
+      if (!this.out.has('sky-field') && !this.out.has('sky-all')) this.field.update(this.t);
       this.hereAt = [rig.pos.x, rig.pos.y, rig.pos.z];
       this.field.at(this.hereAt, this.t, this.here); f.here = this.here;
       f.cells = this._cellsInReach(rig);
@@ -427,7 +434,7 @@ export class SkySystem {
   // ---- 2. before the main picture -------------------------------------------------------------
   // c: { renderer, post, rig, worldRadius, time (the page's clock, s), treesWanted }
   beforeScene(c) {
-    const { rig } = c, none = this.noClouds || this.out.has('clouds-all');
+    const { rig } = c, none = this.noClouds || this.out.has('clouds-all') || this.out.has('sky-all');
     c.sky = this.frame;
     // (clouds: near the traveller the layer is a volume. Its small picture is marched now,
     // before the main picture is begun, and laid over the ground further down: nothing
@@ -437,7 +444,8 @@ export class SkySystem {
     const cloudFar = this.clouds.update(rig.pos, c.worldRadius, this.cloudVolume);
     // (?debug=noclouds: a clear sky, for pictures of the land from high above; their shadows go with them)
     if (none) { this.clouds.mesh.visible = false; this.clouds.shadow.x = 0; this.clouds.heap.w = 0; }
-    const vol = !none && this.cloudVolume.ready(rig.pos, this.clouds);
+    const vol = !none && this.cloudVolume.ready(rig.pos, this.clouds) && !this.out.has('cloud-march');
+    if (this.out.has('cloud-shell')) this.clouds.mesh.visible = false;
     this.clouds.uniforms.uNearFade.value = vol ? this.cloudVolume.reach : 0;
     // the passes, each into its own target: the shade map (C; the clouds' shadow on trees and on
     // the grass's far clumps), the probe (C), the march (B)
@@ -547,7 +555,8 @@ export class SkySystem {
   // ---- the benchmark's parts left out ---------------------------------------------------------
   hasPart(id) {
     switch (id) {
-      case 'clouds-all': case 'cloud-shade': return !!this.world?.clouds;
+      case 'clouds-all': case 'cloud-shade': case 'cloud-march': case 'cloud-shell': case 'sky-all': return !!this.world?.clouds;
+      case 'sky-field': return !!this.field?.on;
       case 'cloud-upper': return this.upper.has(id);
       case 'cells-far': case 'rain-shafts': return !!this.cloudVolume.has?.(id);
       case 'fog': return this.fog.has(id);
@@ -558,6 +567,7 @@ export class SkySystem {
   partOut(id, out) {
     if (!SKY_PARTS.includes(id)) throw new Error(`sky: no part ${id}`);
     if (out) this.out.add(id); else this.out.delete(id);
+    if (id === 'sky-all') { this.upper.partOut('cloud-upper', out || this.out.has('cloud-upper')); this.fog.partOut('fog', out || this.out.has('fog')); this.lenses.partOut('lenses', out || this.out.has('lenses')); }
     if (id === 'cloud-upper') this.upper.partOut(id, out);
     else if (id === 'fog') this.fog.partOut(id, out);
     else if (id === 'lenses') this.lenses.partOut(id, out);

@@ -311,10 +311,16 @@ export const PARTS_OUT = [
   skyPart('rain-shafts', 'rain shafts'),
   skyPart('fog', 'fog and mist'),
   skyPart('lenses', 'lens clouds over the peaks'),
+  // (sky-faults: the volume alone, the far shell alone, and the field's own uploads and blend)
+  skyPart('cloud-march', "the clouds near the traveller (the march and its layers)"),
+  skyPart('cloud-shell', 'the far low cloud'),
+  skyPart('sky-field', "the weather field's maps"),
+  skyPart('sky-all', 'every pass of the sky'),
   // (the last pass over the canvas at the picture's size, as it now is, instead of the screen's: App.fitCanvas)
   { id: 'last-pass', label: "the last pass at the picture's size, not the screen's", set: (app, out) => { app.canvasHold = out ? 'fit' : 'full'; } },
   // (last: what is left with nothing drawn at all)
-  { id: 'everything', label: 'everything', set: (app, out) => { app.nearScene.visible = app.farScene.visible = app.heroScene.visible = app.dustScene.visible = !out; } },
+  // (and every pass the sky makes into targets of its own: with the scenes alone hidden those all ran)
+  { id: 'everything', label: 'everything', set: (app, out) => { app.nearScene.visible = app.farScene.visible = app.heroScene.visible = app.dustScene.visible = !out; if (app.sky?.hasPart('sky-all')) app.sky.partOut('sky-all', out); } },
 ];
 export class CostTest {
   constructor(bench) {
