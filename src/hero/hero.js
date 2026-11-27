@@ -56,7 +56,7 @@ export class Hero {
     // (its "focus"), fine enough (7 mm) for the hard-edged shadow of a suited figure under
     // an airless sky.
     for (const m of this.casters) m.userData.shadowFocus = this.group;
-    this.group.visible = false;
+    this.group.visible = false; this.sculpt = null; this.shown = true;
     const tris = (m) => m.geometry.attributes.position.count / 3;
     this.triangles = this.robe.triangles + tris(this.torso) + 2 * (tris(this.arms[0]) + tris(this.forearms[0]) + tris(this.legs[0]) + tris(this.shins[0]));
 
@@ -77,6 +77,20 @@ export class Hero {
     this._g = new THREE.Vector3(); this._wind = new THREE.Vector3(); this._t = new THREE.Vector3();
     this.chaseBack = HERO_DISTANCE;
     this.started = false;
+  }
+
+  // The owner's sculpt (heroSculpt.js) takes the place of the figure built in code: the
+  // parts and the cloth go on moving, and are no longer drawn themselves.
+  useSculpt(sculpt) {
+    this.sculpt = sculpt; this.group.add(sculpt.mesh);
+    this.robe.drawn = false;
+    this.show(this.shown);
+  }
+  // The figure in the picture or out of it (its shadow stays either way).
+  show(on) {
+    this.shown = on;
+    this.body.visible = this.cape.visible = on && !this.sculpt;
+    if (this.sculpt) this.sculpt.mesh.visible = on;
   }
 
   // Meshes that should cast into the near shadow map.

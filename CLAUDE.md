@@ -22,8 +22,8 @@ most beautiful [biomes] on earth including this one."** The owner does not care 
 sizes, real maps or the explorer's side of things, and allowed a full restart ("whatever
 gets my idea across").
 
-So the game is: you fly a robed, long-haired character (the owner's own design:
-`docs/PROGRESS.md`, "The owner's character") over **a small made-up world** (`haven`,
+So the game is: you fly a robed, long-haired character (the owner's own design, and since
+2026-11-27 the owner's own sculpt: `docs/PROGRESS.md`, "The owner's sculpt in the game") over **a small made-up world** (`haven`,
 milestone 12 in `docs/ROADMAP.md`): small enough that the horizon bends from a few
 kilometres up and mountains stand on its edge from space, its land shaped by rule to be
 beautiful (peaks, stepped plateaus, canyons, valleys, a sea), its water following the
@@ -233,6 +233,9 @@ npm run assets         # re-download and convert the small NASA/Yale files into 
 python3 scripts/fetch-maps.py   # the rest of public/data/ (needs: pip install rasterio numpy pillow), see docs/ASSETS.md
 node scripts/parts-out.mjs --world haven --shot ledge [--query ..] [--box 0.2,0.6,0.8,1] [--distdir build]   # who draws that? one view taken with one part out at a time (grass, clumps, trees, far forest, rocks, shadow casters), and how much of the picture each changes
 scripts/ground-cost-run.sh <scratch dir> [--only ledge,air3k] [--before old-terrainMaterial.js] [--save dir] [--parts file.mjs] [--size 880x412 --dsf 2.2]   # what the ground's shading costs, as a count of work on software WebGL (never a frame rate): the game's ground alone at ten views, the shader of an earlier commit beside the new one in the same browser session, and how far their pictures are apart (git show <commit>:src/terrain/terrainMaterial.js > old-terrainMaterial.js). Runs scripts/ground-cost.mjs from a copy of the tree: the dev server reloads the page at any source edit
+node scripts/make-hero.mjs [--tris 120000] [--low 24000] [--stage look]   # the owner's sculpt (assets-src/hero/) into the game's character file (public/data/hero.bin), 25 s: materials and garments by the seeds in scripts/hero/seeds.mjs, colours, two reduced meshes, the binding to the figure's parts and cloth (scripts/hero/heroBind.mjs). Run again after changing a seed, a joint or a cloth sheet
+node scripts/hero-preview.mjs --out f.png [--pose stand|hover|fly|fast|walk|run] [--yaws 0,90,180] [--labels|--garments|--parts|--cloth] [--lod 1] [--twosided]   # that file drawn without a browser in a second, posed by the game's own code
+node scripts/hero-bind-test.mjs [--list]   # the character's binding: standing it gives the sculpt back, in the game's poses the surface is not torn (no browser, 10 s; --list: the worst edges by cause)
 node scripts/hero-cost.mjs   # what the character costs the page each frame, without a browser (seconds): the cloth at 60 and 30 frames a second, the whole figure; fails if the cloth's points have moved from scripts/lib/robe-reference.json
 node scripts/grass-place-test.mjs   # a place's blades and tussocks are the place's, never the anchor's: anchor steps, the 2 560 m wrap, a grass saving on (no browser, seconds)
 node scripts/grass-flowers-pixels-test.mjs   # the far blades' flowers fade in where the single flowers fade out (no circle), pixel sizes by the drawn picture, pollen's clock (no browser)
@@ -737,6 +740,13 @@ finished benchmark leaves its text in `window.__benchResult`.
   finding is about, and land fixes after the checks, or say in the brief which are fixed.
 - Aerial-perspective slices must not change spacing across the horizon (neighbouring
   rays would disagree and draw a band); only the ray-march stops at the ground.
+- A sculpt is a statue: one fused skin, sleeve joined to skirt where they touch, nothing
+  behind what touches. Bound to moving cloth sheet by sheet it tore into shards; cut at the
+  joins it had ragged holes; drawn two-sided its inner face showed through as dark rags.
+  What works: carry by the body's parts, add the cloth's shift, blend garments across their
+  joins, draw the outside only. And measure a tear before guessing at it: a count of edges
+  drawn out in a pose, by cause (`node scripts/hero-bind-test.mjs --list`), named the fused
+  joins in one run after three guesses had not.
 - Look at the game as the player gets it, with no switch in the URL. The sky's field fell back
   to a stub's test pattern ("fair") whenever no `sky:` switch was given: four helpers pictured
   their work under `debug=sky:model`, every check asked only "is the field on", and the merged

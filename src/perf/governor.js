@@ -133,6 +133,9 @@ export const FEATURE_STEPS = [
   // shadow tile -0.4 / 1.3. The glow 0.4 in one view.)
   { id: 'cloud-steps', buys: 0.3, label: 'coarser clouds near you', live: (app) => cloudVolume(app) && app.cloudVolume.enabled !== false, apply: (app, off) => { app.sky?.setSaving('cloud-steps', off); } },
   { id: 'cloak', buys: 0.3, label: 'robe and hair simulated more loosely', live: (app) => !!app.hero?.group?.visible, apply: (app, off) => { app.hero.robe.halfRate = off; } },
+  // (the sculpted character, hero/heroSculpt.js: 120 000 triangles in the picture, or the 24 000 its shadow is drawn from.
+  //  Not measured on the phone yet: a guess until a benchmark's cost table has it)
+  { id: 'figure', buys: 0.3, label: 'the character drawn from fewer triangles', live: (app) => !!app.hero?.sculpt && !!app.hero.group?.visible, apply: (app, off) => { if (app.hero?.sculpt) app.hero.sculpt.light = off; } },
   // (the shadow map's fine tile, some 20 m round the traveller at 3.9 cm a texel: without it
   // every shadow there, trees' and rocks' alike, is drawn from the 14.6 cm tile)
   { id: 'fine-shadows', buys: 0.3, hold: true, label: 'coarser shadows near you', apply: (app, off) => { app.nearShadow.fine = !off; } },

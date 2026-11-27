@@ -338,6 +338,9 @@ export const HERO_FRAG = /* glsl */`
 ${LIGHTING_PARS}
 uniform float uSunVis;
 in vec3 vRel; in vec3 vN; in vec3 vCol; flat in float vMat; in vec3 vT;
+#ifdef SCULPT
+in float vCloth;
+#endif
 layout(location = 0) out vec4 fragColor;
 // What a glossy surface mirrors in direction R: the sunlit ground below the horizon, the
 // sky above it, with a line between them as sharp as 'edge' (both from the sky light).
@@ -349,7 +352,17 @@ vec3 mirrored(vec3 R, vec3 up, float edge) {
 void main() {
   int m = int(vMat + 0.5);
   vec3 N = normalize(vN);
+#ifdef SCULPT
+  // (hero/heroSculpt.js: only the outside is drawn. Where the cloth has carried the surface
+  // off, the sculpt's own normal is where it pointed as it stood: there the surface as it
+  // lies now has its say)
+  vec3 Ng = cross(dFdx(vRel), dFdy(vRel));
+  Ng = dot(Ng, Ng) > 1e-12 ? normalize(Ng) : N;
+  if (dot(Ng, vRel) > 0.0) Ng = -Ng;
+  N = normalize(mix(N, Ng, 0.7 * vCloth));
+#else
   if (!gl_FrontFacing) N = -N;
+#endif
   vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel), L = uSunDir;
   float NL = dot(N, L), NV = max(dot(N, V), 1e-3), lit = max(NL, 0.0);
   vec3 Esun = directSun(planetPos) * uSunVis * nearShadow(vRel, N);

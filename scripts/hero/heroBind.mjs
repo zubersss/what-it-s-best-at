@@ -19,7 +19,7 @@ import { Hero } from '../../src/hero/hero.js';
 import { ELBOW, HAND, KNEE, ANKLE, SHOULDER, HIP, SCULPT_ARM, SCULPT_LEG } from '../../src/hero/heroModel.js';
 import { LABELS } from './seeds.mjs';
 import { adjacency, Heap } from './lib.mjs';
-import { PARTS, paletteTexels, fillPalette } from '../../src/hero/heroPalette.js';
+import { PARTS, NEAR, paletteTexels, fillPalette } from '../../src/hero/heroPalette.js';
 
 const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const L = Object.fromEntries(LABELS.map((n, i) => [n, i]));
@@ -151,8 +151,7 @@ export async function bind(m, say = () => {}) {
       while (k > 0 && top[k - 1] < w) { top[k] = top[k - 1]; topI[k] = topI[k - 1]; k--; }
       top[k] = w; topI[k] = i;
     }
-    let sum = 0; for (let k = 0; k < 4; k++) { top[k] = Math.max(0, top[k] - top[4]); sum += top[k]; }
-    if (sum > 1e-6) for (let k = 0; k < 4; k++) if (top[k] > 0) cloth.push([topI[k], top[k] * wc * f / sum]);
+    if (top[0] > 0) cloth.push({ share: wc * f, w: Array.from(top), i: Array.from(topI) });
   };
   // ---- every vertex: its garment's rule, and near a join with another garment a blend of
   //      both rules: so both sides of a join are moved alike, and what is drawn between a
@@ -168,23 +167,42 @@ export async function bind(m, say = () => {}) {
     const sum = (b0 ? w9[b0] : 0) + (b1 ? w9[b1] : 0) + w9[0];
     if (!b0) { parts[v * 4] = 0; parts[v * 4 + 1] = 0; }
     else { parts[v * 4] = b0; parts[v * 4 + 1] = b1 || b0; parts[v * 4 + 2] = b1 ? Math.round(255 * w9[b1] / sum) : 0; parts[v * 4 + 3] = Math.min(255 - parts[v * 4 + 2], Math.round(255 * w9[0] / sum)); }
-    // cloth: the four particles that count most
+    // cloth: four particles in all. One garment's rule has all four; where rules are blended
+    // each keeps its whole share and they divide the four between them (two and two; two, one
+    // and one): were the four that count most taken from all together, the choice would tip
+    // from one garment's particles to the other's between two neighbours, and tear there.
+    // (within a rule: its first few, each less the pull of the next one left out, so one
+    // coming in comes in from nothing)
     if (cloth.length) {
-      let total = 0; for (const c of cloth) total += c[1];
-      for (let i = 0; i < cloth.length; i++) for (let j = cloth.length - 1; j > i; j--) if (cloth[j][0] === cloth[i][0]) { cloth[i][1] += cloth[j][1]; cloth.splice(j, 1); }
-      cloth.sort((p, q) => q[1] - p[1]); cloth.length = Math.min(4, cloth.length);
-      let kept = 0; for (const c of cloth) kept += c[1];
-      let left = Math.round(255 * Math.min(1, total));
-      if (left > 0) bound++;
-      cloth.forEach((c, k) => { const w = k === cloth.length - 1 ? left : Math.min(left, Math.round(255 * Math.min(1, total) * c[1] / kept)); movers[v * 4 + k] = c[0]; shares[v * 4 + k] = w; left -= w; });
+      cloth.sort((p, q) => q.share - p.share); cloth.length = Math.min(4, cloth.length);
+      const slots = cloth.length === 1 ? [4] : cloth.length === 2 ? [2, 2] : cloth.length === 3 ? [2, 1, 1] : [1, 1, 1, 1];
+      let k = 0, total = 0; const wts = [0, 0, 0, 0];
+      cloth.forEach((c, r) => {
+        const cnt = slots[r]; let sum = 0;
+        for (let q = 0; q < cnt; q++) sum += Math.max(0, c.w[q] - c.w[cnt]);
+        for (let q = 0; q < cnt; q++, k++) { movers[v * 4 + k] = Math.max(0, c.i[q]); wts[k] = sum > 1e-9 ? c.share * Math.max(0, c.w[q] - c.w[cnt]) / sum : q === 0 ? c.share : 0; total += wts[k]; }
+      });
+      let left = Math.round(255 * Math.min(1, total)); if (left > 0) bound++;
+      const most = wts.indexOf(Math.max(...wts));
+      for (let q = 0; q < 4; q++) { if (q === most) continue; const w = Math.min(left, Math.round(255 * wts[q])); shares[v * 4 + q] = w; left -= w; }
+      shares[v * 4 + most] = left;
     }
   }
   say(`bound: ${n} vertices, ${bound} of them to the cloth`);
   // (the cloth as the sculpt stands, what carries each particle, and the parts)
   const rest = Float32Array.from(pos), carried = new Float32Array(np * 3);
   for (let i = 0; i < np; i++) carried.set(kind[i] === 2 || kind[i] === 3 ? sleeveCarry(pos[i * 3], pos[i * 3 + 1], kind[i] - 2) : [0, 0, 0], i * 3);
+  // (each particle's neighbours of its own garment as the sculpt stands, over which its shift is evened out: hero/heroPalette.js)
+  const near = new Uint16Array(np * NEAR), nearW = new Float32Array(np * NEAR), EVEN = [0, 0.34, 0.24, 0.24, 0.16];
+  for (let i = 0; i < np; i++) {
+    const r2 = EVEN[kind[i]] ** 2, list = [];
+    for (let j = 0; j < np; j++) { if (kind[j] !== kind[i]) continue; const d2 = (pos[i * 3] - pos[j * 3]) ** 2 + (pos[i * 3 + 1] - pos[j * 3 + 1]) ** 2 + (pos[i * 3 + 2] - pos[j * 3 + 2]) ** 2; if (d2 < r2) list.push([j, (1 - d2 / r2) ** 2]); }
+    list.sort((p, q) => q[1] - p[1]); list.length = Math.min(NEAR, list.length);
+    let sum = 0; for (const c of list) sum += c[1];
+    for (let k = 0; k < NEAR; k++) { near[i * NEAR + k] = k < list.length ? list[k][0] : i; nearW[i * NEAR + k] = k < list.length ? list[k][1] / sum : 0; }
+  }
   const partsRest = new Float32Array(PARTS * 16); hero.parts.forEach((p, i) => partsRest.set(p.matrix.elements, i * 16));
-  return { parts, movers, shares, shared: { rest, carried, partsRest } };
+  return { parts, movers, shares, shared: { rest, carried, near, nearW, partsRest } };
 }
 
 // ---- the figure posed (what the vertex shader of hero/heroSculpt.js does, in JavaScript) ----
@@ -210,7 +228,7 @@ export function deform(m, M) {
 export function paletteOf(hero, shared) {
   hero.body.updateMatrix();
   const inv = new THREE.Matrix4(), parts = hero.parts.map((p, i) => { p.updateMatrix(); inv.fromArray(shared.partsRest, i * 16).invert(); return new THREE.Matrix4().multiplyMatrices(hero.body.matrix, p.matrix).multiply(inv).elements; });
-  return fillPalette(new Float32Array(paletteTexels(hero.robe.count) * 4), parts, hero.robe.pos, shared.rest, shared.carried);
+  return fillPalette(new Float32Array(paletteTexels(hero.robe.count) * 4), parts, hero.robe.pos, shared);
 }
 
 // The sculpt as the game would draw it in a pose, after `seconds` of that pose: 'stand' (as

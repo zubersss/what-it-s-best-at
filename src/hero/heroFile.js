@@ -3,7 +3,7 @@
 // JavaScript: the game reads it, and so do the tools in Node.
 const TYPES = { f32: Float32Array, u8: Uint8Array, u16: Uint16Array, u32: Uint32Array, i8: Int8Array };
 
-// buffer: an ArrayBuffer. Returns { fit, labels, shared: { rest, partsRest }, lods: [{ vertices, triangles, ...arrays }] }.
+// buffer: an ArrayBuffer. Returns { fit, labels, shared: { rest, carried, near, nearW, partsRest }, lods: [{ vertices, triangles, ...arrays }] }.
 export function parseHero(buffer) {
   const dv = new DataView(buffer);
   if (String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3)) !== 'HERO') throw new Error('not a character file');

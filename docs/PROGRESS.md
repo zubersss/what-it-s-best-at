@@ -6,6 +6,104 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
+### Sent 2026-11-27: everything joined and merged, and the owner's sculpted character
+
+**Who is working now.** The session of branch `ccr-6f4f9272-64jkgl` (the one that built Earth
+and the painted look) took the work back on 2026-11-27, at the owner's word: "its back to you
+resume work from where it stopped on the other session ... also here is the new file for the
+character model". The session of `ccr-aa39490a-qiw63x` and all its helpers stopped on
+2026-11-25; **its "PR #37" below was never opened** (nothing of the sky by rule or of the
+fourth round had reached `main`).
+
+**What this delivery is** (PR #PRNUM, main at MAINSHA):
+1. *Everything done, merged*: this branch now holds `ccr-aa39490a-from-above` (which held
+   qiw63x) and `ccr-aa39490a-sky-B-clouds`, and with them every commit of every helper branch
+   (checked branch by branch: none has a commit this branch lacks). On the joined head: the
+   build passes, the 25 checks that need no browser pass (two needed mending:
+   `tree-shadow-test` could not read a new line of the trees' vertex shader, and Earth's wind
+   from its maps used Earth's 111 200 m a degree as a number instead of the world's), Haven's
+   opening view draws as it should, and `npm run smoke` passes (16 checks, the ground's
+   shader at 15 of 16 textures).
+2. *The owner's character*: the sculpt the owner sent is what is drawn now (see "The owner's
+   sculpt in the game" just below). The figure built in code stays
+   in the repository and is what a device gets if the file cannot be loaded.
+
+**Asked of the owner**: a Haven benchmark in Sharp; a look at the character standing,
+walking, flying; and where the sculpt was made (for `docs/ASSETS.md`).
+
+**Known wrong, carried over from the other session, not touched yet** (its list just below
+still holds): the model's low heaps are not drawn (an empty noon sky over the ranges), a
+storm 64 km off is a pale ghost, a pale hard-edged disc in the front's view, the weather
+views look into hillsides. Its cold code review of the sky (`review-sky`) was lost with the
+session and has not been run again. **Known wrong in the character**: see its section.
+
+**Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
+traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
+
+### The owner's sculpt in the game (2026-11-27)
+
+**What came.** `Silver_Plumage_Sentinel_compressed.glb` (kept in `assets-src/hero/`): the
+owner's character as a sculpt. One fused, closed surface of 1.84 million triangles with
+positions and normals and nothing else: no colour, no picture, no skeleton, no animation,
+standing with the arms held out and down. A statue, in other words; the game's figure flies,
+walks, kneels and has cloth in the wind.
+
+**What was decided.** The motion stays the game's own (`hero/hero.js`: nine rigid parts;
+`hero/robe.js`: 501 cloth particles for skirt, sleeves and hair), and the sculpt's surface is
+made to go with it. No new animation system, no skeleton file, nothing bought.
+
+**How (`node scripts/make-hero.mjs`, 25 s, writes `public/data/hero.bin`, 5 MB):**
+1. read and welded (`scripts/hero/lib.mjs`);
+2. *materials* by seeds placed by hand in front, back, side and top views
+   (`scripts/hero/seeds.mjs`): every vertex takes the label of the seed nearest over the
+   surface, where crossing a crease costs dear (silk, hair, skin, silver, inner robe, boot);
+3. *colour* from the owner's design, hollows darkened so the carving reads without a
+   picture; kept as the root of the albedo with the material in the fourth number;
+4. *reduced* with meshoptimizer to 120 000 triangles (the picture) and 24 000 (the shadow
+   map, and the picture under the governor's `figure` saving);
+5. *fitted* to the game's frame (hips at the origin, soles at -0.93 m);
+6. *bound* (`scripts/hero/heroBind.mjs`): each vertex is carried by up to two rigid parts
+   beside the torso, by how near it is to their middle lines, and where it is loose cloth
+   it is shifted by up to four cloth particles (a particle's shift: where it is now less
+   where the parts alone would have carried it). Garments (body, skirt, each sleeve, hair)
+   come from a second set of seeds, put right by where they are, and **blended across
+   their joins** over some 6 cm of surface.
+The game (`hero/heroSculpt.js`) does that sum in the vertex shader from one small float
+texture written once a frame (`hero/heroPalette.js`: the same sums in the game and in the
+tools), and draws only the surface's outside. The cloth's own mesh is no longer worked out.
+
+**What was tried and did not work** (do not go back to these):
+- binding each cloth vertex to its nearest place on a simulated sheet, or carrying it by
+  the particles' turning frames: the sculpt is one fused surface, sleeve joined to skirt
+  where they touch, and it tore into shards along every such join;
+- cutting the surface apart at the joins: no shards, but ragged holes (behind a sleeve that
+  touches the skirt there is no skirt: the statue has one skin);
+- drawing both sides: the cloth's two faces lie a centimetre apart and cross in motion,
+  the inner one showing through as dark rags. Only the outside is drawn.
+
+**Tools.** `node scripts/hero-preview.mjs --out f.png [--pose stand|hover|fly|fast|walk|run]
+[--yaws 0,90,180] [--labels | --garments | --parts | --cloth] [--lod 1] [--twosided]`
+draws the file without a browser in a second (the game's own pose and cloth code runs in
+Node). `scripts/hero-cost.mjs` still guards the cloth; its reference was written anew
+because the sleeves' sheets were moved to where the sculpt's sleeves hang.
+
+**Changed for the player** (all on purpose): the figure is the sculpt; the old figure's
+joints moved a little to the sculpt's (shoulders, hips, lengths in `heroModel.js`), so the
+cloth and the limbs' swing are slightly different; the sleeves' cloth hangs from the whole
+arm.
+
+**Known wrong / not done**:
+- pearls, tassels, brows and lips have no seeds yet (they take the colour of what they lie
+  on: the face has no brows or mouth colour); a hair-coloured band inside the collar;
+- where a sleeve touches the skirt the cloth between them stretches when the arm moves far
+  (a fold, by design; it can look like a web with the arm raised high);
+- the cloth's shading follows the sculpt's own normals mixed with the surface as it lies
+  now: a skirt streaming straight back in fast flight is lit less truly than a hanging one;
+- cost on the phone is not measured: 120 000 triangles and 13 texture reads a vertex; the
+  governor's step `figure` (the 24 000-triangle mesh) exists and its `buys` is a guess
+  until a benchmark's cost table shows it;
+- the file is 5 MB (positions and normals as floats; halving it is easy and not done).
+
 ### Sent 2026-11-25 (late morning): the third link of the rich-and-smooth work, with the new sky
 
 The owner: "Give me a link with everything done merged". This link is ccr-aa39490a-qiw63x at

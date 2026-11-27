@@ -74,6 +74,7 @@ function patches() {
 
 export class Robe {
   constructor() {
+    this.drawn = true;                       // false: the cloth is worked out and its own mesh left as it is
     this.patches = patches();
     let n = 0, rn = 0;
     for (const p of this.patches) { p.base = n; p.rbase = rn; p.RX = (p.nx - 1) * p.sx + 1; p.RY = (p.ny - 1) * p.sy + 1; n += p.nx * p.ny; rn += p.RX * p.RY; }
@@ -212,7 +213,7 @@ export class Robe {
       this.pos[i * 3] = e[0] * x + e[3] * y + e[6] * z; this.pos[i * 3 + 1] = e[1] * x + e[4] * y + e[7] * z; this.pos[i * 3 + 2] = e[2] * x + e[5] * y + e[8] * z;
     }
     this.prev.set(this.pos);
-    if (this.positionAttr) this._draw();
+    if (this.positionAttr && this.drawn) this._draw();
   }
 
   // dt seconds. rot: wearer-local -> world axes. gravity: world-axes vector (m/s^2).
@@ -231,7 +232,7 @@ export class Robe {
     let stepped = false;
     while (this.accum >= step) { this._step(rot, gravity, accel, wind, air, step); this.accum -= step; stepped = true; }
     if (!stepped) this._pin(rot);                 // (the pinned points follow the body on every frame)
-    this._draw();
+    if (this.drawn) this._draw();                 // (not when the sculpt is what is drawn: hero/heroSculpt.js reads the particles themselves)
   }
 
   // The pinned points go where the body (and for the sleeves the arms) put them.
