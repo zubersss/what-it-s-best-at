@@ -1,0 +1,876 @@
+gl-count: haven, stops ledge, sun, wall, ship, dusk · picture 1100x515 · mode sharp
+
+===== haven ledge: 188 frames counted in 552 s (still arriving when the wait ran out) =====
+  arrive           5 frames · a frame: 23.4 passes, 85 draw calls, 2.70M triangles, 191.0k instances · uploads 767 KB (15 KB inside a pass) · the page's own work 15.8 ms
+  settle         156 frames · a frame: 23.1 passes, 49 draw calls, 107.6k triangles, 1.1k instances · uploads 279 KB (40 KB inside a pass) · the page's own work 8.3 ms
+  steady           8 frames · a frame: 23.0 passes, 156 draw calls, 3.05M triangles, 261.0k instances · uploads 32 KB (8 KB inside a pass) · the page's own work 6.7 ms
+  nothing drawn    2 frames · a frame: 23.0 passes, 55 draw calls, 110.1k triangles, 1.2k instances · uploads 24 KB (0 KB inside a pass) · the page's own work 4.7 ms
+  look             6 frames · a frame: 23.0 passes, 156 draw calls, 3.04M triangles, 254.5k instances · uploads 721 KB (325 KB inside a pass) · the page's own work 13.1 ms
+  fly              8 frames · a frame: 23.0 passes, 154 draw calls, 3.00M triangles, 242.0k instances · uploads 362 KB (51 KB inside a pass) · the page's own work 12.7 ms
+  just arrived: 85 calls / 2.70M triangles / 119 patches / 0 trees (0 triangles) / 0 far trees
+  at rest:      156 calls / 3.05M triangles / 122 patches / 506 trees (8.1k triangles) / 27.8k far trees
+  at rest, pass by pass (c: draw calls, t: triangles, i: instances, a frame):
+    sky.field._rt.A 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.B 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.C 512x256: 1.0 calls, 1 tris · begins with a clear of a part · up to 8.2k px
+        sky.field._mat 1c 1t
+    atmosphere.froxels 256x128: 1.0 calls, 1 tris · begins with a whole clear · up to 32.8k px
+        atmosphere.froxelMat 1c 1t
+    nearShadow.target 3072x2048: 21.0 calls, 63.0k tris (50.9k to 75.1k), 1.2k inst · begins with a clear of a part · up to 4.19M px
+        hero.sculpt.depthMaterial 1c 23.9kt · rocks.depthMaterial 1c 19.7kt 247i · farRocks.depthMaterial 1c 11.0kt 551i · trees.depthMaterial 17.5c 7.2kt 449i · lander.depthMaterial 0.5c 1.2kt
+    treeShade.target 1024x768: 3.0 calls, 3 tris · begins with a draw · up to 65.5k px
+        treeShade.material 2c 2t · treeShade.worldMaterial 1c 1t
+    treeShade.probe.target 3x1: 1.0 calls, 1 tris · begins with a whole clear · up to 3 px
+        treeShade.probe.material 1c 1t
+    cloudVolume.target 1100x258: 1.0 calls, 1 tris · begins with a clear of a part · up to 212.8k px
+        cloudVolume.march 1c 1t
+    cloudVolume.smooth 1100x258: 1.0 calls, 1 tris · begins with a clear of a part · up to 212.8k px
+        cloudVolume.smoothMat 1c 1t
+    cloudVolume.all 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        cloudVolume.allMat 1c 1t
+    grass.light 288x576: 3.0 calls, 3 tris · begins with a whole clear · up to 55.3k px
+        grass.lightMats[] 3c 3t
+    post.scene 1100x515: 110.0 calls, 2.98M tris, 259.7k inst · begins with a whole clear · up to 566.5k px
+        grass.rings[].mesh.material 6c 1.12Mt 146.9ki · grass.flowers[].mesh.material 2c 622.1kt 26.4ki · terrain.pool.material 1c 429.4kt 122i · farForest.pool[].material 22c 269.0kt 44.8ki · farRocks.material 16c 187.4kt 9.4ki · hero.sculpt.material 1c 120.0kt · farRocks.shadowMaterial 12c 55.9kt 7.0ki · farForest.pool[].shadowMaterial 11c 48.2kt 24.1ki · clouds.mesh.material 1c 48.0kt · sky.upper.material 2c 43.6kt · rocks.material 1c 20.2kt 252i · trees.material 21c 8.2kt 514i · cloudVolume.layMat 6c 3.5kt · bodies.group.children[].material 1c 3.4kt · and 7 more
+    post.bloomDown[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.downMat 1c 1t
+    post.bloomDown[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.downMat 1c 1t
+    post.bloomDown[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.downMat 1c 1t
+    post.bloomDown[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.downMat 1c 1t
+    post.bloomDown[] 34x16: 1.0 calls, 1 tris · begins with a whole clear · up to 544 px
+        post.downMat 1c 1t
+    post.meterTarget 1x1: 1.0 calls, 1 tris · begins with a whole clear · up to 1 px
+        post.meterMat 1c 1t
+    post.bloomUp[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.upMat 1c 1t
+    post.bloomUp[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.upMat 1c 1t
+    post.bloomUp[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.upMat 1c 1t
+    post.bloomUp[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.upMat 1c 1t
+    the canvas 1100x515: 1.0 calls, 1 tris · begins with a whole clear · up to 566.5k px
+        post.compositeMat 1c 1t
+  with the four scenes hidden (what is paid whatever is on screen):
+    sky.field._rt.A 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.B 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.C 512x256: 1.0 calls, 1 tris · begins with a clear of a part · up to 8.2k px
+        sky.field._mat 1c 1t
+    atmosphere.froxels 256x128: 1.0 calls, 1 tris · begins with a whole clear · up to 32.8k px
+        atmosphere.froxelMat 1c 1t
+    nearShadow.target 3072x2048: 21.0 calls, 63.0k tris (50.9k to 75.1k), 1.2k inst · begins with a clear of a part · up to 4.19M px
+        hero.sculpt.depthMaterial 1c 23.9kt · rocks.depthMaterial 1c 19.7kt 247i · farRocks.depthMaterial 1c 11.0kt 551i · trees.depthMaterial 17.5c 7.2kt 449i · lander.depthMaterial 0.5c 1.2kt
+    treeShade.target 1024x768: 3.0 calls, 3 tris · begins with a draw · up to 65.5k px
+        treeShade.material 2c 2t · treeShade.worldMaterial 1c 1t
+    treeShade.probe.target 3x1: 1.0 calls, 1 tris · begins with a whole clear · up to 3 px
+        treeShade.probe.material 1c 1t
+    cloudVolume.target 1100x258: 1.0 calls, 1 tris · begins with a clear of a part · up to 212.8k px
+        cloudVolume.march 1c 1t
+    cloudVolume.smooth 1100x258: 1.0 calls, 1 tris · begins with a clear of a part · up to 212.8k px
+        cloudVolume.smoothMat 1c 1t
+    cloudVolume.all 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        cloudVolume.allMat 1c 1t
+    grass.light 288x576: 3.0 calls, 3 tris · begins with a whole clear · up to 55.3k px
+        grass.lightMats[] 3c 3t
+    post.scene 1100x515: 9.0 calls, 47.0k tris · begins with a whole clear · up to 566.5k px
+        sky.upper.material 2c 43.6kt · cloudVolume.layMat 6c 3.5kt · pollen.material 1c 0t
+    post.bloomDown[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.downMat 1c 1t
+    post.bloomDown[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.downMat 1c 1t
+    post.bloomDown[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.downMat 1c 1t
+    post.bloomDown[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.downMat 1c 1t
+    post.bloomDown[] 34x16: 1.0 calls, 1 tris · begins with a whole clear · up to 544 px
+        post.downMat 1c 1t
+    post.meterTarget 1x1: 1.0 calls, 1 tris · begins with a whole clear · up to 1 px
+        post.meterMat 1c 1t
+    post.bloomUp[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.upMat 1c 1t
+    post.bloomUp[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.upMat 1c 1t
+    post.bloomUp[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.upMat 1c 1t
+    post.bloomUp[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.upMat 1c 1t
+    the canvas 1100x515: 1.0 calls, 1 tris · begins with a whole clear · up to 566.5k px
+        post.compositeMat 1c 1t
+  one frame and the next, at rest (shadow tiles drawn wide/fine/figure · passes · calls · triangles · uploads):
+    011 23p 152c 3.03Mt 32 KB | 101 23p 160c 3.06Mt 32 KB | 011 23p 152c 3.03Mt 32 KB | 101 23p 160c 3.06Mt 32 KB | 011 23p 152c 3.03Mt 32 KB | 101 23p 160c 3.06Mt 32 KB | 011 23p 152c 3.03Mt 32 KB | 101 23p 160c 3.06Mt 32 KB
+    1 different order of passes among them
+    even frames 3.03M triangles in 152 calls, odd frames 3.06M in 160
+  uploads at rest (8 frames):
+        24 KB a frame · 8 times in 8 frames · tex · hero.sculpt.palette · between passes
+         8 KB a frame · 8 times in 8 frames · buf · terrain.pool.instanceBuffer · inside a pass (post.scene 1100x515)
+         0 KB a frame · 8 times in 8 frames · buf · bodies.points.geometry.attributes.aFlux · inside a pass (post.scene 1100x515)
+         0 KB a frame · 8 times in 8 frames · buf · bodies.points.geometry.attributes.position · inside a pass (post.scene 1100x515)
+         0 KB a frame · 8 times in 4 frames · buf-alloc · a vertex buffer · between passes
+  uploads in the first frames after the jump (5 frames):
+       364 KB a frame · 84 times in 5 frames · tex · terrain.pool.normalTex · between passes
+       256 KB a frame · 5 times in 5 frames · tex · grass.tables.far.tex · between passes
+        69 KB a frame · 12 times in 5 frames · tex · terrain.pool.vertTex · between passes
+        24 KB a frame · 5 times in 5 frames · tex · hero.sculpt.palette · between passes
+        17 KB a frame · 12 times in 5 frames · tex · terrain.pool.morphTex · between passes
+        13 KB a frame · 1 times in 1 frames · tex · grass.tables.near.tex · between passes
+         9 KB a frame · 12 times in 5 frames · tex · terrain.pool.shadowTex · between passes
+         7 KB a frame · 5 times in 5 frames · buf · terrain.pool.instanceBuffer · inside a pass (post.scene 1100x515)
+         2 KB a frame · 1 times in 1 frames · buf · rocks.aQuat · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 1 times in 1 frames · buf · rocks.aShape · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 1 times in 1 frames · buf · rocks.aOffset · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 1 times in 1 frames · buf · rocks.aScale · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 1 times in 1 frames · buf · rocks.aMisc · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 5 times in 5 frames · buf · bodies.points.geometry.attributes.aFlux · inside a pass (post.scene 1100x515)
+         0 KB a frame · 5 times in 5 frames · buf · bodies.points.geometry.attributes.position · inside a pass (post.scene 1100x515)
+         0 KB a frame · 4 times in 2 frames · buf-alloc · a vertex buffer · between passes
+  uploads while the rest arrives (scenes hidden) (156 frames):
+       132 KB a frame · 952 times in 55 frames · tex · terrain.pool.normalTex · between passes
+        48 KB a frame · 29 times in 29 frames · tex · grass.tables.far.tex · between passes
+        25 KB a frame · 136 times in 55 frames · tex · terrain.pool.vertTex · between passes
+        24 KB a frame · 156 times in 156 frames · tex · hero.sculpt.palette · between passes
+         8 KB a frame · 499 times in 31 frames · buf · trees.casters[].set.iA · inside a pass (nearShadow.target 3072x2048)
+         8 KB a frame · 499 times in 31 frames · buf · trees.casters[].set.iB · inside a pass (nearShadow.target 3072x2048)
+         8 KB a frame · 499 times in 31 frames · buf · trees.casters[].set.iD · inside a pass (nearShadow.target 3072x2048)
+         8 KB a frame · 499 times in 31 frames · buf · trees.casters[].set.iE · inside a pass (nearShadow.target 3072x2048)
+         6 KB a frame · 136 times in 55 frames · tex · terrain.pool.morphTex · between passes
+         6 KB a frame · 499 times in 31 frames · buf · trees.casters[].set.iC · inside a pass (nearShadow.target 3072x2048)
+         3 KB a frame · 136 times in 55 frames · tex · terrain.pool.shadowTex · between passes
+         2 KB a frame · 21 times in 5 frames · buf · trees.casters[].set.iF · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 21 times in 5 frames · buf · nearScene.children[].geometry.attributes.position · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 21 times in 5 frames · buf · nearScene.children[].geometry.attributes.normal · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 21 times in 5 frames · buf · nearScene.children[].geometry.attributes.aCrown · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 21 times in 5 frames · buf · nearScene.children[].geometry.attributes.aSway · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 21 times in 5 frames · buf · nearScene.children[].geometry.attributes.aUv · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 21 times in 5 frames · buf · nearScene.children[].geometry.attributes.aLeaf · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 1 times in 1 frames · buf · rocks.aMisc · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 2 times in 2 frames · tex · grass.shadeTex · between passes
+         0 KB a frame · 176 times in 88 frames · buf-alloc · a vertex buffer · between passes
+  uploads while looking round and flying (14 frames):
+       217 KB a frame · 140 times in 9 frames · tex · terrain.pool.normalTex · between passes
+        41 KB a frame · 20 times in 9 frames · tex · terrain.pool.vertTex · between passes
+        32 KB a frame · 7 times in 7 frames · tex · grass.tables.near.tex · between passes
+        26 KB a frame · 4 times in 3 frames · buf · farRocks.slots[].at.aOff · inside a pass (post.scene 1100x515)
+        26 KB a frame · 4 times in 3 frames · buf · farRocks.slots[].at.aQuat · inside a pass (post.scene 1100x515)
+        24 KB a frame · 14 times in 14 frames · tex · hero.sculpt.palette · between passes
+        19 KB a frame · 4 times in 3 frames · buf · farRocks.slots[].at.aScale · inside a pass (post.scene 1100x515)
+        18 KB a frame · 1 times in 1 frames · tex · grass.tables.mid.tex · between passes
+        14 KB a frame · 1 times in 1 frames · buf · farForest.pool[].iA · inside a pass (post.scene 1100x515)
+        14 KB a frame · 1 times in 1 frames · buf · farForest.pool[].iB · inside a pass (post.scene 1100x515)
+        14 KB a frame · 1 times in 1 frames · buf · farForest.pool[].iC · inside a pass (post.scene 1100x515)
+        10 KB a frame · 20 times in 9 frames · tex · terrain.pool.morphTex · between passes
+         8 KB a frame · 14 times in 14 frames · buf · terrain.pool.instanceBuffer · inside a pass (post.scene 1100x515)
+         7 KB a frame · 6 times in 6 frames · buf · dust.aMotion · inside a pass (post.scene 1100x515)
+         7 KB a frame · 6 times in 6 frames · buf · dust.aState · inside a pass (post.scene 1100x515)
+         6 KB a frame · 4 times in 3 frames · buf · farRocks.slots[].at.aShape · inside a pass (post.scene 1100x515)
+         6 KB a frame · 4 times in 3 frames · buf · farRocks.slots[].at.aMisc · inside a pass (post.scene 1100x515)
+         6 KB a frame · 4 times in 3 frames · buf · farRocks.slots[].at.aTint · inside a pass (post.scene 1100x515)
+         5 KB a frame · 20 times in 9 frames · tex · terrain.pool.shadowTex · between passes
+         5 KB a frame · 6 times in 6 frames · buf · dust.aPos · inside a pass (post.scene 1100x515)
+         2 KB a frame · 3 times in 3 frames · buf · rocks.aQuat · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 3 times in 3 frames · buf · rocks.aShape · inside a pass (nearShadow.target 3072x2048)
+    and 11 smaller
+  other calls a frame: arrive · readPixels into a buffer (no wait) 0.80 · arrive · fenceSync 0.80 · arrive · flush 0.80 · settle · readPixels into a buffer (no wait) 1.13 · settle · fenceSync 1.13 · settle · flush 1.13 · settle · linkProgram 0.01 · warm · linkProgram 1.00 · warm · readPixels into a buffer (no wait) 0.67 · warm · fenceSync 0.67 · warm · flush 0.67 · steady · readPixels into a buffer (no wait) 1.00 · steady · fenceSync 1.00 · steady · flush 1.00 · nothing drawn · readPixels into a buffer (no wait) 1.00 · nothing drawn · fenceSync 1.00 · nothing drawn · flush 1.00 · look · readPixels into a buffer (no wait) 1.00 · look · fenceSync 1.00 · look · flush 1.00 · fly · readPixels into a buffer (no wait) 1.00 · fly · fenceSync 1.00 · fly · flush 1.00 · fly · linkProgram 0.13
+
+===== haven sun: 181 frames counted in 489 s (still arriving when the wait ran out) =====
+  arrive           5 frames · a frame: 24.4 passes, 147 draw calls, 2.77M triangles, 248.2k instances · uploads 1.5 MB (1.0 MB inside a pass) · the page's own work 13.3 ms
+  settle         149 frames · a frame: 24.1 passes, 56 draw calls, 111.0k triangles, 1.3k instances · uploads 201 KB (0 KB inside a pass) · the page's own work 6.0 ms
+  steady           8 frames · a frame: 24.0 passes, 143 draw calls, 3.04M triangles, 248.0k instances · uploads 33 KB (9 KB inside a pass) · the page's own work 5.7 ms
+  nothing drawn    2 frames · a frame: 24.0 passes, 56 draw calls, 110.4k triangles, 1.3k instances · uploads 24 KB (0 KB inside a pass) · the page's own work 4.7 ms
+  look             6 frames · a frame: 24.0 passes, 145 draw calls, 3.01M triangles, 249.9k instances · uploads 651 KB (201 KB inside a pass) · the page's own work 10.4 ms
+  fly              8 frames · a frame: 24.0 passes, 149 draw calls, 2.97M triangles, 250.9k instances · uploads 539 KB (52 KB inside a pass) · the page's own work 8.8 ms
+  just arrived: 147 calls / 2.77M triangles / 59 patches / 527 trees (8.3k triangles) / 27.8k far trees
+  at rest:      143 calls / 3.04M triangles / 137 patches / 527 trees (8.3k triangles) / 27.8k far trees
+  at rest, pass by pass (c: draw calls, t: triangles, i: instances, a frame):
+    sky.field._rt.A 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.B 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.C 512x256: 1.0 calls, 1 tris · begins with a clear of a part · up to 8.2k px
+        sky.field._mat 1c 1t
+    atmosphere.froxels 256x128: 1.0 calls, 1 tris · begins with a whole clear · up to 32.8k px
+        atmosphere.froxelMat 1c 1t
+    nearShadow.target 3072x2048: 21.0 calls, 63.4k tris (51.2k to 75.6k), 1.3k inst · begins with a clear of a part · up to 4.19M px
+        hero.sculpt.depthMaterial 1c 23.9kt · rocks.depthMaterial 1c 20.0kt 251i · farRocks.depthMaterial 1c 11.1kt 553i · trees.depthMaterial 17.5c 7.2kt 475i · lander.depthMaterial 0.5c 1.2kt
+    treeShade.target 1024x768: 3.0 calls, 3 tris · begins with a draw · up to 65.5k px
+        treeShade.material 2c 2t · treeShade.worldMaterial 1c 1t
+    treeShade.probe.target 3x1: 1.0 calls, 1 tris · begins with a whole clear · up to 3 px
+        treeShade.probe.material 1c 1t
+    cloudVolume.target 1100x258: 1.0 calls, 1 tris · begins with a clear of a part · up to 212.8k px
+        cloudVolume.march 1c 1t
+    cloudVolume.smooth 1100x258: 1.0 calls, 1 tris · begins with a clear of a part · up to 212.8k px
+        cloudVolume.smoothMat 1c 1t
+    cloudVolume.all 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        cloudVolume.allMat 1c 1t
+    grass.light 288x576: 3.0 calls, 3 tris · begins with a whole clear · up to 55.3k px
+        grass.lightMats[] 3c 3t
+    post.scene 1100x515: 96.0 calls, 2.98M tris, 246.8k inst · begins with a whole clear · up to 566.5k px
+        grass.rings[].mesh.material 6c 1.12Mt 146.9ki · grass.flowers[].mesh.material 2c 622.1kt 26.4ki · terrain.pool.material 1c 482.2kt 137i · farForest.pool[].material 16c 223.4kt 37.2ki · farRocks.material 15c 187.7kt 9.4ki · hero.sculpt.material 1c 120.0kt · farRocks.shadowMaterial 11c 49.8kt 6.2ki · clouds.mesh.material 1c 48.0kt · sky.upper.material 2c 43.6kt · farForest.pool[].shadowMaterial 5c 38.8kt 19.4ki · rocks.material 1c 20.5kt 256i · trees.material 21c 8.3kt 534i · cloudVolume.layMat 6c 3.5kt · bodies.group.children[].material 1c 3.4kt · and 7 more
+    post.bloomDown[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.downMat 1c 1t
+    post.bloomDown[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.downMat 1c 1t
+    post.bloomDown[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.downMat 1c 1t
+    post.bloomDown[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.downMat 1c 1t
+    post.bloomDown[] 34x16: 1.0 calls, 1 tris · begins with a whole clear · up to 544 px
+        post.downMat 1c 1t
+    post.meterTarget 1x1: 1.0 calls, 1 tris · begins with a whole clear · up to 1 px
+        post.meterMat 1c 1t
+    post.bloomUp[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.upMat 1c 1t
+    post.bloomUp[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.upMat 1c 1t
+    post.bloomUp[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.upMat 1c 1t
+    post.bloomUp[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.upMat 1c 1t
+    post.shaftTarget 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.shaftMat 1c 1t
+    the canvas 1100x515: 1.0 calls, 1 tris · begins with a whole clear · up to 566.5k px
+        post.compositeMat 1c 1t
+  with the four scenes hidden (what is paid whatever is on screen):
+    sky.field._rt.A 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.B 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.C 512x256: 1.0 calls, 1 tris · begins with a clear of a part · up to 8.2k px
+        sky.field._mat 1c 1t
+    atmosphere.froxels 256x128: 1.0 calls, 1 tris · begins with a whole clear · up to 32.8k px
+        atmosphere.froxelMat 1c 1t
+    nearShadow.target 3072x2048: 21.0 calls, 63.4k tris (51.2k to 75.6k), 1.3k inst · begins with a clear of a part · up to 4.19M px
+        hero.sculpt.depthMaterial 1c 23.9kt · rocks.depthMaterial 1c 20.0kt 251i · farRocks.depthMaterial 1c 11.1kt 553i · trees.depthMaterial 17.5c 7.2kt 475i · lander.depthMaterial 0.5c 1.2kt
+    treeShade.target 1024x768: 3.0 calls, 3 tris · begins with a draw · up to 65.5k px
+        treeShade.material 2c 2t · treeShade.worldMaterial 1c 1t
+    treeShade.probe.target 3x1: 1.0 calls, 1 tris · begins with a whole clear · up to 3 px
+        treeShade.probe.material 1c 1t
+    cloudVolume.target 1100x258: 1.0 calls, 1 tris · begins with a clear of a part · up to 212.8k px
+        cloudVolume.march 1c 1t
+    cloudVolume.smooth 1100x258: 1.0 calls, 1 tris · begins with a clear of a part · up to 212.8k px
+        cloudVolume.smoothMat 1c 1t
+    cloudVolume.all 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        cloudVolume.allMat 1c 1t
+    grass.light 288x576: 3.0 calls, 3 tris · begins with a whole clear · up to 55.3k px
+        grass.lightMats[] 3c 3t
+    post.scene 1100x515: 9.0 calls, 47.0k tris · begins with a whole clear · up to 566.5k px
+        sky.upper.material 2c 43.6kt · cloudVolume.layMat 6c 3.5kt · pollen.material 1c 0t
+    post.bloomDown[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.downMat 1c 1t
+    post.bloomDown[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.downMat 1c 1t
+    post.bloomDown[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.downMat 1c 1t
+    post.bloomDown[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.downMat 1c 1t
+    post.bloomDown[] 34x16: 1.0 calls, 1 tris · begins with a whole clear · up to 544 px
+        post.downMat 1c 1t
+    post.meterTarget 1x1: 1.0 calls, 1 tris · begins with a whole clear · up to 1 px
+        post.meterMat 1c 1t
+    post.bloomUp[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.upMat 1c 1t
+    post.bloomUp[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.upMat 1c 1t
+    post.bloomUp[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.upMat 1c 1t
+    post.bloomUp[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.upMat 1c 1t
+    post.shaftTarget 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.shaftMat 1c 1t
+    the canvas 1100x515: 1.0 calls, 1 tris · begins with a whole clear · up to 566.5k px
+        post.compositeMat 1c 1t
+  one frame and the next, at rest (shadow tiles drawn wide/fine/figure · passes · calls · triangles · uploads):
+    101 24p 147c 3.05Mt 33 KB | 011 24p 139c 3.03Mt 33 KB | 101 24p 147c 3.05Mt 33 KB | 011 24p 139c 3.03Mt 33 KB | 101 24p 147c 3.05Mt 33 KB | 011 24p 139c 3.03Mt 33 KB | 101 24p 147c 3.05Mt 33 KB | 011 24p 139c 3.03Mt 33 KB
+    1 different order of passes among them
+    even frames 3.05M triangles in 147 calls, odd frames 3.03M in 139
+  uploads at rest (8 frames):
+        24 KB a frame · 8 times in 8 frames · tex · hero.sculpt.palette · between passes
+         9 KB a frame · 8 times in 8 frames · buf · terrain.pool.instanceBuffer · inside a pass (post.scene 1100x515)
+         0 KB a frame · 8 times in 8 frames · buf · bodies.points.geometry.attributes.aFlux · inside a pass (post.scene 1100x515)
+         0 KB a frame · 8 times in 8 frames · buf · bodies.points.geometry.attributes.position · inside a pass (post.scene 1100x515)
+         0 KB a frame · 8 times in 4 frames · buf-alloc · a vertex buffer · between passes
+  uploads in the first frames after the jump (5 frames):
+       304 KB a frame · 70 times in 4 frames · tex · terrain.pool.normalTex · between passes
+       192 KB a frame · 5 times in 1 frames · buf · farForest.pool[].iA · inside a pass (post.scene 1100x515)
+       192 KB a frame · 5 times in 1 frames · buf · farForest.pool[].iB · inside a pass (post.scene 1100x515)
+       192 KB a frame · 5 times in 1 frames · buf · farForest.pool[].iC · inside a pass (post.scene 1100x515)
+       129 KB a frame · 7 times in 1 frames · buf · farRocks.slots[].at.aOff · inside a pass (post.scene 1100x515)
+       129 KB a frame · 7 times in 1 frames · buf · farRocks.slots[].at.aQuat · inside a pass (post.scene 1100x515)
+       102 KB a frame · 2 times in 2 frames · tex · grass.tables.mid.tex · between passes
+        96 KB a frame · 7 times in 1 frames · buf · farRocks.slots[].at.aScale · inside a pass (post.scene 1100x515)
+        58 KB a frame · 10 times in 4 frames · tex · terrain.pool.vertTex · between passes
+        55 KB a frame · 1 times in 1 frames · tex-alloc · texture 275x129 · between passes
+        32 KB a frame · 7 times in 1 frames · buf · farRocks.slots[].at.aShape · inside a pass (post.scene 1100x515)
+        32 KB a frame · 7 times in 1 frames · buf · farRocks.slots[].at.aMisc · inside a pass (post.scene 1100x515)
+        32 KB a frame · 7 times in 1 frames · buf · farRocks.slots[].at.aTint · inside a pass (post.scene 1100x515)
+        24 KB a frame · 5 times in 5 frames · tex · hero.sculpt.palette · between passes
+        14 KB a frame · 10 times in 4 frames · tex · terrain.pool.morphTex · between passes
+        13 KB a frame · 1 times in 1 frames · tex · grass.tables.near.tex · between passes
+         7 KB a frame · 10 times in 4 frames · tex · terrain.pool.shadowTex · between passes
+         4 KB a frame · 5 times in 5 frames · buf · terrain.pool.instanceBuffer · inside a pass (post.scene 1100x515)
+         2 KB a frame · 1 times in 1 frames · buf · rocks.aQuat · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 1 times in 1 frames · buf · rocks.aShape · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 1 times in 1 frames · buf · rocks.aOffset · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 1 times in 1 frames · buf · rocks.aScale · inside a pass (nearShadow.target 3072x2048)
+    and 4 smaller
+  uploads while the rest arrives (scenes hidden) (149 frames):
+       141 KB a frame · 966 times in 55 frames · tex · terrain.pool.normalTex · between passes
+        27 KB a frame · 138 times in 55 frames · tex · terrain.pool.vertTex · between passes
+        24 KB a frame · 149 times in 149 frames · tex · hero.sculpt.palette · between passes
+         7 KB a frame · 138 times in 55 frames · tex · terrain.pool.morphTex · between passes
+         3 KB a frame · 138 times in 55 frames · tex · terrain.pool.shadowTex · between passes
+         0 KB a frame · 1 times in 1 frames · buf · rocks.aMisc · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 162 times in 81 frames · buf-alloc · a vertex buffer · between passes
+  uploads while looking round and flying (14 frames):
+       271 KB a frame · 175 times in 11 frames · tex · terrain.pool.normalTex · between passes
+        73 KB a frame · 4 times in 4 frames · tex · grass.tables.mid.tex · between passes
+        51 KB a frame · 25 times in 11 frames · tex · terrain.pool.vertTex · between passes
+        32 KB a frame · 7 times in 7 frames · tex · grass.tables.near.tex · between passes
+        27 KB a frame · 2 times in 2 frames · buf · farForest.pool[].iA · inside a pass (post.scene 1100x515)
+        27 KB a frame · 2 times in 2 frames · buf · farForest.pool[].iB · inside a pass (post.scene 1100x515)
+        27 KB a frame · 2 times in 2 frames · buf · farForest.pool[].iC · inside a pass (post.scene 1100x515)
+        24 KB a frame · 14 times in 14 frames · tex · hero.sculpt.palette · between passes
+        13 KB a frame · 25 times in 11 frames · tex · terrain.pool.morphTex · between passes
+         9 KB a frame · 8 times in 8 frames · buf · dust.aMotion · inside a pass (post.scene 1100x515)
+         9 KB a frame · 8 times in 8 frames · buf · dust.aState · inside a pass (post.scene 1100x515)
+         8 KB a frame · 14 times in 14 frames · buf · terrain.pool.instanceBuffer · inside a pass (post.scene 1100x515)
+         7 KB a frame · 8 times in 8 frames · buf · dust.aPos · inside a pass (post.scene 1100x515)
+         6 KB a frame · 25 times in 11 frames · tex · terrain.pool.shadowTex · between passes
+         0 KB a frame · 14 times in 14 frames · buf · bodies.points.geometry.attributes.aFlux · inside a pass (post.scene 1100x515)
+         0 KB a frame · 14 times in 14 frames · buf · bodies.points.geometry.attributes.position · inside a pass (post.scene 1100x515)
+         0 KB a frame · 16 times in 8 frames · buf-alloc · a vertex buffer · between passes
+         0 KB a frame · 3 times in 1 frames · buf · trees.casters[].set.iA · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 3 times in 1 frames · buf · trees.casters[].set.iB · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 3 times in 1 frames · buf · trees.casters[].set.iD · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 3 times in 1 frames · buf · trees.casters[].set.iE · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 3 times in 1 frames · buf · trees.casters[].set.iC · inside a pass (nearShadow.target 3072x2048)
+    and 5 smaller
+  other calls a frame: arrive · readPixels into a buffer (no wait) 1.20 · arrive · fenceSync 1.20 · arrive · flush 1.20 · arrive · linkProgram 0.20 · settle · readPixels into a buffer (no wait) 1.09 · settle · fenceSync 1.09 · settle · flush 1.09 · warm · readPixels into a buffer (no wait) 0.67 · warm · fenceSync 0.67 · warm · flush 0.67 · steady · readPixels into a buffer (no wait) 1.00 · steady · fenceSync 1.00 · steady · flush 1.00 · nothing drawn · readPixels into a buffer (no wait) 2.00 · nothing drawn · fenceSync 2.00 · nothing drawn · flush 2.00 · look · readPixels into a buffer (no wait) 1.00 · look · fenceSync 1.00 · look · flush 1.00 · fly · readPixels into a buffer (no wait) 1.25 · fly · fenceSync 1.25 · fly · flush 1.25
+
+===== haven wall: 180 frames counted in 558 s (still arriving when the wait ran out) =====
+  arrive           5 frames · a frame: 23.4 passes, 152 draw calls, 2.79M triangles, 241.8k instances · uploads 42 KB (5 KB inside a pass) · the page's own work 6.7 ms
+  settle         148 frames · a frame: 23.1 passes, 56 draw calls, 111.4k triangles, 1.3k instances · uploads 293 KB (0 KB inside a pass) · the page's own work 6.4 ms
+  steady           8 frames · a frame: 23.0 passes, 148 draw calls, 2.99M triangles, 241.6k instances · uploads 81 KB (9 KB inside a pass) · the page's own work 6.3 ms
+  nothing drawn    2 frames · a frame: 23.0 passes, 56 draw calls, 110.9k triangles, 1.3k instances · uploads 24 KB (0 KB inside a pass) · the page's own work 8.4 ms
+  look             6 frames · a frame: 23.0 passes, 145 draw calls, 3.02M triangles, 241.6k instances · uploads 178 KB (15 KB inside a pass) · the page's own work 10.7 ms
+  fly              8 frames · a frame: 23.0 passes, 143 draw calls, 2.93M triangles, 246.1k instances · uploads 172 KB (52 KB inside a pass) · the page's own work 6.5 ms
+  just arrived: 152 calls / 2.79M triangles / 67 patches / 527 trees (8.3k triangles) / 27.8k far trees
+  at rest:      148 calls / 2.99M triangles / 127 patches / 527 trees (8.3k triangles) / 27.8k far trees
+  at rest, pass by pass (c: draw calls, t: triangles, i: instances, a frame):
+    sky.field._rt.A 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.B 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.C 512x256: 1.0 calls, 1 tris · begins with a clear of a part · up to 8.2k px
+        sky.field._mat 1c 1t
+    atmosphere.froxels 256x128: 1.0 calls, 1 tris · begins with a whole clear · up to 32.8k px
+        atmosphere.froxelMat 1c 1t
+    nearShadow.target 3072x2048: 21.5 calls, 63.9k tris (52.1k to 75.6k), 1.3k inst · begins with a clear of a part · up to 4.19M px
+        hero.sculpt.depthMaterial 1c 23.9kt · rocks.depthMaterial 1c 20.0kt 251i · farRocks.depthMaterial 1c 11.1kt 553i · trees.depthMaterial 18c 7.7kt 477i · lander.depthMaterial 0.5c 1.2kt
+    treeShade.target 1024x768: 3.0 calls, 3 tris · begins with a draw · up to 65.5k px
+        treeShade.material 2c 2t · treeShade.worldMaterial 1c 1t
+    treeShade.probe.target 3x1: 1.0 calls, 1 tris · begins with a whole clear · up to 3 px
+        treeShade.probe.material 1c 1t
+    cloudVolume.target 1100x258: 1.0 calls, 1 tris · begins with a clear of a part · up to 212.8k px
+        cloudVolume.march 1c 1t
+    cloudVolume.smooth 1100x258: 1.0 calls, 1 tris · begins with a clear of a part · up to 212.8k px
+        cloudVolume.smoothMat 1c 1t
+    cloudVolume.all 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        cloudVolume.allMat 1c 1t
+    grass.light 288x576: 3.0 calls, 3 tris · begins with a whole clear · up to 55.3k px
+        grass.lightMats[] 3c 3t
+    post.scene 1100x515: 101.0 calls, 2.93M tris, 240.3k inst · begins with a whole clear · up to 566.5k px
+        grass.rings[].mesh.material 6c 1.12Mt 146.9ki · grass.flowers[].mesh.material 2c 622.1kt 26.4ki · terrain.pool.material 1c 448.4kt 127i · farRocks.material 16c 202.3kt 10.1ki · farForest.pool[].material 17c 197.6kt 32.9ki · hero.sculpt.material 1c 120.0kt · farRocks.shadowMaterial 12c 55.9kt 7.0ki · clouds.mesh.material 1c 48.0kt · sky.upper.material 2c 43.6kt · farForest.pool[].shadowMaterial 7c 31.6kt 15.8ki · rocks.material 1c 20.5kt 256i · trees.material 21c 8.3kt 534i · cloudVolume.layMat 6c 3.5kt · bodies.group.children[].material 1c 3.4kt · and 7 more
+    post.bloomDown[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.downMat 1c 1t
+    post.bloomDown[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.downMat 1c 1t
+    post.bloomDown[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.downMat 1c 1t
+    post.bloomDown[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.downMat 1c 1t
+    post.bloomDown[] 34x16: 1.0 calls, 1 tris · begins with a whole clear · up to 544 px
+        post.downMat 1c 1t
+    post.meterTarget 1x1: 1.0 calls, 1 tris · begins with a whole clear · up to 1 px
+        post.meterMat 1c 1t
+    post.bloomUp[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.upMat 1c 1t
+    post.bloomUp[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.upMat 1c 1t
+    post.bloomUp[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.upMat 1c 1t
+    post.bloomUp[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.upMat 1c 1t
+    the canvas 1100x515: 1.0 calls, 1 tris · begins with a whole clear · up to 566.5k px
+        post.compositeMat 1c 1t
+  with the four scenes hidden (what is paid whatever is on screen):
+    sky.field._rt.A 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.B 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.C 512x256: 1.0 calls, 1 tris · begins with a clear of a part · up to 8.2k px
+        sky.field._mat 1c 1t
+    atmosphere.froxels 256x128: 1.0 calls, 1 tris · begins with a whole clear · up to 32.8k px
+        atmosphere.froxelMat 1c 1t
+    nearShadow.target 3072x2048: 21.5 calls, 63.9k tris (52.1k to 75.6k), 1.3k inst · begins with a clear of a part · up to 4.19M px
+        hero.sculpt.depthMaterial 1c 23.9kt · rocks.depthMaterial 1c 20.0kt 251i · farRocks.depthMaterial 1c 11.1kt 553i · trees.depthMaterial 18c 7.7kt 477i · lander.depthMaterial 0.5c 1.2kt
+    treeShade.target 1024x768: 3.0 calls, 3 tris · begins with a draw · up to 65.5k px
+        treeShade.material 2c 2t · treeShade.worldMaterial 1c 1t
+    treeShade.probe.target 3x1: 1.0 calls, 1 tris · begins with a whole clear · up to 3 px
+        treeShade.probe.material 1c 1t
+    cloudVolume.target 1100x258: 1.0 calls, 1 tris · begins with a clear of a part · up to 212.8k px
+        cloudVolume.march 1c 1t
+    cloudVolume.smooth 1100x258: 1.0 calls, 1 tris · begins with a clear of a part · up to 212.8k px
+        cloudVolume.smoothMat 1c 1t
+    cloudVolume.all 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        cloudVolume.allMat 1c 1t
+    grass.light 288x576: 3.0 calls, 3 tris · begins with a whole clear · up to 55.3k px
+        grass.lightMats[] 3c 3t
+    post.scene 1100x515: 9.0 calls, 47.0k tris · begins with a whole clear · up to 566.5k px
+        sky.upper.material 2c 43.6kt · cloudVolume.layMat 6c 3.5kt · pollen.material 1c 0t
+    post.bloomDown[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.downMat 1c 1t
+    post.bloomDown[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.downMat 1c 1t
+    post.bloomDown[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.downMat 1c 1t
+    post.bloomDown[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.downMat 1c 1t
+    post.bloomDown[] 34x16: 1.0 calls, 1 tris · begins with a whole clear · up to 544 px
+        post.downMat 1c 1t
+    post.meterTarget 1x1: 1.0 calls, 1 tris · begins with a whole clear · up to 1 px
+        post.meterMat 1c 1t
+    post.bloomUp[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.upMat 1c 1t
+    post.bloomUp[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.upMat 1c 1t
+    post.bloomUp[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.upMat 1c 1t
+    post.bloomUp[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.upMat 1c 1t
+    the canvas 1100x515: 1.0 calls, 1 tris · begins with a whole clear · up to 566.5k px
+        post.compositeMat 1c 1t
+  one frame and the next, at rest (shadow tiles drawn wide/fine/figure · passes · calls · triangles · uploads):
+    011 23p 144c 2.98Mt 33 KB | 101 23p 151c 3.01Mt 33 KB | 011 23p 144c 3.00Mt 33 KB | 101 23p 151c 3.03Mt 416 KB | 011 23p 144c 2.98Mt 33 KB | 101 23p 151c 2.99Mt 32 KB | 011 23p 144c 2.97Mt 32 KB | 101 23p 151c 3.00Mt 33 KB
+    1 different order of passes among them
+    even frames 2.98M triangles in 144 calls, odd frames 3.01M in 151
+  uploads at rest (8 frames):
+        38 KB a frame · 14 times in 1 frames · tex · terrain.pool.normalTex · between passes
+        24 KB a frame · 8 times in 8 frames · tex · hero.sculpt.palette · between passes
+         8 KB a frame · 8 times in 8 frames · buf · terrain.pool.instanceBuffer · inside a pass (post.scene 1100x515)
+         7 KB a frame · 2 times in 1 frames · tex · terrain.pool.vertTex · between passes
+         2 KB a frame · 2 times in 1 frames · tex · terrain.pool.morphTex · between passes
+         1 KB a frame · 2 times in 1 frames · tex · terrain.pool.shadowTex · between passes
+         0 KB a frame · 8 times in 8 frames · buf · bodies.points.geometry.attributes.aFlux · inside a pass (post.scene 1100x515)
+         0 KB a frame · 8 times in 8 frames · buf · bodies.points.geometry.attributes.position · inside a pass (post.scene 1100x515)
+         0 KB a frame · 10 times in 5 frames · buf-alloc · a vertex buffer · between passes
+  uploads in the first frames after the jump (5 frames):
+        24 KB a frame · 5 times in 5 frames · tex · hero.sculpt.palette · between passes
+        13 KB a frame · 1 times in 1 frames · tex · grass.tables.near.tex · between passes
+         4 KB a frame · 5 times in 5 frames · buf · terrain.pool.instanceBuffer · inside a pass (post.scene 1100x515)
+         0 KB a frame · 5 times in 5 frames · buf · bodies.points.geometry.attributes.aFlux · inside a pass (post.scene 1100x515)
+         0 KB a frame · 5 times in 5 frames · buf · bodies.points.geometry.attributes.position · inside a pass (post.scene 1100x515)
+         0 KB a frame · 4 times in 2 frames · buf-alloc · a vertex buffer · between passes
+  uploads while the rest arrives (scenes hidden) (148 frames):
+       213 KB a frame · 1456 times in 87 frames · tex · terrain.pool.normalTex · between passes
+        41 KB a frame · 208 times in 87 frames · tex · terrain.pool.vertTex · between passes
+        24 KB a frame · 148 times in 148 frames · tex · hero.sculpt.palette · between passes
+        10 KB a frame · 208 times in 87 frames · tex · terrain.pool.morphTex · between passes
+         5 KB a frame · 208 times in 87 frames · tex · terrain.pool.shadowTex · between passes
+         0 KB a frame · 164 times in 82 frames · buf-alloc · a vertex buffer · between passes
+  uploads while looking round and flying (14 frames):
+        41 KB a frame · 9 times in 9 frames · tex · grass.tables.near.tex · between passes
+        37 KB a frame · 2 times in 2 frames · tex · grass.tables.mid.tex · between passes
+        37 KB a frame · 2 times in 2 frames · tex · grass.tables.far.tex · between passes
+        24 KB a frame · 14 times in 14 frames · tex · hero.sculpt.palette · between passes
+         9 KB a frame · 8 times in 8 frames · buf · dust.aMotion · inside a pass (post.scene 1100x515)
+         9 KB a frame · 8 times in 8 frames · buf · dust.aState · inside a pass (post.scene 1100x515)
+         8 KB a frame · 14 times in 14 frames · buf · terrain.pool.instanceBuffer · inside a pass (post.scene 1100x515)
+         7 KB a frame · 8 times in 8 frames · buf · dust.aPos · inside a pass (post.scene 1100x515)
+         1 KB a frame · 1 times in 1 frames · buf · rocks.aQuat · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 2 times in 2 frames · buf · rocks.aMisc · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 1 times in 1 frames · buf · rocks.aShape · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 14 times in 14 frames · buf · bodies.points.geometry.attributes.aFlux · inside a pass (post.scene 1100x515)
+         0 KB a frame · 1 times in 1 frames · buf · rocks.aOffset · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 1 times in 1 frames · buf · rocks.aScale · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 14 times in 14 frames · buf · bodies.points.geometry.attributes.position · inside a pass (post.scene 1100x515)
+         0 KB a frame · 16 times in 8 frames · buf-alloc · a vertex buffer · between passes
+         0 KB a frame · 4 times in 1 frames · buf · trees.casters[].set.iA · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 4 times in 1 frames · buf · trees.casters[].set.iB · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 4 times in 1 frames · buf · trees.casters[].set.iD · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 4 times in 1 frames · buf · trees.casters[].set.iE · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 4 times in 1 frames · buf · trees.casters[].set.iC · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 2 times in 1 frames · buf · trees.casters[].set.iA · inside a pass (post.scene 1100x515)
+    and 4 smaller
+  other calls a frame: arrive · readPixels into a buffer (no wait) 0.80 · arrive · fenceSync 0.80 · arrive · flush 0.80 · settle · readPixels into a buffer (no wait) 1.11 · settle · fenceSync 1.11 · settle · flush 1.11 · warm · readPixels into a buffer (no wait) 1.33 · warm · fenceSync 1.33 · warm · flush 1.33 · steady · readPixels into a buffer (no wait) 1.25 · steady · fenceSync 1.25 · steady · flush 1.25 · nothing drawn · readPixels into a buffer (no wait) 1.00 · nothing drawn · fenceSync 1.00 · nothing drawn · flush 1.00 · look · readPixels into a buffer (no wait) 1.33 · look · fenceSync 1.33 · look · flush 1.33 · fly · readPixels into a buffer (no wait) 1.00 · fly · fenceSync 1.00 · fly · flush 1.00
+
+===== haven ship: 186 frames counted in 523 s (still arriving when the wait ran out) =====
+  arrive           5 frames · a frame: 23.4 passes, 162 draw calls, 2.84M triangles, 257.6k instances · uploads 408 KB (167 KB inside a pass) · the page's own work 11.5 ms
+  settle         154 frames · a frame: 23.1 passes, 57 draw calls, 111.1k triangles, 1.3k instances · uploads 63 KB (0 KB inside a pass) · the page's own work 5.5 ms
+  steady           8 frames · a frame: 23.0 passes, 157 draw calls, 3.02M triangles, 257.4k instances · uploads 32 KB (8 KB inside a pass) · the page's own work 6.3 ms
+  nothing drawn    2 frames · a frame: 23.0 passes, 57 draw calls, 110.6k triangles, 1.3k instances · uploads 24 KB (0 KB inside a pass) · the page's own work 4.9 ms
+  look             6 frames · a frame: 23.0 passes, 157 draw calls, 3.00M triangles, 250.9k instances · uploads 432 KB (14 KB inside a pass) · the page's own work 9.9 ms
+  fly              8 frames · a frame: 23.3 passes, 158 draw calls, 2.97M triangles, 241.9k instances · uploads 254 KB (62 KB inside a pass) · the page's own work 8.6 ms
+  just arrived: 162 calls / 2.84M triangles / 66 patches / 527 trees (14.7k triangles) / 27.8k far trees
+  at rest:      157 calls / 3.02M triangles / 118 patches / 527 trees (14.7k triangles) / 27.8k far trees
+  at rest, pass by pass (c: draw calls, t: triangles, i: instances, a frame):
+    sky.field._rt.A 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.B 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.C 512x256: 1.0 calls, 1 tris · begins with a clear of a part · up to 8.2k px
+        sky.field._mat 1c 1t
+    atmosphere.froxels 256x128: 1.0 calls, 1 tris · begins with a whole clear · up to 32.8k px
+        atmosphere.froxelMat 1c 1t
+    nearShadow.target 3072x2048: 23.0 calls, 63.5k tris (52.0k to 75.0k), 1.3k inst · begins with a clear of a part · up to 4.19M px
+        hero.sculpt.depthMaterial 1c 23.9kt · rocks.depthMaterial 1c 19.8kt 248i · farRocks.depthMaterial 1c 10.9kt 546i · trees.depthMaterial 19.5c 7.7kt 484i · lander.depthMaterial 0.5c 1.2kt
+    treeShade.target 1024x768: 3.0 calls, 3 tris · begins with a draw · up to 65.5k px
+        treeShade.material 2c 2t · treeShade.worldMaterial 1c 1t
+    treeShade.probe.target 3x1: 1.0 calls, 1 tris · begins with a whole clear · up to 3 px
+        treeShade.probe.material 1c 1t
+    cloudVolume.target 1100x258: 1.0 calls, 1 tris · begins with a clear of a part · up to 212.8k px
+        cloudVolume.march 1c 1t
+    cloudVolume.smooth 1100x258: 1.0 calls, 1 tris · begins with a clear of a part · up to 212.8k px
+        cloudVolume.smoothMat 1c 1t
+    cloudVolume.all 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        cloudVolume.allMat 1c 1t
+    grass.light 288x576: 3.0 calls, 3 tris · begins with a whole clear · up to 55.3k px
+        grass.lightMats[] 3c 3t
+    post.scene 1100x515: 109.0 calls, 2.95M tris, 256.2k inst · begins with a whole clear · up to 566.5k px
+        grass.rings[].mesh.material 6c 1.12Mt 146.9ki · grass.flowers[].mesh.material 2c 622.1kt 26.4ki · terrain.pool.material 1c 415.4kt 118i · farForest.pool[].material 21c 247.4kt 41.2ki · farRocks.material 15c 187.2kt 9.4ki · hero.sculpt.material 1c 120.0kt · farRocks.shadowMaterial 12c 55.9kt 7.0ki · farForest.pool[].shadowMaterial 11c 48.2kt 24.1ki · clouds.mesh.material 1c 48.0kt · sky.upper.material 2c 43.6kt · rocks.material 1c 20.0kt 250i · trees.material 22c 14.7kt 534i · cloudVolume.layMat 6c 3.5kt · bodies.group.children[].material 1c 3.4kt · and 7 more
+    post.bloomDown[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.downMat 1c 1t
+    post.bloomDown[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.downMat 1c 1t
+    post.bloomDown[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.downMat 1c 1t
+    post.bloomDown[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.downMat 1c 1t
+    post.bloomDown[] 34x16: 1.0 calls, 1 tris · begins with a whole clear · up to 544 px
+        post.downMat 1c 1t
+    post.meterTarget 1x1: 1.0 calls, 1 tris · begins with a whole clear · up to 1 px
+        post.meterMat 1c 1t
+    post.bloomUp[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.upMat 1c 1t
+    post.bloomUp[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.upMat 1c 1t
+    post.bloomUp[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.upMat 1c 1t
+    post.bloomUp[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.upMat 1c 1t
+    the canvas 1100x515: 1.0 calls, 1 tris · begins with a whole clear · up to 566.5k px
+        post.compositeMat 1c 1t
+  with the four scenes hidden (what is paid whatever is on screen):
+    sky.field._rt.A 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.B 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.C 512x256: 1.0 calls, 1 tris · begins with a clear of a part · up to 8.2k px
+        sky.field._mat 1c 1t
+    atmosphere.froxels 256x128: 1.0 calls, 1 tris · begins with a whole clear · up to 32.8k px
+        atmosphere.froxelMat 1c 1t
+    nearShadow.target 3072x2048: 23.0 calls, 63.5k tris (52.0k to 75.0k), 1.3k inst · begins with a clear of a part · up to 4.19M px
+        hero.sculpt.depthMaterial 1c 23.9kt · rocks.depthMaterial 1c 19.8kt 248i · farRocks.depthMaterial 1c 10.9kt 546i · trees.depthMaterial 19.5c 7.7kt 484i · lander.depthMaterial 0.5c 1.2kt
+    treeShade.target 1024x768: 3.0 calls, 3 tris · begins with a draw · up to 65.5k px
+        treeShade.material 2c 2t · treeShade.worldMaterial 1c 1t
+    treeShade.probe.target 3x1: 1.0 calls, 1 tris · begins with a whole clear · up to 3 px
+        treeShade.probe.material 1c 1t
+    cloudVolume.target 1100x258: 1.0 calls, 1 tris · begins with a clear of a part · up to 212.8k px
+        cloudVolume.march 1c 1t
+    cloudVolume.smooth 1100x258: 1.0 calls, 1 tris · begins with a clear of a part · up to 212.8k px
+        cloudVolume.smoothMat 1c 1t
+    cloudVolume.all 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        cloudVolume.allMat 1c 1t
+    grass.light 288x576: 3.0 calls, 3 tris · begins with a whole clear · up to 55.3k px
+        grass.lightMats[] 3c 3t
+    post.scene 1100x515: 9.0 calls, 47.0k tris · begins with a whole clear · up to 566.5k px
+        sky.upper.material 2c 43.6kt · cloudVolume.layMat 6c 3.5kt · pollen.material 1c 0t
+    post.bloomDown[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.downMat 1c 1t
+    post.bloomDown[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.downMat 1c 1t
+    post.bloomDown[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.downMat 1c 1t
+    post.bloomDown[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.downMat 1c 1t
+    post.bloomDown[] 34x16: 1.0 calls, 1 tris · begins with a whole clear · up to 544 px
+        post.downMat 1c 1t
+    post.meterTarget 1x1: 1.0 calls, 1 tris · begins with a whole clear · up to 1 px
+        post.meterMat 1c 1t
+    post.bloomUp[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.upMat 1c 1t
+    post.bloomUp[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.upMat 1c 1t
+    post.bloomUp[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.upMat 1c 1t
+    post.bloomUp[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.upMat 1c 1t
+    the canvas 1100x515: 1.0 calls, 1 tris · begins with a whole clear · up to 566.5k px
+        post.compositeMat 1c 1t
+  one frame and the next, at rest (shadow tiles drawn wide/fine/figure · passes · calls · triangles · uploads):
+    101 23p 160c 3.03Mt 32 KB | 011 23p 154c 3.01Mt 32 KB | 101 23p 160c 3.03Mt 32 KB | 011 23p 154c 3.01Mt 32 KB | 101 23p 160c 3.03Mt 32 KB | 011 23p 154c 3.01Mt 32 KB | 101 23p 160c 3.03Mt 32 KB | 011 23p 154c 3.01Mt 32 KB
+    1 different order of passes among them
+    even frames 3.03M triangles in 160 calls, odd frames 3.01M in 154
+  uploads at rest (8 frames):
+        24 KB a frame · 8 times in 8 frames · tex · hero.sculpt.palette · between passes
+         7 KB a frame · 8 times in 8 frames · buf · terrain.pool.instanceBuffer · inside a pass (post.scene 1100x515)
+         0 KB a frame · 8 times in 8 frames · buf · bodies.points.geometry.attributes.aFlux · inside a pass (post.scene 1100x515)
+         0 KB a frame · 8 times in 8 frames · buf · bodies.points.geometry.attributes.position · inside a pass (post.scene 1100x515)
+         0 KB a frame · 8 times in 4 frames · buf-alloc · a vertex buffer · between passes
+  uploads in the first frames after the jump (5 frames):
+       102 KB a frame · 2 times in 2 frames · tex · grass.tables.mid.tex · between passes
+        64 KB a frame · 5 times in 5 frames · tex · grass.tables.near.tex · between passes
+        51 KB a frame · 1 times in 1 frames · tex · grass.tables.far.tex · between passes
+        27 KB a frame · 1 times in 1 frames · buf · nearScene.children[].geometry.attributes.position · inside a pass (post.scene 1100x515)
+        27 KB a frame · 1 times in 1 frames · buf · nearScene.children[].geometry.attributes.normal · inside a pass (post.scene 1100x515)
+        27 KB a frame · 1 times in 1 frames · buf · nearScene.children[].geometry.attributes.aCrown · inside a pass (post.scene 1100x515)
+        24 KB a frame · 5 times in 5 frames · tex · hero.sculpt.palette · between passes
+        18 KB a frame · 1 times in 1 frames · buf · nearScene.children[].geometry.attributes.aSway · inside a pass (post.scene 1100x515)
+        18 KB a frame · 1 times in 1 frames · buf · nearScene.children[].geometry.attributes.aUv · inside a pass (post.scene 1100x515)
+         9 KB a frame · 1 times in 1 frames · buf · nearScene.children[].geometry.attributes.aLeaf · inside a pass (post.scene 1100x515)
+         4 KB a frame · 5 times in 5 frames · buf · terrain.pool.instanceBuffer · inside a pass (post.scene 1100x515)
+         3 KB a frame · 1 times in 1 frames · buf · farRocks.casterAt.aOff · inside a pass (nearShadow.target 3072x2048)
+         3 KB a frame · 1 times in 1 frames · buf · farRocks.casterAt.aQuat · inside a pass (nearShadow.target 3072x2048)
+         3 KB a frame · 7 times in 1 frames · buf · trees.casters[].set.iA · inside a pass (nearShadow.target 3072x2048)
+         3 KB a frame · 7 times in 1 frames · buf · trees.casters[].set.iB · inside a pass (nearShadow.target 3072x2048)
+         3 KB a frame · 7 times in 1 frames · buf · trees.casters[].set.iE · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 6 times in 1 frames · buf · trees.casters[].set.iD · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 1 times in 1 frames · buf · farRocks.casterAt.aScale · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 6 times in 1 frames · buf · trees.casters[].set.iC · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 1 times in 1 frames · buf · rocks.aQuat · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 2 times in 2 frames · buf · rocks.aMisc · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 1 times in 1 frames · buf · rocks.aShape · inside a pass (nearShadow.target 3072x2048)
+    and 15 smaller
+  uploads while the rest arrives (scenes hidden) (154 frames):
+        26 KB a frame · 182 times in 14 frames · tex · terrain.pool.normalTex · between passes
+        24 KB a frame · 154 times in 154 frames · tex · hero.sculpt.palette · between passes
+         5 KB a frame · 26 times in 14 frames · tex · terrain.pool.vertTex · between passes
+         3 KB a frame · 2 times in 2 frames · tex · grass.tables.mid.tex · between passes
+         3 KB a frame · 2 times in 2 frames · tex · grass.tables.far.tex · between passes
+         1 KB a frame · 26 times in 14 frames · tex · terrain.pool.morphTex · between passes
+         1 KB a frame · 26 times in 14 frames · tex · terrain.pool.shadowTex · between passes
+         0 KB a frame · 178 times in 89 frames · buf-alloc · a vertex buffer · between passes
+  uploads while looking round and flying (14 frames):
+       152 KB a frame · 98 times in 6 frames · tex · terrain.pool.normalTex · between passes
+        37 KB a frame · 8 times in 8 frames · tex · grass.tables.near.tex · between passes
+        29 KB a frame · 14 times in 6 frames · tex · terrain.pool.vertTex · between passes
+        24 KB a frame · 14 times in 14 frames · tex · hero.sculpt.palette · between passes
+        18 KB a frame · 1 times in 1 frames · tex · grass.tables.mid.tex · between passes
+        18 KB a frame · 1 times in 1 frames · tex · grass.tables.far.tex · between passes
+         9 KB a frame · 8 times in 8 frames · buf · dust.aMotion · inside a pass (post.scene 1100x515)
+         9 KB a frame · 8 times in 8 frames · buf · dust.aState · inside a pass (post.scene 1100x515)
+         8 KB a frame · 14 times in 14 frames · buf · terrain.pool.instanceBuffer · inside a pass (post.scene 1100x515)
+         7 KB a frame · 14 times in 6 frames · tex · terrain.pool.morphTex · between passes
+         7 KB a frame · 8 times in 8 frames · buf · dust.aPos · inside a pass (post.scene 1100x515)
+         4 KB a frame · 14 times in 6 frames · tex · terrain.pool.shadowTex · between passes
+         1 KB a frame · 2 times in 2 frames · buf · rocks.aQuat · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 4 times in 4 frames · buf · rocks.aMisc · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 2 times in 2 frames · buf · rocks.aShape · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 2 times in 2 frames · buf · rocks.aOffset · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 2 times in 2 frames · buf · rocks.aScale · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 26 times in 2 frames · buf · trees.casters[].set.iA · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 26 times in 2 frames · buf · trees.casters[].set.iB · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 26 times in 2 frames · buf · trees.casters[].set.iE · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 24 times in 2 frames · buf · trees.casters[].set.iD · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 24 times in 2 frames · buf · trees.casters[].set.iC · inside a pass (nearShadow.target 3072x2048)
+    and 8 smaller
+  other calls a frame: arrive · readPixels into a buffer (no wait) 1.20 · arrive · fenceSync 1.20 · arrive · flush 1.20 · settle · readPixels into a buffer (no wait) 1.16 · settle · fenceSync 1.16 · settle · flush 1.16 · warm · readPixels into a buffer (no wait) 1.33 · warm · fenceSync 1.33 · warm · flush 1.33 · steady · readPixels into a buffer (no wait) 1.00 · steady · fenceSync 1.00 · steady · flush 1.00 · nothing drawn · readPixels into a buffer (no wait) 2.00 · nothing drawn · fenceSync 2.00 · nothing drawn · flush 2.00 · look · readPixels into a buffer (no wait) 1.00 · look · fenceSync 1.00 · look · flush 1.00 · fly · readPixels into a buffer (no wait) 1.25 · fly · fenceSync 1.25 · fly · flush 1.25
+
+===== haven dusk: 149 frames counted in 529 s (still arriving when the wait ran out) =====
+  arrive           5 frames · a frame: 21.4 passes, 159 draw calls, 3.02M triangles, 242.5k instances · uploads 477 KB (177 KB inside a pass) · the page's own work 46.1 ms
+  settle         117 frames · a frame: 21.1 passes, 57 draw calls, 115.4k triangles, 1.5k instances · uploads 157 KB (0 KB inside a pass) · the page's own work 7.3 ms
+  steady           8 frames · a frame: 24.3 passes, 158 draw calls, 3.02M triangles, 242.2k instances · uploads 33 KB (9 KB inside a pass) · the page's own work 6.9 ms
+  nothing drawn    2 frames · a frame: 24.0 passes, 60 draw calls, 115.1k triangles, 1.5k instances · uploads 24 KB (0 KB inside a pass) · the page's own work 4.9 ms
+  look             6 frames · a frame: 24.0 passes, 158 draw calls, 2.99M triangles, 241.5k instances · uploads 419 KB (31 KB inside a pass) · the page's own work 11.0 ms
+  fly              8 frames · a frame: 24.0 passes, 157 draw calls, 2.96M triangles, 237.1k instances · uploads 459 KB (56 KB inside a pass) · the page's own work 12.0 ms
+  just arrived: 159 calls / 3.02M triangles / 132 patches / 510 trees (8.2k triangles) / 27.9k far trees
+  at rest:      158 calls / 3.02M triangles / 132 patches / 510 trees (8.2k triangles) / 27.9k far trees
+  at rest, pass by pass (c: draw calls, t: triangles, i: instances, a frame):
+    sky.field._rt.A 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.B 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.C 512x256: 1.0 calls, 1 tris · begins with a clear of a part · up to 8.2k px
+        sky.field._mat 1c 1t
+    atmosphere.skyView 160x100 [in 1 of 8 frames]: 1.0 calls, 1 tris · begins with a whole clear · up to 16.0k px
+        atmosphere.skyMat 1c 1t
+    atmosphere.froxels 256x128: 1.0 calls, 1 tris · begins with a whole clear · up to 32.8k px
+        atmosphere.froxelMat 1c 1t
+    atmosphere.irradiance 64x18 [in 1 of 8 frames]: 1.0 calls, 1 tris · begins with a clear of a part · up to 272 px
+        atmosphere.irrMat 1c 1t
+    nearShadow.target 3072x2048: 21.0 calls, 68.0k tris (60.7k to 75.3k), 1.5k inst · begins with a clear of a part · up to 4.19M px
+        hero.sculpt.depthMaterial 1c 23.9kt · rocks.depthMaterial 1c 20.3kt 254i · farRocks.depthMaterial 1c 16.7kt 835i · trees.depthMaterial 17.5c 5.9kt 376i · lander.depthMaterial 0.5c 1.2kt
+    treeShade.target 1024x768: 3.0 calls, 3 tris · begins with a draw · up to 65.5k px
+        treeShade.material 2c 2t · treeShade.worldMaterial 1c 1t
+    treeShade.probe.target 3x1: 1.0 calls, 1 tris · begins with a whole clear · up to 3 px
+        treeShade.probe.material 1c 1t
+    cloudVolume.target 1100x258: 1.0 calls, 1 tris · begins with a whole clear · up to 283.8k px
+        cloudVolume.march 1c 1t
+    cloudVolume.smooth 1100x258: 1.0 calls, 1 tris · begins with a whole clear · up to 283.8k px
+        cloudVolume.smoothMat 1c 1t
+    cloudVolume.all 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        cloudVolume.allMat 1c 1t
+    grass.light 288x576: 3.0 calls, 3 tris · begins with a whole clear · up to 55.3k px
+        grass.lightMats[] 3c 3t
+    post.scene 1100x515: 111.0 calls, 2.95M tris, 240.7k inst · begins with a whole clear · up to 566.5k px
+        grass.rings[].mesh.material 6c 1.12Mt 146.9ki · grass.flowers[].mesh.material 2c 622.1kt 26.4ki · terrain.pool.material 1c 464.6kt 132i · farRocks.material 19c 199.0kt 9.9ki · farForest.pool[].material 18c 197.7kt 33.0ki · hero.sculpt.material 1c 120.0kt · farRocks.shadowMaterial 14c 60.2kt 7.5ki · clouds.mesh.material 1c 48.0kt · sky.upper.material 2c 43.6kt · farForest.pool[].shadowMaterial 7c 31.6kt 15.8ki · rocks.material 1c 20.3kt 254i · trees.material 21c 8.2kt 518i · cloudVolume.layMat 6c 3.5kt · bodies.group.children[].material 1c 3.4kt · and 8 more
+    post.bloomDown[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.downMat 1c 1t
+    post.bloomDown[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.downMat 1c 1t
+    post.bloomDown[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.downMat 1c 1t
+    post.bloomDown[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.downMat 1c 1t
+    post.bloomDown[] 34x16: 1.0 calls, 1 tris · begins with a whole clear · up to 544 px
+        post.downMat 1c 1t
+    post.meterTarget 1x1: 1.0 calls, 1 tris · begins with a whole clear · up to 1 px
+        post.meterMat 1c 1t
+    post.bloomUp[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.upMat 1c 1t
+    post.bloomUp[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.upMat 1c 1t
+    post.bloomUp[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.upMat 1c 1t
+    post.bloomUp[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.upMat 1c 1t
+    post.shaftTarget 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.shaftMat 1c 1t
+    the canvas 1100x515: 1.0 calls, 1 tris · begins with a whole clear · up to 566.5k px
+        post.compositeMat 1c 1t
+  with the four scenes hidden (what is paid whatever is on screen):
+    sky.field._rt.A 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.B 1024x512: 1.0 calls, 1 tris · begins with a clear of a part · up to 32.8k px
+        sky.field._mat 1c 1t
+    sky.field._rt.C 512x256: 1.0 calls, 1 tris · begins with a clear of a part · up to 8.2k px
+        sky.field._mat 1c 1t
+    atmosphere.froxels 256x128: 1.0 calls, 1 tris · begins with a whole clear · up to 32.8k px
+        atmosphere.froxelMat 1c 1t
+    nearShadow.target 3072x2048: 21.0 calls, 68.0k tris (60.7k to 75.3k), 1.5k inst · begins with a clear of a part · up to 4.19M px
+        hero.sculpt.depthMaterial 1c 23.9kt · rocks.depthMaterial 1c 20.3kt 254i · farRocks.depthMaterial 1c 16.7kt 835i · trees.depthMaterial 17.5c 5.9kt 376i · lander.depthMaterial 0.5c 1.2kt
+    treeShade.target 1024x768: 3.0 calls, 3 tris · begins with a draw · up to 65.5k px
+        treeShade.material 2c 2t · treeShade.worldMaterial 1c 1t
+    treeShade.probe.target 3x1: 1.0 calls, 1 tris · begins with a whole clear · up to 3 px
+        treeShade.probe.material 1c 1t
+    cloudVolume.target 1100x258: 1.0 calls, 1 tris · begins with a whole clear · up to 283.8k px
+        cloudVolume.march 1c 1t
+    cloudVolume.smooth 1100x258: 1.0 calls, 1 tris · begins with a whole clear · up to 283.8k px
+        cloudVolume.smoothMat 1c 1t
+    cloudVolume.all 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        cloudVolume.allMat 1c 1t
+    grass.light 288x576: 3.0 calls, 3 tris · begins with a whole clear · up to 55.3k px
+        grass.lightMats[] 3c 3t
+    post.scene 1100x515: 13.0 calls, 47.0k tris · begins with a whole clear · up to 566.5k px
+        sky.upper.material 2c 43.6kt · cloudVolume.layMat 6c 3.5kt · cloudVolume.farMat 4c 4t · pollen.material 1c 0t
+    post.bloomDown[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.downMat 1c 1t
+    post.bloomDown[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.downMat 1c 1t
+    post.bloomDown[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.downMat 1c 1t
+    post.bloomDown[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.downMat 1c 1t
+    post.bloomDown[] 34x16: 1.0 calls, 1 tris · begins with a whole clear · up to 544 px
+        post.downMat 1c 1t
+    post.meterTarget 1x1: 1.0 calls, 1 tris · begins with a whole clear · up to 1 px
+        post.meterMat 1c 1t
+    post.bloomUp[] 68x32: 1.0 calls, 1 tris · begins with a whole clear · up to 2.2k px
+        post.upMat 1c 1t
+    post.bloomUp[] 137x64: 1.0 calls, 1 tris · begins with a whole clear · up to 8.8k px
+        post.upMat 1c 1t
+    post.bloomUp[] 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.upMat 1c 1t
+    post.bloomUp[] 550x258: 1.0 calls, 1 tris · begins with a whole clear · up to 141.9k px
+        post.upMat 1c 1t
+    post.shaftTarget 275x129: 1.0 calls, 1 tris · begins with a whole clear · up to 35.5k px
+        post.shaftMat 1c 1t
+    the canvas 1100x515: 1.0 calls, 1 tris · begins with a whole clear · up to 566.5k px
+        post.compositeMat 1c 1t
+  one frame and the next, at rest (shadow tiles drawn wide/fine/figure · passes · calls · triangles · uploads):
+    101 24p 162c 3.02Mt 33 KB | 011 24p 154c 3.01Mt 33 KB | 101 24p 162c 3.02Mt 33 KB | 011 26p 156c 3.01Mt 33 KB | 101 24p 162c 3.02Mt 33 KB | 011 24p 154c 3.01Mt 33 KB | 101 24p 162c 3.02Mt 33 KB | 011 24p 154c 3.01Mt 33 KB
+    2 different orders of passes among them
+    even frames 3.02M triangles in 162 calls, odd frames 3.01M in 155
+  uploads at rest (8 frames):
+        24 KB a frame · 8 times in 8 frames · tex · hero.sculpt.palette · between passes
+         8 KB a frame · 8 times in 8 frames · buf · terrain.pool.instanceBuffer · inside a pass (post.scene 1100x515)
+         0 KB a frame · 8 times in 8 frames · buf · bodies.points.geometry.attributes.aFlux · inside a pass (post.scene 1100x515)
+         0 KB a frame · 8 times in 8 frames · buf · bodies.points.geometry.attributes.position · inside a pass (post.scene 1100x515)
+         0 KB a frame · 8 times in 4 frames · buf-alloc · a vertex buffer · between passes
+  uploads in the first frames after the jump (5 frames):
+        77 KB a frame · 3 times in 3 frames · tex · sky.field._tex[].ex.A · before the frame's first draw
+        64 KB a frame · 5 times in 5 frames · tex · grass.tables.near.tex · before the frame's first draw
+        51 KB a frame · 1 times in 1 frames · tex · grass.tables.mid.tex · before the frame's first draw
+        51 KB a frame · 1 times in 1 frames · tex · grass.tables.far.tex · before the frame's first draw
+        48 KB a frame · 8 times in 4 frames · buf · farForest.pool[].iA · inside a pass (post.scene 1100x515)
+        48 KB a frame · 8 times in 4 frames · buf · farForest.pool[].iB · inside a pass (post.scene 1100x515)
+        48 KB a frame · 8 times in 4 frames · buf · farForest.pool[].iC · inside a pass (post.scene 1100x515)
+        26 KB a frame · 1 times in 1 frames · tex · texture 1024x32 · before the frame's first draw
+        24 KB a frame · 5 times in 5 frames · tex · hero.sculpt.palette · before the frame's first draw
+         8 KB a frame · 5 times in 5 frames · buf · terrain.pool.instanceBuffer · inside a pass (post.scene 1100x515)
+         7 KB a frame · 9 times in 4 frames · tex · terrain.pool.shadowTex · before the frame's first draw
+         3 KB a frame · 1 times in 1 frames · buf · farRocks.casterAt.aOff · inside a pass (nearShadow.target 3072x2048)
+         3 KB a frame · 1 times in 1 frames · buf · farRocks.casterAt.aQuat · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 1 times in 1 frames · buf · farRocks.casterAt.aScale · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 21 times in 1 frames · buf · trees.casters[].set.iA · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 21 times in 1 frames · buf · trees.casters[].set.iB · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 21 times in 1 frames · buf · trees.casters[].set.iD · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 21 times in 1 frames · buf · trees.casters[].set.iE · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 1 times in 1 frames · buf · rocks.aQuat · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 1 times in 1 frames · buf · rocks.aShape · inside a pass (nearShadow.target 3072x2048)
+         2 KB a frame · 1 times in 1 frames · tex · atmosphere.airTex · inside a pass (atmosphere.froxels 256x128)
+         1 KB a frame · 21 times in 1 frames · buf · trees.casters[].set.iC · inside a pass (nearShadow.target 3072x2048)
+    and 7 smaller
+  uploads while the rest arrives (scenes hidden) (117 frames):
+        35 KB a frame · 32 times in 32 frames · tex · sky.field._tex[].ex.B · before the frame's first draw
+        34 KB a frame · 31 times in 31 frames · tex · sky.field._tex[].ex.A · before the frame's first draw
+        34 KB a frame · 31 times in 31 frames · tex · texture 1024x32 · before the frame's first draw
+        24 KB a frame · 117 times in 117 frames · tex · hero.sculpt.palette · before the frame's first draw
+        11 KB a frame · 5 times in 5 frames · tex · grass.tables.mid.tex · before the frame's first draw
+         7 KB a frame · 3 times in 3 frames · tex · grass.tables.far.tex · before the frame's first draw
+         5 KB a frame · 170 times in 68 frames · tex · terrain.pool.shadowTex · before the frame's first draw
+         2 KB a frame · 8 times in 8 frames · tex · sky.field._mat.uniforms.t1.value · before the frame's first draw
+         2 KB a frame · 8 times in 8 frames · tex · sky.field._mat.uniforms.t0.value · before the frame's first draw
+         2 KB a frame · 7 times in 7 frames · tex · texture 512x32 · before the frame's first draw
+         1 KB a frame · 1 times in 1 frames · tex · grass.tables.near.tex · before the frame's first draw
+         0 KB a frame · 21 times in 2 frames · buf · trees.casters[].set.iA · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 21 times in 2 frames · buf · trees.casters[].set.iB · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 21 times in 2 frames · buf · trees.casters[].set.iD · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 21 times in 2 frames · buf · trees.casters[].set.iE · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 21 times in 2 frames · buf · trees.casters[].set.iC · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 1 times in 1 frames · buf · rocks.aMisc · inside a pass (nearShadow.target 3072x2048)
+         0 KB a frame · 130 times in 65 frames · buf-alloc · a vertex buffer · between passes
+         0 KB a frame · 1 times in 1 frames · tex · grass.shadeTex · before the frame's first draw
+  uploads while looking round and flying (14 frames):
+       206 KB a frame · 133 times in 8 frames · tex · terrain.pool.normalTex · between passes
+        39 KB a frame · 19 times in 8 frames · tex · terrain.pool.vertTex · between passes
+        37 KB a frame · 8 times in 8 frames · tex · grass.tables.near.tex · between passes
+        37 KB a frame · 2 times in 2 frames · tex · grass.tables.mid.tex · between passes
+        37 KB a frame · 2 times in 2 frames · tex · grass.tables.far.tex · between passes
+        24 KB a frame · 14 times in 14 frames · tex · hero.sculpt.palette · between passes
+        10 KB a frame · 19 times in 8 frames · tex · terrain.pool.morphTex · between passes
+         9 KB a frame · 8 times in 8 frames · buf · dust.aMotion · inside a pass (post.scene 1100x515)
+         9 KB a frame · 8 times in 8 frames · buf · dust.aState · inside a pass (post.scene 1100x515)
+         8 KB a frame · 30 times in 12 frames · tex · terrain.pool.shadowTex · between passes
+         8 KB a frame · 14 times in 14 frames · buf · terrain.pool.instanceBuffer · inside a pass (post.scene 1100x515)
+         7 KB a frame · 8 times in 8 frames · buf · dust.aPos · inside a pass (post.scene 1100x515)
+         1 KB a frame · 3 times in 2 frames · buf · farForest.pool[].iA · inside a pass (post.scene 1100x515)
+         1 KB a frame · 3 times in 2 frames · buf · farForest.pool[].iB · inside a pass (post.scene 1100x515)
+         1 KB a frame · 3 times in 2 frames · buf · farForest.pool[].iC · inside a pass (post.scene 1100x515)
+         1 KB a frame · 2 times in 2 frames · buf · rocks.aQuat · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 2 times in 2 frames · buf · rocks.aShape · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 4 times in 4 frames · buf · farRocks.slots[].at.aOff · inside a pass (post.scene 1100x515)
+         1 KB a frame · 4 times in 4 frames · buf · farRocks.slots[].at.aQuat · inside a pass (post.scene 1100x515)
+         1 KB a frame · 2 times in 2 frames · buf · rocks.aOffset · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 2 times in 2 frames · buf · rocks.aScale · inside a pass (nearShadow.target 3072x2048)
+         1 KB a frame · 4 times in 4 frames · buf · farRocks.slots[].at.aScale · inside a pass (post.scene 1100x515)
+    and 7 smaller
+  other calls a frame: arrive · readPixels into a buffer (no wait) 1.20 · arrive · fenceSync 1.20 · arrive · flush 1.20 · arrive · linkProgram 0.20 · settle · readPixels into a buffer (no wait) 1.11 · settle · fenceSync 1.11 · settle · flush 1.11 · warm · readPixels into a buffer (no wait) 0.67 · warm · fenceSync 0.67 · warm · flush 0.67 · steady · readPixels into a buffer (no wait) 1.00 · steady · fenceSync 1.00 · steady · flush 1.00 · nothing drawn · readPixels into a buffer (no wait) 2.00 · nothing drawn · fenceSync 2.00 · nothing drawn · flush 2.00 · look · readPixels into a buffer (no wait) 1.00 · look · fenceSync 1.00 · look · flush 1.00 · fly · readPixels into a buffer (no wait) 1.25 · fly · fenceSync 1.25 · fly · flush 1.25
+
+every frame: /tmp/claude-0/-home-user-what-it-s-best-at/d615bb12-cfd3-5181-b68d-222e39a8b443/scratchpad/counts-head.json
