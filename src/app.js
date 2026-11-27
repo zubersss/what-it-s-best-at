@@ -821,8 +821,38 @@ export class App {
     this.terrain.maxChunks = Math.round(CONFIG.MAX_RENDER_CHUNKS * (this.terrainFactors.mode ?? 1) * m);
   }
 
+  // Every shader of every scene made now, whatever is visible yet. three makes a program at
+  // the first draw that uses it, in the middle of that frame: the trees', the far forest's, the
+  // leaves' and the shadow casters' were made seconds into play, when their first meshes
+  // arrived (scripts/shader-first-use.mjs lists them frame by frame), each a hitch of 100 ms
+  // and more on a phone: three of the "unknown" ones of the thirteenth results stood ten
+  // seconds in. Asked for while the game still loads and again on arriving at another world,
+  // with the picture's own target bound (a program is made for the target it draws into);
+  // where the browser compiles in the background (KHR_parallel_shader_compile) nothing waits.
+  // Nothing is drawn. Materials that are in no scene (the passes of the sky and of the
+  // finishing) are made at their first pass, which is in the first frames already.
+  precompile() {
+    const r = this.renderer, cam = this.rig.camera, prev = r.getRenderTarget();
+    try {
+      r.setRenderTarget(this.post.scene);
+      for (const sc of [this.farScene, this.nearScene, this.weatherScene, this.heroScene, this.dustScene]) if (sc) r.compile(sc, cam);
+      if (this.pollen?.mesh) r.compile(this.pollen.mesh, cam);          // (drawn as a scene of its own)
+      this.nearShadow?.precompile?.(r);
+    } catch (e) { console.warn('precompile:', e); }
+    r.setRenderTarget(prev);
+  }
+
   // Why the frame that just ended may have been slow (for the benchmark's hitch list).
-  frameCause(now, uploads) {
+  // (A cause that begins with "unknown" is one the governor does not excuse: what is named
+  // in brackets after it is for the benchmark's list alone. The thirteenth results had four
+  // "unknown" hitches of 133 to 233 ms, three of them ten seconds in, with nothing to say
+  // what the page had just done: a shader made at its first use, trees or far tiles filled.)
+  frameCause(now, uploads, dtMs = 0) {
+    // (shaders three has made since the last frame: a program is compiled and linked at the
+    // first draw that uses it, in the middle of the frame, and on a phone that is 100 ms and more)
+    const progs = this.renderer.info.programs || [], had = this._progs ?? progs.length;
+    const made = progs.length > had ? progs.slice(had).map((p) => p.name || 'unnamed') : null;
+    this._progs = progs.length;
     if (this.switching || now < this.switchedAt + 2500) return 'arriving at another world';
     if (now < this.jumpedAt + 2500) return 'jump to a bookmark';
     if (now < (this.bodies?.mapsAt ?? -1e9) + 1500) return 'sky maps arriving';
@@ -832,7 +862,12 @@ export class App {
     if (this.governor.sinceStep < 0.4) return 'quality step';
     if (uploads) return `new terrain (${uploads} patch${uploads > 1 ? 'es' : ''})`;
     if (now < this.loadedAt + 4000) return 'start-up';
-    return 'unknown';
+    const why = [], since = (at) => at != null && now - at < dtMs + 30;
+    if (made) why.push(`${made.length} shader${made.length > 1 ? 's' : ''} made: ${[...new Set(made)].join(' ')}`);
+    if (since(this.trees?.builtMs)) why.push('trees filled');
+    if (since(this.farForest?.filledMs)) why.push('far trees filled');
+    if (since(this.farRocks?.filledMs)) why.push('far rocks filled');
+    return why.length ? `unknown (${why.join(', ')})` : 'unknown';
   }
 
   handleKeys(dt = 1 / 60) {
@@ -1240,7 +1275,7 @@ export class App {
       this.hud.setTimeRange(this.timeRange);
       this.bookmark = '';
       this.governor.arrive(w.id);
-    } finally { this.switching = false; this.switchedAt = performance.now(); }
+    } finally { this.switching = false; this.switchedAt = performance.now(); this._compileDue = true; }
   }
 
   frame(now) {
@@ -1255,7 +1290,7 @@ export class App {
 
     // 0. What kind of frame was the last one, and who is steering
     const uploads = this.lastUploads;
-    const cause = this.frameCause(now, uploads);
+    const cause = this.frameCause(now, uploads, dtMs);
     const bench = this.benchmark?.active;
     if (bench) {
       // The benchmark plays by itself: the player's stick and look input are ignored.
@@ -1539,7 +1574,7 @@ export class App {
     if (this.photoWanted) { this.photoWanted = false; this.savePhoto(); }
     governor.endFrame();
     if (bench && this.benchmark.cost) this.benchmark.cost.frameDone(frameStart);
-    const settling = cause !== 'unknown' && cause !== 'quality step' && !cause.startsWith('new terrain');
+    const settling = !cause.startsWith('unknown') && cause !== 'quality step' && !cause.startsWith('new terrain');
     // An upload's cost can land a frame or two later (the driver finishes textures and
     // mip maps on its own time), so the three frames after one count as soft too.
     this.softFrames = uploads ? 3 : Math.max(0, (this.softFrames || 0) - 1);
@@ -1557,6 +1592,9 @@ export class App {
     this.hud.update(dtMs, () => this.collectStats(jd));
     this.updateTargetMarker();
     this.input.endFrame();
+    // (the shaders of everything not yet in the picture, once the first frames have made the
+    // rest: while the start screen still stands; and after another world has been arrived at)
+    if (this.frameCount === 3 || this._compileDue) { this._compileDue = false; this.precompile(); }
     if (!this.loaded && this.frameCount > 3 && this.terrain.drawList.length > 0) {
       this.loaded = true; this.loadedAt = now;
       if (this.params.bench && this.benchmark) this.startBenchmark(this.params.bench);

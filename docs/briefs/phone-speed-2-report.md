@@ -7,30 +7,29 @@ the owner's own benchmark files, said as such.
 
 ## What to ask of the owner, and what to read first in the answer
 
-Two runs, phone on its side as in play, after the link has this branch:
-`?bench=haven&scale=0.775` (everything on, the picture held at 2.25 MP: now paced as play is)
-and the plain Haven benchmark from the start screen (the governor at work). A third,
-`?bench=haven&scale=0.775&debug=floor`, only if the first is not steady.
+*(As of the evening of 2026-11-27, after the thirteenth results were read and acted on. The
+first ask of this report, the paced run at a held size, is answered: the slide is closed.)*
 
-1. **The stops of the first run against each other.** The counts say every stop hands the
-   GPU the same frame; the run of 42da110 slid from 29 to 14 frames a second over them,
-   unpaced. If the paced run's five stops are alike, the slide was heat and that question is
-   closed. If they still slide, something outside the page's own work grows, and the new
-   line under each stop (passes, draw calls, triangles, uploads) will show the page's side
-   of it to be flat.
-2. **"saved by leaving a group out"** at the three views: eight groups, each with its two
-   takes in brackets. A group whose two takes agree is a number; this is the table the cuts
-   and the governor's order are to be made from. The sky's group is the sky helper's.
-3. **"every group out at once ... what is left then"**: what a frame costs with nothing of
-   the world drawn (the page's own work, the glow's and the last passes, the measuring).
-4. **The triangles in the line under each Haven stop**: about 1.9 million where the count
-   of today's link has 3.0 (the grass by blocks), and what the frame rate did for it.
-5. The last pass's row now reads "what it adds"; the canvas was at the screen's own size in
-   every cost test before, so "everything on" should itself be lower than 59 ms.
-6. Two more rows that read "what it adds": **the far forest's** and **the near trees' light
-   and air at every pixel instead of at their corners**. These switch the old way back on;
-   a positive number is what the change of this delivery saves, most at the view in the
-   forest.
+The same two runs, phone on its side as in play, once the link has this branch and the sky's
+and the ground's helpers' cuts: `?bench=haven&scale=0.775` (everything on, held, paced) and
+the plain Haven benchmark (the governor at work, its new order). To read first:
+
+1. **The forest's group** at the ledge and in the wood (15.0 and 15.2 ms on the thirteenth),
+   and beside it the two rows that read "what it adds": **the far forest's** and **the near
+   trees' light and air at every pixel instead of at their corners**. Those switch the old way
+   back on: a positive number is what this delivery's cut saves there. Under 1 ms in the wood:
+   the trees' cost is not in those looks, and the next cut is their triangles. Negative at
+   every view: the vertices cost more than the pixels saved, and the switch is one line.
+2. **The group "the ground not drawn at all ... with leaves, petals, pollen, falls and the
+   lander"** less the group "the ground's shading": what the ground's triangles themselves
+   cost (20 and 27 ms stood unasked-for at the ledge and from the air). And "what is left
+   then" with every group out, which should now be near "nothing drawn at all".
+3. **The hitch list**: no "unknown" ten seconds in (the shaders are made while loading now);
+   any that is left says in brackets what the page did in that frame, and what it uploaded.
+4. **The plain run's steps**: the governor should take the cloud march's coarser steps first,
+   then the trees', then the Sun's beams, and hold a sharper picture than 1.88 MP at the
+   stops it can; "savings switched" in the tens, not the seventies.
+5. **The families** again, as on the thirteenth: the order is set from them.
 
 ## Step 1: the counts, and what they say
 
@@ -452,24 +451,155 @@ counts what is handed over, and the same is handed over); the phone's row will.
 is not in these looks and the next cut is their triangles (below); if it reads negative at
 every view, the vertices cost more than the pixels saved and the switch is one line to turn.
 
-## Step 4: the governor (waits for the phone)
+## The thirteenth results read (build daa009f, held at 1.88 MP, paced), and what was done on them
 
-Not begun, on purpose. Its order of savings and what each is taken to buy (`FEATURE_STEPS`,
-`buys`) were set from cost tables whose every single number has since been shown to be the
-baseline's drift (the eleventh results' reader; and the smoke run above, where every single
-saving "saved" 20 to 190 ms of a frame that grew by 4 500). The new benchmark's two tables
-(groups of parts, families of savings; two takes each) are what an order can be made from.
-When they are in:
-1. `buys` from the families first (a family whose two takes agree), then within a family
-   from its "one saving alone" numbers where those are large and of the family's size.
-2. The grass's two savings were at the head of the order for buying 5.0 and 1.6 ms. They
-   now thin by the shader's first line instead of by not handing blades over, on a field of
-   which a third is handed over at all: what they buy is to be read again, and the order
-   with it.
-3. The hole the last reader found (one view held for five minutes with late frames nothing
-   cures: most savings left on in six to eight runs of eight) is a question about a device
-   whose late frames nothing cures. Whether the phone is one, paced, is what the first run
-   asked for says (the five stops alike or not). `npm run govsim` before anything is sent.
+`docs/benchmarks/2026-11-27-haven-daa009f-fixed-size-paced.txt`; the main session's reading is
+in `docs/PROGRESS.md`. What it asked of this helper, in its order.
+
+### What is left with every group out (34.7, 30.7 and 38.6 ms at the three views)
+
+Two things, and one of them is not the GPU's:
+
+- **The page's own work is in every number of the cost test** (a frame is timed from its start
+  until it is drawn): 10 to 13 ms a frame on Haven. Of the frame "with nothing drawn at all"
+  (14.9, 23.9, 11.4) most is that, the read-back that does the measuring, and the passes that
+  run whatever is hidden (the shadow maps' own, the glow's chain for the exposure meter, the
+  last pass over the picture).
+- **Between "every group out" and "nothing drawn" stand 20, 7 and 27 ms that no row asked
+  about**: with every group out the ground is still drawn, in one flat tone (the group is its
+  *shading*), with the leaves, petals, pollen, waterfalls and the lander. The flat tone's own
+  pixel work is nothing (the shader returns at its first line, vertices and pixels both), so
+  this is the ground's triangles themselves and the picture's target filled and written out:
+  most where the ground fills the picture and the view is long (from the air, 27), least in
+  the wood (7). The count has the ground at 429 000 triangles in one draw at the ledge.
+
+The cost test now asks: two rows (`ground-mesh`: the ground not drawn at all; `small-things`)
+and a group of the two ("the ground not drawn at all ... with leaves, petals, pollen, falls and
+the lander"). That group less the group "the ground's shading" is what the ground's triangles
+cost; "what is left then" with every group out should now be near "nothing drawn". (The sum
+"the groups one by one add up to" counts the ground's shading twice since.)
+
+### The uploads inside a pass, named (6 to 8 a frame on Haven, 40 to 57 KB)
+
+They are all vertex buffers, none a texture (the count names each: `scripts/gl-count.mjs`,
+`docs/benchmarks/2026-11-27-gl-count-dde2792-ledge.txt`, "uploads"):
+
+| every frame | bytes | where | whose |
+|---|---|---|---|
+| the lying leaves' list (`treeLeaves.lieGeo.aLie`) | 75 KB | the picture's pass | the seasons helper's: **cured** since (only the stretch laid that frame, nothing at rest: `leaf-rest-test`) |
+| the ground's patch list (`terrain.pool.instanceBuffer`) | 8 KB | the picture's pass | 122 patches' places, written every frame at the ground's draw |
+| the sky bodies' points (`bodies.points` place and brightness) | under 1 KB | the picture's pass | two small buffers |
+| **now and then** | | | |
+| the trees' shadow casters (`trees.casters[].set.iA..iF`) | 8 KB each | the shadow map's pass | when a shadow tile's list is made again (a walk, the Sun) |
+| far forest and far rock tiles (`farForest.pool[].iA..iC`, `farRocks.slots[]`) | 14 to 26 KB each | the picture's pass | when a tile is filled (two a frame at most) |
+| dust in flight (`dust.aMotion, aState, aPos`) | 5 to 7 KB | the picture's pass | |
+
+A buffer written in the middle of a pass is not the fault a texture is: the picture is not
+written out and read back for it (that is the lesson of the third benchmark, and it was
+textures); the driver takes a copy of a buffer still in use. They are named, and left: the one
+of any size is cured, and moving three's own buffer writes out of its draw would mean owning
+those buffers (as `chunkPool.js` owns its textures) for no cost anyone has measured.
+
+### The "unknown" hitches (233, 167 and 200 ms ten seconds in; 133 ms at 92 s)
+
+**Found: shaders made in the middle of play.** three makes a program at the first draw that
+uses it. `node scripts/shader-first-use.mjs --distdir <build>` lists them frame by frame in
+the real game, in play from the start screen (on this machine; frame numbers are true
+anywhere):
+
+```
+  frame    0: (made before play: 39)
+  frame    2: 1 made, 40 by then · nearScene
+  frame    3: 2 made, 42 by then · nearScene nearScene
+  frame    6: 2 made, 44 by then · sky.cloudVolume._sky.field._mat nearShadow.casters[].mesh
+  frame   15: 3 made, 47 by then · nearScene nearScene nearScene
+  frame   70: 1 made, 48 by then · nearScene
+shaders made after the third frame of play: 6 in 3 frames
+```
+
+Six programs of things in the near scene (the trees' meshes, the far forest, the leaves: made
+when their first meshes arrive, seconds after play begins) and the shadow casters' depth
+program. On a phone each is a compile and a link of a large shader in the middle of a frame.
+
+**Cure** (`App.precompile`, `NearShadow.precompile`): every shader of every scene, visible yet
+or not, and every caster's depth shader, is asked for on the third frame of loading, with the
+target it will draw into bound (a program belongs to its target), and again on arriving at
+another world. Where the browser compiles in the background nothing waits for it. After:
+
+```
+  frame    0: (made before play: 68)
+  frame    6: 1 made, 69 by then · sky.cloudVolume._sky.field._mat
+shaders made after the third frame of play: 1 in 1 frames
+```
+
+The one left is the weather field's own pass (`src/sky/skyField.js`, `_mat`: made when the
+first snapshot arrives; the sky helper's file, said to it). The price: 68 programs are asked
+for while loading where 48 were ever used in nine minutes at the opening place (rain, the
+lander, things of other places): a longer load on a browser that cannot compile in the
+background, no frame of play.
+
+**And the benchmark says what it cannot place**: a hitch with no known cause is still
+"unknown" to the governor (nothing new is excused), but its line now names what the page did
+in that frame: "2 shaders made: Trees FarForest", "trees filled", "far trees filled", "far
+rocks filled", and what it sent to the GPU ("uploads 412 KB in 14, 3 of them inside a pass").
+
+## Step 4: the governor, from the families
+
+The order of savings and what each is taken to buy were the tenth results' single numbers.
+The thirteenth measured the savings in families (each switched on whole, twice, between two
+measures of everything on): a family's two takes agree where a single saving's number is the
+baseline's drift (54 to 125 ms over one view's test).
+
+| family | ledge | wood | air | read |
+|---|---|---|---|---|
+| the sky's | 5.0 (4.5 · 5.5) | 6.7 (6.2 · 7.2) | 13.6 (13.6 · 13.7) | buys everywhere; alone, only the cloud volume (7.0, 10.1) and its coarser steps (2.9, 2.1) show |
+| the trees' and leaves' | 2.3 | 7.6 (7.3 · 7.9) | 2.3 | buys in a wood |
+| glow | 4.2 (3.0 · 5.4) | 0.7 | -2.1 | buys where the Sun is in the picture: its beams |
+| the ground's | 0.0 | 0.6 | 7.2 (4.1 · 10.3) | from the air: far relief (4.9), close-up detail (1.5) |
+| the shadows' | 1.9 (0.5 · 3.4) | 0.8 | -2.8 | nothing |
+| the grass's | 1.3 | -1.8 | 0.5 | nothing (it bought 5.0 before the grass went by blocks) |
+| rocks and the figure | 0.9 | 0.7 | 0.0 | nothing |
+
+**The order now** (`src/perf/governor.js`, families in the main session's order, least loss
+first within one; a step that can buy nothing where the traveller is, is passed over):
+
+1. what buys: the cloud volume's coarser steps (2.5) · the trees' full shapes less far (2.0),
+   the far forest thinned (1.0), every leaf on the nearest trees (1.5), the leaf carpets (0.5)
+   · the Sun's beams (3.5; **live only while they are drawn**: it stood in the tail with no
+   such test and would have been taken for nothing wherever the Sun is out of the picture)
+   · close-up ground detail (1.0) · the patches (two steps, as before);
+2. the depth of sky and land, last things of worth: coarser cloud shadows, the clouds'
+   shadows (1.0, was 4.0), the cloud volume (8.5), far relief (4.5);
+3. what bought nothing: the sky's six small steps (none showed anything alone; the sky helper
+   is cutting the sky's cost and their numbers are its to set after), rain, leaves, glow's
+   other two, water, the snow line's edge, the five shadow steps, **the grass's three** (the
+   whole grass left out *cost* 8.8 ms at the opening view: it hides ground that is dearer),
+   the robe, the figure, dust, rocks, far rocks; and last, as before, the farther trees'
+   shadows (3.9 and 5.3 this time, nothing on the tenth, 2.7 on the ninth: a number that
+   comes and goes, and with it on shadows pop at 60 m as one walks; it moves up if the next
+   results show it twice).
+
+**Behaviour changes**: on a phone that is late the governor first coarsens the cloud march,
+then thins trees, then drops the Sun's beams; it no longer begins with the grass. Nothing
+else of the governor (its trials, its strides, what it excuses) is touched.
+
+**The simulation** (`npm run govsim`, passes): its cases that replayed what each saving bought
+on the tenth results could only fail (they have the grass and the clouds' shadows as the
+cures). They are asked of a model of the thirteenth now (`scripts/lib/governor-route.mjs`,
+`MODELS.thirteenth`: each stop's cost fitted to the share of late frames it had at 1.88 MP,
+the families' numbers shared out as above); the tenth's models stay in the file as their
+readers wrote them, and the ninth's cases pass unchanged. With the new order on that model:
+the opening view holds 2.67 MP with 2.7 % of frames late on two savings (the cloud march's
+steps and the Sun's beams); the route's Haven stops 2.57 MP, 12.1 % late, 27 savings switched
+a run; the flight 2.67 MP with 3.1 savings on. One allowance was widened and said so in the
+case: a trial that takes eight savings gives the last back after 40 s, not 30.
+`scripts/sky-system-test.mjs` spelt the old order out: it holds the new one, and two rules of
+it (coarser cloud shadows before none; coarser cloud steps before no volume).
+
+**What the order cannot do**: on the thirteenth's numbers every saving together bought 6 to
+18 ms of frames of 67 to 73 (measured unpaced and hot); the three costs (the sky 24, the
+forest 15, the ground's shading 14 to 17) are cut at their source by the three helpers, and
+the governor's order is set again from the families of the run after those cuts.
 
 ## Lessons (for CLAUDE.md, the main session's to take or leave)
 

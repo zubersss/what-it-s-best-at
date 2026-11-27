@@ -111,9 +111,11 @@ export class Benchmark {
       this.sc[this.n] = app.scriptMs || 0; this.ph[this.n] = Math.max(0, this.phase); this.up[this.n] = Math.min(255, app.lastUploads || 0);
       { const tot = app.profile.total, o = Math.max(0, this.phase) * PARTS.length; for (let i = 0; i < PARTS.length; i++) { this.pt[o + i] += tot[i] - this.ptLast[i]; this.ptLast[i] = tot[i]; } }
       // (the frame that has just ended, as dtMs is)
+      // (what that frame sent to the GPU, for a hitch's line: read before the tally begins again)
+      const sent = this.tally && dtMs > 100 ? ` · uploads ${Math.round(this.tally.n[4] / 1024)} KB in ${this.tally.n[3]}, ${this.tally.n[5]} of them inside a pass` : '';
       if (this.tally) { this.tally.take(this.gl, Math.max(0, this.phase) * TALLY.length); this.glFrames[Math.max(0, this.phase)]++; }
       this.n++;
-      if (dtMs > 100) this.hitches.push({ t: +t.toFixed(1), ms: Math.round(dtMs), cause });
+      if (dtMs > 100) this.hitches.push({ t: +t.toFixed(1), ms: Math.round(dtMs), cause, sent });
       this.maxCalls = Math.max(this.maxCalls, app.stats.calls || 0); this.maxTris = Math.max(this.maxTris, app.stats.triangles || 0);
     }
     const b = this.builds[app.world.id];
@@ -267,7 +269,7 @@ export class Benchmark {
     const causes = [...byCause].sort((a, b) => b[1] - a[1]).map(([k, c]) => `${k} ${c}`).join(', ');
     L.push(`hitches over 100 ms: ${this.hitches.length}${causes ? ` — ${causes}` : ''}`);
     const worst = this.hitches.slice().sort((a, b) => b.ms - a.ms).slice(0, 15).sort((a, b) => a.t - b.t);
-    for (const h of worst) L.push(`  ${h.t}s ${h.ms} ms — ${h.cause}`);
+    for (const h of worst) L.push(`  ${h.t}s ${h.ms} ms — ${h.cause}${h.sent || ''}`);
     if (this.hitches.length > worst.length) L.push(`  (the ${worst.length} longest are listed)`);
     L.push(`most at once: ${this.maxCalls} draw calls, ${Math.round(this.maxTris / 1000)}k triangles, about ${Math.round(this.maxGpuBytes / 1048576)} MB of GPU memory`);
     // What each thing costs to draw, measured after the lap (CostTest).
@@ -301,6 +303,14 @@ const WARM = 4, TAKE = 12, HELD = 2.07e6;
 // pixel read back), to be taken off the rest. A row with `has` is measured only where the
 // part is there (the sky's parts: sky/skySystem.js SKY_PARTS; their packages say when).
 const skyPart = (id, label) => ({ id, label, set: (app, out) => app.sky?.partOut(id, out), has: (app) => !!app.sky?.hasPart(id) });
+// Takes things out of their scene, or puts back the ones it took (a part of the cost test).
+function inScene(scene, things, out) {
+  for (const o of things) {
+    if (!o) continue;
+    if (out) { if (o.parent) { o.userData.costParent = o.parent; o.parent.remove(o); } }
+    else if (o.userData.costParent) { o.userData.costParent.add(o); o.userData.costParent = null; }
+  }
+}
 export const PARTS_OUT = [
   { id: 'grass', label: 'grass', set: (app, out) => app.grass?.setFraction(out ? 0 : 1) },
   // (hidden, not shortened: shortened, the far forest drew every tree from 5 m as a card,
@@ -314,6 +324,14 @@ export const PARTS_OUT = [
   { id: 'shadow-maps', label: 'the shadow maps', set: (app, out) => { app.nearShadow.off = out; } },
   // (the ground in one flat tone: its triangles are still drawn, its shading is not)
   { id: 'ground-shading', label: "the ground's shading", set: (app, out) => { app.terrain.shared.uPlain.value = out ? 1 : 0; } },
+  // (The ground not drawn at all, where 'ground-shading' leaves its triangles in a flat tone: the
+  // two apart are what its triangles cost. On the thirteenth results a frame with every group
+  // out still took 31 to 39 ms and one with nothing drawn 11 to 24: between the two stood the
+  // ground in its flat tone and the small things below, which no row asked about. Taken out of
+  // their scene, not hidden: the game sets what is visible each frame.)
+  { id: 'ground-mesh', label: 'the ground not drawn at all', set: (app, out) => inScene(app.nearScene, [app.terrain?.group], out) },
+  // (what flies and lies about and belongs to no other row: leaves, petals, pollen, waterfalls, the lander)
+  { id: 'small-things', label: 'leaves, petals, pollen, falls, the lander', set: (app, out) => inScene(app.nearScene, [app.leaves?.mesh, app.petals?.mesh, app.treeLeaves?.mesh, app.kicked?.mesh, app.pollen?.mesh, app.falls?.mesh, app.lander?.mesh], out) },
   { id: 'ground', label: 'the ground and all on it', set: (app, out) => { app.nearScene.visible = !out; } },
   { id: 'sky', label: 'the sky', set: (app, out) => { app.farScene.visible = !out; } },
   // (the clouds of every kind and all they do: shell, volume, shadows; then their parts one by one)
