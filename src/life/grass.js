@@ -252,16 +252,9 @@ const BLADE_VERT = /* glsl */`
     float square = smoothstep(0.22, 0.5, rise);
     if (hash2(cell + 3.7 + aBlade).y < square * smoothstep(40.0, 90.0, dist) * 1.02) OUT_OF_PICTURE
     #endif
-    float lie = lieAt(at), swath = swathAt(at);
-    // (clumps a metre across of taller and shorter blades, the ground's own: counted from where
-    // the grass began, as the tussocks are; and here and there a seed head, taller, its tip pale)
-    float clump = hash2(mod(floor(at) + uGrassLie, ${2 * PERIOD}.0) + 9.1).x;
-    float seedHead = step(0.9, fract(hb.x * 5.3 + hb.y * 2.9)) * smoothstep(0.25, 0.5, dryHere(g.b) + 0.2 * swath);
-    float wide = WIDE * (0.8 + 0.9 * hb.x) * (1.0 + GROW * dist);
-    #ifdef FAR
-    wide *= uGrassKeep.w;          // (the governor's step: half of them, each wider)
-    #endif
-    float tall = TALL * (0.24 + 0.34 * hb.x) * (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) * (0.85 + 0.3 * lie) * (0.6 + 0.8 * clump) * (1.0 + 0.5 * seedHead);
+    // (asked before anything the blade is drawn with is worked out: at eye height three blades
+    // in four of those in the picture are left out here, and each had its stretch's lie and
+    // swath, nine sines, its clump and its seed head worked out first, three times over)
     // How many blades lie over each other along the line of sight: the field's blade area
     // over a square metre of ground, seen at this angle. Beyond LAYERS deep the rest are
     // behind those in front: left out, blade by blade, each by its own number. (This is
@@ -274,6 +267,16 @@ const BLADE_VERT = /* glsl */`
     // where few are kept would have been the short thin ones, and the field low and flat)
     float keep = keepOf(ring * share, fract(hb.x * 7.13 + hb.y * 3.71)) * clamp((dens - own) / 0.12, 0.0, 1.0);
     if (keep <= 0.0) OUT_OF_PICTURE
+    float lie = lieAt(at), swath = swathAt(at);
+    // (clumps a metre across of taller and shorter blades, the ground's own: counted from where
+    // the grass began, as the tussocks are; and here and there a seed head, taller, its tip pale)
+    float clump = hash2(mod(floor(at) + uGrassLie, ${2 * PERIOD}.0) + 9.1).x;
+    float seedHead = step(0.9, fract(hb.x * 5.3 + hb.y * 2.9)) * smoothstep(0.25, 0.5, dryHere(g.b) + 0.2 * swath);
+    float wide = WIDE * (0.8 + 0.9 * hb.x) * (1.0 + GROW * dist);
+    #ifdef FAR
+    wide *= uGrassKeep.w;          // (the governor's step: half of them, each wider)
+    #endif
+    float tall = TALL * (0.24 + 0.34 * hb.x) * (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) * (0.85 + 0.3 * lie) * (0.6 + 0.8 * clump) * (1.0 + 0.5 * seedHead);
     tall *= keep;
     // (never narrower than about a pixel at its foot: a blade thinner than that lands on a
     // pixel's middle in one frame and misses it in the next, and a field of them crawled as
