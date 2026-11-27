@@ -74,6 +74,17 @@ takes each):
 - *Pixels*: 1.00 against 2.07 against 3.14 MP is some 8 to 10 ms a megapixel at most.
 - *Uploads inside a pass*: 6 to 8 a frame on Haven (40 to 57 KB), 3 to 4 on the Moon.
 
+**A correction to that reading (the sky helper, 21:20 UTC).** The cost test chose its parts
+when it was made, at the end of the route, on the Moon, where the sky says "no clouds" and
+the far forest "no trees". So in these results the sky's group was the far pass, the
+middle and high cloud, the far cells, the shafts, the fog and the lenses, **without** the
+march, the shade map, the field's maps or the far low shell (their rows are missing from
+the table for that reason), and "nothing drawn" still ran every pass of the sky. The
+sky's 24 ms is therefore not the march; by count the likeliest payer is the two upper
+shells (two draws over every pixel of sky, some 8 reads each). Fixed on the sky helper's
+branch (`1067ffc`: the plan made on the view's own world, each sky part measured twice);
+the next link carries it and asks for the benchmark that names the part.
+
 **Decided.** (1) The sky's cost goes before the sky's look: the sky helper finds which pass
 and which pixels pay the 24 ms and halves it, and makes the savings buy the rest. (2) The
 speed helper: names what is left with every group out, names the uploads inside a pass and
