@@ -18,7 +18,7 @@ import { waveHeightAt, waveScale } from './water/waves.js';
 import { Trees } from './life/trees.js';
 import { FarForest } from './life/farForest.js';
 import { Leaves, Petals, TreeLeaves, Kicked, SLOTS as LEAF_SLOTS } from './life/leaves.js';
-import { lifeDay, yearAt, seasonLabel, untilSeason, SEASON_NAMES, yearMs, dayMs, snowYear, snowFell, snowLinesAt, grassSeason, SNOW } from './life/season.js';
+import { lifeDay, yearAt, seasonLabel, untilSeason, SEASON_NAMES, yearMs, dayMs, snowYear, snowFell, snowLinesAt, snowDrop, grassSeason, SNOW } from './life/season.js';
 import { kindsShut } from './life/grassRules.js';
 import { SNOW_UNIFORMS } from './render/snowGlsl.js';
 import { LAND_DEFAULTS } from './terrain/tiles/madeLand.js';
@@ -463,7 +463,7 @@ export class App {
   updateSnow(rig) {
     const L = SNOW_UNIFORMS.uSnowLand.value, Y = SNOW_UNIFORMS.uSnowYear.value, made = this.world.terrain?.tiles?.made;
     const sy = made ? snowYear({ ...LAND_DEFAULTS, ...(made.land || {}) }, this.lifeDay) : null;
-    if (!sy) { L.set(0, 0, 0, 1e9); return; }
+    if (!sy) { L.set(0, 0, 0, 0); return; }
     Y.set(sy.north, sy.south, sy.add, sy.gone);
     const f = this.sky.field, t = this.sky.t, p = rig.pos;
     if (f?.on && Number.isFinite(t)) {
@@ -483,7 +483,11 @@ export class App {
       }
       this.snowFreshLine = s.line;
     } else this.snowFreshLine = Infinity;
-    L.set(sy.line0, sy.perDeg, sy.perC, Number.isFinite(this.snowFreshLine) ? this.snowFreshLine : 1e9);
+    // (fresh snow: so far below the season's line at the traveller's latitude; it is the weather of
+    // the place, so from far above the world it is not drawn at all)
+    const len = p.length(), drop = snowDrop(snowLinesAt(sy, Math.asin(p.z / len) * 180 / Math.PI).add, this.snowFreshLine), high = Math.min(1, Math.max(0, (len - this.world.radius - 20000) / 40000));
+    this.snowDrop = drop * (1 - high);
+    L.set(sy.line0, sy.perDeg, sy.perC, this.snowDrop);
     this._snowYear = sy;
   }
   // The grass and the flowers by the season where the traveller is (life/season.js
@@ -494,7 +498,7 @@ export class App {
     const g = grassSeason(day, lat, this._gs || (this._gs = {}));
     let snow = 0;
     if (this._snowYear && this.world.terrain?.tiles?.made) {
-      const l = snowLinesAt(this._snowYear, lat), h = len - Math.max(0, rig.agl) - this.world.radius, line = Math.min(l.add, this.snowFreshLine ?? Infinity);
+      const l = snowLinesAt(this._snowYear, lat), h = len - Math.max(0, rig.agl) - this.world.radius, line = l.add - (this.snowDrop || 0);
       snow = Math.min(1, Math.max(0, (h - line + 70) / 140));
     }
     sh.uGrassYear.value.set(g.fresh, g.dry, g.brown, g.flat + snow);
@@ -1350,9 +1354,12 @@ export class App {
         // wind has carried them.
         const sh = this.terrain.shared, tl = this.treeLeaves, T = sh.uLeafTree.value, C = sh.uLeafTreeCol.value, P = rig.pos, w = tl._wind, up = rig.localUp;
         let any = (tr.litterMost || 0) > 0.01 && !!tr.def;
+        // (in spring the same carpet is the petals': under the trees in flower, when no tree near
+        // has leaves lying, thinner than a carpet of leaves)
+        const leavesLie = tl.lying.visible && tl.cur.some((c) => c && c.lie > 0.01), from = leavesLie ? tl : this.petals, thin = leavesLie ? 1 : 0.55;
         for (let s = 0; s < LEAF_SLOTS; s++) {
-          const c = tl.lying.visible ? tl.cur[s] : null;
-          if (c && c.lie > 0.01) { T[s].set(c.abs[0] - P.x, c.abs[1] - P.y, c.abs[2] - P.z, c.rad); C[s].set(c.lieColour[0], c.lieColour[1], c.lieColour[2], c.lie); any = true; }
+          const c = from.lying.visible ? from.cur[s] : null;
+          if (c && c.lie > 0.01) { T[s].set(c.abs[0] - P.x, c.abs[1] - P.y, c.abs[2] - P.z, c.rad); C[s].set(c.lieColour[0], c.lieColour[1], c.lieColour[2], c.lie * thin); any = true; }
           else T[s].w = 0;
         }
         const wu = w.x * up[0] + w.y * up[1] + w.z * up[2], wx = w.x - up[0] * wu, wy = w.y - up[1] * wu, wz = w.z - up[2] * wu, wl = Math.hypot(wx, wy, wz) || 1, k = 0.9 * Math.min(1, wl / 6) / wl;

@@ -769,3 +769,18 @@ finished benchmark leaves its text in `window.__benchResult`.
   `?t=H`: `t_weather = (Date.parse(scene.dateUTC) - Date.parse(weather.epoch)) / 1000 + H * 3600`
   (or `new Steer(weather, R).t(date)`). Views, stability cases and benchmark hours picked from
   the model go through it.
+- A screenshot waits until the picture is still. Anything put in place a few a frame (the
+  lying petals, six a frame; the lying leaves) keeps it changing for as many frames as
+  that takes, at seven seconds a frame here: in screenshot mode lay it all at once
+  (`Shed.update(..., all)`).
+- A picture that is "not ready" in time is not yet a fault. A ground-level Haven picture
+  needs some 150 frames to settle and may not make 1 500 s at the reference size; the
+  picture saved then (coarse green land, no trees) looks like a broken shader and is not.
+  Before debugging, ask the page what it waits for (`window.__stats.wait`, the frame count,
+  `terrain.wanted`, `trees.missing`), and check a new build first at a small size
+  (`--dsf 0.6 --timeout 2400`: about a third of the time), the full size after.
+- The same thing drawn three ways must take its season from one answer (near meshes, whole
+  tree pictures, the far forest): bare aspens were full green crowns from 60 m on for as
+  long as only the nearest mesh asked. And a rule's colours must be looked at after
+  everything the look does to them (`paintLeaf`, `farGreen` pulled gold toward olive).
+

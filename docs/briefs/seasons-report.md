@@ -115,7 +115,7 @@ season: from space the woods do not turn (the snow does: piece 4).
   nearest trees; a falling one is one sum in the vertex shader, a lying one is put on the
   ground as drawn). `Trees.shedding` lists the nearest trees the rule says are dropping
   leaves or have leaves under them, with each tree's leaf colour of the day; 480 leaves
-  fall from their crowns, more in a gust, and 1 600 lie under and down the wind of them, as
+  fall from their crowns, more in a gust, and 4 800 lie under and down the wind of them, as
   many as the rule says lie. The petals in spring are the same machine with other numbers.
 - **On the ground** (`terrainMaterial.js`, the `[seasons]` litter block, which replaces the
   old scatter): a wood's floor carries the leaves of its height and day (`uLitterYear`,
@@ -136,7 +136,7 @@ season: from space the woods do not turn (the snow does: piece 4).
 **Pictures**: `haven_ledge_grove_ground_autumn.png` and `..._lateautumn.png` (the grove from
 the ground: the trees turned, then bare with their leaves under them).
 
-**Cost.** Points: 480 + 1 600 + 312 more, drawn only near such trees in their season. The
+**Cost.** Points: 480 + 4 800 + 312 more, drawn only near such trees in their season. The
 ground: the litter block reads the detail tile twice as before, now only where leaves lie
 within reach of the eye; it gains a loop over eight uniform vectors within 90 m and one
 mix of two. See "Cost" at the end.
@@ -151,11 +151,11 @@ carpet painted under it.
 **What was built.**
 - The rule (`season.js`, "Snow that comes and goes"): the snow painted into the land's
   colour is the land's own, and is what lies on the first day of spring. Through the year
-  the air is warmer or colder than on that day (10 degrees either way at 45 degrees and
+  the air is warmer or colder than on that day (10 degrees warmer in summer, 14 colder in winter, at 45 degrees and
   beyond, less toward the equator, the coldest and warmest a fortnight of the life's year
   after the solstices), and the snow follows as a line in height: new snow lies above the
-  land's line + 400 m + the season's shift (in midwinter some 800 m below the land's own
-  snow), and the land's own snow is gone below its line - 450 m + the shift (in summer
+  land's line + 400 m + the season's shift (in midwinter some 1 300 m below the land's own
+  snow: the opening place, 1 400 m up, is at its edge), and the land's own snow is gone below its line - 450 m + the shift (in summer
   only the highest ground keeps any). The two margins are why nothing changes on the
   opening morning. **Fresh snow**: where the day's weather has let snow fall in the last
   day and a half at the traveller's place it lies down to the height it fell to, and that

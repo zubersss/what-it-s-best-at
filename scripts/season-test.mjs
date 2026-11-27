@@ -181,11 +181,12 @@ const oldBloom = (sp, day, lat) => {
   }
   check('in winter new snow lies some hundreds of metres below the land\'s own line', lowest < -300 && lowest > -2000, `${lowest.toFixed(0)} m`);
   check('in summer the land\'s own snow is gone far above its line', highest > 800, `${highest.toFixed(0)} m`);
-  check('the snow line moves without a jump (about 15 m a life day at most)', jump < 20, `${jump.toFixed(1)} m in half a day`);
+  check('the snow line moves without a jump (40 m a life day at most)', jump < 25, `${jump.toFixed(1)} m in half a day`);
   const w = S.snowYear(land, 80 + 365.25 * 0.79), su = S.snowYear(land, 80 + 365.25 * 0.29);
   check('north and south have opposite seasons of snow', w.north < -5 && w.south > 5 && su.north > 5 && su.south < -5);
   const perC = sy0.perC, cold = S.snowFell({ temp: -3, fall: 1, h: 1400 }, 0, perC), mild = S.snowFell({ temp: 4, fall: 1, h: 1400 }, 0, perC), old = S.snowFell({ temp: -3, fall: 1, h: 1400 }, 24, perC), dry = S.snowFell({ temp: -3, fall: 0, h: 1400 }, 0, perC);
   check('fresh snow lies down to where it was cold enough, higher after a day\'s thaw, none where nothing fell', cold < 1400 && mild > 1400 && old > cold + 500 && dry === Infinity && S.snowFresh((ago) => (ago === 6 ? { temp: -3, fall: 1, h: 1400 } : { temp: -3, fall: 0, h: 1400 }), perC) === S.snowFell({ temp: -3, fall: 1, h: 1400 }, 6, perC), `cold ${cold.toFixed(0)}, mild ${mild.toFixed(0)}, a day old ${old.toFixed(0)}`);
+  check('fresh snow lowers the season\'s line by what fell, 900 m at most, and never raises it', S.snowDrop(3000, 2600) === 400 && S.snowDrop(3000, 500) === 900 && S.snowDrop(3000, 3500) === 0 && S.snowDrop(3000, Infinity) === 0);
   // (the shaders' text asks for the two uniforms the app sets, and the app sets them from snowYear)
   const glsl = fs.readFileSync(new URL('../src/render/snowGlsl.js', import.meta.url), 'utf8'), app = fs.readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
   check('the shaders take the snow\'s numbers from the one rule', /uSnowLand/.test(glsl) && /uSnowYear/.test(glsl) && /snowYear\(/.test(app) && /Y\.set\(sy\.north, sy\.south, sy\.add, sy\.gone\)/.test(app));

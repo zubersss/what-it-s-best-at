@@ -355,7 +355,7 @@ export class Petals extends Shed { constructor(trees) { super(trees); } }
 // thinning through the winter): life/season.js treeSeason's shed and down.
 export class TreeLeaves extends Shed {
   constructor(trees) {
-    super(trees, { list: 'shedding', falling: 480, lying: 1600, perFrame: 16, lie: (t) => t.down, lieColour: (t) => t.litter, size: [0.10, 0.06, 0.11, 0.06], spread: 1.5, downwind: 2.5, lieFar: [40, 65] });
+    super(trees, { list: 'shedding', falling: 480, lying: 4800, perFrame: 24, lie: (t) => t.down, lieColour: (t) => t.litter, size: [0.10, 0.06, 0.12, 0.07], spread: 1.5, downwind: 2.5, lieFar: [40, 65] });
   }
 }
 

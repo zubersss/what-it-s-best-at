@@ -584,10 +584,13 @@ void main() {
     // off: the bare high ground that was under it. (Asked only where the map is as pale as
     // snow; snowHere is kept for the new snow below.)
     if (uSnowLand.z > 0.0) {
-      float pale = smoothstep(0.42, 0.66, min(raw.r, min(raw.g, raw.b)));
-      float rough = flNoise(planetPos / 1500.0 + vec3(5.0, 2.0, 9.0)) + 0.4 * flNoise(planetPos / 310.0 + vec3(1.0, 7.0, 4.0)) - 0.7;
-      snowHere = vec3(snowSeason(vHeight, up, N, ts, rough), pale);
-      if (pale * snowHere.y > 0.0) raw = mix(raw, mix(vec3(0.215, 0.195, 0.115), vec3(0.20, 0.17, 0.14), rockW), pale * snowHere.y);
+      float pale = smoothstep(0.30, 0.50, min(raw.r, min(raw.g, raw.b)));
+      // (only where it can matter: where the land is pale, or high enough for new snow)
+      if (pale > 0.0 || snowMay(vHeight, up)) {
+        float rough = flNoise(planetPos / 1500.0 + vec3(5.0, 2.0, 9.0)) + 0.4 * flNoise(planetPos / 310.0 + vec3(1.0, 7.0, 4.0)) - 0.7;
+        snowHere = vec3(snowSeason(vHeight, up, N, ts, rough), pale);
+        if (pale * snowHere.y > 0.0) raw = mix(raw, mix(vec3(0.215, 0.195, 0.115), vec3(0.20, 0.17, 0.14), rockW), pale * snowHere.y);
+      }
     }
     raw *= uAlbedoMap.rgb;
     vec3 t = mix(albedoRange(raw, uAlbedoRange), raw, farW);

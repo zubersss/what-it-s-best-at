@@ -161,22 +161,25 @@ export function treeSeason(sp, day, lat, alt, own, out = {}) {
 // gone from the low ground and the high snow has not begun to melt. Through the year the
 // air is warmer or colder than on that day by
 //     dT(y) = SEASON x (sin 2 pi (y - LAG) - sin 2 pi (OWN_AT - LAG))   degrees,
+// (COLD times that when it is colder: winter's snow comes further down than summer takes it up),
 // less toward the equator (x |lat| / 45, at most 1), and the snow follows, a line in height
 // (PER_DEGREE metres a degree, the land rule's lapse):
-//   - new snow lies above the land's own line + ADD_ABOVE + dT: in midwinter some 500 m
+//   - new snow lies above the land's own line + ADD_ABOVE + dT: in midwinter some 1 300 m
 //     below the land's own snow at 45 degrees;
 //   - the land's own snow is gone below its line - GONE_BELOW + dT: in summer only the
 //     highest ground keeps any.
 // (The two margins are why nothing changes on the day the land's snow is for, and for some
 // days either side: the shaders' edge and the painted one are not the same line.)
 // And fresh snow: where the day's weather has let snow fall in the last day and a half it
-// lies lower still, down to the height it fell to, and that line climbs again by MELT metres
-// an hour of thaw (snowFresh, asked of the weather by the app).
+// lies lower still, down to the height it fell to but no more than FRESH_MOST metres below
+// the season's line (the season is the life's year's; the weather's own cold is not asked
+// what time of year it is), and that line climbs again by MELT metres an hour of thaw
+// (snowFell, asked of the weather by the app; snowDrop: what the shaders get).
 // The shaders (render/snowGlsl.js) take these numbers and work nothing out about the year.
-export const SNOW = Object.freeze({ SEASON: 10, LAG: 0.04, OWN_AT: 0, ADD_ABOVE: 2.5, GONE_BELOW: 2.8, MELT: 45, FRESH_HOURS: 36, FRESH_STEP: 3 });
+export const SNOW = Object.freeze({ SEASON: 10, COLD: 1.4, LAG: 0.04, OWN_AT: 0, ADD_ABOVE: 2.5, GONE_BELOW: 2.8, MELT: 45, FRESH_HOURS: 36, FRESH_STEP: 3, FRESH_MOST: 900 });
 // How much warmer (degrees C) than on the day the land's own snow is for, at a point of a
 // latitude's year (before the latitude's share).
-export const snowWarmth = (y) => SNOW.SEASON * (Math.sin(2 * Math.PI * (y - SNOW.LAG)) - Math.sin(2 * Math.PI * (SNOW.OWN_AT - SNOW.LAG)));
+export const snowWarmth = (y) => { const w = SNOW.SEASON * (Math.sin(2 * Math.PI * (y - SNOW.LAG)) - Math.sin(2 * Math.PI * (SNOW.OWN_AT - SNOW.LAG))); return w < 0 ? w * SNOW.COLD : w; };
 // What the shaders are handed (land: the made land's numbers, madeLand.js LAND_DEFAULTS and
 // the world's own; day: the life day). Returns null for a world whose land has no snow rule.
 //   line0, perDeg  the land's own snow line: line0 - perDeg x |lat| metres over the sea
@@ -198,6 +201,9 @@ export function snowLinesAt(sy, lat) {
   const a = Math.abs(lat), dT = (lat >= 0 ? sy.north : sy.south) * Math.min(1, a / 45), own = sy.line0 - sy.perDeg * a;
   return { own, add: own + sy.add + dT * sy.perC, gone: own - sy.gone + dT * sy.perC };
 }
+// How far below the season's line fresh snow lies (m, 0..FRESH_MOST): addLine: the season's
+// line there (snowLinesAt's add); fresh: the fresh snow's own line (snowFresh; Infinity: none).
+export const snowDrop = (addLine, fresh) => Math.min(SNOW.FRESH_MOST, Math.max(0, addLine - fresh));
 // Fresh snow's line at a place (m over the sea; Infinity: none lies): at(hoursAgo) says what
 // the weather was there then: { temp (degrees C at height h), fall (mm/h of rain and snow
 // together), h (the height asked at) }, or null. Each fall of the last FRESH_HOURS laid snow
