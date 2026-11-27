@@ -88,6 +88,8 @@ export class SkyField {
     this.layout = fieldLayout(world);
     const po = {
       preset: opts.preset || null, weather: world.weather || {}, radius: world.radius, dayHours: world.dayHours || 24,
+      // (the world's own year, if it keeps one: the model's season is the life's calendar, life/season.js)
+      year: world.year ? { days: world.year.days, at: [world.year.at[0], world.year.at[1]] } : null,
       origin: opts.origin || world.scene?.start, layout: this.layout, stormAt: opts.stormAt || null,
       land: opts.land || null, wxland: opts.wxland || null, maps: opts.maps || null,
     };
