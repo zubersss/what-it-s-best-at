@@ -63,6 +63,44 @@ export const MODELS = {
 };
 
 MODELS.mixed = Object.fromEntries(Object.keys(MODELS.own).map((k) => [k, k.startsWith('haven:') && k !== 'haven:flight' ? MODELS.pixels[k] : MODELS.own[k]]));
+
+// The thirteenth phone results (build daa009f, Sharp, 60 Hz, the picture held at 1.88 MP,
+// paced, everything on, the governor taking no step: docs/benchmarks/2026-11-27-haven-daa009f-fixed-size-paced.txt).
+// The phone as it is since the grass is handed over by blocks and the sky's packages landed:
+// the model the governor's order of 2026-11-27 is checked against (the tenth's models above
+// stay as their readers wrote them). What a saving buys is the FAMILIES' table (each twice,
+// both takes alike), shared out among a family's steps by the single numbers that repeat:
+//   the opening view: the sky's 5.0 (the cloud volume 3.5, its coarser steps 1.5; none of the
+//     sky's small steps showed anything alone), glow 4.2 (the Sun's beams, where the Sun is in the picture), the
+//     trees' 2.3 (full shapes less far 1.3, the far forest thinned 1.0); the grass's, the
+//     shadows', the ground's and the rocks' families nothing;
+//   from the air: the sky's 13.6 (10.0 and 2.6 at most), the ground's 7.2 (far relief 4.9, close-up detail 1.5).
+// A and S: every stop ran at 1.88 MP with 3 to 31 % of its frames three refreshes long
+// (27.1, 29.5, 25.5 and 26.7 frames a second at the steady stops): the mean GPU time sits
+// under the 33.3 ms line by 0.5 to 1.9 of its spread there; some 5 ms a megapixel (the cost
+// test's 1.00 against 2.07 MP, the least of its three views; 4 from the air). The Moon is
+// a flat 30.0: as the tenth's.
+const LEDGE13 = { 'cloud-volume': 3.5, 'cloud-steps': 1.5, 'sun-beams': 4.2, 'trees-far': 1.3, 'far-trees': 1.0 };
+const NOSUN13 = { 'cloud-volume': 3.5, 'cloud-steps': 1.5, 'trees-far': 1.3, 'far-trees': 1.0 };
+const AIR13 = { 'cloud-volume': 10.0, 'cloud-steps': 2.6, 'far-relief': 4.9, detail: 1.5 };
+export const BUYS13 = { ledge: LEDGE13, nosun: NOSUN13, air: AIR13 };
+MODELS.thirteenth = {
+  'haven:ledge': { A: 22.2, S: 5, sd: 2.0, q: 0.02, buys: LEDGE13, trees: true, ff: true, sun: true, sky: true },
+  'haven:sun': { A: 22.2, S: 5, sd: 2.0, q: 0.02, buys: LEDGE13, trees: true, ff: true, sun: true, sky: true },
+  'haven:wall': { A: 20.1, S: 5, sd: 2.0, q: 0.0, buys: NOSUN13, trees: false, ff: true, sky: true },
+  'haven:ship': { A: 22.9, S: 5, sd: 2.0, q: 0.02, buys: NOSUN13, trees: false, ff: true, sky: true },
+  'haven:dusk': { A: 22.4, S: 5, sd: 2.0, q: 0.0, buys: LEDGE13, trees: false, ff: true, sun: true, sky: true },
+  'haven:flight': { A: 22.7, S: 4, sd: 2.0, q: 0.01, buys: AIR13, trees: false, ff: false, grass: false, sky: true },
+  ...Object.fromEntries(Object.keys(MODELS.own).filter((k) => k.startsWith('moon:')).map((k) => [k, MODELS.pixels[k]])),
+};
+// The sky as the game has it, for the models that say so (`sky`): its savings go through its
+// setter, the built ones are live while clouds are drawn, and with the cloud volume switched
+// off its coarser steps can buy nothing (the step's own `live` reads cloudVolume.enabled).
+const SKY_LIVE = ['cloud-far', 'cloud-upper', 'rain-shafts', 'cloud-shade-rate', 'lenses', 'fog-sheet', 'cloud-shade-coarse'];
+export function skyStub(app) {
+  return { live: (id) => SKY_LIVE.includes(id) && !!app.clouds.mesh.visible, hasSaving: () => true,
+    setSaving(id, off) { if (id === 'cloud-volume') app.cloudVolume.enabled = !off; } };
+}
 const STOPS = ['ledge', 'sun', 'wall', 'ship', 'dusk'];
 // Where the route is at benchmark time t: { key, jumpAt, u (s into the stop), world }
 export function where(t) {
@@ -96,6 +134,9 @@ export function setScene(app, m) {
   app.pollen.mesh.visible = grass;
   app.cloudVolume.wanted = !m.moon; app.clouds.mesh.visible = !m.moon;
   app.terrain.shared.uRelief.value.x = 1;
+  // (the Sun in the picture: its beams are drawn; and the sky's own steps, where the model has them)
+  app.post.shafts = m.sun ? 1 : 0; app.post.sunUv = [0.5, 0.5, m.sun ? 1 : 0];
+  if (m.sky && !m.moon) app.sky ??= skyStub(app); else if (!m.sky) { if (app.sky) app.cloudVolume.enabled = true; app.sky = undefined; }
 }
 
 // One run. opts: { model, seed, start (Haven's remembered level), known, seconds, onFrame }

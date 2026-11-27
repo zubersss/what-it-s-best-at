@@ -224,8 +224,18 @@ export class Steer {
     return [a + d * smooth(f), d * smoothD(f) / L];
   }
   // the angles of layer k at the clock t: psi, phi (with the layer's lean), theta, and their rates
+  // (kept for the moment last asked about, layer by layer: a frame asks for the same layer at
+  // the same moment a dozen times over — its motion, its rate, its wind here and there — and
+  // each answer was worked out from the knots again. The answer is not to be written into.)
   angles(layer, t) {
-    const k = layerIndex(layer), U = this.epochSec + t, c = this.cfg;
+    const k = layerIndex(layer), kept = (this._angles || (this._angles = []))[k];
+    if (kept && kept.t === t) return kept.v;
+    const v = this._anglesOf(k, t);
+    this._angles[k] = { t, v };
+    return v;
+  }
+  _anglesOf(k, t) {
+    const U = this.epochSec + t, c = this.cfg;
     const [phi, dphi] = this._slow(U, c.tiltDays, (i) => c.tilt * DEG * this._u(i, CH_TILT));
     const [psi, dpsi] = this._slow(U, c.turnDays, (i) => TAU * this._u(i, CH_TURN), TAU);
     let lean = 0, dlean = 0;

@@ -25,8 +25,8 @@ export const FOG_LOOK = Object.freeze({
                      // its top itself is level, as a lake of mist is)
   ALPHA: 0.96,       // the most it takes of what is behind it
   LAKE: 34, LAKE_DEEP: 30,   // m of mist over a lake's deep water where the field has fog, and the water's depth at which it is all there (thin at the shore)
-  VEIL: 0.0045,      // 1/m: the air's veil for an eye inside the mist (one sees some 250 m; 500 m off the water is gone into it)
-  VEIL_IN: 14,       // m of mist over the eye at which that veil is all there
+  VEIL: 0.009,       // 1/m: the air's veil for an eye inside the mist (one sees some 110 m; the sheet itself, looked down through from above, takes 1/EXT a metre: with a quarter of that, the water under an eye just inside the top was clear where a metre higher it had been a white plate)
+  VEIL_IN: 4,        // m of mist over the eye at which that veil is all there
   SHADE: 0.4,        // the share of the Sun's light it keeps in the land's shadow (cooler there, never the sky's blue alone)
   EXT: 55,           // m of mist along the line of sight that takes 63 % of what is behind it (thin at its edge: the water and the far shore show through)
   RAG: 0.55,         // how far the lumps thin and thicken its depth (its edge broken into tongues) ...
@@ -34,7 +34,7 @@ export const FOG_LOOK = Object.freeze({
   TOP: 0.35,         // the share of its depth by which its top rises and falls (at most TOP_MAX m): not a plane
   TOP_MAX: 28,
   LAND_WL: 240,      // m: the wavelength the ground under it is asked at
-  SUN_ROWS: 32,      // points of its lattice whose shade from the land is asked again each frame
+  SUN_ROWS: 16,      // points of its lattice whose shade from the land is asked again each frame
   SUN_STEPS: [150, 400, 900, 1800, 3500, 6500],   // m toward the Sun at which the land is looked for
   BRIGHT: 1.06,      // mist is bright: it takes the Sun and the sky and keeps them
 });
@@ -132,8 +132,12 @@ void main() {
   float sinE = dot(rd, up);
   // from above: down through its depth; from inside it: the mist between the eye and its top
   // (looked up through, little; looked along, all of it: no ceiling over one who stands in it)
-  float path = sinE < 0.0 ? d / max(-sinE, 0.22) : min(max(length(planetPos) - length(uCamPlanetPos), 0.0), d) / max(sinE, 0.05);
-  float alpha = ${glf(F.ALPHA)} * smoothstep(${glf(F.EDGE0)}, ${glf(F.EDGE1)}, vFog) * (1.0 - exp(-path / ${glf(F.EXT)}));
+  // (looked along from inside, the line of sight stays in the mist for hundreds of metres: with
+  // the sine held at 0.05 an eye 2 m under the top saw half the far sky through it, down to the
+  // horizon, over water the air's veil had already taken: a level line between the two)
+  bool inside = sinE >= 0.0;
+  float path = !inside ? d / max(-sinE, 0.22) : min(max(length(planetPos) - length(uCamPlanetPos), 0.0), d) / max(sinE, 0.004);
+  float alpha = (inside ? 1.0 : ${glf(F.ALPHA)}) * smoothstep(${glf(F.EDGE0)}, ${glf(F.EDGE1)}, vFog) * (1.0 - exp(-path / ${glf(F.EXT)}));
   // (from INSIDE the mist the sheet is over the eye and veils the sky; what lies below the eye's
   // level is veiled by the air's own veil, which the sheet hands the sky system: eyeVeil)
   if (alpha < 0.01) discard;
@@ -146,6 +150,10 @@ void main() {
   vec3 sun = directSun(planetPos) * (mix(${glf(F.SHADE)}, 1.0, vSun) * (0.3 + 0.7 * mu0));
   vec3 col = vec3(${glf(F.BRIGHT)}) * (sun * 0.8 + skyLight(up, up) * 0.9) / PI;
   col = aerialPerspective(col, vRel);
+  // (from inside, toward the horizon, it is the very colour the air's veil gives the water and
+  // the shore under it (rainVeil in the lighting chunk): the mist is one thing, above the eye's
+  // level and below it. Higher up it is lit mist with the sky coming through.)
+  if (inside) col = mix(skyLight(up, up) * (0.7 / PI), col, smoothstep(0.08, 0.5, sinE));
   fragColor = vec4(col * uExposure * alpha, alpha);
 }`;
 
@@ -262,7 +270,9 @@ export class FogSheet {
     let want = 0;
     if (hs && here && here.field.fogTop > 0) {
       const l = p.length(), g = hs.height(p.x / l, p.y / l, p.z / l, F.LAND_WL), wd = hs.waterDepth > 0 ? hs.waterDepth : 0;
-      const surf = Math.max(0, g + wd), k = Math.min(1, Math.max(0, wd / F.LAKE_DEEP));
+      // (over water the height function answers the water's SURFACE, with its depth beside it:
+      // the depth is not added. Added, the mist stood the lake's depth too high over deep water.)
+      const surf = Math.max(0, g), k = Math.min(1, Math.max(0, wd / F.LAKE_DEEP));
       const top = wd > 0 ? Math.max(here.field.fogTop, surf + F.LAKE * k * k * (3 - 2 * k)) : here.field.fogTop;
       const over = top - (l - R), t = Math.min(1, Math.max(0, over / F.VEIL_IN));
       want = top > surf ? F.VEIL * t * t * (3 - 2 * t) : 0;
@@ -293,7 +303,7 @@ export class FogSheet {
       const l = Math.hypot(q[0], q[1], q[2]);
       const g = hs.height(q[0] / l, q[1] / l, q[2] / l, F.LAND_WL), w = hs.waterDepth > 0 ? hs.waterDepth : 0;
       this.landAsked++; wet = w;
-      return Math.max(0, g + w);
+      return Math.max(0, g);          // (the water's surface over water: see _eye)
     };
     const put = (i, j) => {
       const o = (j * N + i) * 4, v = Math.min(65535, Math.round(surface(point(i, j, p)) * 8));

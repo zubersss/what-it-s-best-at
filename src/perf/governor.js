@@ -46,19 +46,21 @@ export const MODES = {
 
 // The step-down order. `apply(app, off)` switches the saving on (off = true) or back.
 //
-// By what a step buys, then by what the eye loses (the phone's ninth results, build
-// 6ac24ff, docs/benchmarks/2026-11-24-haven-6ac24ff.txt, and its tenth, build e9d4888,
-// docs/benchmarks/2026-11-25-haven-e9d4888.txt; before that the order was "least loss
-// first" alone, and a trial of two to four steps ended among steps that buy nothing on the
-// phone, four times in one benchmark, with the steps that could have cured the late frames
-// behind them):
-//   1. what the phone has shown to buy 2.5 ms and more, least loss to the eye first;
-//   2. what buys a little (0.5 to 1.6 ms) for little loss;
-//   3. what gives the land and the sky their depth from the air (they buy much, 4.0, 3.5
-//      and 9.4 ms, and are the last things of worth to go);
-//   4. what bought nothing that could be measured on the phone in any of its three cost
-//      views (under 1 ms, most of them inside the noise): kept for devices unlike it and
-//      for the floor, where they can no longer end a trial early.
+// By what a step buys, then by what the eye loses. The order is the phone's thirteenth
+// results (build daa009f, docs/benchmarks/2026-11-27-haven-daa009f-fixed-size-paced.txt):
+// the savings were measured there in FAMILIES, each switched on whole and twice between two
+// measures of everything on; a family's number is one to believe, a single saving's hardly
+// (the baseline went from 54 to 125 ms over one view's test). Before that the order came from
+// single savings (the ninth and tenth results), and before those it was "least loss first"
+// alone, when a trial of two to four steps ended among steps that buy nothing on the phone,
+// four times in one benchmark, with the steps that could have cured the late frames behind them.
+//   1. the steps of the families that buy (the sky's, the trees' and leaves', glow, the
+//      ground's, in that order), least loss to the eye first within a family;
+//   2. what gives the land and the sky their depth from the air: they buy the most and are
+//      the last things of worth to go;
+//   3. what bought nothing that could be measured on the phone in any of its three cost
+//      views: kept for devices unlike it and for the floor, where they can no longer end
+//      a trial early.
 // `buys`: milliseconds a frame where the phone measured it (the largest of the three
 // views; 0.3 where nothing could be measured; a guess where the cost test cannot ask, said
 // so). A stride of the governor takes steps until they are expected to buy STRIDE_MS.
@@ -84,110 +86,124 @@ const nearTrees = (app) => (app.trees?.count ?? 0) > 0 && (app.trees.reach ?? 1)
 const cloudVolume = (app) => !!app.cloudVolume?.wanted;
 const skyStep = (id, buys, label) => ({ id, buys, label, live: (app) => !!app.sky?.live(id), has: (app) => !!app.sky?.hasSaving(id), apply: (app, off) => { app.sky?.setSaving(id, off); } });
 export const FEATURE_STEPS = [
-  // --- 1. bought 2.5 ms and more on the phone
-  // (5.0 ms at the opening view; the clumps left are wider: the ground stays covered)
-  { id: 'grass-mid', buys: 5.0, label: 'thinner grass in the middle distance', live: (app) => (app.grass?.keepClumps ?? 0) > 0 && !!app.grass.mesh?.visible, apply: (app, off) => { app.grass?.setMidShare(off ? 0.5 : 1); } },
-  // (7.0 ms in a wood)
-  { id: 'trees-far', buys: 7.0, hold: true, label: "the trees' full shapes to two thirds of their distance", live: nearTrees, apply: (app, off) => { app.trees?.setFraction(off ? 0.66 : 1); } },
-  // (3.6 ms at the opening view. It thins the far forest and shortens its reach; a wood
-  // stays a wood: the thinned trees stand wider, see life/farForest.js)
-  { id: 'far-trees', buys: 3.6, label: 'the far forest thinned', live: (app) => !!app.farForest?.shown && app.farForest.count > 0, apply: (app, off) => { app.farForest?.setFraction(off ? 0.45 : 1); } },
-  // (11.5 ms in a wood: the most of any step; after the others here because it is seen from nearest)
-  { id: 'tree-leaves', buys: 11.5, hold: true, label: 'every leaf on the nearest trees', live: nearTrees, apply: (app, off) => { if (app.trees) { app.trees.closeOn = !off; app.trees.dirty = true; } } },
-  // --- 2. bought a little
-  // (1.6 ms in a wood)
-  { id: 'grass', buys: 1.6, label: 'half the grass', live: (app) => (app.grass?.keepBlades ?? 0) > 0 && !!app.grass.mesh?.visible, apply: (app, off) => { app.grass?.setFraction(off ? 0.5 : 1); } },
-  // (pollen in the air over flowers: 3 200 points at most, a point each; not yet measured on the phone, a guess)
-  { id: 'pollen', buys: 0.3, label: 'less pollen in the air', live: (app) => !!app.pollen?.mesh?.visible, apply: (app, off) => { app.pollen?.setShare(off ? 0.4 : 1); } },
-  // (the clouds plan's, not yet built nor measured: the plan's estimates)
-  // (sky-faults: the far heaps read at three heights along each line of sight, so that a heap far
-  // off has a top, a side and an underside; with the step on they are read once, flat, in the
-  // same places. A guess until the phone's cost table says: up to six more looks into the noise
-  // on each pixel of far cloud, none on clear sky.)
-  skyStep('cloud-far', 1.0, 'far clouds flatter'),
-  skyStep('cloud-upper', 0.5, 'middle and high cloud plainer'),
-  skyStep('rain-shafts', 0.5, 'plainer rain shafts under the clouds'),
-  skyStep('cloud-shade-rate', 0.3, "the clouds' shadows a little behind (every other frame)"),
-  // (sky B: the lenses before the fog: a lens is a small thing high up, the fog what a valley at
-  // first light is about; each thins and leaves the thing itself. Guesses until the phone says)
-  skyStep('lenses', 0.2, 'fewer, plainer lens clouds over the peaks'),
-  skyStep('fog-sheet', 0.3, 'valley fog drawn coarser'),
+  // --- 1. what the phone has shown to buy something, family by family in the order of what
+  // the families bought (thirteenth results: the sky's, the trees' and leaves', glow, the
+  // ground's), least loss to the eye first within each.
+  // THE SKY'S (5.0 / 6.7 / 13.6 ms as a family, even in a wood where little sky shows).
+  // (coarser steps of the cloud march: 2.9 ms in the wood, 2.1 from the air; nothing at all
+  // once the cloud volume is off: live only while the volume is drawn. On the tenth results
+  // it read nothing and stood in the tail.)
+  { id: 'cloud-steps', buys: 2.5, label: 'coarser clouds near you', live: (app) => cloudVolume(app) && app.cloudVolume.enabled !== false, apply: (app, off) => { app.sky?.setSaving('cloud-steps', off); } },
+  // THE TREES' AND LEAVES' (2.3 / 7.6 / 2.3 as a family: 7.6 in a wood, both takes alike). What
+  // each buys alone could not be read on the thirteenth (the single numbers are inside the
+  // noise there: 0.9, -0.7, -1.2); the family's 7.6 less the farther trees' shadows (3.9, below)
+  // is shared out by what each read on the ninth and tenth (7.0, 3.6, 11.5, before the trees'
+  // meshes were halved and their light moved to the vertices).
+  // (the trees' full shapes to two thirds of their distance)
+  { id: 'trees-far', buys: 2.0, hold: true, label: "the trees' full shapes to two thirds of their distance", live: nearTrees, apply: (app, off) => { app.trees?.setFraction(off ? 0.66 : 1); } },
+  // (it thins the far forest and shortens its reach; a wood stays a wood: the thinned trees
+  // stand wider, see life/farForest.js)
+  { id: 'far-trees', buys: 1.0, label: 'the far forest thinned', live: (app) => !!app.farForest?.shown && app.farForest.count > 0, apply: (app, off) => { app.farForest?.setFraction(off ? 0.45 : 1); } },
+  // (after the others here because it is seen from nearest)
+  { id: 'tree-leaves', buys: 1.5, hold: true, label: 'every leaf on the nearest trees', live: nearTrees, apply: (app, off) => { if (app.trees) { app.trees.closeOn = !off; app.trees.dirty = true; } } },
+  // (the seasons' own: each tree's carpet of fallen leaves in the ground's shading, a loop over
+  // the eight nearest such trees for the ground within 90 m; the wood's own scatter and the
+  // lying leaves stay. 0.8 in the wood.)
+  { id: 'leaf-carpet', buys: 0.5, label: "each tree's carpet of leaves", live: nearTrees, apply: (app, off) => { app.leafCarpetOff = off; } },
+  // GLOW (4.2 at the opening view, where the Sun is in the picture; nothing where it is not).
+  // (the Sun's beams: the family's 4.2 is theirs; live only while they are drawn, with the Sun
+  // in or near the picture, or the step would be taken for nothing everywhere else)
+  { id: 'sun-beams', buys: 3.5, label: "the Sun's beams through trees and cloud", live: (app) => !!app.post?.bloomEnabled && (app.post.shafts ?? 0) * (app.post.sunUv?.[2] ?? 0) > 0, apply: (app, off) => { app.post.shaftsOn = !off; } },
+  // THE GROUND'S (0.0 / 0.6 / 7.2: from the air only; most of it is the far relief, below).
+  // (1.5 from the air. The ground's shader reads its close-up layers only where they can show,
+  // which is most of what this step used to save.)
+  { id: 'detail', buys: 1.0, label: 'close-up ground detail', apply: (app, off) => { app.quality.x = off ? 0 : 1; } },
   // (the patches: the cost test cannot ask about them, the ground would have to settle
   // again each time; a guess. They are also what the governor gives up when the page's own
   // work is what is slow: see _down.)
   { id: 'terrain-1', buys: 1.5, label: 'terrain detail (fewer patches)', apply: (app, off) => { app.terrainBudget(off ? 0.8 : 1, 'terrain-1'); } },
   { id: 'terrain-2', buys: 1.5, label: 'terrain detail (fewer patches again)', apply: (app, off) => { app.terrainBudget(off ? 0.64 : 1, 'terrain-2'); } },
-  // --- 3. the depth of the land and the sky seen from the air. With these off a traveller
-  // coming down from space saw a flat map under a flat picture of clouds.
+  // --- 2. the last things of worth to go: the depth of the land and the sky seen from the air
+  // (with these off a traveller coming down from space saw a flat map under a flat picture of
+  // clouds). They buy the most; the families in the same order.
   // (the layer itself is never switched off: a hurricane with a clear sky is not one, and the
   // layer is one texture on the sky)
   // (the clouds plan's: the shadows kept, coarser; it takes the place of 'clouds' when its package lands)
   skyStep('cloud-shade-coarse', 0.5, 'coarser cloud shadows'),
-  // (4.0 ms at the opening view)
-  { id: 'clouds', buys: 4.0, label: "the clouds' shadows on the ground", live: (app) => !!app.clouds?.mesh?.visible, apply: (app, off) => { app.sky?.setSaving('clouds', off); } },
-  // (3.5 ms at the opening view, 2.1 from the air)
-  { id: 'far-relief', buys: 3.5, label: 'relief shading of far ground', live: (app) => (app.terrain?.shared?.uRelief?.value.x ?? 1) > 0, apply: (app, off) => { app.quality.w = off ? 0 : 1; } },
-  // (9.4 ms from the air on build 6ac24ff)
-  { id: 'cloud-volume', buys: 9.4, label: 'clouds with depth (they stay as a layer)', live: cloudVolume, apply: (app, off) => { app.sky?.setSaving('cloud-volume', off); } },
-  // --- 4. nothing that could be measured on the phone (each line: its largest reading in the three views)
-  // (The first four headed the ladder from the ninth results and bought nothing on the tenth:
-  // a trial at the opening view took them before the savings that cure, and they came and
-  // went some ten times a minute. Coarser cloud steps 0.7 / -5.2 / -4.0, and nothing at all
-  // once the cloud volume is off: live only while the volume is drawn. The robe -1.1 / -1.0 /
-  // 1.2: the page's own work, which cannot shorten a frame the GPU is late on. The fine
-  // shadow tile -0.4 / 1.3. The glow 0.4 in one view.)
-  { id: 'cloud-steps', buys: 0.3, label: 'coarser clouds near you', live: (app) => cloudVolume(app) && app.cloudVolume.enabled !== false, apply: (app, off) => { app.sky?.setSaving('cloud-steps', off); } },
-  { id: 'cloak', buys: 0.3, label: 'robe and hair simulated more loosely', live: (app) => !!app.hero?.group?.visible && !app.hero.rigMesh, apply: (app, off) => { app.hero.robe.halfRate = off; } },
-  // (the sculpted character, hero/heroSculpt.js: 120 000 triangles in the picture, or the 24 000 its shadow is drawn from.
-  //  Not measured on the phone yet: a guess until a benchmark's cost table has it)
-  { id: 'figure', buys: 0.3, label: 'the character drawn from fewer triangles', live: (app) => !!(app.hero?.rigMesh || app.hero?.sculpt) && !!app.hero.group?.visible, apply: (app, off) => { if (app.hero?.sculpt) app.hero.sculpt.light = off; if (app.hero?.rigMesh) app.hero.rigMesh.light = off; } },
+  // (4.0 ms at the opening view on the ninth results; 1.3 from the air on the thirteenth, nothing elsewhere)
+  { id: 'clouds', buys: 1.0, label: "the clouds' shadows on the ground", live: (app) => !!app.clouds?.mesh?.visible, apply: (app, off) => { app.sky?.setSaving('clouds', off); } },
+  // (7.0 ms in the wood, 10.1 from the air on the thirteenth; 9.4 from the air on the ninth)
+  { id: 'cloud-volume', buys: 8.5, label: 'clouds with depth (they stay as a layer)', live: cloudVolume, apply: (app, off) => { app.sky?.setSaving('cloud-volume', off); } },
+  // (4.9 from the air on the thirteenth; 3.5 at the opening view and 2.1 from the air before)
+  { id: 'far-relief', buys: 4.5, label: 'relief shading of far ground', live: (app) => (app.terrain?.shared?.uRelief?.value.x ?? 1) > 0, apply: (app, off) => { app.quality.w = off ? 0 : 1; } },
+  // --- 3. nothing that could be measured on the phone: every family's two takes inside the
+  // noise in all three views of the thirteenth results (the shadows' 1.9 / 0.8 / -2.8, the
+  // grass's 1.3 / -1.8 / 0.5, rocks and the figure 0.9 / 0.7 / 0.0), and the steps of the
+  // families above that showed nothing alone. Kept for devices unlike the phone and for the
+  // floor, where they can no longer end a trial early. In the families' order.
+  // (The sky's small ones: the clouds plan's and the sky helper's. None showed anything alone
+  // on the thirteenth results (far clouds flatter -1.6 / -1.0 / 1.1, the middle and high cloud
+  // -0.8, rain shafts 1.7 / -0.7 / -1.1, the shadows' rate -3.3 / -1.1, the lenses -0.7, the fog
+  // 0.4): what the sky's family buys is the cloud volume and its steps. The sky helper is
+  // cutting the sky's cost and making its savings buy: their numbers are its to set then.)
+  // (sky-faults: the far heaps read at three heights along each line of sight, so that a heap far
+  // off has a top, a side and an underside; with the step on they are read once, flat, in the
+  // same places.)
+  skyStep('cloud-far', 0.3, 'far clouds flatter'),
+  skyStep('cloud-upper', 0.3, 'middle and high cloud plainer'),
+  skyStep('rain-shafts', 0.3, 'plainer rain shafts under the clouds'),
+  skyStep('cloud-shade-rate', 0.3, "the clouds' shadows a little behind (every other frame)"),
+  // (sky B: the lenses before the fog: a lens is a small thing high up, the fog what a valley at
+  // first light is about; each thins and leaves the thing itself.)
+  skyStep('lenses', 0.3, 'fewer, plainer lens clouds over the peaks'),
+  skyStep('fog-sheet', 0.3, 'valley fog drawn coarser'),
+  // (0.5 ms in dry weather, where there is none to thin; thinning 1 400 streaks to 560 saved
+  // nothing that could be measured on the phone in a storm either)
+  { id: 'rain', buys: 0.3, label: 'thinner rain and snow', live: (app) => !!app.rain?.mesh?.visible, apply: (app, off) => { app.sky?.setSaving('rain', off); } },
+  // (nothing: -0.6, -4.5)
+  { id: 'leaves', buys: 0.3, label: 'leaves in the wind', apply: (app, off) => { if (app.leaves) app.leaves.enabled = !off; if (app.petals) app.petals.enabled = !off; if (app.treeLeaves) app.treeLeaves.enabled = !off; if (app.kicked) app.kicked.enabled = !off; } },          // (petals: thinned to a third, not taken away)
+  // (the glow round bright things: 0.4 in one view of the tenth, -2.4 on the thirteenth)
+  { id: 'bloom', buys: 0.3, label: 'glow around bright things', apply: (app, off) => { app.post.bloomEnabled = !off; } },
+  // (nothing in any view from the ground or 5 km up: it is a thing of the view from space)
+  { id: 'edge-glow', buys: 0.3, label: "glow on a planet's edge at half detail", apply: (app, off) => { app.quality.z = off ? 0 : 1; } },
+  // (living water: a river's lanes are worked out once instead of four times blended. The water
+  // still runs; where the flow turns its lanes change at a line. And the waterfalls' mist goes; their
+  // white sheets stay.)
+  { id: 'water', buys: 0.3, label: "running water's lanes drawn more simply", live: (app) => !!app.world?.surface?.sea, apply: (app, off) => { const u = app.terrain?.shared?.uWaterQ; if (u) u.value = off ? 0 : 1; app.falls?.setMist(!off); } },
+  // (the noise that breaks the snow line's edge; the line stays, plain)
+  { id: 'snow-edge', buys: 0.2, label: "the snow line's broken edge", apply: (app, off) => { app.snowEdgeOff = off; } },          // (App.updateSnow hands it to the shaders)
   // (the shadow map's fine tile, some 20 m round the traveller at 3.9 cm a texel: without it
   // every shadow there, trees' and rocks' alike, is drawn from the 14.6 cm tile)
   { id: 'fine-shadows', buys: 0.3, hold: true, label: 'coarser shadows near you', apply: (app, off) => { app.nearShadow.fine = !off; } },
-  { id: 'bloom', buys: 0.3, label: 'glow around bright things', apply: (app, off) => { app.post.bloomEnabled = !off; } },
-  // (0.4 ms from the air, -2.3 and -7.9 elsewhere: noise. The ground's shader now reads
-  // its close-up layers only where they can show, which is what this step used to save.)
-  { id: 'detail', buys: 0.3, label: 'close-up ground detail', apply: (app, off) => { app.quality.x = off ? 0 : 1; } },
-  // (living water: a river's lanes are worked out once instead of four times blended. The water
-  // still runs; where the flow turns its lanes change at a line. And the waterfalls' mist goes; their
-  // white sheets stay. Not measured on the phone yet: a guess.)
-  { id: 'water', buys: 0.3, label: "running water's lanes drawn more simply", live: (app) => !!app.world?.surface?.sea, apply: (app, off) => { const u = app.terrain?.shared?.uWaterQ; if (u) u.value = off ? 0 : 1; app.falls?.setMist(!off); } },
-  // (0.4 ms)
   { id: 'soft-shadows', buys: 0.3, hold: true, label: 'soft edges on rock and ship shadows', apply: (app, off) => { app.quality.y = off ? 0 : 1; } },
-  // (nothing: -3.6 from the air)
   { id: 'contact', buys: 0.3, label: 'darkening at the foot of rocks and the lander', apply: (app, off) => { app.contact = !off; } },
-  // (nothing in any view from the ground or 5 km up: it is a thing of the view from space)
-  { id: 'edge-glow', buys: 0.3, label: "glow on a planet's edge at half detail", apply: (app, off) => { app.quality.z = off ? 0 : 1; } },
-  // (0.4 ms)
-  { id: 'dust', buys: 0.3, label: 'half the kicked-up dust, simpler cloud', apply: (app, off) => { app.dust.amount = off ? 0.5 : 1; } },
-  // (nothing: -1.5)
-  { id: 'rocks', buys: 0.3, label: 'half the rocks', apply: (app, off) => { app.rocks.setFraction(off ? 0.5 : 1); } },
-  // (nothing: -1.1)
   { id: 'far-rock-shadows', buys: 0.3, label: 'shadows of far rocks', apply: (app, off) => { if (app.farRocks) app.farRocks.shadows = !off; } },
-  // (nothing: -1.1. The rocks of the land itself, to a mile and more: the small ones are
-  // seen from two thirds as far; the large ones, which are the hillside, stay)
-  { id: 'far-rocks', buys: 0.3, label: 'small rocks from less far', apply: (app, off) => { app.farRocks?.setFraction(off ? 0.62 : 1); } },
-  // (0.5 ms in dry weather, where there is none to thin; half of 5 600 streaks; thinning
-  // 1 400 to 560 saved nothing that could be measured on the phone in a storm either)
-  { id: 'rain', buys: 0.3, label: 'thinner rain and snow', live: (app) => !!app.rain?.mesh?.visible, apply: (app, off) => { app.sky?.setSaving('rain', off); } },
-  // (nothing: -0.4)
-  { id: 'leaves', buys: 0.3, label: 'leaves in the wind', apply: (app, off) => { if (app.leaves) app.leaves.enabled = !off; if (app.petals) app.petals.enabled = !off; if (app.treeLeaves) app.treeLeaves.enabled = !off; if (app.kicked) app.kicked.enabled = !off; } },          // (petals: thinned to a third, not taken away)
-  // (the seasons' two: each tree's own carpet of fallen leaves in the ground's shading, a loop over
-  // the eight nearest such trees for the ground within 90 m (the wood's own scatter and the
-  // lying leaves stay); and the noise that breaks the snow line's edge (the line stays, plain).
-  // Not yet measured on the phone.)
-  { id: 'leaf-carpet', buys: 0.2, label: "each tree's carpet of leaves", apply: (app, off) => { app.leafCarpetOff = off; } },
-  { id: 'snow-edge', buys: 0.2, label: "the snow line's broken edge", apply: (app, off) => { app.snowEdgeOff = off; } },          // (App.updateSnow hands it to the shaders)
-  // (nothing: -0.7)
-  { id: 'sun-beams', buys: 0.3, label: "the Sun's beams through trees and cloud", apply: (app, off) => { app.post.shaftsOn = !off; } },
   // (no step for the waves that lift the water: on the phone it saved nothing that could be
   // measured, at sea in a hurricane (seventh results), and a sea that lies flat is not a sea)
-  // (nothing: -0.5 and -2.8)
   { id: 'air-shadow', buys: 0.3, label: 'terrain shadows in the haze', apply: (app, off) => { app.atmosphere.airEnabled = !off; } },
-  // (nothing: -0.5 / -6.8 / -2.6 on the tenth results, where it stood second in the ladder at
-  // the ninth's 2.7 and was among the first savings taken in a wood. With it on, every tree
-  // past the near trees' radius (60 m) casts no shadow, and walking in a wood some 20 a second
-  // pop on or off at that line. Last.)
+  // (The grass: 5.0 ms at the opening view on the ninth results, when every cell of it was
+  // handed to the GPU; since it is handed over by blocks (life/grassBlocks.js) the family buys
+  // nothing, and where the grass hides ground that is dearer to shade, less than nothing: the
+  // whole of it left out COST 8.8 ms at the opening view. The clumps left are wider: the ground
+  // stays covered.)
+  { id: 'grass-mid', buys: 0.3, label: 'thinner grass in the middle distance', live: (app) => (app.grass?.keepClumps ?? 0) > 0 && !!app.grass.mesh?.visible, apply: (app, off) => { app.grass?.setMidShare(off ? 0.5 : 1); } },
+  { id: 'grass', buys: 0.3, label: 'half the grass', live: (app) => (app.grass?.keepBlades ?? 0) > 0 && !!app.grass.mesh?.visible, apply: (app, off) => { app.grass?.setFraction(off ? 0.5 : 1); } },
+  // (pollen in the air over flowers: 3 200 points at most, a point each)
+  { id: 'pollen', buys: 0.3, label: 'less pollen in the air', live: (app) => !!app.pollen?.mesh?.visible, apply: (app, off) => { app.pollen?.setShare(off ? 0.4 : 1); } },
+  // (the robe: the page's own work, which cannot shorten a frame the GPU is late on)
+  { id: 'cloak', buys: 0.3, label: 'robe and hair simulated more loosely', live: (app) => !!app.hero?.group?.visible && !app.hero.rigMesh, apply: (app, off) => { app.hero.robe.halfRate = off; } },
+  // (the character: nothing measurable on the phone with all 153 000 triangles of it, thirteenth results)
+  { id: 'figure', buys: 0.3, label: 'the character drawn from fewer triangles', live: (app) => !!(app.hero?.rigMesh || app.hero?.sculpt) && !!app.hero.group?.visible, apply: (app, off) => { if (app.hero?.sculpt) app.hero.sculpt.light = off; if (app.hero?.rigMesh) app.hero.rigMesh.light = off; } },
+  { id: 'dust', buys: 0.3, label: 'half the kicked-up dust, simpler cloud', apply: (app, off) => { app.dust.amount = off ? 0.5 : 1; } },
+  { id: 'rocks', buys: 0.3, label: 'half the rocks', apply: (app, off) => { app.rocks.setFraction(off ? 0.5 : 1); } },
+  // (the rocks of the land itself, to a mile and more: the small ones are seen from two thirds
+  // as far; the large ones, which are the hillside, stay)
+  { id: 'far-rocks', buys: 0.3, label: 'small rocks from less far', apply: (app, off) => { app.farRocks?.setFraction(off ? 0.62 : 1); } },
+  // (The farther trees' shadows, last of all: 3.9 in the wood and 5.3 at the opening view on the
+  // thirteenth results, 2.7 on the ninth, nothing on the tenth (-0.5 / -6.8 / -2.6): a number that
+  // comes and goes. With it on, every tree past the near trees' radius (60 m) casts no shadow, and
+  // walking in a wood some 20 a second pop on or off at that line. The shadow maps as a whole are
+  // 7.1 ms in the wood: if the next results show this step's share of it twice, it moves up.)
   // (and the far forest's shadows on the ground, drawn for a traveller in the air: life/farForest.js)
   { id: 'tree-shadows', buys: 0.3, hold: true, label: 'shadows of the farther trees', live: (app) => nearTrees(app) || !!app.farForest?.shadowsShown, apply: (app, off) => { if (app.trees) app.trees.shadowsFar = !off; if (app.farForest) app.farForest.shadows = !off; } },
 ];

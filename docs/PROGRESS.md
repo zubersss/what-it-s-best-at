@@ -41,7 +41,134 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
-### The second joined build of 2026-11-27 (17:30 UTC): more cuts, mist from the shore, a clean winter
+### The benchmark build of 2026-11-27 night (branch at 1072ea2): the cuts so far, and a cost table that can name the sky's part
+
+**What it holds beyond the link's daa009f**: the cost test's plan made on the view's own
+world, each sky part measured twice, "the ground not drawn at all" as a group, two
+"what it adds" rows for the trees' light at their corners, named hitches (the sky and the
+speed helpers); the governor's order by the families; every scene's shaders made while
+loading; the trees' and far forest's Sun light and air at their vertices (11 to 13 looks
+a pixel to 2); the ground's first cuts (16.7 to 14.7 reads a pixel at the opening view,
+18.8 to 14.6 from 3 km); the page's own sky work 2.2 to 1.4 ms; the ragged tree line;
+the storm's tower and anvil; the mist at the water's own height, veiling an eye inside it.
+**Not in it** (the link after): the upper shells' light at their vertices, the sky field's
+shader made while loading, the clouds' shade at every patch's vertices, the sky's light
+on the ground at the vertices.
+
+**Checked on the frozen build of 1072ea2**: every no-browser test (35, the sky model's
+timing line now against a yardstick of the same run); the whole smoke with the Mars
+benchmark at `--dsf 0.5` (18 checks; 53 shaders made, all inside a phone's limits); noon
+from the air, the mist's view, the opening view with the character running
+(`docs/shots/joined/*1072ea2*`); on the build two merges before (a8c29d2): the storm's
+view and the forest view.
+
+**Asked of the owner**: the plain Haven benchmark in Sharp from the start screen (the
+governor at work with its new order) and the paced `?bench=haven&scale=0.775` run, full
+screen if possible. **To read first in the answer**: the sky's parts one by one (the march
+with its layers, the middle and high cloud, the far low shell, the shade map, the field's
+maps, the far pass), the forest's group against 15.0 and the two "what it adds" rows, the
+ground's shading against 14.4 and 17.0, "the ground not drawn at all", whether an
+"unknown" hitch still stands ten seconds in, and in the plain run the steps the governor
+took and where it settled. The cost test is a third longer than before (175 measures a view).
+
+### The thirteenth results (2026-11-27 evening, build daa009f): everything on, held at one size, paced
+
+The owner: "I have the paid meshy plan" (recorded in `docs/ASSETS.md`), and one run:
+`docs/benchmarks/2026-11-27-haven-daa009f-fixed-size-paced.txt`. It is the run of
+`?bench=haven&scale=0.775` (60 % of native; the browser's bars left a native of 3.14 MP, so
+the picture was 1.88 MP), **not the plain benchmark**: the governor took no step, on purpose.
+
+**What it says** (believing only what is large and repeats: the groups and families, two
+takes each):
+- *The slide is closed.* Paced, the Haven stops are alike (27.1, 29.5, 25.5, 26.7); the run
+  of 42da110 that fell from 29 to 14 was unpaced and hot.
+- *Everything on, Haven is at the edge of 30*: 26.4 fps; at the four steady stops 3 to 31 %
+  of the frames take three refreshes. The Moon is a flat 30.0.
+- *The first stop measures loading, not the view*: 87 % of the ledge's frames are on time;
+  its 23.2 is seven hitches in the first three seconds (jumps to a bookmark, start-up) and
+  three "unknown" of 167 to 233 ms at 10 to 12 s, with the page's own work at 19.5 ms
+  (ground 6.4) and half a megabyte of uploads a frame.
+- *A third of the triangles did nothing for the frame rate* (1.05 to 1.91 M a frame for
+  3.0 M): the triangles were not what was slow. Grass and flowers now cost less than
+  nothing at the opening view (-8.8: they hide ground that costs more to shade).
+- *The three costs*: **the sky** 24.1 (ledge) and 23.6 (air) of a measured 73 and 67 ms, and
+  0.8 in the forest, where little sky shows: paid by the sky's pixels on screen, and its
+  eleven savings buy 5.0 and 13.6 of it; **the forest** 15.0 (ledge) and 15.2 (forest), its
+  savings 2.3 and 7.6; **the ground's shading** 14.4 and 17.0 where the ground shows (2.1
+  in the forest), its savings 0.0 and 7.2. The shadow maps cost 7.1 in the forest only.
+  The figure costs nothing measurable (153 000 triangles and all): no lighter mesh needed.
+- *Half the measured frame is in no group*: with every group out 31 to 39 ms are left, and
+  with nothing drawn at all 11 to 24: some 15 to 20 ms of passes nobody has named yet (the
+  haze, the finishing passes, the far pass), plus the page's own work (10 to 13 ms a frame
+  on Haven, 4.5 on the Moon; the clouds and the sky are 3 to 3.5 ms of it).
+- *Pixels*: 1.00 against 2.07 against 3.14 MP is some 8 to 10 ms a megapixel at most.
+- *Uploads inside a pass*: 6 to 8 a frame on Haven (40 to 57 KB), 3 to 4 on the Moon.
+
+**A correction to that reading (the sky helper, 21:20 UTC).** The cost test chose its parts
+when it was made, at the end of the route, on the Moon, where the sky says "no clouds" and
+the far forest "no trees". So in these results the sky's group was the far pass, the
+middle and high cloud, the far cells, the shafts, the fog and the lenses, **without** the
+march, the shade map, the field's maps or the far low shell (their rows are missing from
+the table for that reason), and "nothing drawn" still ran every pass of the sky. The
+sky's 24 ms is therefore not the march; by count the likeliest payer is the two upper
+shells (two draws over every pixel of sky, some 8 reads each). Fixed on the sky helper's
+branch (`1067ffc`: the plan made on the view's own world, each sky part measured twice);
+the next link carries it and asks for the benchmark that names the part.
+
+**What the speed helper found in the same results (`45d79bd`, merged).** (a) *With every group out the ground is still drawn, flat, with the small things*: the
+20 / 7 / 27 ms between that and "nothing drawn" were first read as the ground's triangles
+and then **taken back by the helper itself**: plain milliseconds from different moments of
+a test whose baseline drifted from 54 to 125 ms, largest where the drift was. Not a
+finding. The table now measures "the ground not drawn at all" as a group against
+baselines, and says how much less "nothing drawn" is than everything on just before it. (b) *Uploads inside a pass* are all vertex buffers, no
+texture (the lying leaves' 75 KB a frame, cured since; the ground's patch list 8 KB): left.
+(c) *The "unknown" hitches ten seconds in* were shaders made at first use (the trees',
+the far forest's, the shadow casters'): every scene's shaders are now made while loading
+(`App.precompile`); one left, the sky field's, with the sky helper;
+`scripts/shader-first-use.mjs` lists them. (d) **The governor's order is by the families
+now (a behaviour change)**: the cloud march's coarser steps first, then the trees', the
+Sun's beams (live only while drawn), close-up detail, the patches; then cloud shadows, the
+cloud volume, far relief; then what bought nothing, the grass's three among them (they
+headed the order; the whole grass left out now costs time, it hides dearer ground).
+`npm run govsim` passes on a model of these results.
+
+**Decided.** (1) The sky's cost goes before the sky's look: the sky helper finds which pass
+and which pixels pay the 24 ms and halves it, and makes the savings buy the rest. (2) The
+speed helper: names what is left with every group out, names the uploads inside a pass and
+the "unknown" hitches, goes on with the forest's cost, and sets the governor's order from
+the families (the sky's first, then trees and leaves, glow, the ground's, shadows, grass,
+rocks and the figure), with `npm run govsim` before anything is sent. (3) No lighter mesh
+for the figure. (4) The plain benchmark is asked for again on the build after those cuts,
+not now.
+
+### A wood's edge dead straight from the air (2026-11-27, found by the sky helper's motion strip)
+
+From 3 km over the opening place, toward 30 degrees, the wood ended at a ruler line four
+kilometres long (`docs/shots/joined/wood_edge_from_3km_before_after.png`, left).
+**Cause**: the tree line was a contour twice over (the land rule's, by temperature, and
+the trees' own in `treeBlock.js`, by height, which emptied the parkland band below it), and
+the flank there is one of those the maker leaves at one slope: a straight contour.
+**Cure**: one rule ends a wood. The land rule's line wiggles by two noises (`treeRag`
+2 degrees C: a kilometre and a half and some hundreds of metres across, some 150 m of
+height either way); how closed the canopy is goes by the wood's own share
+(`1.5 f f`, what the three class steps times the trees' thinning came to at the opening
+place), not in three steps; Haven's trees keep their own limit 260 m over that line as a
+last stop (`life.trees.line.above`, `band`) and their stunting over the 350 m under it.
+The colour map from the air was made again (`make-world.mjs` gave the same land to the
+byte, `make-world-maps.mjs` the new `haven_day_*.jpg`).
+**A side effect caught in its picture**: three trees appeared within 15 m of the opening
+place (two firs across the mountain): the opening place is kept clear of trees within
+22 m (`life.trees.clear`, as the rocks keep theirs), and the view is as it was
+(`opening_run_treeline.png`).
+**Behaviour changes**: every wood's upper edge on Haven is ragged, with glades below it and
+tongues above (the tree line itself has not moved on average); woods near the line are a
+little thinner or denser from place to place than before. `scripts/land-sketch.mjs` draws
+the rule from above in seconds (`wood_edge_rule_before_after.png`).
+**Checked**: every no-browser test (the sky model's timing line is a coin toss on this
+machine: the sky helper is asked to make it a ratio); the opening view, from 3 km, from
+6 km. Not yet on the link.
+
+### The second joined build of 2026-11-27 (17:30 UTC): more cuts, mist from the shore, a clean winter (sent: PR #43, main daa009f)
 
 On top of main 6fac2be, this branch at `219fe4b`: the **speed helper** to `830d621` (only
 the cells that can carry a flower are handed over, flowers' and near trees' corners shared,

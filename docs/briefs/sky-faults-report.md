@@ -555,3 +555,180 @@ way, two new moves (`haven_heaps_air`, `haven_heaps_ground`): results below when
 **(3)** was cured under the second list. **(4) The anvil: not done.**
 
 SKY-SECOND-DONE (2026-11-27), with the anvil left.
+
+## Third note (2026-11-27, 14:21): the look in motion, the veil, the anvil
+
+**(1) The look in motion** (`node scripts/stability.mjs --only <move>`, settled frames one
+step apart, from a frozen build of 8e58ba3 merged with 0c5e99c; three new moves, and a new
+kind of step, `time`: seconds of the clock a frame with the camera still).
+- `haven_heaps_3k`, level flight at 3 km under the noon heaps, 2 m a frame, three stations
+  500 m apart (`motion_heaps_3k_0.png`): 0.47 %, 0.35 % and 0.06 % of the pixels change
+  between frames, flicker 0.01 %, 0.005 % and 0 %. The difference picture is the outline of
+  the near heap as it passes and the sparkle of the far trees; no window of the shade map
+  shows on the country below. Nothing pops.
+- `haven_mist_sink`, sinking 6 cm a frame over the lake of the mist view, four stations from
+  516 m to 492 m over the sea (`motion_mist_sink_stations.png`, the first frame of each;
+  both since replaced by the run of the fourth note, below: this one ran with the mist drawn up to 79 m too high): 0 % changed and 0 % flicker at all four, the
+  largest change of any pixel 35/255. Nothing pops. (The 24 m fade of the note is gone since
+  072045a: what comes on is the air's veil, over 14 m.) NOT covered: the run began inside the
+  mist already (the water lies higher than my guess of 470 m), so the very moment of passing
+  through its top is not in these frames. SEEN in them, a fault of look and not of motion:
+  from inside the mist the far sky and its clouds show down to the horizon, and at the
+  lowest station a faint level line where the veiled water meets the unveiled sky. The veil
+  is on lit surfaces only; the sky behind them has none. Not cured here.
+- `haven_drift_still`, standing at the opening view with the clock running half a second a
+  frame, three stations five minutes of the clock apart (`motion_drift_still_0.png`): 10.7 %,
+  11.5 % and 10.9 % changed, flicker 3.7 to 4.1 %, ALL of it grass waving in the wind (half a
+  second a frame is fifteen frames of play). In the sky's part of the picture (its top 30 %)
+  0.001 % of the pixels change and none flickers: the cloudlets drift whole, and no turn of
+  the shade map shows. The first station was "not ready in time (terrain rocks)" and took
+  what was on screen.
+- not run: `--streaming`; the hand-over at 16 km in a long flight.
+- A thing seen on the way and not the sky's: in `motion_heaps_3k_0.png` the wood on the
+  mountain ends at a dead straight vertical line against the meadow.
+
+**(2) The veil knowing of the mist on the water**: done before the note, at 072045a (see
+"Third list" above): `mist_shore_after.png` (the lid) against `mist_shore_veil.png`.
+
+**(3) The anvil.** What was wrong (`anvil_before.png`, the storm view): the anvil was the high
+shell's sheet asked where a ray crosses ONE sphere: no depth, one grey underneath, and the mid
+layer's cloudlets, 3 km under it and in its shadow, drawn sunlit in front of it as cream
+flecks all over. And it was thrown away with the clear sky wherever the field had no high
+cloud at the place the ray crossed the shell, kilometres from where it met the anvil.
+What it is now (`anvil_after.png`, the same view; `anvil_side_after.png`, from 6.5 km up and
+32 km to its side):
+- `cellShape.js` (shared; added, nothing of the old rule changed but the depth): `anvilChord`,
+  a ray's exact stretch through the anvil's slab and the ball that holds it (JS and GLSL; the
+  spheres met by the ray's distance from the world's middle, which keeps 32-bit floats to
+  centimetres on Haven and a metre on Earth), and `anvilDepth`: ANVIL_THICK thinning downwind
+  as before, and ANVIL_FLARE (1 400 m) deeper round the tower, none at the neck's edge and
+  none from 0.9 of the way downwind: the tower's top widens into it.
+  `scripts/sky-cell-test.mjs`: the GLSL's chord against the JS's (Haven and Earth), a march
+  from 300 eyes under it that finds nothing solid outside the stretch (12 642 solid points
+  inside), and the same march failing on a stretch cut short.
+- `upperClouds.js`: the high shell walks that stretch in 8 steps (4 thinned, the governor's
+  `cloud-upper`; no new step), finds where the line of sight enters by 5 halvings (2
+  thinned), and shades by how high in the anvil that is: the underside's grey (paler toward
+  the thin edge), the lit top, and a side turned to the eye lit when the Sun is behind the
+  eye. The mid shell is thinned in front of an anvil as it is in front of a tower.
+- Taken on the way (the speed helper's count): the low far shell and the upper shell are
+  handed over with shared corners: 144 060 to 24 012 and 65 340 to 10 892 vertices a draw.
+What is left: from the front it is one mass flaring from its tower, its edge soft; from the
+side at 32 km it is a thin lens downwind of the tower with a lit rim, the flare hidden behind
+the tower. The model's shade and cover still take the anvil as a sheet (anvilCover). Its
+cost is not measured on the phone: 8 + 5 reads of the anvil's rule on the pixels its ball
+covers, and one ball test an anvil on every pixel of the two upper shells while a storm
+with an anvil is in the list.
+
+## Fourth note (2026-11-27, 18:07): the tower, the anvil's underside, the mist from inside
+
+**A fault of mine found on the way: the mist stood the lake's depth too high.** `fogSheet.js`
+added the water's depth to the height function's answer, and over water that answer is
+already the water's SURFACE (`layers.js`: `c.h = L; c.water = L - g`). Over the mist view's
+lake, 79 m deep in its middle, the mist's top and the eye's veil were up to 79 m too high: a
+dome of mist over the deep water, and an eye far above the real mist fully veiled (the first
+sink run "began inside" for this). The test's made-up land had the same mistake, so it passed.
+Fixed in both; `node scripts/fog-sheet-test.mjs` fails three checks on the old sum. From above
+the mist view hardly changes (`view_mist.png` renewed: it lies lower and flatter).
+
+**The mist from inside** (`motion_mist_sink_stations.png`, renewed: five stations from 537 m,
+14 m over the mist's top, to 505 m, 18 m inside it; before the fix of this note the same run
+showed, 2 m inside the top, clear blue water to a sharp horizon where 8 m higher there had
+been a white plate: a pop, in `motion_mist_sink_pop_before.png`):
+- seen from inside, the sheet takes all of a line of sight that runs along it (the sine of
+  the angle was held at 0.05, so an eye 2 m under the top saw half the far sky through it down
+  to the horizon), and toward the horizon it has the very colour the air's veil gives the
+  water under it: no level line, the far sky and its clouds gone into the mist;
+- the air's veil for an eye inside is 0.009 a metre (was 0.0045) and all there 4 m under the
+  top (was 14 m): the water under an eye just inside is veiled at once.
+- the run's numbers: 0.01 % of pixels changed at the three upper stations, 0 % at the two
+  lower, no flicker. Between stations (8 m apart) the picture now goes from the plate to the
+  inside without clear water in between.
+- LEFT: the tone changes at the top: lit mist from above is warm (the low Sun's), the veil
+  from inside is the sky's cool grey-blue (rainVeil's colour, shared with the rain). And
+  straight down from just inside, the water is veiled by a quarter where from just above the
+  sheet took half. `fog-sheet-test` has no check of this hand-over: it is a thing of two
+  shaders, seen only in the strip.
+
+**(a) The tower** (`anvil_after.png` renewed; `anvil_side_after.png` renewed): its hull is
+eaten by a second, broader reading of its own noise (`CELL_LUMP`, 0.9 of the noise's scale)
+on top of the fine one: the outline moves by up to a kilometre in bulges, where it moved by
+300 m and read as a smooth dome from 30 km. The turn from its lit side to its shade is soft
+(`CELL_TURN`, over a cosine of 0.5 each way) and follows the bulges (`CELL_TURN_LUMP`): no
+straight line down its middle. One more read of the noise a step of a tower's march; not
+measured on the phone, no new governor step (the march's own steps thin it).
+
+**(b), (c) The anvil's underside**: what made it "one beige, the tone of the cloudlets" was
+three things, found one picture at a time: it was lit by the whole sky from below (now it
+keeps 0.22 of that under its deep middle and 0.5 at its rim); 15 km of low air laid its warm
+veil over it (it keeps the share its tower keeps, `CELL_HAZE`); and the mid cloudlets in front
+of it, in its shadow, were drawn sunlit (now taken out entirely on lines of sight that go on
+into an anvil). Its shade is the tower's slate (`CELL_TINT`), darker where it is deep (round
+the tower) and paler toward its thin rim; the rim is frayed by two readings of the cirrus
+strokes (`ANVIL_TORN` 0.6).
+
+Pictures of this note: `anvil_third_note.png` (what the note was written about) against
+`anvil_after.png` (the storm view now) and `anvil_side_after.png` (taken one build earlier:
+the mid cloudlets in front of the anvil were still a fifth there); `mist_inside_at_water.png`
+(an eye at the water inside the mist: the place of the old "shore" pictures is under the
+lake's true surface, the Node height source knows only its bed); `view_mist.png`.
+Not done: the tone's change at the mist's top; nothing of this note measured on the phone;
+`npm run smoke` and `--streaming` not run.
+
+## Fifth note (2026-11-27, 18:13, read at 20:43): the sky's cost after the thirteenth benchmark
+
+Read late: three notes lay in the queue for two and a half hours while I waited on pictures.
+
+**Why six of the sky's rows were not in the phone's table, and what the sky's 24 ms was.**
+The cost test chose its parts when it was made: at the end of the route, on the Moon, where
+the sky answers "no clouds here" (`hasPart`) and the far forest "no trees". So the rows for
+all the clouds, their shadows, the march, the far low shell, the field's maps and every pass
+of the sky were never measured, nor the two what-it-adds rows of the trees' and far forest's
+air; the sky's GROUP was the far pass + the middle and high cloud + far cells + shafts + fog +
+lenses, without the march, the shade map or the field; and "nothing drawn" still ran every
+pass of the sky. Fixed (`CostTest._plan`, made again when the test stands on its view's own
+world), and each sky part is a group of one, measured twice between baselines
+(`costPlan.js` GROUPS: the march with its layers, the middle and high cloud, the far low
+shell, the shade map's passes, the field's maps, the far pass). `benchmark.js` and
+`costPlan.js` are the speed helper's: touched, said. `npm run smoke` (the benchmark on
+Mars, at --dsf 0.5) passes with it; the Haven run was started and its result is below when in.
+
+**By count, at the opening view at rest** (`node scripts/gl-count.mjs --stops ledge`, picture
+1100 x 515 = 566.5k px; a phone at 1.88 MP has 3.3 times these):
+
+| pass | every | pixels | what a pixel costs |
+|---|---|---|---|
+| the march (`cloudVolume.target`) | frame | 212.8k (37.6 % of the picture: 6 slices at a quarter size each way) | 7 steps a ray a slice; a step in cloud: the field, 2 to 3 reads of the noise, its light |
+| its smoothing | frame | 212.8k | a few taps |
+| its summary (`cloudVolume.all`) | frame | 35.5k | 5 looks |
+| 6 layer quads into the picture | frame | each at most the picture, cut by the ground in front and, under the layer, to the sky | 1 to 4 taps, blended |
+| the two upper shells | frame | every sky pixel, twice (2 calls, 21.8k vertices) | 1 field read, 2 to 3 noise reads, the Sun's, the sky's and the air's tables: some 8 reads |
+| the fog sheet | frame while mist is in reach | where the mist is (16.6k vertices) | 2 noise reads and the same tables |
+| the field's maps | one of three in turn, 4 frames of 12 | 32.8k | 2 reads |
+| the shade map | 4 frames of 12 | 65.5k | |
+
+I had said the march is not made at the opening view: wrong. It is made every frame there
+(low cloud within reach at that hour). These counts do not say which of the march, the upper
+shells and the far pass is the phone's 24 ms; the next benchmark's table does, part by part.
+NOT DONE: halving it, and the savings' share: I did not cut on a guess between them.
+
+**The page's own work** (`node scripts/sky-work.mjs --distdir <build>`: every method of the
+sky and its parts timed in the real game; this machine's ms): of some 2.2 ms a frame at the
+opening view, the weather step 0.84 (now 0.52), the mist's update 0.44 (0.31: its shadow from
+the land is asked for 16 points a frame, was 32), the clock step 0.29 (now under 0.06: the
+steering's angles were worked out from their knots 14 times a frame, and are kept for the
+moment last asked), the field's blend 0.16, five looks into the field 0.18 (0.10). About 1.4
+now. The methods that draw read far too high on software WebGL and say nothing.
+
+**The model test's timing check**: judged against a yardstick timed in the same run (a fixed
+loop of the same kind of arithmetic): 2.6 yardsticks today, 3.9 allowed, and a second check
+that twice the cost would fail.
+
+**The clouds' shade at the vertices of far patches** (asked by the main session for the
+ground-cost helper): it can. A patch of edge S stands 0.95 S to 1.9 S off and has a vertex
+every S/40: a vertex every d/38 at most at distance d. The atlas has 55 m a texel to 7 km
+(worst: 1.45 texels a vertex, on a 3.2 km patch 3 to 6 km off), 220 m to 28 km (0.7 on a
+6.4 km patch, 1.45 on a 12.8 km one, 2.9 in the last 4 km before the world window takes
+over), 1 530 m beyond (under 1). Not changed by me: `terrainMaterial.js` is in another
+helper's hands; it is one constant (`CLOUD_VERT_TILES`), to be looked at in
+`haven_cloudshade_flight` before and after.

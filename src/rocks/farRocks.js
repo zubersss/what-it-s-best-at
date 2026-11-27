@@ -590,6 +590,7 @@ export class FarRocks {
   // The order stays (seen from farthest first), so the first so-many are still the ones a
   // distance can show.
   _fill(slot, b) {
+    this.filledMs = performance.now();          // (when: for the benchmark's hitch list, App.frameCause)
     if (!this._eye) { b.dirty = true; return; }
     const f = b.full, n = b.count, p = this._eye, at = slot.at, reach = this.def.reach, small = this.uFar.value.z, lo = this.shareLo, hi = this.shareHi;
     const slack = Math.max(0.2 * this.def.levels[slot.li].size[0] * reach, this.speed * 1.0);

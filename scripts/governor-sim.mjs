@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import * as GovModule from '../src/perf/governor.js';
 import { Benchmark } from '../src/perf/benchmark.js';
 import { PARTS } from '../src/perf/profile.js';
-import { run as route, where as routeWhere } from './lib/governor-route.mjs';
+import { run as route, where as routeWhere, BUYS13, skyStub } from './lib/governor-route.mjs';
 import { CameraRig } from '../src/controls/cameraRig.js';
 const { Governor, FRAME, FEATURE_STEPS } = GovModule;
 const stubGl = { getExtension: () => null };
@@ -241,21 +241,24 @@ const ownLate = (mode) => {
   if (long.length) { console.log('FAILED: savings switched off for late frames that no saving cures'); process.exitCode = 1; }
 };
 ownLate('sharp'); ownLate('smooth');
-// (2) Sharp at the opening view (frames 35 to 38 ms at native, grass-mid cures them): a saving
-// that buys nothing (cloud-steps), once back with no late frame since, must not be taken off
-// again by a late share that is only the memory of the trial's first frames.
+// (2) Sharp at the opening view (frames 35 to 38 ms at native, one saving cures them: the Sun's
+// beams, the thirteenth results' glow; it was grass-mid, on the ninth's): a saving that buys
+// nothing (cloud-steps), once back with no late frame since, must not be taken off again by a
+// late share that is only the memory of the trial's first frames.
 {
   let seed = 7; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
   const offFor = {}; let lastT = 0;
-  const g = run('Sharp, the opening view: frames 35 to 38 ms at any size, grass-mid buys 6.0, nothing else buys anything', { vsyncMs: 8.403, mode: 'sharp', native: NATIVE, seconds: 240, work: () => 8,
-    cost: (p, t, gg) => 35 + 0.3 * p / 1e6 + 3 * rnd() - (gg.isOff('grass-mid') ? 6 : 0),
+  const g = run('Sharp, the opening view: frames 35 to 38 ms at any size, the Sun\'s beams buy 6.0, nothing else buys anything', { vsyncMs: 8.403, mode: 'sharp', native: NATIVE, seconds: 240, work: () => 8,
+    scene: { post: { bloomEnabled: true, shafts: 1, sunUv: [0.5, 0.5, 1] } },
+    cost: (p, t, gg) => 35 + 0.3 * p / 1e6 + 3 * rnd() - (gg.isOff('sun-beams') ? 6 : 0),
     events: (t, gg) => { for (const id of gg.offIds || []) offFor[id] = (offFor[id] || 0) + (t - lastT); lastT = t; } });
-  // (a trial gives its savings back one at a time, some 6 s apart: up to half a minute off is
-  // the trial; the fault kept cloud-steps off 70 s and trees-far 47 s)
-  const kept = Object.entries(offFor).filter(([k, s]) => k !== 'grass-mid' && s > 30);
+  // (a trial gives its savings back one at a time, 3 to 6 s apart: with eight taken, the last
+  // of them is off for 40 s, and that is the trial; the fault kept cloud-steps off 70 s and
+  // trees-far 47 s, and those are the ones looked at hardest: the first taken, back in 10 s)
+  const kept = Object.entries(offFor).filter(([k, s]) => k !== 'sun-beams' && s > (k === 'cloud-steps' || k === 'trees-far' ? 15 : 45));
   console.log(`  off over the run: ${Object.entries(offFor).map(([k, v]) => `${k} ${v.toFixed(0)} s`).join(', ') || 'none'}; savings on at the end: ${(g.offIds || []).join(', ') || 'none'}`);
-  if (kept.length) { console.log(`FAILED: ${kept.map(([k]) => k).join(', ')} kept off for more than 30 s, buying nothing`); process.exitCode = 1; }
-  if (!(g.offIds || []).includes('grass-mid')) { console.log('FAILED: the one saving that cures the frames is not on at the end'); process.exitCode = 1; }
+  if (kept.length) { console.log(`FAILED: ${kept.map(([k]) => k).join(', ')} kept off for more than a trial takes (45 s; the first two 15 s), buying nothing`); process.exitCode = 1; }
+  if (!(g.offIds || []).includes('sun-beams')) { console.log('FAILED: the one saving that cures the frames is not on at the end'); process.exitCode = 1; }
 }
 run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native: 1920 * 1080, seconds: 40, cost: (p) => 2 + 1.5 * p / 1e6 });
 
@@ -303,14 +306,23 @@ run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native
   // repeats in a second view): far-relief 3.9, far-rock-shadows 3.0, clouds 2.7, cloud-volume
   // 2.0, grass-mid 1.4; every other saving bought nothing. Frames 34 ms at 1.6 MP with
   // everything on (the phone's ledge at its floor: a quarter to a half of the frames late).
-  const LEDGE = { 'far-relief': 3.9, 'far-rock-shadows': 3.0, clouds: 2.7, 'cloud-volume': 2.0, 'grass-mid': 1.4 };
-  const ledgeCost = (mp, g, t, gauss) => { let c = 30.8 + 2.06 * mp + 2.0 * gauss(); for (const id in LEDGE) if (g.isOff(id)) c -= LEDGE[id]; return c; };
+  // (So it stood for the governor of the tenth results. The order of 2026-11-27 is made from
+  // the thirteenth's, and cases (1), (3) and (4) are asked of the phone as the thirteenth has
+  // it: lib/governor-route.mjs, MODELS.thirteenth. At the opening view the savings that buy
+  // are the sky's (the cloud volume 3.5, its coarser steps 1.5 while it is drawn), the
+  // Sun's beams 4.2 and the trees' (1.3 and 1.0); the grass's, the shadows',
+  // the ground's and the rocks' buy nothing. 22.2 ms and 5 a megapixel: at 1.88 MP a fifth
+  // of the frames late with everything on, as the phone had them.)
+  const LEDGE = BUYS13.ledge;
+  const ledgeCost = (mp, g, t, gauss) => { let c = 22.2 + 5 * mp + 2.0 * gauss(); for (const id in LEDGE) if (g.isOff(id) && !(id === 'cloud-steps' && g.isOff('cloud-volume'))) c -= LEDGE[id]; return c; };
+  // (the opening view's scene: a few trees near, the far forest, the Sun in the picture, the sky's steps)
+  const ledgeScene = () => { const sc = { trees: { count: 200, reach: 1, setFraction() {} }, farForest: { shown: true, count: 5000, setFraction() {} }, post: { bloomEnabled: true, shafts: 1, sunUv: [0.5, 0.5, 1] }, cloudVolume: { wanted: true, enabled: true }, clouds: { mesh: { visible: true } } }; sc.sky = skyStub(sc); return sc; };
 
   // (1) governor-1 and -2: Haven remembered at 1.82 MP (the phone started there: its first
   // step, at 6.2 s, was "down to 1.60 MP"), the opening view as measured: the savings that buy
   // must be used at a sharp picture, not at the fewest pixels.
   {
-    const { g, frames } = sharp10({ seconds: 90, cost: ledgeCost, known: { 'sharp:haven:2': 7 } });
+    const { g, frames } = sharp10({ seconds: 90, cost: ledgeCost, known: { 'sharp:haven:2': 7 }, scene: ledgeScene() });
     const tail = frames.filter((f) => f.t > 60), mp = tail.reduce((a, f) => a + f.mp, 0) / tail.length;
     console.log(`\nTenth results (1): Haven remembered at 1.82 MP, the opening view: last 30 s at ${mp.toFixed(2)} MP, ${(100 * late10(tail)).toFixed(1)} % late, savings on: ${g.offIds.join(', ') || 'none'}`);
     if (mp < 2.6) fail(`the picture stayed at ${mp.toFixed(2)} MP where 2.67 MP holds with the savings that buy`);
@@ -335,15 +347,17 @@ run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native
   // robe and the fine shadow tile went off at 8.3 s, before the clouds' shadows and far relief,
   // and came and went some ten times in a minute.
   {
-    const NOTHING = ['cloak', 'fine-shadows', 'bloom', 'cloud-steps'], BUY = Object.keys(LEDGE);
-    const { g } = sharp10({ seconds: 60, cost: ledgeCost, known: { 'sharp:haven:2': 8 } });
+    // (on the thirteenth: the families that bought nothing in any view; cloud-steps buys now)
+    const NOTHING = ['cloak', 'fine-shadows', 'bloom', 'grass-mid', 'grass', 'contact', 'rocks', 'far-rocks', 'soft-shadows', 'air-shadow'], BUY = Object.keys(LEDGE);
+    const { g } = sharp10({ seconds: 60, cost: ledgeCost, known: { 'sharp:haven:2': 8 }, scene: ledgeScene() });
     const offs = g.log.filter((l) => l.text.startsWith('off: ')).map((l) => FEATURE_STEPS.find((f) => 'off: ' + f.label === l.text)?.id);
     const firstBuy = Math.min(...BUY.map((id) => { const k = offs.indexOf(id); return k < 0 ? 1e9 : k; }));
     const early = offs.slice(0, firstBuy === 1e9 ? offs.length : firstBuy).filter((id) => NOTHING.includes(id));
     console.log(`Tenth results (3): the first savings a trial takes at the opening view: ${offs.slice(0, 8).join(', ')}`);
     if (early.length) fail(`switched off before any saving that buys: ${[...new Set(early)].join(', ')}`);
     // (and with the cloud volume off, coarser steps through it is not a step that can buy anything)
-    const app = makeApp10(), gg = new Governor(app, 'sharp'); gg.setNative(NATIVE);
+    const app = makeApp10(ledgeScene()), gg = new Governor(app, 'sharp'); gg.setNative(NATIVE);
+    if (FEATURE_STEPS[gg._nextStep()]?.id !== 'cloud-steps') fail('cloud-steps is not the first saving offered while the cloud volume is drawn');
     gg._stepOff(idx('cloud-volume'), false);
     if (FEATURE_STEPS[gg._nextStep()]?.id === 'cloud-steps') fail('cloud-steps offered as the next saving with the cloud volume already off');
   }
@@ -355,7 +369,7 @@ run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native
   {
     let mp = 0, n = 0, lt = 0, sw = 0;
     for (let seed = 1; seed <= 8; seed++) {
-      const res = route(GovModule, { model: 'mixed', seed, start: 7 });
+      const res = route(GovModule, { model: 'thirteenth', seed, start: 7 });
       for (const f of res.frames) if (f.key.startsWith('haven:') && f.key !== 'haven:flight') { n++; mp += f.mp; if (f.dt > 40) lt++; }
       sw += res.g.log.filter((l) => /^(off|back on):/.test(l.text) && routeWhere(l.t).world === 'haven' && routeWhere(l.t).key !== 'haven:flight').length;
     }
@@ -559,7 +573,7 @@ run('Desktop 1080p 60 Hz, strong GPU', { vsyncMs: 16.667, mode: 'smooth', native
   {
     let T = 0, offCV = 0, mp = 0, on = 0, n = 0;
     for (let seed = 1; seed <= 8; seed++) {
-      route(GovModule, { model: 'mixed', seed, start: 7, onFrame: (t, g, dt) => { if (t < 60 || t >= 99.5) return; T += dt; n++; mp += g.pixels / 1e6; on += g.featureLevel; if (g.isOff('cloud-volume')) offCV += dt; } });
+      route(GovModule, { model: 'thirteenth', seed, start: 7, onFrame: (t, g, dt) => { if (t < 60 || t >= 99.5) return; T += dt; n++; mp += g.pixels / 1e6; on += g.featureLevel; if (g.isOff('cloud-volume')) offCV += dt; } });
     }
     console.log(`Review of 1eb21e3 (1): the flight from Haven, 8 runs: ${(mp / n).toFixed(2)} MP, ${(on / n).toFixed(1)} savings on, the clouds with depth off ${(100 * offCV / T).toFixed(0)} % of it`);
     if (mp / n < 2.6) fail(`the flight at ${(mp / n).toFixed(2)} MP`);

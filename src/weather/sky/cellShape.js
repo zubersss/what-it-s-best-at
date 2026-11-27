@@ -27,8 +27,8 @@
 //   - The footprint: the tower seen from straight above (the lean's whole length, the column's
 //     radius), for cover and darkness overhead.
 //   - The anvil (its own list: an anvil outlives its cell by 40 min): a flat fan at its level
-//     (at most ANVIL_TOP, ANVIL_UNDER under its tower's mature top), ANVIL_THICK deep over the
-//     tower and thinner downwind, from a neck over the tower (ANVIL_NECK of its far radius) to
+//     (at most ANVIL_TOP, ANVIL_UNDER under its tower's mature top), ANVIL_THICK deep and thinner
+//     downwind, hanging ANVIL_FLARE deeper round its tower (the tower's top widens into it), from a neck over the tower (ANVIL_NECK of its far radius) to
 //     its far end where the high wind has blown it.
 // The hull (where the solidity is above 0) is made of quadric pieces in the cell's frame, so a
 // ray's entry and exit are exact: cellChord. cellLight is the exact length inside the hull
@@ -82,9 +82,13 @@ export const CELL_SHAPE = Object.freeze({
   ANVIL_UNDER: 300,   // ... and this far under its tower's mature top
   ANVIL_THICK: 1000,  // m: its depth over the tower ...
   ANVIL_THIN: 0.6,    // ... thinning by this share to its far end
+  ANVIL_FLARE: 1400,  // m: how much deeper it hangs round its tower (the tower's top widens into it: without, a plate laid on a column) ...
+  ANVIL_FLARE_IN: 0.3, // ... all of that inside this share of its neck's radius, none at the neck's edge ...
+  ANVIL_FLARE_ALONG: 0.9, // ... and none from this share of the way downwind (a wedge: deep at its tower, thin at its far end)
   ANVIL_NECK: 0.45,   // its radius over the tower, a share of its far radius
   ANVIL_EDGE_IN: 0.6, // its heart ends at this share of the way out
   ANVIL_SOFT: 150,    // m: its top and bottom fade over this much height
+  ANVIL_ROUND: 1.03,  // the ball that holds a whole anvil (anvilChord): its half length and its far radius, times this
 });
 
 export const CELL_MAX = 8;      // cells a shader holds
@@ -371,12 +375,50 @@ export function anvilCover(A, dir) {
   const l = Math.hypot(dir[0], dir[1], dir[2]), w = anvilPlace(A, dir[0] / l, dir[1] / l, dir[2] / l)[1];
   return A.strength * (1 - ss(S.ANVIL_EDGE_IN, 1, w));
 }
+// How deep the anvil is (m under its top) at a place of it (anvilPlace's f and w): ANVIL_THICK over
+// the tower and thinner downwind, and hanging ANVIL_FLARE deeper round the tower.
+export const anvilDepth = (f, w) => S.ANVIL_THICK * (1 - S.ANVIL_THIN * f) + S.ANVIL_FLARE * (1 - ss(S.ANVIL_FLARE_IN, 1, w)) * (1 - ss(0, S.ANVIL_FLARE_ALONG, f));
 // How solid the anvil is at p (0..1): its cover, between its top and its bottom.
 export function anvilDensity(A, p) {
   if (A.strength <= 0) return 0;
   const rp = Math.hypot(p[0], p[1], p[2]), g = anvilPlace(A, p[0] / rp, p[1] / rp, p[2] / rp), f = g[0], w = g[1];
-  const L = Math.sqrt(A.a0 * A.a0 + A.a1 * A.a1 + A.a2 * A.a2), h = rp - L, th = S.ANVIL_THICK * (1 - S.ANVIL_THIN * f);
+  const L = Math.sqrt(A.a0 * A.a0 + A.a1 * A.a1 + A.a2 * A.a2), h = rp - L, th = anvilDepth(f, w);
   return A.strength * (1 - ss(S.ANVIL_EDGE_IN, 1, w)) * ss(-th, S.ANVIL_SOFT - th, h) * (1 - ss(-S.ANVIL_SOFT, 0, h));
+}
+
+// The stretch of the ray o + t d (d a unit vector, t in m) on which the anvil can be: inside its
+// slab (between its top's sphere and the sphere ANVIL_THICK + ANVIL_FLARE under it; the first crossing, which
+// from below is the near one and from inside begins at the eye) and inside the ball that holds
+// it whole. (entry, exit), or (BIG, -BIG). Nothing of the anvil is solid outside it on that
+// crossing: who draws its depth samples this stretch and no more.
+// (The spheres are met by the ray's distance from the world's middle, k: h = (r - k)(r + k). The
+// usual b * b - c loses metres of a planet's radius squared in 32-bit floats.)
+export function anvilChord(A, o, d, out = [0, 0]) {
+  out[0] = BIG; out[1] = -BIG;
+  if (A.strength <= 0) return out;
+  const L = Math.sqrt(A.a0 * A.a0 + A.a1 * A.a1 + A.a2 * A.a2);
+  const m0 = (A.a0 + A.b0) * 0.5, m1 = (A.a1 + A.b1) * 0.5, m2 = (A.a2 + A.b2) * 0.5;
+  const rb = (0.5 * Math.hypot(A.b0 - A.a0, A.b1 - A.a1, A.b2 - A.a2) + A.radius) * S.ANVIL_ROUND;
+  const q0 = o[0] - m0, q1 = o[1] - m1, q2 = o[2] - m2, bq = q0 * d[0] + q1 * d[1] + q2 * d[2];
+  const c0 = q1 * d[2] - q2 * d[1], c1 = q2 * d[0] - q0 * d[2], c2 = q0 * d[1] - q1 * d[0];
+  const hq = rb * rb - (c0 * c0 + c1 * c1 + c2 * c2);
+  if (hq <= 0) return out;
+  const sq = Math.sqrt(hq), s0 = Math.max(0, -bq - sq), s1 = -bq + sq;
+  if (s1 <= s0) return out;
+  const b = o[0] * d[0] + o[1] * d[1] + o[2] * d[2];
+  const k0 = o[1] * d[2] - o[2] * d[1], k1 = o[2] * d[0] - o[0] * d[2], k2 = o[0] * d[1] - o[1] * d[0];
+  const k = Math.sqrt(k0 * k0 + k1 * k1 + k2 * k2), r1 = L - S.ANVIL_THICK - S.ANVIL_FLARE;
+  const h2 = (L - k) * (L + k);
+  if (h2 <= 0) return out;
+  const g2 = Math.sqrt(h2), h1 = (r1 - k) * (r1 + k);
+  let x = Math.max(-b - g2, s0), y = Math.min(-b + g2, s1);
+  if (h1 > 0) {
+    const g1 = Math.sqrt(h1);
+    y = Math.min(-b - g1, s1);
+    if (y <= x) { x = Math.max(-b + g1, s0); y = Math.min(-b + g2, s1); }
+  }
+  if (y > x) { out[0] = x; out[1] = y; }
+  return out;
 }
 
 // ---- to the GPU -----------------------------------------------------------------------------
@@ -559,6 +601,7 @@ float cellFootprint(int k, vec3 dir) {
 // Anvils in a shader (the high shell's, or the march's): anvil k of uAnvils (0 .. uAnvilCount - 1).
 //   float anvilCover(int k, vec3 dir)    cover over a place (unit direction), 0..1
 //   float anvilDensity(int k, vec3 p)    how solid at p (planet-centred, m), 0..1
+//   vec2 anvilChord(int k, vec3 o, vec3 d)   the stretch of the ray (d a unit vector) on which it can be: (entry, exit) in m, or (BIG, -BIG)
 export const ANVIL_GLSL = glslOnce('SKY_ANVILS', /* glsl */`
 // anvils (made by src/weather/sky/cellShape.js from its constants; the JS there is the same rule)
 uniform vec4 ${U.anvils}[${ANVIL_MAX * ANVIL_VEC4}];
@@ -572,6 +615,10 @@ vec2 anvilPlace(int k, vec3 n) {
   float rr = a.w * (${glf(S.ANVIL_NECK)} + ${glf(1 - S.ANVIL_NECK)} * f);
   return vec2(f, length(pa - ab * f) / rr);
 }
+// how deep it is (m under its top) at a place of it (anvilPlace's answer)
+float anvilDepth(vec2 g) {
+  return ${glf(S.ANVIL_THICK)} * (1.0 - ${glf(S.ANVIL_THIN)} * g.x) + ${glf(S.ANVIL_FLARE)} * (1.0 - smoothstep(${glf(S.ANVIL_FLARE_IN)}, 1.0, g.y)) * (1.0 - smoothstep(0.0, ${glf(S.ANVIL_FLARE_ALONG)}, g.x));
+}
 float anvilCover(int k, vec3 dir) {
   float s = ${U.anvils}[k * ${ANVIL_VEC4} + 1].w;
   if (s <= 0.0) return 0.0;
@@ -583,7 +630,29 @@ float anvilDensity(int k, vec3 p) {
   if (s <= 0.0) return 0.0;
   float rp = length(p);
   vec2 g = anvilPlace(k, p / rp);
-  float h = rp - length(a.xyz), th = ${glf(S.ANVIL_THICK)} * (1.0 - ${glf(S.ANVIL_THIN)} * g.x);
+  float h = rp - length(a.xyz), th = anvilDepth(g);
   return s * (1.0 - smoothstep(${glf(S.ANVIL_EDGE_IN)}, 1.0, g.y)) * smoothstep(-th, ${glf(S.ANVIL_SOFT)} - th, h) * (1.0 - smoothstep(${glf(-S.ANVIL_SOFT)}, 0.0, h));
+}
+vec2 anvilChord(int k, vec3 o, vec3 d) {
+  vec4 a = ${U.anvils}[k * ${ANVIL_VEC4}], b = ${U.anvils}[k * ${ANVIL_VEC4} + 1];
+  vec2 miss = vec2(1e30, -1e30);
+  if (b.w <= 0.0) return miss;
+  float L = length(a.xyz), rb = (0.5 * length(b.xyz - a.xyz) + a.w) * ${glf(S.ANVIL_ROUND)};
+  vec3 q = o - (a.xyz + b.xyz) * 0.5;
+  float bq = dot(q, d), hq = rb * rb - dot(cross(q, d), cross(q, d));
+  if (hq <= 0.0) return miss;
+  float sq = sqrt(hq), s0 = max(0.0, -bq - sq), s1 = -bq + sq;
+  if (s1 <= s0) return miss;
+  float bo = dot(o, d), kk = length(cross(o, d)), r1 = L - ${glf(S.ANVIL_THICK + S.ANVIL_FLARE)};
+  float h2 = (L - kk) * (L + kk);
+  if (h2 <= 0.0) return miss;
+  float g2 = sqrt(h2), h1 = (r1 - kk) * (r1 + kk);
+  float x = max(-bo - g2, s0), y = min(-bo + g2, s1);
+  if (h1 > 0.0) {
+    float g1 = sqrt(h1);
+    y = min(-bo - g1, s1);
+    if (y <= x) { x = max(-bo + g1, s0); y = min(-bo + g2, s1); }
+  }
+  return y > x ? vec2(x, y) : miss;
 }
 `);

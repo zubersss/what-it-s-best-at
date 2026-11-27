@@ -1,10 +1,16 @@
 // The benchmark's counts and the plan of its cost test, without a browser (a second):
-//   node scripts/cost-plan-test.mjs [--break drift|pass|bytes]
+//   node scripts/cost-plan-test.mjs [--break drift|pass|bytes|moon]
 // 1. perf/glTally.js against a made-up context: draw calls, triangles, passes, uploads and their
 //    bytes, and which uploads fall inside a pass; the context is left as it was found.
 // 2. perf/costPlan.js: every group is measured twice with "everything on" on both sides; and with
 //    a baseline that climbs by 40 ms over the test, a group that truly costs 9 ms reads 9 ms
 //    (set against the first baseline, as --break drift does, it reads far off).
+// 3. perf/benchmark.js, CostTest: the plan is made on the VIEW's own world. The test is begun at
+//    the end of the route, on the Moon, where the sky says "no clouds here" and the forest "no
+//    trees": planned there, the phone's table of 2026-11-27 had no row for the clouds' parts and
+//    would have had none for the trees' light. A test made on a stand-in Moon and brought to a
+//    stand-in Haven must have Haven's rows when it begins to measure (--break moon: the plan
+//    kept as it was made).
 import { GlTally, TALLY, texelBytes, trianglesOf } from '../src/perf/glTally.js';
 import { GROUPS, SAVING_GROUPS, costConfigs, baselineAt, framesFor } from '../src/perf/costPlan.js';
 import { FEATURE_STEPS } from '../src/perf/governor.js';
@@ -71,6 +77,30 @@ const check = (name, ok, detail = '') => { console.log(`${ok ? 'ok  ' : 'FAIL'} 
   check('and what costs nothing reads nothing', others.every((v) => Math.abs(v) < 0.6), `largest ${Math.max(...others.map(Math.abs)).toFixed(2)} ms`);
   const hole = Float32Array.from(ms); hole[1 + 4 * 2 + 1] = NaN;             // (a baseline that could not be measured)
   check('a baseline that is missing is passed over', Math.abs(baselineAt(c, hole, 1 + 4 * 2) - hole[1 + 4 * 2] - 9) < 0.6);
+}
+
+// --- 3. the plan is the view's world's
+{
+  const { CostTest, PARTS_OUT } = await import('../src/perf/benchmark.js');
+  const HAS = PARTS_OUT.filter((p) => p.has).map((p) => p.id);
+  // a stand-in game: on the Moon there are no trees, no far forest and nothing of the sky's;
+  // on Haven all of them
+  const g = { featureLevel: 0, resLevel: 0, fixed: null, nativePixels: 4.45e6, allOn: () => [], _applyScale() {}, restoreSavings() {} };
+  const app = { governor: g, paused: false, timeOffsetHours: 0, switching: false, terrain: { idle: true }, world: { id: 'moon', radius: 1737400 },
+    trees: { def: null, shared: { uTreeOld: { value: 0 } } }, farForest: { def: null, shared: { uShadow: { value: { z: 0 } } }, setFraction() {} },
+    sky: { hasPart: () => app.world.id === 'haven', partOut() {}, hasSaving: () => app.world.id === 'haven', live: () => false, setSaving() {} },
+    rig: { setLatLon() {}, pos: { setLength() {} }, velocity: { set() {} }, mode: 'walk', standUp() {} } };
+  const bench = { app, first: 'haven', names: { haven: ['ledge'] }, busy: false, goto() { app.world = { id: 'haven', radius: 250000 }; app.trees.def = {}; app.farForest.def = {}; } };
+  const ct = new CostTest(bench);                     // (made on the Moon; its first act is to go to Haven's first view)
+  const onMoon = ct.parts.map((p) => p.id), n0 = ct.configs.length;
+  if (brk === 'moon') ct._plan = () => {};
+  ct.t0 = performance.now() - 3000; ct.update();     // (settled at the view: it begins to measure)
+  const here = ct.parts.map((p) => p.id), missing = HAS.filter((id) => !here.includes(id));
+  check(`a cost test made on a world without clouds or trees has none of their rows there (${HAS.filter((id) => onMoon.includes(id)).length} of ${HAS.length})`, HAS.every((id) => !onMoon.includes(id)));
+  check(`... and every one of them when it begins to measure on the view's world (${here.length} parts, ${ct.configs.length} measures; made on the Moon ${onMoon.length} and ${n0})`, ct.state === 'measure' && missing.length === 0 && ct.ms.length === ct.configs.length && ct.configs.length > n0, missing.length ? 'missing: ' + missing.join(', ') : '');
+  const inGroups = new Set(ct.groups.flatMap((gr) => gr.idx.map((i) => ct.parts[i].id)));
+  check("... with the trees' and the sky's parts in its groups", ['far-forest', 'trees'].every((id) => inGroups.has(id)) && HAS.some((id) => inGroups.has(id)));
+  ct.restore?.();
 }
 console.log(failed ? `${failed} FAILED` : 'all passed');
 process.exit(failed ? 1 : 0);
