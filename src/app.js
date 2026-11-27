@@ -521,6 +521,7 @@ export class App {
       snow = Math.min(1, Math.max(0, (h - line + 70) / 140));
     }
     sh.uGrassYear.value.set(g.fresh, g.dry, g.brown, g.flat + snow);
+    if (this.kicked) this.kicked.snow = snow;
     const whole = Math.floor(day + 1e-6);
     if (whole !== this._ksDay || Math.abs(lat - (this._ksLat ?? 1e9)) > 0.2) { this._ksDay = whole; this._ksLat = lat; this.flowersOut = kindsShut(whole, lat, sh.uKindShut.value); if (this.pollen) this.pollen.bloom = Math.min(1, this.flowersOut * 1.4); }
   }
