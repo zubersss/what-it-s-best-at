@@ -11,10 +11,11 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { FACES } from './cubeSphere.js';
 import { SKY_UNIFORMS } from '../sky/skyGlsl.js';
 import { SHADE_READ_GLSL, SHADE_WET_GLSL, CLOUD_SHADE_UNIFORMS, CLOUD_WET_UNIFORMS } from '../sky/cloudShade.js';
-import { GRASS_GLSL, FLOWERS_GLSL, GRASS_GROUND } from '../life/grassRules.js';
+import { GRASS_GLSL, FLOWERS_GLSL, GRASS_GROUND, KINDS } from '../life/grassRules.js';
 import { PAINT_LEAF } from '../life/trees.js';
 import { FAR_GREEN_GLSL } from '../life/farTreeForm.js';
 import { FAR_GROUND } from './farGround.js';
+import { SNOW_GLSL, SNOW_UNIFORMS } from '../render/snowGlsl.js';
 
 // Holds an albedo map's brightness (relative to its mean) inside the range the real ground
 // spans, with soft knees: a mosaic also records the shading of steep slopes, haze and
@@ -252,6 +253,10 @@ uniform float uLitter;         // fallen leaves under the trees, 0..1 by the sea
 // leaves' colour on this day (branches where they are bare); a: the level of the canopy's
 // patch noise over which a patch is theirs (their share of the wood there; 9: none).
 uniform vec4 uCanopyYear[8];
+uniform vec4 uLitterYear[8];   // the leaves lying in a wood, by height as uCanopyYear: rgb their colour, a: how much of the floor they cover
+uniform vec4 uLeafTree[8];     // the nearest trees with leaves under them (life/leaves.js TreeLeaves): xyz the foot from the eye (m), w the crown's radius (0: none)
+uniform vec4 uLeafTreeCol[8];  // ... rgb the colour of its fallen leaves, a: how much of them lies
+uniform vec4 uLeafDrift;       // xyz: where the wind carries them, in crown radii (planet axes); w: 1 while leaves lie anywhere near
 uniform vec4 uCanopyAlt;       // x: the first entry's height (m); y: entries a metre; z: metres of height a degree toward the pole counts for; w: the latitude the entries are for (degrees from the equator)
 ${WAVE_GLSL}
 uniform float uTime;
@@ -380,6 +385,7 @@ ${ALBEDO_RANGE_GLSL}
 // and the trees on it specks of another colour in both.
 ${PAINT_LEAF}
 ${FAR_GREEN_GLSL}
+${SNOW_GLSL}
 vec3 farCanopyColour(vec3 tint, vec3 c1, vec3 c2, float height, float absLat, float dist) {
   vec3 leaf = vec3(0.045, 0.085, 0.03) * 0.61;
   if (uPaint.x > 0.0) leaf = paintLeaf(leaf);
@@ -559,6 +565,7 @@ void main() {
   float woodAir = 0.0;           // how much this is forest (its floor, or its canopy far off): for the air of a wood
   vec3 mapTint = vec3(1.0);
   float mapW = 0.0;
+  vec3 snowHere = vec3(0.0);     // [seasons] x: new snow lying here, y: how much of the land's own snow is gone, z: how pale (snowy) the land's colour is
   if (uAlbedoMap.w > 0.0) {
     // (the world's own map is read only where the finer one round the traveller does not
     // cover the place whole: where it does, nothing of the world's map is left in the colour)
@@ -573,6 +580,15 @@ void main() {
       if (rw > 0.0) { vec4 ring = textureGrad(tRingColour, uvR, vec2(gx.x * uRingColour.z, -upX.z / oz * kv), vec2(gy.x * uRingColour.z, -upY.z / oz * kv)); raw = ring.rgb; ringW = rw; canopyTall = ring.a * 51.0 * rw; }
     }
     if (ringW < 1.0) raw = mix(textureGrad(tAlbedo, vec2(uvA.x + uAlbedoShift, uvA.y), gx, gy).rgb, raw, ringW);
+    // [seasons] The land's own snow (painted into its colour) where the season has taken it
+    // off: the bare high ground that was under it. (Asked only where the map is as pale as
+    // snow; snowHere is kept for the new snow below.)
+    if (uSnowLand.z > 0.0) {
+      float pale = smoothstep(0.42, 0.66, min(raw.r, min(raw.g, raw.b)));
+      float rough = flNoise(planetPos / 1500.0 + vec3(5.0, 2.0, 9.0)) + 0.4 * flNoise(planetPos / 310.0 + vec3(1.0, 7.0, 4.0)) - 0.7;
+      snowHere = vec3(snowSeason(vHeight, up, N, ts, rough), pale);
+      if (pale * snowHere.y > 0.0) raw = mix(raw, mix(vec3(0.215, 0.195, 0.115), vec3(0.20, 0.17, 0.14), rockW), pale * snowHere.y);
+    }
     raw *= uAlbedoMap.rgb;
     vec3 t = mix(albedoRange(raw, uAlbedoRange), raw, farW);
     mapW = uAlbedoMap.w * (1.0 - smoothstep(uAlbedoFade.x, uAlbedoFade.y, abs(up.z)));
@@ -685,11 +701,32 @@ void main() {
       // come through leaves)
       canopyShade = smoothstep(6.0, 16.0, canopyTall) * flatW * (1.0 - vShell);
       ao *= mix(1.0, 0.55, canopyShade);
-      if (uLitter > 0.0) {
-        // fallen leaves: a scatter of them, thicker as the season goes on
-        vec3 f1 = texture(tDetail, vDetailUv * 23.0).rgb, f2 = texture(tDetail, vDetailUv * 61.0).rgb;
-        float lie = smoothstep(0.70 - 0.22 * uLitter, 0.80 - 0.22 * uLitter, 0.6 * f1.r + 0.4 * f2.g) * wooded * (1.0 - vShell) * (1.0 - smoothstep(0.004, 0.03, fwidth(vDetailUv.x) + fwidth(vDetailUv.y)));
-        albedo = mix(albedo, mix(vec3(0.17, 0.11, 0.035), vec3(0.13, 0.05, 0.03), smoothstep(0.35, 0.7, f1.b)), lie * 0.6);
+      // [seasons] Leaves on the ground: as much as the season's rule says lies in a wood at
+      // this height (uLitterYear), thicker along the wood's edge; and under and down the wind
+      // of each of the nearest trees that have dropped theirs (uLeafTree), in that tree's
+      // colour, thickest against its trunk. Thin: a scatter; much: a carpet. Near the eye
+      // only: from afar a wood's floor is under its crowns.
+      if (uLeafDrift.w > 0.0) {
+        float nearL = 1.0 - smoothstep(0.004, 0.03, fwidth(vDetailUv.x) + fwidth(vDetailUv.y));
+        if (nearL > 0.0) {
+          float xl = clamp((vHeight + uCanopyAlt.z * (degrees(asin(clamp(abs(up.z), 0.0, 1.0))) - uCanopyAlt.w) - uCanopyAlt.x) * uCanopyAlt.y, 0.0, 6.999);
+          int il = int(xl); vec4 ly = mix(uLitterYear[il], uLitterYear[il + 1], xl - float(il));
+          float amt = ly.a * wooded * (1.0 + 1.5 * (1.0 - wooded)); vec3 colL = ly.rgb;
+          if (dist < 90.0) for (int i = 0; i < 8; i++) {
+            vec4 lt = uLeafTree[i];
+            if (lt.w <= 0.0) continue;
+            vec3 dl = vRel - lt.xyz - uLeafDrift.xyz * lt.w;
+            float rl = length(dl) / (1.5 * lt.w), kl = uLeafTreeCol[i].a * flatW * (1.0 - smoothstep(0.5, 1.2, rl)) * (1.0 + 0.6 * (1.0 - smoothstep(0.0, 0.25, rl)));
+            colL = mix(colL, uLeafTreeCol[i].rgb, kl / (amt + kl + 1e-3)); amt = amt + kl * (1.0 - min(amt, 1.0));
+          }
+          if (amt > 0.004) {
+            vec3 f1 = texture(tDetail, vDetailUv * 23.0).rgb, f2 = texture(tDetail, vDetailUv * 61.0).rgb;
+            amt = min(amt, 1.0);
+            float lie = smoothstep(0.84 - 0.62 * amt, 0.94 - 0.62 * amt, 0.6 * f1.r + 0.4 * f2.g) * smoothstep(0.0, 0.06, amt) * (1.0 - vShell) * nearL;
+            // (each leaf its own tone, some redder)
+            albedo = mix(albedo, colL * (0.75 + 0.5 * f1.b) * mix(vec3(1.0), vec3(1.1, 0.8, 0.85), smoothstep(0.5, 0.8, f2.b)), lie * 0.85);
+          }
+        }
       }
     }
   }
@@ -901,6 +938,15 @@ void main() {
     }
   }
 
+  // [seasons] --- new snow: where the season's line (and the day's fresh fall) has come down
+  // past the land's own snow, it lies on the ground and on the canopy raised beyond the
+  // trees: white, a little blue in the shade (the light does that), the ground's own colour
+  // showing at its edge in patches. Not on water.
+  if (snowHere.x > 0.0 && waterDepth <= 0.0) {
+    float lieS = smoothstep(0.25, 0.75, snowHere.x + (texture(tDetail, vDetailUv * 3.0).g - 0.5) * 0.5 * (1.0 - smoothstep(200.0, 900.0, dist)));
+    albedo = mix(albedo, vec3(0.80, 0.83, 0.88), lieS * (1.0 - 0.45 * shellOut));
+  }
+
   // --- the tide, and the wash of the waves up the shore. The map's shore is the highest
   // tide; the sea stands uTide.x under it (the Moon's and the Sun's pull, worked out for
   // the place and the hour: App.updateTide), and every wave runs a little way up the
@@ -1098,7 +1144,7 @@ void main() {
 // Uniforms shared by every chunk material (same objects, by reference).
 export function makeTerrainShared(world, textures) {
   const shared = {
-    ...lightingUniforms(),
+    ...lightingUniforms(), ...SNOW_UNIFORMS,
     tStrata: { value: textures.strata }, tDetail: { value: textures.detail }, uDetailMean: { value: new THREE.Vector4(...(textures.detail.userData.mean || [0.5, 0.5, 0.5, 0.5])) },
     uDust: { value: new THREE.Vector3() }, uSand: { value: new THREE.Vector3() },
     uScree: { value: new THREE.Vector3() }, uRock: { value: new THREE.Vector3() }, uBedrock: { value: new THREE.Vector3() },
@@ -1113,7 +1159,7 @@ export function makeTerrainShared(world, textures) {
     // reads to write itself with (nothing in the ground's shaders reads them any more)
     ...CLOUD_SHADE_UNIFORMS, ...CLOUD_WET_UNIFORMS,
     tCloudNoise: { value: null }, uCloudHeap: { value: new THREE.Vector4(0, 0, 0, 0) }, uCloudVol: { value: new THREE.Vector4() }, uCloudSteer: SKY_UNIFORMS.uCloudSteer,
-    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, uCanopyYear: { value: Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, 0, 9)) }, uCanopyAlt: { value: new THREE.Vector4(0, 0, 0, 45) }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) }, uGrassWave: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, uCanopyYear: { value: Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, 0, 9)) }, uCanopyAlt: { value: new THREE.Vector4(0, 0, 0, 45) }, uLitterYear: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) }, uLeafTree: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) }, uLeafTreeCol: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) }, uLeafDrift: { value: new THREE.Vector4() }, uGrassYear: { value: new THREE.Vector4() }, uKindShut: { value: new Float32Array(KINDS.length) }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) }, uGrassWave: { value: new THREE.Vector4(0, 0, 0, 0) },
     tRingColour: { value: textures.white }, uRingColour: { value: new THREE.Vector4(0, 0, 1, 0) },
     tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoShift: { value: 0 }, uAlbedoSteep: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
     uAlbedoRange: { value: new THREE.Vector2() }, uRockHue: { value: new THREE.Vector2() }, uCoverContrast: { value: 1 }, uBedrockSlope: { value: 0 },

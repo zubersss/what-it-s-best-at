@@ -124,7 +124,7 @@ export class Pollen {
   update(dt, sunUp) {
     const g = this.grass, w = this.windU.value, rain = this.weatherU.value.w;
     // (in daylight, in dry air, as high as the near grass is drawn; eased, so rain does not switch it off at a stroke)
-    const want = g.mesh.visible ? g.keepBlades * Math.min(1, Math.max(0, sunUp / 0.06)) * (rain > 0 ? 0 : 1) * (this.share > 0 ? 1 : 0) : 0;
+    const want = g.mesh.visible ? g.keepBlades * Math.min(1, Math.max(0, sunUp / 0.06)) * (rain > 0 ? 0 : 1) * (this.share > 0 ? 1 : 0) * (this.bloom ?? 1) : 0;          // (bloom: how much of the flowers is out, by the season; set by the app)
     this.amount += (want - this.amount) * Math.min(1, dt * (want < this.amount ? 0.8 : 0.4));
     if (g.eager) this.amount = want;                     // (a picture: as it would be after a while)
     this.mesh.visible = this.amount > 0.004;

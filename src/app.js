@@ -17,8 +17,11 @@ import { Benchmark } from './perf/benchmark.js';
 import { waveHeightAt, waveScale } from './water/waves.js';
 import { Trees } from './life/trees.js';
 import { FarForest } from './life/farForest.js';
-import { Leaves, Petals } from './life/leaves.js';
-import { lifeDay, yearAt, seasonLabel, untilSeason, SEASON_NAMES, yearMs, dayMs } from './life/season.js';
+import { Leaves, Petals, TreeLeaves, Kicked, SLOTS as LEAF_SLOTS } from './life/leaves.js';
+import { lifeDay, yearAt, seasonLabel, untilSeason, SEASON_NAMES, yearMs, dayMs, snowYear, snowFell, snowLinesAt, grassSeason, SNOW } from './life/season.js';
+import { kindsShut } from './life/grassRules.js';
+import { SNOW_UNIFORMS } from './render/snowGlsl.js';
+import { LAND_DEFAULTS } from './terrain/tiles/madeLand.js';
 import { overdraw } from './perf/overdraw.js';
 import { SkySystem } from './sky/skySystem.js';
 
@@ -312,6 +315,10 @@ export class App {
     this.leaves = new Leaves(this.trees);
     this.nearScene.add(this.leaves.mesh);
     this.petals = new Petals(this.trees); this.nearScene.add(this.petals.mesh);          // (what the trees in flower let go)
+    // (the leaves of the trees that are dropping them, in the air and lying under each; and
+    // the ones a traveller kicks up)
+    this.treeLeaves = new TreeLeaves(this.trees); this.nearScene.add(this.treeLeaves.mesh);
+    this.kicked = new Kicked(this.trees, this.treeLeaves); this.nearScene.add(this.kicked.mesh);
     // The order solid things are drawn in: what stands in front first, the ground last.
     // The ground's pixels are by far the dearest in the picture, and drawn first (as it
     // was, being the oldest object) all of it was shaded and then covered: under a meadow's
@@ -319,7 +326,7 @@ export class App {
     // only the ground that shows is shaded (the depth test throws the rest out unshaded).
     {
       const order = (o, n) => o.traverse((m) => { m.renderOrder = n; });
-      order(this.grass.mesh, -30); order(this.leaves.mesh, -30); order(this.petals.mesh, -30);
+      order(this.grass.mesh, -30); order(this.leaves.mesh, -30); order(this.petals.mesh, -30); order(this.treeLeaves.mesh, -30); order(this.kicked.mesh, -30);
       for (const set of this.trees.sets.flat(2)) order(set.mesh, -20.3 + 0.1 * set.lod);          // (the nearest trees' meshes first: what they hide is not shaded)
       order(this.rocks.mesh, -10);
     }
@@ -449,6 +456,51 @@ export class App {
     this.toast?.show(new Date(jdToDate(this.baseJD)).toISOString().slice(0, 10));
   }
   get clock() { return new Date(jdToDate(this.baseJD + this.timeOffsetHours / 24)); }
+  // Snow that comes and goes (life/season.js; the shaders: render/snowGlsl.js): the season's
+  // numbers for both halves of the world, and fresh snow's line where the traveller is,
+  // asked of the day's weather for the last day and a half (when the clock has moved on a
+  // quarter of an hour, or the traveller ten kilometres: the weather is asked 13 times).
+  updateSnow(rig) {
+    const L = SNOW_UNIFORMS.uSnowLand.value, Y = SNOW_UNIFORMS.uSnowYear.value, made = this.world.terrain?.tiles?.made;
+    const sy = made ? snowYear({ ...LAND_DEFAULTS, ...(made.land || {}) }, this.lifeDay) : null;
+    if (!sy) { L.set(0, 0, 0, 1e9); return; }
+    Y.set(sy.north, sy.south, sy.add, sy.gone);
+    const f = this.sky.field, t = this.sky.t, p = rig.pos;
+    if (f?.on && Number.isFinite(t)) {
+      const s = this._snowAt || (this._snowAt = { t: -1e18, p: new THREE.Vector3(), line: Infinity, acc: Infinity, k: 1e9, world: null, out: null, at: { lat: 0, lon: 0, h: 0 }, t0: 0 });
+      const n = Math.floor(SNOW.FRESH_HOURS / SNOW.FRESH_STEP);
+      if (s.world !== this.world || Math.abs(t - s.t) > 900 || s.p.distanceToSquared(p) > 1e8) {
+        s.world = this.world; s.t = t; s.p.copy(p); s.k = 0; s.acc = Infinity;
+        const len = p.length(); s.at.lat = Math.asin(p.z / len) * 180 / Math.PI; s.at.lon = Math.atan2(p.y, p.x) * 180 / Math.PI; s.at.h = Math.max(0, len - Math.max(0, rig.agl) - this.world.radius);
+        // (moments on the weather clock's own three-hour marks: the same ones are asked again until the next mark)
+        const step = SNOW.FRESH_STEP * 3600; s.t0 = Math.floor(t / step) * step;
+      }
+      // (one moment a frame; all at once for a picture, which must not depend on how many frames it took)
+      for (let c = 0; s.k <= n && (c < 1 || this.shotMode); c++, s.k++) {
+        const ago = s.k * SNOW.FRESH_STEP, w = s.out ? f.at(s.at, s.t0 - ago * 3600, s.out) : (s.out = f.at(s.at, s.t0 - ago * 3600));
+        s.acc = Math.min(s.acc, snowFell(w ? { temp: w.temp, fall: (w.rain || 0) + (w.snow || 0), h: s.at.h } : null, ago, sy.perC));
+        if (s.k === n) s.line = s.acc;
+      }
+      this.snowFreshLine = s.line;
+    } else this.snowFreshLine = Infinity;
+    L.set(sy.line0, sy.perDeg, sy.perC, Number.isFinite(this.snowFreshLine) ? this.snowFreshLine : 1e9);
+    this._snowYear = sy;
+  }
+  // The grass and the flowers by the season where the traveller is (life/season.js
+  // grassSeason, life/grassRules.js kindsShut; the shaders: uGrassYear, uKindShut), and with
+  // them how much pollen is in the air. Under snow the blades are beaten flat.
+  updateGrassYear(rig) {
+    const sh = this.terrain.shared, p = rig.pos, len = p.length(), lat = Math.asin(p.z / len) * 180 / Math.PI, day = this.lifeDay;
+    const g = grassSeason(day, lat, this._gs || (this._gs = {}));
+    let snow = 0;
+    if (this._snowYear && this.world.terrain?.tiles?.made) {
+      const l = snowLinesAt(this._snowYear, lat), h = len - Math.max(0, rig.agl) - this.world.radius, line = Math.min(l.add, this.snowFreshLine ?? Infinity);
+      snow = Math.min(1, Math.max(0, (h - line + 70) / 140));
+    }
+    sh.uGrassYear.value.set(g.fresh, g.dry, g.brown, g.flat + snow);
+    const whole = Math.floor(day + 1e-6);
+    if (whole !== this._ksDay || Math.abs(lat - (this._ksLat ?? 1e9)) > 0.2) { this._ksDay = whole; this._ksLat = lat; this.flowersOut = kindsShut(whole, lat, sh.uKindShut.value); if (this.pollen) this.pollen.bloom = Math.min(1, this.flowersOut * 1.4); }
+  }
   // The day of the life's year on this world now (0..365.25; life/season.js), and where the
   // traveller's latitude is in its own year (0: its spring equinox).
   get lifeDay() { return lifeDay(this.world, jdToDate(this.baseJD + this.timeOffsetHours / 24)); }
@@ -1280,6 +1332,7 @@ export class App {
     this.farRocks.update(rig, eph.sunDir, sunHalf);
     {
       const day = this.lifeDay;                    // (the day of the life's year: life/season.js)
+      this.updateSnow(rig); this.updateGrassYear(rig);
       this.trees.update(rig, day, this.terrain.shared.uWave.value.z);
       this.farForest.update(rig);
       // (beyond the trees the forest is raised as a whole; from high up, all of it)
@@ -1288,7 +1341,23 @@ export class App {
       // brown in a ring between the trees and the canopy)
       this.terrain.shared.uShell.value.set(drawn ? r * 0.62 : 0, drawn ? r * 0.98 : 1, tr.def ? 1 : 0);
       this.leaves.update(rig, this.post.viewH);
-      this.petals.update(rig, this.post.viewH, dt);
+      this.petals.update(rig, this.post.viewH, dt, this.shotMode);
+      this.treeLeaves.update(rig, this.post.viewH, dt, this.shotMode);
+      this.kicked.update(rig, this.post.viewH, dt);
+      {
+        // The leaves on the ground, for the ground's own shader: the nearest trees with leaves
+        // under them (the slots the lying leaves are laid by), from the eye, and where the
+        // wind has carried them.
+        const sh = this.terrain.shared, tl = this.treeLeaves, T = sh.uLeafTree.value, C = sh.uLeafTreeCol.value, P = rig.pos, w = tl._wind, up = rig.localUp;
+        let any = (tr.litterMost || 0) > 0.01 && !!tr.def;
+        for (let s = 0; s < LEAF_SLOTS; s++) {
+          const c = tl.lying.visible ? tl.cur[s] : null;
+          if (c && c.lie > 0.01) { T[s].set(c.abs[0] - P.x, c.abs[1] - P.y, c.abs[2] - P.z, c.rad); C[s].set(c.lieColour[0], c.lieColour[1], c.lieColour[2], c.lie); any = true; }
+          else T[s].w = 0;
+        }
+        const wu = w.x * up[0] + w.y * up[1] + w.z * up[2], wx = w.x - up[0] * wu, wy = w.y - up[1] * wu, wz = w.z - up[2] * wu, wl = Math.hypot(wx, wy, wz) || 1, k = 0.9 * Math.min(1, wl / 6) / wl;
+        sh.uLeafDrift.value.set(wx * k, wy * k, wz * k, any ? 1 : 0);
+      }
       this.grass.update(rig, dt, renderer);
       { const up = rig.localUp, sd = G.uSunDir.value; this.pollen.update(dt, sd.x * up[0] + sd.y * up[1] + sd.z * up[2]); }
       // (fallen leaves on the ground under the trees, in their season)

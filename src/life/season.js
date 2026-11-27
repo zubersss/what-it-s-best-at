@@ -108,9 +108,12 @@ export const seasonShare = (lat) => sm(TREE_YEAR.TROPIC[0], TREE_YEAR.TROPIC[1],
 //   down     0..1: how much of its leaves lies under it (grows as they fall, goes through
 //            the winter, is gone when the new leaves are out)
 //   young    0..1: how new its leaves are (1: just out of the bud)
+//   lr, lg, lb  the colour of its leaves that lie on the ground (its autumn colour, duller
+//            the longer they lie)
 export function treeSeason(sp, day, lat, alt, own, out = {}) {
   const L = sp.leaf;
   out.r = L[0]; out.g = L[1]; out.b = L[2]; out.gone = 0; out.turn = 0; out.shed = 0; out.down = 0; out.young = 0;
+  out.lr = BROWN[0]; out.lg = BROWN[1]; out.lb = BROWN[2];
   if (!sp.fall) return out;
   const amp = seasonShare(lat);
   if (amp <= 0) return out;
@@ -118,11 +121,17 @@ export function treeSeason(sp, day, lat, alt, own, out = {}) {
   const b0 = T.BUD + T.SPRING_HARD * hard + T.OWN_BUD * fract(own * 3.71);
   // (the leaves on the ground thin to a third between the first snow's days and the buds)
   const lying = 1 - 0.67 * sm(305, LIFE_YEAR + b0, d >= 180 ? d : d + LIFE_YEAR);
+  const A = sp.autumn || AUTUMN[sp.fall], kA = sp.fall === 1 || sp.autumn ? sm(0.35, 0.8, fract(own * 7.3)) : fract(own * 7.3);
+  {
+    // (on the ground: the colour they fell in, going brown from the days they fell on)
+    const a0 = T.TURN - hard + T.OWN_TURN * (fract(own * 5.37) - 0.5), kb = 0.3 + 0.5 * sm(a0 + T.FALL_FROM + 10, a0 + T.FALL_TO + 60, d >= 180 ? d : d + LIFE_YEAR);
+    out.lr = (A[0][0] + (A[1][0] - A[0][0]) * kA) * (1 - kb) + BROWN[0] * kb; out.lg = (A[0][1] + (A[1][1] - A[0][1]) * kA) * (1 - kb) + BROWN[1] * kb; out.lb = (A[0][2] + (A[1][2] - A[0][2]) * kA) * (1 - kb) + BROWN[2] * kb;
+  }
   if (d >= 180) {
     // --- the autumn half of its year
     const a0 = T.TURN - hard + T.OWN_TURN * (fract(own * 5.37) - 0.5), t = sm(a0, a0 + T.TURNING, d) * amp;
     if (t <= 0) return out;
-    const A = sp.autumn || AUTUMN[sp.fall], k = sp.fall === 1 || sp.autumn ? sm(0.35, 0.8, fract(own * 7.3)) : fract(own * 7.3);
+    const k = kA;
     const k1 = sm(0, 0.55, t), k2 = sm(0.4, 1, t), k3 = 0.55 * sm(a0 + T.BROWN[0], a0 + T.BROWN[1], d);
     for (let i = 0; i < 3; i++) {
       const peak = A[0][i] + (A[1][i] - A[0][i]) * k, early = peak + (YELLOW[i] - peak) * 0.6;
@@ -143,6 +152,91 @@ export function treeSeason(sp, day, lat, alt, own, out = {}) {
     out.r = L[0] + (BUD_GREEN[0] - L[0]) * 0.8 * y; out.g = L[1] + (BUD_GREEN[1] - L[1]) * 0.8 * y; out.b = L[2] + (BUD_GREEN[2] - L[2]) * 0.8 * y;
   }
   return out;
+}
+
+// ---- Snow that comes and goes ---------------------------------------------------------------
+// A made world's land has snow painted into its colour where its rule says it is cold enough
+// (terrain/tiles/madeLand.js, `snowLine`): that snow is the land's own, and it is what lies
+// on the first day of spring (SNOW.OWN_AT of a latitude's year), when winter's snow has
+// gone from the low ground and the high snow has not begun to melt. Through the year the
+// air is warmer or colder than on that day by
+//     dT(y) = SEASON x (sin 2 pi (y - LAG) - sin 2 pi (OWN_AT - LAG))   degrees,
+// less toward the equator (x |lat| / 45, at most 1), and the snow follows, a line in height
+// (PER_DEGREE metres a degree, the land rule's lapse):
+//   - new snow lies above the land's own line + ADD_ABOVE + dT: in midwinter some 500 m
+//     below the land's own snow at 45 degrees;
+//   - the land's own snow is gone below its line - GONE_BELOW + dT: in summer only the
+//     highest ground keeps any.
+// (The two margins are why nothing changes on the day the land's snow is for, and for some
+// days either side: the shaders' edge and the painted one are not the same line.)
+// And fresh snow: where the day's weather has let snow fall in the last day and a half it
+// lies lower still, down to the height it fell to, and that line climbs again by MELT metres
+// an hour of thaw (snowFresh, asked of the weather by the app).
+// The shaders (render/snowGlsl.js) take these numbers and work nothing out about the year.
+export const SNOW = Object.freeze({ SEASON: 10, LAG: 0.04, OWN_AT: 0, ADD_ABOVE: 2.5, GONE_BELOW: 2.8, MELT: 45, FRESH_HOURS: 36, FRESH_STEP: 3 });
+// How much warmer (degrees C) than on the day the land's own snow is for, at a point of a
+// latitude's year (before the latitude's share).
+export const snowWarmth = (y) => SNOW.SEASON * (Math.sin(2 * Math.PI * (y - SNOW.LAG)) - Math.sin(2 * Math.PI * (SNOW.OWN_AT - SNOW.LAG)));
+// What the shaders are handed (land: the made land's numbers, madeLand.js LAND_DEFAULTS and
+// the world's own; day: the life day). Returns null for a world whose land has no snow rule.
+//   line0, perDeg  the land's own snow line: line0 - perDeg x |lat| metres over the sea
+//   perC           metres of height a degree C counts for
+//   north, south   dT now in each half (degrees C, at 45 degrees and beyond)
+//   add, gone      the two margins, in metres
+export function snowYear(land, day) {
+  if (!land || land.snowLine == null) return null;
+  const perC = 1000 / land.lapse;
+  return {
+    line0: (land.warm - land.snowLine) * perC, perDeg: land.latCool * perC, perC,
+    north: snowWarmth(yearAt(day, 1)), south: snowWarmth(yearAt(day, -1)),
+    add: SNOW.ADD_ABOVE * perC, gone: SNOW.GONE_BELOW * perC,
+  };
+}
+// The seasonal lines at a latitude (m over the sea): { add: new snow lies above this, gone:
+// the land's own snow is gone below this }.
+export function snowLinesAt(sy, lat) {
+  const a = Math.abs(lat), dT = (lat >= 0 ? sy.north : sy.south) * Math.min(1, a / 45), own = sy.line0 - sy.perDeg * a;
+  return { own, add: own + sy.add + dT * sy.perC, gone: own - sy.gone + dT * sy.perC };
+}
+// Fresh snow's line at a place (m over the sea; Infinity: none lies): at(hoursAgo) says what
+// the weather was there then: { temp (degrees C at height h), fall (mm/h of rain and snow
+// together), h (the height asked at) }, or null. Each fall of the last FRESH_HOURS laid snow
+// down to where it was 1.5 degrees (the weather's own limit for snow), and every hour since
+// has taken MELT metres off it from below (half that by night is not told apart).
+export function snowFresh(at, perC) {
+  let line = Infinity;
+  for (let ago = 0; ago <= SNOW.FRESH_HOURS; ago += SNOW.FRESH_STEP) line = Math.min(line, snowFell(at(ago), ago, perC));
+  return line;
+}
+// ... one of those moments: where the snow that fell `ago` hours ago lies down to now (Infinity: none fell)
+export function snowFell(w, ago, perC) {
+  if (!w || !(w.fall > 0.05)) return Infinity;
+  return w.h + (w.temp - 1.5) * perC + SNOW.MELT * ago * (0.4 + 0.6 * Math.min(1, ago / 12));
+}
+
+// ---- Grass and flowers by the season ---------------------------------------------------------
+// The grass of a latitude on a life day (the shaders' uGrassYear; life/grassRules.js
+// grassColour takes it, so the blades, the clumps and the ground painted as grass agree):
+//   fresh  0..1: new growth, spring into early summer: greener than the land's own dryness says
+//   dry    0..1: late summer's gold on top of that dryness
+//   brown  0..1: autumn and winter: brown
+//   flat   0..1: beaten down (autumn's rain and the snow), standing up again as winter ends
+// All nothing on the first days of spring: the grass then is what the land's dryness says,
+// last year's standing dry. Fades out toward the tropics as the trees' seasons do.
+export function grassSeason(day, lat, out = {}) {
+  const y = yearAt(day, lat), amp = seasonShare(lat), end = 1 - sm(0.9, 1.0, y);
+  out.fresh = sm(0.03, 0.14, y) * (1 - sm(0.28, 0.42, y)) * amp;
+  out.dry = sm(0.30, 0.46, y) * (1 - sm(0.50, 0.62, y)) * amp;
+  out.brown = sm(0.52, 0.66, y) * end * amp;
+  out.flat = sm(0.56, 0.72, y) * end * amp;
+  return out;
+}
+// How far a flower is out whose kind flowers from life day `from` to `to` (as in the northern
+// half; life/grassRules.js KINDS' days), at a latitude: it comes out over twelve days and
+// goes over fifteen. Where no season is kept (the tropics) it is always out.
+export function flowerOut(from, to, day, lat) {
+  const d = localDay(day, lat), amp = seasonShare(lat);
+  return 1 - amp * (1 - sm(from, from + 12, d) * (1 - sm(to - 15, to, d)));
 }
 
 // The four seasons one can go to: where in a latitude's year (y) each is at its most itself

@@ -39,7 +39,8 @@ import { SPECIES, treeLook, COLOUR_TOP } from './cover.js';
 import { TREE_FLOATS } from './treeBlock.js';
 import { BASE_BLOCKS, BAND, LEVELS, band, levelReach, wantedTiles, GROW } from './farTiles.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
-import { PAINT_LEAF, TREE_WOOD, TREE_THIN } from './trees.js';
+import { PAINT_LEAF, TREE_WOOD, TREE_THIN, ROSETTE_THIN } from './trees.js';
+import { SNOW_GLSL, SNOW_UNIFORMS } from '../render/snowGlsl.js';
 import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
 import { SHADOW0, FORM_GLSL, SHADOW_GLSL, FAR_GREEN_GLSL, DENS_STEPS, SHADOW_LONG, SHADOW_FAR0, SHADOW_FAR1, TOP0, TOP1, TOP_MAX, TOP_POW, END_ABOVE } from './farTreeForm.js';
 
@@ -128,6 +129,7 @@ export class FarForest {
     this.seasonDay = null; this._tl = {};
     // Shared by every tile; only where a tile stands is its own (uTileRel and its frame).
     this.shared = {
+      ...SNOW_UNIFORMS,
       ...lightingUniforms(),
       tTreeAtlas: trees.shared.tTreeAtlas,
       uSeason: trees.shared.uSeason,
@@ -162,6 +164,9 @@ export class FarForest {
       ${SHADOW_GLSL}
       out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out vec2 vUv; out vec2 vOwn; out float vShade; out float vShadowA;
       out vec3 vDome; out vec3 vDomeE; out vec3 vDomeN;     // the crown's top seen from above: where in it (xy, -1..1), how much (z); its two axes
+      out float vSnow;       // new snow lying where the tree stands (render/snowGlsl.js)
+      uniform float uPlanetRadius;
+      ${SNOW_GLSL}
       out vec2 vTone;        // x: the tone it shares with its neighbours (a clump), y: 1 for a fir's spire
       vec3 unpack(float p) { float r = floor(p / 65536.0), g = floor((p - r * 65536.0) / 256.0); return vec3(r, g, p - r * 65536.0 - g * 256.0) * (${COLOUR_TOP.toFixed(3)} / 255.0); }
       // (not drawn: thrown out of the picture whole, never left as a sliver of no size)
@@ -244,7 +249,7 @@ export class FarForest {
         l *= iA.w * grow;
         vRel = foot + uTileEast * (l.x * c - l.z * s) + uTileUp * l.y + uTileNorth * (l.x * s + l.z * c);
         vN = normalize(uTileEast * (nl.x * c - nl.z * s) + uTileUp * nl.y + uTileNorth * (nl.x * s + nl.z * c));
-        vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); vOwn = vec2(iB.w - thinQ, thinQ / 255.0 + 4.0 * flowers); vShade = sunLeft; vShadowA = 0.0;
+        vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); vOwn = vec2(iB.w - thinQ, thinQ / 255.0 * (position.x > 1.5 ? ${ROSETTE_THIN.toFixed(1)} : 1.0) + 4.0 * flowers); vShade = sunLeft; vShadowA = 0.0;
         // (the crown's top: lit as a dome pixel by pixel in the fragment shader; by its four
         // corners alone it was one flat tone, no lit cap and no shaded side)
         vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0);
@@ -252,6 +257,7 @@ export class FarForest {
         // or three tones (a noise of the place some 150 m to a cell, and finer, 55 m), lighter
         // and warmer on the slopes turned to the Sun, darker on those turned from it.
         vec3 wp = uCamPlanetPos + foot;
+        { vec3 ups = normalize(wp); vSnow = snowSeason(length(wp) - uPlanetRadius, ups, ups, 0.0, 0.0).x; }
         float tn = smoothstep(0.3, 0.7, toneNoise(wp / 150.0)) + 0.3 * (toneNoise(wp / 55.0 + 7.3) - 0.5);
         vTone = vec2(0.66 + 0.55 * tn + 0.6 * (groundQ / 15.0 - 0.6), cell < ${VARIANTS} ? 1.0 : 0.0);
         if (position.x > 1.5) { vDome = vec3((position.y - 0.5) * 2.0, (0.5 - position.z) * 2.0, smoothstep(${TOP0.toFixed(3)}, ${TOP1.toFixed(3)}, down) * smoothstep(uFar.z, uFar.z + 200.0, d)); vDomeE = uTileEast * c + uTileNorth * s; vDomeN = uTileNorth * c - uTileEast * s; }
@@ -266,7 +272,7 @@ export class FarForest {
       uniform vec3 uSeason;                // x: how far the leaves have turned, y: how bare, z: time
       uniform vec4 uShadow, uFar;
       in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in vec2 vUv; in vec2 vOwn; in float vShade; in float vShadowA;
-      in vec3 vDome; in vec3 vDomeE; in vec3 vDomeN; in vec2 vTone;
+      in vec3 vDome; in vec3 vDomeE; in vec3 vDomeN; in vec2 vTone; in float vSnow;
       layout(location = 0) out vec4 fragColor;
       ${PAINT_LEAF}
       ${TREE_WOOD}
@@ -292,7 +298,7 @@ export class FarForest {
         float thin = vOwn.y - (flowers ? 4.0 : 0.0);
         bool wood = treeWood(cut);          // (one rule with the near trees: TREE_WOOD, life/trees.js)
         // (leaves off the tree: its picture thinned clump by clump, the near trees' rule, TREE_THIN)
-        if (!wood && treeThinned(vUv, lod, vOwn.x, thin)) discard;
+        if (!wood && treeThinned(vUv, cut.g, lod, vOwn.x, thin)) discard;
         vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel), N = normalize(vN);
         // Seen from above, the crown's top is a dome: its cap faces the sky, its rim leans out,
         // so the Sun's side is lit and the far side a crescent in the shade's colour (the
@@ -325,6 +331,8 @@ export class FarForest {
         // (wood on a card is the near trees' twig colour, trees.js: grey-brown, darker than the
         // trunk; as vTrunkC * 0.6 every bark pixel changed tone at the line, review farforest-6)
         vec3 albedo = wood ? mix(vTrunkC, dot(vTrunkC, vec3(0.333)) * vec3(1.06, 1.0, 0.9), 0.75) * 0.4 : leafC;
+        // (new snow on the crown, as the near trees have it)
+        if (vSnow > 0.0) albedo = mix(albedo, vec3(0.80, 0.83, 0.88), vSnow * smoothstep(0.1, 0.6, dot(N, up)) * (wood ? 0.45 : 0.85));
         float nl = dot(N, uSunDir), lit = wood ? max(nl, 0.0) : max(nl * 0.7 + 0.3, 0.0);
         if (uPaint.x > 0.0) { lit = mix(lit, paintLit(wood ? nl : nl * 0.75 + 0.25) * PI, uPaint.x); albedo = paintColour(albedo); leafC = paintColour(leafC); }
         // (seen against the Sun, foliage glows: the light comes through needles and leaves)

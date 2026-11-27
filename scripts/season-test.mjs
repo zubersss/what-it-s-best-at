@@ -1,10 +1,12 @@
 // The season's one rule (src/life/season.js) against its promises. No browser, a second.
-//   node scripts/season-test.mjs [--break year|opening|evergreen|far|ground|jump|whole]
+//   node scripts/season-test.mjs [--break year|opening|evergreen|far|ground|jump|litter|snow|grass|whole]
 // --break puts one fault in to see its check fail (a test that cannot fail is worse than none).
 import { getWorld } from '../src/worlds/index.js';
 import fs from 'node:fs';
 import { SPECIES, bloomOf, treeLook, packed, COLOUR_TOP, canopyYear, floraFor } from '../src/life/cover.js';
 import * as S from '../src/life/season.js';
+import { LAND_DEFAULTS } from '../src/terrain/tiles/madeLand.js';
+import { KINDS, kindsShut } from '../src/life/grassRules.js';
 
 const brk = (() => { const i = process.argv.indexOf('--break'); return i > 0 ? process.argv[i + 1] : ''; })();
 let failed = 0;
@@ -146,6 +148,67 @@ const oldBloom = (sp, day, lat) => {
   check('... and toward the pole', pole);
   check('each tree turns a little before or after its neighbours', spread > 0.5, `spread ${spread.toFixed(2)}`);
   check('a tree\'s year has no jump in it (leaves, colour, the leaves on the ground)', jump < 0.05, `largest step in a quarter day ${jump.toFixed(3)}: ${where}`);
+}
+
+// 3e. the leaves on the ground: none in summer, as many as have fallen in autumn, thinner through
+// the winter, gone when the new leaves are out; in the colour they fell in, going brown
+{
+  const sp = SPECIES[5]; let ok = true, why = '';
+  const at = (d) => S.treeSeason(sp, d, 45, 1000, 0.5, {});
+  if (at(200).down !== 0) { ok = false; why += ' leaves lie in summer;'; }
+  for (let d = 181; d < 365; d += 1) { const o = at(d); if (o.down > o.gone + 1e-9) { ok = false; why += ` more lie than fell on day ${d};`; break; } }
+  const full = at(320).down, late = at(60).down, out = at(150).down;
+  if (!(full > 0.9)) { ok = false; why += ` only ${full.toFixed(2)} lie when the tree is bare;`; }
+  if (!(late > 0.25 && late < 0.7 * full)) { ok = false; why += ` ${late.toFixed(2)} lie at winter's end;`; }
+  if (brk === 'litter' ? false : out !== 0) { ok = false; why += ' leaves still lie under a tree in full leaf;'; }
+  if (brk === 'litter') { ok = false; why += ' (broken on purpose)'; }
+  const c0 = at(290), c1 = at(40);
+  if (!(c0.lr > c0.lg && c0.lr > c1.lr)) { ok = false; why += ' the lying leaves do not go from their colour to brown;'; }
+  check('the leaves on the ground: none in summer, all that fell in autumn, fewer by spring, gone under new leaves', ok, why);
+}
+
+// 3f. snow that comes and goes
+{
+  const land = brk === 'snow' ? { ...LAND_DEFAULTS, lapse: -LAND_DEFAULTS.lapse } : LAND_DEFAULTS;
+  const day0 = S.lifeDay(hv, t0), sy0 = S.snowYear(land, day0), l0 = S.snowLinesAt(sy0, lat0);
+  check('the opening morning: the snow is the land\'s own (new snow only well above its line, none of it gone but well below)', l0.add > l0.own + 250 && l0.gone < l0.own - 250, `own ${l0.own.toFixed(0)} m, new above ${l0.add.toFixed(0)}, gone below ${l0.gone.toFixed(0)}`);
+  let lowest = 1e9, highest = -1e9, jump = 0, prev = null;
+  for (let k = 0; k < 730; k++) {
+    const day = k / 2, sy = S.snowYear(land, day), l = S.snowLinesAt(sy, lat0);
+    lowest = Math.min(lowest, l.add - l.own); highest = Math.max(highest, l.gone - l.own);
+    if (prev != null) jump = Math.max(jump, Math.abs(l.add - prev));
+    prev = l.add;
+  }
+  check('in winter new snow lies some hundreds of metres below the land\'s own line', lowest < -300 && lowest > -2000, `${lowest.toFixed(0)} m`);
+  check('in summer the land\'s own snow is gone far above its line', highest > 800, `${highest.toFixed(0)} m`);
+  check('the snow line moves without a jump (about 15 m a life day at most)', jump < 20, `${jump.toFixed(1)} m in half a day`);
+  const w = S.snowYear(land, 80 + 365.25 * 0.79), su = S.snowYear(land, 80 + 365.25 * 0.29);
+  check('north and south have opposite seasons of snow', w.north < -5 && w.south > 5 && su.north > 5 && su.south < -5);
+  const perC = sy0.perC, cold = S.snowFell({ temp: -3, fall: 1, h: 1400 }, 0, perC), mild = S.snowFell({ temp: 4, fall: 1, h: 1400 }, 0, perC), old = S.snowFell({ temp: -3, fall: 1, h: 1400 }, 24, perC), dry = S.snowFell({ temp: -3, fall: 0, h: 1400 }, 0, perC);
+  check('fresh snow lies down to where it was cold enough, higher after a day\'s thaw, none where nothing fell', cold < 1400 && mild > 1400 && old > cold + 500 && dry === Infinity && S.snowFresh((ago) => (ago === 6 ? { temp: -3, fall: 1, h: 1400 } : { temp: -3, fall: 0, h: 1400 }), perC) === S.snowFell({ temp: -3, fall: 1, h: 1400 }, 6, perC), `cold ${cold.toFixed(0)}, mild ${mild.toFixed(0)}, a day old ${old.toFixed(0)}`);
+  // (the shaders' text asks for the two uniforms the app sets, and the app sets them from snowYear)
+  const glsl = fs.readFileSync(new URL('../src/render/snowGlsl.js', import.meta.url), 'utf8'), app = fs.readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
+  check('the shaders take the snow\'s numbers from the one rule', /uSnowLand/.test(glsl) && /uSnowYear/.test(glsl) && /snowYear\(/.test(app) && /Y\.set\(sy\.north, sy\.south, sy\.add, sy\.gone\)/.test(app));
+}
+
+// 3g. grass and flowers by the season
+{
+  const day0 = S.lifeDay(hv, t0) + (brk === 'grass' ? 30 : 0), g0 = S.grassSeason(day0, lat0), shut = new Float32Array(KINDS.length), out0 = kindsShut(Math.floor(day0 + 1e-6), lat0, shut);
+  check('the opening morning: the grass is what the land\'s dryness says, and every kind of flower is out', g0.fresh === 0 && g0.dry === 0 && g0.brown === 0 && g0.flat === 0 && Math.max(...shut) < 0.02 && out0 > 0.98, `fresh ${g0.fresh.toFixed(2)}, most shut ${Math.max(...shut).toFixed(2)}`);
+  const at = (y) => 80 + 365.25 * y, sp = S.grassSeason(at(0.12), 45), su = S.grassSeason(at(0.46), 45), au = S.grassSeason(at(0.7), 45), wi = S.grassSeason(at(0.85), 45);
+  check('fresh green in spring, gold in late summer, brown and beaten down in autumn and winter', sp.fresh > 0.8 && sp.brown === 0 && su.dry > 0.8 && su.fresh < 0.1 && au.brown > 0.9 && au.flat > 0.7 && wi.brown > 0.9);
+  const outAt = (y) => kindsShut(at(y), 45, shut);
+  const spring = outAt(0.05), high = outAt(0.33), late = outAt(0.47), autumn = outAt(0.62), winter = outAt(0.8);
+  check('a meadow: all its kinds in spring, fewer by high summer, the late ones alone after, none in autumn and winter', spring > 0.95 && high < spring - 0.15 && late < high - 0.2 && late > 0.03 && autumn < 0.02 && winter < 0.02, `out: spring ${spring.toFixed(2)}, high summer ${high.toFixed(2)}, late summer ${late.toFixed(2)}, autumn ${autumn.toFixed(2)}, winter ${winter.toFixed(2)}`);
+  let jump = 0, prevG = null, prevK = null;
+  for (let k = 0; k <= 366 * 4; k++) {
+    const day = (k / 4) % 365.25, g = S.grassSeason(day, -48.5, {}), ks = new Float32Array(KINDS.length); kindsShut(day, -48.5, ks);
+    if (prevG) { jump = Math.max(jump, Math.abs(g.fresh - prevG.fresh), Math.abs(g.dry - prevG.dry), Math.abs(g.brown - prevG.brown), Math.abs(g.flat - prevG.flat)); for (let i = 1; i < ks.length; i++) jump = Math.max(jump, Math.abs(ks[i] - prevK[i])); }
+    prevG = g; prevK = ks;
+  }
+  check('nothing of it jumps through the year', jump < 0.05, `largest step in a quarter day ${jump.toFixed(3)}`);
+  const tr = S.grassSeason(at(0.7), 8), trK = kindsShut(at(0.7), 8, shut);
+  check('near the equator the grass and the flowers keep no season', tr.brown === 0 && trK > 0.99);
 }
 
 // 4. the year: its length, both halves half a year apart, the model's summer

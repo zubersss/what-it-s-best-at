@@ -15,6 +15,7 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
 import { makeTreeGeometries, VARIANTS } from './treeGeometry.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
+import { SNOW_GLSL, SNOW_UNIFORMS } from '../render/snowGlsl.js';
 import { EDGE0, EDGE1, TOP0, TOP1 } from './farTreeForm.js';
 import { SPECIES, bloomOf, treeLook, canopyYear } from './cover.js';
 import { treeSeason } from './season.js';
@@ -58,12 +59,18 @@ vec3 paintLeaf(vec3 c) {
 // A whole tree's picture with some of its leaves off (near here from 60 m, and the far
 // forest's): they go clump by clump, a clump a block of the picture's texels that is never
 // under a pixel wide (its size doubles with the distance), so a far tree thins as a near one
-// does and nothing sparkles. uv: where in the trees' picture; lod: texels a pixel, as a power
-// of two; own: the tree's own number; gone: how much of its leaves is off, 0..1.
+// does and nothing sparkles; the blocks' edges are pushed about by the picture's own tone, so
+// a clump has a leafy outline (square, the clumps left on a half-bare crown were orange
+// rectangles in the air). uv: where in the trees' picture; tone: the picture's tone there
+// (its green); lod: texels a pixel, as a power of two; own: the tree's own number; gone: how
+// much of its leaves is off, 0..1 (the crown's top seen from above, a solid mass, is asked
+// with more: ROSETTE_THIN times as much, or it lay in a thinned crown as a pad).
+export const ROSETTE_THIN = 2.2;
 export const TREE_THIN = /* glsl */`
-bool treeThinned(vec2 uv, float lod, float own, float gone) {
+bool treeThinned(vec2 uv, float tone, float lod, float own, float gone) {
   if (gone <= 0.0) return false;
-  vec2 cell = floor(uv * vec2(${ATLAS_W}.0, ${ATLAS_H}.0) / (10.0 * exp2(ceil(max(lod, 0.0)))));
+  float size = 10.0 * exp2(ceil(max(lod, 0.0)));
+  vec2 cell = floor((uv * vec2(${ATLAS_W}.0, ${ATLAS_H}.0) + (tone - 0.8) * vec2(5.0, -4.0) * size) / size);
   return fract(sin(dot(cell, vec2(12.9898, 78.233)) + own * 37.0) * 43758.5453) < gone * 1.05;
 }`;
 
@@ -229,6 +236,7 @@ export class Trees {
     this.terrain = terrain;
     this.geos = makeTreeGeometries();
     this.shared = {
+      ...SNOW_UNIFORMS,
       ...lightingUniforms(), ...TREE_SHADE_UNIFORMS,
       uAnchorRel: { value: new THREE.Vector3() }, uTreeEast: { value: new THREE.Vector3(1, 0, 0) }, uTreeNorth: { value: new THREE.Vector3(0, 1, 0) }, uTreeUp: { value: new THREE.Vector3(0, 0, 1) },
       uTreeWind: terrain.shared.uWind, uGustPhase: { value: 0 }, uSeason: { value: new THREE.Vector3() }, uTreeRadius: { value: 240 }, uLodCut: { value: new THREE.Vector4(0, 0, 0, 0) },
@@ -248,14 +256,18 @@ export class Trees {
         out vec4 vBloom; out vec2 vTall;  // (vTall: the tree's height in metres; how bare it is)
         out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out float vLeaf; out float vY; out vec2 vOwn; out vec3 vTreeM; out vec2 vUv; out float vCloud;
         out vec3 vCrown; out vec3 vCardX;          // (the far mesh's crown coordinates, treeGeometry.js crownCoords; and its card's own x in the world)
+        out float vSnow;                 // new snow lying where the tree stands (render/snowGlsl.js)
+        uniform vec3 uCamPlanetPos; uniform float uPlanetRadius;
+        ${SNOW_GLSL}
         ${TREE_SHADE_VERT}
         void main() {
           vec3 foot; float leaf;
           vec3 rel = treePosition(foot, leaf);
           // (beyond the radius the far forest draws this tree: out of the picture here)
-          if (treeCull) { vCloud = 1.0; vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vLeaf = 0.0; vY = 0.0; vOwn = vec2(0.0); vTreeM = vec3(0.0); vUv = vec2(0.0); vBloom = vec4(0.0); vTall = vec2(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+          if (treeCull) { vCloud = 1.0; vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vLeaf = 0.0; vY = 0.0; vOwn = vec2(0.0); vTreeM = vec3(0.0); vUv = vec2(0.0); vBloom = vec4(0.0); vTall = vec2(0.0); vSnow = 0.0; gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+          { vec3 pp = uCamPlanetPos + foot, ups = normalize(pp); vSnow = snowSeason(length(pp) - uPlanetRadius, ups, ups, 0.0, 0.0).x; }
           vTreeM = vec3(position.x * iB.x, position.y, position.z * iB.x) * iA.w + iB.z * 37.0;        // metres in the tree's own frame (for the pattern of its leaves)
-          vRel = rel; vN = treeNormal(); vLeaf = leaf; vY = position.y; vLeafC = iC; vTrunkC = iD.rgb; vOwn = vec2(iB.z, iB.w); vUv = aUv; vBloom = iE; vTall = vec2(iA.w, aLeaf < 3.5 ? iB.w : iB.w * (1.0 - max(iE.w, 0.0)));          // (a whole tree's picture in flower keeps its crown: the far forest's rule, TREE_THIN)
+          vRel = rel; vN = treeNormal(); vLeaf = leaf; vY = position.y; vLeafC = iC; vTrunkC = iD.rgb; vOwn = vec2(iB.z, iB.w); vUv = aUv; vBloom = iE; vTall = vec2(iA.w, aLeaf < 3.5 ? iB.w : iB.w * (1.0 - max(iE.w, 0.0)) * (aCrown.z > 2.5 ? ${ROSETTE_THIN.toFixed(1)} : 1.0));          // (a whole tree's picture in flower keeps its crown: the far forest's rule, TREE_THIN)
           vCloud = cloudShade(foot + uTreeUp * (iA.w * 0.7)) * iD.w;
           { float c = cos(iB.y), s = sin(iB.y); vec3 ax = aCrown.z > 1.5 && aCrown.z < 2.5 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0); vCardX = uTreeEast * (ax.x * c - ax.z * s) + uTreeNorth * (ax.x * s + ax.z * c); vCrown = aCrown; }          // (the clouds' shadow, from the map of it: life/treeShade.js)
           gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
@@ -263,7 +275,7 @@ export class Trees {
       fragmentShader: /* glsl */`${LIGHTING_PARS}
         uniform vec3 uSeason;
         uniform sampler2D tTreeAtlas;        // sprays of foliage and whole trees, as cut-outs: r cover, g tone, b wood (life/treeAtlasGen.js)
-        in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in float vLeaf; in float vY; in vec2 vOwn; in vec3 vTreeM; in vec2 vUv; in float vCloud; in vec4 vBloom; in vec2 vTall; in vec3 vCrown; in vec3 vCardX;
+        in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in float vLeaf; in float vY; in vec2 vOwn; in vec3 vTreeM; in vec2 vUv; in float vCloud; in vec4 vBloom; in vec2 vTall; in vec3 vCrown; in vec3 vCardX; in float vSnow;
         layout(location = 0) out vec4 fragColor;
         float leafHash(vec3 p) { p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
         // bunches of leaves: cells about 40 cm across, each a tone of its own
@@ -304,7 +316,7 @@ export class Trees {
             if (h >= vBloom.w) petal = 0.0;          // (and a texel part leaf part petal: no petal's tint out of flower)
             // bare in winter: the leaves are gone from the spray, leaf by leaf; its twigs stay
             // (a whole tree's picture: clump by clump, as the far forest thins it, TREE_THIN)
-            if (petal <= 0.5 && (vLeaf > 3.5 ? treeThinned(vUv, lodC, vOwn.x, vTall.y) : h < vTall.y * 1.05)) discard;
+            if (petal <= 0.5 && (vLeaf > 3.5 ? treeThinned(vUv, cut.g, lodC, vOwn.x, vTall.y) : h < vTall.y * 1.05)) discard;
           }
           if (!card && vLeaf > 0.5 && vTall.y > 0.5) discard;
           vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel);
@@ -369,6 +381,8 @@ export class Trees {
           // (a pine's red plates are lighter than a fir's grey-brown furrows: at 0.28 a ponderosa
           // was a black pole against the morning sky)
           vec3 albedo = wood ? (card || vLeaf > 0.1 ? twigC : vTrunkC * mix(mix(0.28, 0.45, redT), 0.6, paleT)) : leafC;
+          // (new snow on the crown: on what of it looks up at the sky)
+          if (vSnow > 0.0) albedo = mix(albedo, vec3(0.80, 0.83, 0.88), vSnow * smoothstep(0.1, 0.6, dot(N, up)) * (wood ? 0.45 : 0.85));
           // (bark: furrows, plates or bands by rule, BARK above; a trunk is round even in the
           // shade of the wood, where no light says so: darker toward its edges)
           if (wood && !card) {
@@ -499,7 +513,7 @@ export class Trees {
     this.blocks.clear(); this.asked = 0; this.gen = (this.gen || 0) + 1; this.sunStale = 0; this.sunDirty = false; this.dirty = true; this.serial = -1; this._gustSet = false;
     this.shared.uSeason.value.set(0, 0, 0);
     for (const s of this.sets.flat(2)) { s.count = 0; s.geo.instanceCount = 0; for (const g of s.castGeos) g.instanceCount = 0; s.mesh.visible = false; }
-    this.count = 0; this.triangles = 0; this.names = ''; this.falling = 0; this.reach = 0; this.blooming = []; this.day = 0;
+    this.count = 0; this.triangles = 0; this.names = ''; this.falling = 0; this.reach = 0; this.blooming = []; this.shedding = []; this.day = 0;
   }
 
   // True while blocks that are wanted have not arrived (screenshots wait for them).
@@ -535,12 +549,13 @@ export class Trees {
       // (x, y: a tree of the middle sort where the traveller's ground is, for the leaves in the
       // air and on the ground near by; every tree drawn asks for itself, life/cover.js treeLook)
       const se = treeSeason(MIDDLE_TREE, whole, lat, len - R - Math.max(0, rig.agl), 0.5, this._se || (this._se = {}));
-      this.shared.uSeason.value.set(se.turn, se.gone, time);
+      this.shared.uSeason.value.set(se.turn, se.gone, time); this.placeSeason = se;
       // (the far canopy's patches of such trees, for the ground: by the same rule, when the day
       // or the latitude has moved)
       if (t.shared?.uCanopyYear && (whole !== this._cyDay || Math.abs(lat - (this._cyLat ?? 1e9)) > 0.2 || this._cyWorld !== this.world)) {
         this._cyDay = whole; this._cyLat = lat; this._cyWorld = this.world;
-        const cy = canopyYear(this.world, whole, lat, lon, t.shared.uCanopyYear.value);
+        const cy = canopyYear(this.world, whole, lat, lon, t.shared.uCanopyYear.value, t.shared.uLitterYear.value);
+        this.litterMost = Math.max(...t.shared.uLitterYear.value.map((v) => v.w));
         t.shared.uCanopyAlt.value.set(cy.alt0, 1 / cy.step, cy.perDeg, cy.lat);
       }
     }
@@ -690,14 +705,20 @@ export class Trees {
       }
     }
     list.length = n; list.sort((p, q) => p.d2 - q.d2);
-    const blooming = [], lat = this._lat = Math.asin(A.z / A.length()) * 180 / Math.PI;
+    const blooming = [], shedding = [], tl = this._tl || (this._tl = {}), lat = this._lat = Math.asin(A.z / A.length()) * 180 / Math.PI;
     for (const e of list) {
       const T = e.b.trees, q = e.q, d2 = e.d2, sp = SPECIES[T[q + 6]];
       e.trio = this.sets[sp.arch][Math.min(VARIANTS - 1, Math.floor(((T[q + 7] * 7.31) % 1) * VARIANTS))];
       e.far = false; if (inFarList(d2, nearR)) { const set = e.trio[2]; if (set.count < set.cap) { this._put(set, e); e.far = true; } }
       if (sp.blossom) { const bl = bloomOf(sp, this.day + (T[q + 7] - 0.5) * 8, lat); if (bl.fall > 0 && blooming.length < 8 && d2 < 90 * 90) blooming.push({ x: e.x, y: e.y, z: e.z, tall: T[q + 3], wide: T[q + 4], fall: bl.fall, colour: sp.blossom.colour }); }
+      // (the nearest trees whose leaves are coming off or lie under them: the list is nearest first)
+      if (sp.fall && d2 < 90 * 90 && shedding.length < 12) {
+        treeLook(sp, this.seasonDay, A.x + e.x, A.y + e.y, A.z + e.z, this.world.radius, T[q + 7], tl);
+        if (tl.shed > 0.02 || tl.down > 0.03) shedding.push({ x: e.x, y: e.y, z: e.z, tall: T[q + 3], wide: T[q + 4], fall: tl.shed, down: tl.down, colour: [tl.r, tl.g, tl.b], litter: [tl.lr, tl.lg, tl.lb] });
+      }
       if (d2 < 60 * 60) { names.set(sp.name, (names.get(sp.name) || 0) + 1); near++; if (sp.fall) falling++; }
     }
+    this.shedding = shedding;                 // the nearest trees dropping their leaves, or with leaves lying under them (life/leaves.js, TreeLeaves)
     this.blooming = blooming;                 // the nearest trees in flower (from the anchor, m): the petals come off these (life/leaves.js)
     for (const trio of this.sets.flat()) this._send(trio[2]);
     this.falling = falling; this.near = near;          // (near: trees within 60 m, for the leaves that come off them)
