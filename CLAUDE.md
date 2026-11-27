@@ -195,7 +195,7 @@ npm run shots:all      # the full reference set: both worlds, orbit, character
 npm run stability      # 3 settled frames one camera step apart along scripted moves, with a flicker report (-- --streaming: 3 truly consecutive frames right after a jump)
 npm run flight         # scripted Mars -> orbit -> Moon flight (headless)
 npm run foot           # the character on foot in the real game: walk, jump, super speed, take off, land (headless)
-npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run (-- --no-bench: four minutes; -- --size 440x206 --dsf 1 --limit 7000: the benchmark at a small window, which is the only way its cost test ends in time on the cloud machine)
+npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run (-- --no-bench: four minutes; -- --dsf 0.5 --limit 7000: the benchmark at a quarter of the pixels, which is the only way its cost test ends in time on the cloud machine; a smaller window (--size) hides the start screen's buttons)
 npm run govsim         # the governor against simulated GPUs (no browser)
 npm run transfer       # GO trips flown without a browser: arrival, time against the marker's estimate
 npm run target         # the target list, marker and a GO trip in the real game (headless)
