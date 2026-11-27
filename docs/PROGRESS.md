@@ -41,6 +41,48 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### The thirteenth results (2026-11-27 evening, build daa009f): everything on, held at one size, paced
+
+The owner: "I have the paid meshy plan" (recorded in `docs/ASSETS.md`), and one run:
+`docs/benchmarks/2026-11-27-haven-daa009f-fixed-size-paced.txt`. It is the run of
+`?bench=haven&scale=0.775` (60 % of native; the browser's bars left a native of 3.14 MP, so
+the picture was 1.88 MP), **not the plain benchmark**: the governor took no step, on purpose.
+
+**What it says** (believing only what is large and repeats: the groups and families, two
+takes each):
+- *The slide is closed.* Paced, the Haven stops are alike (27.1, 29.5, 25.5, 26.7); the run
+  of 42da110 that fell from 29 to 14 was unpaced and hot.
+- *Everything on, Haven is at the edge of 30*: 26.4 fps; at the four steady stops 3 to 31 %
+  of the frames take three refreshes. The Moon is a flat 30.0.
+- *The first stop measures loading, not the view*: 87 % of the ledge's frames are on time;
+  its 23.2 is seven hitches in the first three seconds (jumps to a bookmark, start-up) and
+  three "unknown" of 167 to 233 ms at 10 to 12 s, with the page's own work at 19.5 ms
+  (ground 6.4) and half a megabyte of uploads a frame.
+- *A third of the triangles did nothing for the frame rate* (1.05 to 1.91 M a frame for
+  3.0 M): the triangles were not what was slow. Grass and flowers now cost less than
+  nothing at the opening view (-8.8: they hide ground that costs more to shade).
+- *The three costs*: **the sky** 24.1 (ledge) and 23.6 (air) of a measured 73 and 67 ms, and
+  0.8 in the forest, where little sky shows: paid by the sky's pixels on screen, and its
+  eleven savings buy 5.0 and 13.6 of it; **the forest** 15.0 (ledge) and 15.2 (forest), its
+  savings 2.3 and 7.6; **the ground's shading** 14.4 and 17.0 where the ground shows (2.1
+  in the forest), its savings 0.0 and 7.2. The shadow maps cost 7.1 in the forest only.
+  The figure costs nothing measurable (153 000 triangles and all): no lighter mesh needed.
+- *Half the measured frame is in no group*: with every group out 31 to 39 ms are left, and
+  with nothing drawn at all 11 to 24: some 15 to 20 ms of passes nobody has named yet (the
+  haze, the finishing passes, the far pass), plus the page's own work (10 to 13 ms a frame
+  on Haven, 4.5 on the Moon; the clouds and the sky are 3 to 3.5 ms of it).
+- *Pixels*: 1.00 against 2.07 against 3.14 MP is some 8 to 10 ms a megapixel at most.
+- *Uploads inside a pass*: 6 to 8 a frame on Haven (40 to 57 KB), 3 to 4 on the Moon.
+
+**Decided.** (1) The sky's cost goes before the sky's look: the sky helper finds which pass
+and which pixels pay the 24 ms and halves it, and makes the savings buy the rest. (2) The
+speed helper: names what is left with every group out, names the uploads inside a pass and
+the "unknown" hitches, goes on with the forest's cost, and sets the governor's order from
+the families (the sky's first, then trees and leaves, glow, the ground's, shadows, grass,
+rocks and the figure), with `npm run govsim` before anything is sent. (3) No lighter mesh
+for the figure. (4) The plain benchmark is asked for again on the build after those cuts,
+not now.
+
 ### The second joined build of 2026-11-27 (17:30 UTC): more cuts, mist from the shore, a clean winter (sent: PR #43, main daa009f)
 
 On top of main 6fac2be, this branch at `219fe4b`: the **speed helper** to `830d621` (only
