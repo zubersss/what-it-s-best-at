@@ -174,6 +174,8 @@ by seeds placed by hand (`scripts/hero/seeds.mjs`), the colours of the owner's d
 meshes (120 000 and 24 000 triangles, by meshoptimizer, MIT, a build tool only), and the
 binding to the game's own figure and cloth (`scripts/hero/heroBind.mjs`).
 
-**Rights.** The owner made the model (the owner's words, 2026-11-27: "The model was made
-by me") and sent it as "the new file for the character model"; the design is the owner's
-too (`docs/PROGRESS.md`, "The owner's character"). Ours to use without condition.
+**Rights.** The owner made the model with Meshy, a 3D generation service (the owner's
+words, 2026-11-27: "The model was made by me", "I made it on meshy") and sent it as "the new file for the character model"; the design is the owner's
+too (`docs/PROGRESS.md`, "The owner's character"). Used as the owner's own work; what
+Meshy's terms give the owner for the output depends on the owner's plan there (not checked
+by us: to be asked when the rigged file is recorded).

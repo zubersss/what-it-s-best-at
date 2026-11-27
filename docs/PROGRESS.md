@@ -41,6 +41,47 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### The owner on build 8c8ff89 (2026-11-27): "a constant t pose", "the running cape still look horrible"; Meshy
+
+The owner, with two screenshots (a run on a slope, super speed among boulders): "The running
+cape still look horrible the models is doing a constant t pose now as well instead of using
+the hands to run". And then: the model was made **on Meshy**.
+
+**Done (on the link since c7195f9, PR #40):**
+- The arms hang a little out from the sides (`hero.js`, `OUT` 0.24) and drive the run, bent,
+  forward and back; at super speed they trail. Holding them where the sculpt holds them
+  (8c8ff89) cured the torn hip and read as a T-pose: not acceptable to the owner.
+- What lets the arms come in: **across a join the lesser garment gives way** (body, skirt,
+  sleeve, hair: `heroBind.mjs`, `membership`, `RANK`). The skirt keeps its own rule right up
+  to a sleeve; the sleeve is the skirt's at the join and its own from some way off. So an
+  arm at the side stretches its own sleeve where it is joined (a fold) and no longer dents
+  the skirt through itself (the hole at the hip).
+- On foot the wind of the figure's own pace pushes the cloth with 0.6 of its weight (it was
+  three times, set for the old short cloak: the gown flew out flat behind a runner); 1.5 at
+  super speed.
+- Drawn-out edges now: hover 250, walk 1 000, run 1 400 (bound 1 600); super speed 1 300,
+  the kneel 4 200 (bound 4 500). More than with the arms held out (8, 88, 398): that is the
+  price of arms that move on a model whose sleeves are fused to its body.
+
+**The real cure is a rigged model, and the owner is getting one.** Meshy rigs a humanoid and
+gives it walking and running, with a library of some 500 more motions; its "3D Agent" chat
+can remesh, rig and animate in one conversation. The owner was given the words to paste:
+remesh to about 150 000 triangles keeping the A-pose, rig as a humanoid, add idle, walk,
+run, sprint, jump, fall, landing and any flying or hovering motion, keep textures, one GLB
+with the skeleton and all animations (Mixamo skeleton, the default). Meshy will not rig a
+model over 300 000 faces. **When that file comes**: a new path beside this one (do not
+patch the binding further): read the GLB's skin (joints, weights, inverse bind matrices)
+and its clips, play them by the game's states (stand, walk, run by speed, super, jump,
+fall, land, hover, fly, boost; blend by the same numbers `hero.js` already works out:
+`foot`, `flight`, `boost`, `air`, gait from speed), and keep the simulated cloth only as a
+small extra on the hair and the ends of sleeves and skirt if it still looks right. Colours
+come from the file's own texture if it has one (ask: the first file had none).
+`docs/ASSETS.md`: made by the owner with Meshy; check Meshy's terms for the owner's plan
+when recording the rigged file (the owner's account, the owner's right to use its output).
+
+**Also in the owner's screenshots, not yet looked at**: grass blades near the camera drawn as
+huge flat triangles on a steep slope; 21 to 27 fps with 10 savings on at 2.06 MP.
+
 ### The owner on build 42da110 (2026-11-27): the outfit still glitchy, the hands wrong; Haven at 18 fps
 
 The owner, with two runs of the benchmark at a fixed size: "the cape and outfit for the
