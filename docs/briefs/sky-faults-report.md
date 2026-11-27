@@ -674,3 +674,61 @@ the mid cloudlets in front of the anvil were still a fifth there); `mist_inside_
 lake's true surface, the Node height source knows only its bed); `view_mist.png`.
 Not done: the tone's change at the mist's top; nothing of this note measured on the phone;
 `npm run smoke` and `--streaming` not run.
+
+## Fifth note (2026-11-27, 18:13, read at 20:43): the sky's cost after the thirteenth benchmark
+
+Read late: three notes lay in the queue for two and a half hours while I waited on pictures.
+
+**Why six of the sky's rows were not in the phone's table, and what the sky's 24 ms was.**
+The cost test chose its parts when it was made: at the end of the route, on the Moon, where
+the sky answers "no clouds here" (`hasPart`) and the far forest "no trees". So the rows for
+all the clouds, their shadows, the march, the far low shell, the field's maps and every pass
+of the sky were never measured, nor the two what-it-adds rows of the trees' and far forest's
+air; the sky's GROUP was the far pass + the middle and high cloud + far cells + shafts + fog +
+lenses, without the march, the shade map or the field; and "nothing drawn" still ran every
+pass of the sky. Fixed (`CostTest._plan`, made again when the test stands on its view's own
+world), and each sky part is a group of one, measured twice between baselines
+(`costPlan.js` GROUPS: the march with its layers, the middle and high cloud, the far low
+shell, the shade map's passes, the field's maps, the far pass). `benchmark.js` and
+`costPlan.js` are the speed helper's: touched, said. `npm run smoke` (the benchmark on
+Mars, at --dsf 0.5) passes with it; the Haven run was started and its result is below when in.
+
+**By count, at the opening view at rest** (`node scripts/gl-count.mjs --stops ledge`, picture
+1100 x 515 = 566.5k px; a phone at 1.88 MP has 3.3 times these):
+
+| pass | every | pixels | what a pixel costs |
+|---|---|---|---|
+| the march (`cloudVolume.target`) | frame | 212.8k (37.6 % of the picture: 6 slices at a quarter size each way) | 7 steps a ray a slice; a step in cloud: the field, 2 to 3 reads of the noise, its light |
+| its smoothing | frame | 212.8k | a few taps |
+| its summary (`cloudVolume.all`) | frame | 35.5k | 5 looks |
+| 6 layer quads into the picture | frame | each at most the picture, cut by the ground in front and, under the layer, to the sky | 1 to 4 taps, blended |
+| the two upper shells | frame | every sky pixel, twice (2 calls, 21.8k vertices) | 1 field read, 2 to 3 noise reads, the Sun's, the sky's and the air's tables: some 8 reads |
+| the fog sheet | frame while mist is in reach | where the mist is (16.6k vertices) | 2 noise reads and the same tables |
+| the field's maps | one of three in turn, 4 frames of 12 | 32.8k | 2 reads |
+| the shade map | 4 frames of 12 | 65.5k | |
+
+I had said the march is not made at the opening view: wrong. It is made every frame there
+(low cloud within reach at that hour). These counts do not say which of the march, the upper
+shells and the far pass is the phone's 24 ms; the next benchmark's table does, part by part.
+NOT DONE: halving it, and the savings' share: I did not cut on a guess between them.
+
+**The page's own work** (`node scripts/sky-work.mjs --distdir <build>`: every method of the
+sky and its parts timed in the real game; this machine's ms): of some 2.2 ms a frame at the
+opening view, the weather step 0.84 (now 0.52), the mist's update 0.44 (0.31: its shadow from
+the land is asked for 16 points a frame, was 32), the clock step 0.29 (now under 0.06: the
+steering's angles were worked out from their knots 14 times a frame, and are kept for the
+moment last asked), the field's blend 0.16, five looks into the field 0.18 (0.10). About 1.4
+now. The methods that draw read far too high on software WebGL and say nothing.
+
+**The model test's timing check**: judged against a yardstick timed in the same run (a fixed
+loop of the same kind of arithmetic): 2.6 yardsticks today, 3.9 allowed, and a second check
+that twice the cost would fail.
+
+**The clouds' shade at the vertices of far patches** (asked by the main session for the
+ground-cost helper): it can. A patch of edge S stands 0.95 S to 1.9 S off and has a vertex
+every S/40: a vertex every d/38 at most at distance d. The atlas has 55 m a texel to 7 km
+(worst: 1.45 texels a vertex, on a 3.2 km patch 3 to 6 km off), 220 m to 28 km (0.7 on a
+6.4 km patch, 1.45 on a 12.8 km one, 2.9 in the last 4 km before the world window takes
+over), 1 530 m beyond (under 1). Not changed by me: `terrainMaterial.js` is in another
+helper's hands; it is one constant (`CLOUD_VERT_TILES`), to be looked at in
+`haven_cloudshade_flight` before and after.

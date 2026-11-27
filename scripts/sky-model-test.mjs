@@ -52,6 +52,7 @@ const opt = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ?
 const ON = opt('on', 'model'), BREAK = opt('break', null);
 const ONLY = opt('only', null) ? opt('only').split(',').map(Number) : null;
 const SWEEP = +opt('sweep', 256);
+const SNAP_YARDS = 2.6;     // what a snapshot of the field costs, in runs of the test's own fixed loop (set from a measure; see the check)
 let failed = false;
 const check = (ok, text) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${text}`); if (!ok) failed = true; };
 const note = (text) => console.log(`     ${text}`);
@@ -621,14 +622,23 @@ if (wanted(9)) {
     p.snapshot(1000);
     const times = [];
     for (let k = 0; k < 4; k++) { const a = process.hrtime.bigint(); p.snapshot(${tAt(DAY0, 14)} + k * ${SNAP_STEP}); times.push(Number(process.hrtime.bigint() - a) / 1e6); }
-    console.log(JSON.stringify(times));
+    // (a yardstick timed in the same run on the same machine: arithmetic of the snapshot's own
+    // kind, a fixed amount of it. The snapshot is judged against it, not against a clock.)
+    const yard = () => { const a = process.hrtime.bigint(); let x = 0.37, acc = 0; const buf = new Float32Array(4096); for (let i = 0; i < 6e6; i++) { x = Math.sin(x * 12.9898 + i * 1e-3) * 0.5 + 0.5; buf[i & 4095] = x * x + Math.sqrt(x + 1); acc += buf[(i * 7) & 4095]; } if (!(acc > 0)) throw new Error('yardstick'); return Number(process.hrtime.bigint() - a) / 1e6; };
+    const yards = [yard(), yard(), yard(), yard()];
+    console.log(JSON.stringify({ times, yards }));
   `;
   const f = path.join(root, '.sky-model-cost.mjs');
   fs.writeFileSync(f, child);
-  let times = [];
-  try { times = JSON.parse(execFileSync('node', [f], { encoding: 'utf8' }).trim()); } finally { fs.unlinkSync(f); }
-  const best = Math.min(...times), mid = times.sort((a, b) => a - b)[Math.floor(times.length / 2)];
-  check(mid <= 600, `a snapshot of 1 024 x 512 takes ${mid.toFixed(0)} ms (the best of four ${best.toFixed(0)}; 600 allowed)`);
+  let times = [], yards = [1];
+  try { ({ times, yards } = JSON.parse(execFileSync('node', [f], { encoding: 'utf8' }).trim())); } finally { fs.unlinkSync(f); }
+  // (the best of four against the best yardstick: a busy or a slow machine moves both alike. A
+  // fixed 600 ms failed one run in two on a quiet machine a little slower than the one it was
+  // set on. SNAP_YARDS: what a snapshot costs in yardsticks today, and half as much again allowed:
+  // a snapshot twice as costly fails on any machine.)
+  const best = Math.min(...times), yard = Math.min(...yards), cost = best / yard;
+  check(cost <= SNAP_YARDS * 1.5, `a snapshot of 1 024 x 512 costs ${cost.toFixed(2)} yardsticks (the best of four, ${best.toFixed(0)} ms, over the best of four runs of a fixed loop, ${yard.toFixed(0)} ms; ${(SNAP_YARDS * 1.5).toFixed(2)} allowed)`);
+  check(!(cost * 2 <= SNAP_YARDS * 1.5), '... and a snapshot twice as costly would fail');
 }
 
 // ---- 10. Earth -------------------------------------------------------------------------------

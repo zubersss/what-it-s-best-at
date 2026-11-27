@@ -9,6 +9,14 @@
 // printed side by side: a number that does not repeat is not one.
 export const GROUPS = [
   { id: 'sky', label: 'the sky (every pass of it: clouds of every kind, their shadows, the weather maps, fog, the far pass)', parts: ['sky', 'sky-all', 'clouds-all', 'cloud-upper', 'cells-far', 'rain-shafts', 'fog', 'lenses'] },
+  // (the sky's own parts, each as a group of one so that it is measured twice between baselines:
+  // singly against one baseline they read -7 to +3 ms on the phone, which is no reading)
+  { id: 'sky-march', label: "of the sky: the clouds near the traveller (the march, its smoothing and its layers)", parts: ['cloud-march'] },
+  { id: 'sky-upper', label: 'of the sky: the middle and high cloud', parts: ['cloud-upper'] },
+  { id: 'sky-shell', label: 'of the sky: the far low cloud', parts: ['cloud-shell'] },
+  { id: 'sky-shade', label: "of the sky: the clouds' shadows (the shade map's passes)", parts: ['cloud-shade'] },
+  { id: 'sky-field', label: "of the sky: the weather field's maps", parts: ['sky-field'] },
+  { id: 'sky-far', label: 'of the sky: the far pass (the sky itself, Sun, stars, bodies)', parts: ['sky'] },
   { id: 'forest', label: 'the forest (trees near and far)', parts: ['trees', 'far-forest'] },
   { id: 'grass', label: 'grass and flowers', parts: ['grass'] },
   { id: 'shadows', label: 'the shadow maps', parts: ['shadow-maps'] },
