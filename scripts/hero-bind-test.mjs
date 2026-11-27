@@ -4,19 +4,19 @@
 //   2. in the game's poses (hover, walk, run, fly, fast, the take-off; super speed and the
 //      kneel after a hard landing; after three seconds of each) the surface is not torn: few
 //      edges are drawn out by more than 5 cm and to three times their length. The sculpt is
-//      one fused surface, and a binding that moves the two sides of a join apart draws
-//      shards between them (5 400 such edges in the hover when the cloth was bound sheet by
-//      sheet; 70 now; in flight 4 000 while one arm reached ahead, under 300 with the arms
-//      swept back). At super speed the arms pump eight times a second under whipping
-//      sleeves, and in the kneel the bent legs press the gown out: known, and bounded
-//      (ROUGH) so that it is seen if it grows.
+//      one fused surface, and whatever moves the two sides of a join apart draws shards
+//      between them: 5 400 such edges in the hover when the cloth was bound sheet by sheet,
+//      70 with the arms brought in to the sides, 8 with them held out as sculpted; in flight
+//      4 000 while one arm reached ahead, under 100 with the arms swept back. At super speed
+//      the sleeves whip, and in the kneel the bent legs press the gown out: known, and
+//      bounded (ROUGH) so that it is seen if it grows.
 //
 //   node scripts/hero-bind-test.mjs [--list]      --list: the worst edges of each pose, by cause
 import fs from 'node:fs';
 import { parseHero } from '../src/hero/heroFile.js';
 import { posed } from './hero/heroBind.mjs';
 
-const LIMIT = 900, ROUGH = 3000, list = process.argv.includes('--list');
+const LIMIT = 600, ROUGH = 3000, list = process.argv.includes('--list');
 const b = fs.readFileSync(new URL('../public/data/hero.bin', import.meta.url)), hero = parseHero(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
 let failed = 0; const check = (ok, text) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${text}`); if (!ok) failed++; };
 for (const [li, m] of hero.lods.entries()) {

@@ -41,6 +41,43 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### The owner on build 42da110 (2026-11-27): the outfit still glitchy, the hands wrong; Haven at 18 fps
+
+The owner, with two runs of the benchmark at a fixed size: "the cape and outfit for the
+model is still glitchy when in movement and not and the hands as well they look strange
+not like the model file I gave you".
+
+**What was wrong, seen by drawing the game's own standing pose** (`hero-preview --pose idle`;
+until then only the sculpt's stance, flight and the run had been looked at):
+- *The hands.* Only the fingers were skin: the cuff's silk label ran over the back of the
+  hand and the thumb (a white glove). And the hands were half cloth: the blend of garments
+  across a join spread the sleeve's cloth into the hand, which was then drawn out of shape
+  by the sleeve. Now everything joined to a hand's skin within 10.5 cm of its middle is
+  skin (`make-hero.mjs`), and skin and boots are the body's alone (`heroBind.mjs`,
+  `membership`).
+- *Glitchy standing still.* The game's poses brought the arms in to the sides (0.13 rad
+  out; the sculpt holds them 0.585 out). Each wide sleeve was pressed through the skirt and
+  the join between them tore it at the hip. **The arms are now held out as sculpted in
+  every pose** (`hero.js`, `OUT`): standing, the figure is the model as it was sent, with
+  the cloth breathing. The run no longer pumps bent arms: a small swing, swept back as the
+  pace rises, sleeves streaming.
+- *The rule that kept the gown off the legs (42da110) tore the skirt* in a ragged line at
+  the thigh in every pose (where a vertex passed the end of a leg's capsule). Taken out
+  again: without it the gown is whole and the legs show only where the gown is open, as
+  sculpted. (The 3 600 gown vertices "inside a leg" were its lining.)
+- Drawn-out edges now (`hero-bind-test`, full mesh): hover 8, walk 88, fly 24, fast 90,
+  take-off 36, run 398 (bound 600); super speed 492, the kneel 1 208 (bound 3 000).
+
+**Haven is too heavy** (`docs/benchmarks/2026-11-27-haven-42da110-fixed-size.txt`, the
+picture held at 2.25 MP, so the governor took no step): everything on, Haven 18.1 fps, its
+stops after the first at 14 to 17 with half the frames over 83 ms; every saving on, 34.8,
+and still a third or more of the frames late at three stops of five. That answers the last
+reader's question (savings do cure, and are not enough), and makes the job cost, not the
+governor: `docs/briefs/phone-speed-2.md`, for a helper. Rivers that run (the water
+helper's piece 1) are held back from the link until the phone has room: this branch
+carries a revert of that merge for the link's sake, **to be reverted again once the link
+is out** (and the water branch must not merge this branch in between).
+
 ### The owner on the character and the eleventh phone results (2026-11-27, on build 49e4294)
 
 The owner: "The model was made by me and when im running as the model it looks glitchy
@@ -55,12 +92,9 @@ back on 29).
 **Done for the character since that build** (all in the next link):
 - *The cloth turns the sculpt as well as moving it* (see "The owner's sculpt in the game":
   49e4294 moved it only, and every carved fold was sheared: the "glitchy cape").
-- *The legs no longer come through the gown.* Measured: 3 600 gown vertices inside a leg's
-  capsule in a run, up to 11.5 cm deep. Now every cloth vertex stays on the side of each
-  leg it was sculpted on (`heroPalette.js`, `keepOff`; the vertex shader does the same): a
-  third remain, all of them cloth that stood that near a leg in the sculpt. Pushed straight
-  out from the leg's line instead, cloth that had crossed the line went out the far side
-  and tore.
+- *The legs kept out of the gown by a rule* (every cloth vertex on the side of each leg it
+  was sculpted on): **taken out again after 42da110**, it tore the skirt at the thigh (see
+  above).
 - *Flight: arms swept back, sleeves streaming* (`hero.js`, the cruise, boost and take-off
   poses). One arm reaching ahead is right for a caped suit and wrong for a robe: the sleeve
   hid the hand, hung ahead of the head, and drew the join between sleeve and skirt out into
