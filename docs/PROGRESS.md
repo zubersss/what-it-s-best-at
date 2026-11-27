@@ -41,6 +41,131 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### The thirteenth results (2026-11-27 evening, build daa009f): everything on, held at one size, paced
+
+The owner: "I have the paid meshy plan" (recorded in `docs/ASSETS.md`), and one run:
+`docs/benchmarks/2026-11-27-haven-daa009f-fixed-size-paced.txt`. It is the run of
+`?bench=haven&scale=0.775` (60 % of native; the browser's bars left a native of 3.14 MP, so
+the picture was 1.88 MP), **not the plain benchmark**: the governor took no step, on purpose.
+
+**What it says** (believing only what is large and repeats: the groups and families, two
+takes each):
+- *The slide is closed.* Paced, the Haven stops are alike (27.1, 29.5, 25.5, 26.7); the run
+  of 42da110 that fell from 29 to 14 was unpaced and hot.
+- *Everything on, Haven is at the edge of 30*: 26.4 fps; at the four steady stops 3 to 31 %
+  of the frames take three refreshes. The Moon is a flat 30.0.
+- *The first stop measures loading, not the view*: 87 % of the ledge's frames are on time;
+  its 23.2 is seven hitches in the first three seconds (jumps to a bookmark, start-up) and
+  three "unknown" of 167 to 233 ms at 10 to 12 s, with the page's own work at 19.5 ms
+  (ground 6.4) and half a megabyte of uploads a frame.
+- *A third of the triangles did nothing for the frame rate* (1.05 to 1.91 M a frame for
+  3.0 M): the triangles were not what was slow. Grass and flowers now cost less than
+  nothing at the opening view (-8.8: they hide ground that costs more to shade).
+- *The three costs*: **the sky** 24.1 (ledge) and 23.6 (air) of a measured 73 and 67 ms, and
+  0.8 in the forest, where little sky shows: paid by the sky's pixels on screen, and its
+  eleven savings buy 5.0 and 13.6 of it; **the forest** 15.0 (ledge) and 15.2 (forest), its
+  savings 2.3 and 7.6; **the ground's shading** 14.4 and 17.0 where the ground shows (2.1
+  in the forest), its savings 0.0 and 7.2. The shadow maps cost 7.1 in the forest only.
+  The figure costs nothing measurable (153 000 triangles and all): no lighter mesh needed.
+- *Half the measured frame is in no group*: with every group out 31 to 39 ms are left, and
+  with nothing drawn at all 11 to 24: some 15 to 20 ms of passes nobody has named yet (the
+  haze, the finishing passes, the far pass), plus the page's own work (10 to 13 ms a frame
+  on Haven, 4.5 on the Moon; the clouds and the sky are 3 to 3.5 ms of it).
+- *Pixels*: 1.00 against 2.07 against 3.14 MP is some 8 to 10 ms a megapixel at most.
+- *Uploads inside a pass*: 6 to 8 a frame on Haven (40 to 57 KB), 3 to 4 on the Moon.
+
+**Decided.** (1) The sky's cost goes before the sky's look: the sky helper finds which pass
+and which pixels pay the 24 ms and halves it, and makes the savings buy the rest. (2) The
+speed helper: names what is left with every group out, names the uploads inside a pass and
+the "unknown" hitches, goes on with the forest's cost, and sets the governor's order from
+the families (the sky's first, then trees and leaves, glow, the ground's, shadows, grass,
+rocks and the figure), with `npm run govsim` before anything is sent. (3) No lighter mesh
+for the figure. (4) The plain benchmark is asked for again on the build after those cuts,
+not now.
+
+### The second joined build of 2026-11-27 (17:30 UTC): more cuts, mist from the shore, a clean winter (sent: PR #43, main daa009f)
+
+On top of main 6fac2be, this branch at `219fe4b`: the **speed helper** to `830d621` (only
+the cells that can carry a flower are handed over, flowers' and near trees' corners shared,
+the grass's choosing skipped while nothing moves: the opening frame 1.75 M triangles for
+3.07 M two links ago, the forest view 1.81 M for 3.17 M; the cost test also measures the
+savings in seven families; `?debug=grasswhole`; the build check fails on the marks of an
+unfinished merge; `scripts/all-node-checks.sh`), the **sky helper** to `8e58ba3` (an eye
+inside the mist is veiled by it: the shore has mist, no lid; the weather model takes the
+life's season; the heaps looked at in motion from 3 km: nothing pops; NOT its `407db74`,
+the anvil in progress), the **seasons helper** to `012dc2f` (the lying leaves' buffer goes
+to the GPU only as far as it changed; lying leaves and grass blades go under new snow: the
+bright dots on winter's snow were flattened grass tips; the land's painted snow keeps a
+wider margin on its own day; the ground's shading costs the same as before pieces 3 to 5
+by `ground-cost-run.sh`).
+
+**Checked** (builds of `a21979f`, `fe0be39` and `219fe4b`, each the one before plus a
+helper's push): every no-browser test (35) on each; the whole smoke with the Mars benchmark
+at `--dsf 0.5` on the first two (the benchmark's code is the same in the third), `smoke
+--no-bench` on the third; noon from the air and the mist's view on the first (as on the
+link); the opening view with the character running on the first and third; winter's opening
+view on the second (dots) and third (clean): `docs/shots/joined/`.
+
+**Asked of the owner**: as below (one plain Haven benchmark in Sharp, the paced
+`?scale=0.775` run, the character, the Meshy plan), on this build.
+
+### The joined build of 2026-11-27 afternoon: the frame-rate cuts, the mist, the seasons' ground, smoother clouds
+
+**Sent 2026-11-27 15:10 UTC: PR #42, main at 6fac2be** (pictures of that build:
+`docs/shots/joined/`). The checkpoint asks the owner for a plain Haven benchmark in Sharp,
+the paced `?bench=haven&scale=0.775` run, a word on how the character moves, and the Meshy
+plan. **Next**: the owner's reply; meanwhile merge the helpers' newer work (the sky's
+`8e58ba3`, the speed helper's `c4850cc` once its browser checks are in), check it as this
+build was checked (`scripts/all-node-checks.sh`, `smoke --no-bench`, `smoke --dsf 0.5`,
+three pictures), and send it as the link after.
+
+This branch at `e8f01b1` and later holds, beyond the link of the rigged character (main
+63b8282): the **sky helper's two lists** to `17d10e2` (the mist drawn again, `HELD = false`
+in `fogSheet.js`, fading out as the eye sinks under its top, so from a lake's shore there is
+no lid; no cloud march and no laid layers under a clear sky; the shade windows drawn only
+when something moved; the march's targets invalidated; a smooth outline for the near heaps;
+"everything out" in the benchmark takes the sky out too), the **speed helper's cuts** to
+`5534aac` (grass handed over block by block: 1.96 M triangles at the opening view for 3.05;
+partial clears given up; the benchmark counts GL work by stop, tests savings in groups, and
+`?scale=` runs are paced), and the **seasons' pieces 3 to 5** to `0047aad` (leaves that lie
+and are kicked up, snow that comes and goes with the season, grass and flowers by the
+season; governor steps `leaf-carpet` and `snow-edge`, not yet measured on a phone).
+
+**Checked on the joined head** (build of `e8f01b1`; only notes and the smoke script after
+it): the build; every check that needs no browser (31; the sky model's "a snapshot in under
+600 ms" line fails while a browser run shares the machine and passes alone); `smoke
+--no-bench` at the phone's shape; the whole smoke with the Mars benchmark and its cost test
+at `--dsf 0.5` (19 checks; at the phone's shape the cost test, 123 steps a view now, does
+not end inside the script's 45 minutes on this machine: the first try "failed" seven checks
+that were one time-out); noon from the air (soft-edged heaps), the mist's view (key 6: a lit
+sheet over the lake at dawn) and the opening view with the character running, looked at.
+
+**On the helpers' branches, for the link after this one**: the sky's third list
+(`8e58ba3`: an eye inside the mist is veiled by it, so the shore has mist and no lid; the
+weather model takes the life's season; the heaps looked at in motion from the air: nothing
+pops; the anvil being written) and the speed helper's further cuts (`c4850cc`: only the
+cells that can carry a flower handed over, shared corners for flowers and near trees: the
+opening frame 1.75 M triangles for 3.07 M on the old link; `scripts/all-node-checks.sh`
+runs every no-browser check), its browser checks still running.
+
+**Asked of the owner**: one plain Haven benchmark in Sharp (the first with the sky's true
+cost cut, the grass by blocks and the rigged character: its cost table's `figure` row says
+what a lighter mesh for the figure would buy, 153 000 triangles today); the paced
+`?bench=haven&scale=0.775` run; how the character moves; which Meshy plan the model was
+made on.
+
+**Known wrong, in hand with the helpers**: in winter the fallen leaves lie as bright dots
+on top of new snow (seasons, asked); the lying leaves' buffer may be handed to the GPU
+every frame (seasons, asked to count); mist on the water seen from its own shore is simply
+not there (the cure is the weather veil knowing of it: sky); the storm's anvil is flat
+(sky); nothing of the sky's new turns has been looked at in motion (`npm run stability`,
+two hours: sky); the land's own painted snow is grey-lilac in shade beside white new snow.
+**Looked at, nothing broken**: the owner's picture (build 8c8ff89) of "huge flat" shapes on
+a steep slope: the pale flat triangle is a boulder's face beside the camera (the camera sits
+low behind the character on a slope of rocks), and the coarse blades are the grass at ten
+savings on at 21 fps: the cure is the frame rate (fewer savings), not the grass.
+**Not done**: steady flight is nearly a still pose.
+
 ### Where the helpers stand (2026-11-27 12:15 UTC) and what the next link needs
 
 This branch (head 6da582c and later) is ahead of the link (main 63b8282) by: **seasons

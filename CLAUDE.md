@@ -195,7 +195,7 @@ npm run shots:all      # the full reference set: both worlds, orbit, character
 npm run stability      # 3 settled frames one camera step apart along scripted moves, with a flicker report (-- --streaming: 3 truly consecutive frames right after a jump)
 npm run flight         # scripted Mars -> orbit -> Moon flight (headless)
 npm run foot           # the character on foot in the real game: walk, jump, super speed, take off, land (headless)
-npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run
+npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run (-- --no-bench: four minutes; -- --dsf 0.5 --limit 7000: the benchmark at a quarter of the pixels, which is the only way its cost test ends in time on the cloud machine; a smaller window (--size) hides the start screen's buttons)
 npm run govsim         # the governor against simulated GPUs (no browser)
 npm run transfer       # GO trips flown without a browser: arrival, time against the marker's estimate
 npm run target         # the target list, marker and a GO trip in the real game (headless)
@@ -257,6 +257,9 @@ node scripts/sky-above.mjs [--t 4] [--span 120] [--stub fair] [--out file.png]  
 node scripts/sky-probe.mjs --distdir <build> [--shot ledge] --query "alt=2500&heading=243&t=8.25" --out dir/name [--try "upper=__app.sky.partOut('cloud-upper',true);;flat=__app.sky.setSaving('cloud-far',true)"] [--size 440x206]   # one view of the real game loaded once, then pictured again with a switch tried each time (seconds a switch, where a page load is minutes): for telling WHICH part of the sky draws or hides a thing
 node scripts/sky-turns-test.mjs [--break always]   # what the sky draws every frame whatever is on screen: the shade map's windows only when their lattice has stepped, the Sun has moved or the clouds have drifted (a renderer that keeps count; no browser, seconds)
 node scripts/sky-steer-test.mjs · node scripts/sky-format-test.mjs · node scripts/sky-cell-test.mjs   # each cloud layer's wind (closed form against a frame-by-frame sum), the weather field's snapshot format (JS and GLSL decoders), a storm cell's shape (JS against its GLSL) (no browser)
+./scripts/all-node-checks.sh   # every check that needs no browser, one line each (five minutes; exit 1 if any fails): run it before a push
+node scripts/tree-shared-corners-test.mjs [--break merge|order]   # a tree's mesh with its corners shared is the same triangles to the last bit, from half the vertices (no browser, seconds)
+node scripts/grass-cull-pair.mjs --distdir <frozen build> [--query "debug=floor"] [--out dir]   # the grass by blocks and lists against the grass handed over whole, in one browser session at the same moment: pixels that differ, triangles handed over (half an hour at a ground-level view)
 node scripts/gl-count.mjs --distdir <frozen build> [--stops ledge,sun] [--floor] [--out counts.json] [--query "lat=..&lon=.."]   # what the game hands the GPU, counted call by call in the real game at the benchmark's stops (ten minutes a stop): every pass with its draw calls and triangles by material and whether it begins with a whole clear, every upload with its bytes and where in the frame it falls; a frame at rest, one frame against the next, the frames after a jump (counts are true on any device; nothing in it is a frame rate)
 node scripts/cost-plan-test.mjs [--break drift|pass|bytes]   # the benchmark's counts (perf/glTally.js) against a made-up context, and the order of its cost test (perf/costPlan.js): every group measured twice between two baselines, a drifting baseline does not move a group's number (no browser, a second)
 node scripts/grass-blocks-test.mjs [--break reach|ring|table|height]   # the grass handed over block by block (life/grassBlocks.js) leaves out nothing the shader would draw: 105 views over a made-up land, the shader's own tests replayed for every cell (no browser, 6 s)
@@ -301,7 +304,7 @@ frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last foo
 `debug=noclouds` (a clear sky: no cloud layer, no cloud volume and none of their shadows; from 1.2 km over Haven's opening place one is in cloud),
 `debug=treeshade` (the far trees painted by how much of the Sun the land and the clouds leave them: red all, blue none),
 `debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
-`nofarrough`, `noboost`) for before/after pictures, `debug=farrocksoff` (none of the far rocks, for before/after pictures), `debug=floor` (every saving of the
+`nofarrough`, `noboost`) for before/after pictures, `debug=farrocksoff` (none of the far rocks, for before/after pictures), `debug=grasswhole` (every cell of the grass and the flowers handed to the GPU, none chosen by the page: the picture must be the same, three times the triangles), `debug=floor` (every saving of the
 governor on and Smooth's share of the patches: what a phone that has given everything up
 draws).
 
@@ -827,6 +830,16 @@ finished benchmark leaves its text in `window.__benchResult`.
   Before debugging, ask the page what it waits for (`window.__stats.wait`, the frame count,
   `terrain.wanted`, `trees.missing`), and check a new build first at a small size
   (`--dsf 0.6 --timeout 2400`: about a third of the time), the full size after.
+- A timed browser run shares the machine's four cores with whatever else is started: a loop
+  of Node tests beside a full smoke slowed its benchmark past the time limit, and the seven
+  "FAIL" lines that followed were one time-out. And a test that grows (the cost test went from
+  some 40 steps to 240) outgrows a limit set for the old one without a word: when a run "fails"
+  at its limit, read how far it had got before reading the failures.
+- A thing with depth asked for at one height is a sheet from every side (the anvil), and a
+  march through it shades in bands a step long unless the place the line of sight ENTERS is
+  found (a few halvings between the last clear step and the first in cloud). And a view "from
+  the side, 32 km off" on Haven is from below: at that distance a 9.5 km top stands 2 degrees
+  over the level of an eye at 6.5 km.
 - The same thing drawn three ways must take its season from one answer (near meshes, whole
   tree pictures, the far forest): bare aspens were full green crowns from 60 m on for as
   long as only the nearest mesh asked. And a rule's colours must be looked at after

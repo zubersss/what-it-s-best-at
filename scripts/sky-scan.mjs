@@ -21,7 +21,7 @@ export function havenProducer(preset = null) {
   const peaks = JSON.parse(fs.readFileSync(path.join(root, 'public/data/haven_peaks.json'), 'utf8')).peaks;
   const wxland = readWxLand(fs.readFileSync(path.join(root, 'public/data/haven_wxland_1024.u8')), peaks);
   const layout = fieldLayout(haven);
-  return makeProducer({ preset, weather: haven.weather, radius: haven.radius, dayHours: haven.dayHours || 24, origin: haven.scene.start, layout, land: dem, wxland });
+  return makeProducer({ preset, weather: haven.weather, radius: haven.radius, dayHours: haven.dayHours || 24, origin: haven.scene.start, layout, land: dem, wxland, year: haven.year || null });
 }
 // the weather clock at ?t=H
 export const tWeather = (h) => (Date.parse(haven.scene.dateUTC) - Date.parse(haven.weather.epoch)) / 1000 + h * 3600;

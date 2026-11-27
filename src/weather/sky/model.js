@@ -31,6 +31,7 @@
 // Pure: no three, no DOM, no Math.random. Everything is a function of (the world's numbers, the
 // clock, the place): nothing here knows where the traveller is, so nothing in the sky can move
 // because the traveller moved.
+import { lifeDay, northSummer } from '../../life/season.js';
 import {
   SNAP_STEP, fieldLayout, makeSnapshot, putA, putB, putC, fieldAt, footprint, uvOfLatLon,
   makeSkyAt, CELL, CELL_KIND, cellLife, makeCellLife,
@@ -193,6 +194,14 @@ export function createSkyModel(opts = {}) {
     return (Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000;
   };
 
+  // The season the weather keeps, -1 (the north's midwinter) .. 1 (its midsummer): the LIFE's
+  // calendar where the world keeps a year of its own (opts.year, the world file's `year`: Haven
+  // goes through its seasons in 48 days), so that the weather's cold and the snow's line are
+  // the same season the trees and the grass are in; else the Sun's own declination, as it was.
+  // The Sun's height and the length of the day stay the Sun's (decl): it is on its orbit.
+  const yearOf = opts.year ? { year: opts.year, dayHours } : null;
+  const seasonOf = (t, decl) => (yearOf ? northSummer(lifeDay(yearOf, steer.ms(t))) : decl / 23.44);
+
   // ---- the static parts of the land: the caps the summits wear --------------------------------
   // (the summits do not move, so where a cap may stand is worked out once)
   const capStrength = new Float32Array(W * H), capTop = new Float32Array(W * H);
@@ -221,7 +230,7 @@ export function createSkyModel(opts = {}) {
   function timeOf(t) {
     let c = times.get(t);
     if (c) return c;
-    const doy = dayOfYear(t), decl = declinationOf(doy), season = decl / 23.44;
+    const doy = dayOfYear(t), decl = declinationOf(doy), season = seasonOf(t, decl);
     const dayIndex = steer.dayIndex(t), pin = (W0.days || {})[steer.dateOfDay(dayIndex)] || {};
     const m = cfg.moisture;
     const dayHum = pin.humidity ?? (cfg.test.noDay ? 1 : m.day + m.dayAmp * knot(t, m.dayHours * HOUR, 3, seed));
@@ -998,7 +1007,7 @@ export function createSkyModel(opts = {}) {
     },
     anvils: (t) => anvilsOf(timeOf(t)).map((A) => ({ id: A.id, from: [A.a0, A.a1, A.a2], to: [A.b0, A.b1, A.b2], level: A.L - R, radius: A.radius, strength: A.strength })),
     lenses: (t) => lensesOf(timeOf(t)).map((l) => ({ ...l })),
-    systems: (t) => systemsAt(cfg.systems, steer, t, declinationOf(dayOfYear(t)) / 23.44).map((s) => ({ ...s })),
+    systems: (t) => systemsAt(cfg.systems, steer, t, seasonOf(t, declinationOf(dayOfYear(t)))).map((s) => ({ ...s })),
     day: (index) => steer.day(index),
     hourAt,
     climate: (lat, lon, t) => ask(lat, lon, t),

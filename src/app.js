@@ -312,6 +312,7 @@ export class App {
     this.farForest = new FarForest(this.trees, this.terrain); this.nearScene.add(this.farForest.mesh);
     if (params.debug.includes('treeshade')) this.farForest.shared.uShadow.value.y = 1;      // ?debug=treeshade: the far trees painted by how much of the Sun the land and the clouds leave them
     this.grass = new Grass(this.terrain, this.terrain.shared.uWind); this.grass.setWorld(world); this.grass.eager = this.shotMode; this.grass.debugKinds = params.debug.includes('flowers');
+    this.grass.cullOff = params.debug.includes('grasswhole');      // ?debug=grasswhole: every cell of the grass and the flowers handed to the GPU, as before the choosing (life/grassBlocks.js): to see on a device that nothing is missing
     this.nearScene.add(this.grass.mesh);
     this.leaves = new Leaves(this.trees);
     this.nearScene.add(this.leaves.mesh);
@@ -1353,12 +1354,16 @@ export class App {
     this.terrain.update(rig, aspect0, G.uSunDir.value, sunHalf);
     prof.mark(2);
     this.rocks.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
+    prof.mark(3);
     this.farRocks.update(rig, eph.sunDir, sunHalf);
+    prof.mark(12);
     {
       const day = this.lifeDay;                    // (the day of the life's year: life/season.js)
       this.updateSnow(rig); this.updateGrassYear(rig);
       this.trees.update(rig, day, this.terrain.shared.uWave.value.z);
+      prof.mark(13);
       this.farForest.update(rig);
+      prof.mark(14);
       // (beyond the trees the forest is raised as a whole; from high up, all of it)
       const tr = this.trees, drawn = tr.reach > 0, r = tr.reach;
       // (it is up to its height where the last trees stand: from above, the ground showed
@@ -1385,11 +1390,13 @@ export class App {
         const wu = w.x * up[0] + w.y * up[1] + w.z * up[2], wx = w.x - up[0] * wu, wy = w.y - up[1] * wu, wz = w.z - up[2] * wu, wl = Math.hypot(wx, wy, wz) || 1, k = 0.9 * Math.min(1, wl / 6) / wl;
         sh.uLeafDrift.value.set(wx * k, wy * k, wz * k, any ? (this.leafCarpetOff ? 0.5 : 1) : 0);
       }
+      prof.mark(15);
       this.grass.update(rig, dt, renderer);
       { const up = rig.localUp, sd = G.uSunDir.value; this.pollen.update(dt, sd.x * up[0] + sd.y * up[1] + sd.z * up[2]); }
       // (fallen leaves on the ground under the trees, in their season)
       const se = tr.shared.uSeason.value; this.terrain.shared.uLitter.value = tr.def ? Math.min(1, se.x * 0.8 + se.y) : 0;
     }
+    prof.mark(16);
     this.lander.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
     prof.mark(3);
     this.updateHero(dt, sunHalf);
@@ -1491,7 +1498,9 @@ export class App {
     this.sky.groundUniforms();
     const far = Math.max(this.terrain.farDistance, cloudFar) * 1.05;
     rig.finalize(aspect, near, far);
+    prof.mark(8);
     this.grass.cull(rig.camera);              // (only the blocks of grass this camera can see are handed over)
+    prof.mark(16);
     renderer.render(this.nearScene, rig.camera);
     prof.mark(8);
     // (the sky in the picture, in the plan's order: far cell sheets, shells above, the far low shell,

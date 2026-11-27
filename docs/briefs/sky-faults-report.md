@@ -499,3 +499,123 @@ would be rewritten) and the three frames a camera step apart from 1 km and from 
 The second is `npm run stability`'s way and takes this machine about two hours; it should be
 run on the merged head by whoever has the machine free, with the clouds' hand-over at 16 km
 and a heap's edge in view.
+
+## Third list (the owner's session, 2026-11-27 12:54)
+
+**(1) The veil for mist that stands on water** (`mist_shore_veil.png` against
+`mist_shore_after.png`). The fog sheet works out how much mist stands over the eye by the very
+rule it is laid by (the field's fog top at the eye, or the water's surface and the mist on it)
+and hands the sky system the air's own veil for it (`fogSheet.eyeVeil`, 0.0045 a metre with
+14 m of mist overhead: one sees some 250 m), which goes into what every lit thing reads beside
+the rain's (`uWeather.w`, `sky/skySystem.js`; not in `weather.js`, which does not know the
+sheet: one rule, one writer). Eased on and off. The sheet is seen from inside again (the
+second list's fade is taken out): it is the mist over the eye, the veil is the mist in front
+of it. From the shore: pale water going into the veil, no horizon. The veil's colour is the
+rain veil's (the sky's light), a little cooler than the sheet above the horizon.
+
+**(5) The weather's season is the life's** (`weather/sky/model.js seasonOf`): where the world
+keeps a year of its own (the world file's `year`, handed to the producer and its worker as
+`opts.year` by `sky/skyField.js`), the model's `season` is `northSummer(lifeDay(...))` of
+`life/season.js` instead of the Sun's declination / 23.44. It moves the systems' tracks, the
+tropical line and the temperature (so rain against snow); the Sun's height and the day's
+length stay the Sun's. For the seasons helper: `at().temp` and `at().snow` are now in the
+life's season, so fresh snow needs no 900 m limit against the season's line on that account;
+the place to take it out is where that limit is applied (`snowFell` in `life/season.js`, its
+caller in `src/app.js`), which is not mine and is not touched. On the scene's own day the two
+seasons agree (life day 265 is the equinox), so the opening day's weather is as it was; the
+front's and the Crown's days are 0.2 and 0.3 of a season cooler in the north (checked: the
+storm, the front's deck and the Crown's bank are where their views look). The scripts that
+build the model pass the year too (`sky-scan`, `find-weather`, `sky-model-test`). One limit of
+`sky-model-test` was moved from 0.25 to 0.3 and the reason is written beside it (the worst
+single texel's change on its chosen calm day; on other days it is 0.4 to 1.0 with either
+season).
+
+**(2) The clouds in motion.** In Node (`node scripts/sky-boil-test.mjs`; `--break slide`
+fails): the two readings of the noise are in one frame, so sideways the masses and their lumps
+go together; upward the lumps rise through the masses at the steering's 0.5 m/s. In 60 s of
+the clock at most 5.3 % of a heap's cloud appears or goes in its own frame (cover 0.5; 3.8 %
+at full cover): heaps drift whole, their lumps creeping. In the game, `npm run stability`'s
+way, two new moves (`haven_heaps_air`, `haven_heaps_ground`): results below when in.
+
+**(2), in the game** (`node scripts/stability.mjs --only haven_heaps_air` and
+`haven_heaps_ground`, settled frames one camera step apart, on the build of this list):
+- from 3 km among the heaps at noon, two stations (`motion_heaps_air_0.png`, `_1.png`):
+  0.11 % and 0.10 % of the pixels change between frames, flicker 0.001 % and 0.003 %. The
+  difference picture is thin lines along the heaps' edges (the camera's own step) and one
+  small speckled patch inside a near heap at the bottom right of station 0 (the march's
+  grain where the eye is close to cloud). Nothing pops.
+- from the ground under heaps at noon, one station (`motion_heaps_ground_0.png`; the run said
+  "not ready in time" and took what was on screen): 39 % changed and 7.8 % flicker, ALL of
+  it in the grass, which waves; the sky's part of the difference picture is black. The
+  heaps overhead are steady, white on top and lilac underneath.
+- not run: `--streaming` (pops while ground arrives), the hand-over at 16 km in a long
+  flight, the shade map's new turns seen on the ground while walking, the mist's veil coming
+  on as one walks into it.
+
+**(3)** was cured under the second list. **(4) The anvil: not done.**
+
+SKY-SECOND-DONE (2026-11-27), with the anvil left.
+
+## Third note (2026-11-27, 14:21): the look in motion, the veil, the anvil
+
+**(1) The look in motion** (`node scripts/stability.mjs --only <move>`, settled frames one
+step apart, from a frozen build of 8e58ba3 merged with 0c5e99c; three new moves, and a new
+kind of step, `time`: seconds of the clock a frame with the camera still).
+- `haven_heaps_3k`, level flight at 3 km under the noon heaps, 2 m a frame, three stations
+  500 m apart (`motion_heaps_3k_0.png`): 0.47 %, 0.35 % and 0.06 % of the pixels change
+  between frames, flicker 0.01 %, 0.005 % and 0 %. The difference picture is the outline of
+  the near heap as it passes and the sparkle of the far trees; no window of the shade map
+  shows on the country below. Nothing pops.
+- `haven_mist_sink`, sinking 6 cm a frame over the lake of the mist view, four stations from
+  516 m to 492 m over the sea (`motion_mist_sink_stations.png`, the first frame of each;
+  `motion_mist_sink_3.png`, the lowest strip): 0 % changed and 0 % flicker at all four, the
+  largest change of any pixel 35/255. Nothing pops. (The 24 m fade of the note is gone since
+  072045a: what comes on is the air's veil, over 14 m.) NOT covered: the run began inside the
+  mist already (the water lies higher than my guess of 470 m), so the very moment of passing
+  through its top is not in these frames. SEEN in them, a fault of look and not of motion:
+  from inside the mist the far sky and its clouds show down to the horizon, and at the
+  lowest station a faint level line where the veiled water meets the unveiled sky. The veil
+  is on lit surfaces only; the sky behind them has none. Not cured here.
+- `haven_drift_still`, standing at the opening view with the clock running half a second a
+  frame, three stations five minutes of the clock apart (`motion_drift_still_0.png`): 10.7 %,
+  11.5 % and 10.9 % changed, flicker 3.7 to 4.1 %, ALL of it grass waving in the wind (half a
+  second a frame is fifteen frames of play). In the sky's part of the picture (its top 30 %)
+  0.001 % of the pixels change and none flickers: the cloudlets drift whole, and no turn of
+  the shade map shows. The first station was "not ready in time (terrain rocks)" and took
+  what was on screen.
+- not run: `--streaming`; the hand-over at 16 km in a long flight.
+- A thing seen on the way and not the sky's: in `motion_heaps_3k_0.png` the wood on the
+  mountain ends at a dead straight vertical line against the meadow.
+
+**(2) The veil knowing of the mist on the water**: done before the note, at 072045a (see
+"Third list" above): `mist_shore_after.png` (the lid) against `mist_shore_veil.png`.
+
+**(3) The anvil.** What was wrong (`anvil_before.png`, the storm view): the anvil was the high
+shell's sheet asked where a ray crosses ONE sphere: no depth, one grey underneath, and the mid
+layer's cloudlets, 3 km under it and in its shadow, drawn sunlit in front of it as cream
+flecks all over. And it was thrown away with the clear sky wherever the field had no high
+cloud at the place the ray crossed the shell, kilometres from where it met the anvil.
+What it is now (`anvil_after.png`, the same view; `anvil_side_after.png`, from 6.5 km up and
+32 km to its side):
+- `cellShape.js` (shared; added, nothing of the old rule changed but the depth): `anvilChord`,
+  a ray's exact stretch through the anvil's slab and the ball that holds it (JS and GLSL; the
+  spheres met by the ray's distance from the world's middle, which keeps 32-bit floats to
+  centimetres on Haven and a metre on Earth), and `anvilDepth`: ANVIL_THICK thinning downwind
+  as before, and ANVIL_FLARE (1 400 m) deeper round the tower, none at the neck's edge and
+  none from 0.9 of the way downwind: the tower's top widens into it.
+  `scripts/sky-cell-test.mjs`: the GLSL's chord against the JS's (Haven and Earth), a march
+  from 300 eyes under it that finds nothing solid outside the stretch (12 642 solid points
+  inside), and the same march failing on a stretch cut short.
+- `upperClouds.js`: the high shell walks that stretch in 8 steps (4 thinned, the governor's
+  `cloud-upper`; no new step), finds where the line of sight enters by 5 halvings (2
+  thinned), and shades by how high in the anvil that is: the underside's grey (paler toward
+  the thin edge), the lit top, and a side turned to the eye lit when the Sun is behind the
+  eye. The mid shell is thinned in front of an anvil as it is in front of a tower.
+- Taken on the way (the speed helper's count): the low far shell and the upper shell are
+  handed over with shared corners: 144 060 to 24 012 and 65 340 to 10 892 vertices a draw.
+What is left: from the front it is one mass flaring from its tower, its edge soft; from the
+side at 32 km it is a thin lens downwind of the tower with a lit rim, the flare hidden behind
+the tower. The model's shade and cover still take the anvil as a sheet (anvilCover). Its
+cost is not measured on the phone: 8 + 5 reads of the anvil's rule on the pixels its ball
+covers, and one ball test an anvil on every pixel of the two upper shells while a storm
+with an anvil is in the list.

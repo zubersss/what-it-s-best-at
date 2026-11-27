@@ -34,7 +34,7 @@ const RAD = Math.PI / 180, R = 250000, EYE = 1.7, FINE_TEXEL = 40 / 1024;
 
 let target = null, draws = [];
 const renderer = {
-  setRenderTarget(t) { target = t; }, clear() {}, getContext: () => ({ invalidateFramebuffer() {}, FRAMEBUFFER: 0, COLOR_ATTACHMENT0: 0 }),
+  setRenderTarget(t) { target = t; }, clear() {}, getContext: () => ({ invalidateFramebuffer() {}, invalidateSubFramebuffer() {}, FRAMEBUFFER: 0, COLOR_ATTACHMENT0: 0 }),
   render(mesh, cam) { const v = target.viewport, k = v.x === 0 ? 0 : v.y === 0 ? 1 : 2; if (!draws.some((d) => d.k === k)) draws.push({ k, n: v.z, cam: cam.clone() }); },
 };
 // Haven's opening place; the Sun 19.5 degrees up toward the south-east (as the opening has it)

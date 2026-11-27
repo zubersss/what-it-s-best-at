@@ -6,7 +6,8 @@
 //    a baseline that climbs by 40 ms over the test, a group that truly costs 9 ms reads 9 ms
 //    (set against the first baseline, as --break drift does, it reads far off).
 import { GlTally, TALLY, texelBytes, trianglesOf } from '../src/perf/glTally.js';
-import { GROUPS, costConfigs, baselineAt } from '../src/perf/costPlan.js';
+import { GROUPS, SAVING_GROUPS, costConfigs, baselineAt, framesFor } from '../src/perf/costPlan.js';
+import { FEATURE_STEPS } from '../src/perf/governor.js';
 const brk = process.argv.includes('--break') ? process.argv[process.argv.indexOf('--break') + 1] : null;
 let failed = 0;
 const check = (name, ok, detail = '') => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`); if (!ok) failed++; };
@@ -46,11 +47,19 @@ const check = (name, ok, detail = '') => { console.log(`${ok ? 'ok  ' : 'FAIL'} 
 // --- 2. the plan
 {
   const steps = [0, 1, 2, 3, 4, 5, 6], parts = GROUPS.flatMap((g) => g.parts).map((id) => ({ id })), groups = GROUPS.map((g, k) => ({ ...g }));
-  const held = 0.7, c = costConfigs(steps, parts, groups, held, 0.4), n = c.length;
+  const families = SAVING_GROUPS.map((g) => ({ ...g }));
+  const held = 0.7, c = costConfigs(steps, parts, groups, held, 0.4, families), n = c.length;
   const isOn = (k) => c[k][0] === -1 && c[k][1] === held;
   let twice = true, flanked = true;
   groups.forEach((g, i) => { const at = c.map((x, k) => (x[0] === -100 - i ? k : -1)).filter((k) => k >= 0); if (at.length !== 2) twice = false; for (const k of at) if (!isOn(k - 1) || !isOn(k + 1)) flanked = false; });
-  check('every group is measured twice', twice);
+  families.forEach((g, i) => { const at = c.map((x, k) => (x[0] === -200 - i ? k : -1)).filter((k) => k >= 0); if (at.length !== 2) twice = false; for (const k of at) if (!isOn(k - 1) || !isOn(k + 1)) flanked = false; });
+  check('every group of parts and every family of savings is measured twice', twice);
+  // (every saving the governor has, but the two that draw fewer patches, is in exactly one family)
+  const ids = FEATURE_STEPS.map((f) => f.id).filter((id) => !id.startsWith('terrain-')), inFam = SAVING_GROUPS.flatMap((g) => g.steps);
+  const lost = ids.filter((id) => inFam.filter((x) => x === id).length !== 1), unknown = inFam.filter((id) => !ids.includes(id));
+  check('every saving is in exactly one family', !lost.length && !unknown.length, [...lost.map((x) => x + ' (in ' + inFam.filter((y) => y === x).length + ')'), ...unknown.map((x) => x + ' (no such saving)')].join(', '));
+  check('a part that is a group by itself is not measured twice over', !c.some((x) => x[0] <= -10 && x[0] > -100 && groups.some((g) => g.parts.length === 1 && g.parts[0] === parts[-10 - x[0]].id)));
+  check('frames a measure: a group 12, a part 10, a saving 8', framesFor(-100) === 12 && framesFor(-203) === 12 && framesFor(-1) === 12 && framesFor(-12) === 10 && framesFor(5) === 8);
   check('with everything on measured just before and just after', flanked);
   check('the report reads the last four where it expects them', c[n - 4][0] === -2 && isOn(n - 3) && c[n - 2][1] === 0.4 && c[n - 1][1] === 1);
   check('every part has everything on just before it', c.every((x, k) => !(x[0] <= -10 && x[0] > -100) || isOn(k - 1)));

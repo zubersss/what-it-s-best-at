@@ -536,3 +536,30 @@ export function makeTreeGeometries() {
   });
   return out;
 }
+
+// The same triangles with every corner that several of them share handed over once: for each
+// attribute a copy with one entry a distinct vertex (distinct to the last bit in every
+// attribute), and the index that draws the triangles from them in their own order. A tree's
+// cards are quads of two triangles and its boughs strips: made corner by corner, a third of
+// the vertex shader's runs were for a vertex it had just worked out.
+// Returns { attributes: { name: BufferAttribute }, index: BufferAttribute } (the geometry
+// itself is left as it is: the sketches and the tests read it triangle by triangle).
+export function sharedCorners(geometry, names = Object.keys(geometry.attributes)) {
+  const src = names.map((n) => geometry.attributes[n]), count = src[0].count;
+  const words = src.map((a) => new Uint32Array(a.array.buffer, a.array.byteOffset, a.array.length));
+  const seen = new Map(), index = new Uint32Array(count), from = [];
+  for (let i = 0; i < count; i++) {
+    let key = '';
+    for (let k = 0; k < src.length; k++) { const n = src[k].itemSize, w = words[k]; for (let c = 0; c < n; c++) key += w[i * n + c].toString(36) + ','; }
+    let j = seen.get(key);
+    if (j === undefined) { j = from.length; seen.set(key, j); from.push(i); }
+    index[i] = j;
+  }
+  const attributes = {};
+  src.forEach((a, k) => {
+    const n = a.itemSize, out = new Float32Array(from.length * n);
+    for (let j = 0; j < from.length; j++) for (let c = 0; c < n; c++) out[j * n + c] = a.array[from[j] * n + c];
+    attributes[names[k]] = new THREE.BufferAttribute(out, n);
+  });
+  return { attributes, index: new THREE.BufferAttribute(from.length > 65535 ? index : Uint16Array.from(index), 1) };
+}
