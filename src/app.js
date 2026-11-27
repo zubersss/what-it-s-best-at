@@ -302,7 +302,6 @@ export class App {
     this.falls = new Falls(this.terrain.shared); this.nearScene.add(this.falls.mesh);
     this.addRockCasters();
     this.farRocks.off = params.debug.includes('farrocksoff');      // ?debug=farrocksoff: none of them, for before/after pictures
-    this.grass.cullOff = params.debug.includes('grasswhole');      // ?debug=grasswhole: every cell of the grass and the flowers handed to the GPU, as before the choosing (life/grassBlocks.js): to see on a device that nothing is missing
     // Trees (worlds that have them): drawn with the ground, and they cast shadows
     this.trees = new Trees(world, this.terrain); this.trees.renderer = renderer;
     for (const set of this.trees.sets.flat(2)) this.nearScene.add(set.mesh);
@@ -313,6 +312,7 @@ export class App {
     this.farForest = new FarForest(this.trees, this.terrain); this.nearScene.add(this.farForest.mesh);
     if (params.debug.includes('treeshade')) this.farForest.shared.uShadow.value.y = 1;      // ?debug=treeshade: the far trees painted by how much of the Sun the land and the clouds leave them
     this.grass = new Grass(this.terrain, this.terrain.shared.uWind); this.grass.setWorld(world); this.grass.eager = this.shotMode; this.grass.debugKinds = params.debug.includes('flowers');
+    this.grass.cullOff = params.debug.includes('grasswhole');      // ?debug=grasswhole: every cell of the grass and the flowers handed to the GPU, as before the choosing (life/grassBlocks.js): to see on a device that nothing is missing
     this.nearScene.add(this.grass.mesh);
     this.leaves = new Leaves(this.trees);
     this.nearScene.add(this.leaves.mesh);
