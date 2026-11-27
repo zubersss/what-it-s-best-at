@@ -58,7 +58,7 @@ export default {
       // the maker leaves stand at one slope for long stretches, so "only where it is steep"
       // was everywhere on them. Rock on this world is blocks and outcrops, not benches.)
       // The sea: nothing lies below sea level (this layer stays last).
-      // (beach: the ground within 7 m of the sea's level lies at this share of its height at the
+      // (beach: the ground within 12 m of the sea's level lies at this share of its height at the
       // shore: a beach and shallows three times as wide as the map's slope gives, for the tide)
       { op: 'sea', level: 0, beach: 0.3 },
     ],

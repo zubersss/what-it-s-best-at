@@ -16,12 +16,17 @@ export const RING_INSET = 24;          // (a whole number of a coarser ring's pi
 // within this many pixels of a cell (packWater).
 export const RIVER_REACH = 4;
 // A beach. The map's ground within BEACH metres above and below the sea's level, flattened
-// toward it: to `beach` of its height at the very shore (0..1; 1: as the map has it), easing
-// back to the map's own at BEACH. up: metres above the sea's level in the map. One rule for
+// toward it: to `beach` of its height near the shore (0..1; 1: as the map has it), easing
+// back to the map's own at BEACH (a rise behind the beach, a drop-off beyond the shallows). up: metres above the sea's level in the map. One rule for
 // the ground (layers.js, sea) and for the mosaics a made world's rivers are worked out on
 // (tiles/madeTiles.js): a river must come down to the shore the walker stands on.
-export const BEACH = 7;
-export function shoreUp(up, beach) { const a = up < 0 ? -up : up; if (beach >= 1 || a >= BEACH) return up; const t = a / BEACH; return up * (beach + (1 - beach) * t * t * (3 - 2 * t)); }
+export const BEACH = 12;
+export function shoreUp(up, beach) {
+  const a = up < 0 ? -up : up; if (beach >= 1 || a >= BEACH) return up;
+  // (flat for the first third of the way, then easing back: the tide's whole rise and fall lies on the flat)
+  const t = a / BEACH, u = t <= 0.3 ? 0 : (t - 0.3) / 0.7;
+  return up * (beach + (1 - beach) * u * u * (3 - 2 * u));
+}
 // How fast a river runs across its width: fastest in the middle, slow at its banks.
 // u: 0 in mid stream .. 1 at the water's edge.
 export function flowAcross(u) { const k = 1 - u * u; return 0.3 + 0.7 * (k > 0 ? k : 0); }

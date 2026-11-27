@@ -435,7 +435,7 @@ export const OPS = {
   // and raise islets off it).
   sea(def) {
     const level = def.level ?? 0;
-    // beach (def.beach, 0..1; 1 or absent: none): the map's ground within 7 metres above
+    // beach (def.beach, 0..1; 1 or absent: none): the map's ground within 12 metres above
     // and below the sea's level is flattened toward it, to this share of its height at the
     // very shore: a beach and shallows several times as wide as the map's slope gives, for
     // the tide to move over (on a steep shore the sea's rise and fall was a band a few
