@@ -72,7 +72,7 @@ export function treeBlock(hs, bi, bj, spacing = 7, nominal = BLOCK_DEG, salt = 4
     if (near) dens = Math.max(dens, cls === 15 || cls === 17 ? 0 : 0.5);
     const slope = hs.baseSlope;
     dens *= slope > 0.95 ? 0 : slope > 0.5 ? 1 - (slope - 0.5) / 0.45 : 1;
-    const line = lineDef ? lineDef.base - lineDef.perDeg * Math.max(0, Math.abs(lat) - (lineDef.from ?? 0)) : treeLine(lat), over = (h - line + 350) / 350;                     // 0 well below the tree line, 1 at it
+    const line = lineDef ? lineDef.base - lineDef.perDeg * Math.max(0, Math.abs(lat) - (lineDef.from ?? 0)) : treeLine(lat), band = lineDef?.band ?? 350, over = (h - line - (lineDef?.above ?? 0) + band) / band;                     // 0 well below the tree line, 1 at it (above, band: a made world whose land rule thins its own woods toward a ragged line keeps this one above it, as a last limit)
     if (over >= 1) continue;
     if (over > 0) dens *= 1 - over;
     if (u3 >= dens) continue;
