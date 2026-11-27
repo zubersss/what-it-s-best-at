@@ -25,6 +25,7 @@
 // A world has them with `surface.rocks.far` in its file (rockBlock.js has the defaults).
 import * as THREE from 'three';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
+import { SNOW_GLSL, SNOW_UNIFORMS } from '../render/snowGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { SHADE_READ_GLSL, CLOUD_SHADE_UNIFORMS } from '../sky/cloudShade.js';
 import { CONFIG } from '../config.js';
@@ -90,7 +91,7 @@ export class FarRocks {
     const sh = terrain.shared;
     this.uFar = { value: new THREE.Vector4(420, 0, 1, CONFIG.NEAR_SHADOW_RADIUS) }; this.uShareSize = { value: new THREE.Vector2(3.4, 8) };
     this.uniforms = {
-      ...lightingUniforms(), uFar: this.uFar, uShareSize: this.uShareSize,
+      ...lightingUniforms(), ...SNOW_UNIFORMS, uFar: this.uFar, uShareSize: this.uShareSize,
       uRockAlbedo: { value: new THREE.Vector3(0.2, 0.15, 0.1) }, uDustAlbedo: { value: new THREE.Vector3(0.2, 0.17, 0.12) }, uRoughness: { value: 0.5 }, uDustCap: { value: 0.55 },
       // (the ground's own: the clouds' shade from the one atlas, and the beds of coloured rock)
       ...CLOUD_SHADE_UNIFORMS,
@@ -102,6 +103,7 @@ export class FarRocks {
       out vec3 vRel; out vec3 vN; out float vLocalZ;
       flat out vec4 vTone;            // x: sunlight on it, y: its tone, z: snow, w: how far it has grown in
       flat out vec3 vBand;            // the tint of the bed of rock it lies on
+      ${SNOW_GLSL}
       void main() {
         vec3 c; float grow;
         if (!rockPlace(c, grow)) { vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLocalZ = 0.0; vTone = vec4(0.0); vBand = vec3(1.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
@@ -111,6 +113,8 @@ export class FarRocks {
         vec3 planetPos = uCamPlanetPos + c, up = normalize(planetPos);
         float sun = rockSun(planetPos, up);
         float tv = aMisc.y * 255.0, snow = step(127.5, tv);
+        // (the season's snow: the land's own gone from it, or new snow on it; render/snowGlsl.js)
+        { vec2 sn = snowSeason(length(planetPos) - uPlanetRadius, up, up, 0.0, 0.0); snow = max(snow * (1.0 - sn.y), sn.x); }
         vTone = vec4(sun, 0.8 + 0.4 * (tv - 128.0 * snow) / 127.0, snow, grow);
         float hs = length(planetPos) - uPlanetRadius;
         vec3 tint = textureLod(tStrata, vec2(hs * uStrata.x, 0.25), 0.0).rgb * 2.0, fine = textureLod(tStrata, vec2(hs * uStrata.z, 0.75), 0.0).rgb * 2.0;

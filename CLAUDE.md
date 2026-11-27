@@ -247,7 +247,7 @@ node scripts/shadow-fine-rocks-test.mjs   # every rock whose shadow lies in the 
 node scripts/shadow-axes-test.mjs   # a still spot's shadow hardly moves when the light axes are renewed or the anchor resets (no browser)
 node scripts/terrain-bake-sun-test.mjs   # a patch built mid-walk is baked for the same Sun as its neighbours (no browser)
 npm run treeshadows   # the trees' shadows in motion, without a browser (about 40 s): flecks fixed to the ground through tile re-centres and axes renewals, no lurch at a rebuild, the shadow's mesh changing only where the picture does, the fine tile's count
-node scripts/season-test.mjs [--break year|rule|bloom|whole]   # the season's one rule (life/season.js): Haven's opening morning as it was before it had a year, Earth on the date's calendar, the year's length, going to a season in whole days (no browser, a second)
+node scripts/season-test.mjs [--break year|opening|evergreen|far|ground|jump|litter|snow|grass|whole]   # the season's one rule (life/season.js): Haven's opening morning unchanged (calendar, bare trees, flowering, snow, grass, flowers), evergreens never turn, one answer near, far and in the ground, the leaves on the ground, the snow line, the meadow's kinds through the year, going to a season in whole days (no browser, seconds); node scripts/tree-preview.mjs --year 5 [--alt 1400 --lat 45]   # a species through its year at its three distances
 node scripts/sky-system-test.mjs [--break <fault>]   # the sky's step 0 (docs/briefs/sky-step0.md): the shared cloud rule's GLSL against its JS, the clouds going with the day's low wind and rising on the game clock, the guards that let a shader take two shared texts, the frame order and the interfaces the sky packages build on, the governor's and the benchmark's hooks, the debug switches (no browser, 10 s; --break puts one fault in to see its check fail)
 node scripts/sky-list-test.mjs [--break hold|nofast]   # the storm cells and anvils asked every frame from moments 2 s apart and blended: within a few cm of the model's own answer, forwards and backwards, and the model asked about once in 60 frames (no browser, 3 s)
 node scripts/sky-slots-test.mjs [--break reslot]   # the sky field's snapshots on the GPU: every blend of the 'now' maps reads the pair's own two snapshots, forwards, backwards and after jumps (a renderer that only keeps count; no browser, seconds)
@@ -797,3 +797,18 @@ finished benchmark leaves its text in `window.__benchResult`.
   `?t=H`: `t_weather = (Date.parse(scene.dateUTC) - Date.parse(weather.epoch)) / 1000 + H * 3600`
   (or `new Steer(weather, R).t(date)`). Views, stability cases and benchmark hours picked from
   the model go through it.
+- A screenshot waits until the picture is still. Anything put in place a few a frame (the
+  lying petals, six a frame; the lying leaves) keeps it changing for as many frames as
+  that takes, at seven seconds a frame here: in screenshot mode lay it all at once
+  (`Shed.update(..., all)`).
+- A picture that is "not ready" in time is not yet a fault. A ground-level Haven picture
+  needs some 150 frames to settle and may not make 1 500 s at the reference size; the
+  picture saved then (coarse green land, no trees) looks like a broken shader and is not.
+  Before debugging, ask the page what it waits for (`window.__stats.wait`, the frame count,
+  `terrain.wanted`, `trees.missing`), and check a new build first at a small size
+  (`--dsf 0.6 --timeout 2400`: about a third of the time), the full size after.
+- The same thing drawn three ways must take its season from one answer (near meshes, whole
+  tree pictures, the far forest): bare aspens were full green crowns from 60 m on for as
+  long as only the nearest mesh asked. And a rule's colours must be looked at after
+  everything the look does to them (`paintLeaf`, `farGreen` pulled gold toward olive).
+

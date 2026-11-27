@@ -67,6 +67,7 @@ else {
   const f = new Function('G', 'KIND_PALE', 'KIND_N', 'h1', 'u2', 'FK_', 'rise', 'dist', 'kb', 'y',
     `${PRE} const h = { x: 0.3, y: 0.7 }, cell = 0, aBlade = 0, at = 0, tTable = 0, uTab = 0, uGrassKeep = { x: kb, y: 1 };
      const hash2 = () => ({ x: h1, y: u2 }), tableNearest = () => ({ a: FK_ }), petalColour = () => 1;
+     const uKindShut = new Float32Array(KIND_N);          // (every kind out: the season's own share is scripts/season-test.mjs's to check)
      ${functionsFor(vs, piece)}
      let alb = 0, skyShare = 0;
      ${toJs(piece)}
