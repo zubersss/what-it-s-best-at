@@ -470,7 +470,7 @@ as before.
     `node scripts/grass-place-test.mjs` replays the shader's own lines across steps.
     A thinned field keeps cells by a rule of the cell's own number (`keptCell`).
   - *Only what could be drawn is handed over* (`life/grassBlocks.js`): a field is a window
-    of cells round the eye, cut into 8 x 8 blocks; each frame, once the camera is final
+    of cells round the eye, cut into 12 x 12 blocks; each frame, once the camera is final
     (`Grass.cull`, called from the frame just before the near scene is drawn), a block is
     handed to the GPU only if the shader's own early tests (the ring's distances, `outside`
     with the field's reach, grass or a flower in the ground table) could pass for some foot

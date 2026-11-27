@@ -13,7 +13,9 @@
 // vertex in it, so the picture is the same to the pixel.
 //
 // No DOM, no three: the game uses it, and its test in Node (scripts/grass-blocks-test.mjs).
-export const NB = 8;                 // blocks a side
+// (12 a side: with 8 the test's views hand over 19 % of the blocks, with 12 15 %, with 16 14 %,
+// and the choosing costs the page 0.15, 0.21 and 0.38 ms a frame on the build machine)
+export const NB = 12;                // blocks a side
 export const NBLOCKS = NB * NB;
 export const blockWide = (grid) => Math.ceil(grid / NB);      // cells a side of a block (the last row and column may reach past the field: those cells are no cell)
 const SLACK = 0.05;                  // metres the box is larger than the shader's own numbers say (32-bit sums there, 64-bit here)

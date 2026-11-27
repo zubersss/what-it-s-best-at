@@ -196,7 +196,7 @@ before the clear is what the picture and the shadow tiles now do).
 
 
 1. **Grass: only the blocks of a field that the shader could keep anything of are handed
-   over** (`src/life/grassBlocks.js`, `grass.js`). Each of the eight fields is cut into 8 x 8
+   over** (`src/life/grassBlocks.js`, `grass.js`). Each of the eight fields is cut into 12 x 12
    blocks of its window round the eye; a block goes to the GPU only if the vertex shader's own
    early tests (the ring's distances, the picture's edge with the field's reach, grass or a
    flower in the ground table) could pass for some foot in it, asked of a box that holds every
