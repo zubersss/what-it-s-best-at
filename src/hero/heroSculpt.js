@@ -17,6 +17,9 @@ import { PARTS, PALETTE_W, paletteTexels, fillPalette } from './heroPalette.js';
 
 const SKIN = /* glsl */`
 uniform highp sampler2D uPalette;
+// (the nine parts' rows as plain numbers: a vertex with no loose cloth, which is the body, the
+// boots, the hands, the head and most of what is drawn, reads no texture at all; it read nine)
+uniform vec4 uPartRows[${PARTS * 3}];
 in vec4 aParts; in vec4 aMovers; in vec4 aShares;
 vec4 pal(int k) { return texelFetch(uPalette, ivec2(k % ${PALETTE_W}, k / ${PALETTE_W}), 0); }
 // The rows of the matrix that takes this vertex from where the sculpt stands to where it is
@@ -24,9 +27,9 @@ vec4 pal(int k) { return texelFetch(uPalette, ivec2(k % ${PALETTE_W}, k / ${PALE
 void carriers(out vec4 r0, out vec4 r1, out vec4 r2) {
   int a = int(aParts.x + 0.5) * 3, b = int(aParts.y + 0.5) * 3;
   float w = aParts.z / 255.0, t = aParts.w / 255.0, u = 1.0 - w - t;
-  r0 = pal(a) * u + pal(b) * w + pal(0) * t;
-  r1 = pal(a + 1) * u + pal(b + 1) * w + pal(1) * t;
-  r2 = pal(a + 2) * u + pal(b + 2) * w + pal(2) * t;
+  r0 = uPartRows[a] * u + uPartRows[b] * w + uPartRows[0] * t;
+  r1 = uPartRows[a + 1] * u + uPartRows[b + 1] * w + uPartRows[1] * t;
+  r2 = uPartRows[a + 2] * u + uPartRows[b + 2] * w + uPartRows[2] * t;
   float cloth = aShares.x + aShares.y + aShares.z + aShares.w;
   if (cloth > 0.0) {
     r0 *= 1.0 - cloth; r1 *= 1.0 - cloth; r2 *= 1.0 - cloth;
@@ -81,10 +84,11 @@ export class HeroSculpt {
     this.data = new Float32Array(PALETTE_W * h * 4);
     this.palette = new THREE.DataTexture(this.data, PALETTE_W, h, THREE.RGBAFormat, THREE.FloatType);
     this.palette.minFilter = this.palette.magFilter = THREE.NearestFilter; this.palette.generateMipmaps = false;
-    this.uniforms = { ...hero.uniforms, uPalette: { value: this.palette } };       // (the figure's own light: one set of uniform objects)
+    this.partRows = new Float32Array(PARTS * 12);
+    this.uniforms = { ...hero.uniforms, uPalette: { value: this.palette }, uPartRows: { value: this.partRows } };       // (the figure's own light: one set of uniform objects)
     this.material = new THREE.ShaderMaterial({ name: 'HeroSculpt', glslVersion: THREE.GLSL3, defines: { ...hero.material.defines, SCULPT: 1 }, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: HERO_FRAG, side: THREE.FrontSide });
     this.depthMaterial = new THREE.ShaderMaterial({
-      name: 'HeroSculptDepth', glslVersion: THREE.GLSL3, side: THREE.DoubleSide, colorWrite: false, uniforms: { uPalette: this.uniforms.uPalette },
+      name: 'HeroSculptDepth', glslVersion: THREE.GLSL3, side: THREE.DoubleSide, colorWrite: false, uniforms: { uPalette: this.uniforms.uPalette, uPartRows: this.uniforms.uPartRows },
       vertexShader: DEPTH_VERT, fragmentShader: `layout(location = 0) out vec4 fragColor; void main() { fragColor = vec4(1.0); }`,
     });
     this.geometries = file.lods.map(geometryOf);
@@ -116,6 +120,7 @@ export class HeroSculpt {
     hero.body.updateMatrix();
     for (let i = 0; i < PARTS; i++) { parts[i].updateMatrix(); this._m[i].multiplyMatrices(hero.body.matrix, parts[i].matrix).multiply(this._inv[i]); }
     fillPalette(this.data, this._e, hero.robe.pos, this.shared);
+    this.partRows.set(this.data.subarray(0, PARTS * 12));
     this.palette.needsUpdate = true;
     const g = this.geometries[this.light ? this.geometries.length - 1 : 0]; if (this.mesh.geometry !== g) this.mesh.geometry = g;
     this.shadowMesh.matrix.copy(hero.group.matrixWorld); this.shadowMesh.matrixWorld.copy(hero.group.matrixWorld);

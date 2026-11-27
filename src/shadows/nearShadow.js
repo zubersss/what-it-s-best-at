@@ -38,6 +38,7 @@ export function tileShare(k, n, at, stride, origin, scale, lump) {
   return 0;
 }
 
+const ATLAS_BOTH = [0x8CE0, 0x8D00];      // COLOR_ATTACHMENT0, DEPTH_ATTACHMENT
 export class NearShadow {
   constructor(renderer) {
     this.renderer = renderer;
@@ -236,6 +237,7 @@ export class NearShadow {
       tgt.scissorTest = false;
       tgt.viewport.set(0, 0, this.width, this.height);
       r.setRenderTarget(tgt);
+      { const gl = r.getContext(); gl.invalidateFramebuffer(gl.FRAMEBUFFER, ATLAS_BOTH); }
       r.clear(true, true, false);
     }
     this.drawn = 0;
@@ -250,7 +252,10 @@ export class NearShadow {
       // (one tile alone: only its own square of the atlas is cleared and written)
       tgt.scissorTest = !all; tgt.scissor.set(t.x, t.y, t.n, t.n);
       r.setRenderTarget(tgt);
-      if (!all) r.clear(true, true, false);
+      // (?. below: the Node tests' stand-in for the context has no such call)
+      // (one tile's square given up before it is cleared: a clear of a part does not tell a
+      // tile-based GPU that the square begins anew, and it reads the old depth back in first)
+      if (!all) { const gl = r.getContext(); gl.invalidateSubFramebuffer?.(gl.FRAMEBUFFER, ATLAS_BOTH, t.x, t.y, t.n, t.n); r.clear(true, true, false); }
       this.drawn += t.n * t.n;
       // (the pixel at the atlas's t.x + n/2 is the tile's middle, which is a whole number of
       // texels from the anchor)

@@ -1,6 +1,6 @@
 // Headless smoke test of the parts a screenshot bookmark never touches: the start screen,
 // Play, the Smooth/Sharp switch, the HUD states, and a complete benchmark run with its
-// results screen.   node scripts/smoke.mjs [--dist] [--out <dir>] [--no-bench] [--soak] [--earth]
+// results screen.   node scripts/smoke.mjs [--dist] [--out <dir>] [--no-bench] [--soak] [--earth] [--dsf 0.5] [--size 880x412] [--limit <seconds>]
 // --soak runs the 10-minute soak instead of the 3-minute benchmark (two extra laps, and
 // the minute-by-minute table).
 // Software WebGL: the frame rates it prints are meaningless; it checks that things work.
@@ -11,7 +11,11 @@ import { shaderUse, overPhone, countVaryings, PHONE } from './lib/glLimits.mjs';
 
 const out = path.resolve(root, opt('out', 'docs/shots/ui'));
 await mkdir(out, { recursive: true });
-const { base, page, problems, snap, goto, close } = await open({ dist: flag('dist'), touch: true });
+// (--dsf 0.5: a quarter of the pixels, for the benchmark's cost test on a slow machine: 240
+// steps of software rendering take this machine an hour and a half at the phone's shape; a smaller
+// window, --size, hides the start screen's buttons and the clicks time out)
+const [sw, sh] = opt('size', '880x412').split('x').map(Number);
+const { base, page, problems, snap, goto, close } = await open({ dist: flag('dist'), touch: true, width: sw, height: sh, dsf: +opt('dsf', 1.25) });
 const check = (name, ok) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`); if (!ok) problems.push(name); };
 
 // (on Mars: the game opens on Haven, whose wooded ground takes this machine seven seconds a
@@ -50,7 +54,7 @@ console.log(await page.evaluate(() => window.__app.governor.summary), '| steps s
 
 if (!flag('no-bench')) {
   // (--earth: the Earth benchmark; the cost test after the lap takes its time in a software renderer)
-  const soak = flag('soak'), haven = flag('haven'), earth = flag('earth') || haven, limit = opt('limit', null) ? +opt('limit', 0) * 1000 : soak ? 760000 : haven ? 4800000 : earth ? 2400000 : 1500000;      // (--limit <seconds>: on a slow machine the Haven run takes hours)
+  const soak = flag('soak'), haven = flag('haven'), earth = flag('earth') || haven, limit = opt('limit', null) ? +opt('limit', 0) * 1000 : soak ? 760000 : haven ? 4800000 : earth ? 2400000 : 2700000;      // (--limit <seconds>: on a slow machine the Haven run takes hours)
   await goto(base + (soak ? '?world=mars&bench=soak' : haven ? '?world=haven&bench=haven' : earth ? '?world=earth&bench=earth' : '?world=mars&bench=run'));
   await page.waitForFunction(() => window.__app?.benchmark?.active, null, { timeout: earth ? 900000 : 240000 });
   check(`benchmark starts from ?bench=${soak ? 'soak' : 'run'}`, true);
@@ -68,6 +72,9 @@ if (!flag('no-bench')) {
   check('results screen is up', await page.isVisible('#results'));
   // (the cost test: every view has its three lines, with numbers in them)
   if (!soak) check('the cost test measured each view', (text.match(/^what each thing costs to draw/gm) || []).length === (earth ? 3 : 1) && /everything on \d+\.\d \(from/.test(text) && !/everything on \? /.test(text), (text.match(/^what each thing costs.*$/gm) || []).join(' | ').slice(0, 200));
+  // (what was handed to the GPU, by stop; and the cost test's groups, each with its two takes)
+  check('every stop has its counts of what the GPU was handed', (text.match(/^      \d+\.\d passes · [\d.kM]+ draw calls · [\d.kM]+ triangles · uploads /gm) || []).length >= 6, (text.match(/^      \d+\.\d passes.*$/m) || [''])[0]);
+  if (!soak) check('the cost test measured the groups twice each', /saved by leaving a group out/.test(text) && (text.match(/^    [^:\n]+: -?\d+\.\d \(-?\d+\.\d · -?\d+\.\d\)$/gm) || []).length >= 6 * (earth ? 3 : 1) && /every group out at once: -?\d+\.\d saved/.test(text), (text.match(/^    every group out.*$/m) || [''])[0]);
   check('the page\'s work is named by part at every stop', (text.match(/^      [a-z ]+ \d+\.\d( ·|$)/gm) || []).length >= 6);
   if (soak) check('soak has a minute-by-minute table with ten rows', (text.match(/^\s+\d+: [\d.]+ fps/gm) || []).length === 10);
   check('results have every line the owner asked for', ['average fps', '1% low', 'worst frame', 'render resolution', 'quality steps', 'hitches over 100 ms', 'GPU:', 'pixel ratio', 'mode', 'build'].every((k) => text.includes(k)));

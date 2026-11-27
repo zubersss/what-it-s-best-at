@@ -102,3 +102,114 @@ of Haven's clock at its own pace). No new texture anywhere. Not measured on the 
 
 **Not done.** From beyond 19 km the forest's colour is the land's colour map, which has no
 season: from space the woods do not turn (the snow does: piece 4).
+
+## Piece 3: leaves that pile up
+
+**What was built.**
+- The rule says how much of a tree's leaves lies under it (`treeSeason`'s `down`: it grows
+  as they fall, thins to a third through the winter, the rest goes as the new leaves come
+  out), in what colour (the colour they fell in, going brown) and how fast they are coming
+  off now (`shed`).
+- **In the air, from the trees that are shedding** (`leaves.js`, `TreeLeaves`): the petals'
+  machine made general (`Shed`: a pool of points in eight slots, each slot one of the
+  nearest trees; a falling one is one sum in the vertex shader, a lying one is put on the
+  ground as drawn). `Trees.shedding` lists the nearest trees the rule says are dropping
+  leaves or have leaves under them, with each tree's leaf colour of the day; 480 leaves
+  fall from their crowns, more in a gust, and 4 800 lie under and down the wind of them, as
+  many as the rule says lie. The petals in spring are the same machine with other numbers.
+- **On the ground** (`terrainMaterial.js`, the `[seasons]` litter block, which replaces the
+  old scatter): a wood's floor carries the leaves of its height and day (`uLitterYear`,
+  from `canopyYear`: colour and amount, a wood with one leaf-dropping tree in three is
+  carpeted when they are bare), thicker along the wood's edge; and under and down the wind
+  of each of the eight nearest trees that have dropped theirs (`uLeafTree`: the lying
+  leaves' own slots), in that tree's colour, thickest against its trunk. Thin is a
+  scatter, much is a carpet.
+- **Kicked up** (`leaves.js`, `Kicked`): running on foot, or flying within two metres of
+  the ground, through leaves that lie (the same amounts the ground draws: `lyingAt`) throws
+  bursts of them up behind, in their colour: 12 bursts of 26 points, each leaf one sum from
+  the burst's place, moment and the traveller's velocity.
+- **The petals' carpet** in spring is painted by the same ground block (the petals' own
+  slots, thinner), as the earlier report wished.
+- The old box of 420 leaves in the wind stays for gales and for a traveller tearing past
+  trees, and in autumn adds the leaves of the trees farther off; it now follows how fast
+  the place's trees are shedding (it fell all winter from bare trees before).
+- The governor's `leaves` step thins all of it to a third, as it did the petals.
+
+**Pictures**: `haven_ledge_grove_ground_lateautumn.png` (the grove from the ground, late in
+autumn: half the trees bare, their leaves under them and in the grass).
+
+**Cost.** Points: 480 + 4 800 + 312 more, drawn only near such trees in their season. The
+ground: the litter block reads the detail tile twice as before, now only where leaves lie
+within reach of the eye; it gains a loop over eight uniform vectors within 90 m and one
+mix of two. See "Cost" at the end.
+
+**Not done.** Leaves do not gather against rocks, and "deeper in hollows" is only "not on
+steep ground": the ground's shader has no measure of a hollow that is cheap. A lone tree
+on open ground with no canopy in the land's map has its lying leaves as points but no
+carpet painted under it.
+
+## Piece 4: snow that comes and goes
+
+**What was built.**
+- The rule (`season.js`, "Snow that comes and goes"): the snow painted into the land's
+  colour is the land's own, and is what lies on the first day of spring. Through the year
+  the air is warmer or colder than on that day (10 degrees warmer in summer, 14 colder in winter, at 45 degrees and
+  beyond, less toward the equator, the coldest and warmest a fortnight of the life's year
+  after the solstices), and the snow follows as a line in height: new snow lies above the
+  land's line + 400 m + the season's shift (in midwinter some 1 300 m below the land's own
+  snow: the opening place, 1 400 m up, is at its edge), and the land's own snow is gone below its line - 450 m + the shift (in summer
+  only the highest ground keeps any). The two margins are why nothing changes on the
+  opening morning. **Fresh snow**: where the day's weather has let snow fall in the last
+  day and a half at the traveller's place it lies down to the height it fell to, at most
+  900 m below the season's line, and that line climbs again by the hour (`snowFell`,
+  `snowDrop`; the app asks the weather one moment a frame). The limit is there because the
+  weather's cold does not yet know the life's season: unlimited, the high ground was white
+  all summer (the first summer picture was).
+- The shaders (`render/snowGlsl.js`, one text and two shared uniforms): the ground takes
+  the land's own snow off where it is gone (the bare high ground under it) and lays new
+  snow, its edge broken by a noise of the place, later on slopes turned toward the
+  equator's sky and sooner off them in the thaw, none on steep ground or water; the canopy
+  raised beyond the trees, the crowns near and far (what of them looks up), the boulders
+  far and the stones near take it by the same text. Both halves of the world have their
+  own season: from space the caps of one grow while the other's shrink.
+- The grass lies flat under it (piece 5's uniform).
+
+**Pictures**: `haven_ledge_peak_<season>.png` and `piece4_peak_seasons.png` (a 3 700 m peak
+23 km west of the opening place, from the air at 2 800 m); `haven_ledge_space_winter.png` and
+`..._summer.png` (the southern half from 700 km).
+
+**Known wrong.** Near by, the land's own painted snow is what it was before this work: its
+white is held inside the ground's colour range, so in shade it is a pale grey-lilac, while
+new snow is white (`piece4_peak_seasons.png`: the opening day against winter). I left it:
+making it white changes the opening view's range. Say so and it is one line in the ground's
+`[seasons]` block.
+
+**Not done.** The weather's model still has the Sun's season, not the life's (it is the sky
+helper's file: see piece 1): it will let snow fall in the Sun's winter. Fresh snow's line is
+one number for the whole view, asked at the traveller's place. Lakes do not freeze. Trees
+and grass that the land's own snow keeps off (its class is "snow") do not come back when it
+is gone in summer: the ground there is bare.
+
+## Piece 5: grass and flowers by the season
+
+**What was built.**
+- `grassSeason` (fresh, dry, brown, beaten flat) goes into `grassColour` itself
+  (`grassRules.js`), which the blades, the clumps and the ground painted as grass all call:
+  fresh green from early spring, gold on top of the land's dryness in late summer, brown
+  and beaten down (the blades 45 % shorter) through autumn and winter, flat under snow.
+  On the first days of spring it is nothing: the grass is what the land's dryness says.
+- **Flowers by kind in their weeks**: every kind has its days (`grassRules.js`, `DAYS`);
+  `kindsShut` hands the shaders how far each is from being out. The single flowers come out
+  and go one by one, the flowering blades and the ground's tint by the same share. All
+  kinds are out by the first days of spring (the opening morning is unchanged), primrose
+  and bluebell are over by early summer, lupin and cow parsley by high summer, fireweed,
+  yarrow and thistle last into autumn; then the meadow is grass until late winter.
+- Pollen by how much of the flowers is out.
+
+**Pictures**: `haven_ledge_<season>_final.png` and `piece5_opening_four_seasons.png` (the
+opening view itself, from the ground, in its four seasons: every piece together), and
+`haven_ledge_now_final.png` beside the reference `docs/shots/haven_ledge.png` (the opening
+morning).
+
+**Not done.** The grass's season is the traveller's latitude's (the grass is only drawn
+round the traveller), not each blade's height's.

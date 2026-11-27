@@ -89,6 +89,37 @@ check('and at an anchor it moves by about one step, not by a swing of the whole 
   check("the sheet's vertex shader declares the eye's place it uses", !/\buCamPlanetPos\b/.test(bare.replace(/uniform\s+vec3\s+uCamPlanetPos\s*;/, '')) || /uniform\s+vec3\s+uCamPlanetPos\s*;/.test(bare));
 }
 
+// The mist's own land: the real surface under every point of the lattice is asked once, moved
+// with the lattice when the anchor steps, and holds the WATER's surface over a lake.
+// (--break noshift: the lattice steps and what is known is not moved with it)
+{
+  const brk = process.argv.includes('--break') && process.argv[process.argv.indexOf('--break') + 1] === 'noshift';
+  // a land of long swells, with a lake 300 m deep whose bed the height function gives
+  const hs = { waterDepth: 0, height(x, y, z) { const lo = Math.atan2(y, x), la = Math.asin(z); const lake = Math.cos(la * 900) > 0.97; this.waterDepth = lake ? 300 : 0; return (lake ? 200 : 500) + 250 * Math.sin(lo * 700) * Math.cos(la * 500); } };
+  const surf = (q) => { const l = Math.hypot(q[0], q[1], q[2]); const g = hs.height(q[0] / l, q[1] / l, q[2] / l); return g + hs.waterDepth; };
+  const f3 = new FogSheet(null); f3.uniforms.tCloudNoise.value = {}; f3.land = () => hs; f3.breakNoShift = brk;
+  const sky = { R, t: 0, field, noClouds: false };
+  f3.update({ rig: { pos: start.clone() }, sky });
+  const first = f3.landAsked;
+  const N = FOG_LOOK.N, halfN = (N - 1) / 2;
+  const worst = () => {
+    const a = f3.uniforms.uAnchor.value, e = f3.uniforms.uEast.value, n = f3.uniforms.uNorth.value; let w = 0;
+    for (let j = 0; j < N; j += 7) for (let i = 0; i < N; i += 7) {
+      const de = (i - halfN) * step, dn = (j - halfN) * step, q = [a.x + e.x * de + n.x * dn, a.y + e.y * de + n.y * dn, a.z + e.z * de + n.z * dn];
+      const o = (j * N + i) * 4, got = (f3.landBytes[o] * 256 + f3.landBytes[o + 1]) / 8;
+      w = Math.max(w, Math.abs(got - surf(q)));
+    }
+    return w;
+  };
+  check('the lattice holds the real surface under each of its points, a lake as its water', worst() < 0.2 && f3.uniforms.uFogLand.value.x === 1, `worst ${worst().toFixed(2)} m, ${first} questions the first time`);
+  // the traveller goes 1.3 steps east: the anchor moves one step
+  const e0 = f3.uniforms.uEast.value.clone(), asked0 = f3.landAsked;
+  f3.update({ rig: { pos: start.clone().addScaledVector(e0, step * 1.3) }, sky });
+  const more = f3.landAsked - asked0, w2 = worst();
+  // (what was moved with the lattice was asked in the old anchor's axes: a few metres of place, which on these steep swells and at the lake's cliff of an edge is some tens of metres of height; not moved at all it is hundreds)
+  check('a step of the anchor moves what is known and asks only the new column', w2 < 60 && more < N * (1 + FOG_LOOK.SUN_STEPS.length) + N * N / 16 * FOG_LOOK.SUN_STEPS.length + 200, `worst ${w2.toFixed(1)} m after the step, ${more} questions`);
+}
+
 // and with no fog in reach it is not drawn at all
 {
   const dry = new FogSheet(null); dry.uniforms.tCloudNoise.value = {};

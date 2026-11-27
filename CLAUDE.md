@@ -195,7 +195,7 @@ npm run shots:all      # the full reference set: both worlds, orbit, character
 npm run stability      # 3 settled frames one camera step apart along scripted moves, with a flicker report (-- --streaming: 3 truly consecutive frames right after a jump)
 npm run flight         # scripted Mars -> orbit -> Moon flight (headless)
 npm run foot           # the character on foot in the real game: walk, jump, super speed, take off, land (headless)
-npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run
+npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run (-- --no-bench: four minutes; -- --dsf 0.5 --limit 7000: the benchmark at a quarter of the pixels, which is the only way its cost test ends in time on the cloud machine; a smaller window (--size) hides the start screen's buttons)
 npm run govsim         # the governor against simulated GPUs (no browser)
 npm run transfer       # GO trips flown without a browser: arrival, time against the marker's estimate
 npm run target         # the target list, marker and a GO trip in the real game (headless)
@@ -247,14 +247,18 @@ node scripts/shadow-fine-rocks-test.mjs   # every rock whose shadow lies in the 
 node scripts/shadow-axes-test.mjs   # a still spot's shadow hardly moves when the light axes are renewed or the anchor resets (no browser)
 node scripts/terrain-bake-sun-test.mjs   # a patch built mid-walk is baked for the same Sun as its neighbours (no browser)
 npm run treeshadows   # the trees' shadows in motion, without a browser (about 40 s): flecks fixed to the ground through tile re-centres and axes renewals, no lurch at a rebuild, the shadow's mesh changing only where the picture does, the fine tile's count
-node scripts/season-test.mjs [--break year|rule|bloom|whole]   # the season's one rule (life/season.js): Haven's opening morning as it was before it had a year, Earth on the date's calendar, the year's length, going to a season in whole days (no browser, a second)
+node scripts/season-test.mjs [--break year|opening|evergreen|far|ground|jump|litter|snow|grass|whole]   # the season's one rule (life/season.js): Haven's opening morning unchanged (calendar, bare trees, flowering, snow, grass, flowers), evergreens never turn, one answer near, far and in the ground, the leaves on the ground, the snow line, the meadow's kinds through the year, going to a season in whole days (no browser, seconds); node scripts/tree-preview.mjs --year 5 [--alt 1400 --lat 45]   # a species through its year at its three distances
 node scripts/sky-system-test.mjs [--break <fault>]   # the sky's step 0 (docs/briefs/sky-step0.md): the shared cloud rule's GLSL against its JS, the clouds going with the day's low wind and rising on the game clock, the guards that let a shader take two shared texts, the frame order and the interfaces the sky packages build on, the governor's and the benchmark's hooks, the debug switches (no browser, 10 s; --break puts one fault in to see its check fail)
 node scripts/sky-list-test.mjs [--break hold|nofast]   # the storm cells and anvils asked every frame from moments 2 s apart and blended: within a few cm of the model's own answer, forwards and backwards, and the model asked about once in 60 frames (no browser, 3 s)
 node scripts/sky-slots-test.mjs [--break reslot]   # the sky field's snapshots on the GPU: every blend of the 'now' maps reads the pair's own two snapshots, forwards, backwards and after jumps (a renderer that only keeps count; no browser, seconds)
 node scripts/sky-scan.mjs [--t 4] [--lat .. --lon ..] [--span 120] [--stub fair]   # the sky field's numbers round a place at an hour of the game (?t=): heap, sheet, base, thickness, country, mid, high (no browser, seconds)
 node scripts/sky-above.mjs [--t 4] [--span 120] [--stub fair] [--out file.png]   # the low cloud from straight above as the game cuts it: the hour's cover (left) and the cloud carved from it (right), with the share of the land under cloud (no browser, 20 s)
 node scripts/sky-probe.mjs --distdir <build> [--shot ledge] --query "alt=2500&heading=243&t=8.25" --out dir/name [--try "upper=__app.sky.partOut('cloud-upper',true);;flat=__app.sky.setSaving('cloud-far',true)"] [--size 440x206]   # one view of the real game loaded once, then pictured again with a switch tried each time (seconds a switch, where a page load is minutes): for telling WHICH part of the sky draws or hides a thing
+node scripts/sky-turns-test.mjs [--break always]   # what the sky draws every frame whatever is on screen: the shade map's windows only when their lattice has stepped, the Sun has moved or the clouds have drifted (a renderer that keeps count; no browser, seconds)
 node scripts/sky-steer-test.mjs · node scripts/sky-format-test.mjs · node scripts/sky-cell-test.mjs   # each cloud layer's wind (closed form against a frame-by-frame sum), the weather field's snapshot format (JS and GLSL decoders), a storm cell's shape (JS against its GLSL) (no browser)
+node scripts/gl-count.mjs --distdir <frozen build> [--stops ledge,sun] [--floor] [--out counts.json] [--query "lat=..&lon=.."]   # what the game hands the GPU, counted call by call in the real game at the benchmark's stops (ten minutes a stop): every pass with its draw calls and triangles by material and whether it begins with a whole clear, every upload with its bytes and where in the frame it falls; a frame at rest, one frame against the next, the frames after a jump (counts are true on any device; nothing in it is a frame rate)
+node scripts/cost-plan-test.mjs [--break drift|pass|bytes]   # the benchmark's counts (perf/glTally.js) against a made-up context, and the order of its cost test (perf/costPlan.js): every group measured twice between two baselines, a drifting baseline does not move a group's number (no browser, a second)
+node scripts/grass-blocks-test.mjs [--break reach|ring|table|height]   # the grass handed over block by block (life/grassBlocks.js) leaves out nothing the shader would draw: 105 views over a made-up land, the shader's own tests replayed for every cell (no browser, 6 s)
 npm run probe          # top-down shaded relief of the height function (no browser)
 node scripts/sky-table.mjs [--lat .. --lon ..]   # where the sky bodies are from a place over time (no browser)
 node scripts/profile-chunks.mjs --world moon   # chunk build times per level (no browser)
@@ -791,9 +795,44 @@ finished benchmark leaves its text in `window.__benchResult`.
   the share of the land under cloud for the hour: read it before any picture of a sky.
 - The model's land is the elevation map, and that holds lake BEDS: its fog lay under the
   water of every lake. Anything laid "on the ground" by rule must ask where the water is.
+- "Everything out" in the benchmark must take out every pass into a target of its own, not
+  only the scenes: the sky's eight passes ran under it and the row meant to be the cost of
+  measuring was 13 to 28 ms of sky. When a part is added that draws outside the scenes, add
+  it to that row (`sky-all`).
+- A flat sheet is a plate however it is lit. What lies in hollows (mist) must know the ground
+  under it: its depth there decides how much it hides, and its edge is where the ground rises
+  through it. And a white thing lit by the sky alone is the zenith's deep blue: from its own
+  shore the mist in a mountain's shadow was a sea.
+- A target that keeps its picture from frame to frame (the field's maps, the shade atlas) can
+  be neither cleared whole nor invalidated: on a tile-based GPU every frame it is bound, it is
+  read back first. Bind it less (not at all on a frame with nothing to draw into it); a target
+  that keeps nothing (the march's) is invalidated when bound.
+- Data that streams in after the page begins (a lake's water) changes what "the ground" is: a
+  thing that asked once at the start (the mist's lattice) had the lake's bed for ever. Ask
+  again in strides, and all of it when a stride finds a change.
 - Two clocks: `?t=` (and a bookmark's `timeOffsetHours`) counts hours from the scene's own
   moment; the weather's clock counts seconds from `weather.epoch` (521 hours apart on Haven).
   A Node scan of the model at `t = H * 3600` asks about another day than the game shows at
   `?t=H`: `t_weather = (Date.parse(scene.dateUTC) - Date.parse(weather.epoch)) / 1000 + H * 3600`
   (or `new Steer(weather, R).t(date)`). Views, stability cases and benchmark hours picked from
   the model go through it.
+- A screenshot waits until the picture is still. Anything put in place a few a frame (the
+  lying petals, six a frame; the lying leaves) keeps it changing for as many frames as
+  that takes, at seven seconds a frame here: in screenshot mode lay it all at once
+  (`Shed.update(..., all)`).
+- A picture that is "not ready" in time is not yet a fault. A ground-level Haven picture
+  needs some 150 frames to settle and may not make 1 500 s at the reference size; the
+  picture saved then (coarse green land, no trees) looks like a broken shader and is not.
+  Before debugging, ask the page what it waits for (`window.__stats.wait`, the frame count,
+  `terrain.wanted`, `trees.missing`), and check a new build first at a small size
+  (`--dsf 0.6 --timeout 2400`: about a third of the time), the full size after.
+- A timed browser run shares the machine's four cores with whatever else is started: a loop
+  of Node tests beside a full smoke slowed its benchmark past the time limit, and the seven
+  "FAIL" lines that followed were one time-out. And a test that grows (the cost test went from
+  some 40 steps to 240) outgrows a limit set for the old one without a word: when a run "fails"
+  at its limit, read how far it had got before reading the failures.
+- The same thing drawn three ways must take its season from one answer (near meshes, whole
+  tree pictures, the far forest): bare aspens were full green crowns from 60 m on for as
+  long as only the nearest mesh asked. And a rule's colours must be looked at after
+  everything the look does to them (`paintLeaf`, `farGreen` pulled gold toward olive).
+

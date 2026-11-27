@@ -41,7 +41,81 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### The joined build of 2026-11-27 afternoon: the frame-rate cuts, the mist, the seasons' ground, smoother clouds
+
+This branch at `e8f01b1` and later holds, beyond the link of the rigged character (main
+63b8282): the **sky helper's two lists** to `17d10e2` (the mist drawn again, `HELD = false`
+in `fogSheet.js`, fading out as the eye sinks under its top, so from a lake's shore there is
+no lid; no cloud march and no laid layers under a clear sky; the shade windows drawn only
+when something moved; the march's targets invalidated; a smooth outline for the near heaps;
+"everything out" in the benchmark takes the sky out too), the **speed helper's cuts** to
+`5534aac` (grass handed over block by block: 1.96 M triangles at the opening view for 3.05;
+partial clears given up; the benchmark counts GL work by stop, tests savings in groups, and
+`?scale=` runs are paced), and the **seasons' pieces 3 to 5** to `0047aad` (leaves that lie
+and are kicked up, snow that comes and goes with the season, grass and flowers by the
+season; governor steps `leaf-carpet` and `snow-edge`, not yet measured on a phone).
+
+**Checked on the joined head** (build of `e8f01b1`; only notes and the smoke script after
+it): the build; every check that needs no browser (31; the sky model's "a snapshot in under
+600 ms" line fails while a browser run shares the machine and passes alone); `smoke
+--no-bench` at the phone's shape; the whole smoke with the Mars benchmark and its cost test
+at `--dsf 0.5` (19 checks; at the phone's shape the cost test, 123 steps a view now, does
+not end inside the script's 45 minutes on this machine: the first try "failed" seven checks
+that were one time-out); noon from the air (soft-edged heaps), the mist's view (key 6: a lit
+sheet over the lake at dawn) and the opening view with the character running, looked at.
+
+**On the helpers' branches, for the link after this one**: the sky's third list
+(`8e58ba3`: an eye inside the mist is veiled by it, so the shore has mist and no lid; the
+weather model takes the life's season; the heaps looked at in motion from the air: nothing
+pops; the anvil being written) and the speed helper's further cuts (`c4850cc`: only the
+cells that can carry a flower handed over, shared corners for flowers and near trees: the
+opening frame 1.75 M triangles for 3.07 M on the old link; `scripts/all-node-checks.sh`
+runs every no-browser check), its browser checks still running.
+
+**Asked of the owner**: one plain Haven benchmark in Sharp (the first with the sky's true
+cost cut, the grass by blocks and the rigged character: its cost table's `figure` row says
+what a lighter mesh for the figure would buy, 153 000 triangles today); the paced
+`?bench=haven&scale=0.775` run; how the character moves; which Meshy plan the model was
+made on.
+
+**Known wrong, in hand with the helpers**: in winter the fallen leaves lie as bright dots
+on top of new snow (seasons, asked); the lying leaves' buffer may be handed to the GPU
+every frame (seasons, asked to count); mist on the water seen from its own shore is simply
+not there (the cure is the weather veil knowing of it: sky); the storm's anvil is flat
+(sky); nothing of the sky's new turns has been looked at in motion (`npm run stability`,
+two hours: sky); the land's own painted snow is grey-lilac in shade beside white new snow.
+**Looked at, nothing broken**: the owner's picture (build 8c8ff89) of "huge flat" shapes on
+a steep slope: the pale flat triangle is a boulder's face beside the camera (the camera sits
+low behind the character on a slope of rocks), and the coarse blades are the grass at ten
+savings on at 21 fps: the cure is the frame rate (fewer savings), not the grass.
+**Not done**: steady flight is nearly a still pose.
+
+### Where the helpers stand (2026-11-27 12:15 UTC) and what the next link needs
+
+This branch (head 6da582c and later) is ahead of the link (main 63b8282) by: **seasons
+pieces 3 to 5** (leaves that lie and are kicked up, snow that comes and goes, grass and
+flowers by the season: `0ab73e7`; its cost on the ground's shader asked for and not yet
+known), and the **sky helper's second list so far** (`2b4b133`: the mist made mist, still
+held by `HELD` in `fogSheet.js` until its picture from the shore; the sky's work paid every
+frame cut: no march and no laid layers under a clear sky, the shade windows drawn only
+when something moved, the probe every fourth frame; the benchmark's "everything out" now
+takes the sky out too, with four new parts). Not yet here: the **speed helper's branch**
+(`ccr-6f4f9272-speed`: counts by stop in the benchmark, the cost test in groups, grass
+handed over block by block, partial clears given up, `?scale=` runs paced), waiting on
+its own pictures and smoke.
+**The next link** = those three together, after: a full `npm run smoke` on the joined head,
+Haven's opening view from the ground and noon from the air looked at, the seasons' cost
+known. Then ask the owner for one plain Haven benchmark in Sharp (the first with the sky's
+true cost cut and the rigged character).
+A smoke and two Haven pictures of 6da582c were started at 12:12 (`chain_m5.sh` in the
+session's scratchpad; results in its `smoke_m5.txt`, `log_m5.txt`, `m5/`).
+
 ### The owner's rigged character (2026-11-27): a skeleton, eight clips and its own colours
+
+**On the link since 63b8282 (PR #41)**, with the sky helper's heaps (the fog sheet held back).
+Asked of the owner: how it looks standing, walking, running, sprinting, jumping, landing,
+hovering and flying; a plain Haven benchmark in Sharp; and which Meshy plan the model was
+made on (for `docs/ASSETS.md`).
 
 The owner sent `Chinese_Swordsman_AllAnims_30mb.glb` ("here is the model with the animations
 rigged"), made with Meshy as asked: kept as sent in `assets-src/hero-rig/`. In it: one

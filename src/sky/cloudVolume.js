@@ -572,13 +572,23 @@ in vec2 vUv;
 layout(location = 0) out vec4 fragColor;
 ${SLICE_GLSL}
 void main() {
-  vec2 cells = vec2(float(COLS), float(ROWS)), uv = clamp(vUv, 0.5 * uPixel * cells, 1.0 - 0.5 * uPixel * cells);
-  float through = 1.0;
-  for (int j = 0; j < SLICES; j++) {
-    if (j >= uSliceCount) break;
-    through *= 1.0 - texture(tCloudPass, (cloudTile(float(j)) + uv) / cells * uUsed).a;
+  vec2 cells = vec2(float(COLS), float(ROWS));
+  // Five looks, the place itself and a pixel of this small picture to each side: the clean edge
+  // is cut where this number passes a threshold, and taken at one place it crossed it small
+  // pixel by small pixel (the march's grain is in it): a heap's outline in blocks four pixels
+  // of the main picture wide. Smoothed here, where a pixel is sixteen of the main picture's.
+  float sum = 0.0;
+  for (int k = 0; k < 5; k++) {
+    vec2 o = k == 0 ? vec2(0.0) : k == 1 ? vec2(1.0, 0.0) : k == 2 ? vec2(-1.0, 0.0) : k == 3 ? vec2(0.0, 1.0) : vec2(0.0, -1.0);
+    vec2 uv = clamp(vUv + o * uPixel * cells, 0.5 * uPixel * cells, 1.0 - 0.5 * uPixel * cells);
+    float through = 1.0;
+    for (int j = 0; j < SLICES; j++) {
+      if (j >= uSliceCount) break;
+      through *= 1.0 - texture(tCloudPass, (cloudTile(float(j)) + uv) / cells * uUsed).a;
+    }
+    sum += (1.0 - through) * (k == 0 ? 0.4 : 0.15);
   }
-  fragColor = vec4(1.0 - through);
+  fragColor = vec4(sum);
 }`;
 
 const LAY = /* glsl */`
@@ -769,6 +779,8 @@ export class CloudVolume {
     const v = this.def?.volume;
     // (wanted: it would be drawn here if the governor's saving were not on: the governor asks)
     this.wanted = !!(v && this.noise && layer.mesh.visible && cam.length() - this.radius < (v.above ?? 30000));
+    // (with a field: nothing to march under a clear sky with no storm cell anywhere in the shaders)
+    if (this.wanted && this._sky?.field?.on && !(this.coverNear > 0.03) && !(SKY_UNIFORMS.uCellCount.value > 0)) this.wanted = false;
     // (with the layer off, the cells are still marched while one stands within reach: by the
     // cells the sky system has already packed for the shaders this frame, which is what the
     // march will read. By the frame's own list this could never start: the frame reaches the
@@ -801,7 +813,7 @@ export class CloudVolume {
     if (!field?.on) {
       this.lift = this.groundAt ? this.groundAt(cam) : 0;
       this.base = (v.base ?? 1500) + this.lift; this.top = this.base + (v.thick ?? 3000);
-      this.bounds.base = this.base; this.bounds.baseHi = this.base; this.bounds.top = this.top; this.rainNear = false;
+      this.bounds.base = this.base; this.bounds.baseHi = this.base; this.bounds.top = this.top; this.rainNear = false; this.coverNear = 1;
       return;
     }
     // (a square of 25 places over the reach, which is as far as the layer is marched: the lowest
@@ -813,9 +825,11 @@ export class CloudVolume {
     if (a0 && Math.abs(sky.t - this._placeT) < 20 && (cam.x - a0[0]) ** 2 + (cam.y - a0[1]) ** 2 + (cam.z - a0[2]) ** 2 < 800 * 800) return;
     this._placeAt = [cam.x, cam.y, cam.z]; this._placeT = sky.t;
     const reach = this.reach, out = this._at || (this._at = makeSkyAt());
-    let lo = Infinity, loHi = 0, hi = -Infinity, rain = 0;
+    let lo = Infinity, loHi = 0, hi = -Infinity, rain = 0, cov = 0;
     const look = (p) => {
       const a = field.at(p, sky.t, out);
+      if (a.field.heap > cov) cov = a.field.heap;
+      if (a.field.sheet > cov) cov = a.field.sheet;
       if (a.base < lo) lo = a.base;
       if (a.base > loHi) loHi = a.base;
       if (a.top > hi) hi = a.top;
@@ -826,11 +840,18 @@ export class CloudVolume {
     const up = [cam.x / r, cam.y / r, cam.z / r];
     const north = [up[1] * east[2] - up[2] * east[1], up[2] * east[0] - up[0] * east[2], up[0] * east[1] - up[1] * east[0]];
     const p = [0, 0, 0];
-    for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) {
-      const ce = i * reach * 0.5, cn = j * reach * 0.5;
+    // (49 places, 5.3 km apart to a little beyond the reach)
+    for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) {
+      const ce = i * reach / 3 * 1.1, cn = j * reach / 3 * 1.1;
       for (let k = 0; k < 3; k++) p[k] = cam.getComponent(k) + east[k] * ce + north[k] * cn;
       look(p);
     }
+    // Is there any low cloud within reach at all? Under a clear sky the march, its two small
+    // passes and the six layers laid from it were all made every frame and drew nothing: now
+    // they are not made (ready()). A cover the places miss (a cap a kilometre wide between
+    // two of them) is drawn by the far shell, which then reaches to the traveller, until a
+    // place finds it.
+    this.coverNear = cov;
     if (!(lo < Infinity)) { lo = v.base ?? 1500; loHi = lo; hi = lo + (v.thick ?? 3000); }
     // (snapped to 250 m with a margin either way, and only changed when the step has lasted: a
     // bound that followed every frame's reading would shorten the march by a different amount
@@ -880,6 +901,9 @@ export class CloudVolume {
   live(id) { return id === 'rain-shafts' ? !!this.wanted && this.shafts > 0 : !!this.wanted; }
   has(id) { return id === 'rain-shafts' || id === 'cells-far'; }
   partOut(id, out) { if (out) this.out.add(id); else this.out.delete(id); }
+
+  // the bound target's old picture is not wanted (WebGL 2: invalidateFramebuffer)
+  _drop(r) { const gl = r.getContext?.(); if (gl?.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, [gl.COLOR_ATTACHMENT0]); }
 
   // Step 1: the small picture, before the main one is begun. post: the Post (for the view's
   // size); rig: the camera rig; time (s, the wall clock); layer: the cloud shell; wind: the
@@ -962,12 +986,16 @@ export class CloudVolume {
     this.lastTime = time;
     this.quad.material = this.march;
     r.setRenderTarget(this.target);
+    // (nothing of this target is kept from the last frame, and only part of it is cleared: say so,
+    // or a phone's tile-based GPU reads the whole old target back in before drawing)
+    this._drop(r);
     r.setClearColor(0x000000, 0); r.clear(true, false, false);
     r.render(this.scene, this.camera);
     const su = this.smoothMat.uniforms;
     su.tCloudPass.value = this.target.texture; su.uPixel.value.set(1 / tw, 1 / th); su.uUsed.value.set(tw / fw, th / fh);
     this.quad.material = this.smoothMat;
     r.setRenderTarget(this.smooth);
+    this._drop(r);
     r.clear(true, false, false);
     r.render(this.scene, this.camera);
     // (only where the cloud is cut to clean shapes: the painted look)
@@ -977,6 +1005,7 @@ export class CloudVolume {
       this.all.viewport.set(0, 0, tileW, tileH); this.all.scissor.set(0, 0, tileW, tileH);
       this.quad.material = this.allMat;
       r.setRenderTarget(this.all);
+    this._drop(r);
       r.clear(true, false, false);
       r.render(this.scene, this.camera);
     }

@@ -469,6 +469,16 @@ as before.
     the 2 560 m line where the anchor's place wraps. Lattices with an odd count of cells are
     offset by whole cells (`HALF`), so no blade's cell is read on its edge.
     `node scripts/grass-place-test.mjs` replays the shader's own lines across steps.
+    A thinned field keeps cells by a rule of the cell's own number (`keptCell`).
+  - *Only what could be drawn is handed over* (`life/grassBlocks.js`): a field is a window
+    of cells round the eye, cut into 12 x 12 blocks; each frame, once the camera is final
+    (`Grass.cull`, called from the frame just before the near scene is drawn), a block is
+    handed to the GPU only if the shader's own early tests (the ring's distances, `outside`
+    with the field's reach, grass or a flower in the ground table) could pass for some foot
+    in it: asked of a box that holds every place the shader could ask them of, so the
+    picture is the same. The blocks' numbers go to the shader as `uBlocks`, the instances
+    are dealt to them in turn. Whoever draws the grass without calling `cull` draws every
+    block. `node scripts/grass-blocks-test.mjs` replays the shader's tests cell by cell.
   - *Flowers* (`KINDS`, `FLORAS` in `grassRules.js`): twenty-six kinds in six habits: turf
     (tiny heads among the blades), cup (petals round a middle: daisies to poppies and the
     big single heads), spike (florets up a tall stem), umbel (a flat-topped spray), globe
@@ -816,6 +826,26 @@ as Earth is; what differs is where the maps come from.
     `cover.js` `canopyYear`: the mean colour of the leaf-dropping trees of the wood at that
     height on the day, bare ones as branches, and the noise level that makes their
     patches their share of the wood), moved by each pixel's own latitude.
+  - *Leaves in the air and on the ground*: `treeSeason` also says how fast a tree's leaves
+    come off (`shed`), how much of them lies under it (`down`) and in what colour.
+    `Trees.shedding` lists the nearest such trees; `leaves.js` `TreeLeaves` (the petals'
+    machine, `Shed`, with other numbers) lets leaves fall from their crowns and lays leaves
+    under and down the wind of them; the ground's `[seasons]` litter block paints the
+    carpet (a wood's by height: `uLitterYear`; a tree's own: `uLeafTree`, the lying leaves'
+    slots from the eye); `Kicked` throws bursts up behind a traveller running or flying low
+    through them (`lyingAt`: the same amounts the ground draws).
+  - *Snow* (`snowYear`, `snowFell`; `render/snowGlsl.js`: one text, `snowSeason`, and two
+    shared uniforms set by `App.updateSnow`): the snow in the land's colour is the land's
+    own, for the first day of spring; the season shifts a line in height (10 degrees C
+    either way at 45 degrees, 161 m a degree): new snow above the land's line + 400 m + the
+    shift, the land's own gone below its line - 450 m + the shift; fresh snow from the
+    day's weather (the last 36 h at the traveller's place, one moment asked a frame) lowers
+    the first. The ground, its far canopy, crowns near and far, boulders and stones call
+    the one text; each half of the world has its own season.
+  - *Grass and flowers*: `grassSeason` (fresh, dry, brown, flat) is inside `grassColour`
+    (`uGrassYear`), so blades, clumps and painted ground agree; each flower kind has its
+    days (`grassRules.js` `DAYS`, `kindsShut` -> `uKindShut`, read by `kindOpen` in the
+    flowers' text); pollen by how much is out. Set by `App.updateGrassYear`.
   - *Going to a season*: `untilSeason` (whole days forward); the menu's Season row and
     `?season=`.
 - **Beyond the trees** the ground shader raises the forest as a whole: the vertex shader

@@ -171,7 +171,13 @@ export const FEATURE_STEPS = [
   // 1 400 to 560 saved nothing that could be measured on the phone in a storm either)
   { id: 'rain', buys: 0.3, label: 'thinner rain and snow', live: (app) => !!app.rain?.mesh?.visible, apply: (app, off) => { app.sky?.setSaving('rain', off); } },
   // (nothing: -0.4)
-  { id: 'leaves', buys: 0.3, label: 'leaves in the wind', apply: (app, off) => { if (app.leaves) app.leaves.enabled = !off; if (app.petals) app.petals.enabled = !off; } },          // (petals: thinned to a third, not taken away)
+  { id: 'leaves', buys: 0.3, label: 'leaves in the wind', apply: (app, off) => { if (app.leaves) app.leaves.enabled = !off; if (app.petals) app.petals.enabled = !off; if (app.treeLeaves) app.treeLeaves.enabled = !off; if (app.kicked) app.kicked.enabled = !off; } },          // (petals: thinned to a third, not taken away)
+  // (the seasons' two: each tree's own carpet of fallen leaves in the ground's shading, a loop over
+  // the eight nearest such trees for the ground within 90 m (the wood's own scatter and the
+  // lying leaves stay); and the noise that breaks the snow line's edge (the line stays, plain).
+  // Not yet measured on the phone.)
+  { id: 'leaf-carpet', buys: 0.2, label: "each tree's carpet of leaves", apply: (app, off) => { app.leafCarpetOff = off; } },
+  { id: 'snow-edge', buys: 0.2, label: "the snow line's broken edge", apply: (app, off) => { app.snowEdgeOff = off; } },          // (App.updateSnow hands it to the shaders)
   // (nothing: -0.7)
   { id: 'sun-beams', buys: 0.3, label: "the Sun's beams through trees and cloud", apply: (app, off) => { app.post.shaftsOn = !off; } },
   // (no step for the waves that lift the water: on the phone it saved nothing that could be
@@ -257,7 +263,10 @@ export class Governor {
     this.vsync = 1000 / 60; this.vsyncMeasured = false;
     this._vs = []; this._vfree = []; this._vc = 0; this._skipped = false;
     this.interval = 1000 / MODES[this.mode].fps;
-    this.paced = fixedScale == null;
+    // (paced also with the picture held at one size in play, ?scale=: the twelfth results were two
+    // such runs, drawn as fast as the phone could, 52 frames a second at the first stop with every
+    // saving on, and slower stop by stop as it grew hot: a run nobody plays. Pictures are not paced.)
+    this.paced = fixedScale == null || !app.shotMode;
     this._lastRaf = 0; this._lastRender = 0;
     this._ring = new Uint8Array(WINDOW); this._ri = 0; this._filled = 0;   // bit 0 = late, bit 1 = soft
     this.cooldown = 1.5;          // seconds before the next decision
