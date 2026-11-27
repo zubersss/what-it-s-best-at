@@ -44,11 +44,15 @@ vec3 albedoRange(vec3 t, vec2 r) {
 // a place `rel` metres from the camera, from a map fixed to the world.
 const CLOUD_OVER_GLSL = SHADE_READ_GLSL;
 
-// The near ground asks about the cloud over it at its vertices: patches up to this many
-// detail tiles across (their vertices are then at most 20 m apart, and the cloud's heaps
-// are cut from a noise whose cells are 80 m: between two vertices it is all but a straight
-// line). The shade's clean edge is still cut at every pixel, from the numbers handed on.
-const CLOUD_VERT_TILES = 12.5;
+// The ground asks about the cloud over it at its vertices, not at every pixel: patches up to
+// this many detail tiles across, which since 2026-11-27 is every patch. (It was 12.5: patches
+// to 800 m, vertices 20 m apart. A patch of edge S stands 0.95 S to 1.9 S off and has a vertex
+// every S/40: a vertex every d/38 at most at distance d, against the shade atlas's 55 m a texel
+// to 7 km, 220 m to 28 km and 1.5 km beyond: at most 1.5 texels a vertex but for the last 4 km
+// before the world window takes over. The atlas is already the mean over its texel. From 3 km
+// up every ground pixel paid two reads for it.) The shade's clean edge is still cut at every
+// pixel, from the numbers handed on.
+const CLOUD_VERT_TILES = 1000000;
 
 // One instance per drawn chunk; its sixteen numbers (written in terrain.js):
 //   aI0 = xyz the chunk's centre relative to the camera, w the distance where it has fully become its parent

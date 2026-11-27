@@ -838,6 +838,7 @@ export class App {
       for (const sc of [this.farScene, this.nearScene, this.weatherScene, this.heroScene, this.dustScene]) if (sc) r.compile(sc, cam);
       if (this.pollen?.mesh) r.compile(this.pollen.mesh, cam);          // (drawn as a scene of its own)
       this.nearShadow?.precompile?.(r);
+      this.sky?.precompile?.(r);          // (the weather field's blend: first drawn when its first snapshot arrives)
     } catch (e) { console.warn('precompile:', e); }
     r.setRenderTarget(prev);
   }

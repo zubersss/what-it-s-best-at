@@ -552,6 +552,9 @@ export class SkySystem {
     return false;
   }
 
+  // The shaders of passes that are in no scene and are first drawn long after the start (App.precompile).
+  precompile(r) { this.field.precompile?.(r); }
+
   // ---- the benchmark's parts left out ---------------------------------------------------------
   hasPart(id) {
     switch (id) {
