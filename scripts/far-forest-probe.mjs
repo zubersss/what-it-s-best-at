@@ -24,7 +24,7 @@ console.log(JSON.stringify(await page.evaluate(() => {
   for (const t of f.tiles.values()) { if (t.state !== 1 || !t.have) continue; let s = 0; for (let k = 0; k < t.have; k++) s += t.vis[k]; (o.landSun[t.level] ||= []).push(+(s / t.have).toFixed(2)); o.tiles[t.level] = (o.tiles[t.level] || 0) + 1; }
   const u = f.shared, sun = u.uSunDir.value, up = r.pos.clone().normalize();
   o.sunUp = +(Math.asin(sun.dot(up)) * 180 / Math.PI).toFixed(1);
-  o.uFar = u.uFar.value.toArray().map((x) => +x.toFixed(2)); o.uShadow = u.uShadow?.value.x; o.shadeInv = u.uShadeInv.value; o.cloud = a.terrain.shared.uCloud.value.toArray?.().map((x) => +x.toFixed(3));
+  o.uFar = u.uFar.value.toArray().map((x) => +x.toFixed(2)); o.uShadow = u.uShadow?.value.x; o.shadeInv = u.uShadeInv?.value; o.cloud = a.terrain.shared.uCloud?.value.toArray?.().map((x) => +x.toFixed(3));
   // the clouds' shadow map the trees read (256 x 256 over 14 km): how much of it is in shade
   try {
     const buf = new Uint8Array(256 * 256); a.renderer.readRenderTargetPixels(a.treeShade.target, 0, 0, 256, 256, buf);
