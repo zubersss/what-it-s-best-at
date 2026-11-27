@@ -68,7 +68,8 @@ export function earthWindAt(cfg, storms, lat, lon, out = [0, 0]) {
   for (const [amp, at, wide] of cfg.belts) u += amp * g(at, wide);
   let v = -Math.sign(lat) * cfg.trade * g(cfg.belts[0][1], cfg.belts[0][2]);
   for (const s of storms) {
-    const dy = (lat - s.lat) * 111200, dx = (((lon - s.lon + 540) % 360) - 180) * 111200 * Math.cos(lat * DEG), r = Math.hypot(dx, dy);
+    // (a degree's length is the world's own: cfg.degM, from its radius)
+    const dy = (lat - s.lat) * cfg.degM, dx = (((lon - s.lon + 540) % 360) - 180) * cfg.degM * Math.cos(lat * DEG), r = Math.hypot(dx, dy);
     if (r > cfg.stormReach) continue;
     const rm = s.rmw ?? 38000, vmax = s.wind ?? 20;
     const sp = (r < rm ? vmax * Math.pow(r / rm, cfg.stormRise) : vmax * Math.pow(rm / r, cfg.stormFall)) * (1 - clamp((r - cfg.stormFade[0]) / cfg.stormFade[1], 0, 1));
@@ -85,6 +86,7 @@ export function createEarthSky(opts = {}) {
   const W0 = opts.weather || {};
   const cfg = { ...EARTH_DEFAULTS, ...(W0.maps || {}) };
   const R = opts.radius || 6371000;
+  cfg.degM = R * DEG;
   const layout = opts.layout || fieldLayout({ weather: { ...W0, field: { width: W0.field?.width || 2048 } } });
   const { width: W, height: H, cWidth: CW, cHeight: CH } = layout;
   const steer = new Steer(W0, R);

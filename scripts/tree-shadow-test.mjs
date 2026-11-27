@@ -156,6 +156,13 @@ const placeVertex = (() => {
     else if ((m = /^float (.+);$/.exec(l))) out.push(decl(m[1]));
     else if ((m = /^p\.xz \*= (.+);$/.exec(l))) out.push(`{ const k = ${js(m[1])}; p.x *= k; p.z *= k; }`);
     else if ((m = /^vec3 l = vec3\((.+)\) \* iA\.w;$/.exec(l))) { const c = parts(m[1]); if (c.length !== 3) throw new Error(`TREE_VERT: "${l}" (teach the test)`); out.push(`const l = { x: (${js(c[0])}) * iA.w, y: (${js(c[1])}) * iA.w, z: (${js(c[2])}) * iA.w };`); }
+    // (a far tree's crown top is drawn in toward its trunk when seen from low down and near: it
+    // only ever makes the tree narrower, so the reach fineCount goes by stays an upper bound)
+    else if ((m = /^if \(aCrown\.z > 2\.5\) p\.xz \*= mix\(mix\(([\d.]+), 1\.0, smoothstep\(([\d.-]+), ([\d.-]+), dot\(-normalize\(foot \+ uTreeUp \* \(iA\.w \* ([\d.]+)\)\), uTreeUp\)\)\), 1\.0, smoothstep\(([\d.]+), ([\d.]+), length\(foot\)\)\);$/.exec(l))) {
+      const [, A, T0, T1, K, D0, D1] = m;
+      out.push(`if (aCrown.z > 2.5) { const fx = foot.x + uTreeUp.x * (iA.w * ${K}), fy = foot.y + uTreeUp.y * (iA.w * ${K}), fz = foot.z + uTreeUp.z * (iA.w * ${K}), fl = Math.hypot(fx, fy, fz) || 1, d = -(fx * uTreeUp.x + fy * uTreeUp.y + fz * uTreeUp.z) / fl;`
+        + ` const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); }, k0 = ${A} + (1 - ${A}) * ss(${T0}, ${T1}, d), k = k0 + (1 - k0) * ss(${D0}, ${D1}, Math.hypot(foot.x, foot.y, foot.z)); if (!(k <= 1 + 1e-9)) throw new Error('the crown top grew'); p.x *= k; p.z *= k; }`);
+    }
     else if (/^treeCull = /.test(l) || l === 'leaf = aLeaf;') continue;          // (whether it is drawn, and what it is: not where)
     else if (l === 'vec3 flutter = vec3(0.0);') out.push('const flutter = { x: 0, y: 0, z: 0 };');
     else if ((m = /^if \((.+?)\) \{ float (.+?); flutter = \(uTreeEast \* sin\((.+?)\) \+ uTreeUp \* sin\((.+?)\) \+ uTreeNorth \* sin\((.+?)\)\) \* amp; \}$/.exec(l))) {
@@ -165,7 +172,7 @@ const placeVertex = (() => {
       out.push('return { x: foot.x + (uTreeEast.x * l.x + uTreeUp.x * l.y + uTreeNorth.x * l.z + uTreeWind.x * bend + flutter.x) * fade, y: foot.y + (uTreeEast.y * l.x + uTreeUp.y * l.y + uTreeNorth.y * l.z + uTreeWind.y * bend + flutter.y) * fade, z: foot.z + (uTreeEast.z * l.x + uTreeUp.z * l.y + uTreeNorth.z * l.z + uTreeWind.z * bend + flutter.z) * fade };');
     } else throw new Error(`TREE_VERT's treePosition has a line this test cannot read: "${l}" (teach the test, and Trees.fineCount, what it does)`);
   }
-  const names = ['position', 'aLeaf', 'aSway', 'iA', 'iB', 'uAnchorRel', 'uTreeEast', 'uTreeUp', 'uTreeNorth', 'uTreeWind', 'uGustPhase', 'uSeason'];
+  const names = ['position', 'aLeaf', 'aSway', 'aCrown', 'iA', 'iB', 'uAnchorRel', 'uTreeEast', 'uTreeUp', 'uTreeNorth', 'uTreeWind', 'uGustPhase', 'uSeason'];
   const fn = new Function('sin', 'cos', 'min', 'max', 'dot', 'vec3', 'env', `const { ${names.join(', ')} } = env; ${out.join('\n')}`);
   const dot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z, vec3 = (x, y = x, z = x) => ({ x, y, z });
   return (env) => fn(Math.sin, Math.cos, Math.min, Math.max, dot, vec3, env);
@@ -275,7 +282,7 @@ for (const [label, leaves, far, walk] of [['every saving on', false, false, 120]
   const trisOf = (geo) => geo.attributes.position.count / 3;
   const oldCast = (s) => { const trio = trees.sets.flat().find((t) => t.includes(s)); return trio[Math.min(2, s.lod + 1)]; };
   // Can instance i of caster c reach the fine tile drawn with camera cam? Its every vertex as TREE_VERT places it, at a dozen moments.
-  const env = { position: { x: 0, y: 0, z: 0 }, aLeaf: 0, aSway: { x: 0, y: 0 }, iA: null, iB: null, uAnchorRel: null, uTreeEast: null, uTreeUp: null, uTreeNorth: null, uTreeWind: null, uGustPhase: 0, uSeason: { x: 0, y: 0, z: 0 } };
+  const env = { position: { x: 0, y: 0, z: 0 }, aLeaf: 0, aSway: { x: 0, y: 0 }, aCrown: { x: 0, y: 0, z: 0 }, iA: null, iB: null, uAnchorRel: null, uTreeEast: null, uTreeUp: null, uTreeNorth: null, uTreeWind: null, uGustPhase: 0, uSeason: { x: 0, y: 0, z: 0 } };
   const reaches = (c, i, cam) => {
     const s = c.set, I = s.iA.array, B = s.iB.array, g = c.mesh.geometry, P = g.attributes.position.array, L = g.attributes.aLeaf.array, S = g.attributes.aSway.array, v = new THREE.Vector3();
     env.iA = { x: I[4 * i], y: I[4 * i + 1], z: I[4 * i + 2], w: I[4 * i + 3] }; env.iB = { x: B[4 * i], y: B[4 * i + 1], z: B[4 * i + 2], w: B[4 * i + 3] };
@@ -285,7 +292,7 @@ for (const [label, leaves, far, walk] of [['every saving on', false, false, 120]
     for (let t = 0; t < 12; t++) {
       env.uSeason.z = 3.7 * t;
       for (let j = 0, n = P.length / 3; j < n; j++) {
-        env.position.x = P[3 * j]; env.position.y = P[3 * j + 1]; env.position.z = P[3 * j + 2]; env.aLeaf = L[j]; env.aSway.x = S[2 * j]; env.aSway.y = S[2 * j + 1];
+        env.position.x = P[3 * j]; env.position.y = P[3 * j + 1]; env.position.z = P[3 * j + 2]; env.aLeaf = L[j]; env.aSway.x = S[2 * j]; env.aSway.y = S[2 * j + 1]; { const C = g.attributes.aCrown; env.aCrown.z = C ? C.array[3 * j + 2] : 0; }
         const w = placeVertex(env);
         v.set(w.x, w.y, w.z).project(cam);
         x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y);
@@ -309,7 +316,7 @@ for (const [label, leaves, far, walk] of [['every saving on', false, false, 120]
   // air to a storm, eight moments of wind. Tile by tile below, only the trees near a tile's edge
   // can show a rule that is short; here every vertex can.
   if (treeReach) {
-    const seen = new Set(), h = 20, env3 = { position: { x: 0, y: 0, z: 0 }, aLeaf: 0, aSway: { x: 0, y: 0 }, iA: { x: 0, y: 0, z: 0, w: h }, iB: null, uAnchorRel: { x: 0, y: 0, z: 0 }, uTreeEast: { x: 1, y: 0, z: 0 }, uTreeUp: { x: 0, y: 1, z: 0 }, uTreeNorth: { x: 0, y: 0, z: 1 }, uTreeWind: null, uGustPhase: 1.3, uSeason: { x: 0, y: 0, z: 0 } };
+    const seen = new Set(), h = 20, env3 = { position: { x: 0, y: 0, z: 0 }, aLeaf: 0, aSway: { x: 0, y: 0 }, aCrown: { x: 0, y: 0, z: 0 }, iA: { x: 0, y: 0, z: 0, w: h }, iB: null, uAnchorRel: { x: 0, y: 0, z: 0 }, uTreeEast: { x: 1, y: 0, z: 0 }, uTreeUp: { x: 0, y: 1, z: 0 }, uTreeNorth: { x: 0, y: 0, z: 1 }, uTreeWind: null, uGustPhase: 1.3, uSeason: { x: 0, y: 0, z: 0 } };
     let verts = 0, used = 0, over = 0, worst = '';
     for (const c of casters) {
       const g = c.mesh.geometry; if (seen.has(g.attributes.position)) continue; seen.add(g.attributes.position);
@@ -320,7 +327,7 @@ for (const [label, leaves, far, walk] of [['every saving on', false, false, 120]
         for (let t = 0; t < 8; t++) {
           env3.uSeason.z = 2.3 * t + 0.7;
           for (let j = 0, n = P.length / 3; j < n; j++) {
-            env3.position.x = P[3 * j]; env3.position.y = P[3 * j + 1]; env3.position.z = P[3 * j + 2]; env3.aLeaf = L[j]; env3.aSway.x = S[2 * j]; env3.aSway.y = S[2 * j + 1];
+            env3.position.x = P[3 * j]; env3.position.y = P[3 * j + 1]; env3.position.z = P[3 * j + 2]; env3.aLeaf = L[j]; env3.aSway.x = S[2 * j]; env3.aSway.y = S[2 * j + 1]; { const C = g.attributes.aCrown; env3.aCrown.z = C ? C.array[3 * j + 2] : 0; }
             const v = placeVertex(env3), y = Math.min(hi, Math.max(lo, v.y)), d = Math.hypot(v.x, v.y - y, v.z);
             verts++; used = Math.max(used, d / lim);
             if (d > lim * (1 + 1e-9) + 1e-9) { over++; if (!worst) worst = `a vertex of a ${M[c.make]} mesh ${d.toFixed(2)} m from the trunk of a tree ${h} m tall, crown ${crown}, wind ${W} m/s, where treeReach allows ${lim.toFixed(2)} m`; }
