@@ -34,7 +34,7 @@ export const FOG_LOOK = Object.freeze({
   TOP: 0.35,         // the share of its depth by which its top rises and falls (at most TOP_MAX m): not a plane
   TOP_MAX: 28,
   LAND_WL: 240,      // m: the wavelength the ground under it is asked at
-  SUN_ROWS: 32,      // points of its lattice whose shade from the land is asked again each frame
+  SUN_ROWS: 16,      // points of its lattice whose shade from the land is asked again each frame
   SUN_STEPS: [150, 400, 900, 1800, 3500, 6500],   // m toward the Sun at which the land is looked for
   BRIGHT: 1.06,      // mist is bright: it takes the Sun and the sky and keeps them
 });

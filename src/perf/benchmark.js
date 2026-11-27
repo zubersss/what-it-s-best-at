@@ -365,14 +365,34 @@ export class CostTest {
     const app = bench.app, g = app.governor, w = WORLDS[bench.first];
     this.bench = bench; this.app = app; this.g = g;
     const b0 = bench.names[bench.first][0];
-    // (the parts there are to leave out here: the sky's only where the world has them)
-    this.parts = PARTS_OUT.filter((p) => !p.has || p.has(app));
-    // (the groups: of the parts there are here)
-    this.groups = GROUPS.map((g) => ({ ...g, idx: g.parts.map((id) => this.parts.findIndex((p) => p.id === id)).filter((i) => i >= 0) })).filter((g) => g.idx.length);
     this.views = [{ world: bench.first, name: `${w.name}, ${b0}`, bookmark: b0 }, ...(w.scene.costViews || []).map((v) => ({ world: bench.first, bookmark: b0, ...v, name: `${w.name}, ${v.name}` }))];
     // everything on, the governor still
     this.level = g.featureLevel; this.resLevel = g.resLevel; this.fixedBefore = g.fixed;
     this.savings = g.allOn();
+    this._plan();
+    // (the canvas at the picture's size while the parts are measured, as in play: held at the
+    // screen's own size, as it was, every measure carried a last pass over 3.74 MP that play
+    // does not pay: App.fitCanvas)
+    app.canvasHold = 'fit';
+    // (the clock held while a view is measured: the same sky, Sun and shadows for every saving)
+    this.pausedBefore = app.paused; app.paused = true;
+    this.off = []; this.out = []; this.lines = []; this.px = new Uint8Array(4); this.vi = -1; this.state = 'settle';
+    this._next();
+  }
+
+  // What there is to measure HERE: the parts and the savings the world underfoot has, in their
+  // groups and families, and the order of the measures. Made when the test is, and made again
+  // when the test has arrived at its first view: it is begun at the end of the route, on
+  // another world (the Moon has no clouds, no trees), and asked there the sky's parts said "not
+  // here" (the phone's table of 2026-11-27 had no row for all the clouds, their shadows, the
+  // march, the far shell, the field's maps or every pass of the sky, the sky's group was
+  // measured without them, and "nothing drawn" with the sky's own passes still running).
+  _plan() {
+    const app = this.app, g = this.g;
+    // (the parts there are to leave out here: the sky's only where the world has them)
+    this.parts = PARTS_OUT.filter((p) => !p.has || p.has(app));
+    // (the groups: of the parts there are here)
+    this.groups = GROUPS.map((g) => ({ ...g, idx: g.parts.map((id) => this.parts.findIndex((p) => p.id === id)).filter((i) => i >= 0) })).filter((g) => g.idx.length);
     const held = Math.min(1, Math.sqrt(HELD / g.nativePixels)), small = Math.min(1, Math.sqrt(1.0e6 / g.nativePixels));
     // [what is switched off (-1 nothing, -2 everything, else that step), the picture's scale]
     // (not the steps that draw fewer patches: the ground would have to settle again each time)
@@ -383,15 +403,8 @@ export class CostTest {
     // (the savings in families: of the savings there are here)
     this.families = SAVING_GROUPS.map((g) => ({ ...g, idx: g.steps.map((id) => FEATURE_STEPS.findIndex((f) => f.id === id)).filter((i) => steps.includes(i)) })).filter((g) => g.idx.length);
     this.configs = costConfigs(steps, this.parts, this.groups, held, small, this.families);
-    // (the canvas at the picture's size while the parts are measured, as in play: held at the
-    // screen's own size, as it was, every measure carried a last pass over 3.74 MP that play
-    // does not pay: App.fitCanvas)
-    app.canvasHold = 'fit';
-    // (the clock held while a view is measured: the same sky, Sun and shadows for every saving)
-    this.pausedBefore = app.paused; app.paused = true;
-    this.off = []; this.out = []; this.lines = []; this.px = new Uint8Array(4); this.vi = -1; this.state = 'settle';
-    this._next();
   }
+
 
   get status() { const v = this.views[this.vi]; return `${v ? v.name : ''} ${this.state === 'settle' ? '(waiting for the ground)' : `${this.ci + 1}/${this.configs.length}`}`; }
 
@@ -435,7 +448,11 @@ export class CostTest {
         return true;
       }
       const s = (now - this.t0) / 1000;
-      if (s > 2.5 && (app.terrain.idle || s > 14)) this._config(0);
+      if (s > 2.5 && (app.terrain.idle || s > 14)) {
+        // (on the view's own world now: see _plan)
+        if (this.planned !== v.world) { this._set(-1, this.configs[0][1]); this._plan(); this.planned = v.world; this.ms = new Float32Array(this.configs.length); }
+        this._config(0);
+      }
       return true;
     }
     // (a software renderer, a second a frame: two frames each tell as much)
@@ -476,7 +493,8 @@ export class CostTest {
       const rows = this.groups.map((g, i) => [g.label, mean(takes[i]), takes[i]]).filter((r) => r[2].length && !isNaN(r[1])).sort((x, y) => y[1] - x[1]);
       this.lines.push(`  saved by leaving a group out (twice each, against everything on just before and after; the two takes in brackets):`);
       for (const r of rows) this.lines.push(`    ${r[0]}: ${f(r[1])} (${r[2].map(f).join(' · ')})`);
-      const sum = rows.reduce((x, r) => x + r[1], 0);
+      // (the sky's own parts are inside the sky's group: not added a second time)
+      const sum = rows.reduce((x, r) => x + (r[0].startsWith('of the sky:') ? 0 : r[1]), 0);
       this.lines.push(`    every group out at once: ${f(all)} saved (the groups one by one add up to ${f(sum)}) · what is left then: ${f(on - all)}`);
     }
     // (the savings in families, the same way)
