@@ -15,7 +15,7 @@ character model". The session of `ccr-aa39490a-qiw63x` and all its helpers stopp
 2026-11-25; **its "PR #37" below was never opened** (nothing of the sky by rule or of the
 fourth round had reached `main`).
 
-**What this delivery is** (PR #PRNUM, main at MAINSHA):
+**What this delivery is** (PR #37, main at 49e4294; the number the other session's note had claimed is by chance the one this pull request got):
 1. *Everything done, merged*: this branch now holds `ccr-aa39490a-from-above` (which held
    qiw63x) and `ccr-aa39490a-sky-B-clouds`, and with them every commit of every helper branch
    (checked branch by branch: none has a commit this branch lacks). On the joined head: the
@@ -23,7 +23,8 @@ fourth round had reached `main`).
    `tree-shadow-test` could not read a new line of the trees' vertex shader, and Earth's wind
    from its maps used Earth's 111 200 m a degree as a number instead of the world's), Haven's
    opening view draws as it should, and `npm run smoke` passes (16 checks, the ground's
-   shader at 15 of 16 textures).
+   shader at 15 of 16 textures), before the character went in and again after it (23
+   shaders).
 2. *The owner's character*: the sculpt the owner sent is what is drawn now (see "The owner's
    sculpt in the game" just below). The figure built in code stays
    in the repository and is what a device gets if the file cannot be loaded.
