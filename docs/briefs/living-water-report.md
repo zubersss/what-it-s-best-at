@@ -219,3 +219,113 @@ is inside `if (river > 0.0)`).
 
 **Not done.** A river is not wider or deeper after rain (its water's edge is the ground's
 shape); the wetness is the place's own, not what fell upstream.
+
+## Parked on 2026-11-27 (the phone's speed comes first): how to take the water up again
+
+**The state of the branch.** Everything is on `ccr-6f4f9272-water`. The head builds and passes
+`./scripts/build-check.sh`, `node scripts/haven-rivers.mjs --check`, `node
+scripts/river-ribbon-test.mjs`, `node scripts/water-rules-test.mjs`, `npm run lakes`, `node
+scripts/far-ground-test.mjs`, `node scripts/sky-system-test.mjs`. **Not run on it:** `npm run
+smoke`, the stability test, a phone benchmark, and an idle-machine cost run after piece 1.
+The last build whose shaders were seen to compile and draw in the headless browser is the
+commit "a river's mirror in its own green-blue" (the picture `haven_ledge_fall_160m_a13.png`
+is from it); the head adds to it only the patch builder's change and a clamp of the flow in
+the ground's shader (two lines of plain arithmetic), not yet seen in a browser.
+
+**Done and proven (by a check or a picture).**
+- Piece 1, all of it: one rule of speed; the flow in the normal map and read back exactly
+  (`water-rules-test` 2 and 5); the lanes repeat with the tile (3); rivers joined across
+  ring edges (`haven-rivers --check`: 21 of 23 crossings on sound ground, nearly none
+  before); the walker carried (code only: not tried in `npm run foot`); the governor's step.
+  Pictures: `river_ground_before.png` / `river_ground_after.png`.
+- Piece 2: falls in the rivers' profiles and drawn (near: the ground's own white sheet,
+  pool and gorge; far: the sheet and mist of `water/falls.js`). Pictures:
+  `haven_ledge_fall_160m.png` (enlarge its middle: sheet, blue pool, gorge),
+  `haven_ledge_fall_700m.png`, both from the build before the windings; `..._a13.png` after.
+  `haven_ledge_fall_far.png` is the first try, a wooded valley from above with no water to
+  be seen: the reason trees now stand back from river edges.
+- Piece 3: the unbroken ribbon on far ground (`river-ribbon-test`, fails with `--was`).
+
+**Half done: built, compiles, never looked at.**
+- *Steep brooks were white from end to end* in every picture so far (a river's own slope
+  read back as 2.5 m/s more flow on a slope of one in six). Fixed in the head
+  (`chunkBuilder.js` writes the vertical in the water; `water-rules-test` 5), **no picture
+  yet**: the fall views must be taken again, and the brook should now be green-blue with
+  white lanes and a white fall, not a pale road.
+- *Windings* (28 m): seen only in the Node sketch (`haven-rivers --map`) and in
+  `haven_ledge_fall_160m_a13.png`.
+- *Inland water from the air* (tighter glint, more sky, teal river, greyer lake blue): no
+  picture. The `_a7` and `_before` pictures of `river_300/1k/3k` and `lake_1k/3k` are
+  nearly the same as each other: they show what was inherited (a pale river toward the
+  Sun, a royal-blue lake at 3 km, a lilac band with mint and yellow fringes at the opening
+  place from 1 km: the critic's gap 4 is still open in them).
+- *The sea* (beach profile, surf lift, foam line, wash, turquoise hem) and *rain*
+  (puddles, spate): **no picture at all**; the shaders compile. The beach is measured in
+  Node (golden shore: 28 m -> 86 m of ground between low water and 1 m over high water).
+- Tree setback from rivers: seen working in the fall pictures.
+
+**The main session's two remarks on `river_ground_after.png`.**
+1. *Two thin pale straight lines across the river*: patch edges. The detail tile's
+   coordinates jump by whole tiles from patch to patch, and two things read their change a
+   pixel: the lanes (fixed: from the place itself, `dux` / `duy` in the ground's shader)
+   and the nearness the dashes fade by (fixed: `nearR`). Both fixes are in the head; **not
+   yet confirmed in a picture** (the last ground-alone river picture, taken between the two
+   fixes, still had the lines).
+2. *Dashes like road markings*: since then the lanes are 4.6 m apart with finer ones
+   between, blended from four wave vectors so they part and join through bends, broken into
+   dashes by a carried texture at a 21 m repeat, with standing waves across them in fast
+   water, and the speed (so the white) falls to 0.3 of mid stream at the banks. Still to
+   do: vary the lanes' width and strength along the stream (a slow second stripe set along
+   the flow multiplying the first), and fewer lanes near the banks (multiply `crest` by the
+   speed's share of mid stream). The pictures asked for (reference shape, everything
+   drawn, from the bank at eye height and from 300 m) were **not taken**.
+
+**Views and their commands** (one browser at a time; from a frozen build):
+- the ground alone, six minutes a view, also the cost: `node scripts/ground-cost.mjs --only
+  river,fall --dist --distdir <build> --save <dir> --frames 3` (cost before/after: the
+  same on a build of `a31dcc6`, with nothing else running: a busy machine added 40 %);
+- full pictures: `node scripts/shots.mjs --dist --distdir <build> --world haven --shot ledge
+  --size 660x309 --dsf 1 --out docs/shots/water --timeout 1500 --suffix <name> --query "..."`:
+  - the river (71 m3/s) from 300 m, 1 km, 3 km: `lat=-51.95908&lon=48.94203&heading=38`
+    with `&alt=750&pitch=-35`, `&alt=1450&pitch=-50`, `&alt=3450&pitch=-60`; low over it
+    (half an hour, never settles: wooded): `&alt=484&pitch=-22`;
+  - the opening place's lake from 1 km and 3 km: `alt=2513&pitch=-60`,
+    `alt=4513&pitch=-20&debug=noclouds`;
+  - a fall in open country: `lat=15.84355&lon=131.71670&alt=137&heading=315&pitch=-8`
+    (160 m), `lat=15.75603&lon=131.80769&alt=230&heading=315&pitch=-7&fov=30` (700 m);
+    find others with `scripts/find-fall.mjs`;
+  - the sea's shore: `lat=18.501&lon=133.348&alt=41&heading=90&pitch=-8` (25 m up),
+    `lat=18.501&lon=133.30&alt=420&heading=90&pitch=-32` (from the air);
+  - wet ground: the cornflower meadow at the hour the model has it wet (0.37):
+    `lat=-54.39501&lon=38.28479&t=24&heading=45&pitch=-18`; the river view is wet at
+    `t=34`, the opening place at `t=41` (night).
+
+**What I would do next.**
+- Piece 1: the pictures the main session asked for; `npm run foot` in a river.
+- Piece 2: the fall views again on the head; then judge the count of falls (60 m ledges
+  give some 70 round the opening place) and whether the far sheet should begin nearer
+  than 70 m.
+- Piece 3: the air set on the head, old beside new; then the lake's rim (a bright
+  green-yellow hem one or two pixels wide) and the opening place's lake from 1 km.
+- Piece 4: the two shore views, old beside new, at a low and a high tide (`t=`); check the
+  swimmer in the surf; the surf's foam far off is the breaking zone's white, untried.
+- Piece 5: the wet meadow; puddles may need their threshold tuned by eye.
+- For the phone: the ground's cost after piece 1 was +9 % at a view a fifth of which is
+  river (software count), before the lanes became sines (then +1 % with lanes only, +9 %
+  with standing waves); puddles add one texture read on wet level ground only; the surf
+  none. No new texture anywhere: the ground's fragment shader reads what it read.
+
+**Behaviour changes to list when this goes out** (beyond the water's own look): trees
+stand 4 to 8 m back from river edges (every world with rivers); Haven's ground within
+12 m of the sea's level is flattened into a beach; Haven's rivers wind up to 28 m off
+their old lines and have falls; the ring's box is 24 pixels in, not 20; lakes and rivers
+have a tighter glint and take more of the sky from the air; the walker is carried by a
+river.
+
+**Shared files touched:** `src/terrain/terrainMaterial.js` (blocks marked "living
+water"), `src/terrain/chunkBuilder.js`, `src/terrain/terrain.js`, `src/terrain/height/*`,
+`src/terrain/tiles/*`, `src/perf/governor.js` (step `water`), `scripts/sky-system-test.mjs`
+(the ladder's pin), `src/app.js`, `src/controls/cameraRig.js`, `src/life/treeBlock.js`,
+`src/worlds/haven.js` (`beach`, `wind`), `scripts/ground-cost.mjs`. New scripts are not in
+`CLAUDE.md`'s list yet (`haven-rivers`, `river-ribbon-test`, `water-rules-test`,
+`find-fall`): their usage is at the top of this file.
