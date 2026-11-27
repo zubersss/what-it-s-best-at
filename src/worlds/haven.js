@@ -125,7 +125,7 @@ export default {
       // The far forest (life/farForest.js): the same trees as those within `radius`, at the
       // same places, out to `radius` of their own. `full`: full density out to here, then
       // thinner as (full / distance)^2, the thinned ones standing a little wider.
-      far: { full: 450, radius: 5600, below: 6000 }, line: { base: 3548, perDeg: 38.7, from: 0, above: 260, band: 120 } },          // (above, band: the trees' own limit stands 260 m over the land rule's line and thins only in its last 120 m: the land rule's ragged line (madeLand.js, treeRag) is what ends a wood)
+      far: { full: 450, radius: 5600, below: 6000 }, line: { base: 3548, perDeg: 38.7, from: 0, above: 260, band: 120 }, clear: [[-48.54992, 49.05567, 22]] },          // (above, band: the trees' own limit stands 260 m over the land rule's line and thins only in its last 120 m: the land rule's ragged line (madeLand.js, treeRag) is what ends a wood)
     grass: { below: 90, mid: 220 },
     // Which flowers grow where (life/grassRules.js: the floras by name): by the land rule's
     // class, and above the tree line the alpine ones (cushions, gentians).

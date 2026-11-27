@@ -44,6 +44,9 @@ export function treeBlock(hs, bi, bj, spacing = 7, nominal = BLOCK_DEG, salt = 4
   // (a made world says where its own tree line is and what grows on it: world.life)
   const lineDef = hs.life?.trees?.line, flora = hs.life?.flora;
   const dirOf = (lat, lon, d) => { const cl = Math.cos(lat * rad); d[0] = cl * Math.cos(lon * rad); d[1] = cl * Math.sin(lon * rad); d[2] = Math.sin(lat * rad); };
+  // (ground kept clear of trees, as the rocks keep theirs: where the journey begins, so that what
+  // one first sees is not a trunk. [[latitude, longitude, metres], ...] in the world's life.trees)
+  const clear = (hs.life?.trees?.clear || []).map(([la, lo, m]) => { const cl = Math.cos(la * rad); return [cl * Math.cos(lo * rad), cl * Math.sin(lo * rad), Math.sin(la * rad), Math.cos(m / R)]; });
   const d = [0, 0, 0], o = [0, 0, 0];
   dirOf(lat0 + deg / 2, lon0 + dLon / 2, o);
   const h0 = hs.height(o[0], o[1], o[2], 30), origin = [o[0] * (R + h0), o[1] * (R + h0), o[2] * (R + h0)];
@@ -58,6 +61,7 @@ export function treeBlock(hs, bi, bj, spacing = 7, nominal = BLOCK_DEG, salt = 4
     dirOf(lat, lon, d);
     const cover = hs.coverAt(d[0], d[1], d[2]);
     if (cover < 0) continue;
+    if (clear.length) { let out = false; for (const z of clear) if (d[0] * z[0] + d[1] * z[1] + d[2] * z[2] > z[3]) { out = true; break; } if (out) continue; }
     // (how closed the canopy is comes with the map: the tile worker works it out once, for
     // the trees here and for the far forest the ground shader raises, so the two agree)
     const cls = cover & 255, tall = ((cover >> 8) & 255) / 4;
@@ -72,7 +76,7 @@ export function treeBlock(hs, bi, bj, spacing = 7, nominal = BLOCK_DEG, salt = 4
     if (near) dens = Math.max(dens, cls === 15 || cls === 17 ? 0 : 0.5);
     const slope = hs.baseSlope;
     dens *= slope > 0.95 ? 0 : slope > 0.5 ? 1 - (slope - 0.5) / 0.45 : 1;
-    const line = lineDef ? lineDef.base - lineDef.perDeg * Math.max(0, Math.abs(lat) - (lineDef.from ?? 0)) : treeLine(lat), band = lineDef?.band ?? 350, over = (h - line - (lineDef?.above ?? 0) + band) / band;                     // 0 well below the tree line, 1 at it (above, band: a made world whose land rule thins its own woods toward a ragged line keeps this one above it, as a last limit)
+    const line = lineDef ? lineDef.base - lineDef.perDeg * Math.max(0, Math.abs(lat) - (lineDef.from ?? 0)) : treeLine(lat), above = lineDef?.above ?? 0, band = lineDef?.band ?? 350, over = (h - line - above + band) / band, low = above ? Math.min(1, (h - line + 350) / 350) : over;                     // 0 well below the tree line, 1 at it (above, band: a made world whose land rule thins its own woods toward a ragged line keeps this one above it, as a last limit)
     if (over >= 1) continue;
     if (over > 0) dens *= 1 - over;
     if (u3 >= dens) continue;
@@ -86,7 +90,7 @@ export function treeBlock(hs, bi, bj, spacing = 7, nominal = BLOCK_DEG, salt = 4
     const drift = near ? 0.1 + 3.5 * grove : 0.05 + 14.0 * smoothstep01((0.5 + 0.5 * noise3(px / 420 - 5.3, py / 420 + 2.9, pz / 420 + 7.7) - 0.5) / 0.2) * grove;
     const sp = pickDrift(flora ? floraFor(flora, cls, h / Math.max(1, line), near) : speciesFor(cls, lat, ((lon + 540) % 360) - 180, h, near), u4, drift), S = SPECIES[sp];
     // height: the measured canopy's, more or less, and stunted toward the tree line
-    const base = Math.max(tall, near ? 9 : 2.5), height = Math.max(1.2, base * S.tall * (0.72 + 0.5 * u1) * (over > 0 ? 1 - 0.6 * over : 1));
+    const base = Math.max(tall, near ? 9 : 2.5), height = Math.max(1.2, base * S.tall * (0.72 + 0.5 * u1) * (low > 0 ? 1 - 0.6 * low : 1));          // (low: stunted over the last 350 m under the tree line itself, wherever the limit stands)
     const r = R + h, q = n * TREE_FLOATS;
     out[q] = d[0] * r - origin[0]; out[q + 1] = d[1] * r - origin[1]; out[q + 2] = d[2] * r - origin[2];
     out[q + 3] = height; out[q + 4] = S.wide * (0.85 + 0.35 * u2); out[q + 5] = u3 / Math.max(dens, 1e-3) * 6.2831853; out[q + 6] = sp; out[q + 7] = u4; out[q + 8] = rank; out[q + 9] = Math.min(1, dens);
