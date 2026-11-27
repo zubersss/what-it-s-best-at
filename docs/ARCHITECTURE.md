@@ -469,6 +469,16 @@ as before.
     the 2 560 m line where the anchor's place wraps. Lattices with an odd count of cells are
     offset by whole cells (`HALF`), so no blade's cell is read on its edge.
     `node scripts/grass-place-test.mjs` replays the shader's own lines across steps.
+    A thinned field keeps cells by a rule of the cell's own number (`keptCell`).
+  - *Only what could be drawn is handed over* (`life/grassBlocks.js`): a field is a window
+    of cells round the eye, cut into 12 x 12 blocks; each frame, once the camera is final
+    (`Grass.cull`, called from the frame just before the near scene is drawn), a block is
+    handed to the GPU only if the shader's own early tests (the ring's distances, `outside`
+    with the field's reach, grass or a flower in the ground table) could pass for some foot
+    in it: asked of a box that holds every place the shader could ask them of, so the
+    picture is the same. The blocks' numbers go to the shader as `uBlocks`, the instances
+    are dealt to them in turn. Whoever draws the grass without calling `cull` draws every
+    block. `node scripts/grass-blocks-test.mjs` replays the shader's tests cell by cell.
   - *Flowers* (`KINDS`, `FLORAS` in `grassRules.js`): twenty-six kinds in six habits: turf
     (tiny heads among the blades), cup (petals round a middle: daisies to poppies and the
     big single heads), spike (florets up a tall stem), umbel (a flat-topped spray), globe

@@ -202,6 +202,7 @@ function decodeBase64(b64) {
   return out;
 }
 
+const GIVE_UP = [0x8CE0, 0x8D00];      // COLOR_ATTACHMENT0, DEPTH_ATTACHMENT
 export class PostPipeline {
   constructor(renderer, exposureSettings) {
     this.renderer = renderer;
@@ -290,6 +291,10 @@ export class PostPipeline {
     this.exposureUsed = this.exposure;       // what this frame's shaders were given
     r.setRenderTarget(this.scene);
     r.setClearColor(0x000000, 0);      // alpha 0 = "not a lit surface" (used by the metering)
+    // (given up first: a clear of a part does not tell a tile-based GPU that the picture begins
+    // anew, and it reads last frame's colour and depth back in before drawing over them; below
+    // full size the clear is of a part. Nothing outside the part is ever read.)
+    { const gl = r.getContext(); gl.invalidateFramebuffer(gl.FRAMEBUFFER, GIVE_UP); }
     // The target is native-sized but only the governor's sub-rectangle is used: the clear
     // is scissored to it, so a tile-based GPU never touches the tiles outside.
     r.clear(true, true, false);

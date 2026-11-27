@@ -1489,6 +1489,7 @@ export class App {
     this.sky.groundUniforms();
     const far = Math.max(this.terrain.farDistance, cloudFar) * 1.05;
     rig.finalize(aspect, near, far);
+    this.grass.cull(rig.camera);              // (only the blocks of grass this camera can see are handed over)
     renderer.render(this.nearScene, rig.camera);
     prof.mark(8);
     // (the sky in the picture, in the plan's order: far cell sheets, shells above, the far low shell,

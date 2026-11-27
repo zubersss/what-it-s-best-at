@@ -50,7 +50,7 @@ console.log(await page.evaluate(() => window.__app.governor.summary), '| steps s
 
 if (!flag('no-bench')) {
   // (--earth: the Earth benchmark; the cost test after the lap takes its time in a software renderer)
-  const soak = flag('soak'), haven = flag('haven'), earth = flag('earth') || haven, limit = opt('limit', null) ? +opt('limit', 0) * 1000 : soak ? 760000 : haven ? 4800000 : earth ? 2400000 : 1500000;      // (--limit <seconds>: on a slow machine the Haven run takes hours)
+  const soak = flag('soak'), haven = flag('haven'), earth = flag('earth') || haven, limit = opt('limit', null) ? +opt('limit', 0) * 1000 : soak ? 760000 : haven ? 4800000 : earth ? 2400000 : 2700000;      // (--limit <seconds>: on a slow machine the Haven run takes hours)
   await goto(base + (soak ? '?world=mars&bench=soak' : haven ? '?world=haven&bench=haven' : earth ? '?world=earth&bench=earth' : '?world=mars&bench=run'));
   await page.waitForFunction(() => window.__app?.benchmark?.active, null, { timeout: earth ? 900000 : 240000 });
   check(`benchmark starts from ?bench=${soak ? 'soak' : 'run'}`, true);
@@ -68,6 +68,9 @@ if (!flag('no-bench')) {
   check('results screen is up', await page.isVisible('#results'));
   // (the cost test: every view has its three lines, with numbers in them)
   if (!soak) check('the cost test measured each view', (text.match(/^what each thing costs to draw/gm) || []).length === (earth ? 3 : 1) && /everything on \d+\.\d \(from/.test(text) && !/everything on \? /.test(text), (text.match(/^what each thing costs.*$/gm) || []).join(' | ').slice(0, 200));
+  // (what was handed to the GPU, by stop; and the cost test's groups, each with its two takes)
+  check('every stop has its counts of what the GPU was handed', (text.match(/^      \d+\.\d passes · [\d.kM]+ draw calls · [\d.kM]+ triangles · uploads /gm) || []).length >= 6, (text.match(/^      \d+\.\d passes.*$/m) || [''])[0]);
+  if (!soak) check('the cost test measured the groups twice each', /saved by leaving a group out/.test(text) && (text.match(/^    [^:\n]+: -?\d+\.\d \(-?\d+\.\d · -?\d+\.\d\)$/gm) || []).length >= 6 * (earth ? 3 : 1) && /every group out at once: -?\d+\.\d saved/.test(text), (text.match(/^    every group out.*$/m) || [''])[0]);
   check('the page\'s work is named by part at every stop', (text.match(/^      [a-z ]+ \d+\.\d( ·|$)/gm) || []).length >= 6);
   if (soak) check('soak has a minute-by-minute table with ten rows', (text.match(/^\s+\d+: [\d.]+ fps/gm) || []).length === 10);
   check('results have every line the owner asked for', ['average fps', '1% low', 'worst frame', 'render resolution', 'quality steps', 'hitches over 100 ms', 'GPU:', 'pixel ratio', 'mode', 'build'].every((k) => text.includes(k)));
