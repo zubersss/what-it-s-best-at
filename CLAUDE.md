@@ -800,6 +800,13 @@ finished benchmark leaves its text in `window.__benchResult`.
   under it: its depth there decides how much it hides, and its edge is where the ground rises
   through it. And a white thing lit by the sky alone is the zenith's deep blue: from its own
   shore the mist in a mountain's shadow was a sea.
+- A target that keeps its picture from frame to frame (the field's maps, the shade atlas) can
+  be neither cleared whole nor invalidated: on a tile-based GPU every frame it is bound, it is
+  read back first. Bind it less (not at all on a frame with nothing to draw into it); a target
+  that keeps nothing (the march's) is invalidated when bound.
+- Data that streams in after the page begins (a lake's water) changes what "the ground" is: a
+  thing that asked once at the start (the mist's lattice) had the lake's bed for ever. Ask
+  again in strides, and all of it when a stride finds a change.
 - Two clocks: `?t=` (and a bookmark's `timeOffsetHours`) counts hours from the scene's own
   moment; the weather's clock counts seconds from `weather.epoch` (521 hours apart on Haven).
   A Node scan of the model at `t = H * 3600` asks about another day than the game shows at

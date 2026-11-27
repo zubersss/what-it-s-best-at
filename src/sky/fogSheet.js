@@ -25,6 +25,7 @@ export const FOG_LOOK = Object.freeze({
                      // its top itself is level, as a lake of mist is)
   ALPHA: 0.96,       // the most it takes of what is behind it
   LAKE: 34, LAKE_DEEP: 30,   // m of mist over a lake's deep water where the field has fog, and the water's depth at which it is all there (thin at the shore)
+  UNDER: 24,         // m under its top at which the eye no longer sees the sheet from below (see the fragment shader)
   SHADE: 0.4,        // the share of the Sun's light it keeps in the land's shadow (cooler there, never the sky's blue alone)
   EXT: 55,           // m of mist along the line of sight that takes 63 % of what is behind it (thin at its edge: the water and the far shore show through)
   RAG: 0.55,         // how far the lumps thin and thicken its depth (its edge broken into tongues) ...
@@ -132,6 +133,11 @@ void main() {
   // (looked up through, little; looked along, all of it: no ceiling over one who stands in it)
   float path = sinE < 0.0 ? d / max(-sinE, 0.22) : min(max(length(planetPos) - length(uCamPlanetPos), 0.0), d) / max(sinE, 0.05);
   float alpha = ${glf(F.ALPHA)} * smoothstep(${glf(F.EDGE0)}, ${glf(F.EDGE1)}, vFog) * (1.0 - exp(-path / ${glf(F.EXT)}));
+  // From INSIDE the mist the sheet cannot veil what lies below the eye (it is over the eye): one
+  // stood under a warm lid with clear water at one's feet. Until the weather's own veil knows of
+  // this mist, the sheet is seen from above and from its own top only: it fades out as the eye
+  // sinks under it, gone UNDER m below its top.
+  if (sinE > 0.0) alpha *= 1.0 - smoothstep(3.0, ${glf(F.UNDER)}, length(planetPos) - length(uCamPlanetPos));
   if (alpha < 0.01) discard;
   // the dawn's colour: the sky's cool light everywhere, and the low Sun's warm one where the land
   // lets it through (the mist in a mountain's shadow is blue-grey, the tongue the Sun has reached gold)
