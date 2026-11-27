@@ -252,7 +252,10 @@ export class Governor {
     this.vsync = 1000 / 60; this.vsyncMeasured = false;
     this._vs = []; this._vfree = []; this._vc = 0; this._skipped = false;
     this.interval = 1000 / MODES[this.mode].fps;
-    this.paced = fixedScale == null;
+    // (paced also with the picture held at one size in play, ?scale=: the twelfth results were two
+    // such runs, drawn as fast as the phone could, 52 frames a second at the first stop with every
+    // saving on, and slower stop by stop as it grew hot: a run nobody plays. Pictures are not paced.)
+    this.paced = fixedScale == null || !app.shotMode;
     this._lastRaf = 0; this._lastRender = 0;
     this._ring = new Uint8Array(WINDOW); this._ri = 0; this._filled = 0;   // bit 0 = late, bit 1 = soft
     this.cooldown = 1.5;          // seconds before the next decision
