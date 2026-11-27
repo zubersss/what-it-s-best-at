@@ -15,6 +15,7 @@ export const PARAMS = {
   world: q.get('world') || (!q.get('shot') && stored('sse.world.2')) || (q.get('shot') ? 'mars' : 'haven'),
   shot: q.get('shot') || null,          // bookmark name; also switches to deterministic "screenshot mode"
   timeOffsetHours: num('t', null),
+  season: q.get('season'),              // spring|summer|autumn|winter, or a point of the year 0..1: the clock moved on to that season at the place (life/season.js)
   hud: q.has('hud') ? q.get('hud') !== '0' : null,
   scale: num('scale', null),            // fixed render scale (switches the governor off)
   mode: q.get('mode'),                  // 'smooth' (60 fps target) or 'sharp' (30 fps target)

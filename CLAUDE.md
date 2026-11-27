@@ -245,8 +245,12 @@ node scripts/shadow-fine-rocks-test.mjs   # every rock whose shadow lies in the 
 node scripts/shadow-axes-test.mjs   # a still spot's shadow hardly moves when the light axes are renewed or the anchor resets (no browser)
 node scripts/terrain-bake-sun-test.mjs   # a patch built mid-walk is baked for the same Sun as its neighbours (no browser)
 npm run treeshadows   # the trees' shadows in motion, without a browser (about 40 s): flecks fixed to the ground through tile re-centres and axes renewals, no lurch at a rebuild, the shadow's mesh changing only where the picture does, the fine tile's count
+node scripts/season-test.mjs [--break year|rule|bloom|whole]   # the season's one rule (life/season.js): Haven's opening morning as it was before it had a year, Earth on the date's calendar, the year's length, going to a season in whole days (no browser, a second)
 node scripts/sky-system-test.mjs [--break <fault>]   # the sky's step 0 (docs/briefs/sky-step0.md): the shared cloud rule's GLSL against its JS, the clouds going with the day's low wind and rising on the game clock, the guards that let a shader take two shared texts, the frame order and the interfaces the sky packages build on, the governor's and the benchmark's hooks, the debug switches (no browser, 10 s; --break puts one fault in to see its check fail)
 node scripts/sky-list-test.mjs [--break hold|nofast]   # the storm cells and anvils asked every frame from moments 2 s apart and blended: within a few cm of the model's own answer, forwards and backwards, and the model asked about once in 60 frames (no browser, 3 s)
+node scripts/sky-slots-test.mjs [--break reslot]   # the sky field's snapshots on the GPU: every blend of the 'now' maps reads the pair's own two snapshots, forwards, backwards and after jumps (a renderer that only keeps count; no browser, seconds)
+node scripts/sky-scan.mjs [--t 4] [--lat .. --lon ..] [--span 120] [--stub fair]   # the sky field's numbers round a place at an hour of the game (?t=): heap, sheet, base, thickness, country, mid, high (no browser, seconds)
+node scripts/sky-above.mjs [--t 4] [--span 120] [--stub fair] [--out file.png]   # the low cloud from straight above as the game cuts it: the hour's cover (left) and the cloud carved from it (right), with the share of the land under cloud (no browser, 20 s)
 node scripts/sky-steer-test.mjs · node scripts/sky-format-test.mjs · node scripts/sky-cell-test.mjs   # each cloud layer's wind (closed form against a frame-by-frame sum), the weather field's snapshot format (JS and GLSL decoders), a storm cell's shape (JS against its GLSL) (no browser)
 npm run probe          # top-down shaded relief of the height function (no browser)
 node scripts/sky-table.mjs [--lat .. --lon ..]   # where the sky bodies are from a place over time (no browser)
@@ -273,7 +277,7 @@ on the start screen last time, or `haven`; in screenshot mode `mars`), `shot=led
 (a sixth view of the opening site, used for the from-orbit and character reference
 pictures), and the world's landmarks (`olympus`, `gale` on Mars; `tycho`, `taurus` on the
 Moon) (fixed camera bookmark, deterministic screenshot mode, skips the start screen),
-`t=<hours offset>`, `hud=0|1`, `scale=<fixed render scale>`, `dpr=<ratio>` (pretend the
+`t=<hours offset>`, `season=spring|summer|autumn|winter` (the clock moved on by whole days to that season at the place; or a point of the place's year, 0 its spring equinox .. 1), `hud=0|1`, `scale=<fixed render scale>`, `dpr=<ratio>` (pretend the
 screen has this device pixel ratio: sets the canvas's pixel size), `mode=smooth|sharp`,
 `bench=run|soak|earth` (start a benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|fast|bank|climb|hover`
 (cruising, boosting, turning, straight up, hovering), `heropose=stand|walk|run|super|jump|land|launch`
@@ -317,7 +321,7 @@ boost in flight), `▲` jump (tap) / take off (hold, or tap again in the air) / 
 anywhere else = look, buttons `HERO`, `TARGET` (the list of targets with distances), `GO`
 (above `▲`, shown with a target: the hands-off trip), `HOVER`, `ZOOM` (hold), `MAP` (the
 solar system now: tap a body, then Set target or GO), `MENU` (the map and targets; the
-clock: faster, slower, stop, today, a date; the journal, photo mode, sound; free camera,
+clock: faster, slower, stop, today, a date; the season here and four buttons to go to one; the journal, photo mode, sound; free camera,
 read-out, Smooth ↔ Sharp, full screen), `▲` up, `▼` down. The time slider is part of the
 full read-out.
 
@@ -744,13 +748,21 @@ finished benchmark leaves its text in `window.__benchResult`.
   behind what touches. Bound to moving cloth sheet by sheet it tore into shards; cut at the
   joins it had ragged holes; drawn two-sided its inner face showed through as dark rags.
   What works: carry by the body's parts, add the cloth's shift, blend garments across their
-  joins, draw the outside only. And measure a tear before guessing at it: a count of edges
+  joins, draw the outside only; and the cloth must turn the surface as well as move it (moved
+  alone, every carved fold was sheared into crumpled foil). And measure a tear before guessing at it: a count of edges
   drawn out in a pose, by cause (`node scripts/hero-bind-test.mjs --list`), named the fused
   joins in one run after three guesses had not.
 - Look at the game as the player gets it, with no switch in the URL. The sky's field fell back
   to a stub's test pattern ("fair") whenever no `sky:` switch was given: four helpers pictured
   their work under `debug=sky:model`, every check asked only "is the field on", and the merged
   build drew no storm of the day. A test of a default asks what the default is.
+- What a test in Node blends as bytes, the page blends from textures, and which texture holds
+  what is a thing of its own that only the page has. The sky field's snapshots were numbered
+  again at every arrival and read from textures never written: the game drew `f x the newer
+  snapshot` (an empty sky at every whole hour, clouds at half height in between) under every
+  Node check passing. A renderer that only keeps count (`scripts/sky-slots-test.mjs`) is
+  enough to test such a thing. And a round hour in `?t=` is a special moment (f = 0 between
+  two snapshots): take a picture at an odd minute as well.
 - Two clocks: `?t=` (and a bookmark's `timeOffsetHours`) counts hours from the scene's own
   moment; the weather's clock counts seconds from `weather.epoch` (521 hours apart on Haven).
   A Node scan of the model at `t = H * 3600` asks about another day than the game shows at
