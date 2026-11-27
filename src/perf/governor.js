@@ -172,6 +172,12 @@ export const FEATURE_STEPS = [
   { id: 'rain', buys: 0.3, label: 'thinner rain and snow', live: (app) => !!app.rain?.mesh?.visible, apply: (app, off) => { app.sky?.setSaving('rain', off); } },
   // (nothing: -0.4)
   { id: 'leaves', buys: 0.3, label: 'leaves in the wind', apply: (app, off) => { if (app.leaves) app.leaves.enabled = !off; if (app.petals) app.petals.enabled = !off; if (app.treeLeaves) app.treeLeaves.enabled = !off; if (app.kicked) app.kicked.enabled = !off; } },          // (petals: thinned to a third, not taken away)
+  // (the seasons' two: each tree's own carpet of fallen leaves in the ground's shading, a loop over
+  // the eight nearest such trees for the ground within 90 m (the wood's own scatter and the
+  // lying leaves stay); and the noise that breaks the snow line's edge (the line stays, plain).
+  // Not yet measured on the phone.)
+  { id: 'leaf-carpet', buys: 0.2, label: "each tree's carpet of leaves", apply: (app, off) => { app.leafCarpetOff = off; } },
+  { id: 'snow-edge', buys: 0.2, label: "the snow line's broken edge", apply: (app, off) => { app.snowEdgeOff = off; } },          // (App.updateSnow hands it to the shaders)
   // (nothing: -0.7)
   { id: 'sun-beams', buys: 0.3, label: "the Sun's beams through trees and cloud", apply: (app, off) => { app.post.shaftsOn = !off; } },
   // (no step for the waves that lift the water: on the phone it saved nothing that could be

@@ -1,0 +1,31 @@
+{
+  "ledge": {
+    "weather": "wind 2 m/s, rain 0.0 mm/h, snow 0.0, 10 C, sun 0.92, sky 1.00, top 2177 m",
+    "trees": "511 (8k triangles): Engelmann spruce, Swiss stone pine, lodgepole pine",
+    "farTrees": "27853 standing (47412 handed to the GPU)",
+    "farRocks": "1414 in view of 8188 all round, in 26 tiles (19 draw calls, 34k triangles; 10818 handed to the GPU)",
+    "water": "z2: 105 rivers, 499 m3/s (no inflow); z5: 38 rivers, 122 m3/s; z8: 15 rivers, 87 m3/s",
+    "stale": 0,
+    "tilesBusy": false,
+    "refreshQ": 0,
+    "rings": 3,
+    "tileFails": 0,
+    "busyW": 0,
+    "calls": 174,
+    "triangles": 2939942,
+    "chunks": 122,
+    "loaded": 346,
+    "visited": 346,
+    "wanted": 0,
+    "lodScale": 1,
+    "avgBuildMs": 39.8,
+    "exposure": 10.83,
+    "surface": [
+      0.665,
+      0.258
+    ],
+    "frame": 183,
+    "wait": "",
+    "sky": "low wind 2.4 m/s toward 84 deg; field (model): base 2177 m, top 2177 m, rain 0.0 mm/h, storm 0.00, overcast 0.30, wind 1.8 m/s, cell -1, 0 cells in reach"
+  }
+}
