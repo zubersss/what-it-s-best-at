@@ -128,13 +128,15 @@ season: from space the woods do not turn (the snow does: piece 4).
   the ground, through leaves that lie (the same amounts the ground draws: `lyingAt`) throws
   bursts of them up behind, in their colour: 12 bursts of 26 points, each leaf one sum from
   the burst's place, moment and the traveller's velocity.
+- **The petals' carpet** in spring is painted by the same ground block (the petals' own
+  slots, thinner), as the earlier report wished.
 - The old box of 420 leaves in the wind stays for gales and for a traveller tearing past
   trees, and in autumn adds the leaves of the trees farther off; it now follows how fast
   the place's trees are shedding (it fell all winter from bare trees before).
 - The governor's `leaves` step thins all of it to a third, as it did the petals.
 
-**Pictures**: `haven_ledge_grove_ground_autumn.png` and `..._lateautumn.png` (the grove from
-the ground: the trees turned, then bare with their leaves under them).
+**Pictures**: `haven_ledge_grove_ground_lateautumn.png` (the grove from the ground, late in
+autumn: half the trees bare, their leaves under them and in the grass).
 
 **Cost.** Points: 480 + 4 800 + 312 more, drawn only near such trees in their season. The
 ground: the litter block reads the detail tile twice as before, now only where leaves lie
@@ -158,8 +160,11 @@ carpet painted under it.
   snow: the opening place, 1 400 m up, is at its edge), and the land's own snow is gone below its line - 450 m + the shift (in summer
   only the highest ground keeps any). The two margins are why nothing changes on the
   opening morning. **Fresh snow**: where the day's weather has let snow fall in the last
-  day and a half at the traveller's place it lies down to the height it fell to, and that
-  line climbs again by the hour (`snowFell`; the app asks the weather one moment a frame).
+  day and a half at the traveller's place it lies down to the height it fell to, at most
+  900 m below the season's line, and that line climbs again by the hour (`snowFell`,
+  `snowDrop`; the app asks the weather one moment a frame). The limit is there because the
+  weather's cold does not yet know the life's season: unlimited, the high ground was white
+  all summer (the first summer picture was).
 - The shaders (`render/snowGlsl.js`, one text and two shared uniforms): the ground takes
   the land's own snow off where it is gone (the bare high ground under it) and lays new
   snow, its edge broken by a noise of the place, later on slopes turned toward the
@@ -169,7 +174,9 @@ carpet painted under it.
   own season: from space the caps of one grow while the other's shrink.
 - The grass lies flat under it (piece 5's uniform).
 
-**Pictures**: `piece4_snow_<season>.png` (a range across the snow line), and from space.
+**Pictures**: `haven_ledge_peak_<season>.png` and `piece4_peak_seasons.png` (a 3 700 m peak
+23 km west of the opening place, from the air at 2 800 m); `haven_ledge_space_winter.png` and
+`..._summer.png` (the southern half from 700 km).
 
 **Not done.** The weather's model still has the Sun's season, not the life's (it is the sky
 helper's file: see piece 1): it will let snow fall in the Sun's winter. Fresh snow's line is
@@ -193,7 +200,10 @@ is gone in summer: the ground there is bare.
   yarrow and thistle last into autumn; then the meadow is grass until late winter.
 - Pollen by how much of the flowers is out.
 
-**Pictures**: `piece5_meadow_<season>.png`.
+**Pictures**: `haven_ledge_<season>_final.png` and `piece5_opening_four_seasons.png` (the
+opening view itself, from the ground, in its four seasons: every piece together), and
+`haven_ledge_now_final.png` beside the reference `docs/shots/haven_ledge.png` (the opening
+morning).
 
 **Not done.** The grass's season is the traveller's latitude's (the grass is only drawn
 round the traveller), not each blade's height's.
