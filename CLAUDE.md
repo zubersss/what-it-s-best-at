@@ -247,6 +247,9 @@ node scripts/terrain-bake-sun-test.mjs   # a patch built mid-walk is baked for t
 npm run treeshadows   # the trees' shadows in motion, without a browser (about 40 s): flecks fixed to the ground through tile re-centres and axes renewals, no lurch at a rebuild, the shadow's mesh changing only where the picture does, the fine tile's count
 node scripts/sky-system-test.mjs [--break <fault>]   # the sky's step 0 (docs/briefs/sky-step0.md): the shared cloud rule's GLSL against its JS, the clouds going with the day's low wind and rising on the game clock, the guards that let a shader take two shared texts, the frame order and the interfaces the sky packages build on, the governor's and the benchmark's hooks, the debug switches (no browser, 10 s; --break puts one fault in to see its check fail)
 node scripts/sky-list-test.mjs [--break hold|nofast]   # the storm cells and anvils asked every frame from moments 2 s apart and blended: within a few cm of the model's own answer, forwards and backwards, and the model asked about once in 60 frames (no browser, 3 s)
+node scripts/sky-slots-test.mjs [--break reslot]   # the sky field's snapshots on the GPU: every blend of the 'now' maps reads the pair's own two snapshots, forwards, backwards and after jumps (a renderer that only keeps count; no browser, seconds)
+node scripts/sky-scan.mjs [--t 4] [--lat .. --lon ..] [--span 120] [--stub fair]   # the sky field's numbers round a place at an hour of the game (?t=): heap, sheet, base, thickness, country, mid, high (no browser, seconds)
+node scripts/sky-above.mjs [--t 4] [--span 120] [--stub fair] [--out file.png]   # the low cloud from straight above as the game cuts it: the hour's cover (left) and the cloud carved from it (right), with the share of the land under cloud (no browser, 20 s)
 node scripts/sky-steer-test.mjs · node scripts/sky-format-test.mjs · node scripts/sky-cell-test.mjs   # each cloud layer's wind (closed form against a frame-by-frame sum), the weather field's snapshot format (JS and GLSL decoders), a storm cell's shape (JS against its GLSL) (no browser)
 npm run probe          # top-down shaded relief of the height function (no browser)
 node scripts/sky-table.mjs [--lat .. --lon ..]   # where the sky bodies are from a place over time (no browser)
@@ -751,6 +754,13 @@ finished benchmark leaves its text in `window.__benchResult`.
   to a stub's test pattern ("fair") whenever no `sky:` switch was given: four helpers pictured
   their work under `debug=sky:model`, every check asked only "is the field on", and the merged
   build drew no storm of the day. A test of a default asks what the default is.
+- What a test in Node blends as bytes, the page blends from textures, and which texture holds
+  what is a thing of its own that only the page has. The sky field's snapshots were numbered
+  again at every arrival and read from textures never written: the game drew `f x the newer
+  snapshot` (an empty sky at every whole hour, clouds at half height in between) under every
+  Node check passing. A renderer that only keeps count (`scripts/sky-slots-test.mjs`) is
+  enough to test such a thing. And a round hour in `?t=` is a special moment (f = 0 between
+  two snapshots): take a picture at an odd minute as well.
 - Two clocks: `?t=` (and a bookmark's `timeOffsetHours`) counts hours from the scene's own
   moment; the weather's clock counts seconds from `weather.epoch` (521 hours apart on Haven).
   A Node scan of the model at `t = H * 3600` asks about another day than the game shows at
