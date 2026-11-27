@@ -145,7 +145,7 @@ million pixels each, whatever is on screen; the phone's own tables give the volu
 Five of those passes begin without a whole clear (see above: `gl.invalidateFramebuffer`
 before the clear is what the picture and the shadow tiles now do).
 
-## Step 2: the phone can say more (in the branch; seen to build and to pass its checks in Node, **not yet seen in a browser**)
+## Step 2: the phone can say more
 
 - **Counts by stop.** Every stop's line of the benchmark is followed by what was handed to
   the GPU a frame there: passes, draw calls, triangles, uploads and their bytes, and how many
@@ -175,7 +175,25 @@ before the clear is what the picture and the shadow tiles now do).
   fail): the tally against a made-up context; the plan's order; a group that costs 9 ms reads
   9 ms under a baseline that climbs 40 ms over the test.
 
-## Step 3: cuts (in the branch; the same caveat until the pictures are in)
+## Step 3: cuts
+
+**Seen in the browser** (build 09e70d4 of this branch, the opening view, software WebGL):
+- The opening view draws with every shader linked and inside a phone's limits (the
+  screenshot run's own check).
+- *The grass by blocks against the whole field, in one browser session at the same moment*
+  (`node scripts/grass-cull-pair.mjs`: the wave held still, pollen out, three pictures a few
+  frames apart: blocks, whole, blocks again): **no pixel differs by more than one level of
+  255** (0.24 % of them by that one level; the picture by itself changes 0.41 % of its pixels
+  by one level over the same few frames: the exposure settling). Handed over: **700 572
+  triangles of grass for 1 795 392; the frame 1.90 million for 2.99**.
+  `docs/shots/speed-2/grass_whole_above_blocks_below_ledge.jpg`. From 50 m over the meadow
+  the grass is 361 560 triangles for 1 795 392 (that view had not settled: no pixel count).
+- A first try at "before and after" with two builds' pictures of the opening view could not
+  say it: the two runs were ready on different frames (181 and 184), and the grass's wave is
+  added up frame by frame, so every near blade stood a pixel to one side in one of them (3 %
+  of the pixels differed by more than 8 levels, all along blade edges and pollen motes).
+  **Two runs of this game are not the same picture; a pair is taken in one session.**
+
 
 1. **Grass: only the blocks of a field that the shader could keep anything of are handed
    over** (`src/life/grassBlocks.js`, `grass.js`). Each of the eight fields is cut into 8 x 8
