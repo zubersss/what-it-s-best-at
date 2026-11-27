@@ -484,9 +484,12 @@ if (BREAK === 'clock') {
 
 // ---- 9. the governor ---------------------------------------------------------------------------------
 {
-  // (the order of fix/governor10, the tenth phone results: the steps that bought nothing go last)
-  const LADDER = ['grass-mid', 'trees-far', 'far-trees', 'tree-leaves', 'grass', 'pollen', 'cloud-far', 'cloud-upper', 'rain-shafts', 'cloud-shade-rate', 'lenses', 'fog-sheet', 'terrain-1', 'terrain-2', 'cloud-shade-coarse', 'clouds', 'far-relief', 'ground-far', 'cloud-volume', 'cloud-steps', 'cloak', 'figure', 'fine-shadows', 'bloom', 'detail', 'water', 'soft-shadows', 'contact', 'edge-glow', 'dust', 'rocks', 'far-rock-shadows', 'far-rocks', 'rain', 'leaves', 'leaf-carpet', 'snow-edge', 'sun-beams', 'air-shadow', 'tree-shadows'];
-  check(FEATURE_STEPS.map((f) => f.id).join(',') === LADDER.join(','), "the governor's ladder: as it was, with the plan's four sky steps (cloud-upper, rain-shafts, cloud-shade-rate in the second group, cloud-shade-coarse before 'clouds') and living water's one ('water', after 'detail')");
+  // (the order of 2026-11-27, from the thirteenth phone results' families: the cloud volume's coarser
+  // steps first, the trees', the Sun's beams, the ground's; the depth of sky and land; then what
+  // bought nothing, the sky's small steps among it until the sky helper's cuts are measured)
+  const LADDER = ['cloud-steps', 'trees-far', 'far-trees', 'tree-leaves', 'leaf-carpet', 'sun-beams', 'detail', 'terrain-1', 'terrain-2', 'cloud-shade-coarse', 'clouds', 'cloud-volume', 'far-relief', 'ground-far', 'cloud-far', 'cloud-upper', 'rain-shafts', 'cloud-shade-rate', 'lenses', 'fog-sheet', 'rain', 'leaves', 'bloom', 'edge-glow', 'water', 'snow-edge', 'fine-shadows', 'soft-shadows', 'contact', 'far-rock-shadows', 'air-shadow', 'grass-mid', 'grass', 'pollen', 'cloak', 'figure', 'dust', 'rocks', 'far-rocks', 'tree-shadows'];
+  check(FEATURE_STEPS.map((f) => f.id).join(',') === LADDER.join(','), "the governor's ladder: as set from the thirteenth results, every step of the plan and of living water in it ('cloud-shade-coarse' before 'clouds')");
+  check(LADDER.indexOf('cloud-shade-coarse') < LADDER.indexOf('clouds') && LADDER.indexOf('cloud-steps') < LADDER.indexOf('cloud-volume'), "the governor's ladder: the clouds' shadows coarser before they go, the cloud volume's steps coarser before the volume goes");
   // the plan's four: through the sky's setters; not live and not built while their parts are stand-ins
   {
     const four = ['cloud-upper', 'rain-shafts', 'cloud-shade-rate', 'cloud-shade-coarse'], sk = new SkySystem({ terrain: terrain(), parts: fakeParts() });

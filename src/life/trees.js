@@ -268,7 +268,7 @@ export class Trees {
         #define vCloud vBits.z
         #define vSnow vBits.w`;
     this.material = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: this.shared, side: THREE.DoubleSide,
+      name: 'Trees', glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: this.shared, side: THREE.DoubleSide,
       vertexShader: /* glsl */`
 #define HAZE_UV 1
 ${LIGHTING_PARS}
@@ -726,7 +726,7 @@ ${TREE_VERT}
   // place: every tree within reach, nearest first; the far cards of every tree that may need
   // them before the list is made again (life/treeLod.js); then the close and near lists.
   _build(rig, radius) {
-    this.dirty = false; this.builtAt.copy(rig.pos);
+    this.dirty = false; this.builtAt.copy(rig.pos); this.builtMs = performance.now();          // (when: for the benchmark's hitch list, App.frameCause)
     const p = rig.pos, A = this.anchor.copy(p);
     localFrame([A.x, A.y, A.z], this._e, this._n, this._u);
     const u = this.shared;

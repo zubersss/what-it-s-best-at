@@ -31,6 +31,14 @@ The animation-frame callback first asks the governor whether to draw at all
 (`governor.shouldRender`): with a 60 fps target on a 120 Hz screen every second refresh is
 skipped, so frames are evenly spaced.
 
+**Shaders are made ahead** (`App.precompile`, on the third frame of loading and after arriving
+at another world): three makes a program at the first draw that uses it, and the trees', the
+far forest's, the leaves' and the shadow casters' first draws come seconds into play, each a
+hitch on a phone. Every scene's materials, visible yet or not, and every caster's depth
+material are asked for with the target they draw into bound (`renderer.compile`; nothing is
+drawn). `node scripts/shader-first-use.mjs --distdir <build>` lists what is still made in
+play, frame by frame. A material in no scene (a pass of its own) is made at its first pass.
+
 0. Classify the frame that just ended (`frameCause`: jump, world switch, new terrain…);
    if a benchmark is running it records the frame and presses the virtual keys.
 1. Time → `ephemeris` → Sun direction (planet-fixed), sky-body positions, star rotation.
@@ -878,6 +886,20 @@ as Earth is; what differs is where the maps come from.
 - **The air of a wood** (`forestAir` in the lighting chunk): trees, the forest's floor and
   the far canopy are mixed toward the sky's light by distance (to 38 % by some hundreds of
   metres): row behind row of trees paler, and the far forest lighter than the near.
+- **A tree's light and air come from its vertices** (near trees and far forest alike): the
+  Sun's unshadowed light where the vertex is (`directSun`) and the air between it and the
+  eye, the wood's own and the froxels' as two numbers (`forestAirParts`, `hazeAffine`: colour
+  x `vAirT` + `vAirL`), are worked out in the vertex shader and handed down, as the ground's
+  are. A pixel keeps its cut-out, its own shadow, the sky's light by its normal and the
+  colour work. (At every pixel they were nine to thirteen looks into the tables on each of
+  the layers a wood is made of: 11 whole pictures of near-tree layers in a wood, 2.5 of far
+  forest at the opening view, `scripts/overdraw.mjs`.) For an eye outside the air, and under
+  `debug=treeairpixel` / `farairpixel`, the old per-pixel path runs: the same picture to
+  two levels of 255. The far forest's vertex shader also throws a tree no part of which can
+  be in the picture out before its heavy work (a ball round its widest forms against the
+  picture's sides, `scripts/far-forest-cull-test.mjs`; `debug=farwhole` switches it off).
+  The varyings of both are declared once for the two shaders and packed (13 and 14 rows of
+  a phone's 15).
 - **The far forest** (`farForest.js`, `life.trees.far: { full, radius, below }`): beyond the
   trees one walks among, **the same trees**, at the same places, thinned with distance, out
   to `radius` (5.6 km on Haven and Earth). Each is the picture of a whole tree on two

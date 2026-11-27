@@ -54,7 +54,7 @@ console.log(await page.evaluate(() => window.__app.governor.summary), '| steps s
 
 if (!flag('no-bench')) {
   // (--earth: the Earth benchmark; the cost test after the lap takes its time in a software renderer)
-  const soak = flag('soak'), haven = flag('haven'), earth = flag('earth') || haven, limit = opt('limit', null) ? +opt('limit', 0) * 1000 : soak ? 760000 : haven ? 4800000 : earth ? 2400000 : 2700000;      // (--limit <seconds>: on a slow machine the Haven run takes hours)
+  const soak = flag('soak'), haven = flag('haven'), earth = flag('earth') || haven, limit = opt('limit', null) ? +opt('limit', 0) * 1000 : soak ? 760000 : haven ? 4800000 : earth ? 2400000 : 3300000;      // (--limit <seconds>: on a slow machine the Haven run takes hours)
   await goto(base + (soak ? '?world=mars&bench=soak' : haven ? '?world=haven&bench=haven' : earth ? '?world=earth&bench=earth' : '?world=mars&bench=run'));
   await page.waitForFunction(() => window.__app?.benchmark?.active, null, { timeout: earth ? 900000 : 240000 });
   check(`benchmark starts from ?bench=${soak ? 'soak' : 'run'}`, true);

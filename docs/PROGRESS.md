@@ -74,6 +74,34 @@ takes each):
 - *Pixels*: 1.00 against 2.07 against 3.14 MP is some 8 to 10 ms a megapixel at most.
 - *Uploads inside a pass*: 6 to 8 a frame on Haven (40 to 57 KB), 3 to 4 on the Moon.
 
+**A correction to that reading (the sky helper, 21:20 UTC).** The cost test chose its parts
+when it was made, at the end of the route, on the Moon, where the sky says "no clouds" and
+the far forest "no trees". So in these results the sky's group was the far pass, the
+middle and high cloud, the far cells, the shafts, the fog and the lenses, **without** the
+march, the shade map, the field's maps or the far low shell (their rows are missing from
+the table for that reason), and "nothing drawn" still ran every pass of the sky. The
+sky's 24 ms is therefore not the march; by count the likeliest payer is the two upper
+shells (two draws over every pixel of sky, some 8 reads each). Fixed on the sky helper's
+branch (`1067ffc`: the plan made on the view's own world, each sky part measured twice);
+the next link carries it and asks for the benchmark that names the part.
+
+**What the speed helper found in the same results (`45d79bd`, merged).** (a) *With every group out the ground is still drawn, flat, with the small things*: the
+20 / 7 / 27 ms between that and "nothing drawn" were first read as the ground's triangles
+and then **taken back by the helper itself**: plain milliseconds from different moments of
+a test whose baseline drifted from 54 to 125 ms, largest where the drift was. Not a
+finding. The table now measures "the ground not drawn at all" as a group against
+baselines, and says how much less "nothing drawn" is than everything on just before it. (b) *Uploads inside a pass* are all vertex buffers, no
+texture (the lying leaves' 75 KB a frame, cured since; the ground's patch list 8 KB): left.
+(c) *The "unknown" hitches ten seconds in* were shaders made at first use (the trees',
+the far forest's, the shadow casters'): every scene's shaders are now made while loading
+(`App.precompile`); one left, the sky field's, with the sky helper;
+`scripts/shader-first-use.mjs` lists them. (d) **The governor's order is by the families
+now (a behaviour change)**: the cloud march's coarser steps first, then the trees', the
+Sun's beams (live only while drawn), close-up detail, the patches; then cloud shadows, the
+cloud volume, far relief; then what bought nothing, the grass's three among them (they
+headed the order; the whole grass left out now costs time, it hides dearer ground).
+`npm run govsim` passes on a model of these results.
+
 **Decided.** (1) The sky's cost goes before the sky's look: the sky helper finds which pass
 and which pixels pay the 24 ms and halves it, and makes the savings buy the rest. (2) The
 speed helper: names what is left with every group out, names the uploads inside a pass and

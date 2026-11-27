@@ -95,8 +95,8 @@ check('and at an anchor it moves by about one step, not by a swing of the whole 
 {
   const brk = process.argv.includes('--break') && process.argv[process.argv.indexOf('--break') + 1] === 'noshift';
   // a land of long swells, with a lake 300 m deep whose bed the height function gives
-  const hs = { waterDepth: 0, height(x, y, z) { const lo = Math.atan2(y, x), la = Math.asin(z); const lake = Math.cos(la * 900) > 0.97; this.waterDepth = lake ? 300 : 0; return (lake ? 200 : 500) + 250 * Math.sin(lo * 700) * Math.cos(la * 500); } };
-  const surf = (q) => { const l = Math.hypot(q[0], q[1], q[2]); const g = hs.height(q[0] / l, q[1] / l, q[2] / l); return g + hs.waterDepth; };
+  const hs = { waterDepth: 0, height(x, y, z) { const lo = Math.atan2(y, x), la = Math.asin(z); const lake = Math.cos(la * 900) > 0.97; this.waterDepth = lake ? 300 : 0; return (lake ? 200 + 300 : 500) + 250 * Math.sin(lo * 700) * Math.cos(la * 500); } };
+  const surf = (q) => { const l = Math.hypot(q[0], q[1], q[2]); const g = hs.height(q[0] / l, q[1] / l, q[2] / l); return g; };      // (height() is the water's surface over water: the depth is not added to it)
   const f3 = new FogSheet(null); f3.uniforms.tCloudNoise.value = {}; f3.land = () => hs; f3.breakNoShift = brk;
   const sky = { R, t: 0, field, noClouds: false };
   f3.update({ rig: { pos: start.clone() }, sky });
