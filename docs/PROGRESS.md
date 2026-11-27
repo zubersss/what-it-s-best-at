@@ -72,8 +72,11 @@ every frame (seasons, asked to count); mist on the water seen from its own shore
 not there (the cure is the weather veil knowing of it: sky); the storm's anvil is flat
 (sky); nothing of the sky's new turns has been looked at in motion (`npm run stability`,
 two hours: sky); the land's own painted snow is grey-lilac in shade beside white new snow.
-**Not yet looked at**: the owner's picture of huge flat grass blades near the camera on a
-steep slope; steady flight is nearly a still pose.
+**Looked at, nothing broken**: the owner's picture (build 8c8ff89) of "huge flat" shapes on
+a steep slope: the pale flat triangle is a boulder's face beside the camera (the camera sits
+low behind the character on a slope of rocks), and the coarse blades are the grass at ten
+savings on at 21 fps: the cure is the frame rate (fewer savings), not the grass.
+**Not done**: steady flight is nearly a still pose.
 
 ### Where the helpers stand (2026-11-27 12:15 UTC) and what the next link needs
 
