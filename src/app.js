@@ -821,6 +821,27 @@ export class App {
     this.terrain.maxChunks = Math.round(CONFIG.MAX_RENDER_CHUNKS * (this.terrainFactors.mode ?? 1) * m);
   }
 
+  // Every shader of every scene made now, whatever is visible yet. three makes a program at
+  // the first draw that uses it, in the middle of that frame: the trees', the far forest's, the
+  // leaves' and the shadow casters' were made seconds into play, when their first meshes
+  // arrived (scripts/shader-first-use.mjs lists them frame by frame), each a hitch of 100 ms
+  // and more on a phone: three of the "unknown" ones of the thirteenth results stood ten
+  // seconds in. Asked for while the game still loads and again on arriving at another world,
+  // with the picture's own target bound (a program is made for the target it draws into);
+  // where the browser compiles in the background (KHR_parallel_shader_compile) nothing waits.
+  // Nothing is drawn. Materials that are in no scene (the passes of the sky and of the
+  // finishing) are made at their first pass, which is in the first frames already.
+  precompile() {
+    const r = this.renderer, cam = this.rig.camera, prev = r.getRenderTarget();
+    try {
+      r.setRenderTarget(this.post.scene);
+      for (const sc of [this.farScene, this.nearScene, this.weatherScene, this.heroScene, this.dustScene]) if (sc) r.compile(sc, cam);
+      if (this.pollen?.mesh) r.compile(this.pollen.mesh, cam);          // (drawn as a scene of its own)
+      this.nearShadow?.precompile?.(r);
+    } catch (e) { console.warn('precompile:', e); }
+    r.setRenderTarget(prev);
+  }
+
   // Why the frame that just ended may have been slow (for the benchmark's hitch list).
   // (A cause that begins with "unknown" is one the governor does not excuse: what is named
   // in brackets after it is for the benchmark's list alone. The thirteenth results had four
@@ -1254,7 +1275,7 @@ export class App {
       this.hud.setTimeRange(this.timeRange);
       this.bookmark = '';
       this.governor.arrive(w.id);
-    } finally { this.switching = false; this.switchedAt = performance.now(); }
+    } finally { this.switching = false; this.switchedAt = performance.now(); this._compileDue = true; }
   }
 
   frame(now) {
@@ -1571,6 +1592,9 @@ export class App {
     this.hud.update(dtMs, () => this.collectStats(jd));
     this.updateTargetMarker();
     this.input.endFrame();
+    // (the shaders of everything not yet in the picture, once the first frames have made the
+    // rest: while the start screen still stands; and after another world has been arrived at)
+    if (this.frameCount === 3 || this._compileDue) { this._compileDue = false; this.precompile(); }
     if (!this.loaded && this.frameCount > 3 && this.terrain.drawList.length > 0) {
       this.loaded = true; this.loadedAt = now;
       if (this.params.bench && this.benchmark) this.startBenchmark(this.params.bench);

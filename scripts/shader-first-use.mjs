@@ -2,8 +2,8 @@
 // program at the first draw that uses it, in the middle of a frame; on a phone that is a
 // hitch of 100 ms and more, and one made long after the start is a hitch in play.
 //   node scripts/shader-first-use.mjs --distdir <frozen build> [--world haven] [--seconds 600] [--query ".."]
-// Prints, frame by frame from the first frame of play, the programs made in it (by material
-// name; a material without one shows as "unnamed") and how many there are by then. What is
+// Prints, frame by frame from the first frame of play, the programs made in it (by where
+// the material that holds each is found from the app down; "unnamed" if nowhere) and how many there are by then. What is
 // made in the first frames is start-up's; anything later is named here so that it can be
 // made ahead. (The frame numbers are true on any device; the seconds are this machine's.)
 import { open, opt } from './lib/browser.mjs';
@@ -14,10 +14,28 @@ await page.waitForFunction(() => window.__app && window.__app.loaded, null, { ti
 await page.evaluate(() => {
   const a = window.__app, log = window.__made = []; let had = (a.renderer.info.programs || []).length; const f0 = a.frameCount, t0 = performance.now();
   log.push({ frame: 0, s: 0, n: had, names: ['(made before play: ' + had + ')'] });
+  // whose program: the materials of the game are looked for from the app down (five levels,
+  // and every object of its scenes), and the one that holds the program gives its path as a name
+  const whose = (prog) => {
+    const seen = new Set(), hits = [];
+    const mat = (m, path) => { if (!m || !m.isMaterial || seen.has(m)) return; seen.add(m); const pr = a.renderer.properties.get(m); if (pr && (pr.currentProgram === prog || (pr.programs && [...pr.programs.values()].includes(prog)))) hits.push(path + (m.name ? ':' + m.name : '')); };
+    const walk = (o, path, depth) => {
+      if (!o || typeof o !== 'object' || seen.has(o) || depth > 5) return;
+      if (o.isMaterial) return mat(o, path);
+      seen.add(o);
+      if (o.isObject3D) { o.traverse((c) => { for (const m of [].concat(c.material || [], c.customDepthMaterial || [])) mat(m, path + (c.name ? '.' + c.name : '')); }); }
+      if (Array.isArray(o)) { for (let i = 0; i < Math.min(o.length, 40); i++) walk(o[i], path + '[]', depth + 1); return; }
+      if (o instanceof Map) { let i = 0; for (const v of o.values()) { if (i++ > 40) break; walk(v, path + '[]', depth + 1); } return; }
+      if (ArrayBuffer.isView(o) || o.isTexture || o.isBufferGeometry || o.isBufferAttribute || o.isWebGLRenderer || o === window) return;
+      for (const k in o) { let v; try { v = o[k]; } catch { continue; } if (v && typeof v === 'object') walk(v, path ? path + '.' + k : k, depth + 1); }
+    };
+    walk(a, '', 0);
+    return [...new Set(hits)].slice(0, 2).join('|');
+  };
   const fc = a.frameCause.bind(a);
   a.frameCause = (...args) => {
     const p = a.renderer.info.programs || [];
-    if (p.length > had) { log.push({ frame: a.frameCount - f0, s: +((performance.now() - t0) / 1000).toFixed(1), n: p.length, names: p.slice(had).map((q) => q.name || 'unnamed') }); had = p.length; }
+    if (p.length > had) { const fresh = p.slice(had); log.push({ frame: a.frameCount - f0, s: +((performance.now() - t0) / 1000).toFixed(1), n: p.length, names: fresh.map((q) => whose(q) || q.name || 'unnamed') }); had = p.length; }
     return fc(...args);
   };
 });

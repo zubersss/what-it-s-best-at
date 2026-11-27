@@ -122,6 +122,20 @@ export class NearShadow {
   // when the fine tile is drawn, with the tile in place: inShadowTile(1, ...) says what falls in it.
   addCaster(mesh, depthMaterial, isVisible = null, fineCount = null) { this.casters.push({ mesh, depthMaterial, isVisible, fineCount }); }
   removeCaster(mesh) { this.casters = this.casters.filter((c) => c.mesh !== mesh); }
+  // Every caster's depth shader made now, into this map's own target, instead of at the first
+  // frame the caster is drawn in (App.precompile: a shader made in the middle of play is a
+  // hitch of 100 ms and more on a phone). Nothing is drawn.
+  precompile(r) {
+    const prev = r.getRenderTarget();
+    r.setRenderTarget(this.target);
+    for (const c of this.casters) {
+      if (!c.depthMaterial) continue;
+      const keep = c.mesh.material;
+      c.mesh.material = c.depthMaterial;
+      try { r.compile(c.mesh, this.camera); } finally { c.mesh.material = keep; }
+    }
+    r.setRenderTarget(prev);
+  }
   _on(c) { return c.mesh.visible && (!c.isVisible || c.isVisible()); }
 
   // Light-space footprint test: can this caster reach tile k? Instanced or unbounded
