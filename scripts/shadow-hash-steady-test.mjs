@@ -32,7 +32,7 @@ const check = (ok, what) => { if (!ok) fail.push(what); return ok; };
 
 let seen = [], current = null;
 const renderer = {
-  setRenderTarget(t) { current = t; }, clear() {}, getContext: () => ({ invalidateFramebuffer() {}, FRAMEBUFFER: 0, COLOR_ATTACHMENT0: 0 }),
+  setRenderTarget(t) { current = t; }, clear() {}, getContext: () => ({ invalidateFramebuffer() {}, invalidateSubFramebuffer() {}, FRAMEBUFFER: 0, COLOR_ATTACHMENT0: 0 }),
   render(mesh, cam) { seen.push({ vp: current.viewport.clone(), cam: cam.clone(), shift: G.uShadowHashShift ? G.uShadowHashShift.value.clone() : null }); },
 };
 // (in the game the near shadow is made before the trees: their materials take its uniforms)

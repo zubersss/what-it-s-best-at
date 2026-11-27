@@ -207,8 +207,10 @@ function install() {
       r.renderBufferDirect = (camera, scene, geometry, material, object, group) => {
         C.label = C.matName.get(material) || material.name || material.type || '?';
         // (how many vertices one instance of this draw runs the shader for)
-        const pos = geometry.attributes.position, range = geometry.drawRange;
-        C.vtx = geometry.index ? (pos ? pos.count : 0) : Math.min(pos ? pos.count : 0, range.count < Infinity ? range.count : Infinity);
+        // (the vertices of one instance: of whichever attribute is a vertex's and not an instance's; the ground's patches have no 'position')
+        let per = 0; for (const k in geometry.attributes) { const at = geometry.attributes[k]; if (!at.isInstancedBufferAttribute && !(at.data && at.data.isInstancedInterleavedBuffer)) { per = at.count; break; } }
+        const range = geometry.drawRange;
+        C.vtx = geometry.index ? per : Math.min(per, range.count < Infinity ? range.count : Infinity);
         try { return rbd(camera, scene, geometry, material, object, group); } finally { C.label = ''; C.vtx = 0; }
       };
     }
