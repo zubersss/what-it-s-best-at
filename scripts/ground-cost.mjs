@@ -1,7 +1,7 @@
 // What the ground's shading costs, as a count of work (never a frame rate): the real
 // game's ground drawn alone, at a fixed size, at a set of views, in the headless browser.
 //   node scripts/ground-cost.mjs [--only ledge,air3k] [--save dir] [--compare dir] [--frames 5]
-//                                [--size 880x412] [--dsf 1.25] [--dist | --distdir <build>] [--timeout 900] [--floor]
+//                                [--tiers] [--size 880x412] [--dsf 1.25] [--dist | --distdir <build>] [--timeout 900] [--floor]
 // Software WebGL runs every instruction of a fragment on the CPU: its time per pixel
 // follows the count of instructions and texture reads, not a phone's GPU. A shader three
 // times faster here is very likely a great deal faster on the phone; how much, only the
@@ -85,7 +85,7 @@ for (const v of VIEWS) {
   errors.length = 0;
   // (a small picture while the ground arrives: a software-drawn frame at full size takes seconds;
   // the measuring is at full size)
-  await goto(`${base}?${v.q}&scale=0.25`);
+  await goto(`${base}?${v.q}&scale=0.25${opt('add', null) ? '&' + opt('add', null) : ''}`);   // --add "t=6": the same views at another hour
   // (only the ground is wanted: what stands on it is taken out of its scene as it arrives,
   // so that a wood settles in minutes, not in half an hour of software-drawn leaves)
   const strip = () => page.evaluate(() => {
@@ -177,6 +177,98 @@ for (const v of VIEWS) {
       return out;
     }, { frames, parts });
     console.log(`${v.id.padEnd(7)} where it goes (ms saved by taking a part out): ${saved.sort((x, y) => (y[1] || 0) - (x[1] || 0)).map(([n, t, abs]) => `${n} ${Number.isNaN(t) ? 'NOT FOUND' : t.toFixed(0) + ' (' + abs.toFixed(0) + ' left)'}`).join(' · ')}`);
+  }
+  if (flag('tiers')) {
+    // --tiers: what a pixel of the ground reads, counted by the shader itself. The fragment
+    // shader is built again with a counter in every texture read (by the map read and by the
+    // kind of read), in every noise and in every loop, and a flag at the head of each block
+    // that only some pixels enter; it writes its counts where its colour went, and they are
+    // added up here by how far off the pixel's ground is and by block. Counts are true on any
+    // device; they say nothing of what a read costs there.
+    const t = await page.evaluate(() => {
+      const a = window.__app, r = a.renderer, gl = r.getContext(), post = a.post, sh = a.terrain.shared, cam = a.rig.camera, mat = a.terrain.group.material;
+      post.setScale(1); sh.uViewport.value.set(post.viewW, post.viewH);
+      const src = mat.fragmentShader, kinds = {};
+      for (const m of src.matchAll(/sampler(\w+)\s+(\w+)/g)) kinds[m[2]] = kinds[m[2]] && kinds[m[2]] !== m[1] ? 'mixed' : m[1];
+      // the classes of read: 0 the detail tile, plain · 1 the detail tile with a long footprint (textureGrad)
+      // 2 the patch's own maps (normal, baked shadow) · 3 the land's colour maps · 4 strata and far relief · 5 light, shade and air
+      const cls = (fn, name) => name === 'tDetail' ? (fn === 'textureGrad' ? 1 : 0) : name === 'tNormal' || name === 'tShadow' ? 2 : name === 'tRingColour' || name === 'tAlbedo' ? 3 : name === 'tStrata' || name === 'tRelief' ? 4 : name === 'tIrradiance' ? 6 : name === 'tCloudShade' || name === 'tCloudWet' ? 7 : 5;
+      const missing = [];
+      let body = src.replace(/\b(texture|textureGrad|textureLod)\(\s*(\w+)\s*,/g, (all, fn, name) => {
+        const k = kinds[name]; if (!k || k === 'mixed') { missing.push(name); return all; }
+        return `${fn}(${name}, ${k === '2D' ? 'cnt2' : k === '2DArrayShadow' ? 'cnt4' : 'cnt3'}(${cls(fn, name)}) +`;
+      });
+      body = body.replace(/([^\w ]\s*|return |= )flNoise\(/g, (all, pre) => `${pre}flNoise(cntN() + `);
+      body = body.replace(/(for \(int [^)]*\)[^;{]*\{)/g, '$1 gLoop += 1.0;');
+      const flags = [
+        ['canopy', 'if (canopyTall > 0.3 && vShell > 0.0) {', 0, 1], ['floor', 'if (vShell < 1.0) {', 0, 2], ['grass', 'if (gw > 0.0) {', 0, 4], ['flowers', 'if (fw.a > 0.0) {', 0, 8],
+        ['patches', 'if (uPaint.x > 0.0 && farW < 1.0 && flatW > 0.0 && dist > 60.0) {', 0, 16], ['broad', 'if (grassyB > 0.0) {', 0, 32], ['swaths', 'if (grassy > 0.0) {', 0, 64],
+        ['water', 'if (water > 0.0) {', 0, 128], ['strata', '* (uStrata.y + uStrata.w) > STRATA_LEAST) {', 0, 256],
+        ['snow', 'if (pale > 0.0 || snowMay(vHeight, up)) {', 1, 8], ['relief', 'if (lodRef > lodF + 0.05 && nearFade > 0.0) {', 1, 16], ['litter', 'if (nearL > 0.0) {', 1, 32], ['planes', 'if (kp > 0.0) {', 1, 64], ['reliefLight', 'if (kr > 0.0) {', 1, 128],
+      ];
+      for (const [name, find, ch, bit] of flags) {
+        const i = body.indexOf(find); if (i < 0) { missing.push('block ' + name); continue; }
+        body = body.slice(0, i + find.length) + ` gFlag[${ch}] += ${bit}.0;` + body.slice(i + find.length);
+      }
+      // (why: how far the blend toward the parent patch has gone, and what asked for the strata)
+      for (const [find, add] of [['float pk = vMorph * step(0.0, vChunk.y);', ' gWhy += pk <= 0.004 ? 0.0 : pk < 0.999 ? 1.0 : 2.0;'], ['vec3 band = vec3(1.0);', ' gWhy += (rockW + screeW > 0.0 ? 4.0 : 0.0) + (bedM > 0.0 ? 8.0 : 0.0) + (uStrataFlat > 0.0 ? 16.0 : 0.0);']]) {
+        const i = body.indexOf(find); if (i < 0) { missing.push('why: ' + find); continue; }
+        body = body.slice(0, i + find.length) + add + body.slice(i + find.length);
+      }
+      const cloudAt = 'shadow *= vChunk.z > float(CLOUD_VERT_TILES)';
+      if (body.includes(cloudAt)) body = body.replace(cloudAt, 'if (vChunk.z > float(CLOUD_VERT_TILES)) gFlag[0] += 512.0; ' + cloudAt); else missing.push('block cloud');
+      const head = `float gCnt[8] = float[8](0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0); float gNoise = 0.0, gLoop = 0.0; float gFlag[2] = float[2](0.0, 0.0); float gWhy = 0.0;
+vec2 cnt2(int k) { gCnt[k] += 1.0; return vec2(0.0); } vec3 cnt3(int k) { gCnt[k] += 1.0; return vec3(0.0); } vec4 cnt4(int k) { gCnt[k] += 1.0; return vec4(0.0); } vec3 cntN() { gNoise += 1.0; return vec3(0.0); }
+`;
+      const end = 'fragColor = vec4(col * uExposure, 1.0);';
+      if (!body.includes(end)) missing.push('the last line');
+      const bin = 'float gBin = dist < 30.0 ? 0.0 : dist < 100.0 ? 1.0 : dist < 300.0 ? 2.0 : dist < 1000.0 ? 3.0 : dist < 3000.0 ? 4.0 : dist < 10000.0 ? 5.0 : dist < 30000.0 ? 6.0 : 7.0;';
+      const outs = [
+        'fragColor = vec4(min(gCnt[0], 31.0) + 32.0 * min(gCnt[1], 31.0), min(gCnt[2], 31.0) + 32.0 * min(gCnt[3], 31.0), min(gCnt[4], 31.0) + 32.0 * min(gCnt[5] + gCnt[6] + gCnt[7], 31.0), 1.0);',
+        bin + ' fragColor = vec4(min(gNoise, 31.0) + 32.0 * min(gLoop, 31.0), gFlag[0], gBin + gFlag[1], 1.0);',
+        'fragColor = vec4(gWhy, min(gCnt[6], 31.0) + 32.0 * min(gCnt[7], 31.0), 0.0, 1.0);',
+      ];
+      const w = post.viewW, h = post.viewH, bufs = [];
+      for (const o of outs) {
+        mat.fragmentShader = head + body.replace(end, o); mat.needsUpdate = true;
+        sh.uPlain.value = 0; post.beginScene(); r.render(a.terrain.group, cam);
+        const f = new Float32Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.FLOAT, f); bufs.push(f);
+      }
+      mat.fragmentShader = src; mat.needsUpdate = true;
+      const err = gl.getError();
+      // by distance and by block: pixels, and the sums of each count
+      const NB = 8, mk = () => ({ n: 0, c: [0, 0, 0, 0, 0, 0], noise: 0, loop: 0 });
+      const bins = Array.from({ length: NB }, mk), all = mk(), byFlag = {}, hist = new Array(64).fill(0);
+      for (const [name] of flags) byFlag[name] = mk(); byFlag.cloud = mk();
+      let odd = 0, sky = 0;
+      const A = bufs[0], B = bufs[1], C = bufs[2], why = Array.from({ length: NB }, () => new Array(32).fill(0)); const lightSky = new Array(NB).fill(0), lightCloud = new Array(NB).fill(0);
+      for (let i = 0; i < w * h * 4; i += 4) {
+        if (!(A[i + 3] > 0.5)) { sky++; continue; }
+        const v = [A[i], A[i + 1], A[i + 2], B[i], B[i + 1], B[i + 2]];
+        if (v.some((x) => Math.abs(x - Math.round(x)) > 1e-3)) { odd++; continue; }
+        const c = [A[i] % 32, Math.floor(A[i] / 32), A[i + 1] % 32, Math.floor(A[i + 1] / 32), A[i + 2] % 32, Math.floor(A[i + 2] / 32)];
+        const noise = B[i] % 32, loop = Math.floor(B[i] / 32), f0 = B[i + 1], b = B[i + 2] % 8, f1 = B[i + 2] - b;
+        const add = (o) => { o.n++; for (let k = 0; k < 6; k++) o.c[k] += c[k]; o.noise += noise; o.loop += loop; };
+        why[b][Math.round(C[i]) & 31]++;
+        lightSky[b] += C[i + 1] % 32; lightCloud[b] += Math.floor(C[i + 1] / 32);
+        add(all); add(bins[b]); hist[Math.min(63, c[0] + c[1] + c[2] + c[3] + c[4] + c[5])]++;
+        for (const [name, , ch, bit] of flags) if (Math.floor((ch ? f1 : f0) / bit) % 2 === 1) add(byFlag[name]);
+        if (Math.floor(f0 / 512) % 2 === 1) add(byFlag.cloud);
+      }
+      return { w, h, sky, odd, all, bins, byFlag, hist, why, lightSky, lightCloud, missing: [...new Set(missing)], err };
+    });
+    const f1 = (x) => x.toFixed(1), row = (name, o) => o.n ? `| ${name} | ${(100 * o.n / t.all.n).toFixed(1)} % | ${f1(o.c.reduce((s, x) => s + x, 0) / o.n)} | ${o.c.map((x) => f1(x / o.n)).join(' | ')} | ${f1(o.noise / o.n)} | ${f1(o.loop / o.n)} | ${(100 * o.c.reduce((s, x) => s + x, 0) / t.all.c.reduce((s, x) => s + x, 0)).toFixed(0)} % |` : null;
+    const names = ['under 30 m', '30 to 100 m', '100 to 300 m', '300 m to 1 km', '1 to 3 km', '3 to 10 km', '10 to 30 km', 'beyond 30 km'];
+    console.log(`\n${v.id}: ${v.what} (${t.w} x ${t.h}; ground on ${(100 * t.all.n / (t.w * t.h)).toFixed(0)} % of the picture${t.odd ? `; ${t.odd} pixels on an edge left out` : ''}${t.missing.length ? '; NOT COUNTED: ' + t.missing.join(', ') : ''}${t.err ? '; GL error ' + t.err : ''})`);
+    console.log('| ground | share of the ground\'s pixels | reads a pixel | detail tile, plain | detail tile, long footprint | the patch\'s normal and shadow | the land\'s colour maps | strata, far relief | light, shade, air | noises | loop turns | share of all reads |\n|---|---|---|---|---|---|---|---|---|---|---|---|');
+    console.log(row('all of it', t.all));
+    for (let b = 0; b < 8; b++) { const l = row(names[b], t.bins[b]); if (l) console.log(l); }
+    console.log('by block (a pixel is in several):');
+    for (const [name, o] of Object.entries(t.byFlag)) { const l = row(name, o); if (l) console.log(l); }
+    console.log('why (share of that distance\'s pixels): the blend toward the parent none / part / all · the strata asked for by rock or scree / by bare bedrock / by the world');
+    for (let b = 0; b < 8; b++) if (t.bins[b].n) { const y = t.why[b], n = t.bins[b].n, sh = (f) => (100 * y.reduce((s2, x, k) => s2 + (f(k) ? x : 0), 0) / n).toFixed(0) + ' %'; console.log(`  ${names[b]}: blend ${sh((k) => k % 4 === 0)} / ${sh((k) => k % 4 === 1)} / ${sh((k) => k % 4 === 2)} · strata ${sh((k) => k & 4)} / ${sh((k) => k & 8)} / ${sh((k) => k & 16)} · of the light's reads a pixel: the sky's table ${(t.lightSky[b] / n).toFixed(1)}, the cloud's shade ${(t.lightCloud[b] / n).toFixed(1)}`); }
+    console.log(`reads a pixel, spread: ${t.hist.map((n, k) => n ? `${k}: ${(100 * n / t.all.n).toFixed(1)} %` : null).filter(Boolean).join(' · ')}`);
+    if (t.missing.length || t.err) failed = true;
   }
   const rgb = Buffer.from(res.b64, 'base64'), rgbOld = res.old ? Buffer.from(res.old.b64, 'base64') : null;
   const row = { id: v.id, what: v.what, plain: res.plain, full: res.full, shading: res.full - res.plain, lit: res.lit, w: res.w, h: res.h };

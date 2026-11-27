@@ -279,13 +279,19 @@ void hazeAffine(vec3 rel, vec2 uv, out vec3 T, out vec3 L0, out vec3 Lg) {
 // stands paler in it (the painted look's layers of distance, inside a forest and over one).
 // amount: how much forest this is (1: a tree). Trees, the ground under them and the far
 // canopy all ask here, so that they agree.
-vec3 forestAir(vec3 color, vec3 rel, vec3 up, float amount) {
+// (in two parts, for whoever works the air out at a thing's corners and not at every pixel,
+// as the far forest does: the colour is mix(colour, air, k))
+void forestAirParts(vec3 rel, vec3 up, float amount, out vec3 air, out float k) {
   // (the sky's light, a third of the way to grey: with its full blue the far firs were cyan)
-  vec3 air = skyLight(up, up); air = mix(air, vec3(dot(air, vec3(0.3, 0.55, 0.15))), 0.35);
+  air = skyLight(up, up); air = mix(air, vec3(dot(air, vec3(0.3, 0.55, 0.15))), 0.35) * (0.3 / PI);
   // (not from high above: the air of a wood is a thing of the landscape, and from orbit it
   // turned every forest teal)
   // (and from up in the air, like the haze, less of it over the wood straight below)
-  return mix(color, air * (0.3 / PI), uPaint.x * 0.34 * amount * (1.0 - exp(-length(rel) / 150.0)) * smoothstep(0.5, 1.0, uHaze) * hazeAloft(normalize(rel), up));
+  k = uPaint.x * 0.34 * amount * (1.0 - exp(-length(rel) / 150.0)) * smoothstep(0.5, 1.0, uHaze) * hazeAloft(normalize(rel), up);
+}
+vec3 forestAir(vec3 color, vec3 rel, vec3 up, float amount) {
+  vec3 air; float k; forestAirParts(rel, up, amount, air, k);
+  return mix(color, air, k);
 }
 vec3 aerialPerspective(vec3 color, vec3 rel) { return rainVeil(hazeOverGround(color, rel, vec3(1.0)), rel); }
 // The ground itself, with its own albedo.

@@ -310,6 +310,9 @@ export class App {
     // (the far forest: the same trees as those near by, thinned with distance, out to some
     // kilometres; they rise out of the forest the ground shader raises as a whole)
     this.farForest = new FarForest(this.trees, this.terrain); this.nearScene.add(this.farForest.mesh);
+    if (params.debug.includes('farwhole')) this.farForest.shared.uShadow.value.w = 1;      // ?debug=farwhole: no far tree thrown out by the vertex shader for standing outside the picture (the same picture)
+    if (params.debug.includes('treeairpixel') && this.trees) this.trees.shared.uTreeOld.value = 1;      // ?debug=treeairpixel: the near trees' Sun light and air worked out at every pixel, as before they were taken from the vertices (the same picture, for a pair)
+    if (params.debug.includes('farairpixel')) this.farForest.shared.uShadow.value.z = 1;      // ?debug=farairpixel: the far trees' Sun light and air worked out at every pixel, as before they were taken from each picture's corners (the same picture, for a pair)
     if (params.debug.includes('treeshade')) this.farForest.shared.uShadow.value.y = 1;      // ?debug=treeshade: the far trees painted by how much of the Sun the land and the clouds leave them
     this.grass = new Grass(this.terrain, this.terrain.shared.uWind); this.grass.setWorld(world); this.grass.eager = this.shotMode; this.grass.debugKinds = params.debug.includes('flowers');
     this.grass.cullOff = params.debug.includes('grasswhole');      // ?debug=grasswhole: every cell of the grass and the flowers handed to the GPU, as before the choosing (life/grassBlocks.js): to see on a device that nothing is missing

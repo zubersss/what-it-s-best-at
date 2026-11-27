@@ -177,8 +177,8 @@ binding to the game's own figure and cloth (`scripts/hero/heroBind.mjs`).
 **Rights.** The owner made the model with Meshy, a 3D generation service (the owner's
 words, 2026-11-27: "The model was made by me", "I made it on meshy") and sent it as "the new file for the character model"; the design is the owner's
 too (`docs/PROGRESS.md`, "The owner's character"). Used as the owner's own work; what
-Meshy's terms give the owner for the output depends on the owner's plan there (not checked
-by us: to be asked when the rigged file is recorded).
+Meshy's terms give the owner for the output depends on the owner's plan there: a paid
+plan (the owner, 2026-11-27; see the rigged character below).
 
 ### The rigged character (`public/data/hero_rig.bin`, `hero_rig.jpg`, from `assets-src/hero-rig/`)
 
@@ -188,6 +188,10 @@ skeleton (Mixamo's joint names), eight clips of motion from Meshy's animation li
 its own colour, normal and roughness pictures. `scripts/make-hero-rig.mjs` writes the
 game's files from it (the surface and motion unchanged; meshoptimizer, MIT, reduces the
 shadow's mesh). Used as the owner's own work, on the owner's word; what Meshy's terms give
-the owner for a model and its library motions depends on the owner's plan there, which we
-have not seen: **to ask the owner once** (free plans of such services often require credit
-or forbid some uses; a paid plan usually gives full rights).
+the owner for a model and its library motions depends on the owner's plan there. **Asked
+and answered, 2026-11-27: "I have the paid meshy plan."** As far as is known here, Meshy's
+paid plans give the subscriber ownership of what they generate, with private and commercial
+use, where its free plan's output is under CC BY 4.0 (credit required); this machine cannot
+reach Meshy's site, so that reading of its terms has not been checked against the live
+text. Should the game ever be published beyond the owner's own link, have the owner
+confirm it on the plan's page; nothing in the game depends on a credit line today.

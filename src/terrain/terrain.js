@@ -149,14 +149,32 @@ export class Terrain {
     if (!def) return;
     setDemList(u, world);
     const epoch = this.epoch;
-    loadMap(def.url, (tex) => {
-      if (epoch !== this.epoch) { tex.dispose(); return; }
-      tex.format = THREE.RedFormat; tex.colorSpace = THREE.NoColorSpace;
+    loadMap(def.url, (src) => {
+      if (epoch !== this.epoch) { src.dispose(); return; }
+      // The file holds the east slope in its top half and the north slope in its bottom half
+      // (one grey picture: two maps in the colours of one JPEG leak into each other). On the
+      // GPU the two are one texel, east in red and north in green, so that the ground's
+      // shader reads both at once: it asked four times a pixel (two levels of each half) on
+      // all the ground seen from the air, and asks twice now. Packed here, half at a time.
+      const img = src.image, W = img.width, H = img.height >> 1, rg = new Uint8Array(W * H * 2);
+      {
+        const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        for (let half = 0; half < 2; half++) {
+          ctx.drawImage(img, 0, half * H, W, H, 0, 0, W, H);
+          const px = ctx.getImageData(0, 0, W, H).data;
+          for (let i = 0, n = W * H; i < n; i++) rg[i * 2 + half] = px[i * 4];
+        }
+        canvas.width = canvas.height = 0;
+      }
+      src.dispose(); img.close?.();
+      const tex = new THREE.DataTexture(rg, W, H, THREE.RGFormat, THREE.UnsignedByteType);
+      tex.colorSpace = THREE.NoColorSpace;
       tex.flipY = false;
       tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
       tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = true;
       this.textures.relief = tex; u.tRelief.value = tex;
-      const W = tex.image.width, rad = Math.PI / 180;
+      const rad = Math.PI / 180;
       u.uRelief.value.set(def.strength ?? 1, Math.PI * world.radius / (W / 2), W, 0);
       const f = def.latFade || [80, 88];
       u.uReliefFade.value.set(Math.sin(f[0] * rad), Math.sin(f[1] * rad));
