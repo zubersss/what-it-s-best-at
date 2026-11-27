@@ -356,6 +356,8 @@ export const PARTS_OUT = [
   // corners: what the old way adds, so that the phone itself says whether the move was a gain)
   { id: 'far-air-pixel', label: "the far forest's light and air at every pixel instead of at its corners (what it adds)", adds: true, has: (app) => !!app.farForest?.def, set: (app, out) => { app.farForest.shared.uShadow.value.z = out ? 1 : 0; } },
   { id: 'tree-air-pixel', label: "the near trees' light and air at every pixel instead of at their vertices (what it adds)", adds: true, has: (app) => !!app.trees?.def, set: (app, out) => { app.trees.shared.uTreeOld.value = out ? 1 : 0; } },
+  // (the middle and high cloud's Sun and sky light at every pixel, as it was, instead of at the shells' vertices)
+  { id: 'upper-light-pixel', label: "the middle and high cloud's light at every pixel instead of at its vertices (what it adds)", adds: true, has: (app) => !!app.sky?.hasPart('clouds-all'), set: (app, out) => { if (app.sky?.upper) app.sky.upper.lightAtPixel = out; } },
   // (last: what is left with nothing drawn at all)
   // (and every pass the sky makes into targets of its own: with the scenes alone hidden those all ran)
   { id: 'everything', label: 'everything', set: (app, out) => { app.nearScene.visible = app.farScene.visible = app.heroScene.visible = app.dustScene.visible = !out; if (app.sky?.hasPart('sky-all')) app.sky.partOut('sky-all', out); } },
