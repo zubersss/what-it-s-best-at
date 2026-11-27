@@ -34,7 +34,7 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
 import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
 import { fullscreenGeometry } from '../render/fullscreen.js';
-import { NB, NBLOCKS, blockWide, TableSummary, latticePhase, visibleBlocks } from './grassBlocks.js';
+import { NB, NBLOCKS, blockWide, TableSummary, latticePhase, visibleBlocks, flowerCells } from './grassBlocks.js';
 import { AMOUNT, DRY, KINDS, floraAt, flowersAt, flowerTable, FLOWERS_GLSL, GRASS_GLSL, GRASS_GROUND, WAVE_K } from './grassRules.js';
 
 const SHADE_N = 36, SHADE_CELL = 40, SHADE_MOVE = 120;   // the land's shadow for the far grass: places a side, metres between them, how far the traveller goes before it is asked again
@@ -196,6 +196,19 @@ const LATTICE_GLSL = /* glsl */`
   }
   // (evenly over the ground: a lattice rule of the cell's own number, not a hash)
   bool keptCell(vec2 own, float share) { return fract(dot(own - SEED, vec2(0.7548776662, 0.5698402910))) < share; }`;
+// The same for a field whose cells are handed over as a list (the single flowers: only the
+// cells that can carry one, grassBlocks.js flowerCells): the window's cell is the instance's own.
+const LATTICE_LIST_GLSL = /* glsl */`
+  uniform vec2 uLatPhase;
+  in vec2 aCell;
+  vec2 latticeCell(out vec2 own) {
+    vec2 w = aCell;
+    vec2 n = floor(((w + uLatPhase) * SPACING - HALF + uGrassCam.xy) / SPACING);
+    vec2 rc = (n + 0.5) * SPACING - uGrassCam.xy;
+    own = mod(n + uLatOrigin.xy, 4096.0) + SEED;
+    return rc;
+  }
+  bool keptCell(vec2 own, float share) { return fract(dot(own - SEED, vec2(0.7548776662, 0.5698402910))) < share; }`;
 
 // A blade: one triangle standing on the ground. Near the eye a thin leaf among hundreds
 // to the square metre; far off a broad tooth, a few to a cell some metres wide.
@@ -355,7 +368,7 @@ const FLOWER_VERT = /* glsl */`
   in float aPart;
   uniform sampler2D tTable; uniform vec4 uTab;
   ${GRASS_PRELUDE}
-  ${LATTICE_GLSL}
+  ${LATTICE_LIST_GLSL}
   ${FLOWERS_GLSL}
   void main() {
     vec2 cell, rc = latticeCell(cell);
@@ -571,6 +584,12 @@ const lightFrag = (part) => /* glsl */`
     ${LIGHT_KEEP[part]}
   }`;
 
+// The share of a flower field's cells that carry a flower where the ground table's entry has
+// flower number a (whole part: which kind; fraction: how many): FLOWER_VERT's own rule
+// (h2.x >= fract(gn.a + 0.001) * 1.1 * min(1.0, pow(0.036 / headSize, 2.0)) is no flower).
+const HEAD_SHARE = KINDS.map((k) => (k ? 1.1 * Math.min(1, (0.036 / k.size) ** 2) : 0));
+function flowerShare(a) { const x = a + 0.001, kind = Math.floor(x); return kind < 1 ? 0 : (x - kind) * (HEAD_SHARE[Math.min(kind, HEAD_SHARE.length - 1)] || 0); }
+
 // --- the ground tables
 class Table {
   constructor(n, cell) {
@@ -582,7 +601,8 @@ class Table {
     this.tex.minFilter = this.tex.magFilter = THREE.NearestFilter; this.tex.needsUpdate = true;
     this.info = { value: new THREE.Vector4(0, 0, cell, n) };      // the shader's: the origin modulo the table's span, cell, places a side
     this.pending = n * n; this.key = ''; this.changed = false;
-    this.sum = new TableSummary(n); this.sum.build(this.data);      // (for leaving out the blocks of a field with nothing in them: grassBlocks.js)
+    this.version = 0;                                             // counts the frames that changed it
+    this.sum = new TableSummary(n, 4, flowerShare); this.sum.build(this.data);      // (for leaving out the blocks of a field with nothing in them: grassBlocks.js)
     this.flora = new Uint8Array(n * n);                           // each entry's flora (the far ground's flowers are the table's majority)
     // (rows and columns from the camera's outward: the nearest are worked out first)
     const half = n >> 1; this.order = [0]; for (let k = 1; k < half; k++) this.order.push(k, -k); this.order.push(-half);
@@ -684,11 +704,22 @@ export class Grass {
     // a flower: the stem, leaves, petals (each from the middle outward: x across, y out), the middle
     const flower = (f) => {
       // (the stem a ribbon of two triangles; every other part a kite of two: x across, y out)
-      const p = [-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 0, 0, 1, 1, 0, -1, 1, 0], b = [0, 0, 0, 0, 0, 0], n = f.leaves + f.petals + 1;
-      for (let i = 1; i <= n; i++) { p.push(0, 0, 0, -0.5, 0.55, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0.5, 0.55, 0); b.push(i, i, i, i, i, i); }
+      // (four corners a part, shared by its two triangles: handed over corner by corner, a part
+      // was six runs of the vertex shader for four places)
+      const p = [-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 1, 0], b = [0, 0, 0, 0], ix = [0, 1, 2, 0, 2, 3], n = f.leaves + f.petals + 1;
+      for (let i = 1; i <= n; i++) { p.push(0, 0, 0, -0.5, 0.55, 0, 0, 1, 0, 0.5, 0.55, 0); b.push(i, i, i, i); ix.push(4 * i, 4 * i + 1, 4 * i + 2, 4 * i, 4 * i + 2, 4 * i + 3); }
       const d = { NPET: f.petals, LEAVES: f.leaves, FGROW: f.grow.toFixed(4) };
       if (f.in) { d.IN0 = f.in[0].toFixed(2); d.IN1 = f.in[1].toFixed(2); }
-      return field(f, plain(p, 'aPart', b), FLOWER_VERT, d, 2 * (n + 1), f.light);
+      const geo = plain(p, 'aPart', b); geo.setIndex(ix);
+      // Its cells are handed over as a list: every cell of the window (`geo`, until cull() has
+      // chosen), or the cells that can carry a flower (`list`: grassBlocks.js flowerCells).
+      const all = new Float32Array(f.grid * f.grid * 2); for (let i = 0; i < f.grid * f.grid; i++) { all[i * 2] = i % f.grid; all[i * 2 + 1] = Math.floor(i / f.grid); }
+      geo.setAttribute('aCell', new THREE.InstancedBufferAttribute(all, 2));
+      const list = new THREE.InstancedBufferGeometry(); list.setAttribute('position', geo.attributes.position); list.setAttribute('aPart', geo.attributes.aPart); list.setIndex(geo.index);
+      const cells = new THREE.InstancedBufferAttribute(new Float32Array(f.grid * f.grid * 2), 2); cells.setUsage(THREE.DynamicDrawUsage); list.setAttribute('aCell', cells); list.instanceCount = 0;
+      const fl = field(f, geo, FLOWER_VERT, d, 2 * (n + 1), f.light);
+      geo.instanceCount = f.grid * f.grid;
+      return Object.assign(fl, { list, cells, listKey: [NaN, NaN, NaN, NaN, NaN, NaN, NaN], numbers: { h: new Float32Array(f.grid * f.grid), own: new Int32Array(f.grid * f.grid).fill(-1) }, cullBy: { ...fl.cullBy, seed: f.seed } });
     };
     // (fields: what goes with the traveller's height first, the grass near by and the flowers;
     // clumps: the far grass, which stays to a greater height and has the governor's step of its own.
@@ -720,8 +751,8 @@ export class Grass {
   // seconds on the way down, and blades and motes were judged by pixels up to half again too large.)
   setView(viewH) { this.shared.uGrassView.value = 0.5 * viewH; }
 
-  get triangles() { return this.mesh.visible ? [...this.fields, ...this.clumps].reduce((a, f) => a + (f.mesh.visible ? f.geo.instanceCount * f.tris : 0), 0) : 0; }
-  get instances() { return this.mesh.visible ? [...this.fields, ...this.clumps].reduce((a, f) => a + (f.mesh.visible ? f.geo.instanceCount : 0), 0) : 0; }
+  get triangles() { return this.mesh.visible ? [...this.fields, ...this.clumps].reduce((a, f) => a + (f.mesh.visible ? f.mesh.geometry.instanceCount * f.tris : 0), 0) : 0; }
+  get instances() { return this.mesh.visible ? [...this.fields, ...this.clumps].reduce((a, f) => a + (f.mesh.visible ? f.mesh.geometry.instanceCount : 0), 0) : 0; }
   // True while the ground tables round the traveller are still being filled in (pictures wait for them).
   get busy() {
     if (!this.mesh.visible) return false;
@@ -850,9 +881,41 @@ export class Grass {
     const P = camera.projectionMatrix.elements, V = camera.matrixWorldInverse.elements, pv = v.pv;
     for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) pv[c * 4 + r] = P[r] * V[c * 4] + P[4 + r] * V[c * 4 + 1] + P[8 + r] * V[c * 4 + 2] + P[12 + r] * V[c * 4 + 3];
     v.p00 = P[0]; v.p11 = P[5];
+    // (nothing has moved since the last frame's choosing, neither the eye nor the picture nor the
+    // tables: the same blocks. A traveller who stands and looks pays nothing for it.)
+    const last = this._culled || (this._culled = new Float64Array(26));
+    let same = this._culledOk === true, i = 0;
+    const was = (x) => { if (last[i] !== x) { same = false; last[i] = x; } i++; };
+    for (let k = 0; k < 16; k++) was(pv[k]);
+    was(v.ce); was(v.cn); was(v.cu); was(v.ox); was(v.oy); was(this.tables.near.version); was(this.tables.mid.version); was(this.tables.far.version); was(this.gen);
+    { let w = 0, bit = 1; for (const f of this.fields) { if (f.want) w += bit; bit *= 2; } for (const f of this.clumps) { if (f.want) w += bit; bit *= 2; } was(w); }
+    this._culledOk = true;
     for (const f of [...this.fields, ...this.clumps]) {
       if (!f.want) continue;
+      if (same && f.culledN != null) {
+        // (update() has put every block back: the last choosing is put on again)
+        if (f.list) { f.mesh.geometry = f.list; f.mesh.visible = f.list.instanceCount > 0; }
+        else { const n = f.culledN; for (let i = 0; i < n; i++) f.blocks.value[i] = f.culled[i]; f.whole = false; f.blockN.value = Math.max(1, n); f.geo.instanceCount = n * f.bw * f.bw; f.mesh.visible = n > 0; }
+        continue;
+      }
       const n = visibleBlocks(f.cullBy, v, f.table, f.blocks.value);
+      if (!f.list) { if (!f.culled) f.culled = new Float32Array(NBLOCKS); f.culled.set(f.blocks.value); }
+      f.culledN = n;
+      if (f.list) {
+        // (single flowers: of those blocks, the cells that can carry one. Chosen again only when
+        // the window has moved by a cell, the table has changed or other blocks are in view.)
+        const S = f.f.spacing, key = f.listKey, codes = f.blocks.value;
+        let hash = n; for (let i = 0; i < n; i++) hash = (Math.imul(hash, 31) + codes[i]) | 0;
+        const k0 = Math.floor((latticePhase(v.ce, S) * S - f.cullBy.half + v.ce) / S), k1 = Math.floor((latticePhase(v.cn, S) * S - f.cullBy.half + v.cn) / S);
+        if (key[0] !== k0 || key[1] !== k1 || key[2] !== f.table.version || key[3] !== hash || key[4] !== f.lat.value.x || key[5] !== f.lat.value.y || key[6] !== this.gen) {
+          key[0] = k0; key[1] = k1; key[2] = f.table.version; key[3] = hash; key[4] = f.lat.value.x; key[5] = f.lat.value.y; key[6] = this.gen;
+          const m = flowerCells(f.cullBy, v, f.table, codes, n, f.lat.value, f.cells.array, f.margin, f.numbers);
+          f.list.instanceCount = m;
+          f.cells.clearUpdateRanges(); f.cells.addUpdateRange(0, m * 2); f.cells.needsUpdate = true;
+        }
+        f.mesh.geometry = f.list; f.mesh.visible = f.list.instanceCount > 0;
+        continue;
+      }
       f.whole = false; f.blockN.value = Math.max(1, n); f.geo.instanceCount = n * f.bw * f.bw; f.mesh.visible = n > 0;
     }
   }
@@ -939,7 +1002,8 @@ export class Grass {
     for (const f of [...this.fields, ...this.clumps]) {
       f.mesh.visible = f.want;
       f.phase.value.set(latticePhase(ce, f.f.spacing), latticePhase(cn, f.f.spacing));
-      if (f.blockN.value !== NBLOCKS || !f.whole) { for (let i = 0; i < NBLOCKS; i++) f.blocks.value[i] = i; f.blockN.value = NBLOCKS; f.geo.instanceCount = NBLOCKS * f.bw * f.bw; f.whole = true; }
+      if (f.list) { if (f.mesh.geometry !== f.geo) f.mesh.geometry = f.geo; }          // (a field of flowers: every cell of its window)
+      else if (f.blockN.value !== NBLOCKS || !f.whole) { for (let i = 0; i < NBLOCKS; i++) f.blocks.value[i] = i; f.blockN.value = NBLOCKS; f.geo.instanceCount = NBLOCKS * f.bw * f.bw; f.whole = true; }
     }
     this._view = this._view || { E: e, N: n, U: u, pv: new Float64Array(16) };
     Object.assign(this._view, { E: e, N: n, U: u, ce, cn, cu, ox: this.origin[0], oy: this.origin[1], curveX: S.uGrassCurve.value.x, curveY: S.uGrassCurve.value.y });
@@ -957,7 +1021,7 @@ export class Grass {
       if (k === 'near' ? kb <= 0 : k === 'far' ? kc <= 0 : kc <= 0 && !!this._tone) continue;
       const ci = Math.round((ce + this.origin[0]) / T.cell), cj = Math.round((cn + this.origin[1]) / T.cell);
       budget = T.fill(ci, cj, this.gen, Math.max(budget, k === 'near' && T.pending > 0 ? 200 : 0), (i, j, o, cell) => this._sample(T, i, j, o, cell));
-      if (T.changed) { T.changed = false; T.sum.refresh(T.data); T.tex.needsUpdate = true; renderer.initTexture(T.tex); if (k === 'mid') this._toneDirty = true; }
+      if (T.changed) { T.changed = false; T.version++; T.sum.refresh(T.data); T.tex.needsUpdate = true; renderer.initTexture(T.tex); if (k === 'mid') this._toneDirty = true; }
     }
     this._landShadow(ce, cn, kc, renderer);
     // The light table's stretches: each ring's, its middle on a place of its own grid nearest the traveller.

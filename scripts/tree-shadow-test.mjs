@@ -56,7 +56,7 @@ const RAD = Math.PI / 180, M = ['close', 'near', 'far'];
 // ---- the game's objects, as app.js makes them (the near shadow first: the trees' materials take its uniforms)
 let calls = [], current = null;
 const renderer = {
-  setRenderTarget(t) { current = t; }, clear() {}, getContext: () => ({ invalidateFramebuffer() {}, FRAMEBUFFER: 0, COLOR_ATTACHMENT0: 0 }),
+  setRenderTarget(t) { current = t; }, clear() {}, getContext: () => ({ invalidateFramebuffer() {}, invalidateSubFramebuffer() {}, FRAMEBUFFER: 0, COLOR_ATTACHMENT0: 0 }),
   render(mesh, cam) { calls.push({ mesh, count: mesh.geometry.instanceCount, cam: cam.clone(), k: current.viewport.x > 0 ? (current.viewport.y > 0 ? 2 : 1) : 0 }); },
 };
 const ns = new NearShadow(renderer); ns.every = 1;           // (all tiles every frame)

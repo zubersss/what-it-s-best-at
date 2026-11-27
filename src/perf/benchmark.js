@@ -42,9 +42,9 @@ export class Benchmark {
     this.pt = new Float64Array(11 * PARTS.length); this.ptLast = Float64Array.from(app.profile.total);
     this.cost = null; this.costLines = null;
     // what the page hands the GPU, per stop (perf/glTally.js: counted for the length of the run only)
-    // (no renderer: a test's stand-in for the app, in Node; nothing is counted then)
-    const glc = app.renderer?.getContext?.();
-    if (glc) { this.tally = this.tally || new GlTally(glc); this.tally.install(); this.tally.take(null); }
+    // (no context: a test's stand-in for the game; then nothing is counted)
+    if (!this.tally) { const gl = app.renderer?.getContext?.(); this.tally = gl ? new GlTally(gl) : null; }
+    this.tally?.install(); this.tally?.take(null);
     this.gl = new Float64Array(11 * TALLY.length); this.glFrames = new Float64Array(11);
     this.rebakesFrom = app.terrain.rebakes || 0;
     this.n = 0;

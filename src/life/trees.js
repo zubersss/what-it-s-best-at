@@ -13,7 +13,7 @@ import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
-import { makeTreeGeometries, VARIANTS } from './treeGeometry.js';
+import { makeTreeGeometries, VARIANTS, sharedCorners } from './treeGeometry.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
 import { SNOW_GLSL, SNOW_UNIFORMS } from '../render/snowGlsl.js';
 import { EDGE0, EDGE1, TOP0, TOP1 } from './farTreeForm.js';
@@ -457,7 +457,10 @@ export class Trees {
     // one mesh per shape, variant and distance: [shape][variant][0 close, 1 near, 2 far]
     this.sets = this.geos.map((variants) => variants.map((pair) => pair.map((base, lod) => {
       const cap = [CLOSE_CAP, NEAR_CAP, FAR_CAP][lod], geo = new THREE.InstancedBufferGeometry();
-      for (const name of ['position', 'normal', 'aLeaf', 'aSway', 'aUv', 'aCrown']) geo.setAttribute(name, base.attributes[name]);
+      // (the same triangles, each corner that several share handed over once: half the vertices)
+      const shared = sharedCorners(base, ['position', 'normal', 'aLeaf', 'aSway', 'aUv', 'aCrown']);
+      for (const name of ['position', 'normal', 'aLeaf', 'aSway', 'aUv', 'aCrown']) geo.setAttribute(name, shared.attributes[name]);
+      geo.setIndex(shared.index);
       const at = (n) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(cap * n), n); a.setUsage(THREE.DynamicDrawUsage); return a; };
       const iA = at(4), iB = at(4), iC = at(3), iD = at(4), iE = at(4);
       geo.setAttribute('iA', iA); geo.setAttribute('iB', iB); geo.setAttribute('iC', iC); geo.setAttribute('iD', iD); geo.setAttribute('iE', iE);
@@ -485,6 +488,7 @@ export class Trees {
         if (src !== s) {
           const g = new THREE.InstancedBufferGeometry();
           for (const name of ['position', 'normal', 'aLeaf', 'aSway', 'aUv', 'aCrown']) g.setAttribute(name, src.geo.attributes[name]);
+          g.setIndex(src.geo.index);
           g.setAttribute('iA', s.iA); g.setAttribute('iB', s.iB); g.setAttribute('iE', s.iE); g.setAttribute('iF', s.iF);
           g.instanceCount = 0; s.castGeos.push(g);
           mesh = new THREE.Mesh(g, this.depthMaterial); mesh.frustumCulled = false;
