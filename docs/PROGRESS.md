@@ -41,6 +41,27 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### Helpers running since 2026-11-27 04:40 UTC (the owner: "you can use more than one session ... no more than 4")
+
+Three helper sessions on machines of their own, each with a brief in `docs/briefs/`, a
+branch of its own begun from this one, a report beside its brief, and one line to this
+session after each piece. This session merges their branches as they build, keeps the
+character, and sends the links.
+
+| Job | Brief | Branch | Session | Says when done |
+| --- | --- | --- | --- | --- |
+| The sky's known faults (empty noon sky first, the far storm, the disc, the weather views, clouds from above) | `sky-faults.md` | `ccr-6f4f9272-sky-faults` | `session_01R5Bri3JsgPNqFWmnrwMeAB` | `SKY-FAULTS-DONE` |
+| Living water (roadmap 12.3: rivers that run, rapids and falls, water from the air, surf and tide, puddles and swollen streams) | `living-water.md` | `ccr-6f4f9272-water` | `session_01R5Brhz8fvucj2b9DbzR7fj` | `WATER-DONE` |
+| Seasons (roadmap 12.4: a year of its own and one rule, leaves that turn, fall and pile up, snow that comes and goes, grass and flowers by the season) | `seasons.md` | `ccr-6f4f9272-seasons` | `session_01R5Bri2SJsiHEniM3EYxxpQ` | `SEASONS-DONE` |
+
+Water and seasons both edit the ground's shader (`terrainMaterial.js`): each keeps its
+edits in marked blocks and merges this branch before every announced push; clashes are
+resolved here. If a helper's turns keep ending in an error, `get_session` says why (a usage
+limit: start a new session from the brief and the report). Do not read a helper's
+transcript with `list_events` (it floods the context): ask it, or read its branch.
+Still to do here once the sky helper's fixes are in: the cold code review of the sky that
+was lost with the other session, and a fresh set of final pictures with the visual critic.
+
 ### The owner's sculpt in the game (2026-11-27)
 
 **What came.** `Silver_Plumage_Sentinel_compressed.glb` (kept in `assets-src/hero/`): the
