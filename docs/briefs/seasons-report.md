@@ -175,8 +175,11 @@ carpet painted under it.
 - The grass lies flat under it (piece 5's uniform).
 
 **Pictures**: `haven_ledge_peak_<season>.png` and `piece4_peak_seasons.png` (a 3 700 m peak
-23 km west of the opening place, from the air at 2 800 m); `haven_ledge_space_winter.png` and
-`..._summer.png` (the southern half from 700 km).
+23 km west of the opening place, from the air at 2 800 m); `haven_ledge_high_winter.png`,
+`..._high_summer.png` and the pair with its difference, `high_summer_winter.png` (the
+southern mountains from 150 km up, no clouds: winter's snow over the whole range, summer's
+only as the thin lines of the highest crests). Pictures from 700 km were tried and thrown
+away: the globe is small in the frame and under cloud.
 
 **Known wrong.** Near by, the land's own painted snow is what it was before this work: its
 white is held inside the ground's colour range, so in shade it is a pale grey-lilac, while
@@ -254,3 +257,29 @@ nothing when the list is made again from the same anchor
 cut-outs, fewer where a tree is losing leaves; the snow on crowns is one more varying.
 The phone itself: a benchmark is the judge.
 
+
+## The opening morning, before and after (no season switch)
+
+`opening_ground_before_after.png` and `opening_300m_before_after.png`: the base this work
+began from (901d9bb) above, this branch below, their difference times four under them
+(`haven_ledge_now_before.png`, `haven_ledge_now_final.png`, `haven_ledge_300m_now_before.png`,
+`haven_ledge_300m_now_after.png`). From the ground 3.9 % of the pixels differ by more than
+8 levels, from 300 m 2.5 %.
+
+What differs, by intent of the seasons:
+- trees: the leafless aspens beyond 60 m are thin now as they are near by, and the trees'
+  whole pictures take the day's colour (specks over the woods in the 300 m difference);
+- the petals lying under the flowering cherries, laid all at once in a picture.
+
+What differs and is not the seasons' (the after build also holds the base's later work,
+merged on the way; the before build does not):
+- the white sheet over the sea on the left (a fifth of the lower left of both pictures) is
+  the sky's morning mist seen from the shore;
+- two soft dark lens shapes on the pink mountain. They have a cloud shadow's soft edge, not
+  the painted snow's; the season test holds the snow's numbers on this day to the land's
+  own. I have not taken the picture that would prove whose they are (the same view with
+  `debug=noclouds`): say if it is wanted.
+- single pixels in the grass and flowers (the wind's phase and the speed helper's grass
+  blocks).
+
+Nothing else moved: the land's colours, the grass's gold, the firs, the sky.

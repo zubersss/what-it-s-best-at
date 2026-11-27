@@ -11,20 +11,20 @@
     "rings": 3,
     "tileFails": 0,
     "busyW": 0,
-    "calls": 175,
-    "triangles": 2942210,
+    "calls": 174,
+    "triangles": 1856288,
     "chunks": 122,
     "loaded": 346,
     "visited": 346,
     "wanted": 0,
     "lodScale": 1,
-    "avgBuildMs": 38.9,
-    "exposure": 8.632,
+    "avgBuildMs": 39.3,
+    "exposure": 8.551,
     "surface": [
       0.655,
-      0.249
+      0.262
     ],
-    "frame": 182,
+    "frame": 183,
     "wait": "",
     "sky": "low wind 3.6 m/s toward 103 deg; field (model): base 2192 m, top 2192 m, rain 0.0 mm/h, storm 0.00, overcast 0.15, wind 1.2 m/s, cell -1, 0 cells in reach"
   }
