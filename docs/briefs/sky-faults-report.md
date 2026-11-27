@@ -446,3 +446,56 @@ the western half and a bank of stratus 15 to 20 km to the north-west: not a lid.
 URL): the mackerel sky with blue between, and mist on the lake down in the valley, which the
 first morning never had (its lake's mist was under the water). The reference set's
 `docs/shots/haven_ledge.png` is the same view before all of this.
+
+## Second list (the owner's session, 2026-11-27 09:45 and 12:10)
+
+**(1) The mist**: done above ("The mist must be mist"); `HELD` in `fogSheet.js` is false (the
+owner's session released it on seeing `view_mist.png`). From the shore: `mist_shore_after.png`
+showed what "below eye level is not veiled" looks like: a warm lid of mist from the horizon up
+and a clear, dark blue lake under it. That is wrong enough to hold: **the sheet is now seen from
+above and from its own top only; it fades out as the eye sinks under it and is gone 24 m below
+its top** (`FOG_LOOK.UNDER`), so one who stands in the mist sees the place without it rather
+than a lid. The cure proper is the weather's veil at the traveller (`weather.js`), which goes
+by the model's fog top and knows nothing of the mist on the water. `mist_shore_held.png`.
+
+**(2) Cost.**
+- *The passes that begin without a whole clear.* The march's three targets (the small picture,
+  its smoothed copy, the gathered one) keep nothing from frame to frame and are cleared in
+  part: each is now invalidated when it is bound (`cloudVolume._drop`,
+  `gl.invalidateFramebuffer`). The field's three maps and the shade atlas KEEP their picture
+  between frames (strips, windows), so they cannot be invalidated: they are bound less
+  instead. The field: one map a frame (was three). The shade atlas: not bound at all on a
+  frame with nothing to draw into it (standing still, 40 frames of 64; it was bound on
+  every one), its world strip every fourth frame, its windows as above
+  (`scripts/sky-turns-test.mjs`).
+- *What each sky pass draws every frame, and where* (sizes at the phone's 2.25 MP from the
+  speed helper's counts, the rest read from the code): the field's blend, one triangle into
+  1024 x 512 (or 512 x 256), a sixteenth of its rows; the shade atlas, when bound, up to
+  131 000 texels of 4 to 6 reads (two windows) and 32 768 of the world strip; the probe, 3
+  texels and a read back, every fourth frame; the march, a quarter of the picture each way
+  times six slices (eight with a storm far off), its smoothing pass as many, the gathered
+  pass one slice's size at five looks; six full-screen layers; the upper shells 43 600
+  triangles, the far shell 48 000, the fog 32 768 when fog is in reach. Under a clear sky
+  with no storm the march, its two passes and the six layers are not made.
+- *The march, before against now* (`scripts/cloud-cost.mjs --only reads`, both builds):
+  **from 3 km** (`alt=4500&heading=30&pitch=-12&t=4`): 3 reads a step on 100 935 pixels of
+  the small picture before, 4 a step on 22 861 now: about three tenths of the reads.
+  **At the opening view**: the sky within reach is clear at that hour, so the march was made
+  and drew nothing before, and is not made now: nothing against one whole march, one
+  smoothing pass and six layers. Its governor steps (`cloud-steps`, `cloud-volume`) work as
+  they did and are passed by when there is nothing to march.
+- *Each part in the benchmark's list*: see "What of the sky is paid every frame" above.
+
+**(3) The stepped outline.** The march's small picture is a quarter of the picture each way at
+any resolution, so the steps are four pixels of the picture on the phone as in the reference
+pictures (a fifth of a millimetre there). They came from the number the clean edge is cut by:
+all the cloud along the line of sight, taken at one place of the small picture, with the
+march's grain in it. It is now the weighted mean of five looks (the place and a small pixel
+to each side), made in the gathered pass where a pixel is sixteen of the main picture's:
+`look_noon_edge_after.png` against `look_noon_after.png`.
+
+**(4) Not done**: the anvil (a flare in the cell's own shape, `cellShape.js`: its exact chords
+would be rewritten) and the three frames a camera step apart from 1 km and from the ground.
+The second is `npm run stability`'s way and takes this machine about two hours; it should be
+run on the merged head by whoever has the machine free, with the clouds' hand-over at 16 km
+and a heap's edge in view.

@@ -195,7 +195,7 @@ npm run shots:all      # the full reference set: both worlds, orbit, character
 npm run stability      # 3 settled frames one camera step apart along scripted moves, with a flicker report (-- --streaming: 3 truly consecutive frames right after a jump)
 npm run flight         # scripted Mars -> orbit -> Moon flight (headless)
 npm run foot           # the character on foot in the real game: walk, jump, super speed, take off, land (headless)
-npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run
+npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run (-- --no-bench: four minutes; -- --size 440x206 --dsf 1 --limit 7000: the benchmark at a small window, which is the only way its cost test ends in time on the cloud machine)
 npm run govsim         # the governor against simulated GPUs (no browser)
 npm run transfer       # GO trips flown without a browser: arrival, time against the marker's estimate
 npm run target         # the target list, marker and a GO trip in the real game (headless)
@@ -806,6 +806,13 @@ finished benchmark leaves its text in `window.__benchResult`.
   under it: its depth there decides how much it hides, and its edge is where the ground rises
   through it. And a white thing lit by the sky alone is the zenith's deep blue: from its own
   shore the mist in a mountain's shadow was a sea.
+- A target that keeps its picture from frame to frame (the field's maps, the shade atlas) can
+  be neither cleared whole nor invalidated: on a tile-based GPU every frame it is bound, it is
+  read back first. Bind it less (not at all on a frame with nothing to draw into it); a target
+  that keeps nothing (the march's) is invalidated when bound.
+- Data that streams in after the page begins (a lake's water) changes what "the ground" is: a
+  thing that asked once at the start (the mist's lattice) had the lake's bed for ever. Ask
+  again in strides, and all of it when a stride finds a change.
 - Two clocks: `?t=` (and a bookmark's `timeOffsetHours`) counts hours from the scene's own
   moment; the weather's clock counts seconds from `weather.epoch` (521 hours apart on Haven).
   A Node scan of the model at `t = H * 3600` asks about another day than the game shows at
@@ -822,6 +829,11 @@ finished benchmark leaves its text in `window.__benchResult`.
   Before debugging, ask the page what it waits for (`window.__stats.wait`, the frame count,
   `terrain.wanted`, `trees.missing`), and check a new build first at a small size
   (`--dsf 0.6 --timeout 2400`: about a third of the time), the full size after.
+- A timed browser run shares the machine's four cores with whatever else is started: a loop
+  of Node tests beside a full smoke slowed its benchmark past the time limit, and the seven
+  "FAIL" lines that followed were one time-out. And a test that grows (the cost test went from
+  some 40 steps to 240) outgrows a limit set for the old one without a word: when a run "fails"
+  at its limit, read how far it had got before reading the failures.
 - The same thing drawn three ways must take its season from one answer (near meshes, whole
   tree pictures, the far forest): bare aspens were full green crowns from 60 m on for as
   long as only the nearest mesh asked. And a rule's colours must be looked at after

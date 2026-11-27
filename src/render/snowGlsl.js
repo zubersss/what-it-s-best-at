@@ -7,6 +7,7 @@ import * as THREE from 'three';
 // Shared by every material that includes SNOW_GLSL (the same objects: set once).
 export const SNOW_UNIFORMS = {
   uSnowLand: { value: new THREE.Vector4(0, 0, 0, 0) },   // x: the land's own snow line at the equator (m over the sea), y: metres lower a degree of latitude, z: metres a degree C (0: no snow rule on this world), w: how far below the season's line the day's fresh snow lies where the traveller is (m; 0: none)
+  uSnowFine: { value: 1 },                                 // 1: the snow line's edge broken by a noise of the place; 0: plain (the governor's step `snow-edge`)
   uSnowYear: { value: new THREE.Vector4(0, 0, 0, 0) },     // x, y: how much warmer than the land's own snow's day, north and south (degrees C); z: new snow lies this far above the land's line (m); w: the land's snow is gone this far below it (m)
 };
 
@@ -18,7 +19,7 @@ export const SNOW_UNIFORMS = {
 // A slope turned toward the equator's sky is warmer: it loses its snow first and takes it
 // last; steep ground sheds it.
 export const SNOW_GLSL = /* glsl */`
-uniform vec4 uSnowLand, uSnowYear;
+uniform vec4 uSnowLand, uSnowYear; uniform float uSnowFine;
 // (whether new snow can lie at a height at all, 700 m of margin: so that a shader need not work
 // out its rough number for ground far below the line)
 bool snowMay(float height, vec3 up) {

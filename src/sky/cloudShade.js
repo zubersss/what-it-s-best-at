@@ -73,6 +73,7 @@ export const SHADE = Object.freeze({
   MID_SAMPLES: 2,                   // the middle window's texel is the mean of this many squared samples
   NEAR_EVERY: 8, MID_EVERY: 24,     // frames after which a window is drawn again though nothing of its lattice has moved (the clouds drift: 20 m/s is 5 m in 8 frames, a tenth of a near texel)
   PROBE_EVERY: 4,                   // frames between two looks of the probe in play
+  WORLD_EVERY: 4,                   // frames between two strips of the world window
   SUN_MOVE: 3e-4,                   // radians the Sun moves before both windows are drawn again (a quarter of a minute of the clock)
   EDGE: 1.5,                        // texels left unread at a window's edge (its own filter's footprint)
   WORLD_SAMPLES: 2,                 // and the world window's
@@ -613,21 +614,6 @@ export class CloudShade {
     W.tCloudWet.value = B || this.shared.tClouds?.value || null;
     const rate = Math.abs(sky?.rate ?? 1);
     const whole = this.whole || rate > S.RATE_WHOLE || !!sky?.shotMode;
-    // (the renderer's own viewport and scissor are its state, not the target's: a pass that
-    // draws into part of a target must put them back, or everything drawn afterwards - the
-    // whole picture - is laid in the corner this one used. It was: a black frame.)
-    const auto = renderer.autoClear, keep = renderer.getRenderTarget();
-    renderer.getViewport(this._vp); renderer.getScissor(this._sc);
-    const scissorWas = renderer.getScissorTest();
-    renderer.autoClear = false;
-    renderer.setRenderTarget(this.target);
-    if (!this.cleared) { renderer.setScissorTest(false); renderer.clear(true, false, false); this.cleared = true; }
-    // the world window: a sixteenth of its rows a frame, all of them while the clock runs fast
-    const rows = whole ? S.WORLD_H : Math.ceil(S.WORLD_H / S.STRIPS);
-    const y0 = whole ? 0 : this.strip * rows;
-    this._pass(renderer, this.worldMaterial, 0, 0, S.WORLD_W, S.WORLD_H, [0, y0, S.WORLD_W, Math.min(rows, S.WORLD_H - y0)]);
-    this.strip = whole ? 0 : (this.strip + 1) % Math.ceil(S.WORLD_H / rows);
-    this.whole = false;
     // The near and the middle window, each drawn whole WHEN ITS PICTURE CAN HAVE CHANGED: its
     // lattice has stepped (the traveller has moved a texel, or the anchor was renewed), the Sun
     // has moved, or the clouds have had time to drift an eighth of a texel (NEAR_EVERY, MID_EVERY
@@ -641,25 +627,53 @@ export class CloudShade {
     const every = (n) => Math.max(1, Math.round(n / Math.max(1, rate)));
     const all = whole || sunMoved || this._all;
     const kN = `${st.nx},${st.ny},${lat}`, kM = `${st.mx},${st.my},${lat}`;
+    const needN = this.near && (all || kN !== this._kN || this.frames - (this._fN || 0) >= every(S.NEAR_EVERY));
+    const rateOk = !this.saved.has('cloud-shade-rate') || this.frames % 2 === 0 || !this.near;
+    const needM = rateOk && (all || kM !== this._kM || this.frames - (this._fM || 0) >= every(S.MID_EVERY));
+    // (the world window's strip every WORLD_EVERY frames: a sixteenth of its rows each time, so
+    // all of it in two seconds; it holds the shade beyond 28 km at 1.5 km a texel)
+    const stripTurn = whole || this.frames % S.WORLD_EVERY === 0;
     this.drew = 0;
-    if (this.near && (all || kN !== this._kN || this.frames - (this._fN || 0) >= every(S.NEAR_EVERY))) {
+    if (all && !needM) this._all = true;       // (the middle window still owes its picture)
+    if (sunMoved) this._sun = [sun.x, sun.y, sun.z];
+    // Nothing to draw this frame: the atlas is not bound at all. (It keeps its picture from frame
+    // to frame, so it cannot be cleared whole or invalidated: every frame it was bound, a phone's
+    // tile-based GPU read all of it back in first.)
+    if (needN || needM || stripTurn || !this.cleared) {
+    // (the renderer's own viewport and scissor are its state, not the target's: a pass that
+    // draws into part of a target must put them back, or everything drawn afterwards - the
+    // whole picture - is laid in the corner this one used. It was: a black frame.)
+    const auto = renderer.autoClear, keep = renderer.getRenderTarget();
+    renderer.getViewport(this._vp); renderer.getScissor(this._sc);
+    const scissorWas = renderer.getScissorTest();
+    renderer.autoClear = false;
+    renderer.setRenderTarget(this.target);
+    if (!this.cleared) { renderer.setScissorTest(false); renderer.clear(true, false, false); this.cleared = true; }
+    // the world window: a sixteenth of its rows a frame, all of them while the clock runs fast
+    if (stripTurn) {
+    const rows = whole ? S.WORLD_H : Math.ceil(S.WORLD_H / S.STRIPS);
+    const y0 = whole ? 0 : this.strip * rows;
+    this._pass(renderer, this.worldMaterial, 0, 0, S.WORLD_W, S.WORLD_H, [0, y0, S.WORLD_W, Math.min(rows, S.WORLD_H - y0)]);
+    this.strip = whole ? 0 : (this.strip + 1) % Math.ceil(S.WORLD_H / rows);
+    }
+    this.whole = false;
+    if (needN) {
       this.draw.set(this.st.nx, this.st.ny, S.NEAR_STEP, 1);
       this._pass(renderer, this.material, S.NEAR_X, S.NEAR_Y, S.WIN, S.WIN);
       this._kN = kN; this._fN = this.frames; this.drew |= 1;
     }
     // (the saving: the middle window every other frame. The near window holds what is within
     // 7 km whatever happens, so nothing near the traveller waits for it)
-    const rateOk = !this.saved.has('cloud-shade-rate') || this.frames % 2 === 0 || !this.near;
-    if (rateOk && (all || kM !== this._kM || this.frames - (this._fM || 0) >= every(S.MID_EVERY))) {
+    if (needM) {
       this.draw.set(this.st.mx, this.st.my, S.MID_STEP, S.MID_SAMPLES);
       this._pass(renderer, this.material, S.MID_X, S.MID_Y, S.WIN, S.WIN);
       this._kM = kM; this._fM = this.frames; this.drew |= 2;
       this._all = false;
-    } else if (all) this._all = true;       // (the middle window still owes its picture)
-    if (sunMoved) this._sun = [sun.x, sun.y, sun.z];
+    }
     renderer.setRenderTarget(keep);
     renderer.setViewport(this._vp); renderer.setScissor(this._sc); renderer.setScissorTest(scissorWas);
     renderer.autoClear = auto;
+    }
     // the figure and the things near it: the atlas at their own places, read back (1 to 3 frames
     // late in play, at once in a picture)
     this.probe.render({ renderer, rig, sky });

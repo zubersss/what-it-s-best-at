@@ -483,6 +483,7 @@ export class App {
     const sy = made ? snowYear({ ...LAND_DEFAULTS, ...(made.land || {}) }, this.lifeDay) : null;
     if (!sy) { L.set(0, 0, 0, 0); return; }
     Y.set(sy.north, sy.south, sy.add, sy.gone);
+    SNOW_UNIFORMS.uSnowFine.value = this.snowEdgeOff ? 0 : 1;          // (the governor's step `snow-edge`)
     const f = this.sky.field, t = this.sky.t, p = rig.pos;
     if (f?.on && Number.isFinite(t)) {
       const s = this._snowAt || (this._snowAt = { t: -1e18, p: new THREE.Vector3(), line: Infinity, acc: Infinity, k: 1e9, world: null, out: null, at: { lat: 0, lon: 0, h: 0 }, t0: 0 });
@@ -1381,7 +1382,7 @@ export class App {
           else T[s].w = 0;
         }
         const wu = w.x * up[0] + w.y * up[1] + w.z * up[2], wx = w.x - up[0] * wu, wy = w.y - up[1] * wu, wz = w.z - up[2] * wu, wl = Math.hypot(wx, wy, wz) || 1, k = 0.9 * Math.min(1, wl / 6) / wl;
-        sh.uLeafDrift.value.set(wx * k, wy * k, wz * k, any ? 1 : 0);
+        sh.uLeafDrift.value.set(wx * k, wy * k, wz * k, any ? (this.leafCarpetOff ? 0.5 : 1) : 0);
       }
       this.grass.update(rig, dt, renderer);
       { const up = rig.localUp, sd = G.uSunDir.value; this.pollen.update(dt, sd.x * up[0] + sd.y * up[1] + sd.z * up[2]); }

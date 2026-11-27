@@ -572,13 +572,23 @@ in vec2 vUv;
 layout(location = 0) out vec4 fragColor;
 ${SLICE_GLSL}
 void main() {
-  vec2 cells = vec2(float(COLS), float(ROWS)), uv = clamp(vUv, 0.5 * uPixel * cells, 1.0 - 0.5 * uPixel * cells);
-  float through = 1.0;
-  for (int j = 0; j < SLICES; j++) {
-    if (j >= uSliceCount) break;
-    through *= 1.0 - texture(tCloudPass, (cloudTile(float(j)) + uv) / cells * uUsed).a;
+  vec2 cells = vec2(float(COLS), float(ROWS));
+  // Five looks, the place itself and a pixel of this small picture to each side: the clean edge
+  // is cut where this number passes a threshold, and taken at one place it crossed it small
+  // pixel by small pixel (the march's grain is in it): a heap's outline in blocks four pixels
+  // of the main picture wide. Smoothed here, where a pixel is sixteen of the main picture's.
+  float sum = 0.0;
+  for (int k = 0; k < 5; k++) {
+    vec2 o = k == 0 ? vec2(0.0) : k == 1 ? vec2(1.0, 0.0) : k == 2 ? vec2(-1.0, 0.0) : k == 3 ? vec2(0.0, 1.0) : vec2(0.0, -1.0);
+    vec2 uv = clamp(vUv + o * uPixel * cells, 0.5 * uPixel * cells, 1.0 - 0.5 * uPixel * cells);
+    float through = 1.0;
+    for (int j = 0; j < SLICES; j++) {
+      if (j >= uSliceCount) break;
+      through *= 1.0 - texture(tCloudPass, (cloudTile(float(j)) + uv) / cells * uUsed).a;
+    }
+    sum += (1.0 - through) * (k == 0 ? 0.4 : 0.15);
   }
-  fragColor = vec4(1.0 - through);
+  fragColor = vec4(sum);
 }`;
 
 const LAY = /* glsl */`
@@ -892,6 +902,9 @@ export class CloudVolume {
   has(id) { return id === 'rain-shafts' || id === 'cells-far'; }
   partOut(id, out) { if (out) this.out.add(id); else this.out.delete(id); }
 
+  // the bound target's old picture is not wanted (WebGL 2: invalidateFramebuffer)
+  _drop(r) { const gl = r.getContext?.(); if (gl?.invalidateFramebuffer) gl.invalidateFramebuffer(gl.FRAMEBUFFER, [gl.COLOR_ATTACHMENT0]); }
+
   // Step 1: the small picture, before the main one is begun. post: the Post (for the view's
   // size); rig: the camera rig; time (s, the wall clock); layer: the cloud shell; wind: the
   // terrain's wind uniform (not read: the clouds' motion is the steering's); weather:
@@ -973,12 +986,16 @@ export class CloudVolume {
     this.lastTime = time;
     this.quad.material = this.march;
     r.setRenderTarget(this.target);
+    // (nothing of this target is kept from the last frame, and only part of it is cleared: say so,
+    // or a phone's tile-based GPU reads the whole old target back in before drawing)
+    this._drop(r);
     r.setClearColor(0x000000, 0); r.clear(true, false, false);
     r.render(this.scene, this.camera);
     const su = this.smoothMat.uniforms;
     su.tCloudPass.value = this.target.texture; su.uPixel.value.set(1 / tw, 1 / th); su.uUsed.value.set(tw / fw, th / fh);
     this.quad.material = this.smoothMat;
     r.setRenderTarget(this.smooth);
+    this._drop(r);
     r.clear(true, false, false);
     r.render(this.scene, this.camera);
     // (only where the cloud is cut to clean shapes: the painted look)
@@ -988,6 +1005,7 @@ export class CloudVolume {
       this.all.viewport.set(0, 0, tileW, tileH); this.all.scissor.set(0, 0, tileW, tileH);
       this.quad.material = this.allMat;
       r.setRenderTarget(this.all);
+    this._drop(r);
       r.clear(true, false, false);
       r.render(this.scene, this.camera);
     }

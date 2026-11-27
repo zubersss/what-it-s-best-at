@@ -52,8 +52,12 @@ check(n === 30, `flying 80 m a frame, the near window is drawn every frame (${n}
 for (let k = 0; k < 3; k++) frame(at(5000));
 n = m = 0; frame(at(5000), new THREE.Vector3(0.3, 0.502, 0.81).normalize());
 check(n === 1 && m === 1, `the Sun moves: both windows in that frame (${n}, ${m})`);
-// the world window's strip goes on every frame
-frame(at(5000));
-check(log.some((x) => x === `0,0,${SHADE.WORLD_W},${SHADE.WORLD_H}`), "the world window's strip is still drawn every frame");
+// the world window's strip every WORLD_EVERY frames, and on the other frames the atlas is not bound at all
+{
+  let strips = 0, idle = 0;
+  for (let k = 0; k < 64; k++) { frame(at(5000)); if (log.some((x) => x === `0,0,${SHADE.WORLD_W},${SHADE.WORLD_H}`)) strips++; if (!log.some((x) => x === near || x === mid || x.endsWith(`,${SHADE.WORLD_W},${SHADE.WORLD_H}`))) idle++; }
+  check(strips === 64 / SHADE.WORLD_EVERY, `the world window's strip is drawn every ${SHADE.WORLD_EVERY} frames (${strips} of 64)`);
+  check(idle >= 40, `standing still, the atlas is not drawn into at all on ${idle} frames of 64 (it was bound, and read back by a tile-based GPU, on every one)`);
+}
 console.log(failed ? `${failed} FAILED` : 'all passed');
 process.exit(failed ? 1 : 0);
