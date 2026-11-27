@@ -224,9 +224,14 @@ export class Hero {
     this.body.rotateY(this.bank * (0.4 + 0.6 * fs) * (1 - 0.5 * b) * (1 - this.foot));     // lean into turns (about the head axis)
     // Running leans forward (a sprinter's lean, more at super speed); braking leans back.
     const run = THREE.MathUtils.smoothstep(hspeed, 2.5, 6.5), sup = THREE.MathUtils.smoothstep(hspeed, 8, 40);
-    const leanTarget = onFoot && !motion.airborne ? 0.10 * run + 0.42 * sup : 0;
+    const leanTarget = onFoot && !motion.airborne ? 0.15 * run + 0.40 * sup : 0;
     this.lean += (leanTarget - this.lean) * (1 - Math.exp(-dt * 6));
     this.body.rotateX((this.lean + KNEEL_LEAN * this.kneel) * this.foot);
+    // A step turns and tips the body: the shoulders against the legs, the weight over the
+    // foot on the ground (from the gait as the last frame left it).
+    const going = this.foot * (1 - this.air) * Math.min(1, hspeed / 1.6) * (1 - this.kneel), gs = Math.sin(this.gait);
+    this.body.rotateY(-(0.05 + 0.07 * run) * gs * going * (1 - 0.6 * sup));
+    this.body.rotateZ((0.025 + 0.02 * run) * Math.cos(this.gait) * going * (1 - 0.6 * sup));
     this.body.updateMatrix();
     this._m3.setFromMatrix4(this.body.matrix);
 
@@ -248,11 +253,13 @@ export class Hero {
     // hovering: arms a little out from the sides with relaxed elbows, knees slightly bent,
     //   one more than the other, everything swaying a little; speeding up or braking
     //   swings the legs;
-    // cruising: the right arm reaches ahead, the left lies back along the body, one knee
-    //   bent (the classic flying pose); a turn swings the outside arm out and drops the
-    //   inside one;
-    // boosting: streamlined, both arms straight ahead and together, legs straight and
-    //   together.
+    // cruising: both arms swept back and a little out from the sides, so the wide sleeves
+    //   stream behind them, the legs trailing with one knee a little bent, all of it alive
+    //   (the arms ride the air, the legs trade places slowly); a turn lifts the outside arm
+    //   and tucks the inside one. (It was one arm reaching ahead, "the classic flying pose":
+    //   right for a caped suit, wrong for a robe: the sleeve hid the hand and hung forward of
+    //   the head.)
+    // boosting: streamlined, the arms tight back along the body, legs straight and together.
     const hov = 1 - fs, sway = Math.sin(this.time * 1.7) * 0.04 * hov, breathe = Math.sin(this.time * 1.1 + 0.6) * 0.03 * hov;
     const swingTarget = THREE.MathUtils.clamp(this.lag.dot(chest) * 1.4, -0.45, 0.45) * hov;
     this.legSwing += (swingTarget - this.legSwing) * (1 - Math.exp(-dt * 6));
@@ -264,12 +271,13 @@ export class Hero {
       -0.16 - sway, -0.13 + Math.min(0, lean), -0.34 + breathe,
       -0.12 + sway - this.legSwing, 0.04, 0.50 + this.legSwing * 0.5,
       -0.05 - sway - this.legSwing, -0.04, 0.16 + Math.max(0, this.legSwing)]);
-    C.set([0.30 + flutter, Math.max(0.03, 0.16 + lean * 1.4), -0.30,          // (the trailing arm swings out in a right turn, tucks in a left one)
-      -(Math.PI - 0.22), -0.06 + Math.min(0, lean), -0.14,
-      0.06, 0.06, 0.62 + flutter,
-      -0.06, -0.03, 0.10]);
-    B.set([-(Math.PI - 0.10), -0.07, -0.04,
-      -(Math.PI - 0.10), 0.07, -0.04,
+    const ride = Math.sin(this.time * 1.3) * 0.05, ride2 = Math.sin(this.time * 0.9 + 1.7) * 0.04, kick = Math.sin(this.time * 0.75) * 0.10;
+    C.set([0.42 + ride, Math.max(0.05, 0.24 + ride2 + lean * 1.4), -0.22 - ride2,     // (x > 0: back from the shoulder; z: out from the side)
+      0.42 - ride * 0.7, Math.min(-0.05, -0.24 + ride2 * 0.6 + lean * 1.4), -0.22 + ride2,
+      0.05 + kick, 0.05, 0.42 + flutter - kick * 1.2,
+      0.02 - kick, -0.04, 0.22 - flutter + kick * 1.2]);
+    B.set([0.30, 0.07, -0.05,
+      0.30, -0.07, -0.05,
       0.02, -0.012, 0.05,
       0.02, 0.012, 0.05]);
     for (let i = 0; i < 12; i++) P[i] = H[i] + (C[i] + (B[i] - C[i]) * b - H[i]) * fs;
@@ -284,8 +292,8 @@ export class Hero {
       if (onFoot && !motion.airborne && hspeed > 1.2 && Math.floor(this.gait / Math.PI - 0.5) !== Math.floor(g0 / Math.PI - 0.5)) {
         this.steps = (this.steps || 0) + 1; this.stepSide = this.stepSide ? 0 : 1; this.stepSpeed = hspeed;
       }
-      const amp = Math.min(1, hspeed / 1.6), legA = 0.34 + 0.40 * run, armB = 0.30 + 0.55 * run;
-      const kneeK = 0.30 + 0.95 * run, elbow = 0.30 + 1.05 * run;
+      const amp = Math.min(1, hspeed / 1.6), legA = 0.36 + 0.44 * run, armB = 0.32 + 0.58 * run;
+      const kneeK = 0.34 + 1.10 * run, elbow = 0.30 + 1.10 * run;
       // In the air: legs tucked while rising, reaching down for the ground while falling.
       this.air += ((motion.airborne ? 1 : 0) - this.air) * (1 - Math.exp(-dt * 10));
       const rising = THREE.MathUtils.clamp((motion.vUp || 0) / 2, 0, 1);
@@ -303,18 +311,22 @@ export class Hero {
       this.kneel = motion.airborne || !onFoot ? this.kneel * Math.exp(-dt * 10)
         : since >= 0 && since < 2.2 ? hard * (since < hold ? 1 : Math.exp(-(since - hold) * 6)) * (1 - THREE.MathUtils.smoothstep(hspeed, 0.5, 2.0)) : 0;
       crouch *= 1 - hard;
-      // Up still held after a jump: the launch into flight, fist up, legs together.
+      // Up still held after a jump: the launch into flight, arms pressed down, legs together.
       this.launch += ((motion.airborne ? THREE.MathUtils.smoothstep(motion.upHeld || 0, 0.06, 0.3) : 0) - this.launch) * (1 - Math.exp(-dt * 12));
       const ga = (1 - this.air) * amp;
       for (let i = 0; i < 2; i++) {
         const ph = this.gait + i * Math.PI, sn = Math.sin(ph), cs = Math.cos(ph), sd = i ? -1 : 1;
         // legs (index 2 + i): forward swing is a negative hip angle; the knee bends most mid-swing
-        const hip = -legA * sn * ga - this.lean * 0.55 - crouch * 0.7 - this.air * (0.35 + 0.45 * rising);
-        const knee = 0.06 + ga * (kneeK * Math.max(0, cs) + 0.12 * run) + crouch * 1.4 + this.air * (0.35 + 0.95 * rising);
+        // (the thigh swings further forward than back, and quicker forward: a stride, not a
+        // pendulum; the knee folds as the leg comes through, and gives a little as the foot
+        // takes the weight just after it lands)
+        const swing = sn + 0.22 * Math.sin(2 * ph) * run, off = (((ph - 2.2 + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) - Math.PI, give = Math.exp(-off * off / 0.5);
+        const hip = -(legA * swing + 0.10 * run) * ga - this.lean * 0.55 - crouch * 0.7 - this.air * (0.35 + 0.45 * rising);
+        const fold = Math.max(0, cs), knee = 0.06 + ga * (kneeK * fold * fold * (3 - 2 * fold) + 0.10 * run + 0.22 * run * give) + crouch * 1.4 + this.air * (0.35 + 0.95 * rising);
         F[6 + i * 3] = hip; F[7 + i * 3] = sd * (0.04 + 0.05 * this.air); F[8 + i * 3] = knee;
         // arms (index i) swing against the leg on the same side
-        F[i * 3] = armB * sn * ga + 0.06 - this.air * 0.55 + crouch * 0.3;
-        F[1 + i * 3] = sd * (0.10 + 0.30 * this.air + 0.08 * run);
+        F[i * 3] = armB * (sn + 0.15 * run) * ga + 0.06 - this.air * 0.55 + crouch * 0.3;
+        F[1 + i * 3] = sd * (0.12 + 0.30 * this.air + 0.10 * run);
         F[2 + i * 3] = -(elbow * (0.6 + 0.4 * ga) + 0.15 * this.air);
       }
       // (angles are relative to the torso, which leans KNEEL_LEAN forward with the hips
@@ -326,8 +338,9 @@ export class Hero {
         -1.12, -0.14, -0.05,      // right arm straight down to the ground
         -2.70, 0.10, 1.55,        // left leg: foot planted ahead
         -0.95, -0.06, 1.40]));    // right leg: knee on the ground, shin along it
+      // (rising: the arms pressed down and out a little, as if pushing off the air; it was a fist up)
       const L = this._launchPose || (this._launchPose = new Float32Array([
-        0.12, 0.12, -0.25,  -(Math.PI - 0.12), -0.04, -0.05,  0.05, 0.02, 0.08,  0.03, -0.02, 0.06]));
+        0.14, 0.30, -0.18,  0.14, -0.30, -0.18,  0.05, 0.02, 0.10,  0.02, -0.02, 0.22]));
       for (let i = 0; i < 12; i++) F[i] += (K[i] - F[i]) * this.kneel + (L[i] - F[i]) * this.launch * (1 - this.kneel);
       const k = this.foot;
       for (let i = 0; i < 12; i++) P[i] += (F[i] - P[i]) * k;
@@ -344,7 +357,9 @@ export class Hero {
     const p = this.group.position;
     if (onFoot || (rig._relBlend > 0.01 && motion === rig)) {
       p.copy(motion.heroRel || rig.heroRel);
-      p.addScaledVector(up, -(crouch * 0.30 + 0.05 * run * (1 - this.air) + KNEEL_DROP * this.kneel) * this.foot);
+      // (and the body rides the stride: lowest as a foot takes the weight, highest between steps)
+      const bob = (0.012 + 0.030 * run) * Math.cos(2 * this.gait - 1.4) * Math.min(1, hspeed / 1.6) * (1 - this.air) * (1 - this.kneel);
+      p.addScaledVector(up, -(crouch * 0.30 + 0.05 * run * (1 - this.air) + KNEEL_DROP * this.kneel + bob) * this.foot);
       // The chase offsets of flight fade out on foot instead of dropping (the figure jumped
       // up to 0.7 m on landing while the view turned, and again after the next take-off),
       // and the pitch is tracked so it is never stale when flight resumes.
@@ -397,7 +412,11 @@ export class Hero {
     // of standing straight out: about a third of its weight, gusting to a half)
     const bt = this.time, push = env.gravity * (0.30 + 0.14 * Math.sin(bt * 0.53) + 0.08 * Math.sin(bt * 1.37 + 1.0));
     const bs = push / (0.9 + 5.5 * air);                  // (cloth follows the air at this rate: robe.js)
-    const bl = this._bz.set((0.75 + 0.2 * Math.sin(bt * 0.21)) * bs, 0.1 * bs, -0.65 * bs).applyMatrix3(this._m3);
+    // ("From ahead" is toward the back of an upright figure and toward the feet of a flying
+    // one: left blowing at its back in flight, it blew upward, and stood a sleeve on end
+    // over the back like a fin.)
+    const bx = (0.75 + 0.2 * Math.sin(bt * 0.21)) * (1 - 0.8 * fs);
+    const bl = this._bz.set(bx * bs, (0.1 - 0.8 * fs) * bs, -0.65 * (1 - fs) * bs).applyMatrix3(this._m3);
     wind.add(bl);
     if (!this.started) { this.robe.reset(this._m3); this.started = true; }
     // the ground under the figure, as a plane for the cloth (kneeling put half a metre of the

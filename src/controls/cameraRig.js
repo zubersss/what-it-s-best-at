@@ -93,6 +93,7 @@ export class CameraRig {
     // the character stands on the ground the player sees, not on the finer height function.
     this.groundAt = null;
     this.water = 0;             // how deep the water is where the figure stands (m; the app sets it)
+    this.current = new THREE.Vector3();   // how the water runs there (m/s, the world's axes; the app sets it)
     this.sunkAt = null;         // () -> how far under the water's surface the last heightAt answer was (m; the app sets it)
     // riseAt() -> how far the last heightAt answer stands over the land (a boulder under the
     // place: the app sets it). The floor is the rock; `agl` in flight stays the height over
@@ -476,6 +477,10 @@ export class CameraRig {
     // gravity would last twenty minutes and end a kilometre up; the suit holds you down)
     const g = Math.max(this.world.gravity, CONFIG.MIN_FOOT_GRAVITY) * (R / r0) * (R / r0);
     f.addScaledVector(v, dt);
+    // (running water carries what stands in it: all of the current when swimming, part of it
+    // when wading; the app sets `current` from the river's own flow, the number the picture
+    // of the river is drawn from. Added to the place, never to the walker's own velocity.)
+    if (this.water > 0.05 && !this.airborne) f.addScaledVector(this.current, dt * Math.min(1, this.water / 1.1));
     let alt = alt0;
     if (this.airborne) { alt += this.vUp * dt - 0.5 * g * dt * dt; this.vUp -= g * dt; this.airTime += dt; }
     const l = f.length(), d = this._dir; d[0] = f.x / l; d[1] = f.y / l; d[2] = f.z / l;

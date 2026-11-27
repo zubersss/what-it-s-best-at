@@ -3,6 +3,18 @@
 
 const RAD2DEG = 180 / Math.PI;
 const TOP_CELL = 2;      // degrees per cell of the "tallest ground nearby" grid
+// How many numbers a stretch of river is (tiles/hydrology.js, packWater, writes them): its
+// two ends (pixels), the water's level, half width and depth at each end, then the speed of
+// its flow in mid stream at each end (m/s) and the way it runs there (radians from east,
+// turning toward north). A stretch runs from its first end down to its second.
+export const RIVER_STRIDE = 14;
+// A ring that brings water only answers for the places at least this many pixels inside its
+// mosaic; outside that box the coarser ring answers. (The tile worker makes the rivers of
+// both meet on the box's edge: tiles/hydrology.js, "joined to the coarser mosaic".)
+export const RING_INSET = 20;
+// How fast a river runs across its width: fastest in the middle, slow at its banks.
+// u: 0 in mid stream .. 1 at the water's edge.
+export function flowAcross(u) { const k = 1 - u * u; return 0.3 + 0.7 * (k > 0 ? k : 0); }
 
 export class DemSet {
   // rasters: [{ data:Int16Array, width, height, lon0, lon1, lat0, lat1, wrap, feather, scale }]
@@ -24,8 +36,9 @@ export class DemSet {
     this.h = 0; this.gE = 0; this.gN = 0; this.res = 0;
     // ... and the water there, from the finest ring that has any (see _water): a lake's
     // level (lakeL, -1e9: none); the nearest river's centre line (rivS metres away, 1e9:
-    // none), its half width, level and depth
-    this.lakeL = -1e9; this.lakeS = 0; this.rivS = 1e9; this.rivA = 0; this.rivL = 0; this.rivD = 0;
+    // none), its half width, level and depth, and its flow there (m/s toward east and
+    // north: the one rule of how fast a river runs, for the picture and for what it carries)
+    this.lakeL = -1e9; this.lakeS = 0; this.rivS = 1e9; this.rivA = 0; this.rivL = 0; this.rivD = 0; this.rivE = 0; this.rivN = 0;
     this._h = 0; this._gx = 0; this._gy = 0;
     this.tops = null;
   }
@@ -142,10 +155,10 @@ export class DemSet {
     if (lat >= r.lat0 || lat <= r.lat1) return;
     let l = lon - r.lon0; l -= 360 * Math.floor(l / 360);
     const x = l / RAD2DEG * r.k - 0.5, w = r.width, hgt = r.height;
-    if (x < 20 || x > w - 21) return;
+    if (x < RING_INSET - 0.5 || x > w - RING_INSET - 0.5) return;
     const phi = lat / RAD2DEG, sp = Math.sin(phi);
     const y = (r.my0 - 0.5 * Math.log((1 + sp) / (1 - sp))) * r.k - 0.5;
-    if (y < 20 || y > hgt - 21) return;
+    if (y < RING_INSET - 0.5 || y > hgt - RING_INSET - 0.5) return;
     this._water(r, x + 0.5, y + 0.5, Math.max(0.02, Math.cos(phi)));
   }
 
@@ -185,7 +198,7 @@ export class DemSet {
   sample(x, y, z) {
     const lat = Math.asin(z < -1 ? -1 : z > 1 ? 1 : z) * RAD2DEG;
     let lon = Math.atan2(y, x) * RAD2DEG; if (lon < 0) lon += 360;
-    this._wet = false; this.lakeL = -1e9; this.lakeS = 0; this.rivS = 1e9;
+    this._wet = false; this.lakeL = -1e9; this.lakeS = 0; this.rivS = 1e9; this.rivE = 0; this.rivN = 0;
     // The rings first, finest first. Each lies on what is under it by its weight; `acc` is
     // how much of the answer is still to come from below.
     let acc = 1, rh = 0, re = 0, rn = 0, rres = 0;
@@ -231,15 +244,23 @@ export class DemSet {
       }
     }
     const G = W >> 3, c = (py >> 3) * G + (px >> 3), s = w.segs, m = 2 * Math.PI * this.radius * cosLat / (r.k * 2 * Math.PI);      // metres per pixel here
-    let best = 1e9;
+    let best = 1e9, bo = -1, bt = 0;
     for (let q = w.gridStart[c], e = w.gridStart[c + 1]; q < e; q++) {
-      const o = w.gridItems[q] * 10, ax = s[o], ay = s[o + 1], bx = s[o + 2] - ax, by = s[o + 3] - ay;
+      const o = w.gridItems[q] * RIVER_STRIDE, ax = s[o], ay = s[o + 1], bx = s[o + 2] - ax, by = s[o + 3] - ay;
       let t = ((px - ax) * bx + (py - ay) * by) / (bx * bx + by * by || 1); t = t < 0 ? 0 : t > 1 ? 1 : t;
       const dx = px - ax - bx * t, dy = py - ay - by * t, half = s[o + 6] + (s[o + 7] - s[o + 6]) * t;
       // (nearest by how far outside its own water the place is: a wide river wins over a brook beside it)
       const d = Math.sqrt(dx * dx + dy * dy) * m, score = d - half;
-      if (score < best) { best = score; this.rivS = d; this.rivA = half; this.rivL = s[o + 4] + (s[o + 5] - s[o + 4]) * t; this.rivD = s[o + 8] + (s[o + 9] - s[o + 8]) * t; }
+      if (score < best) { best = score; bo = o; bt = t; this.rivS = d; this.rivA = half; this.rivL = s[o + 4] + (s[o + 5] - s[o + 4]) * t; this.rivD = s[o + 8] + (s[o + 9] - s[o + 8]) * t; }
     }
+    // The flow of the stretch that won: its speed in mid stream between its ends', slowed
+    // toward the bank; its way between its ends' ways (the shorter way round), so that the
+    // flow turns through a bend and does not jump at each joint of the line.
+    if (bo >= 0 && this.rivS < this.rivA) {
+      let da = s[bo + 13] - s[bo + 12]; da -= 6.283185307179586 * Math.round(da / 6.283185307179586);
+      const ang = s[bo + 12] + da * bt, v = (s[bo + 10] + (s[bo + 11] - s[bo + 10]) * bt) * flowAcross(this.rivS / this.rivA);
+      this.rivE = Math.cos(ang) * v; this.rivN = Math.sin(ang) * v;
+    } else { this.rivE = 0; this.rivN = 0; }
   }
 
   // The fixed rasters alone (the bundled maps).

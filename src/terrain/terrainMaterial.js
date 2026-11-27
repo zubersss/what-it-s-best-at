@@ -3,6 +3,8 @@
 // come from world.surface.
 import * as THREE from 'three';
 import { WAVE_GLSL, LIFTED, WAVE_STEPS } from '../water/waves.js';
+import { FLOW_UNIT } from './chunkBuilder.js';
+import { RIVER_GLSL } from '../water/river.js';
 import { CONFIG } from '../config.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
@@ -253,6 +255,8 @@ uniform vec4 uCanopyYear[8];
 uniform vec4 uCanopyAlt;       // x: the first entry's height (m); y: entries a metre; z: metres of height a degree toward the pole counts for; w: the latitude the entries are for (degrees from the equator)
 ${WAVE_GLSL}
 uniform float uTime;
+uniform float uWaterQ;         // living water's governor step: 1 = its fine motion in full, 0 = thinned (a river's lanes from the nearest whole-number pair alone, not the four blended)
+${RIVER_GLSL}
 uniform vec2 uGloss;           // ice and wet ground: x = how strong the Sun's sheen is (0: none), y = how tight (roughness)
 uniform float uFarRoughness;  // the same for ground whose chunk texels are kilometres (seen from orbit)
 uniform float uDetailStrength;
@@ -470,6 +474,19 @@ void main() {
   vec3 up = normalize(planetPos);
   float dist = length(vRel);
   vec3 V = -vRel / dist;
+  // --- living water, 1 of 2 (the water helper's block): a river's flow. On running water
+  // the normal map holds twice (the surface's normal + the flow / FLOW_UNIT m/s), see
+  // chunkBuilder.js: what it has along the vertical above one is the share of the pixel
+  // that is river (land and still water: a normal of length one, so none), what it has
+  // across the vertical is the flow. The normal itself is put back.
+  float river = clamp((dot(nt.xyz, up) - 1.03) / 0.9, 0.0, 1.0);
+  vec3 flowT = vec3(0.0);                       // the flow here (m/s, planet axes, along the ground)
+  if (river > 0.0) { flowT = nt.xyz - up * dot(nt.xyz, up); N = normalize(nt.xyz - flowT * river); flowT *= ${(FLOW_UNIT / 2).toFixed(1)}; }
+  // (how far the detail tile's coordinates go in a pixel, from the place itself: the
+  // coordinates jump by whole tiles from patch to patch, and their own change across a
+  // patch's edge drew a hairline over the river there)
+  vec3 relX = dFdx(vRel), relY = dFdy(vRel);
+  vec2 dux = vec2(dot(relX, uTanU), dot(relX, uTanV)) / float(DETAIL_TILE), duy = vec2(dot(relY, uTanU), dot(relY, uTanV)) / float(DETAIL_TILE);
 
   vec4 d0 = texture(tDetail, vDetailUv);
   vec4 d1 = vec4(0.5), d2 = vec4(0.5);
@@ -908,7 +925,8 @@ void main() {
   // deep: a patch's texel there is tens of metres, and a sharp edge drew lakes with
   // stair-stepped outlines)
   float waterAir = smoothstep(0.0, 0.4, uAloft), waterFar = waterAir * smoothstep(1500.0, 6000.0, dist);
-  float water = uSea.x > 0.5 ? smoothstep(0.02, 0.22 + 1.3 * waterFar, waterDepth) : 0.0;
+  // (a river is water from bank to bank: a brook a hand deep was half ground colour)
+  float water = uSea.x > 0.5 ? smoothstep(0.02, mix(0.22, 0.06, river) + 1.3 * waterFar, waterDepth) : 0.0;
   float foam = 0.0, waveRough = 0.0;
   if (water > 0.0) {
     // waves: the long ones as slopes (the surface itself rises with them near the
@@ -923,9 +941,16 @@ void main() {
     vec3 wv = wave(vDetailUv, uWave.z, wind2, uWave.x * shoal * (1.0 - 0.8 * inland), nw);
     waveRough = uWave.x * 0.5 * smoothstep(0.02, 0.3, fw);
     vec2 drift = uWave.z * vec2(0.011, 0.006);
-    vec3 r1 = texture(tDetail, vDetailUv * 3.0 + drift).rgb - 0.5, r2 = texture(tDetail, vDetailUv * 13.0 - drift * 2.3).rgb - 0.5;
     float near = 1.0 - smoothstep(0.02, 0.4, fw);
-    vec2 rip = (r1.rg + 0.6 * r2.rg) * (uSea.w * near * (0.4 + 0.1 * uWind.w));
+    vec2 rip = vec2(0.0);
+    // (the wind's ripples: not where the whole pixel is river, which has its own)
+    if (river < 0.999) { vec3 r1 = texture(tDetail, vDetailUv * 3.0 + drift).rgb - 0.5, r2 = texture(tDetail, vDetailUv * 13.0 - drift * 2.3).rgb - 0.5; rip = (r1.rg + 0.6 * r2.rg) * (uSea.w * near * (0.4 + 0.1 * uWind.w)); }
+    // --- living water, 2 of 2 (the water helper's block): a river runs (water/river.js)
+    vec4 run = vec4(0.0);                       // xy its ripples' slope, z its streaks (0..1), w its speed (m/s)
+    if (river > 0.0) {
+      run = riverRun(vDetailUv, dux, duy, vec2(dot(flowT, uTanU), dot(flowT, uTanV)), dot(uTanU, uTanV), uWave.z, near, uDetailMean.b, uWaterQ > 0.5);
+      rip = mix(rip, run.xy * uSea.w, river);
+    }
     vec3 Nw = normalize(up - uTanU * (wv.x + rip.x) - uTanV * (wv.y + rip.y));
     N = normalize(mix(N, Nw, water));
     // foam: a line where the water runs out on the shore, bands that follow the bed's
@@ -957,6 +982,10 @@ void main() {
     // blue lost at three depths made a river of changing depth cycle through sand, yellow,
     // green and lilac, "an oily rainbow ribbon" from 1 km)
     if (waterAir > 0.0) { float tg = exp(-0.16 * waterDepth * 2.3); body = mix(body, mix(deepC, vec3(0.10, 0.20, 0.19), tg), waterAir); }
+    // (living water: a river's own colour, and the pale streaks its current draws out)
+    // (its colour from the first of it in a pixel: at its banks, where a pixel is part river and
+    // part bank, the sea's pale sand showed as a white hem.)
+    if (river > 0.0) { body = mix(body, riverBody(waterDepth, waterAir), smoothstep(0.0, 0.2, river)); foam = max(foam * (1.0 - river), riverFoam(run, waterDepth) * river * water); }
     albedo = mix(albedo, mix(body, vec3(0.75), foam), water);
     ao = mix(ao, 1.0, water);
   }
@@ -1078,7 +1107,7 @@ export function makeTerrainShared(world, textures) {
     uCover: { value: new THREE.Vector4() },
     // w: the cover pattern (d0.a + 0.3 d1.a) is about normal; logistic scale = its spread / 1.702
     uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
-    uPlain: { value: 0 }, uTide: { value: new THREE.Vector2(0, 0) }, uAirRelief: { value: 0 },
+    uWaterQ: { value: 1 }, uPlain: { value: 0 }, uTide: { value: new THREE.Vector2(0, 0) }, uAirRelief: { value: 0 },
     // the clouds' shade, the one atlas every lit thing reads (sky/cloudShade.js), and how wet
     // the ground is per place; the four below are the cloud rule's own numbers, which the atlas
     // reads to write itself with (nothing in the ground's shaders reads them any more)

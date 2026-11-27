@@ -93,3 +93,52 @@ export function fillPalette(out, parts, pos, shared) {
   }
   return out;
 }
+
+// ---- the cloth kept off the legs ---------------------------------------------------------------
+// The simulated cloth is kept off the legs by the simulation, but the sculpt's gown is not
+// the simulated sheet: it follows it, evened out, and the knees of a running figure came
+// through it by up to 11 cm. So for each leg (thigh and shin, a capsule each) a cloth
+// vertex stays on the side of the leg it was sculpted on: where it would be were it fixed
+// to that leg says which side that is and how far off the leg's middle line it stood, and
+// if it now lies within the leg's round (its radius and a little, or that standing distance
+// if less) it is put on the round's face on that side. Standing, nothing moves; cloth
+// never passes through a leg; and the push fades to nothing at the round's edge, so it
+// tears nothing. (Pushed straight out from the line instead, cloth that had crossed the
+// line went out the far side and tore from its neighbours.)
+export const LEG_OVER = 0.055;             // m over the leg collider's radius
+
+// The four leg capsules (left thigh, left shin, right thigh, right shin: Hero.parts 5 to 8)
+// in the figure's group frame: seven numbers each (one end, the other, the radius), from
+// the figure's colliders (the body's frame).
+export function legsOf(hero, out = new Float32Array(28)) {
+  const c = hero.colliders, e = hero.body.matrix.elements;
+  for (let k = 0; k < 4; k++) {
+    const o = (4 + k) * 7;
+    for (let j = 0; j < 2; j++) {
+      const x = c[o + j * 3], y = c[o + j * 3 + 1], z = c[o + j * 3 + 2];
+      out[k * 7 + j * 3] = e[0] * x + e[4] * y + e[8] * z + e[12]; out[k * 7 + j * 3 + 1] = e[1] * x + e[5] * y + e[9] * z + e[13]; out[k * 7 + j * 3 + 2] = e[2] * x + e[6] * y + e[10] * z + e[14];
+    }
+    out[k * 7 + 6] = c[o + 6];
+  }
+  return out;
+}
+
+// q: a cloth vertex's place now (three numbers, changed in place). x, y, z: its place as the
+// sculpt stands. legs: from legsOf. M: the palette (the parts' matrices are its first rows).
+// share: how much of the push it takes (the binding's `clear`: by its share of cloth).
+// (the vertex shader does the same sum: hero/heroSculpt.js)
+export function keepOff(q, x, y, z, legs, M, share = 1) {
+  for (let k = 0; k < 4; k++) {
+    const o = k * 7, m = (5 + k) * 12, ax = legs[o], ay = legs[o + 1], az = legs[o + 2], bx = legs[o + 3] - ax, by = legs[o + 4] - ay, bz = legs[o + 5] - az, bb = bx * bx + by * by + bz * bz;
+    // (fixed to this leg it would be at l: off the line by n, the side it belongs on)
+    const lx = M[m] * x + M[m + 1] * y + M[m + 2] * z + M[m + 3] - ax, ly = M[m + 4] * x + M[m + 5] * y + M[m + 6] * z + M[m + 7] - ay, lz = M[m + 8] * x + M[m + 9] * y + M[m + 10] * z + M[m + 11] - az;
+    const tl = Math.min(1, Math.max(0, (lx * bx + ly * by + lz * bz) / bb));
+    let nx = lx - bx * tl, ny = ly - by * tl, nz = lz - bz * tl; const dl = Math.hypot(nx, ny, nz); if (dl < 1e-4) continue;
+    nx /= dl; ny /= dl; nz /= dl;
+    const tq = Math.min(1, Math.max(0, ((q[0] - ax) * bx + (q[1] - ay) * by + (q[2] - az) * bz) / bb));
+    const dx = q[0] - ax - bx * tq, dy = q[1] - ay - by * tq, dz = q[2] - az - bz * tq, s = dx * nx + dy * ny + dz * nz;
+    const want = Math.min(dl, legs[o + 6] + LEG_OVER), lat2 = dx * dx + dy * dy + dz * dz - s * s, push = Math.sqrt(Math.max(0, want * want - lat2)) - s;
+    if (push > 0) { q[0] += nx * push * share; q[1] += ny * push * share; q[2] += nz * push * share; }
+  }
+  return q;
+}
