@@ -241,6 +241,9 @@ export class Trees {
       uAnchorRel: { value: new THREE.Vector3() }, uTreeEast: { value: new THREE.Vector3(1, 0, 0) }, uTreeNorth: { value: new THREE.Vector3(0, 1, 0) }, uTreeUp: { value: new THREE.Vector3(0, 0, 1) },
       uTreeWind: terrain.shared.uWind, uGustPhase: { value: 0 }, uSeason: { value: new THREE.Vector3() }, uTreeRadius: { value: 240 }, uLodCut: { value: new THREE.Vector4(0, 0, 0, 0) },
       tTreeAtlas: { value: null },
+      // 1: the Sun's light and the air worked out at every pixel, as before they were taken
+      // from the vertices (?debug=treeairpixel, and the benchmark's row)
+      uTreeOld: { value: 0 },
     };
     // The trees' picture (made by scripts/make-tree-atlas.mjs). Until it has come, no tree is drawn.
     this.atlasReady = false;
@@ -248,34 +251,65 @@ export class Trees {
       this.renderer?.initTexture(t);              // (to the GPU now, between frames, if the renderer is known by then)
       this.shared.tTreeAtlas.value = t; this.atlasReady = true; this.dirty = true;
     }).catch((e) => console.error(e));
+    // What the vertices hand the pixels, declared once for both shaders. Packed: a phone must
+    // offer no more than 15 rows of these, and each declaration takes a row (14 here).
+    const vary = (io) => /* glsl */`
+        ${io} vec4 vBloom; ${io} vec2 vTall;  // (vTall: the tree's height in metres; how bare it is)
+        ${io} vec3 vRel; ${io} vec3 vN; ${io} vec3 vLeafC; ${io} vec3 vTrunkC; ${io} vec3 vTreeM;
+        ${io} vec4 vUvOwn;                // xy: where in the trees' picture, zw: the tree's own number, and how much of its leaves is off it
+        ${io} vec4 vBits;                 // x: leaf or wood (aLeaf), y: the height in the tree, z: how much of the Sun the clouds and the land leave it, w: new snow lying where the tree stands (render/snowGlsl.js)
+        ${io} vec3 vCrown; ${io} vec3 vCardX;          // (the far mesh's crown coordinates, treeGeometry.js crownCoords; and its card's own x in the world)
+        ${io} vec3 vSun;                  // the Sun's light where the vertex is, unshadowed (lightingGlsl.js, directSun)
+        ${io} vec3 vAirT; ${io} vec3 vAirL;            // the air between it and the eye: colour x vAirT + vAirL
+        #define vUv vUvOwn.xy
+        #define vOwn vUvOwn.zw
+        #define vLeaf vBits.x
+        #define vY vBits.y
+        #define vCloud vBits.z
+        #define vSnow vBits.w`;
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: atmosphereDefines(), uniforms: this.shared, side: THREE.DoubleSide,
-      vertexShader: /* glsl */`${TREE_VERT}
+      vertexShader: /* glsl */`
+#define HAZE_UV 1
+${LIGHTING_PARS}
+${TREE_VERT}
         in vec3 iC; in vec4 iD;          // (iD.w: how much of the Sun the land leaves this tree, from the worker)
         in vec4 iE;                      // rgb: its petals' colour, w: how far in flower it is (0..1; -1: a tree that never flowers)
-        out vec4 vBloom; out vec2 vTall;  // (vTall: the tree's height in metres; how bare it is)
-        out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out float vLeaf; out float vY; out vec2 vOwn; out vec3 vTreeM; out vec2 vUv; out float vCloud;
-        out vec3 vCrown; out vec3 vCardX;          // (the far mesh's crown coordinates, treeGeometry.js crownCoords; and its card's own x in the world)
-        out float vSnow;                 // new snow lying where the tree stands (render/snowGlsl.js)
-        uniform vec3 uCamPlanetPos; uniform float uPlanetRadius;
+        ${vary('out')}
+        uniform float uTreeOld;
         ${SNOW_GLSL}
         ${TREE_SHADE_VERT}
         void main() {
           vec3 foot; float leaf;
           vec3 rel = treePosition(foot, leaf);
           // (beyond the radius the far forest draws this tree: out of the picture here)
-          if (treeCull) { vCloud = 1.0; vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vLeaf = 0.0; vY = 0.0; vOwn = vec2(0.0); vTreeM = vec3(0.0); vUv = vec2(0.0); vBloom = vec4(0.0); vTall = vec2(0.0); vSnow = 0.0; gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+          if (treeCull) { vSun = vec3(0.0); vAirT = vec3(1.0); vAirL = vec3(0.0); vCloud = 1.0; vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vLeaf = 0.0; vY = 0.0; vOwn = vec2(0.0); vTreeM = vec3(0.0); vUv = vec2(0.0); vBloom = vec4(0.0); vTall = vec2(0.0); vSnow = 0.0; gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
           { vec3 pp = uCamPlanetPos + foot, ups = normalize(pp); vSnow = snowSeason(length(pp) - uPlanetRadius, ups, ups, 0.0, 0.0).x; }
           vTreeM = vec3(position.x * iB.x, position.y, position.z * iB.x) * iA.w + iB.z * 37.0;        // metres in the tree's own frame (for the pattern of its leaves)
           vRel = rel; vN = treeNormal(); vLeaf = leaf; vY = position.y; vLeafC = iC; vTrunkC = iD.rgb; vOwn = vec2(iB.z, iB.w); vUv = aUv; vBloom = iE; vTall = vec2(iA.w, aLeaf < 3.5 ? iB.w : iB.w * (1.0 - max(iE.w, 0.0)) * (aCrown.z > 2.5 ? ${ROSETTE_THIN.toFixed(1)} : 1.0));          // (a whole tree's picture in flower keeps its crown: the far forest's rule, TREE_THIN)
           vCloud = cloudShade(foot + uTreeUp * (iA.w * 0.7)) * iD.w;
           { float c = cos(iB.y), s = sin(iB.y); vec3 ax = aCrown.z > 1.5 && aCrown.z < 2.5 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0); vCardX = uTreeEast * (ax.x * c - ax.z * s) + uTreeNorth * (ax.x * s + ax.z * c); vCrown = aCrown; }          // (the clouds' shadow, from the map of it: life/treeShade.js)
           gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
+          // The Sun's light where the vertex is and the air between it and the eye, worked out
+          // here and not at every pixel: over a face of a tree they change by next to nothing,
+          // and a wood is eleven whole pictures of such faces one behind another, each pixel of
+          // each of which looked nine times into the tables for them. The rules are the same
+          // ones (directSun, forestAirParts, hazeAffine: what aerialPerspective does for an eye
+          // inside the air). The trees' own shadows stay the pixel's.
+          vSun = vec3(0.0); vAirT = vec3(1.0); vAirL = vec3(0.0);
+          if (uTreeOld < 0.5 && length(uCamPlanetPos) * 0.001 <= uRTop) {
+            vec3 pv = uCamPlanetPos + rel, upv = normalize(pv), air, T, L0, Lg; float k;
+            vSun = directSun(pv);
+            forestAirParts(rel, upv, 1.0, air, k);
+            hazeAffine(rel, gl_Position.xy / max(abs(gl_Position.w), 1e-6) * 0.5 + 0.5, T, L0, Lg);
+            vAirT = (1.0 - k) * T; vAirL = air * k * T + L0;
+          }
         }`,
       fragmentShader: /* glsl */`${LIGHTING_PARS}
         uniform vec3 uSeason;
         uniform sampler2D tTreeAtlas;        // sprays of foliage and whole trees, as cut-outs: r cover, g tone, b wood (life/treeAtlasGen.js)
-        in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in float vLeaf; in float vY; in vec2 vOwn; in vec3 vTreeM; in vec2 vUv; in float vCloud; in vec4 vBloom; in vec2 vTall; in vec3 vCrown; in vec3 vCardX; in float vSnow;
+        ${vary('in')}
+        uniform float uTreeOld;
         layout(location = 0) out vec4 fragColor;
         float leafHash(vec3 p) { p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
         // bunches of leaves: cells about 40 cm across, each a tone of its own
@@ -398,7 +432,12 @@ export class Trees {
           // (the shadow is asked for a little outside the crown: on a mass of a few faces the
           // shadow map would draw the faces)
           float shadow = nearShadow(vRel + N * (wood ? 0.05 : 0.45), N) * vCloud;
-          vec3 sun = directSun(planetPos) * shadow;
+          // (the Sun's light and the air come from the vertices; at every pixel, as it was,
+          // under ?debug=treeairpixel and for an eye outside the air)
+          bool atCorners = uTreeOld < 0.5 && length(uCamPlanetPos) * 0.001 <= uRTop;
+          vec3 sun0;
+          if (atCorners) sun0 = vSun; else sun0 = directSun(planetPos);
+          vec3 sun = sun0 * shadow;
           // a crown is not a wall: light wraps round it, and some comes through from behind
           float nl = dot(N, uSunDir), lit = !wood ? max(nl * 0.7 + 0.3, 0.0) : max(nl, 0.0);
           if (uPaint.x > 0.0) { lit = mix(lit, paintLit(!wood ? nl * 0.75 + 0.25 : nl) * PI, uPaint.x); albedo = paintColour(albedo); leafC = paintColour(leafC); }
@@ -410,12 +449,13 @@ export class Trees {
           if (uPaint.x > 0.0 && !wood) open *= 0.8;
           // (and in the shade of the wood a crown is never black: by day some light has always
           // come down through the leaves above it, green from the passage)
-          vec3 glow = !wood ? leafC * directSun(planetPos) * (0.07 * smoothstep(0.0, 0.25, dot(up, uSunDir))) * vec3(0.9, 1.2, 0.5) : vec3(0.0);
+          vec3 glow = !wood ? leafC * sun0 * (0.07 * smoothstep(0.0, 0.25, dot(up, uSunDir))) * vec3(0.9, 1.2, 0.5) : vec3(0.0);
           // (a trunk's shade side is coloured, never black: the sunlit ground round it throws warm
           // light up onto its sides, most onto the side away from the Sun)
-          vec3 bounce = wood && !card ? albedo * directSun(planetPos) * vCloud * (0.14 * smoothstep(0.0, 0.3, dot(up, uSunDir))) * (1.0 - 0.6 * abs(dot(N, up))) * vec3(1.0, 0.72, 0.6) : vec3(0.0);
+          vec3 bounce = wood && !card ? albedo * sun0 * vCloud * (0.14 * smoothstep(0.0, 0.3, dot(up, uSunDir))) * (1.0 - 0.6 * abs(dot(N, up))) * vec3(1.0, 0.72, 0.6) : vec3(0.0);
           vec3 col = (albedo * (sun * lit + skyLight(N, up) * open + planetShine(N)) + bounce + leafC * sun * through * vec3(1.1, 1.25, 0.6) + glow) / PI;
-          col = aerialPerspective(forestAir(col, vRel, up, 1.0), vRel);
+          if (atCorners) col = col * vAirT + vAirL;
+          else col = aerialPerspective(forestAir(col, vRel, up, 1.0), vRel);
           fragColor = vec4(col * uExposure, 1.0);
         }`,
     });

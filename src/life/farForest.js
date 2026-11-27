@@ -140,9 +140,31 @@ export class FarForest {
       uFar: { value: new THREE.Vector4(450, 5600, 240, 1) },
       // y: 1 paints every tree by the Sun it is left (?debug=treeshade)
       // (how much of a tree's shadow on the ground is drawn is each tile's own: uTileShadow)
+      // z: 1 works the Sun's light and the air out at every pixel, as it was before they were
+      // worked out at each picture's corners (?debug=farairpixel, and the benchmark's row);
+      // w: 1 throws no tree out for standing outside the picture (?debug=farwhole)
       uShadow: { value: new THREE.Vector4(0, 0, 0, 0) },
     };
+    // What the vertices hand the pixels, declared once for both shaders. Packed: a phone
+    // must offer no more than 15 rows of these, and each declaration takes a row (13 here).
+    const vary = (io) => /* glsl */`
+      ${io} vec3 vRel; ${io} vec3 vN; ${io} vec3 vLeafC; ${io} vec3 vTrunkC;
+      ${io} vec4 vUvOwn;     // xy: where in the trees' picture, zw: the tree's own number, and how much of its picture is thinned away (+ 4 if it flowers)
+      ${io} vec3 vBits;      // x: how much of the Sun the land and the clouds leave it, y: a shadow's share (the fourth quad), z: new snow lying where the tree stands (render/snowGlsl.js)
+      ${io} vec3 vDome;      // the crown's top seen from above: where in it (xy, -1..1), how much (z)
+      ${io} vec2 vTone;      // x: the tone it shares with its neighbours (a clump), y: 1 for a fir's spire
+      ${io} vec3 vDomeE; ${io} vec3 vDomeN;     // ... and its two axes
+      ${io} vec3 vSun;       // the Sun's light where the tree stands (lightingGlsl.js, directSun)
+      ${io} vec3 vAirT; ${io} vec3 vAirL;       // the air between it and the eye: colour x vAirT + vAirL
+      #define vUv vUvOwn.xy
+      #define vOwn vUvOwn.zw
+      #define vShade vBits.x
+      #define vShadowA vBits.y
+      #define vSnow vBits.z`;
+    const VARY_OUT = vary('out'), VARY_IN = vary('in');
     this.vertexShader = /* glsl */`
+#define HAZE_UV 1
+${LIGHTING_PARS}
       in vec4 iA;            // xyz: the tree's foot from the tile's origin (m, planet axes), w: its height (m)
       in vec4 iB;            // x: crown width, y: turn (radians), z: which picture (shape x variants + variant), w: a number of its own (under 1) + how much of its picture is thinned away, in 255 steps (whole)
       in vec4 iC;            // x: its rank, and beside it the chance its site had of a tree (2 x that in DENS_STEPS steps + the rank), y: leaf colour packed, z: trunk colour packed, w: 4 x (1 or 2 if it drops its leaves) + 3 x how much of the Sun the land leaves it + 16 x (in 15 steps) how much sunlight the ground at its feet takes by its slope + 256 if its species flowers
@@ -151,7 +173,6 @@ export class FarForest {
       uniform float uCellMid[CELLS];
       uniform vec4 uFar, uShadow;
       uniform float uTileShadow;
-      uniform vec3 uCamPlanetPos;
       // (a value noise over the world's place, for the tones neighbouring crowns share)
       float toneHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
       float toneNoise(vec3 p) {
@@ -159,18 +180,13 @@ export class FarForest {
         return mix(mix(mix(toneHash(i), toneHash(i + vec3(1, 0, 0)), u.x), mix(toneHash(i + vec3(0, 1, 0)), toneHash(i + vec3(1, 1, 0)), u.x), u.y),
                    mix(mix(toneHash(i + vec3(0, 0, 1)), toneHash(i + vec3(1, 0, 1)), u.x), mix(toneHash(i + vec3(0, 1, 1)), toneHash(i + vec3(1, 1, 1)), u.x), u.y), u.z);
       }
-      uniform vec3 uSunDir;
       ${TREE_SHADE_VERT}
       ${SHADOW_GLSL}
-      out vec3 vRel; out vec3 vN; out vec3 vLeafC; out vec3 vTrunkC; out vec2 vUv; out vec2 vOwn; out float vShade; out float vShadowA;
-      out vec3 vDome; out vec3 vDomeE; out vec3 vDomeN;     // the crown's top seen from above: where in it (xy, -1..1), how much (z); its two axes
-      out float vSnow;       // new snow lying where the tree stands (render/snowGlsl.js)
-      uniform float uPlanetRadius;
+      ${VARY_OUT}
       ${SNOW_GLSL}
-      out vec2 vTone;        // x: the tone it shares with its neighbours (a clump), y: 1 for a fir's spire
       vec3 unpack(float p) { float r = floor(p / 65536.0), g = floor((p - r * 65536.0) / 256.0); return vec3(r, g, p - r * 65536.0 - g * 256.0) * (${COLOUR_TOP.toFixed(3)} / 255.0); }
       // (not drawn: thrown out of the picture whole, never left as a sliver of no size)
-      #define NONE { vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vUv = vec2(0.0); vOwn = vec2(0.0); vShade = 0.0; vShadowA = 0.0; vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0); vTone = vec2(1.0, 0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+      #define NONE { vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vUv = vec2(0.0); vOwn = vec2(0.0); vShade = 0.0; vShadowA = 0.0; vSnow = 0.0; vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0); vTone = vec2(1.0, 0.0); vSun = vec3(0.0); vAirT = vec3(1.0); vAirL = vec3(0.0); gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
       void main() {
         vec3 foot = uTileRel + iA.xyz;
         float d = length(foot);
@@ -187,6 +203,21 @@ export class FarForest {
         float grow = smoothstep(rank * ${GROW.toFixed(3)}, rank + 1e-5, keep) * (1.0 - smoothstep(uFar.y * mix(0.86, ${END_ABOVE.toFixed(2)}, smoothstep(${TOP0.toFixed(3)}, ${TOP1.toFixed(3)}, down)), uFar.y, d));
         // (inside the trees one walks among nothing here is drawn: they are the same trees)
         if (grow <= 0.0 || d < uFar.z) NONE
+        // A tree no part of which can be in the picture is thrown out here, before the work
+        // below (the clouds' shade, the shared tone, the snow, the Sun and the air): a tile is
+        // handed over whole when any of it is in view, and of the trees of such a tile a good
+        // half stand beside the picture or behind the eye. The test is of a ball round the
+        // tree's middle that holds its pictures, its crown's top spread as wide as it ever is
+        // (TOP_MAX) and, for the fourth quad, its shadow at its longest: wider than anything
+        // drawn, so the picture is the same. (?debug=farwhole: none thrown out, for a pair.)
+        if (uShadow.w < 0.5) {
+          vec4 gq = uRoseGeo[int(iB.z + 0.5)];
+          float ball = iA.w * (1.0 + max(iB.x * max(gq.x * ${(TOP_MAX * 1.5).toFixed(2)}, 1.5 * gq.z), position.x > 2.5 ? ${SHADOW_LONG.toFixed(1)} * gq.w + gq.z * iB.x : 0.0)) + 0.4 + 0.0015 * d;
+          vec4 fc = projectionMatrix * viewMatrix * vec4(foot + uTileUp * (iA.w * 0.5), 1.0);
+          if (fc.w < -ball
+            || abs(fc.x) > fc.w + ball * (abs(projectionMatrix[0][0]) + abs(projectionMatrix[2][0]) + 1.0)
+            || abs(fc.y) > fc.w + ball * (abs(projectionMatrix[1][1]) + abs(projectionMatrix[2][1]) + 1.0)) NONE
+        }
         // What the angle makes of its three quads (life/farTreeForm.js): the thinned ones
         // stand a little wider, so a wood keeps its cover, and from above the rosette is the
         // crown's top, spread over the ground of the trees it stands for.
@@ -210,7 +241,7 @@ export class FarForest {
           float stretch = min(len / max(sunUp, 0.12), ${SHADOW_LONG.toFixed(1)}), wideM = 2.0 * g.z * iB.x * iA.w * grow, longM = g.w * iA.w * grow * stretch;
           // (a little over the ground, and more far off, where the depth buffer is coarse)
           vRel = foot + across * ((position.y - 0.5) * wideM) + along * ((1.0 - position.z) * longM) + uTileUp * (0.4 + 0.0015 * d);
-          vN = uTileUp; vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vOwn = vec2(0.0); vShade = 0.0; vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0); vTone = vec2(1.0, 0.0);
+          vN = uTileUp; vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vOwn = vec2(0.0); vShade = 0.0; vSnow = 0.0; vSun = vec3(0.0); vAirT = vec3(1.0); vAirL = vec3(0.0); vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0); vTone = vec2(1.0, 0.0);
           vShadowA = a * shadowAlpha(wideM * longM, dens, keep) * (1.0 - 0.8 * thinQ / 255.0);          // (a bare tree's shadow is its branches')
           rect = uRectTree[cell]; vUv = vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
           gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
@@ -263,6 +294,20 @@ export class FarForest {
         if (position.x > 1.5) { vDome = vec3((position.y - 0.5) * 2.0, (0.5 - position.z) * 2.0, smoothstep(${TOP0.toFixed(3)}, ${TOP1.toFixed(3)}, down) * smoothstep(uFar.z, uFar.z + 200.0, d)); vDomeE = uTileEast * c + uTileNorth * s; vDomeN = uTileNorth * c - uTileEast * s; }
         vUv = vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
         gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
+        // The Sun's light on the tree and the air between it and the eye, worked out here, at
+        // the picture's corners: over a picture some metres wide, hundreds of metres off, they
+        // change by next to nothing, and at every pixel they were eight looks into the tables
+        // for each of the layers of trees behind trees (2.5 whole pictures of them at the
+        // opening view). The rules are the same ones (directSun, forestAirParts, hazeAffine:
+        // what aerialPerspective does for an eye inside the air).
+        vSun = vec3(0.0); vAirT = vec3(1.0); vAirL = vec3(0.0);
+        if (uShadow.z < 0.5 && length(uCamPlanetPos) * 0.001 <= uRTop) {
+          vec3 pv = uCamPlanetPos + vRel, upv = normalize(pv), air, T, L0, Lg; float k;
+          vSun = directSun(pv);
+          forestAirParts(vRel, upv, 1.0 - smoothstep(300.0, 1000.0, length(vRel)), air, k);
+          hazeAffine(vRel, gl_Position.xy / max(abs(gl_Position.w), 1e-6) * 0.5 + 0.5, T, L0, Lg);
+          vAirT = (1.0 - k) * T; vAirL = air * k * T + L0;
+        }
       }`;
     // The picture is the near trees' own far mesh, and this draws it as they do (life/trees.js,
     // the card path of its fragment shader): the same cut-out, the same greens, the same
@@ -271,8 +316,7 @@ export class FarForest {
       uniform sampler2D tTreeAtlas;        // r cover, g tone, b wood (life/treeAtlasGen.js)
       uniform vec3 uSeason;                // x: how far the leaves have turned, y: how bare, z: time
       uniform vec4 uShadow, uFar;
-      in vec3 vRel; in vec3 vN; in vec3 vLeafC; in vec3 vTrunkC; in vec2 vUv; in vec2 vOwn; in float vShade; in float vShadowA;
-      in vec3 vDome; in vec3 vDomeE; in vec3 vDomeN; in vec2 vTone; in float vSnow;
+      ${VARY_IN}
       layout(location = 0) out vec4 fragColor;
       ${PAINT_LEAF}
       ${TREE_WOOD}
@@ -338,7 +382,12 @@ export class FarForest {
         // (seen against the Sun, foliage glows: the light comes through needles and leaves)
         float through = wood ? 0.0 : max(-nl, 0.0) * 0.28 + 0.4 * pow(max(dot(-V, uSunDir), 0.0), 4.0);
         float open = (wood ? 0.45 : mix(0.5, 1.0, smoothstep(-0.6, 0.8, dot(N, up)))) * (uPaint.x > 0.0 && !wood ? 0.8 : 1.0);
-        vec3 sun = directSun(planetPos) * vShade;          // (the land's own shadow, from the worker)
+        // (the Sun's light and the air come from the picture's corners; at every pixel, as it
+        // was, under ?debug=farairpixel and for an eye outside the air)
+        bool atCorners = uShadow.z < 0.5 && length(uCamPlanetPos) * 0.001 <= uRTop;
+        vec3 sun;
+        if (atCorners) sun = vSun; else sun = directSun(planetPos);
+        sun *= vShade;          // (the land's own shadow, from the worker)
         // (a crown's top in the land's shade takes the sky as the canopy round it does: open to
         // the sky it was a pale blue-grey disc on the darker canopy, a "ghost")
         open *= mix(1.0, mix(0.68, 1.0, vShade), vDome.z);
@@ -355,7 +404,8 @@ export class FarForest {
         // The air of a wood is row behind row of trees seen through one another: it belongs
         // to the near forest, and past a kilometre the air itself does that work. Carried all
         // the way out it made the far trees blue-grey specks on warm ground.
-        col = aerialPerspective(forestAir(col, vRel, up, 1.0 - smoothstep(300.0, 1000.0, dFar)), vRel);
+        if (atCorners) col = col * vAirT + vAirL;
+        else col = aerialPerspective(forestAir(col, vRel, up, 1.0 - smoothstep(300.0, 1000.0, dFar)), vRel);
         // (?debug=treeshade: how much of the Sun the land and the clouds leave each tree, red all of it, blue none)
         if (uShadow.y > 0.5) col = vec3(dot(col, vec3(0.6))) * mix(vec3(0.1, 0.3, 3.0), vec3(3.0, 0.4, 0.1), vShade);
         fragColor = vec4(col * uExposure, 1.0);

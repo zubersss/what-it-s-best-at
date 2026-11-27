@@ -27,6 +27,10 @@ and the plain Haven benchmark from the start screen (the governor at work). A th
    of today's link has 3.0 (the grass by blocks), and what the frame rate did for it.
 5. The last pass's row now reads "what it adds"; the canvas was at the screen's own size in
    every cost test before, so "everything on" should itself be lower than 59 ms.
+6. Two more rows that read "what it adds": **the far forest's** and **the near trees' light
+   and air at every pixel instead of at their corners**. These switch the old way back on;
+   a positive number is what the change of this delivery saves, most at the view in the
+   forest.
 
 ## Step 1: the counts, and what they say
 
@@ -387,6 +391,63 @@ Looked at and left:
   (`hero-preview --h 330 --lod 0|1`), the rope trims, the belt and the hands are visibly
   softer. Not a cut without a change; left to the governor.
 - *Buffers handed over inside a pass* (above): not the known fault; left.
+
+### The trees' layers: light and air from the corners, far trees outside the picture skipped
+
+Counted with `scripts/overdraw.mjs` on the newest build (layers of a part drawn over each
+pixel with no depth test: what its pixels would cost if nothing hid them; the depth test
+saves some of it, how much is the device's to say):
+
+| view | part | triangles | layers over the whole picture | where it is | at most |
+|---|---|---|---|---|---|
+| ledge (looking out, heading 222) | grass | | 1.73 | | |
+| | far forest | 332 700 | 2.52 | 8.42 (30 % of the picture) | |
+| | near trees | | 0.45 | | |
+| in the forest | grass | 427 300 | 1.61 | 3.29 (49 %) | 23 |
+| | far forest | 509 300 | 4.18 | 19.05 (22 %) | 86 |
+| | near trees | 173 300 | **11.08** | 20.74 (53 %) | 73 |
+
+A wood is paid for in layers of cut-out pixels: trees behind trees, each a card that is mostly
+nothing. Every such pixel that was not cut away then asked for the Sun's light where it is
+(two looks into the tables; the near trees asked three times over, for the light, the glow
+and the bounce), for the air of the wood (one) and for the air to the eye (six looks into the
+froxels): nine to thirteen looks a pixel, a layer, for things that change by next to nothing
+over a tree's face.
+
+**The cut** (`src/life/farForest.js`, `src/life/trees.js`, and `forestAir` in
+`src/render/lightingGlsl.js` split in two without changing its answer): the Sun's unshadowed
+light and the air (the wood's own and the froxels', as `hazeAffine` gives them, the rule the
+ground's vertices already use) are worked out at the vertices and handed down; a pixel keeps
+its cut-out, its own shadow (near trees), the sky's light by its normal and the colour work.
+What a pixel looks up went from 11 to 2 (far forest) and from about 13 plus the shadow's taps
+to 2 plus the taps (near trees). The vertices pay nine looks each for it: 0.26 M runs of the
+near trees and the far forest's corners, against 2.5 to 15 whole pictures of pixels.
+
+Because that puts work on the far forest's vertices, **a far tree no part of which can be in
+the picture is now thrown out before any of the vertex shader's heavy work** (the clouds'
+shade, the shared tone's sixteen hashes, the snow, and now the light and the air): a tile is
+handed over whole when any of it is in view (44 800 trees handed over at the opening view for
+27 800 standing all round), and those beside the picture or behind the eye now cost a matrix
+and a comparison each. A ball round the tree that holds its widest forms and its longest
+shadow, against the picture's sides; `node scripts/far-forest-cull-test.mjs` replays the
+shader's test on 60 000 made-up trees, eyes and lenses (the nearest corner of anything thrown
+out lies 5 m outside; `--break ball|plane` each fail). The counter cannot count this (it
+counts what is handed over, and the same is handed over); the phone's row will.
+
+**The picture**: one session, the picture held still, old way and new by a switch
+(`scripts/grass-cull-pair.mjs --set`, the switches are `?debug=farairpixel`, `farwhole`,
+`treeairpixel`):
+
+- ledge: 0.122 % of the pixels differ at all, **none by more than one level** of 255 (new
+  against new a few frames on: 0.001 %). `docs/shots/speed-2/ledge_far_trees_light_at_corners.jpg`
+  and `..._at_pixels.jpg`.
+- in the forest: FOREST_RESULT
+
+**How the phone will say whether it was a gain**: the cost test has two new rows printed as
+"what it adds" (`far-air-pixel`, `tree-air-pixel`): the old way switched back on, against
+"everything on". If a row reads under 1 ms at the forest view, the trees' cost on the phone
+is not in these looks and the next cut is their triangles (below); if it reads negative at
+every view, the vertices cost more than the pixels saved and the switch is one line to turn.
 
 ## Step 4: the governor (waits for the phone)
 
