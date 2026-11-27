@@ -441,7 +441,10 @@ counts what is handed over, and the same is handed over); the phone's row will.
 - ledge: 0.122 % of the pixels differ at all, **none by more than one level** of 255 (new
   against new a few frames on: 0.001 %). `docs/shots/speed-2/ledge_far_trees_light_at_corners.jpg`
   and `..._at_pixels.jpg`.
-- in the forest: FOREST_RESULT
+- in the forest: 17.3 % of the pixels differ, **none by more than two levels** of 255 (new
+  against new a few frames on: 0.2 %, by one level): the air and the Sun's colour rounded another
+  way over the trees' faces, nothing an eye can find. `docs/shots/speed-2/forest_trees_light_at_corners.jpg`
+  and `..._at_pixels.jpg`.
 
 **How the phone will say whether it was a gain**: the cost test has two new rows printed as
 "what it adds" (`far-air-pixel`, `tree-air-pixel`): the old way switched back on, against
