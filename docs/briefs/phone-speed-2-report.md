@@ -487,8 +487,8 @@ rows (`ground-mesh`: the ground not drawn at all; `small-things`) and a group of
 ground not drawn at all ... with leaves, petals, pollen, falls and the lander"). That group
 less the group "the ground's shading" is what the ground's triangles and the small things
 cost, if anything; and with it "what is left then" is a frame with only the passes that run
-whatever is hidden. (The sum "the groups one by one add up to" counts the ground's shading
-twice since.) And the line for "nothing drawn at all" now also says how much less that is
+whatever is hidden. (The sum "the groups one by one add up to" leaves this group out, as it
+does the sky's own parts.) And the line for "nothing drawn at all" now also says how much less that is
 than everything on just before it: the number to set beside "every group out at once: saved".
 
 ### The uploads inside a pass, named (6 to 8 a frame on Haven, 40 to 57 KB)
