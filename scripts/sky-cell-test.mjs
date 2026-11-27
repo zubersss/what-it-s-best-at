@@ -35,7 +35,7 @@ import {
   CELL_SHAPE, CELL_MAX, CELL_VEC4, ANVIL_MAX, ANVIL_VEC4, CELL_UNIFORMS, CELL_GLSL, ANVIL_GLSL,
   cellGeometry, cellDensity, cellInside, cellChord, cellLight, cellLocal, cellRain, cellShaftChord,
   cellShaftInside, cellFootprint, cellApex, cellOvershoot, cellDomeHeight, anvilGeometry, anvilLevel,
-  anvilCover, anvilDensity, makeCellUniforms, setCellUniforms,
+  anvilCover, anvilDensity, anvilChord, makeCellUniforms, setCellUniforms,
 } from '../src/weather/sky/cellShape.js';
 import { runGlsl, GLSL_RESERVED } from './lib/glslRun.mjs';
 import haven from '../src/worlds/haven.js';
@@ -168,7 +168,7 @@ function lintGlsl(text) {
   const sig = (r, n) => { const f = r.functions.find((x) => x.name === n); return f ? `${f.ret} ${n}(${f.params.map((p) => p.type).join(', ')})` : `no ${n}`; };
   const want = ['float cellDensity(int, vec3)', 'vec2 cellChord(int, vec3, vec3)', 'float cellLight(int, vec3, vec3)', 'vec3 cellLocal(int, vec3)',
     'float cellRain(int, vec3)', 'vec2 cellShaftChord(int, vec3, vec3)', 'float cellFootprint(int, vec3)'];
-  const wantA = ['float anvilCover(int, vec3)', 'float anvilDensity(int, vec3)'];
+  const wantA = ['float anvilCover(int, vec3)', 'float anvilDensity(int, vec3)', 'vec2 anvilChord(int, vec3, vec3)'];
   const got = want.map((w) => sig(c, w.split(' ')[1].split('(')[0])), gotA = wantA.map((w) => sig(a, w.split(' ')[1].split('(')[0]));
   check(got.every((x, i) => x === want[i]) && gotA.every((x, i) => x === wantA[i]), `the functions the header names: ${[...got, ...gotA].join(', ')}`);
   const u = makeCellUniforms();
@@ -180,7 +180,7 @@ function lintGlsl(text) {
 // Returns the worst error of each answer over its own tolerance (1: at the tolerance).
 function parity(R, seed, nCells, glslText = CELL_GLSL, anvilText = ANVIL_GLSL) {
   const rng = rand(seed), eps = 4 * ulp32(R + 15000), epsDir = eps / R;
-  const w = { density: 0, local: 0, rain: 0, foot: 0, light: 0, chord: 0, shaft: 0, anvil: 0, flips: 0, grazing: 0, n: 0, rays: 0 };
+  const w = { density: 0, local: 0, rain: 0, foot: 0, light: 0, chord: 0, shaft: 0, anvil: 0, anvilChord: 0, flips: 0, grazing: 0, n: 0, rays: 0 };
   const worse = (key, err, tol) => { w[key] = Math.max(w[key], err / tol); };
   for (let p0 = 0; p0 < nCells; p0 += CELL_MAX) {
     const geoms = [];
@@ -224,15 +224,28 @@ function parity(R, seed, nCells, glslText = CELL_GLSL, anvilText = ANVIL_GLSL) {
       const A = list[k], a = [A.a0, A.a1, A.a2], b = [A.b0, A.b1, A.b2];
       for (let i = 0; i < 40; i++) {
         const m = add(a, add(b, a, -1), rng() * 1.3 - 0.15), q = add(m, tangent(rng, unit(m), A.radius * 1.4 * rng()));
-        const p = add([0, 0, 0], unit(q), A.L - 1400 * rng() + 200), dn = unit(p);
+        const p = add([0, 0, 0], unit(q), A.L - 2800 * rng() + 200), dn = unit(p);
         worse('anvil', Math.abs(anvilCover(A, dn) - G.anvilCover(k, dn)), 4 * spread((x) => anvilCover(A, x), dn, epsDir) + 1e-5);
         worse('anvil', Math.abs(anvilDensity(A, p) - G.anvilDensity(k, p)), 4 * spread((x) => anvilDensity(A, x), p, eps) + 1e-5);
+      }
+      // its stretch of a ray: from eyes below it, above it, in it and far off, toward it and past it
+      for (let i = 0; i < 25; i++) {
+        const m = add(a, add(b, a, -1), rng() * 1.2 - 0.1), aim = add(m, tangent(rng, unit(m), A.radius * 1.6 * rng()));
+        const target = add([0, 0, 0], unit(aim), A.L - 2700 * rng() + 150);
+        const eyeDir = unit(add(unit(m), tangent(rng, unit(m), (500 + 60000 * rng() * rng()) / R)));
+        const o = add([0, 0, 0], eyeDir, R + [1500, 4000, A.L - R - 500, A.L - R + 2500][i % 4] * (0.6 + 0.8 * rng())), d = unit(add(target, o, -1));
+        w.rays++;
+        const cs = chordSpread((oo, dd) => anvilChord(A, oo, dd), o, d, eps);
+        if (!cs) { w.grazing++; continue; }
+        const cg = G.anvilChord(k, o, d);
+        if (hit(cs.c) !== hit(cg)) { w.flips++; continue; }
+        if (hit(cs.c)) for (let j = 0; j < 2; j++) worse('anvilChord', Math.abs(cs.c[j] - cg[j]), 4 * cs.s + 1e-3);
       }
     }
   }
   return w;
 }
-const PARITY_KEYS = ['density', 'local', 'rain', 'foot', 'light', 'chord', 'shaft', 'anvil'];
+const PARITY_KEYS = ['density', 'local', 'rain', 'foot', 'light', 'chord', 'shaft', 'anvil', 'anvilChord'];
 const parityOk = (w) => PARITY_KEYS.every((k) => w[k] <= 1) && w.flips === 0 && w.grazing < 0.05 * w.rays;
 const parityReport = (name, w) => `${name}: ${w.n} points, ${w.rays} chords; worst error over its tolerance: ${PARITY_KEYS.map((k) => `${k} ${w[k].toFixed(2)}`).join(', ')}; ${w.flips} hit against miss, ${w.grazing} grazing too closely to compare`;
 for (const [name, R, seed] of [['Haven', haven.radius, 11], ['Earth', earth.radius, 12]]) {
@@ -563,7 +576,7 @@ for (const [name, R, seed] of [['Haven', haven.radius, 31], ['Earth', earth.radi
     const solidAt = (dir, h) => anvilDensity(A, [dir[0] * (R + h), dir[1] * (R + h), dir[2] * (R + h)]);
     // over the apex: whole cover; solid only between its bottom and its top
     if (Math.abs(anvilCover(A, from) - 0.8) > 1e-9) bad.push('cover over the apex');
-    if (solidAt(from, lvl + 1) !== 0 || solidAt(from, lvl - S.ANVIL_THICK - 1) !== 0 || Math.abs(solidAt(from, lvl - S.ANVIL_THICK / 2) - 0.8) > 1e-9) bad.push('its depth over the tower');
+    if (solidAt(from, lvl + 1) !== 0 || solidAt(from, lvl - S.ANVIL_THICK - S.ANVIL_FLARE - 1) !== 0 || Math.abs(solidAt(from, lvl - S.ANVIL_THICK / 2) - 0.8) > 1e-9 || Math.abs(solidAt(from, lvl - S.ANVIL_THICK - S.ANVIL_FLARE / 2) - 0.8) > 1e-9) bad.push('its depth over the tower');
     // at its far end, across the way it was blown: whole in its heart, none beyond its radius; thinner
     const side = unit(cross(to, add([A.b0, A.b1, A.b2], [A.a0, A.a1, A.a2], -1))), across = (k) => unit(add(to, side, k * radius / A.L));
     if (Math.abs(anvilCover(A, to) - 0.8) > 1e-9 || anvilCover(A, across(1.001)) !== 0 || Math.abs(anvilCover(A, across(S.ANVIL_EDGE_IN * 0.99)) - 0.8) > 1e-9) bad.push('its far end');
@@ -571,6 +584,31 @@ for (const [name, R, seed] of [['Haven', haven.radius, 31], ['Earth', earth.radi
     if (solidAt(to, lvl - thinFar - 1) !== 0 || !(solidAt(to, lvl - thinFar / 2) > 0)) bad.push('thinner at the far end');
   }
   check(bad.length === 0, `the anvil: at most 9.5 km and at least 8.5 km for a tall tower, rooted over the apex, as wide as its radius at its far end, thinner there${bad.length ? ': ' + [...new Set(bad)].join(', ') : ''}`);
+}
+{
+  // the anvil's stretch of a ray holds all of it: marched from eyes under it, nothing solid before
+  // the entry or after the exit (an eye under the slab crosses it once)
+  const R = haven.radius;
+  const run = (chord) => {
+    const rng = rand(77); let outside = 0, inside = 0, rays = 0;
+    for (let i = 0; i < 300; i++) {
+      const g = cellGeometry(makeState(rng, R, { top: 8000 + 3500 * rng(), strength: 1 }), R), from = cellApex(g);
+      const to = unit(add(from, tangent(rng, from, (10000 + 20000 * rng()) / R)));
+      const A = anvilGeometry({ from, to, level: anvilLevel(g.base + g.D), radius: 4000 + 6000 * rng(), strength: 0.9 }, R);
+      const a = [A.a0, A.a1, A.a2], b = [A.b0, A.b1, A.b2], m = add(a, add(b, a, -1), rng() * 1.2 - 0.1);
+      const target = add([0, 0, 0], unit(add(m, tangent(rng, unit(m), A.radius * 1.3 * rng()))), A.L - 2400 * rng());
+      const o = add([0, 0, 0], unit(add(unit(m), tangent(rng, unit(m), (500 + 50000 * rng()) / R))), R + 200 + 5000 * rng()), d = unit(add(target, o, -1));
+      const c = chord(A, o, d); rays++;
+      for (let t = 0; t < 120000; t += 37) {
+        const dn = anvilDensity(A, add(o, d, t));
+        if (dn > 0) { if (hit(c) && t >= c[0] - 1e-3 && t <= c[1] + 1e-3) inside++; else outside++; }
+      }
+    }
+    return { outside, inside, rays };
+  };
+  const good = run((A, o, d) => anvilChord(A, o, d)), cut = run((A, o, d) => { const c = anvilChord(A, o, d); return hit(c) ? [c[0], c[1] - 0.3 * (c[1] - c[0])] : c; });
+  check(good.outside === 0 && good.inside > 10000, `the anvil's stretch of a ray holds all of it (${good.rays} rays from under it: ${good.inside} solid points inside the stretch, ${good.outside} outside)`);
+  check(cut.outside > 0, `... and fails on a stretch that ends too soon (${cut.outside} solid points outside)`);
 }
 {
   // how long the JS takes (the model paints anvils and wet ground over its field with it)

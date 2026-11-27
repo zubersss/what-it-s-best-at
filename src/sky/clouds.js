@@ -8,11 +8,23 @@
 //     shadow (0..1, how dark its shadow is) }
 // One draw call; the governor can switch it off (App.cloudsOn).
 import * as THREE from 'three';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G } from '../render/globals.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { HEAP_GLSL, SKY_UNIFORMS, SKY_NOISE_UNIFORM_GLSL, SKY_STEER_UNIFORM_GLSL, SKY_FIELD_GLSL, SKY_V0, CLOUD_RULE } from './skyGlsl.js';
 import { CLOUD_LOOK as TONE } from './cloudLook.js';
+
+// A round shell with each corner handed to the GPU once: three's polyhedra are triangle soup
+// (three corners a triangle, every one run through the vertex shader), and a shell is drawn
+// every frame whatever is on screen. Positions alone: the shaders here read nothing else.
+function shell(detail) {
+  const soup = new THREE.IcosahedronGeometry(1, detail);
+  soup.deleteAttribute('normal'); soup.deleteAttribute('uv');
+  const geo = mergeVertices(soup, 1e-6);
+  soup.dispose();
+  return geo;
+}
 
 // The rule the shell, the volume and every shadow share (fair-weather fields, heaps carved
 // from the noise on the low layer's steering) lives in sky/skyGlsl.js; passed on from here
@@ -254,7 +266,7 @@ export class CloudLayer {
       side: THREE.DoubleSide, depthTest: true, depthWrite: false, transparent: true,
       blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
     });
-    this.mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 48), mat);
+    this.mesh = new THREE.Mesh(shell(48), mat);
     this.mesh.frustumCulled = false; this.mesh.renderOrder = 1000; this.mesh.visible = false;
     this.def = null; this.enabled = true; this.loading = false; this.radius = 0; this.epoch = 0;
     // what the terrain shader needs for the shadow: strength, shell radius, map shift (see setWorld / update)

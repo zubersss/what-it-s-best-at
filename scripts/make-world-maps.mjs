@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { noise3 } from '../src/terrain/height/noise.js';
-import { landAt, landNoise1, landNoise2, LAND_DEFAULTS } from '../src/terrain/tiles/madeLand.js';
+import { landAt, landNoise1, landNoise2, landNoise3, LAND_DEFAULTS } from '../src/terrain/tiles/madeLand.js';
 import { png, readPng } from './lib/png.mjs';
 import { makeWxLand, packWxLand, WxLand, WX_LAND } from '../src/weather/sky/land.js';
 
@@ -56,7 +56,7 @@ const toJpeg = (name, w, h, px, channels, out, quality, small) => { const f = pa
       const gE = h > 0 ? (Math.max(e, 0) - Math.max(w, 0)) / (2 * dx) : 0, gN = h > 0 ? (Math.max(n, 0) - Math.max(s, 0)) / (2 * CELL) : 0;
       const id = lakeImg.data[q * 3], lk = id > 0, depth = lk ? Math.max(0, lakeInfo[id - 1].level - h) : 0;
       const n1 = landNoise1(x, y, sl, SEED), n2 = landNoise2(x, y, sl, SEED);
-      landAt(L, h, Math.hypot(gE, gN), lat, rainAt(j, i), n1, n2, o, lk, depth);
+      landAt(L, h, Math.hypot(gE, gN), lat, rainAt(j, i), n1, n2, o, lk, depth, landNoise3(x, y, sl, SEED));
       // the great rivers show from space (a cell wide)
       const river = h > 0 && !lk && flow[q] > 112;
       if (river) { o.r = L.colours.lake[0] * 0.6 + o.r * 0.4; o.g = L.colours.lake[1] * 0.6 + o.g * 0.4; o.b = L.colours.lake[2] * 0.6 + o.b * 0.4; }

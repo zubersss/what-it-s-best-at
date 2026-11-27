@@ -209,6 +209,7 @@ node scripts/find-tree.mjs --world haven --lat .. --lon .. [--from 4,12] [--spec
 node scripts/overdraw.mjs [--part trees,farForest,grass,leaves] [--view "in the forest" | --query ..] [--distdir build] [--out dir]   # layers of a part drawn over each pixel and triangles handed over, in the real game (a forest is paid for in layers of cut-out pixels); also __app.overdraw('trees') at the console
 node scripts/make-world.mjs [--width 4096] [--seed 7] [--preview dir] [--only-preview]   # makes the small world's land (Haven): elevation with drainage, lakes, rain (a minute; --width 2048 --only-preview: nine seconds, with pictures to judge it by)
 node scripts/make-world-maps.mjs   # ... and from that its colour, slope, water and cloud maps (needs Python's PIL for the JPEGs); prints the albedo map's mean for the world file
+node scripts/land-sketch.mjs --lat .. --lon .. [--zoom 8] [--tiles 3] [--set treeRag=0] [--out file.png]   # a made world's land from straight above as its rule paints it (woods, tree line, meadows), without a browser in seconds; --set: one number of the rule changed, for before against after
 node scripts/find-haven-site.mjs [--open] [--lat 28,52]   # places on Haven to begin at: level ground over low ground and water, high ground near by
 node scripts/find-overlook.mjs --world haven --lat .. --lon .. --heading .. [--below 1500] [--sky]   # the very spot: level underfoot, the ground falling away in front, mountains on the far skyline (--sky: a LOW far skyline, for a view of the weather; then look with peek.mjs)
 node scripts/far-trees-test.mjs     # the far forest's trees are the near trees: a thinned tile is a subset of the full one, at the same places (no browser)
@@ -836,6 +837,18 @@ finished benchmark leaves its text in `window.__benchResult`.
   "FAIL" lines that followed were one time-out. And a test that grows (the cost test went from
   some 40 steps to 240) outgrows a limit set for the old one without a word: when a run "fails"
   at its limit, read how far it had got before reading the failures.
+- A thing with depth asked for at one height is a sheet from every side (the anvil), and a
+  march through it shades in bands a step long unless the place the line of sight ENTERS is
+  found (a few halvings between the last clear step and the first in cloud). And a view "from
+  the side, 32 km off" on Haven is from below: at that distance a 9.5 km top stands 2 degrees
+  over the level of an eye at 6.5 km.
+- A rule by height is a contour, and on a flank the maker left at one slope a contour is a
+  ruler line: a wood ended dead straight for four kilometres, seen from 3 km. And it was two
+  rules for one thing (the land's tree line by temperature, the trees' own by height): the
+  first cure, a wiggle in one of them, did nearly nothing because the other still cut. One
+  rule ends a thing, with noise at two scales in it. And a change to where trees stand is
+  looked at from the opening place before anything else: three trees had appeared within
+  15 m of it (`node scripts/find-tree.mjs` on the old checkout and the new says which).
 - The same thing drawn three ways must take its season from one answer (near meshes, whole
   tree pictures, the far forest): bare aspens were full green crowns from 60 m on for as
   long as only the nearest mesh asked. And a rule's colours must be looked at after
