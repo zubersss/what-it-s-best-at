@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { WAVE_GLSL, LIFTED, WAVE_STEPS } from '../water/waves.js';
 import { FLOW_UNIT } from './chunkBuilder.js';
 import { RIVER_GLSL } from '../water/river.js';
+import { SURF_GLSL } from '../water/surf.js';
 import { CONFIG } from '../config.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
@@ -85,6 +86,7 @@ uniform vec4 uWind;          // xyz: where the wind blows to (unit, planet axes)
 uniform vec3 uWave;          // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
 uniform vec2 uTide;          // x: the sea's level against the level its shore is mapped at (m, 0 or below: the map is the highest tide)
 ${WAVE_GLSL}
+${SURF_GLSL}
 out vec2 vGrid;
 out vec2 vDetailUv;
 out vec3 vRel;
@@ -182,6 +184,10 @@ void main() {
       float deep = clamp((mapped - drop - 0.15) / 1.5, 0.0, 1.0) * (1.0 - smoothstep(160.0, 420.0, far));
       deep *= 1.0 - 0.8 * inland;          // (lakes and rivers: small waves)
       if (deep > 0.0) rel += up * (wave(vDetailUv, uWave.z, vec2(dot(uWind.xyz, vTanU), dot(uWind.xyz, vTanV)), uWave.x, ${LIFTED}).z * deep);
+      // (living water: the surf. Toward the sea's shore the swell lifts, tallest where it breaks:
+      // water/surf.js, the same rule the foam's line is drawn by)
+      float dleft = mapped - drop;
+      if (inland < 1.0 && dleft > 0.05 && dleft < 14.0) rel += up * (surfLift(surfTurn(vDetailUv, dleft, uWave.z), dleft, surfHeight(uWave.x)) * (1.0 - inland) * (1.0 - smoothstep(160.0, 420.0, far)));
     }
     vRel = rel;
   }
@@ -248,6 +254,7 @@ uniform vec4 uWind;            // xyz: where the wind blows to (unit, planet axe
 uniform vec3 uWave;            // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
 uniform float uLitter;         // fallen leaves under the trees, 0..1 by the season
 ${WAVE_GLSL}
+${SURF_GLSL}
 uniform float uTime;
 uniform float uWaterQ;         // living water's governor step: 1 = its fine motion in full, 0 = thinned (a river's lanes from the nearest whole-number pair alone, not the four blended)
 ${RIVER_GLSL}
@@ -895,14 +902,18 @@ void main() {
   // the place and the hour: App.updateTide), and every wave runs a little way up the
   // beach and back. Sand the water has left is dark and wet. The sea only.
   // (the beach: the strip of ground that stands a step above high water is sand, pale and dry)
-  if (uSea.x > 0.5 && waterDepth <= 0.0) { float hb = vHeight - uSea.y; if (hb < 0.9 && hb > -0.5) albedo = mix(albedo, vec3(0.40, 0.34, 0.24), (1.0 - smoothstep(0.3, 0.9, hb)) * flatW); }
+  if (uSea.x > 0.5 && waterDepth <= 0.0) { float hb = vHeight - uSea.y; if (hb < 1.5 && hb > -0.5) albedo = mix(albedo, vec3(0.40, 0.34, 0.24), (1.0 - smoothstep(0.6, 1.5, hb)) * flatW); }
   if (uSea.x > 0.5 && waterDepth > 0.0) {
     float seaK = 1.0 - smoothstep(2.0, 6.0, vHeight - uSea.y);
     if (seaK > 0.0) {
       float left = waterDepth + uTide.x * seaK;
       float ph = texture(tDetail, vDetailUv * 0.375).b;   // (6 cycles over the 16 tiles the patches agree on: a fractional count broke along patch edges)
       // (only at the water's edge: a hand's depth in a calm, knee-deep in a storm)
-      left += (0.07 + 0.16 * uWave.x) * sin(uWave.z * 0.85 + 12.566 * ph) * seaK * (1.0 - smoothstep(0.0, 1.0, abs(left)));
+      // (living water: the wash is the surf's own: each crest that reaches the shore runs up
+      // the sand fast and drains back slowly, in the swell's time (water/surf.js), a little
+      // out of step from place to place)
+      float p0 = fract(surfTurn(vDetailUv, 0.0, uWave.z) + 0.2 * (ph - 0.5));
+      left += (0.10 + 0.22 * uWave.x) * (sin(3.14159 * pow(p0, 0.55)) - 0.4) * seaK * (1.0 - smoothstep(0.0, 1.0, abs(left)));
       float bared = (1.0 - smoothstep(0.0, 0.03, left)) * smoothstep(0.0, 0.05, waterDepth);
       waterDepth = max(left, 0.0);
       if (bared > 0.0) { albedo = mix(albedo, vec3(0.21, 0.175, 0.12), bared); ao = mix(ao, 1.0, bared); N = normalize(mix(N, up, 0.7 * bared)); }
@@ -916,6 +927,10 @@ void main() {
   float waterAir = smoothstep(0.0, 0.4, uAloft), waterFar = waterAir * smoothstep(1500.0, 6000.0, dist);
   // (a river is water from bank to bank: a brook a hand deep was half ground colour)
   float water = uSea.x > 0.5 ? smoothstep(0.02, mix(0.22, 0.06, river) + 1.3 * waterFar, waterDepth) : 0.0;
+  // (living water: far off a river is narrower than a texel of the ground's maps, and the map
+  // holds the share of the texel it covers (chunkBuilder.js): that share of the pixel is water,
+  // as deep as the river is where it is)
+  if (river > 0.0) { water = max(water, river); waterDepth /= max(river, 0.2); }
   float foam = 0.0, waveRough = 0.0;
   if (water > 0.0) {
     // waves: the long ones as slopes (the surface itself rises with them near the
@@ -938,6 +953,9 @@ void main() {
     vec4 run = vec4(0.0);                       // xy its ripples' slope, z its streaks (0..1), w its speed (m/s)
     if (river > 0.0) {
       run = riverRun(vDetailUv, dux, duy, vec2(dot(flowT, uTanU), dot(flowT, uTanV)), dot(uTanU, uTanV), uWave.z, near, uDetailMean.b, uWaterQ > 0.5);
+      // (after rain a river is in spate: rougher, whiter, and brown with what it carries; by how
+      // wet the ground is at the place, which the weather's field lets dry over hours)
+      run.xy *= 1.0 + 0.6 * vCloud.z; run.z = min(1.0, run.z * (1.0 + 0.8 * vCloud.z));
       rip = mix(rip, run.xy * uSea.w, river);
     }
     vec3 Nw = normalize(up - uTanU * (wv.x + rip.x) - uTanV * (wv.y + rip.y));
@@ -949,7 +967,24 @@ void main() {
     float inshore = 1.0 - smoothstep(0.25, 1.6 + uWave.x, waterDepth);
     float band = smoothstep(0.62, 0.97, sin(6.2831853 * (waterDepth / (0.45 + 0.5 * uWave.x) + lace * 0.9) + uWave.z * 1.1)) * inshore * smoothstep(0.25, 0.55, lace + 0.35 * inshore);
     float edge = 1.0 - smoothstep(0.0, 0.10 + 0.08 * lace, waterDepth);
-    foam = clamp(max(max(edge, band) * (1.0 - 0.85 * inland), crest), 0.0, 1.0) * water * near;
+    // (living water: on the sea the bands are the surf's, below; lakes keep theirs)
+    foam = clamp(max(max(edge, band * inland) * (1.0 - 0.85 * inland), crest), 0.0, 1.0) * water * near;
+    float surfBack = 0.0;
+    if (inland < 1.0) {
+      // The surf (water/surf.js). Where the water is no deeper than the breakers are tall the
+      // swell has broken: a white front as each crest passes and the foam it leaves, thinning
+      // until the next; before that, the swell's back shows paler as it steepens. Far off,
+      // where a line of surf is under a pixel, the white of the whole zone.
+      float tall = surfHeight(uWave.x), p = surfTurn(vDetailUv, waterDepth, uWave.z);
+      float zone = 1.0 - smoothstep(1.1 * tall, 2.0 * tall, waterDepth);
+      float front = smoothstep(0.90, 0.985, p) + (1.0 - smoothstep(0.0, 0.03, p));
+      float left = exp(-4.5 * p) * (0.45 + 0.75 * lace);
+      float surfSeen = 1.0 - smoothstep(2.5, 8.0, mpp);
+      float surf = zone * mix(0.36, clamp(max(front, left), 0.0, 1.0), surfSeen) * smoothstep(0.02, 0.12, waterDepth);
+      foam = max(foam, surf * (1.0 - inland) * water);
+      float c = 0.5 + 0.5 * cos(6.2831853 * p);
+      surfBack = (1.0 - zone) * (1.0 - smoothstep(2.0 * tall, 5.0 * tall + 2.0, waterDepth)) * c * c * c * surfSeen * (1.0 - inland);
+    }
     // (far off, where no single crest is seen: the share of the sea that is white in this
     // wind, in streaks; a gale's sea is grey-white to the horizon, not a blue sheet)
     float white = clamp(3.84e-6 * pow(max(uWind.w, 0.0), 3.41), 0.0, 0.45) * (1.0 - inland);
@@ -970,17 +1005,33 @@ void main() {
     // (and from the air, one fade from pale green shallows to the slate middle: red, green and
     // blue lost at three depths made a river of changing depth cycle through sand, yellow,
     // green and lilac, "an oily rainbow ribbon" from 1 km)
-    if (waterAir > 0.0) { float tg = exp(-0.16 * waterDepth * 2.3); body = mix(body, mix(deepC, vec3(0.10, 0.20, 0.19), tg), waterAir); }
+    // (living water: the sea's shallows over sand paler still, a turquoise hem along every beach)
+    if (waterAir > 0.0) { float tg = exp(-0.16 * waterDepth * 2.3); body = mix(body, mix(deepC, mix(vec3(0.10, 0.20, 0.19), vec3(0.21, 0.33, 0.28), (1.0 - inland) * smoothstep(0.5, 0.95, tg)), tg), waterAir); }
+    body *= 1.0 + 0.35 * surfBack;
     // (living water: a river's own colour, and the pale streaks its current draws out)
     // (its colour from the first of it in a pixel: at its banks, where a pixel is part river and
     // part bank, the sea's pale sand showed as a white hem.)
-    if (river > 0.0) { body = mix(body, riverBody(waterDepth, waterAir), smoothstep(0.0, 0.2, river)); foam = max(foam * (1.0 - river), riverFoam(run, waterDepth) * river * water); }
+    if (river > 0.0) { body = mix(body, mix(riverBody(waterDepth, waterAir), vec3(0.17, 0.135, 0.085), 0.7 * vCloud.z), smoothstep(0.0, 0.2, river)); foam = max(foam * (1.0 - river), riverFoam(run, waterDepth) * river * water); }
     albedo = mix(albedo, mix(body, vec3(0.75), foam), water);
     ao = mix(ao, 1.0, water);
   }
 
   // (wet ground is darker: water fills the gaps between the grains)
   albedo *= 1.0 - 0.32 * vCloud.z * (1.0 - water) * (1.0 - farW);
+  // --- living water: puddles. Where the ground is wet with rain, water stands in the hollows
+  // of level ground (the detail's own height, at two sizes, and the creases of the ground's
+  // map): more of them the wetter it is, shrinking back into the deepest as it dries. A
+  // puddle is dark, level and mirrors the sky (its mirror: with the Sun's sheen, below).
+  float puddle = 0.0;
+  if (vCloud.z > 0.03 && water < 1.0 && dist < 320.0) {
+    float lvl = smoothstep(0.988, 0.998, dot(normalize(nt.xyz), up)) * flatW;
+    if (lvl > 0.0) {
+      float hgt = 0.62 * textureGrad(tDetail, vDetailUv * 3.0 + vec2(0.41, 0.17), dux * 3.0, duy * 3.0).b + 0.38 * d0.b - 0.35 * (1.0 - ao);
+      float fill = mix(0.36, 0.54, smoothstep(0.03, 0.9, vCloud.z));
+      puddle = (1.0 - smoothstep(fill - 0.025, fill, hgt)) * lvl * (1.0 - water) * (1.0 - smoothstep(160.0, 320.0, dist));
+      if (puddle > 0.0) { albedo *= 1.0 - 0.45 * puddle; N = normalize(mix(N, up, puddle)); }
+    }
+  }
 
   // --- light
   // The cloud that stands between this ground and the Sun: from the atlas, asked at the
@@ -1074,6 +1125,9 @@ void main() {
     float nh = max(dot(N, Hh), 0.0), a2 = gr * gr, dd = nh * nh * (a2 - 1.0) + 1.0;
     float F = 0.03 + 0.97 * pow(1.0 - max(dot(V, Hh), 0.0), 5.0);
     col += sunHere * shadow * (gl * (1.0 - farW) * a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0));
+    // (living water: a puddle's mirror: the sky where the eye would see it in still water, most
+    // at a low angle, some from straight above)
+    if (puddle > 0.0) { vec3 Rp = reflect(-V, up); float Fp = 0.06 + 0.94 * pow(1.0 - max(dot(up, V), 0.0), 4.0); col = mix(col, col * (1.0 - 0.6 * Fp) + Fp * skyLight(Rp, up) / PI, puddle); }
     if (wetK > 0.0) { vec3 Rw = reflect(-V, N); Rw = normalize(Rw + up * max(0.0, 0.05 - dot(Rw, up))); col += wetK * flatW * 0.5 * pow(1.0 - max(dot(N, V), 0.0), 4.0) * skyLight(Rw, up) / PI; }
   }
   if (woodAir > 0.0) col = forestAir(col, vRel, up, woodAir);

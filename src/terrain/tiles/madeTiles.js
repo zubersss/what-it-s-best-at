@@ -5,7 +5,7 @@
 // tiles/hydrology.js) and what covers the land (its colour from the air, its land-cover
 // class and canopy: tiles/madeLand.js).
 // (Plain arrays and arithmetic: it runs in the tile worker and in Node.)
-import { DemSet } from '../height/dem.js';
+import { DemSet, shoreUp } from '../height/dem.js';
 import { landAt, landNoise1, landNoise2, LAND_DEFAULTS } from './madeLand.js';
 
 const TILE = 256, RAD = 180 / Math.PI;
@@ -16,8 +16,11 @@ export class MadeWorld {
   // own size, north first, from longitude 0), width, height, levels: [m] }; rain: Uint8Array
   // 720 x 360 (3.2 * sqrt(mm a year), from longitude -180) or null; land: the land rule's
   // numbers (madeLand.js); seed: the world's.
-  constructor({ radius, dem, lakes, rain, land, seed }) {
+  // sea: { level, beach } of the world's sea layer (layers.js, sea), or absent: the mosaics'
+  // elevation has the same beach the ground has (shoreUp).
+  constructor({ radius, dem, lakes, rain, land, seed, sea }) {
     this.radius = radius; this.dem = new DemSet([dem], radius); this.lakes = lakes; this.rain = rain; this.seed = seed ?? 0;
+    this.seaLevel = sea?.level ?? 0; this.beach = sea?.beach ?? 1;
     this.land = { ...LAND_DEFAULTS, ...(land || {}), colours: { ...LAND_DEFAULTS.colours, ...((land && land.colours) || {}) } };
   }
 
@@ -52,7 +55,8 @@ export class MadeWorld {
   elevation(zoom, tx, ty, tiles) {
     const W = tiles * TILE, out = new Float32Array(W * W), g = this.grid(zoom, tx, ty), d = this.dem;
     const lons = new Float64Array(W); for (let x = 0; x < W; x++) lons[x] = g.lonOf(x);
-    for (let y = 0; y < W; y++) { const lat = g.latOf(y); for (let x = 0; x < W; x++) { d._fixed(lons[x], lat); out[y * W + x] = d.h; } }
+    const L = this.seaLevel, bch = this.beach;
+    for (let y = 0; y < W; y++) { const lat = g.latOf(y); for (let x = 0; x < W; x++) { d._fixed(lons[x], lat); out[y * W + x] = bch < 1 ? L + shoreUp(d.h - L, bch) : d.h; } }
     return out;
   }
 

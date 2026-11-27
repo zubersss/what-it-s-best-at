@@ -84,6 +84,8 @@ export class ChunkBuilder {
     this.H = new Float64Array(M * M);
     this.Wd = new Float32Array(M * M);          // how deep the water is at each sample (0 on land)
     this.Fl = new Float32Array(M * M * 2);      // how the water runs at each sample (m/s toward east and north; 0 on land and still water)
+    this.Cv = new Float32Array(M * M * 2);      // the share of each sample that is river (0..1), and that river's depth (m): see build
+    this.near = [0, 0, 0, 0, 0];
     this.P = new Float64Array(M * M * 3);
     this.D = new Float64Array(M * M * 3);
     this.hp = new Float64Array((this.G + 1) * (this.G + 1));
@@ -98,7 +100,7 @@ export class ChunkBuilder {
 
   // sun: [x,y,z] unit direction (planet-fixed) and sunHalf: its angular radius, for the baked shadow map.
   build(face, level, ix, iy, sun, sunHalf) {
-    const { hs, G, NR, M, H, Wd, Fl, P, D, step } = this;
+    const { hs, G, NR, M, H, Wd, Fl, Cv, P, D, step } = this;
     const R = hs.radius;
     const size = 2 / (1 << level), a0 = -1 + ix * size, b0 = -1 + iy * size;
     const edge = nodeEdge(level, R);
@@ -107,6 +109,13 @@ export class ChunkBuilder {
     let minH = Infinity, maxH = -Infinity;
     faceToDir(face, a0 + size / 2, b0 + size / 2, dir);
     hs.prepare(dir[0], dir[1], dir[2], edge * 0.76);
+    // A sample stands for the ground half a texel's diagonal round it. A river narrower than
+    // that is not met sample by sample (it was there at one and not at the next: beads): each
+    // sample takes the share of its own ground the nearest river covers, in its water or
+    // beside it (hs.setRiverCover, hs.riverNear), and the river is not cut into ground this coarse.
+    // ('cover: false' in the options: as it was, for the check to see the difference.)
+    const coverHalf = this.noCover ? 0 : 0.7071 * edge / NR, near = this.near;
+    if (hs.setRiverCover) hs.setRiverCover(coverHalf);
     for (let j = 0; j < M; j++) {
       const b = b0 + (j - 1) / NR * size;
       for (let i = 0; i < M; i++) {
@@ -115,11 +124,22 @@ export class ChunkBuilder {
         const h = hs.height(dir[0], dir[1], dir[2], minWL);
         const o = j * M + i, r = R + h;
         H[o] = h; Wd[o] = hs.waterDepth; Fl[o * 2] = hs.flowE; Fl[o * 2 + 1] = hs.flowN;
+        Cv[o * 2] = 0;
+        if (coverHalf > 0 && hs.riverNear(near)[0] < 1e8) {
+          // (how much of the stretch from -coverHalf to +coverHalf round the sample lies within the river's two banks)
+          const sd = near[0], a = near[1], lap = Math.min(sd + coverHalf, a) - Math.max(sd - coverHalf, -a);
+          if (lap > 0) {
+            const cv = Math.min(1, lap / (2 * coverHalf)), inside = sd < a, k = inside ? 0.3 + 0.7 * (1 - (sd / a) * (sd / a)) : 0.3;
+            Cv[o * 2] = cv; Cv[o * 2 + 1] = inside ? near[2] * (1 - (sd / a) * (sd / a)) + 0.02 : 0.4 * near[2];
+            Fl[o * 2] = near[3] * k; Fl[o * 2 + 1] = near[4] * k;
+          }
+        }
         D[o * 3] = dir[0]; D[o * 3 + 1] = dir[1]; D[o * 3 + 2] = dir[2];
         P[o * 3] = dir[0] * r; P[o * 3 + 1] = dir[1] * r; P[o * 3 + 2] = dir[2] * r;
         if (h < minH) minH = h; if (h > maxH) maxH = h;
       }
     }
+    if (hs.setRiverCover) hs.setRiverCover(0);
     hs.release();
 
     // Vertex heights are a small symmetric box average of the fine samples around each
@@ -203,14 +223,20 @@ export class ChunkBuilder {
       // how much of a texel is river, however texels and mip levels are blended; what is
       // left across the vertical is the flow. Land and still water keep a normal of length
       // one. Read in terrainMaterial.js: writer and reader change in the same edit.)
-      const fe = Fl[s * 2], fn = Fl[s * 2 + 1];
-      if (Wd[s] > 0 && (fe !== 0 || fn !== 0)) {
+      // (cv: the share of the texel that is river. One in a river on ground fine enough to hold
+      // it; on far ground what the nearest river covers of the texel, see the samples above.
+      // The normal map holds the normal x (1 + cv) + the flow x 2 cv, the fourth number 1 + the
+      // depth x cv: both go to nothing with the river's share, and blend as they should.)
+      const fe = Fl[s * 2], fn = Fl[s * 2 + 1], covered = Cv[s * 2] > 0, cv = covered ? Cv[s * 2] : Wd[s] > 0 && (fe !== 0 || fn !== 0) ? 1 : 0;
+      let a4 = ao;
+      if (cv > 0) {
         const dx = D[s * 3], dy = D[s * 3 + 1], dz = D[s * 3 + 2], el = 1 / (Math.hypot(dx, dy) || 1), ex = -dy * el, ey = dx * el;          // east; north = up x east
-        const kx = -dz * ey, ky = dz * ex, kz = dx * ey - dy * ex;
-        nx = 2 * (nx + (ex * fe + kx * fn) / FLOW_UNIT); ny = 2 * (ny + (ey * fe + ky * fn) / FLOW_UNIT); nz = 2 * (nz + kz * fn / FLOW_UNIT);
+        const kx = -dz * ey, ky = dz * ex, kz = dx * ey - dy * ex, f2 = 2 * cv / FLOW_UNIT;
+        nx = (1 + cv) * nx + (ex * fe + kx * fn) * f2; ny = (1 + cv) * ny + (ey * fe + ky * fn) * f2; nz = (1 + cv) * nz + kz * fn * f2;
+        if (covered) a4 = 1 + cv * Cv[s * 2 + 1];
       }
       const t = (j * T + i) * 4;
-      nf[t] = nx; nf[t + 1] = ny; nf[t + 2] = nz; nf[t + 3] = ao;
+      nf[t] = nx; nf[t + 1] = ny; nf[t + 2] = nz; nf[t + 3] = a4;
     }
     const normals = new Uint16Array(this.nTexels * 4);
     for (let l = 0, at = 0; l < this.mips.length; l++) {

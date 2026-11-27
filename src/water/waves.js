@@ -56,6 +56,17 @@ vec3 wave(vec2 uv, float t, vec2 wind2, float scale, int n) {
   return acc;
 }`;
 
+// A place's coordinates in the detail tile, as the ground's shader has them (out: u, v).
+// pos: planet-centred position; radius: the world's.
+export function detailUvAt(pos, radius, out) {
+  const len = Math.hypot(pos.x, pos.y, pos.z) || 1, d = [pos.x / len, pos.y / len, pos.z / len];
+  let face = 0, best = -2;
+  for (let f = 0; f < 6; f++) { const n = FACES[f].n, dn = d[0] * n[0] + d[1] * n[1] + d[2] * n[2]; if (dn > best) { best = dn; face = f; } }
+  dirToFace(face, d[0], d[1], d[2], out);
+  const K = (Math.PI * radius / 4) / DETAIL_TILE;
+  out[0] *= K; out[1] *= K; return out;
+}
+
 // The same on the CPU: the surface's height (m) above the still water at a place.
 // pos: planet-centred position; radius: the world's; time (s); wind: unit vector in the
 // planet's axes and speed (m/s).

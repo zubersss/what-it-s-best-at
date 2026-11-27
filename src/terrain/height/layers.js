@@ -11,6 +11,7 @@
 // Every op must fade its own detail out below c.minWL: that keeps coarse chunks cheap
 // and alias-free. Ops must not allocate per call. No world-specific logic here.
 import { noise3, hash3, vnoise1, smoothstep } from './noise.js';
+import { shoreUp } from './dem.js';
 
 const LAC = 1.97;   // octave spacing (slightly off 2 so lattices never line up)
 
@@ -434,10 +435,19 @@ export const OPS = {
   // and raise islets off it).
   sea(def) {
     const level = def.level ?? 0;
+    // beach (def.beach, 0..1; 1 or absent: none): the map's ground within 7 metres above
+    // and below the sea's level is flattened toward it, to this share of its height at the
+    // very shore: a beach and shallows several times as wide as the map's slope gives, for
+    // the tide to move over (on a steep shore the sea's rise and fall was a band a few
+    // metres wide). A made world asks for it; a real one keeps its shore.
+    // (the rule is shoreUp in dem.js: the mosaics a made world's rivers are worked out on use it too)
+    const beach = def.beach ?? 1, shore = (up) => shoreUp(up, beach);
     return (c) => {
-      const map = c.map;
+      let map = c.map;
       if (map != null) {
-        const up = map - level;
+        // (the shore as it is drawn and walked on: everything below reads this for the map)
+        const up0 = map - level, up = shore(up0);
+        if (up !== up0) { c.h += up - up0; map = level + up; }
         // (as deep as the map says from the very edge: a floor on the depth was a step in what
         // a walker stands on; water with no bed in the map at all still gets a hand's depth)
         // (not inside a lake: a deep lake's bed can lie under the sea's level, its water does not)
@@ -464,8 +474,12 @@ export const OPS = {
         let bank = false;
         if (dem.rivS < 1e8) {
           const a = dem.rivA, s = dem.rivS, L = dem.rivL, wide = 4 + a * 1.2;
-          if (s < a) { const u = s / a; c.water = 0.02 + dem.rivD * (1 - u * u); c.h = L; c.slope = 0; c.flowE = dem.rivE; c.flowN = dem.rivN; return; }
-          if (s < a + wide) { const u = (s - a) / wide, k = u * u * (3 - 2 * u); c.h = L + 0.05 + (c.h - L - 0.05) * k; c.slope *= k; bank = true; }
+          // (for the far ground, whose samples stand for more than the river's width (dem.cover),
+          // the bed and the banks are not cut: a notch the patch's mesh cannot hold was a row of
+          // teeth along every far river. The river is laid on the ground as it lies: far = 1.)
+          const far = dem.cover > a ? (dem.cover >= 2 * a ? 1 : (dem.cover - a) / a) : 0;
+          if (s < a) { const u = s / a; c.water = 0.02 + dem.rivD * (1 - u * u); c.h = L + (c.h - L) * far; c.slope *= far; c.flowE = dem.rivE; c.flowN = dem.rivN; return; }
+          if (s < a + wide) { const u = (s - a) / wide, k0 = u * u * (3 - 2 * u), k = k0 + (1 - k0) * far; c.h = L + 0.05 + (c.h - L - 0.05) * k; c.slope *= k; bank = true; }
         }
         // (past the last cell that knows a lake's level its water thins to nothing)
         if (tapS > 0) { const depth = (tapL - c.h) * tapS; if (depth > 0) { c.water = depth; c.h += depth; c.slope = 0; return; } }

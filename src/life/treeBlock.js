@@ -68,6 +68,10 @@ export function treeBlock(hs, bi, bj, spacing = 7, nominal = BLOCK_DEG, salt = 4
     if (dens <= 0.004 && cls !== 7 && cls !== 10 && cls !== 16 && cls !== 12) continue;        // (dry open classes still have trees along their rivers: asked below)
     const h = hs.height(d[0], d[1], d[2], 4);
     if (hs.waterDepth > 0) continue;
+    // (trees stand back from a river's edge by about a crown's reach: standing at the very
+    // edge their crowns closed over every brook, and from the air a wooded valley had no
+    // river in it, and no waterfall. Living water, 2026-11-27.)
+    if (hs.nearRiver < 2 + 0.2 * Math.min(30, Math.max(tall, 9))) continue;
     const near = hs.nearWater < 30 + 0.6 * Math.max(0, 60 - tall);                 // metres from a river's or a lake's edge
     if (near) dens = Math.max(dens, cls === 15 || cls === 17 ? 0 : 0.5);
     const slope = hs.baseSlope;

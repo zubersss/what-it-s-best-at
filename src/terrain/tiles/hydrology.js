@@ -22,7 +22,7 @@
 // A mosaic is a window: a river that comes in over its edge brought its water from
 // outside. The coarser mosaic's result says how much and where (opts.coarse).
 
-import { RIVER_STRIDE, RING_INSET } from '../height/dem.js';
+import { RIVER_STRIDE, RING_INSET, RIVER_REACH } from '../height/dem.js';
 
 // Rain to run-off (mm a year): dry land gives none back, wet land about half.
 export function runoff(mm) { const k = (mm - 150) / 1400; return mm * (k < 0 ? 0 : k > 0.55 ? 0.55 : k); }
@@ -535,7 +535,8 @@ export function flowAt(res, x, y, r = 1) {
 //         ends (m), its speed in mid stream at both ends (m/s, flowSpeed) and the way it runs
 //         at both ends (radians from east toward north). A stretch runs down from its first end.
 //   grid  cells of GRID pixels: gridStart[cell] .. gridStart[cell + 1] index gridItems, the
-//         stretches that can reach into that cell (their width and banks counted)
+//         stretches that can reach into that cell (their width and banks counted); and
+//         wideStart / wideItems, the same with every stretch within RIVER_REACH pixels
 //   lake  Uint16Array W x W: water level = v / 4 - 500 m (0: none), spread two pixels past
 //         each lake's edge so a place on its shore can read it
 // and it lowers `h` under the lakes to a bed that falls away from their shores.
@@ -574,7 +575,7 @@ export function packWater(res, h) {
   }
   // --- rivers as stretches, and the grid that finds them
   let count = 0; for (const r of rivers) count += r.pts.length / 4 - 1;
-  const S = RIVER_STRIDE, segs = new Float32Array(count * S), G = W / GRID, cells = Array.from({ length: G * G }, () => null);
+  const S = RIVER_STRIDE, segs = new Float32Array(count * S), G = W / GRID, cells = Array.from({ length: G * G }, () => null), wide = Array.from({ length: G * G }, () => null);
   let o = 0, k = 0;
   const fallList = [];
   for (const r of rivers) {
@@ -615,6 +616,14 @@ export function packWater(res, h) {
       const x0 = Math.max(0, Math.floor((Math.min(p[i], p[i + 4]) - pad) / GRID)), x1 = Math.min(G - 1, Math.floor((Math.max(p[i], p[i + 4]) + pad) / GRID));
       const y0 = Math.max(0, Math.floor((Math.min(p[i + 1], p[i + 5]) - pad) / GRID)), y1 = Math.min(G - 1, Math.floor((Math.max(p[i + 1], p[i + 5]) + pad) / GRID));
       for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) (cells[y * G + x] || (cells[y * G + x] = [])).push(o / S);
+      // (and the wider grid: every stretch within RIVER_REACH pixels, for the far ground's share of river)
+      {
+        const pw = pad + RIVER_REACH;
+        const u0 = Math.max(0, Math.floor((Math.min(p[i], p[i + 4]) - pw) / GRID)), u1 = Math.min(G - 1, Math.floor((Math.max(p[i], p[i + 4]) + pw) / GRID));
+        const v0 = Math.max(0, Math.floor((Math.min(p[i + 1], p[i + 5]) - pw) / GRID)), v1 = Math.min(G - 1, Math.floor((Math.max(p[i + 1], p[i + 5]) + pw) / GRID));
+        // (every other stretch is enough there: a stretch is a quarter of a pixel long)
+        if (!(j & 1)) for (let y = v0; y <= v1; y++) for (let x = u0; x <= u1; x++) (wide[y * G + x] || (wide[y * G + x] = [])).push(o / S);
+      }
       o += S;
     }
   }
@@ -623,9 +632,16 @@ export function packWater(res, h) {
   gridStart[G * G] = total;
   const gridItems = new Int32Array(total);
   for (let c = 0; c < G * G; c++) if (cells[c]) gridItems.set(cells[c], gridStart[c]);
+  const wideStart = new Int32Array(G * G + 1); total = 0;
+  for (let c = 0; c < G * G; c++) { wideStart[c] = total; total += wide[c] ? wide[c].length : 0; }
+  wideStart[G * G] = total;
+  const wideItems = new Int32Array(total);
+  for (let c = 0; c < G * G; c++) if (wide[c]) wideItems.set(wide[c], wideStart[c]);
   // falls: six numbers each: where its lip is (x, y: pixels), the lip's level (m), how far it
   // drops (m), its half width (m) and the way it faces (radians from east toward north)
-  return { segs: segs.slice(0, o), gridStart, gridItems, lake: any ? lake : null, falls: new Float32Array(fallList) };
+  // wideStart / wideItems: the same grid with every stretch within RIVER_REACH pixels of a cell:
+  // what the far ground asks, whose texels are wider than a river (DemSet._water, cover)
+  return { segs: segs.slice(0, o), gridStart, gridItems, wideStart, wideItems, lake: any ? lake : null, falls: new Float32Array(fallList) };
 }
 
 // The water of one mosaic of map tiles, as the tile worker hands it on and as the Node

@@ -12,6 +12,16 @@ export const RIVER_STRIDE = 14;
 // mosaic; outside that box the coarser ring answers. (The tile worker makes the rivers of
 // both meet on the box's edge: tiles/hydrology.js, "joined to the coarser mosaic".)
 export const RING_INSET = 20;
+// The far ground's share of river (cover, below): a ring's wider grid lists every stretch
+// within this many pixels of a cell (packWater).
+export const RIVER_REACH = 4;
+// A beach. The map's ground within BEACH metres above and below the sea's level, flattened
+// toward it: to `beach` of its height at the very shore (0..1; 1: as the map has it), easing
+// back to the map's own at BEACH. up: metres above the sea's level in the map. One rule for
+// the ground (layers.js, sea) and for the mosaics a made world's rivers are worked out on
+// (tiles/madeTiles.js): a river must come down to the shore the walker stands on.
+export const BEACH = 7;
+export function shoreUp(up, beach) { const a = up < 0 ? -up : up; if (beach >= 1 || a >= BEACH) return up; const t = a / BEACH; return up * (beach + (1 - beach) * t * t * (3 - 2 * t)); }
 // How fast a river runs across its width: fastest in the middle, slow at its banks.
 // u: 0 in mid stream .. 1 at the water's edge.
 export function flowAcross(u) { const k = 1 - u * u; return 0.3 + 0.7 * (k > 0 ? k : 0); }
@@ -39,6 +49,13 @@ export class DemSet {
     // none), its half width, level and depth, and its flow there (m/s toward east and
     // north: the one rule of how fast a river runs, for the picture and for what it carries)
     this.lakeL = -1e9; this.lakeS = 0; this.rivS = 1e9; this.rivA = 0; this.rivL = 0; this.rivD = 0; this.rivE = 0; this.rivN = 0;
+    // The far ground. A patch of ground far off has texels wider than a river: asked point by
+    // point, the river was there at one texel and not at the next (a string of beads). With
+    // `cover` set to the half width a sample stands for (m; the patch builder sets it, nobody
+    // else), sample() also answers the nearest river within reach, in its water or not: how
+    // far its middle line is (covS, 1e9: none), its half width, depth and its flow in mid
+    // stream (m/s east and north). The builder works out the share of the sample that is river.
+    this.cover = 0; this.covS = 1e9; this.covA = 0; this.covD = 0; this.covE = 0; this.covN = 0;
     this._h = 0; this._gx = 0; this._gy = 0;
     this.tops = null;
   }
@@ -198,7 +215,7 @@ export class DemSet {
   sample(x, y, z) {
     const lat = Math.asin(z < -1 ? -1 : z > 1 ? 1 : z) * RAD2DEG;
     let lon = Math.atan2(y, x) * RAD2DEG; if (lon < 0) lon += 360;
-    this._wet = false; this.lakeL = -1e9; this.lakeS = 0; this.rivS = 1e9; this.rivE = 0; this.rivN = 0;
+    this._wet = false; this.lakeL = -1e9; this.lakeS = 0; this.rivS = 1e9; this.rivE = 0; this.rivN = 0; this.covS = 1e9;
     // The rings first, finest first. Each lies on what is under it by its weight; `acc` is
     // how much of the answer is still to come from below.
     let acc = 1, rh = 0, re = 0, rn = 0, rres = 0;
@@ -261,6 +278,21 @@ export class DemSet {
       const ang = s[bo + 12] + da * bt, v = (s[bo + 10] + (s[bo + 11] - s[bo + 10]) * bt) * flowAcross(this.rivS / this.rivA);
       this.rivE = Math.cos(ang) * v; this.rivN = Math.sin(ang) * v;
     } else { this.rivE = 0; this.rivN = 0; }
+    if (this.cover > 0 && w.wideStart) {
+      let bestC = 1e9, co = -1, ct = 0;
+      for (let q = w.wideStart[c], e = w.wideStart[c + 1]; q < e; q++) {
+        const o = w.wideItems[q] * RIVER_STRIDE, ax = s[o], ay = s[o + 1], bx = s[o + 2] - ax, by = s[o + 3] - ay;
+        // (a listed stretch stands for the one after it too: twice its length)
+        let t = ((px - ax) * bx + (py - ay) * by) / (bx * bx + by * by || 1); t = t < 0 ? 0 : t > 2 ? 2 : t;
+        const dx = px - ax - bx * t, dy = py - ay - by * t, d = Math.sqrt(dx * dx + dy * dy) * m, half = s[o + 6], score = d - half;
+        if (score < bestC) { bestC = score; co = o; ct = t > 1 ? 1 : t; this.covS = d; this.covA = half; }
+      }
+      if (co >= 0) {
+        let da = s[co + 13] - s[co + 12]; da -= 6.283185307179586 * Math.round(da / 6.283185307179586);
+        const ang = s[co + 12] + da * ct, v = s[co + 10] + (s[co + 11] - s[co + 10]) * ct;
+        this.covD = s[co + 8]; this.covE = Math.cos(ang) * v; this.covN = Math.sin(ang) * v;
+      }
+    }
   }
 
   // The fixed rasters alone (the bundled maps).

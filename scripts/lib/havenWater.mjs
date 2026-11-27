@@ -23,7 +23,8 @@ export function havenMade() {
   for (let i = 0; i < ids.length; i++) ids[i] = lk.data[i * 3];
   const levels = JSON.parse(fs.readFileSync(path.join(PUB, t.made.levels), 'utf8')).lakes.map((l) => l.level);
   const rain = new Uint8Array(fs.readFileSync(path.join(PUB, t.hydrology.rain)));
-  made = { mw: new MadeWorld({ radius: haven.radius, seed: t.made.seed ?? 0, land: t.made.land || null, rain, dem: { ...d, data }, lakes: { ids, width: lk.width, height: lk.height, levels } }), rain };
+  const seaL = haven.terrain.layers.find((q) => q.op === 'sea');
+  made = { mw: new MadeWorld({ radius: haven.radius, seed: t.made.seed ?? 0, land: t.made.land || null, sea: seaL ? { level: seaL.level ?? 0, beach: seaL.beach ?? 1 } : null, rain, dem: { ...d, data }, lakes: { ids, width: lk.width, height: lk.height, levels } }), rain };
   return made;
 }
 

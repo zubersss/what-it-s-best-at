@@ -150,7 +150,7 @@ function madeWorld(c) {
         c.levels ? fetch(c.levels).then((r) => (r.ok ? r.json() : null)).catch(() => null) : null,
         c.rain ? fetch(c.rain).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null) : null,
       ]);
-      return new MadeWorld({ radius: c.radius, seed: c.seed, land: c.land, rain: rain ? new Uint8Array(rain) : null,
+      return new MadeWorld({ radius: c.radius, seed: c.seed, land: c.land, sea: c.sea, rain: rain ? new Uint8Array(rain) : null,
         dem: { ...c.dem, data: new Int16Array(demBuf) },
         lakes: lakeMap && levels ? { ids: lakeMap.data, width: lakeMap.W, height: lakeMap.H, levels: levels.lakes.map((l) => l.level) } : null });
     })();
@@ -214,8 +214,8 @@ self.onmessage = async (ev) => {
         const out = new Int16Array(W * W); for (let i = 0; i < out.length; i++) out[i] = Math.max(-32768, Math.min(32767, Math.round(h[i])));
         const msg = { type: 'mosaic', id: m.id, key: m.key, kind: m.kind, zoom, tx, ty, n, buffer: out.buffer, waterOnly: true }, transfer = [out.buffer];
         if (water) {
-          msg.water = { info: water.info, segs: water.segs.buffer, gridStart: water.gridStart.buffer, gridItems: water.gridItems.buffer, lake: water.lake ? water.lake.buffer : null, falls: water.falls.buffer };
-          transfer.push(water.segs.buffer, water.gridStart.buffer, water.gridItems.buffer, water.falls.buffer); if (water.lake) transfer.push(water.lake.buffer);
+          msg.water = { info: water.info, segs: water.segs.buffer, gridStart: water.gridStart.buffer, gridItems: water.gridItems.buffer, wideStart: water.wideStart.buffer, wideItems: water.wideItems.buffer, lake: water.lake ? water.lake.buffer : null, falls: water.falls.buffer };
+          transfer.push(water.segs.buffer, water.gridStart.buffer, water.gridItems.buffer, water.wideStart.buffer, water.wideItems.buffer, water.falls.buffer); if (water.lake) transfer.push(water.lake.buffer);
         }
         self.postMessage(msg, transfer);
       } else {
@@ -254,8 +254,8 @@ self.onmessage = async (ev) => {
       if (latest.get(m.key) !== m.id) return;
       const msg = { type: 'mosaic', id: m.id, key: m.key, kind: m.kind, zoom, tx, ty, n, buffer: out.buffer }, transfer = [out.buffer];
       if (water) {
-        msg.water = { info: water.info, segs: water.segs.buffer, gridStart: water.gridStart.buffer, gridItems: water.gridItems.buffer, lake: water.lake ? water.lake.buffer : null, falls: water.falls.buffer };
-        transfer.push(water.segs.buffer, water.gridStart.buffer, water.gridItems.buffer, water.falls.buffer); if (water.lake) transfer.push(water.lake.buffer);
+        msg.water = { info: water.info, segs: water.segs.buffer, gridStart: water.gridStart.buffer, gridItems: water.gridItems.buffer, wideStart: water.wideStart.buffer, wideItems: water.wideItems.buffer, lake: water.lake ? water.lake.buffer : null, falls: water.falls.buffer };
+        transfer.push(water.segs.buffer, water.gridStart.buffer, water.gridItems.buffer, water.wideStart.buffer, water.wideItems.buffer, water.falls.buffer); if (water.lake) transfer.push(water.lake.buffer);
       }
       self.postMessage(msg, transfer);
     } else {

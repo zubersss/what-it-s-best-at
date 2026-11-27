@@ -37,7 +37,7 @@ export class TileRings {
     this.worker.postMessage({ type: 'reset' });
     // A made world (terrain.tiles.made: its lakes, its land rule): the worker makes its
     // mosaics by rule from the world's own bundled elevation instead of asking a service.
-    const md = t.made ? { key: world.id, radius: world.radius, seed: t.made.seed ?? 0, land: t.made.land || null,
+    const md = t.made ? { key: world.id, radius: world.radius, seed: t.made.seed ?? 0, land: t.made.land || null, sea: (() => { const l = (world.terrain.layers || []).find((q) => q.op === 'sea'); return l ? { level: l.level ?? 0, beach: l.beach ?? 1 } : null; })(),
       dem: { ...world.terrain.dems[0], url: new URL(world.terrain.dems[0].url, base).href },
       lakes: t.made.lakes ? new URL(t.made.lakes, base).href : null, levels: t.made.levels ? new URL(t.made.levels, base).href : null,
       rain: t.hydrology?.rain ? new URL(t.hydrology.rain, base).href : null } : null;
@@ -162,7 +162,7 @@ export class TileRings {
         else if (w && !r.redone && this.rings.some((q) => q !== r && el(q) && q.zoom < r.zoom)) { r.redone = true; r.tx = null; }
       }
       this._give(r, { data: new Int16Array(m.buffer), width: W, height: W, zoom: m.zoom, tx: m.tx, ty: m.ty, waterOnly: !!m.waterOnly,
-        water: w ? { segs: new Float32Array(w.segs), gridStart: new Int32Array(w.gridStart), gridItems: new Int32Array(w.gridItems), lake: w.lake ? new Uint16Array(w.lake) : null, falls: w.falls ? new Float32Array(w.falls) : null } : null });
+        water: w ? { segs: new Float32Array(w.segs), gridStart: new Int32Array(w.gridStart), gridItems: new Int32Array(w.gridItems), wideStart: w.wideStart ? new Int32Array(w.wideStart) : null, wideItems: w.wideItems ? new Int32Array(w.wideItems) : null, lake: w.lake ? new Uint16Array(w.lake) : null, falls: w.falls ? new Float32Array(w.falls) : null } : null });
     }
     else this._give(r, { data: new Uint8Array(m.buffer), mips: m.mips.map((b) => new Uint8Array(b)), width: W, zoom: m.zoom, tx: m.tx, ty: m.ty,
       cover: m.cover ? { cls: new Uint8Array(m.cover.cls), tall: new Uint8Array(m.cover.tall), closed: new Uint8Array(m.cover.closed) } : null });

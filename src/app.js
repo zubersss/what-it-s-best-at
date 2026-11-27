@@ -14,7 +14,8 @@ import { Pollen } from './life/pollen.js';
 import { Falls } from './water/falls.js';
 import { Governor, MODES, FRAME } from './perf/governor.js';
 import { Benchmark } from './perf/benchmark.js';
-import { waveHeightAt, waveScale } from './water/waves.js';
+import { waveHeightAt, waveScale, detailUvAt } from './water/waves.js';
+import { surfTurn, surfHeight, surfLift } from './water/surf.js';
 import { Trees } from './life/trees.js';
 import { FarForest } from './life/farForest.js';
 import { Leaves, Petals } from './life/leaves.js';
@@ -193,6 +194,8 @@ export class App {
         const u = this.terrain.shared.uWind.value, w = this.terrain.shared.uWave.value;
         pos.set(d[0], d[1], d[2]).multiplyScalar(world.radius + h);
         sink -= waveHeightAt(pos, world.radius, w.z, u, u.w) * Math.min(1, (depth - 0.15) / 1.5) * (1 - 0.8 * inland) * w.y;
+        // (and the surf's lift toward the sea's shore: the rule the ground's shader lifts the water by)
+        if (inland < 1 && depth < 14) { const q = detailUvAt(pos, world.radius, this._duv || (this._duv = [0, 0])); sink -= surfLift(surfTurn(q[0], q[1], depth, w.z), depth, surfHeight(w.x)) * (1 - inland) * w.y; }
       }
       this._sink = sink + drop;
       return h - sink - drop;

@@ -49,6 +49,7 @@ export function createHeightSource(world, rasters = []) {
       for (let i = 0; i < n; i++) fns[i](c);
       hs.baseSlope = c.slope; hs.waterDepth = c.water; hs.flowE = c.flowE; hs.flowN = c.flowN;
       hs.nearWater = env.dem ? (env.dem.lakeL > -1e8 ? 0 : env.dem.rivS < 1e8 ? Math.max(0, env.dem.rivS - env.dem.rivA) : 1e9) : 1e9;
+      hs.nearRiver = env.dem && env.dem.rivS < 1e8 ? Math.max(0, env.dem.rivS - env.dem.rivA) : 1e9;
       return c.h;
     },
     // No ground within the world's shadow range of this place is higher than this (m above datum).
@@ -57,6 +58,18 @@ export function createHeightSource(world, rasters = []) {
       let top = env.dem.topAt(x, y, z) + headroom;
       for (let i = 0; i < tops.length; i++) top += tops[i](x, y, z, reach);
       return Math.min(terrain.maxAltitude, top);
+    },
+    // The far ground's share of river (the patch builder alone asks): with `half` the half width
+    // a sample stands for (m; 0: off), height() leaves a river narrower than that uncut and
+    // riverNear() answers the nearest river in reach (see DemSet, cover). (setCover is the land cover's.)
+    setRiverCover(half) { if (env.dem) env.dem.cover = half; },
+    // After height(), with a cover set: out[0] how far the nearest river's middle line is (m; 1e9:
+    // none in reach, or a lake's or the sea's water here), [1] its half width, [2] its depth in
+    // mid stream, [3] [4] its flow in mid stream (m/s east, north).
+    riverNear(out) {
+      const d = env.dem;
+      if (!d || d.covS > 1e8 || d.lakeS >= 1) { out[0] = 1e9; return out; }
+      out[0] = d.covS; out[1] = d.covA; out[2] = d.covD; out[3] = d.covE; out[4] = d.covN; return out;
     },
     // A ring of map tiles arrives, moves or goes (terrain/tiles; see DemSet.setRing).
     setRing(slot, raster) { env.dem?.setRing(slot, raster); },
@@ -80,6 +93,8 @@ export function createHeightSource(world, rasters = []) {
     },
     // After height(): metres from the nearest river's or lake's edge (1e9: none near).
     nearWater: 1e9,
+    // After height(): metres from the nearest river's edge alone (1e9: none near).
+    nearRiver: 1e9,
     // Optional speed-up when many nearby points follow: (x,y,z) unit direction of the
     // region's centre and its radius in metres. Call release() before querying elsewhere.
     prepare(x, y, z, rho) { for (const f of regional) f.prepare(x * radius, y * radius, z * radius, rho); },
