@@ -191,7 +191,8 @@ character, and sends the links.
 | Job | Brief | Branch | Session | Says when done |
 | --- | --- | --- | --- | --- |
 | The sky's known faults (empty noon sky first, the far storm, the disc, the weather views, clouds from above) | `sky-faults.md` | `ccr-6f4f9272-sky-faults` | `session_01R5Bri3JsgPNqFWmnrwMeAB` | `SKY-FAULTS-DONE` |
-| Living water (roadmap 12.3: rivers that run, rapids and falls, water from the air, surf and tide, puddles and swollen streams) | `living-water.md` | `ccr-6f4f9272-water` | `session_01R5Brhz8fvucj2b9DbzR7fj` | `WATER-DONE` |
+| Living water (roadmap 12.3) **parked 2026-11-27 08:05** to free a session for the speed job: piece 1 (rivers that run) is merged and on the link; waterfalls and the far ribbon are done on its branch (head 1df6f92, last commit seen to draw: e395cfe); the sea, puddles and spate are built and never pictured. To take it up again: a new session from `living-water-report.md`, "Parked on 2026-11-27" | `living-water.md` | `ccr-6f4f9272-water` | `session_01R5Brhz8fvucj2b9DbzR7fj` (archived) | parked |
+| Haven at a steady 30 on the phone (counts first, then cuts, then the governor) | `phone-speed-2.md` | `ccr-6f4f9272-speed` | `session_01R5Bri3Vc6gREhGM2yuwUwB` | `SPEED-DONE` |
 | Seasons (roadmap 12.4: a year of its own and one rule, leaves that turn, fall and pile up, snow that comes and goes, grass and flowers by the season) | `seasons.md` | `ccr-6f4f9272-seasons` | `session_01R5Bri2SJsiHEniM3EYxxpQ` | `SEASONS-DONE` |
 
 Water and seasons both edit the ground's shader (`terrainMaterial.js`): each keeps its
