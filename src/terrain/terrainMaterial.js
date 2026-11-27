@@ -930,7 +930,7 @@ void main() {
   // holds the share of the texel it covers (chunkBuilder.js): that share of the pixel is water,
   // as deep as the river is where it is)
   if (river > 0.0) { water = max(water, river); waterDepth /= max(river, 0.2); }
-  float foam = 0.0, waveRough = 0.0;
+  float foam = 0.0, waveRough = 0.0, inlandW = 0.0;
   if (water > 0.0) {
     // waves: the long ones as slopes (the surface itself rises with them near the
     // traveller, see the vertex shader), ripples from the detail texture on top
@@ -942,7 +942,11 @@ void main() {
     int nw = ${WAVE_STEPS.map(([n, len]) => `mpp < ${(len / 5).toFixed(2)} ? ${n} : `).reverse().join('')}0;
     float inland = smoothstep(2.0, 6.0, vHeight - uSea.y);                  // lakes and rivers: small waves
     vec3 wv = wave(vDetailUv, uWave.z, wind2, uWave.x * shoal * (1.0 - 0.8 * inland), nw);
-    waveRough = uWave.x * 0.5 * smoothstep(0.02, 0.3, fw);
+    // (living water: lakes and rivers have an eighth of the sea's waves, and so of the roughness
+    // they give its glint: with the sea's, a river looked at toward the Sun was one pale band
+    // from bank to bank, a road of gravel from the air)
+    waveRough = uWave.x * 0.5 * smoothstep(0.02, 0.3, fw) * (1.0 - 0.8 * inland);
+    inlandW = inland;
     vec2 drift = uWave.z * vec2(0.011, 0.006);
     float near = 1.0 - smoothstep(0.02, 0.4, fw);
     vec2 rip = vec2(0.0);
@@ -1002,7 +1006,8 @@ void main() {
     vec3 bed = mix(vec3(0.30, 0.27, 0.20), vec3(0.12, 0.25, 0.23), waterFar);
     // (from the air the deep water is a muted slate-blue, not the deep sea's pure blue: a
     // lake at 3 km was a paint-bucket fill of royal blue outside the picture's palette)
-    vec3 deepC = mix(uSeaColor, dot(uSeaColor, vec3(0.3, 0.55, 0.15)) * vec3(0.8, 1.0, 1.2), 0.45 * waterAir);
+    // (an inland water's own blue is greyer still from the air: most of what a lake shows from there is the sky)
+    vec3 deepC = mix(uSeaColor, dot(uSeaColor, vec3(0.3, 0.55, 0.15)) * vec3(0.8, 1.0, 1.2), (0.45 + 0.35 * inland) * waterAir);
     vec3 body = bed * through + deepC * (1.0 - through.b);
     // (and from the air, one fade from pale green shallows to the slate middle: red, green and
     // blue lost at three depths made a river of changing depth cycle through sand, yellow,
@@ -1117,6 +1122,10 @@ void main() {
     // straight down. Each ripple read the painted sky in its own direction, and a river
     // from 1 km was a rainbow of lilac, mint and pink.)
     Rv = normalize(mix(Rv, up, waterAir)); Fv = max(Fv, 0.1 * waterAir);
+    // (living water: a lake or a river seen from the air takes more of the sky's own colour than
+    // the sea does, and less of its own: a lake from 3 km was a fill of royal blue, a river a band
+    // of the bed's grey)
+    Fv = max(Fv, 0.3 * waterAir * inlandW);
     col += water * (1.0 - foam) * (sunHere * shadow * (a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0) * 0.25 / max(dot(N, V), 0.2)) + Fv * skyLight(Rv, up) / (PI * mix(1.0, uSkyBoost, waterAir)));
   } else if (uGloss.x > 0.0 || vCloud.z > 0.01) {
     // the Sun's sheen on ice, and on ground the rain has wetted: a broad glint toward the

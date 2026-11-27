@@ -110,5 +110,6 @@ vec3 riverBody(float depth, float air) {
   vec3 through = exp(-vec3(0.55, 0.20, 0.16) * (depth * 2.3));
   vec3 body = vec3(0.20, 0.185, 0.14) * through + vec3(0.030, 0.062, 0.048) * (1.0 - through.g);
   // (from the air: one fade from pale green shallows to a dark green middle)
-  return mix(body, mix(vec3(0.045, 0.085, 0.075), vec3(0.11, 0.20, 0.175), exp(-0.5 * depth)), air);
+  // (teal, not the bed's grey: with the sky's sheen over it a grey river from the air was a road)
+  return mix(body, mix(vec3(0.035, 0.085, 0.095), vec3(0.09, 0.20, 0.20), exp(-0.5 * depth)), air);
 }`;
