@@ -749,7 +749,11 @@ finished benchmark leaves its text in `window.__benchResult`.
   joins it had ragged holes; drawn two-sided its inner face showed through as dark rags.
   What works: carry by the body's parts, add the cloth's shift, blend garments across their
   joins, draw the outside only; and the cloth must turn the surface as well as move it (moved
-  alone, every carved fold was sheared into crumpled foil). And measure a tear before guessing at it: a count of edges
+  alone, every carved fold was sheared into crumpled foil). The game's poses must keep the
+  limbs where the sculpt holds them wherever its clothes hang free (arms brought in to the
+  sides pressed each sleeve through the skirt), and skin belongs to the body alone (hands
+  half given to the sleeve's cloth were drawn out of shape). Look at the game's own standing
+  pose, not only the sculpt's stance and the poses that are fun. And measure a tear before guessing at it: a count of edges
   drawn out in a pose, by cause (`node scripts/hero-bind-test.mjs --list`), named the fused
   joins in one run after three guesses had not.
 - Look at the game as the player gets it, with no switch in the URL. The sky's field fell back
