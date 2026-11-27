@@ -11,7 +11,7 @@ export const RIVER_STRIDE = 14;
 // A ring that brings water only answers for the places at least this many pixels inside its
 // mosaic; outside that box the coarser ring answers. (The tile worker makes the rivers of
 // both meet on the box's edge: tiles/hydrology.js, "joined to the coarser mosaic".)
-export const RING_INSET = 20;
+export const RING_INSET = 24;          // (a whole number of a coarser ring's pixels, eight of this one's to one: a coarser river that runs along a row of its map does not run along the box's edge)
 // The far ground's share of river (cover, below): a ring's wider grid lists every stretch
 // within this many pixels of a cell (packWater).
 export const RIVER_REACH = 4;

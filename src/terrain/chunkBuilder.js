@@ -2,9 +2,18 @@
 // Layout produced here must match terrainMaterial.js and chunkPool.js.
 import { faceToDir, nodeEdge } from './cubeSphere.js';
 import { toHalf } from './halfFloat.js';
+import { FLOW_UNIT } from '../water/river.js';
 
-// Running water in the normal map: this many m/s of flow to one (see build, and FLOW_UNIT in terrainMaterial.js).
-export const FLOW_UNIT = 16;
+// Running water in the normal map (read by riverShare and riverFlow in water/river.js): the
+// normal x (1 + cv) + the flow x 2 cv / FLOW_UNIT, cv being the share of the texel that is
+// river. n: the surface's normal; d: the place's direction from the world's centre; fe, fn:
+// the flow (m/s east, north). Writes out[0..2].
+export function riverNormal(n, d, fe, fn, cv, out) {
+  const el = 1 / (Math.hypot(d[0], d[1]) || 1), ex = -d[1] * el, ey = d[0] * el;          // east; north = up x east
+  const kx = -d[2] * ey, ky = d[2] * ex, kz = d[0] * ey - d[1] * ex, f2 = 2 * cv / FLOW_UNIT;
+  out[0] = (1 + cv) * n[0] + (ex * fe + kx * fn) * f2; out[1] = (1 + cv) * n[1] + (ey * fe + ky * fn) * f2; out[2] = (1 + cv) * n[2] + kz * fn * f2;
+  return out;
+}
 
 export function vertexCount(G) { return (G + 1) * (G + 1) + 4 * (G + 1); }
 
@@ -204,7 +213,7 @@ export class ChunkBuilder {
     // World-space normal map (RGBA16F): xyz normal, a = cavity occlusion (on water: 1 + depth). Its mip maps are
     // made here too and follow it in the same array, level after level: asking the GPU to
     // build them costs a render job per patch (and it cannot do one layer of a texture array).
-    const T = NR + 1, nf = this.nf[0];
+    const T = NR + 1, nf = this.nf[0], rvn = [0, 0, 0], rvd = [0, 0, 0];
     for (let j = 0; j < T; j++) for (let i = 0; i < T; i++) {
       const s = (j + 1) * M + i + 1;
       const l = (s - 1) * 3, r = (s + 1) * 3, d = (s - M) * 3, u = (s + M) * 3;
@@ -230,9 +239,8 @@ export class ChunkBuilder {
       const fe = Fl[s * 2], fn = Fl[s * 2 + 1], covered = Cv[s * 2] > 0, cv = covered ? Cv[s * 2] : Wd[s] > 0 && (fe !== 0 || fn !== 0) ? 1 : 0;
       let a4 = ao;
       if (cv > 0) {
-        const dx = D[s * 3], dy = D[s * 3 + 1], dz = D[s * 3 + 2], el = 1 / (Math.hypot(dx, dy) || 1), ex = -dy * el, ey = dx * el;          // east; north = up x east
-        const kx = -dz * ey, ky = dz * ex, kz = dx * ey - dy * ex, f2 = 2 * cv / FLOW_UNIT;
-        nx = (1 + cv) * nx + (ex * fe + kx * fn) * f2; ny = (1 + cv) * ny + (ey * fe + ky * fn) * f2; nz = (1 + cv) * nz + kz * fn * f2;
+        rvn[0] = nx; rvn[1] = ny; rvn[2] = nz; rvd[0] = D[s * 3]; rvd[1] = D[s * 3 + 1]; rvd[2] = D[s * 3 + 2];
+        riverNormal(rvn, rvd, fe, fn, cv, rvn); nx = rvn[0]; ny = rvn[1]; nz = rvn[2];
         if (covered) a4 = 1 + cv * Cv[s * 2 + 1];
       }
       const t = (j * T + i) * 4;

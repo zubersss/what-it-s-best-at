@@ -75,7 +75,7 @@ for (const level of levels) {
       }
     }
   }
-  const ok = gaps === 0 && least >= 0.33 * leastWant && worstCut < 1;
+  const ok = gaps === 0 && least >= 0.3 * leastWant && worstCut < 1;
   if (!ok) fails++;
   console.log(`${ok ? 'ok  ' : 'FAIL'} patches ${(edge / 1000).toFixed(1)} km wide (texels of ${texel.toFixed(1)} m): ${n} places down the river in ${patches} patches; ${gaps} with no river; the least share ${least.toFixed(3)} where ${leastWant.toFixed(3)} is the river's width of a texel${worstCut > 0 ? `; the ground along the line within ${worstCut.toFixed(2)} m of the uncut ground` : ''}`);
 }

@@ -182,7 +182,7 @@ async function waters(m, h, W, cell, lakes = null) {
     let coarse = null;
     for (let z = m.zoom - 1; z >= 0 && !coarse; z--) if (hydro.has(z)) coarse = await Promise.race([hydro.get(z), new Promise((r) => setTimeout(() => r(null), 8000))]);
     if (coarse && !coarse.res) coarse = null;
-    const { packed, mine } = mosaicWater(m, h, W, cell, { rain, seen, lakes, coarse });
+    const { packed, mine } = mosaicWater(m, h, W, cell, { rain, seen, lakes, coarse, radius: m.radius });
     hydro.set(m.zoom + 0.5, mine);          // (handed to those waiting by the caller: see `settle`)
     return packed;
   } catch (e) { console.warn('rivers and lakes:', e); return null; }

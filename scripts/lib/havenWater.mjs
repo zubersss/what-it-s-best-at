@@ -41,7 +41,7 @@ export function mosaicAt(at, minFlow, coarse = null, join = true) {
   const { mw, rain } = havenMade(), { zoom, tx, ty } = at, W = N * TILE, rows = 2 ** zoom;
   const h = mw.elevation(zoom, tx, ty, N), g = mw.grid(zoom, tx, ty);
   const cell = 2 * Math.PI * haven.radius / (TILE * rows) * Math.cos(Math.atan(Math.sinh(Math.PI * (1 - 2 * (ty + N / 2) / rows))));
-  const out = mosaicWater({ zoom, tx, ty, hydrology: { minFlow } }, h, W, cell, { rain, lakes: (x, y) => mw.lakeAt(g.lonOf(x), g.latOf(y)), coarse, join });
+  const out = mosaicWater({ zoom, tx, ty, hydrology: { minFlow, wind: haven.terrain.tiles.hydrology.wind ?? 0 } }, h, W, cell, { rain, lakes: (x, y) => mw.lakeAt(g.lonOf(x), g.latOf(y)), coarse, join, radius: haven.radius });
   return { ...out, h, W, cell, g, zoom, tx, ty };
 }
 

@@ -42,7 +42,8 @@ export default {
       made: { seed: 7, lakes: 'data/haven_lakes_4096.png', levels: 'data/haven_lakes.json' },
       // (minFlow: what is drawn as a river from each ring, m3/s)
       elevation: { rings: [{ zoom: 2, below: 2.5e5, minFlow: 30 }, { zoom: 5, below: 4.0e4, minFlow: 3 }, { zoom: 8, below: 6.0e3, minFlow: 0.15 }] },
-      hydrology: { rain: 'data/haven_rain_720.u8' },
+      // (wind: rivers swing up to this many metres from side to side of their valleys: hydrology.js, windings)
+      hydrology: { rain: 'data/haven_rain_720.u8', wind: 28 },
       // (coarser and wider from higher up: 48 m a pixel over 49 km below 5 km, to the whole world above 150 km)
       pictures: { colour: { zoom: 7, below: 1.0e12, zooms: [[7, 5.0e3], [6, 1.2e4], [5, 3.0e4], [4, 6.0e4], [3, 1.5e5], [2, 1.0e12]], cover: { made: true } } },
     },

@@ -135,6 +135,9 @@ export function hydrology(h, W, cell, rain, opts = {}) {
       for (let y = Math.max(0, cy - JOIN_SHUT); y <= Math.min(W - 1, cy + JOIN_SHUT); y++) for (let x = Math.max(0, cx - JOIN_SHUT); x <= Math.min(W - 1, cx + JOIN_SHUT); x++) {
         const r = Math.hypot(x - cx, y - cy); if (r >= JOIN_SHUT || r === 0) continue;
         const d = Math.min(x - RING_INSET, W - RING_INSET - x, y - RING_INSET, W - RING_INSET - y); if (d >= JOIN_TAPER) continue;
+        // (not in the mosaic's outermost pixels: a funnel cut down to the edge was a way out
+        // of the mosaic beside a river that was coming in, and its water left there)
+        if (d < 5 - RING_INSET) continue;
         const o = y * W + x; if (h[o] <= 0 || !Number.isNaN(jl[o])) continue;
         const cut = h[o] - JOIN_DEPTH * (d <= 0 ? 1 : 1 - d / JOIN_TAPER) * (1 - r / JOIN_SHUT) * 0.9;
         if (cut < hr[o]) hr[o] = cut;
@@ -353,7 +356,7 @@ export function hydrology(h, W, cell, rain, opts = {}) {
   // little into the rise and stands a little over the dip; held to the filled level it
   // crossed every hollow on a causeway, held to the lowest ground so far it ran on in a
   // trench). A lake's surface, the sea's, and the river it joins are met exactly.
-  const lev = new Float32Array(N);
+  const lev = new Float32Array(N), wind = opts.wind || null, wv = [0, 0];
   const outside = (i) => { const x = i % W, y = (i - x) / W; return x < RING_INSET || y < RING_INSET || x >= W - RING_INSET || y >= W - RING_INSET; };
   const trace = (start) => {
     const cells = [], want = [], wgt = [];
@@ -392,7 +395,10 @@ export function hydrology(h, W, cell, rain, opts = {}) {
       if (!(done[c] && lev[c] && k === cells.length - 1 && k > 0)) lev[c] = bv[b];
       // (a cell of the coarser river's trench: the river lies on that river's own line)
       const on = jl !== null && !Number.isNaN(jl[c]);
-      pts.push(on ? jx[c] : x + 0.5, on ? jy[c] : (c - x) / W + 0.5, bv[b], q[k === cells.length - 1 && k > 0 ? cells[k - 1] : c]);
+      let px = on ? jx[c] : x + 0.5, py = on ? jy[c] : (c - x) / W + 0.5;
+      // (bends: see windings. Not on the coarser river's line, which has its own already.)
+      if (wind && !on) { wind(px, py, wv); px += wv[0]; py += wv[1]; }
+      pts.push(px, py, bv[b], q[k === cells.length - 1 && k > 0 ? cells[k - 1] : c]);
     }
     if (pts.length >= 8) {
       // (where another river comes in, by cell: no fall is made just above one, see falls())
@@ -470,6 +476,37 @@ function smooth(p) {
   // the level never rises along the way down (the cutting cannot make it, but the ends can)
   for (let i = 1, n = p.length / 4; i < n; i++) if (p[i * 4 + 2] > p[(i - 1) * 4 + 2]) p[i * 4 + 2] = p[(i - 1) * 4 + 2];
   return p;
+}
+
+// Windings. Water is routed from cell to cell of the map in eight directions, and the made
+// world's own valleys were cut the same way: a river ran down a valley as if by a ruler.
+// Real water swings from side to side of its valley floor. So every point of every river's
+// line is moved by a field of the place: two sizes of smooth noise of where the point is in
+// the world (not of the river, nor of the mosaic: a coarser and a finer mosaic move the same
+// place the same way, and a river that comes in is moved as the one it joins at the place
+// they meet). windings(m, cell, amp) -> (x, y, out): out[0..1] the move in pixels at a
+// pixel of mosaic m ({ zoom, tx, ty }); amp: metres at the most; cell: metres a pixel.
+// (Sizes in turns of the world map, so by latitude a little shorter on the ground than
+// WIND_LONG and WIND_SHORT say: the map is Mercator's.)
+export const WIND_LONG = 420, WIND_SHORT = 130;          // metres from bend to bend at the equator, of the two sizes
+function vnoise2(x, y, seed, out) {
+  const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  let a = 0, b = 0;
+  for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) {
+    let h = Math.imul(xi + i, 0x27d4eb2d) ^ Math.imul(yi + j, 0x165667b1) ^ seed; h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d); h ^= h >>> 12; h = Math.imul(h, 0x297a2d39); h ^= h >>> 15;
+    const w = (i ? sx : 1 - sx) * (j ? sy : 1 - sy);
+    a += w * ((h & 0xffff) / 32767.5 - 1); b += w * (((h >>> 16) & 0xffff) / 32767.5 - 1);
+  }
+  out[0] = a; out[1] = b;
+}
+export function windings(m, cell, amp, circumference) {
+  const n = 256 * 2 ** m.zoom, kl = circumference / WIND_LONG, ks = circumference / WIND_SHORT, t = [0, 0], k = amp / cell;
+  return (x, y, out) => {
+    const u = (m.tx * 256 + x) / n, v = (m.ty * 256 + y) / n;
+    vnoise2(u * kl, v * kl, 0x51f15e, t); const ax = t[0], ay = t[1];
+    vnoise2(u * ks, v * ks, 0x2a9d3b, t);
+    out[0] = (ax * 0.75 + t[0] * 0.4) * k; out[1] = (ay * 0.75 + t[1] * 0.4) * k;
+  };
 }
 
 // Falls. A river's level as traced follows the map's ground, which is smooth: a steep reach
@@ -666,6 +703,8 @@ export function mosaicWater(m, h, W, cell, opts = {}) {
   const s = coarse ? 2 ** (coarse.zoom - m.zoom) : 1;
   const res = hydrology(h, W, cell, rainAt, {
     minFlow: m.hydrology.minFlow, lakes, lat: latOf, falls: opts.falls,
+    // (windings: where the world asks for them, m.hydrology.wind metres; opts.radius: the world's)
+    wind: m.hydrology.wind > 0 && opts.radius ? windings(m, cell, m.hydrology.wind, 2 * Math.PI * opts.radius) : null,
     // (the water map: the whole world, north first, from longitude -180)
     water: seen ? (x, y) => {
       const lon = (m.tx + x / TILE) / n, lat = latOf(y);

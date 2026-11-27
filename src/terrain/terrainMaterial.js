@@ -3,7 +3,6 @@
 // come from world.surface.
 import * as THREE from 'three';
 import { WAVE_GLSL, LIFTED, WAVE_STEPS } from '../water/waves.js';
-import { FLOW_UNIT } from './chunkBuilder.js';
 import { RIVER_GLSL } from '../water/river.js';
 import { SURF_GLSL } from '../water/surf.js';
 import { CONFIG } from '../config.js';
@@ -475,9 +474,9 @@ void main() {
   // chunkBuilder.js: what it has along the vertical above one is the share of the pixel
   // that is river (land and still water: a normal of length one, so none), what it has
   // across the vertical is the flow. The normal itself is put back.
-  float river = clamp((dot(nt.xyz, up) - 1.03) / 0.9, 0.0, 1.0);
+  float river = riverShare(nt.xyz, up);
   vec3 flowT = vec3(0.0);                       // the flow here (m/s, planet axes, along the ground)
-  if (river > 0.0) { flowT = nt.xyz - up * dot(nt.xyz, up); N = normalize(nt.xyz - flowT * river); flowT *= ${(FLOW_UNIT / 2).toFixed(1)}; }
+  if (river > 0.0) { flowT = riverFlow(nt.xyz, up); N = normalize(nt.xyz - (nt.xyz - up * dot(nt.xyz, up)) * river); }
   // (how far the detail tile's coordinates go in a pixel, from the place itself: the
   // coordinates jump by whole tiles from patch to patch, and their own change across a
   // patch's edge drew a hairline over the river there)
@@ -952,7 +951,10 @@ void main() {
     // --- living water, 2 of 2 (the water helper's block): a river runs (water/river.js)
     vec4 run = vec4(0.0);                       // xy its ripples' slope, z its streaks (0..1), w its speed (m/s)
     if (river > 0.0) {
-      run = riverRun(vDetailUv, dux, duy, vec2(dot(flowT, uTanU), dot(flowT, uTanV)), dot(uTanU, uTanV), uWave.z, near, uDetailMean.b, uWaterQ > 0.5);
+      // (how near, from the place itself: the tile's coordinates jump by whole tiles at a patch's
+      // edge, and the nearness read from them drew a bright hairline across the river there)
+      float nearR = 1.0 - smoothstep(0.02, 0.4, abs(dux.x) + abs(duy.x) + abs(dux.y) + abs(duy.y));
+      run = riverRun(vDetailUv, dux, duy, vec2(dot(flowT, uTanU), dot(flowT, uTanV)), dot(uTanU, uTanV), uWave.z, nearR, uDetailMean.b, uWaterQ > 0.5);
       // (after rain a river is in spate: rougher, whiter, and brown with what it carries; by how
       // wet the ground is at the place, which the weather's field lets dry over hours)
       run.xy *= 1.0 + 0.6 * vCloud.z; run.z = min(1.0, run.z * (1.0 + 0.8 * vCloud.z));

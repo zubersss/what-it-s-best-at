@@ -24,12 +24,19 @@
 //   uWave.z, which wraps at 14 400 s: a whole number of turns), so nothing jumps.
 // The texture is asked at a whole number of repeats a detail tile (RIVER_SCALE).
 const DETAIL_TILE = 64;          // metres: the same number as terrainMaterial.js's (which imports this file)
+export const FLOW_UNIT = 16;     // running water in the normal map: this many m/s of flow to one
 export const RIVER_T = 3;        // seconds a picture is carried before it is put back
 export const RIVER_SCALE = 3;    // repeats of the detail texture a tile: 21 m a repeat
 export const RIVER_LANES = 14;   // lanes a tile across the flow: 4.6 m from lane to lane, and finer ones between
 export const RIVER_STAND = 18;   // standing waves a tile along the flow, where it is fast: 3.6 m from crest to crest
 
 export const RIVER_GLSL = /* glsl */`
+// What the ground's normal map says of running water (chunkBuilder.js writes it: the normal
+// x (1 + the river's share of the texel) + the flow x 2 x that share / FLOW_UNIT):
+// the share of a pixel that is river (nothing on land and on still water, whose normal is
+// of length one), and the flow there (m/s, along the ground). up: the vertical at the place.
+float riverShare(vec3 n, vec3 up) { return clamp((dot(n, up) - 1.03) / 0.9, 0.0, 1.0); }
+vec3 riverFlow(vec3 n, vec3 up) { return (n - up * dot(n, up)) * ${(FLOW_UNIT / 2).toFixed(1)}; }
 // The lanes' profile across the flow (p: cycles), and its slope: three sines, the finer
 // ones dropped where a pixel is too wide for them (h: x the second's share, y the third's).
 vec2 riverLanes(float p, vec2 h) {

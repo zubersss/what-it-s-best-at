@@ -44,7 +44,7 @@ export class TileRings {
     this.made = md;
     (t.elevation?.rings || []).forEach((r, slot) => this.rings.push({ key: 'elevation' + slot, kind: 'elevation', slot, url: t.elevation.url, zoom: r.zoom, below: r.below ?? 1e12,
       // (rivers and lakes worked out from the elevation, if the world asks for them)
-      hydrology: t.hydrology ? { rain: new URL(t.hydrology.rain, base).href, water: t.hydrology.water ? new URL(t.hydrology.water, base).href : null, minFlow: r.minFlow ?? 1 } : null }));
+      hydrology: t.hydrology ? { rain: new URL(t.hydrology.rain, base).href, water: t.hydrology.water ? new URL(t.hydrology.water, base).href : null, minFlow: r.minFlow ?? 1, wind: t.hydrology.wind ?? 0 } : null }));
     // (zooms: a picture may be asked for coarser and wider the higher the traveller is, see update)
     for (const [name, p] of Object.entries(t.pictures || {})) this.rings.push({ key: 'picture:' + name, kind: 'picture', name, url: p.url, zoom: p.zoom, below: p.below ?? 1e12, zooms: p.zooms || null,
       cover: p.cover && p.cover.palette ? { ...p.cover, palette: new URL(p.cover.palette, base).href } : null });

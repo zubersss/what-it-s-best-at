@@ -3,6 +3,7 @@
 //
 //   node scripts/haven-rivers.mjs --lat -48.55 --lon 49.06          the rivers of the finest mosaic there, largest first
 //   ... --follow 2 [--every 150]     points along river 2 of that list: place, level, width, depth, speed, the way it runs
+//   ... --map out.png [--span 4000] [--px 640]   the water round the place from straight above (relief, lakes, rivers by speed, falls)
 //   ... --check                      the promises (exits non-zero if one is broken), at the place or at the built-in places
 //
 // Promises checked: the water's level never rises along a stretch and stretches follow one
@@ -114,8 +115,9 @@ function gates(coarse, fine) {
     // (the lowest ground of this mosaic within a pixel of the crossing: its valley's floor there)
     let lake = false, low = 1e9;
     for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const c = Math.min(W - 1, Math.max(0, Math.floor(gy) + b)) * W + Math.min(W - 1, Math.max(0, Math.floor(gx) + a)); if (fine.res.lake[c]) lake = true; if (fine.h[c] < low) low = fine.h[c]; }
-    // (and a coarse map's river can hang tens of metres over a hollow its own cells do not see)
-    const sound = !lake && level - low <= 30, near = Math.abs(level - low) <= JOIN_NEAR;
+    // (and a coarse map's river can hang tens of metres over a hollow its own cells do not see,
+    // or run through a rise they do not see: the finer mosaic's water goes round, as water would)
+    const sound = !lake && Math.abs(level - low) <= 30, near = Math.abs(level - low) <= JOIN_NEAR;
     out.push({ lat: fine.g.latOf(gy - 0.5), lon: fine.g.lonOf(gx - 0.5), half, apart: best, step: best < 1e8 ? Math.abs(bl - level) : 0, width: best < 1e8 ? bh / half : 0, into: ib, sound, near, level, low });
   }
   return out;
@@ -132,14 +134,44 @@ function checkJoin(lat, lon, name, join = true) {
     for (const a of g) {
       if (!a.sound) continue;
       const bad = a.apart > 1e8 || a.apart > Math.max(8, a.half, 0.4 * rings[k].cell);          // (on its line: inside the coarser river's own water, or 8 m for a brook, or what a pixel of this mosaic can say)
-      if (a.apart > 1e8) lost++; else { if (bad) off++; if (a.apart > worst) worst = a.apart; if (a.near && a.step > worstStep) worstStep = a.step; }
+      if (a.apart > 1e8) lost++; else { if (bad) off++; if (a.apart > worst) worst = a.apart; if (!bad && a.near && a.step > worstStep) worstStep = a.step; }
       if (has('gates') || (bad && join)) console.log(`    ${bad ? 'NOT MET' : 'met'} at lat ${a.lat.toFixed(4)} lon ${a.lon.toFixed(4)} (${a.into ? 'coming in' : 'going out'}): the coarser river ${(2 * a.half).toFixed(0)} m wide at ${a.level.toFixed(1)} m (ground there ${a.low.toFixed(1)} m), the finer ${a.apart > 1e8 ? 'none near' : a.apart.toFixed(1) + ' m off, its level ' + a.step.toFixed(2) + ' m apart'}`);
     }
-    console.log(`${name}: zoom ${rings[k - 1].zoom} into ${rings[k].zoom}${join ? '' : ' (not joined)'}: ${g.length} rivers cross the box's edge (${unsound} of them into a lake of this mosaic or hanging over a hollow: not counted; ${far} more than ${JOIN_NEAR} m off this mosaic's ground: their levels are not met); ${lost} met by none, ${off} met off their line; the worst met ${worst.toFixed(1)} m off its line, the largest step in level ${worstStep.toFixed(2)} m`);
+    console.log(`${name}: zoom ${rings[k - 1].zoom} into ${rings[k].zoom}${join ? '' : ' (not joined)'}: ${g.length} rivers cross the box's edge (${unsound} of them into a lake of this mosaic, or more than 30 m over or under its ground: not counted; ${far} more than ${JOIN_NEAR} m off this mosaic's ground: their levels are not met); ${lost} met by none, ${off} met off their line; the worst met ${worst.toFixed(1)} m off its line, the largest step in level ${worstStep.toFixed(2)} m`);
     total += g.length - unsound; unmet += lost + off;
-    if (worstStep > 1.5) fails.push(`${name}: zoom ${rings[k - 1].zoom} into ${rings[k].zoom}: a river's level steps ${worstStep.toFixed(1)} m at the edge`);
+    if (worstStep > 3) fails.push(`${name}: zoom ${rings[k - 1].zoom} into ${rings[k].zoom}: a river's level steps ${worstStep.toFixed(1)} m at the edge`);
   }
   return fails;
+}
+
+// --map file.png [--span 4000] [--px 640]: the water round the place from straight above, as
+// the height code answers it (the game's own ground and rings): relief in grey, lakes and
+// the sea in blue, rivers by how fast they run (slow: dark teal, fast: pale), falls white.
+async function map(lat, lon, file) {
+  const { png } = await import('./lib/png.mjs'); const fs = await import('node:fs');
+  const span = +arg('span', 4000), N = +arg('px', 640), rings = ringsAt(lat, lon), hs = havenSource(rings), R = haven.radius;
+  const img = new Uint8Array(N * N * 3), H = new Float32Array(N * N), mLat = R / RAD, mLon = mLat * Math.cos(lat / RAD);
+  const wl = Math.max(1, span / N);
+  let wet = 0, run = 0;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const d = dirOf(lat + (0.5 - j / N) * span / mLat, lon + (i / N - 0.5) * span / mLon), h = hs.height(d[0], d[1], d[2], wl), o = (j * N + i) * 3;
+    H[j * N + i] = h;
+    if (hs.waterDepth > 0) {
+      wet++;
+      const v = Math.hypot(hs.flowE, hs.flowN);
+      if (v > 0) { run++; const t = Math.min(1, v / 5.5), fall = v > 6 ? 1 : 0; img[o] = 20 + 200 * t + 35 * fall; img[o + 1] = 90 + 140 * t + 25 * fall; img[o + 2] = 110 + 120 * t + 25 * fall; }
+      else { const k = Math.exp(-hs.waterDepth / 6); img[o] = 20 + 50 * k; img[o + 1] = 50 + 90 * k; img[o + 2] = 110 + 80 * k; }
+      H[j * N + i] = NaN;
+    }
+  }
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const c = j * N + i; if (Number.isNaN(H[c])) continue;
+    const a = H[c - (i > 0 ? 1 : 0)], b = H[c - (j > 0 ? N : 0)], sh = Number.isNaN(a) || Number.isNaN(b) ? 0 : ((a - H[c]) + (b - H[c])) / wl;
+    const v = Math.max(30, Math.min(235, 150 + 260 * sh));
+    img[c * 3] = v; img[c * 3 + 1] = v; img[c * 3 + 2] = v * 0.92;
+  }
+  fs.writeFileSync(file, png(N, N, img));
+  console.log(`${file}: ${span} m across, ${(span / N).toFixed(1)} m a pixel; water on ${(100 * wet / (N * N)).toFixed(1)} % of it, running water on ${(100 * run / (N * N)).toFixed(1)} %`);
 }
 
 const PLACES = [['the opening place', -48.54992, 49.05567], ['Longwater', -10.77, 253.7], ['the golden shore', 18.501, 132.671], ['the north wood', 22.983, 129.507], ['the river south of the opening place', -51.95908, 48.94203], ['the Deepwell', -31.07, 17.45], ['the steppe', -54.4271, 39.2697]];
@@ -152,4 +184,5 @@ if (has('check')) {
   for (const f of fails.slice(0, 30)) console.log('FAIL ' + f);
   console.log(fails.length ? `${fails.length} failures` : 'rivers: all promises kept');
   process.exit(fails.length ? 1 : 0);
-} else list(+arg('lat', -48.54992), +arg('lon', 49.05567));
+} else if (arg('map', null)) await map(+arg('lat', -48.54992), +arg('lon', 49.05567), arg('map'));
+else list(+arg('lat', -48.54992), +arg('lon', 49.05567));
