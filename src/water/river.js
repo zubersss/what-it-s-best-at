@@ -68,7 +68,7 @@ vec4 riverRun(vec2 uv, vec2 dux, vec2 duy, vec2 f, float g, float t, float near,
   vec2 lane = seen > 0.0 ? riverStripes(across * ${RIVER_LANES.toFixed(1)}, uv, hs, whole) : vec2(0.0);
   // --- standing waves: where the water is fast it heaps up in ridges across the flow that
   // stay where they are while the water runs through them (the same kind of stripes, turned)
-  float fast = smoothstep(2.2, 4.2, sp) * seen;
+  float fast = smoothstep(1.8, 3.4, sp) * seen;
   vec2 stand = fast > 0.0 ? riverStripes(along * ${RIVER_STAND.toFixed(1)}, uv, hs, whole) : vec2(0.0);
   // --- the dashes and the ripples: the texture carried down stream
   vec3 s = vec3(0.0);
@@ -87,14 +87,14 @@ vec4 riverRun(vec2 uv, vec2 dux, vec2 duy, vec2 f, float g, float t, float near,
   // the water they cover
   float crest = smoothstep(0.45, 1.2, lane.x), dash = mix(1.0, smoothstep(-0.06, 0.04, s.b), near);
   float heap = fast * smoothstep(0.7, 1.4, stand.x) * smoothstep(-0.4, 0.6, lane.x);
-  return vec4(rip, mix(0.11 + 0.2 * smoothstep(2.2, 4.2, sp), max(crest * dash, heap), seen), sp);
+  return vec4(rip, mix(0.11 + 0.14 * smoothstep(1.8, 3.4, sp), max(crest * dash, heap), seen), sp);
 }
 // The pale lines the current draws out: a faint thread of bubbles in slow water, white water
 // as it quickens; none in a pool, and none in the shallows at the bank.
 float riverFoam(vec4 run, float depth) {
-  float k = 0.35 * smoothstep(0.25, 1.2, run.w) + 0.6 * smoothstep(2.4, 6.0, run.w);
+  float k = 0.35 * smoothstep(0.25, 1.2, run.w) + 0.5 * smoothstep(2.2, 5.0, run.w);
   // (churned white at a fall's foot, and the fall itself one white sheet: at the top of what a speed can be)
-  float churn = 0.55 * smoothstep(3.6, 5.2, run.w), sheet = smoothstep(5.6, 7.4, run.w);
+  float churn = 0.6 * smoothstep(4.6, 5.5, run.w), sheet = smoothstep(5.8, 7.4, run.w);
   return max(mix(run.z, 1.0, churn) * k, 0.94 * sheet) * smoothstep(0.03, 0.12, depth);
 }
 // A river's own colour (not the sea's): its bed of wet stones through shallow water, a

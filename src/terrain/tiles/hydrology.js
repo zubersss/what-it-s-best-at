@@ -30,12 +30,13 @@ export function runoff(mm) { const k = (mm - 150) / 1400; return mm * (k < 0 ? 0
 export function riverWidth(q) { return 5.5 * Math.sqrt(q); }
 export function riverDepth(q) { return 0.32 * Math.pow(q, 0.33); }
 // How fast a river runs in mid stream (m/s) by the fall of its water (m a metre) and its
-// depth (m): Manning's rule for a rough natural bed. Never quite still (a pool drifts) and
-// never faster than falling water is worth drawing. The one rule of a river's speed: the
+// depth (m): Manning's rule for a bed of boulders and steps (a mountain brook on a slope of
+// one in six runs at some 3 m/s, not at the 5 a smooth channel would give). Never quite
+// still (a pool drifts); faster than FLOW_RUN only at a fall and in the pool at its foot. The one rule of a river's speed: the
 // stretches carry it (packWater), the height code hands it on (DemSet, flowAcross), the
 // ground's picture and whatever the water carries read it there.
-export const FLOW_MIN = 0.12, FLOW_MAX = 8, FLOW_FOOT = 5;          // (FLOW_FOOT: at a fall's foot, in its pool)
-export function flowSpeed(fall, depth) { const v = 22 * Math.pow(depth > 0.05 ? depth : 0.05, 2 / 3) * Math.sqrt(fall > 0 ? fall : 0); return v < FLOW_MIN ? FLOW_MIN : v > FLOW_MAX ? FLOW_MAX : v; }
+export const FLOW_MIN = 0.12, FLOW_RUN = 5, FLOW_FOOT = 5.5, FLOW_MAX = 8;          // (FLOW_RUN: the fastest a river runs down its bed; FLOW_FOOT: at a fall's foot, in its pool; FLOW_MAX: a fall itself)
+export function flowSpeed(fall, depth) { const v = 14 * Math.pow(depth > 0.05 ? depth : 0.05, 2 / 3) * Math.sqrt(fall > 0 ? fall : 0); return v < FLOW_MIN ? FLOW_MIN : v > FLOW_RUN ? FLOW_RUN : v; }
 // What open water gives to the air in a year (m), by latitude (degrees) and the year's rain
 // (mm): more toward the equator, more in dry air.
 export function evaporation(lat, mm) { const c = Math.cos(lat * Math.PI / 180), dry = 1 - mm / 800; return 1.6 * Math.pow(c > 0 ? c : 0, 1.5) * (1 + 0.6 * (dry > 0 ? dry : 0)); }

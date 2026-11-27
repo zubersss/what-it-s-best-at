@@ -52,20 +52,20 @@ export class Falls {
         out vec4 vDim;
         void main() {
           vec3 lip = uFalls.xyz + aPos, up = normalize(uCamPlanetPos + lip), right = normalize(cross(up, aDir));
-          float half = aDim.x, drop = aDim.y, dist = length(lip), k = 1.0;
+          float halfW = aDim.x, drop = aDim.y, dist = length(lip), k = 1.0;
           vec3 rel;
           if (aDim.z < 0.5) {
-            // the sheet. Its width on the picture: never under a pixel and a half (thinner in strength instead)
-            float px = 2.0 * half * uFallsView.x * abs(projectionMatrix[1][1]) * 0.5 / max(dist, 1.0), drawn = max(px, 1.5);
-            k = px / drawn; half *= drawn / max(px, 1e-4);
+            // the sheet. Its width on the picture: never under a pixel and a halfW (thinner in strength instead)
+            float px = 2.0 * halfW * uFallsView.x * abs(projectionMatrix[1][1]) * 0.5 / max(dist, 1.0), drawn = max(px, 1.5);
+            k = px / drawn; halfW *= drawn / max(px, 1e-4);
             // (a little wider at its foot, where the water has spread)
-            rel = lip + right * ((position.x - 0.5) * 2.0 * half * (1.0 + 0.25 * position.y)) + (aDir * ${LEAN.toFixed(2)} - up) * (drop * position.y) + up * 0.3;
+            rel = lip + right * ((position.x - 0.5) * 2.0 * halfW * (1.0 + 0.25 * position.y)) + (aDir * ${LEAN.toFixed(2)} - up) * (drop * position.y) + up * 0.3;
             // (close by the ground's own picture of the fall is there: the card would stand in front of it)
             k *= smoothstep(70.0, 220.0, dist);
           } else {
             // the mist: a soft round cloud at the foot, facing the eye
             if (uFalls.w < 0.5) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
-            float r = clamp(0.45 * drop + half, 3.0, 26.0);
+            float r = clamp(0.45 * drop + halfW, 3.0, 26.0);
             vec3 foot = lip + (aDir * ${LEAN.toFixed(2)} - up) * drop + up * (0.45 * r) + aDir * (0.3 * r);
             vec3 cr = normalize(vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0])), cu = normalize(vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]));
             rel = foot + (cr * (position.x - 0.5) + cu * (position.y - 0.5)) * (2.0 * r);
