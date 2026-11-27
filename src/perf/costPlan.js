@@ -17,18 +17,35 @@ export const GROUPS = [
   { id: 'figure', label: 'the figure', parts: ['figure'] },
   { id: 'glow', label: 'glow and beams', parts: ['glow'] },
 ];
+// The governor's savings in families, measured as the groups of parts are: each family switched
+// on whole, twice, between two measures of everything on. A family that buys nothing need not
+// be looked into; one that buys much is, by its "one saving alone" numbers. Every saving but
+// the terrain's two is in exactly one (scripts/cost-plan-test.mjs holds the list to that).
+export const SAVING_GROUPS = [
+  { id: 'grass', label: 'the grass (grass-mid, grass, pollen)', steps: ['grass-mid', 'grass', 'pollen'] },
+  { id: 'trees', label: 'the trees and leaves (trees-far, far-trees, tree-leaves, tree-shadows, leaves, leaf-carpet)', steps: ['trees-far', 'far-trees', 'tree-leaves', 'tree-shadows', 'leaves', 'leaf-carpet'] },
+  { id: 'sky', label: "the sky's (the eleven cloud, fog and rain savings)", steps: ['cloud-far', 'cloud-upper', 'rain-shafts', 'cloud-shade-rate', 'lenses', 'fog-sheet', 'cloud-shade-coarse', 'clouds', 'cloud-volume', 'cloud-steps', 'rain'] },
+  { id: 'shadows', label: 'the shadows (fine-shadows, soft-shadows, contact, far-rock-shadows, air-shadow)', steps: ['fine-shadows', 'soft-shadows', 'contact', 'far-rock-shadows', 'air-shadow'] },
+  { id: 'ground', label: "the ground's (detail, far-relief, water, snow-edge)", steps: ['detail', 'far-relief', 'water', 'snow-edge'] },
+  { id: 'things', label: 'rocks and the figure (rocks, far-rocks, cloak, figure, dust)', steps: ['rocks', 'far-rocks', 'cloak', 'figure', 'dust'] },
+  { id: 'glow', label: 'glow (bloom, sun-beams, edge-glow)', steps: ['bloom', 'sun-beams', 'edge-glow'] },
+];
 // The order of a view's measures: [what is out (-1 nothing, -2 every saving on, -3 every group out
-// at once, >= 0 that saving, <= -10 that part of `parts`, <= -100 that group of `groups`), scale].
-export function costConfigs(steps, parts, groups, held, small) {
+// at once, >= 0 that saving, <= -10 that part of `parts`, <= -100 that group of `groups`,
+// <= -200 that family of `families`), scale]. A part that is a whole group by itself is not
+// measured a second time among the parts.
+export function costConfigs(steps, parts, groups, held, small, families = []) {
   const c = [[-1, held]];
   // (each group twice, everything on between: on, group, on, group, on)
   for (let k = 0; k < groups.length; k++) c.push([-100 - k, held], [-1, held], [-100 - k, held], [-1, held]);
   c.push([-3, held], [-1, held]);
+  for (let k = 0; k < families.length; k++) c.push([-200 - k, held], [-1, held], [-200 - k, held], [-1, held]);
   // (everything on is measured again after every three savings, and each saving set against
   // the measures of it on either side, not against the first)
   steps.forEach((i, k) => { c.push([i, held]); if (k % 3 === 2 || k === steps.length - 1) c.push([-1, held]); });
   // (a part left out is set against "everything on" measured just before it)
-  parts.forEach((p, k) => c.push([-1, held], [-10 - k, held]));
+  const solo = new Set(groups.filter((g) => g.parts.length === 1).map((g) => g.parts[0]));
+  parts.forEach((p, k) => { if (!solo.has(p.id)) c.push([-1, held], [-10 - k, held]); });
   c.push([-2, held], [-1, held], [-1, small], [-1, 1]);
   return c;
 }
@@ -39,3 +56,7 @@ export function baselineAt(c, ms, k) {
   if (!isOn(b)) b = a; if (!isOn(a)) a = b;
   return a === b ? ms[a] : ms[a] + (ms[b] - ms[a]) * (k - a) / (b - a);
 }
+
+// How many frames a measure takes (after its warm-up): a group or a family, which are what the
+// test is for, more than a part, a part more than one saving by itself.
+export const framesFor = (which) => (which >= 0 ? 8 : which <= -10 && which > -100 ? 10 : 12);

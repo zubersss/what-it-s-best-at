@@ -304,7 +304,7 @@ frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last foo
 `debug=noclouds` (a clear sky: no cloud layer, no cloud volume and none of their shadows; from 1.2 km over Haven's opening place one is in cloud),
 `debug=treeshade` (the far trees painted by how much of the Sun the land and the clouds leave them: red all, blue none),
 `debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
-`nofarrough`, `noboost`) for before/after pictures, `debug=farrocksoff` (none of the far rocks, for before/after pictures), `debug=floor` (every saving of the
+`nofarrough`, `noboost`) for before/after pictures, `debug=farrocksoff` (none of the far rocks, for before/after pictures), `debug=grasswhole` (every cell of the grass and the flowers handed to the GPU, none chosen by the page: the picture must be the same, three times the triangles), `debug=floor` (every saving of the
 governor on and Smooth's share of the patches: what a phone that has given everything up
 draws).
 

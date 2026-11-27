@@ -198,6 +198,16 @@ before the clear is what the picture and the shadow tiles now do).
   and the two takes are printed side by side: a number that does not repeat is not one. Then
   every group out at once, and what is left. The single savings and parts are still measured
   after the groups (12 frames a measure instead of 16: the test is as long as it was).
+- **The governor's savings in families** (the same way, `SAVING_GROUPS`): the grass's three,
+  the trees' and leaves' six, the sky's eleven, the shadows' five, the ground's four, rocks
+  and the figure, glow. A family that buys nothing need not be looked into; one that buys
+  much is, by its "one saving alone" numbers. This is the table the governor's order (step 4)
+  is to be made from. To keep the test as long as it was: a single saving is measured over 8
+  frames, a part over 10, a group or a family over 12, and a part that is a whole group by
+  itself is not measured a second time.
+- **The page's own work by part**: "rocks and trees" (2.5 ms a frame at the ledge on the
+  phone) is now rocks near by, far rocks, trees, far forest, leaves and grass, each by
+  itself, and six parts are printed under a stop instead of four.
 - **The canvas is held at the picture's size during the cost test**, as play has it. It was
   held at the screen's own size: every measure of the last three benchmarks carried a last
   pass over 3.74 MP that play at 2.25 MP does not pay. The row for the last pass now prints
@@ -331,6 +341,32 @@ before the clear is what the picture and the shadow tiles now do).
 Two things in it that are others' and were handed on: the rigged figure is 153 000
 triangles, 8 % of the frame; and the seasons' lying leaves hand their whole buffer
 (`treeLeaves.lieGeo`, 75 KB) to the GPU every frame at rest, inside the picture's pass.
+
+### What a frame is made of now, in runs of the vertex shader (the counter's new column)
+
+The phone's tables have said for three benchmarks that a frame's cost hardly goes by the
+picture's size; what does not go by it is mostly geometry, and a tile-based GPU runs the
+vertex shader for every vertex handed over (twice: once to sort the triangles into its
+tiles, once to draw). Triangles undercount a mesh whose corners are not shared: a blade of
+grass is three runs for one triangle. The counter (`gl-count.mjs`) counts runs since
+3dc70c9. On today's link (a5948f1), the forest view of the cost test, a frame at rest:
+**8.9 million runs**, of them grass blades 3.37 M, single flowers 1.87 M, the far forest
+about 0.8 M, the near trees 0.52 M and their shadow casters 0.25 M, the ground about 0.5 M,
+the cloud layer's and the upper cloud's meshes 0.27 M (not indexed: said to the sky helper),
+the figure 0.07 M. After this branch's cuts the grass and flowers are about a third of what
+they were and the trees half; the next in line, not done:
+
+- *The far forest and the far rocks by parts of a tile.* A tile of far trees (889 m and up)
+  or far rocks is handed over whole when any of it is in the picture: at the opening view
+  44 800 far trees are handed over for 27 800 standing all round, 10 800 far rocks for 1 400
+  in the picture. Each tile's list cut in four by place (four draws, each culled by its own
+  bounds) would hand over about half. A change to how the tiles are filled and drawn in
+  `farForest.js` and `farRocks.js`: an afternoon each, with their own tests to bring in step.
+- *Blades by how many a block can keep.* Looked along at eye height five layers of blades are
+  kept of twenty; which blades go is by a number of each one's own, so all are handed over.
+  If the number went by the blade's place in its cell, a block could hand over only as many
+  blades a cell as its steepest look keeps. Changes which blades are kept (not how many, nor
+  where), and saves little on a hillside that faces the eye, as the opening view's does.
 
 Looked at and left:
 - *A middle mesh for the figure*: the sculpt made again at 60 000 triangles
