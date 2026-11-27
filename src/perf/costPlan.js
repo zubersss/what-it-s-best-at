@@ -24,9 +24,9 @@ export const GROUPS = [
   // (what was in no group on the thirteenth results and stood between "every group out" and
   // "nothing drawn": the ground's triangles themselves and the small things)
   // (This group holds the ground's shading too, as the ground is not drawn at all: less the
-  // group above, it is the ground's triangles and the small things; the sum of the groups one
-  // by one counts the shading twice.)
-  { id: 'ground-mesh', label: 'the ground not drawn at all (its shading and its triangles) with leaves, petals, pollen, falls and the lander', parts: ['ground-mesh', 'small-things'] },
+  // group above, it is the ground's triangles and the small things; its label begins "with",
+  // and the sum of the groups one by one leaves it out, as it does the sky's own parts.)
+  { id: 'ground-mesh', label: 'with its shading: the ground not drawn at all (its triangles too), and leaves, petals, pollen, falls, the lander', parts: ['ground-mesh', 'small-things'] },
   { id: 'rocks', label: 'rocks near and far', parts: ['rocks'] },
   { id: 'figure', label: 'the figure', parts: ['figure'] },
   { id: 'glow', label: 'glow and beams', parts: ['glow'] },

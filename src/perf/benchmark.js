@@ -493,8 +493,9 @@ export class CostTest {
       const rows = this.groups.map((g, i) => [g.label, mean(takes[i]), takes[i]]).filter((r) => r[2].length && !isNaN(r[1])).sort((x, y) => y[1] - x[1]);
       this.lines.push(`  saved by leaving a group out (twice each, against everything on just before and after; the two takes in brackets):`);
       for (const r of rows) this.lines.push(`    ${r[0]}: ${f(r[1])} (${r[2].map(f).join(' · ')})`);
-      // (the sky's own parts are inside the sky's group: not added a second time)
-      const sum = rows.reduce((x, r) => x + (r[0].startsWith('of the sky:') ? 0 : r[1]), 0);
+      // (the sky's own parts are inside the sky's group, and the ground's shading inside "the ground
+      // not drawn at all": not added a second time)
+      const sum = rows.reduce((x, r) => x + (r[0].startsWith('of the ') || r[0].startsWith('with ') ? 0 : r[1]), 0);
       this.lines.push(`    every group out at once: ${f(all)} saved (the groups one by one add up to ${f(sum)}) · what is left then: ${f(on - all)}`);
     }
     // (the savings in families, the same way)
