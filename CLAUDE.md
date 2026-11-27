@@ -195,7 +195,7 @@ npm run shots:all      # the full reference set: both worlds, orbit, character
 npm run stability      # 3 settled frames one camera step apart along scripted moves, with a flicker report (-- --streaming: 3 truly consecutive frames right after a jump)
 npm run flight         # scripted Mars -> orbit -> Moon flight (headless)
 npm run foot           # the character on foot in the real game: walk, jump, super speed, take off, land (headless)
-npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run
+npm run smoke          # headless check of the start screen, modes, HUD and a full benchmark run (-- --no-bench: four minutes; -- --dsf 0.5 --limit 7000: the benchmark at a quarter of the pixels, which is the only way its cost test ends in time on the cloud machine; a smaller window (--size) hides the start screen's buttons)
 npm run govsim         # the governor against simulated GPUs (no browser)
 npm run transfer       # GO trips flown without a browser: arrival, time against the marker's estimate
 npm run target         # the target list, marker and a GO trip in the real game (headless)
@@ -826,6 +826,11 @@ finished benchmark leaves its text in `window.__benchResult`.
   Before debugging, ask the page what it waits for (`window.__stats.wait`, the frame count,
   `terrain.wanted`, `trees.missing`), and check a new build first at a small size
   (`--dsf 0.6 --timeout 2400`: about a third of the time), the full size after.
+- A timed browser run shares the machine's four cores with whatever else is started: a loop
+  of Node tests beside a full smoke slowed its benchmark past the time limit, and the seven
+  "FAIL" lines that followed were one time-out. And a test that grows (the cost test went from
+  some 40 steps to 240) outgrows a limit set for the old one without a word: when a run "fails"
+  at its limit, read how far it had got before reading the failures.
 - The same thing drawn three ways must take its season from one answer (near meshes, whole
   tree pictures, the far forest): bare aspens were full green crowns from 60 m on for as
   long as only the nearest mesh asked. And a rule's colours must be looked at after
