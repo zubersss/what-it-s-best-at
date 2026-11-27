@@ -85,9 +85,15 @@ rigged files do not load or its shaders cannot be made, and is no longer worked 
 **Changed for the player**: the character is the owner's own, with the owner's motion and
 colours; no simulated cloth (the robe and hair go with the skeleton; they do not stream).
 
-**Not done / to look at next**: the robe and hair do not flow (a wind flutter in the vertex
-shader on what hangs far from a bone, and a trailing lean in flight, is the cheap next
-step); the normal and roughness pictures are not used; steady flight is the Flight clip
+**The robe and hair in the air** (no cloth is simulated): every vertex has a number for how
+loose it hangs (`loose`: its distance from the middle line of each bone against the girth of
+what the bone carries, measured as the file stands; the hair by its colour in the picture
+and how far below the nape), and what is loose trails down the air going past the figure
+and flutters (`heroRig.js` `flowed`, the same sum in the vertex shader; `hero.js` works out
+the flow: against the motion, up to 0.22 m for free cloth, a light breeze standing still).
+A cheap stand-in for cloth: it shears, it does not fold or collide.
+
+**Not done / to look at next**: the normal and roughness pictures are not used; steady flight is the Flight clip
 read slowly there and back with the hips held (little life); footfall dust still keeps the
 old gait's time; the file is 10 MB (positions as floats, an unwelded lighter mesh); cost on
 the phone not measured (153 000 triangles, and no cloth simulation).

@@ -415,6 +415,16 @@ export class Hero {
     if (this.rigMesh) {
       // (the rigged character: its clips by this state; no cloth is worked out)
       this.rigMesh.pose(dt, { foot: this.foot, speed: hspeed, air: this.air, vUp: motion.vUp || 0, fly: fs, since: (motion.clock ?? 0) - (motion.landedAt ?? -99), landSpeed: motion.landSpeed || 0 });
+      // What hangs loose of its bones (the skirt, the sleeves, the hair) trails down the air
+      // going past and flutters (heroRig.js, flowed): this far for free cloth (m, the group's
+      // frame), eased so that a turn or a stop swings it round instead of snapping it. Standing
+      // still a breeze from ahead and a little to one side keeps it alive (as the old cloth's did).
+      const F = this.flow || (this.flow = new Float32Array(4)), sp = THREE.MathUtils.smoothstep;
+      const amt = speed > 0.3 ? (onFoot ? 0.03 + 0.11 * sp(hspeed, 1, 6) + 0.08 * sp(hspeed, 8, 40) : 0.05 + 0.17 * sp(speed, 2, 30)) : 0;
+      const bz = this._bz.set(0.45 + 0.2 * Math.sin(this.time * 0.21), 0.05, -0.65).applyMatrix3(this._m3).multiplyScalar((0.022 + 0.012 * Math.sin(this.time * 0.53)) * (1 - fs));
+      const ke = 1 - Math.exp(-dt * 4), wx = (speed > 0.3 ? -motion.velocity.x / speed * amt : 0) + bz.x, wy = (speed > 0.3 ? -motion.velocity.y / speed * amt : 0) + bz.y, wz = (speed > 0.3 ? -motion.velocity.z / speed * amt : 0) + bz.z;
+      if (!this.started) { F[0] = wx; F[1] = wy; F[2] = wz; } else { F[0] += (wx - F[0]) * ke; F[1] += (wy - F[1]) * ke; F[2] += (wz - F[2]) * ke; }
+      F[3] = this.time;
       this.started = true;
       return;
     }

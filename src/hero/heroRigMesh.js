@@ -24,6 +24,21 @@ void carriers(out vec4 r0, out vec4 r1, out vec4 r2) {
     int j = int(aJoints[k] + 0.5) * 3;
     r0 += w * uJoints[j]; r1 += w * uJoints[j + 1]; r2 += w * uJoints[j + 2];
   }
+}
+// What hangs loose of the bones goes with the air (heroRig.js, flowed: the same sum).
+uniform vec4 uFlow;
+in float aLoose;
+vec3 placed(vec4 r0, vec4 r1, vec4 r2) {
+  vec4 p4 = vec4(position, 1.0);
+  vec3 p = vec3(dot(r0, p4), dot(r1, p4), dot(r2, p4));
+  if (aLoose > 0.0) {
+    float l = length(uFlow.xyz), k2 = aLoose * aLoose;
+    float ph = dot(p, uFlow.xyz) / (l + 0.05) * 9.0 - uFlow.w * (4.0 + 9.0 * l), ph2 = p.x * 5.3 + p.y * 3.1 - p.z * 4.7 + uFlow.w * 1.9;
+    float wave = 0.5 + 0.5 * sin(ph) * (0.6 + 0.4 * sin(ph2));
+    p += uFlow.xyz * (k2 * (0.55 + 0.45 * wave));
+    p += vec3(0.6, 0.3, -0.7) * (k2 * (0.012 + 0.05 * l) * sin(ph2 + ph * 0.5));
+  }
+  return p;
 }`;
 const VERT = /* glsl */`
 ${SKIN}
@@ -31,8 +46,7 @@ in vec2 aUv;
 out vec3 vRel; out vec3 vN; out vec2 vUv;
 void main() {
   vec4 r0, r1, r2; carriers(r0, r1, r2);
-  vec4 p = vec4(position, 1.0);
-  vec4 w = modelMatrix * vec4(dot(r0, p), dot(r1, p), dot(r2, p), 1.0);
+  vec4 w = modelMatrix * vec4(placed(r0, r1, r2), 1.0);
   vRel = w.xyz; vUv = aUv;
   vN = normalize(mat3(modelMatrix) * vec3(dot(r0.xyz, normal), dot(r1.xyz, normal), dot(r2.xyz, normal)));
   gl_Position = projectionMatrix * viewMatrix * w;
@@ -63,7 +77,7 @@ void main() {
 }`;
 const DEPTH_VERT = /* glsl */`
 ${SKIN}
-void main() { vec4 r0, r1, r2; carriers(r0, r1, r2); vec4 p = vec4(position, 1.0); gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(dot(r0, p), dot(r1, p), dot(r2, p), 1.0); }`;
+void main() { vec4 r0, r1, r2; carriers(r0, r1, r2); gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(placed(r0, r1, r2), 1.0); }`;
 
 function geometryOf(m) {
   const g = new THREE.BufferGeometry();
@@ -72,6 +86,7 @@ function geometryOf(m) {
   if (m.uv) g.setAttribute('aUv', new THREE.BufferAttribute(m.uv, 2, true));
   g.setAttribute('aJoints', new THREE.BufferAttribute(m.joints, 4));
   g.setAttribute('aWeights', new THREE.BufferAttribute(m.weights, 4, true));
+  g.setAttribute('aLoose', new THREE.BufferAttribute(m.loose || new Uint8Array(m.position.length / 3), 1, true));
   g.setIndex(new THREE.BufferAttribute(m.index, 1));
   g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 2.6);     // (the surface moves in the shader)
   return g;
@@ -89,10 +104,11 @@ export class HeroRigMesh {
     this.texture.colorSpace = THREE.SRGBColorSpace; this.texture.flipY = false; this.texture.anisotropy = 4;
     this.texture.minFilter = THREE.LinearMipmapLinearFilter; this.texture.magFilter = THREE.LinearFilter; this.texture.generateMipmaps = true;
     this.texture.needsUpdate = true;
-    this.uniforms = { ...hero.uniforms, uJoints: { value: this.joints }, tHero: { value: this.texture } };       // (the figure's own light: one set of uniform objects)
+    this.flow = new THREE.Vector4(0, 0, 0, 0);
+    this.uniforms = { ...hero.uniforms, uJoints: { value: this.joints }, uFlow: { value: this.flow }, tHero: { value: this.texture } };       // (the figure's own light: one set of uniform objects)
     this.material = new THREE.ShaderMaterial({ name: 'HeroRig', glslVersion: THREE.GLSL3, defines: { ...hero.material.defines }, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: FRAG, side: THREE.DoubleSide });
     this.depthMaterial = new THREE.ShaderMaterial({
-      name: 'HeroRigDepth', glslVersion: THREE.GLSL3, side: THREE.DoubleSide, colorWrite: false, uniforms: { uJoints: this.uniforms.uJoints },
+      name: 'HeroRigDepth', glslVersion: THREE.GLSL3, side: THREE.DoubleSide, colorWrite: false, uniforms: { uJoints: this.uniforms.uJoints, uFlow: this.uniforms.uFlow },
       vertexShader: DEPTH_VERT, fragmentShader: `layout(location = 0) out vec4 fragColor; void main() { fragColor = vec4(1.0); }`,
     });
     this.geometries = [geometryOf(file.lods[0]), geometryOf(file.lods[1])];
@@ -119,6 +135,7 @@ export class HeroRigMesh {
     const hero = this.hero;
     hero.body.updateMatrix();
     this.rig.palette(this.joints, hero.body.matrix.elements);
+    if (hero.flow) this.flow.set(hero.flow[0], hero.flow[1], hero.flow[2], hero.flow[3]);
     const g = this.geometries[this.light ? 1 : 0]; if (this.mesh.geometry !== g) this.mesh.geometry = g;
     this.shadowMesh.matrix.copy(hero.group.matrixWorld); this.shadowMesh.matrixWorld.copy(hero.group.matrixWorld);
   }

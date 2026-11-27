@@ -78,7 +78,56 @@ for (let v = 0; v < nv; v++) {
   for (let k = 0; k < 4; k++) { const w = Math.round(255 * WT[v * 4 + k] / (sum || 1)); weights[v * 4 + k] = w; joints[v * 4 + k] = w ? newOfOld[JN[v * 4 + k]] : 0; left -= w; if (weights[v * 4 + k] > weights[v * 4 + big]) big = k; }
   weights[v * 4 + big] += left;
 }
-const full = { position: P, normal: Int8Array.from({ length: nv * 4 }, (_, i) => (i % 4 === 3 ? 0 : Math.round(127 * N[(i >> 2) * 3 + (i % 4)]))), uv: Uint16Array.from(UV, (x) => Math.round(65535 * Math.min(1, Math.max(0, x)))), joints, weights, index: I };
+// ---- the colours -------------------------------------------------------------------------------------
+const base = g.image(J.textures[J.materials[prim.material].pbrMetallicRoughness.baseColorTexture.index].source);
+fs.mkdirSync('.cache/hero-rig', { recursive: true }); fs.writeFileSync('.cache/hero-rig/base.' + (base.mime === 'image/png' ? 'png' : 'jpg'), base.bytes);
+execFileSync('python3', ['-I', '-c', `
+from PIL import Image
+import sys
+im = Image.open(sys.argv[1]).convert('RGB')
+im.resize((${TEX}, ${TEX}), Image.LANCZOS).save(sys.argv[2], quality=88, optimize=True)
+im.resize((256, 256), Image.LANCZOS).save(sys.argv[3])
+open(sys.argv[4], 'wb').write(im.resize((512, 512), Image.LANCZOS).tobytes())
+`, '.cache/hero-rig/base.' + (base.mime === 'image/png' ? 'png' : 'jpg'), OUT + '.jpg', '.cache/hero-rig/base_256.png', '.cache/hero-rig/base_512.rgb']);
+say(`${OUT}.jpg: ${(fs.statSync(OUT + '.jpg').size / 1024).toFixed(0)} KB (${TEX} square, from ${base.mime})`);
+const small = fs.readFileSync('.cache/hero-rig/base_512.rgb');
+
+// ---- how loose each vertex is: how far it hangs off the bones (0: on the body, 1: free cloth
+//      or hair). Measured as the file stands, from the middle line of every bone, each with
+//      the girth of what it carries; the game lets what is loose trail and flutter in the air
+//      (hero/heroRigMesh.js). The surface itself is not changed --------------------------------
+const loose = new Uint8Array(nv);
+{
+  const inv4 = (m) => { // the inverse of a rigid-with-scale 4 x 4 (column-major): by cofactors
+    const a = m, o = new Array(16); const b00 = a[0] * a[5] - a[1] * a[4], b01 = a[0] * a[6] - a[2] * a[4], b02 = a[0] * a[7] - a[3] * a[4], b03 = a[1] * a[6] - a[2] * a[5], b04 = a[1] * a[7] - a[3] * a[5], b05 = a[2] * a[7] - a[3] * a[6], b06 = a[8] * a[13] - a[9] * a[12], b07 = a[8] * a[14] - a[10] * a[12], b08 = a[8] * a[15] - a[11] * a[12], b09 = a[9] * a[14] - a[10] * a[13], b10 = a[9] * a[15] - a[11] * a[13], b11 = a[10] * a[15] - a[11] * a[14];
+    const det = 1 / (b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06);
+    o[12] = (-a[4] * b09 + a[5] * b07 - a[6] * b06) * det; o[13] = (a[0] * b09 - a[1] * b07 + a[2] * b06) * det; o[14] = (-a[12] * b03 + a[13] * b01 - a[14] * b00) * det; return [o[12], o[13], o[14]];
+  };
+  // (each joint's place in the surface's own space, as it was bound)
+  const at = Array.from({ length: NJ }, (_, j) => inv4(Array.from(inverseBind.subarray(j * 16, j * 16 + 16))));
+  let y0 = 1e9, y1 = -1e9; for (let v = 0; v < nv; v++) { y0 = Math.min(y0, P[v * 3 + 1]); y1 = Math.max(y1, P[v * 3 + 1]); }
+  const metre = (y1 - y0) / TALL;                       // the surface's units a metre of the fitted figure
+  const girth = (n) => (/Spine|Hips|Shoulder/.test(n) ? 0.17 : /Neck|Head|headfront/.test(n) ? 0.13 : /UpLeg/.test(n) ? 0.11 : /Leg|Foot|Toe/.test(n) ? 0.085 : 0.065);
+  const segs = []; for (let j = 0; j < NJ; j++) if (parents[j] >= 0) segs.push([at[parents[j]], at[j], Math.max(girth(names[j]), /UpLeg|Arm$/.test(names[j]) ? 0 : 0) ]);
+  const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const nape = at[names.indexOf('Neck')][1]; let hairs = 0;
+  for (let v = 0; v < nv; v++) {
+    const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2]; let lo = 1;
+    for (const [a, b, r] of segs) {
+      const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], l2 = dx * dx + dy * dy + dz * dz || 1e-9, t = Math.min(1, Math.max(0, ((x - a[0]) * dx + (y - a[1]) * dy + (z - a[2]) * dz) / l2));
+      const d = Math.hypot(x - a[0] - dx * t, y - a[1] - dy * t, z - a[2] - dz * t) / metre; lo = Math.min(lo, sm(r + 0.02, r + 0.2, d));
+    }
+    // (the hair lies close down the back, inside the spine's girth: it is known by its colour
+    //  in the picture, and is loose by how far below the nape it hangs)
+    const px = Math.min(511, Math.floor(UV[v * 2] * 512)), py = Math.min(511, Math.floor(UV[v * 2 + 1] * 512)), cr = small[(py * 512 + px) * 3], cg = small[(py * 512 + px) * 3 + 1], cb = small[(py * 512 + px) * 3 + 2];
+    if (cr > 90 && cb > 60 && cg < 0.55 * cr && cg < 0.75 * cb) { lo = Math.max(lo, 0.85 * sm(0.0, 0.55, (nape - y) / metre)); hairs++; }
+    loose[v] = Math.round(255 * lo);
+  }
+  say(`hair: ${hairs} vertices by their colour`);
+  let free = 0; for (let v = 0; v < nv; v++) if (loose[v] > 128) free++;
+  say(`loose: ${(100 * free / nv).toFixed(0)} % of the vertices hang more than half free of the bones`);
+}
+const full = { position: P, loose, normal: Int8Array.from({ length: nv * 4 }, (_, i) => (i % 4 === 3 ? 0 : Math.round(127 * N[(i >> 2) * 3 + (i % 4)]))), uv: Uint16Array.from(UV, (x) => Math.round(65535 * Math.min(1, Math.max(0, x)))), joints, weights, index: I };
 
 // ---- fitted to the game's frame: standing in Idle, the soles at SOLES and TALL from sole to crown
 const fileLike = { joints: names, parents, root: above, clips, shared };
@@ -109,7 +158,7 @@ function reduce(tris) {
   const [idx] = MeshoptSimplifier.simplifyWithAttributes(I, P, 3, attr, 5, [0.5, 0.5, 0.5, 1.5, 1.5], null, tris * 3, 0.05, []);
   const map = new Int32Array(nv).fill(-1); let n = 0; for (const v of idx) if (map[v] < 0) map[v] = n++;
   const pick = (a, w) => { const o = new a.constructor(n * w); for (let v = 0; v < nv; v++) if (map[v] >= 0) for (let k = 0; k < w; k++) o[map[v] * w + k] = a[v * w + k]; return o; };
-  return { position: pick(full.position, 3), normal: pick(full.normal, 4), uv: pick(full.uv, 2), joints: pick(joints, 4), weights: pick(weights, 4), index: Uint32Array.from(idx, (v) => map[v]) };
+  return { position: pick(full.position, 3), loose: pick(loose, 1), normal: pick(full.normal, 4), uv: pick(full.uv, 2), joints: pick(joints, 4), weights: pick(weights, 4), index: Uint32Array.from(idx, (v) => map[v]) };
 }
 const low = reduce(Math.round(I.length / 9));
 say(`the lighter mesh: ${low.index.length / 3} triangles, ${low.position.length / 3} vertices`);
@@ -122,27 +171,14 @@ function shape(tris) {
   const wi = []; for (let t = 0; t < I.length; t += 3) { const a = to[I[t]], b = to[I[t + 1]], c = to[I[t + 2]]; if (a !== b && b !== c && a !== c) wi.push(a, b, c); }
   const [idx] = MeshoptSimplifier.simplify(Uint32Array.from(wi), wp, 3, tris * 3, 0.08, []);
   const map = new Int32Array(firsts.length).fill(-1); let n = 0; for (const v of idx) if (map[v] < 0) map[v] = n++;
-  const out = { position: new Float32Array(n * 3), joints: new Uint8Array(n * 4), weights: new Uint8Array(n * 4), index: Uint32Array.from(idx, (v) => map[v]) };
-  firsts.forEach((v, i) => { if (map[i] < 0) return; out.position.set(P.subarray(v * 3, v * 3 + 3), map[i] * 3); out.joints.set(joints.subarray(v * 4, v * 4 + 4), map[i] * 4); out.weights.set(weights.subarray(v * 4, v * 4 + 4), map[i] * 4); });
+  const out = { position: new Float32Array(n * 3), loose: new Uint8Array(n), joints: new Uint8Array(n * 4), weights: new Uint8Array(n * 4), index: Uint32Array.from(idx, (v) => map[v]) };
+  firsts.forEach((v, i) => { if (map[i] < 0) return; out.loose[map[i]] = loose[v]; out.position.set(P.subarray(v * 3, v * 3 + 3), map[i] * 3); out.joints.set(joints.subarray(v * 4, v * 4 + 4), map[i] * 4); out.weights.set(weights.subarray(v * 4, v * 4 + 4), map[i] * 4); });
   return out;
 }
 const shadow = shape(LOW);
 say(`the shadow's mesh: ${shadow.index.length / 3} triangles, ${shadow.position.length / 3} vertices`);
 
-// ---- the colours -------------------------------------------------------------------------------------
-const base = g.image(J.textures[J.materials[prim.material].pbrMetallicRoughness.baseColorTexture.index].source);
-fs.mkdirSync('.cache/hero-rig', { recursive: true }); fs.writeFileSync('.cache/hero-rig/base.' + (base.mime === 'image/png' ? 'png' : 'jpg'), base.bytes);
-execFileSync('python3', ['-I', '-c', `
-from PIL import Image
-import sys
-im = Image.open(sys.argv[1]).convert('RGB')
-im.resize((${TEX}, ${TEX}), Image.LANCZOS).save(sys.argv[2], quality=88, optimize=True)
-im.resize((256, 256), Image.LANCZOS).save(sys.argv[3])
-open(sys.argv[4], 'wb').write(im.resize((512, 512), Image.LANCZOS).tobytes())
-`, '.cache/hero-rig/base.' + (base.mime === 'image/png' ? 'png' : 'jpg'), OUT + '.jpg', '.cache/hero-rig/base_256.png', '.cache/hero-rig/base_512.rgb']);
-say(`${OUT}.jpg: ${(fs.statSync(OUT + '.jpg').size / 1024).toFixed(0)} KB (${TEX} square, from ${base.mime})`);
 // (and a colour a vertex, read from the picture: for the tools' sketches)
-const small = fs.readFileSync('.cache/hero-rig/base_512.rgb');
 for (const m of [low]) { const n = m.position.length / 3; m.colour = new Uint8Array(n * 4); for (let v = 0; v < n; v++) { const x = Math.min(511, Math.floor(m.uv[v * 2] / 65536 * 512)), y = Math.min(511, Math.floor(m.uv[v * 2 + 1] / 65536 * 512)); m.colour.set([small[(y * 512 + x) * 3], small[(y * 512 + x) * 3 + 1], small[(y * 512 + x) * 3 + 2], 255], v * 4); } }
 
 // ---- written (the container of scripts/make-hero.mjs: 'HERO', the header's length, the header, the arrays)

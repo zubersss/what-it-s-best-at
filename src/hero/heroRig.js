@@ -109,9 +109,27 @@ export class HeroRig {
   }
 }
 
+// What hangs loose of the bones (the robe's skirt and sleeves, the hair) goes with the air:
+// it trails down the air's flow past the figure and flutters, more the looser it hangs.
+// p: a place as the skeleton put it (x, y, z; changed in place). k: how loose (0..1).
+// flow: [x, y, z, time]: how far free cloth trails (m, the figure's group frame) and the clock.
+// (the vertex shader of hero/heroRigMesh.js does the same sum)
+export function flowed(p, k, flow) {
+  if (!(k > 0)) return p;
+  const fx = flow[0], fy = flow[1], fz = flow[2], t = flow[3], l = Math.hypot(fx, fy, fz), k2 = k * k;
+  // (a wave running down the flow, and a slower one across it)
+  const ph = (p[0] * fx + p[1] * fy + p[2] * fz) / (l + 0.05) * 9.0 - t * (4.0 + 9.0 * l), ph2 = p[0] * 5.3 + p[1] * 3.1 - p[2] * 4.7 + t * 1.9;
+  const wave = 0.5 + 0.5 * Math.sin(ph) * (0.6 + 0.4 * Math.sin(ph2));
+  const a = k2 * (0.55 + 0.45 * wave);
+  p[0] += fx * a; p[1] += fy * a; p[2] += fz * a;
+  const r = k2 * (0.012 + 0.05 * l) * Math.sin(ph2 + ph * 0.5);
+  p[0] += r * 0.6; p[1] += r * 0.3; p[2] -= r * 0.7;
+  return p;
+}
+
 // A surface moved by a palette, on the page's side of the GPU (the tools' pictures; the
 // vertex shader of hero/heroRigMesh.js does the same sum). m: one of the file's meshes.
-export function skinned(m, pal) {
+export function skinned(m, pal, flow = null) {
   const n = m.position.length / 3, P = m.position, N = m.normal, J = m.joints, Wt = m.weights, outP = new Float32Array(n * 3), outN = new Float32Array(n * 3);
   const ps = m.positionScale || 1, ns = m.normalScale || 1, ws = m.weightScale || 1, nstride = m.normal.length / n;
   for (let v = 0; v < n; v++) {
@@ -123,6 +141,7 @@ export function skinned(m, pal) {
       qx += w * (pal[o] * nx + pal[o + 1] * ny + pal[o + 2] * nz); qy += w * (pal[o + 4] * nx + pal[o + 5] * ny + pal[o + 6] * nz); qz += w * (pal[o + 8] * nx + pal[o + 9] * ny + pal[o + 10] * nz);
     }
     const l = Math.hypot(qx, qy, qz) || 1;
+    if (flow && m.loose) { const q = flowed([px, py, pz], m.loose[v] / 255, flow); px = q[0]; py = q[1]; pz = q[2]; }
     outP[v * 3] = px; outP[v * 3 + 1] = py; outP[v * 3 + 2] = pz; outN[v * 3] = qx / l; outN[v * 3 + 1] = qy / l; outN[v * 3 + 2] = qz / l;
   }
   return { position: outP, normal: outN };
