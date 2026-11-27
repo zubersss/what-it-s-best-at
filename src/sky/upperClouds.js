@@ -67,7 +67,10 @@ export const UPPER_LOOK = Object.freeze({
 const U = UPPER_LOOK;
 const glf = (x) => { const s = String(x); return /[.eE]/.test(s) ? s : s + '.0'; };
 
+// (HAZE_UV: the lighting chunk's air reads gl_FragCoord unless told where its pixel is; a vertex
+// shader has none, and this one asks for no air. As the far forest's vertex shader has it.)
 const VERT = /* glsl */`
+#define HAZE_UV 1
 ${LIGHTING_PARS}
 uniform vec4 uUpper;
 out vec3 vRel;
