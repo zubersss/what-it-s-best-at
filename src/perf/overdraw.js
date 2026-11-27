@@ -9,7 +9,7 @@ import * as THREE from 'three';
 // a pixel over the whole picture), covered (share of the picture the part touches),
 // meanCovered, max, width, height, layers: Uint8Array (one a pixel, top row first) }.
 export function overdraw(app, part) {
-  const roots = { trees: () => app.trees.meshes, farForest: () => [app.farForest.mesh], grass: () => [app.grass.mesh], leaves: () => [app.leaves.mesh, app.petals?.mesh].filter(Boolean) }[part]?.();
+  const roots = { trees: () => app.trees.meshes, farForest: () => [app.farForest.mesh], grass: () => [app.grass.mesh], leaves: () => [app.leaves.mesh, app.petals?.mesh, app.treeLeaves?.mesh, app.kicked?.mesh].filter(Boolean) }[part]?.();
   if (!roots) return { error: 'no part called ' + part };
   const r = app.renderer, size = r.getDrawingBufferSize(new THREE.Vector2()), w = size.x, h = size.y;
   const scene = new THREE.Scene(), mats = new Map(), made = [];

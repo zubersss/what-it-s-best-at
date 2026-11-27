@@ -154,10 +154,16 @@ export function frameAt(q) {
   return { up, east, north };
 }
 
+// Held back (the owner's session, 2026-11-27): the sheet's first pictures are a flat, opaque,
+// near-white plate with ruler-straight edges on a lake (docs/shots/sky-faults/view_mist.png).
+// Nothing of it is drawn on the phone link until it reads as mist: the sky helper's second
+// list, item 1, takes this line out with the cure.
+const HELD = true;
+
 export class FogSheet {
   constructor(renderer) {
     this.renderer = renderer;
-    this.off = false; this.ready = false; this.thin = false;
+    this.off = false; this.ready = false; this.thin = false; this.held = renderer ? HELD : false;      // (a sheet made without a renderer is a test's: it is tried as made)
     this.uniforms = {
       ...lightingUniforms(), uSkyLow: SKY_UNIFORMS.uSkyLow, tWxA: SKY_UNIFORMS.tWxA, tWxB: SKY_UNIFORMS.tWxB, tWxC: SKY_UNIFORMS.tWxC,
       tCloudNoise: SKY_UNIFORMS.tCloudNoise, uCloudSteer: SKY_UNIFORMS.uCloudSteer, uCloudRise: SKY_UNIFORMS.uCloudRise,
@@ -194,7 +200,7 @@ export class FogSheet {
   update(c) {
     const sky = c.sky, R = sky?.R || 0;
     this.ready = false;
-    if (!R || !sky.field?.on || sky.noClouds || this.off || !this.uniforms.tCloudNoise.value) return;
+    if (this.held || !R || !sky.field?.on || sky.noClouds || this.off || !this.uniforms.tCloudNoise.value) return;
     const step = this.uniforms.uStep.value, p = c.rig.pos;
     // The lattice's middle: the traveller's place snapped to whole steps, kept until it is a
     // whole step away. ITS AXES ARE THE ANCHOR'S OWN, never the traveller's: taken at

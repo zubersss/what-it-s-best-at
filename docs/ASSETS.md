@@ -179,3 +179,15 @@ words, 2026-11-27: "The model was made by me", "I made it on meshy") and sent it
 too (`docs/PROGRESS.md`, "The owner's character"). Used as the owner's own work; what
 Meshy's terms give the owner for the output depends on the owner's plan there (not checked
 by us: to be asked when the rigged file is recorded).
+
+### The rigged character (`public/data/hero_rig.bin`, `hero_rig.jpg`, from `assets-src/hero-rig/`)
+
+`Chinese_Swordsman_AllAnims_30mb.glb`, sent by the owner on 2026-11-27 ("here is the model
+with the animations rigged"): the same character, made by the owner with Meshy, with a
+skeleton (Mixamo's joint names), eight clips of motion from Meshy's animation library and
+its own colour, normal and roughness pictures. `scripts/make-hero-rig.mjs` writes the
+game's files from it (the surface and motion unchanged; meshoptimizer, MIT, reduces the
+shadow's mesh). Used as the owner's own work, on the owner's word; what Meshy's terms give
+the owner for a model and its library motions depends on the owner's plan there, which we
+have not seen: **to ask the owner once** (free plans of such services often require credit
+or forbid some uses; a paid plan usually gives full rights).

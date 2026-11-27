@@ -111,6 +111,7 @@ skipped, so frames are evenly spaced.
 | `src/ship/lander.js` | Procedural lander geometry, placement, material. |
 | `src/hero/hero.js` / `heroModel.js` / `robe.js` | The character, a robed figure with long hair: how it moves and poses (`hero.js`), how it looks: body parts, colours, materials and shader (`heroModel.js`), and its simulated cloth (`robe.js`: the robe's skirt, the two wide sleeves and the hair, one draw call). |
 | `src/hero/heroSculpt.js` / `heroPalette.js` / `heroFile.js` | The owner's sculpt drawn in place of the figure built in code: `public/data/hero.bin` (made by `scripts/make-hero.mjs`) read into two meshes (`heroFile.js`), each vertex carried by up to two of `Hero`'s rigid parts beside the torso and shifted by up to four of the cloth's particles; the sums are `heroPalette.js` (shared with the Node tools) and are done in the vertex shader from one float texture written once a frame and uploaded before the picture begins (`App.updateHero`). Only the outside is drawn. The shadow map draws the lighter mesh, which is in no scene. Without the file the old figure is drawn. |
+| `src/hero/heroRig.js` / `heroAnim.js` / `heroRigMesh.js` | The owner's rigged character, drawn when its files load (`public/data/hero_rig.bin`, `.jpg`, from `scripts/make-hero-rig.mjs`): the skeleton and its clips as plain numbers (`heroRig.js`: the game and Node alike), which clips play for the figure's state (`heroAnim.js`: gaits in step by the pace, jump, landing, hover, flight), and the skinned, textured mesh with its shadow mesh (`heroRigMesh.js`: 72 uniform vectors, no texture read a vertex). `Hero` still places, faces and tilts the figure; with a rig it neither bends the body itself nor works out the cloth. |
 | `src/fx/dust.js` | Dust thrown up by the character near the ground: a fixed pool of 1024 sprites on ballistic arcs under the world's gravity, slowed by its air, lit through the lighting chunk and tinted like the ground. The governor can halve it. |
 | `src/controls/` | `input.js` (keys, mouse, virtual keys), `touch.js` (phone controls), `cameraRig.js` (walk, fly, zoom, on foot), `speedLaw.js` (flight speed against the nearest surface), `gravity.js` (pull, fly-by limit), `autopilot.js` (GO trips: aim, extra boost, arrival, trip time). |
 | `src/post/post.js` | HDR target, metering, bloom, tone map, dither. |
@@ -815,6 +816,26 @@ as Earth is; what differs is where the maps come from.
     `cover.js` `canopyYear`: the mean colour of the leaf-dropping trees of the wood at that
     height on the day, bare ones as branches, and the noise level that makes their
     patches their share of the wood), moved by each pixel's own latitude.
+  - *Leaves in the air and on the ground*: `treeSeason` also says how fast a tree's leaves
+    come off (`shed`), how much of them lies under it (`down`) and in what colour.
+    `Trees.shedding` lists the nearest such trees; `leaves.js` `TreeLeaves` (the petals'
+    machine, `Shed`, with other numbers) lets leaves fall from their crowns and lays leaves
+    under and down the wind of them; the ground's `[seasons]` litter block paints the
+    carpet (a wood's by height: `uLitterYear`; a tree's own: `uLeafTree`, the lying leaves'
+    slots from the eye); `Kicked` throws bursts up behind a traveller running or flying low
+    through them (`lyingAt`: the same amounts the ground draws).
+  - *Snow* (`snowYear`, `snowFell`; `render/snowGlsl.js`: one text, `snowSeason`, and two
+    shared uniforms set by `App.updateSnow`): the snow in the land's colour is the land's
+    own, for the first day of spring; the season shifts a line in height (10 degrees C
+    either way at 45 degrees, 161 m a degree): new snow above the land's line + 400 m + the
+    shift, the land's own gone below its line - 450 m + the shift; fresh snow from the
+    day's weather (the last 36 h at the traveller's place, one moment asked a frame) lowers
+    the first. The ground, its far canopy, crowns near and far, boulders and stones call
+    the one text; each half of the world has its own season.
+  - *Grass and flowers*: `grassSeason` (fresh, dry, brown, flat) is inside `grassColour`
+    (`uGrassYear`), so blades, clumps and painted ground agree; each flower kind has its
+    days (`grassRules.js` `DAYS`, `kindsShut` -> `uKindShut`, read by `kindOpen` in the
+    flowers' text); pollen by how much is out. Set by `App.updateGrassYear`.
   - *Going to a season*: `untilSeason` (whole days forward); the menu's Season row and
     `?season=`.
 - **Beyond the trees** the ground shader raises the forest as a whole: the vertex shader

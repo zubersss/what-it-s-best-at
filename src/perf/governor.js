@@ -137,10 +137,10 @@ export const FEATURE_STEPS = [
   // 1.2: the page's own work, which cannot shorten a frame the GPU is late on. The fine
   // shadow tile -0.4 / 1.3. The glow 0.4 in one view.)
   { id: 'cloud-steps', buys: 0.3, label: 'coarser clouds near you', live: (app) => cloudVolume(app) && app.cloudVolume.enabled !== false, apply: (app, off) => { app.sky?.setSaving('cloud-steps', off); } },
-  { id: 'cloak', buys: 0.3, label: 'robe and hair simulated more loosely', live: (app) => !!app.hero?.group?.visible, apply: (app, off) => { app.hero.robe.halfRate = off; } },
+  { id: 'cloak', buys: 0.3, label: 'robe and hair simulated more loosely', live: (app) => !!app.hero?.group?.visible && !app.hero.rigMesh, apply: (app, off) => { app.hero.robe.halfRate = off; } },
   // (the sculpted character, hero/heroSculpt.js: 120 000 triangles in the picture, or the 24 000 its shadow is drawn from.
   //  Not measured on the phone yet: a guess until a benchmark's cost table has it)
-  { id: 'figure', buys: 0.3, label: 'the character drawn from fewer triangles', live: (app) => !!app.hero?.sculpt && !!app.hero.group?.visible, apply: (app, off) => { if (app.hero?.sculpt) app.hero.sculpt.light = off; } },
+  { id: 'figure', buys: 0.3, label: 'the character drawn from fewer triangles', live: (app) => !!(app.hero?.rigMesh || app.hero?.sculpt) && !!app.hero.group?.visible, apply: (app, off) => { if (app.hero?.sculpt) app.hero.sculpt.light = off; if (app.hero?.rigMesh) app.hero.rigMesh.light = off; } },
   // (the shadow map's fine tile, some 20 m round the traveller at 3.9 cm a texel: without it
   // every shadow there, trees' and rocks' alike, is drawn from the 14.6 cm tile)
   { id: 'fine-shadows', buys: 0.3, hold: true, label: 'coarser shadows near you', apply: (app, off) => { app.nearShadow.fine = !off; } },
@@ -171,7 +171,7 @@ export const FEATURE_STEPS = [
   // 1 400 to 560 saved nothing that could be measured on the phone in a storm either)
   { id: 'rain', buys: 0.3, label: 'thinner rain and snow', live: (app) => !!app.rain?.mesh?.visible, apply: (app, off) => { app.sky?.setSaving('rain', off); } },
   // (nothing: -0.4)
-  { id: 'leaves', buys: 0.3, label: 'leaves in the wind', apply: (app, off) => { if (app.leaves) app.leaves.enabled = !off; if (app.petals) app.petals.enabled = !off; } },          // (petals: thinned to a third, not taken away)
+  { id: 'leaves', buys: 0.3, label: 'leaves in the wind', apply: (app, off) => { if (app.leaves) app.leaves.enabled = !off; if (app.petals) app.petals.enabled = !off; if (app.treeLeaves) app.treeLeaves.enabled = !off; if (app.kicked) app.kicked.enabled = !off; } },          // (petals: thinned to a third, not taken away)
   // (nothing: -0.7)
   { id: 'sun-beams', buys: 0.3, label: "the Sun's beams through trees and cloud", apply: (app, off) => { app.post.shaftsOn = !off; } },
   // (no step for the waves that lift the water: on the phone it saved nothing that could be

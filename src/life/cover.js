@@ -131,12 +131,14 @@ export function bloomOf(sp, day, lat) {
 //   r, g, b  its leaves' colour (life/season.js, treeSeason), in steps of COLOUR_TOP / 255
 //   gone     how much of its leaves is off it, in GONE_STEPS steps
 //   open     how far it is in flower (bloomOf's, a few days before or after its neighbours), 0 if it has none
+//   shed, down, lr, lg, lb  treeSeason's own: how fast its leaves come off, how much of them
+//            lies under it and in what colour (for the leaves in the air and on the ground)
 //   thin     how much of a whole tree's picture is thinned away: `gone`, less as it is in
 //            flower (a crown in flower is its blossom, leaves or none)
 export const COLOUR_TOP = 0.75, GONE_STEPS = 31;
 export const packed = (v) => Math.round(Math.min(1, Math.max(0, v / COLOUR_TOP)) * 255) / 255 * COLOUR_TOP;
 export function treeLook(sp, day, x, y, z, R, own, out) {
-  out.r = sp.leaf[0]; out.g = sp.leaf[1]; out.b = sp.leaf[2]; out.gone = 0; out.open = 0; out.thin = 0;
+  out.r = sp.leaf[0]; out.g = sp.leaf[1]; out.b = sp.leaf[2]; out.gone = 0; out.open = 0; out.thin = 0; out.shed = 0; out.down = 0;
   if (!sp.fall && !sp.blossom) return out;
   const len = Math.sqrt(x * x + y * y + z * z), lat = Math.asin(z / len) * 180 / Math.PI;
   if (sp.fall) {
@@ -277,14 +279,15 @@ export function treeLine(lat) { return 4100 - 85 * Math.max(0, Math.abs(lat) - 2
 // world: its file (life.flora and life.trees.line on a made world; the real regions'
 // species on a world without); day: the life day; lat, lon: where the traveller is (the
 // shader moves the entries by each pixel's own latitude: `perDeg` metres of height a degree).
-// year: Float32Array-like of 8 x 4 or an array of 8 { x, y, z, w }; returns { alt0, step, perDeg, lat }.
+// year: Float32Array-like of 8 x 4 or an array of 8 { x, y, z, w }; litter (optional): an array
+// of 8 { x, y, z, w } for the leaves on the ground (uLitterYear); returns { alt0, step, perDeg, lat }.
 const BRANCHES = [0.11, 0.085, 0.06], OWNS = Array.from({ length: 24 }, (_, k) => (k + 0.5) / 24), NOISE_SD = 0.28;
 const probit = (p) => 4.91 * (Math.pow(p, 0.14) - Math.pow(1 - p, 0.14));
-export function canopyYear(world, day, lat, lon, year) {
+export function canopyYear(world, day, lat, lon, year, litter = null) {
   const flora = world.life?.flora, ld = world.life?.trees?.line;
   const line = Math.max(200, ld ? ld.base - ld.perDeg * Math.max(0, Math.abs(lat) - (ld.from ?? 0)) : treeLine(lat)), step = line / 7, ts = {};
   for (let i = 0; i < 8; i++) {
-    const h = i * step; let share = 0, r = 0, g = 0, b = 0, all = 0;
+    const h = i * step; let share = 0, r = 0, g = 0, b = 0, all = 0, down = 0, lr = 0, lg = 0, lb = 0;
     // (a made world: its closed forest and its parkland, seven parts to three; a real one: the mixed forest of the region)
     const lists = flora ? [[floraFor(flora, CLASS.ENF, h / line, false), 0.7], [floraFor(flora, CLASS.WOODY_SAVANNA, h / line, false), 0.3]] : [[speciesFor(CLASS.MIXED, lat, ((lon + 540) % 360) - 180, h, false), 1]];
     for (const [list, part] of lists) {
@@ -295,6 +298,7 @@ export function canopyYear(world, day, lat, lon, year) {
         for (const own of OWNS) {
           treeSeason(sp, day, lat, h, own, ts);
           const k = w / OWNS.length; share += k;
+          down += k * ts.down; lr += k * ts.down * ts.lr; lg += k * ts.down * ts.lg; lb += k * ts.down * ts.lb;
           r += k * (ts.r + (BRANCHES[0] - ts.r) * ts.gone); g += k * (ts.g + (BRANCHES[1] - ts.g) * ts.gone); b += k * (ts.b + (BRANCHES[2] - ts.b) * ts.gone);
         }
       }
@@ -304,6 +308,9 @@ export function canopyYear(world, day, lat, lon, year) {
     const c = none ? [0, 0, 0] : [r / (share * all), g / (share * all), b / (share * all)];
     if (year.length === 32) { year[i * 4] = c[0]; year[i * 4 + 1] = c[1]; year[i * 4 + 2] = c[2]; year[i * 4 + 3] = level; }
     else { const v = year[i]; v.x = c[0]; v.y = c[1]; v.z = c[2]; v.w = level; }
+    // (the leaves lying in the wood at this height: their colour, and how much of the floor
+    // they cover: a wood with one such tree in three is carpeted when its trees are bare)
+    if (litter) { const v = litter[i], k = Math.max(down, 1e-6); v.x = lr / k; v.y = lg / k; v.z = lb / k; v.w = Math.min(1, 3 * down / Math.max(all, 1e-6)); }
   }
   return { alt0: 0, step, perDeg: TREE_YEAR.LAT_DAYS / TREE_YEAR.ALT_DAYS * 1000, lat: Math.abs(lat) };
 }
