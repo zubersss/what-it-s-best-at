@@ -262,7 +262,9 @@ export class FogSheet {
     let want = 0;
     if (hs && here && here.field.fogTop > 0) {
       const l = p.length(), g = hs.height(p.x / l, p.y / l, p.z / l, F.LAND_WL), wd = hs.waterDepth > 0 ? hs.waterDepth : 0;
-      const surf = Math.max(0, g + wd), k = Math.min(1, Math.max(0, wd / F.LAKE_DEEP));
+      // (over water the height function answers the water's SURFACE, with its depth beside it:
+      // the depth is not added. Added, the mist stood the lake's depth too high over deep water.)
+      const surf = Math.max(0, g), k = Math.min(1, Math.max(0, wd / F.LAKE_DEEP));
       const top = wd > 0 ? Math.max(here.field.fogTop, surf + F.LAKE * k * k * (3 - 2 * k)) : here.field.fogTop;
       const over = top - (l - R), t = Math.min(1, Math.max(0, over / F.VEIL_IN));
       want = top > surf ? F.VEIL * t * t * (3 - 2 * t) : 0;
@@ -293,7 +295,7 @@ export class FogSheet {
       const l = Math.hypot(q[0], q[1], q[2]);
       const g = hs.height(q[0] / l, q[1] / l, q[2] / l, F.LAND_WL), w = hs.waterDepth > 0 ? hs.waterDepth : 0;
       this.landAsked++; wet = w;
-      return Math.max(0, g + w);
+      return Math.max(0, g);          // (the water's surface over water: see _eye)
     };
     const put = (i, j) => {
       const o = (j * N + i) * 4, v = Math.min(65535, Math.round(surface(point(i, j, p)) * 8));

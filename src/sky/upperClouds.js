@@ -25,7 +25,7 @@ import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { G } from '../render/globals.js';
 import { SKY_FIELD_GLSL, SKY_UNIFORMS } from './skyGlsl.js';
 import { STEER_GLSL } from '../weather/sky/steer.js';
-import { CELL_GLSL, ANVIL_GLSL, CELL_MAX, ANVIL_MAX, ANVIL_VEC4, CELL_UNIFORMS } from '../weather/sky/cellShape.js';
+import { CELL_GLSL, ANVIL_GLSL, CELL_MAX, ANVIL_MAX, ANVIL_VEC4, CELL_UNIFORMS, CELL_SHAPE } from '../weather/sky/cellShape.js';
 
 // A round shell with each corner handed to the GPU once: three's polyhedra are triangle soup
 // (three corners a triangle, every one run through the vertex shader), and a shell is drawn
@@ -48,7 +48,7 @@ export const UPPER_LOOK = Object.freeze({
   MID_PATCH: 0.28,                // how much the field clumps into patches and lanes (0: an even screen)
   MID_PATCH_K: 0.21,              // how large those patches are, against a cloudlet
   WINDOW: 0.8,                    // how much of the mid and high cloud in FRONT of a storm tower is taken away on the lines of sight that go on into it
-  ANVIL_TORN: 0.42,               // how far the cirrus strokes move an anvil's edge (a torn fringe)
+  ANVIL_TORN: 0.6,                // how far the cirrus strokes move an anvil's edge (a torn fringe)
   HIGH_STRETCH: 7,                // how far the high noise is drawn out along its own wind
   HIGH_ALPHA: 0.5,                // cirrus is never more than half there ...
   HIGH_ANVIL: 0.97,               // ... but an anvil is solid
@@ -57,6 +57,8 @@ export const UPPER_LOOK = Object.freeze({
   ANVIL_STEPS: 8, ANVIL_STEPS_THIN: 4,   // steps through an anvil's depth along a line of sight (thinned: the governor's cloud-upper)
   ANVIL_UNDER_EDGE: 0.5,          // its underside toward its thin edge, against its top (HIGH_UNDER under its deep middle)
   ANVIL_FIND: 5, ANVIL_FIND_THIN: 2,   // halvings that find where a line of sight enters it
+  ANVIL_DEEP0: 0.2, ANVIL_DEEP1: 0.75,   // its depth where it is entered (a share of its deepest) between which its underside goes from the rim's tone to its darkest
+  ANVIL_SKY: 0.35, ANVIL_SKY_EDGE: 0.8,  // the share of the sky's light its underside keeps: under its deep middle, at its rim
   ANVIL_EXT: 260,                 // m of anvil that takes 63 % of what is behind it
   ANVIL_LIT0: 0.3, ANVIL_LIT1: 0.85,   // how high in the anvil (0 its underside .. 1 its top) what is seen goes from the underside's grey to the lit top
   HALO: 0.062,                    // how strong the 22-degree halo is
@@ -91,11 +93,12 @@ float upperNoise(vec3 q) { return skyTex3(tCloudNoise, q).r; }
 // (anvilChord, exact) is walked in a few steps, and what comes back is x how solid it is at most
 // on the way, y how high in it the part that is seen lies (0 its underside .. 1 its top: from
 // under it one sees its dark base, from the side its lit top over its dark base, from above its
-// top) and z how much of what is behind it is left. All of it along the line of sight, the same
+// top), z how much of what is behind it is left and w how deep it is where it is entered (1: as
+// deep as it gets, round its tower). All of it along the line of sight, the same
 // from anywhere on that line.
-vec3 anvilSeen(int k, vec3 o, vec3 d) {
+vec4 anvilSeen(int k, vec3 o, vec3 d) {
   vec2 ch = anvilChord(k, o, d);
-  if (ch.y <= ch.x) return vec3(0.0, 0.0, 1.0);
+  if (ch.y <= ch.x) return vec4(0.0, 0.0, 1.0, 0.0);
   float L = length(${CELL_UNIFORMS.anvils}[k * ${ANVIL_VEC4}].xyz);
   bool thin = uUpper.w > 0.5;
   int steps = thin ? ${U.ANVIL_STEPS_THIN} : ${U.ANVIL_STEPS};
@@ -108,7 +111,7 @@ vec3 anvilSeen(int k, vec3 o, vec3 d) {
     if (tIn < 0.0) tIn = t;
     T *= exp(-dn * ds / ${glf(U.ANVIL_EXT)}); mx = max(mx, dn);
   }
-  if (tIn < 0.0) return vec3(0.0, 0.0, 1.0);
+  if (tIn < 0.0) return vec4(0.0, 0.0, 1.0, 0.0);
   // Where the line of sight ENTERS it, found between the last clear step and the first in
   // cloud: how high in the anvil that is says what is seen (its underside, its side, its top).
   // (Taken from the steps themselves it was a step's length wrong: bands across the underside,
@@ -120,8 +123,8 @@ vec3 anvilSeen(int k, vec3 o, vec3 d) {
   }
   vec3 pe = o + d * tIn;
   float re = length(pe);
-  float hs = clamp(1.0 + (re - L) / anvilDepth(anvilPlace(k, pe / re)), 0.0, 1.0);
-  return vec3(mx, hs, T);
+  float deep = anvilDepth(anvilPlace(k, pe / re));
+  return vec4(mx, clamp(1.0 + (re - L) / deep, 0.0, 1.0), T, deep / ${glf(CELL_SHAPE.ANVIL_THICK + CELL_SHAPE.ANVIL_FLARE)});
 }
 
 void main() {
@@ -138,14 +141,14 @@ void main() {
   // an anvil stands between 6.7 and 9.5 km by the height of the tower that made it, and the
   // shell is at 9. (And before the clear sky is thrown away: seen from 30 km off, the ray meets
   // the anvil's slab kilometres from where it meets the shell, where the field may have none.)
-  float an = 0.0, anH = 0.0;
+  float an = 0.0, anH = 0.0, anDeep = 0.0, skyShade = 1.0;
   if (high && uAnvilCount > 0) {
     vec3 ray = normalize(vRel);
     float left = 1.0;
     for (int k2 = 0; k2 < ANVIL_MAX; k2++) {
       if (k2 >= uAnvilCount) break;
-      vec3 sn = anvilSeen(k2, uCamPlanetPos, ray);
-      if (sn.x > an) { an = sn.x; anH = sn.y; }
+      vec4 sn = anvilSeen(k2, uCamPlanetPos, ray);
+      if (sn.x > an) { an = sn.x; anH = sn.y; anDeep = sn.w; }
       left *= sn.z;
     }
     an *= 1.0 - left;
@@ -180,16 +183,21 @@ void main() {
       // (its edge is torn and fibrous, not a cut line: the same strokes the cirrus is made of
       // move the line where it ends, so it ends in streaks drawn out downwind. And its sheet is
       // ice drawn out by the same wind, not a plate: the strokes thin and thicken it.)
-      float e = smoothstep(0.05 + ${glf(U.ANVIL_TORN)} * n, 0.35 + ${glf(U.ANVIL_TORN)} * n, an);
+      float fray = 0.55 * n + 0.45 * upperNoise(qs * (k * 3.1));
+      float e = smoothstep(0.04 + ${glf(U.ANVIL_TORN)} * fray, 0.2 + ${glf(U.ANVIL_TORN)} * fray, an);
       alpha = max(alpha, min(${glf(U.HIGH_ANVIL)}, ${glf(U.HIGH_ANVIL)} * e * (${glf(1 - U.ANVIL_GRAIN)} + ${glf(2 * U.ANVIL_GRAIN)} * n)));
       // (its underside is not one grey: dark under its deep middle, paler toward its thin edge,
       // where the light comes through the ice)
-      float under = mix(${glf(U.ANVIL_UNDER_EDGE)}, ${glf(U.HIGH_UNDER)}, smoothstep(0.15, 0.8, an));
+      float heavy = smoothstep(0.15, 0.8, an) * smoothstep(${glf(U.ANVIL_DEEP0)}, ${glf(U.ANVIL_DEEP1)}, anDeep);
+      float under = mix(${glf(U.ANVIL_UNDER_EDGE)}, ${glf(U.HIGH_UNDER)}, heavy);
       // (and its SIDE: a line of sight that enters it above its base looks at a face turned toward
       // the eye, lit when the Sun is behind the eye. Without, a storm seen from its sunlit side
       // was a pale tower under a dark plate.)
       float side = smoothstep(0.04, 0.3, anH) * clamp(0.25 - 1.2 * dot(normalize(vRel), uSunDir), 0.0, 1.0);
       shade = mix(shade, mix(under, 1.12, max(smoothstep(${glf(U.ANVIL_LIT0)}, ${glf(U.ANVIL_LIT1)}, anH), side)) * (0.93 + 0.14 * n), smoothstep(0.05, 0.5, an));
+      // (and the sky's own light is shut out of it as the Sun's is: lit by the whole sky, its
+      // underside was the tone of the cloudlets round it. It is the dark, heavy thing in its sky.)
+      skyShade = mix(1.0, mix(${glf(U.ANVIL_SKY_EDGE)}, ${glf(U.ANVIL_SKY)}, heavy), smoothstep(0.05, 0.5, an) * (1.0 - max(smoothstep(${glf(U.ANVIL_LIT0)}, ${glf(U.ANVIL_LIT1)}, anH), side)));
     }
   } else {
     // Altocumulus: rows of small rounded cloudlets, each with a lit and a shaded side; thick, it
@@ -260,7 +268,7 @@ void main() {
   // (ice: a bright rim toward the Sun, and the 22-degree halo of a cirrostratus veil)
   float fwd = 0.75 + 0.9 * pow(max(cs, 0.0), 8.0);
   if (high) fwd += ${glf(U.HALO)} * (1.0 - smoothstep(0.0, 0.02, abs(cs - 0.927))) * smoothstep(0.1, 0.4, cover);
-  vec3 col = vec3(0.9) * (sun * fwd * shade + skyLight(uUpper.z > 0.5 ? -up : up, up) * 0.8) / PI;
+  vec3 col = vec3(0.9) * (sun * fwd * shade + skyLight(uUpper.z > 0.5 ? -up : up, up) * (0.8 * skyShade)) / PI;
   col = aerialPerspective(col, vRel);
   fragColor = vec4(col * uExposure * alpha, alpha);
 }`;
