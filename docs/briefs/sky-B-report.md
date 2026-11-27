@@ -30,6 +30,12 @@ read of the code found while those pictures were being taken** (checks 8 to 11 b
 That is what the brief's "have work that others built reviewed this way before it ships" is for:
 every one of them was found by reading, in files that had already passed a day of pictures.
 
+**Where to look in this file.** B0 (the job before the package) · What was built · Checks 1 to
+11 (each with its numbers and how it was seen to fail; 8 to 11 are the faults a cold read found
+on the last day) · Pictures · New scripts · The look numbers for `haven.js` · Cost · The
+checkpoint lines · What was asked of the main session (all done) · Views on Haven · What the
+pictures showed · A lesson for `CLAUDE.md` · Open · What is still running.
+
 ## B0 (the job before the package): step 0's GLSL on a GPU
 
 All of this is `f3a1eb7` (step 0's head), built once and served frozen from
@@ -151,11 +157,13 @@ by the shared forms, and it throws near pixels out FIRST. With no field it is th
   or two for the high shell (its strokes, and a finer octave while the governor leaves it on).
   An anvil costs no read at all: it is the cells' own shape.
 - `FogSheet`: 129 x 129 points over 60 km on a lattice fixed to the world (snapped in whole
-  steps, so its points stay on the same places as one flies), each lifted to field C's fog top,
-  depth-tested, one noise read a pixel. Whether there is any fog within reach is asked of the
+  steps, AND its axes taken at the anchor, not at the traveller — check 9 — so its points stay on
+  the same places as one flies), each lifted to field C's fog top, depth-tested, one noise read a
+  pixel. The governor's `fog-sheet` step halves the points a side. Whether there is any fog within reach is asked of the
   field over a square of 25 places, every 3 km of travel or 60 s of the clock.
-- `Lenticulars` (src/sky/lenticulars.js): up to 12 plates, each a stretched ball — 7 to 11 km
-  along the ridge, a tenth as deep — standing still over its own summit. Every pixel takes the
+- `Lenticulars` (src/sky/lenticulars.js): up to 12 plates (3 while the governor's `lenses` step
+  is on), each a stretched ball — 7 to 11 km along the ridge, a tenth as deep — standing still
+  over its own summit, drawn farthest first (check 10). Every pixel takes the
   metres of cloud its own ray crosses, so a lens is a lens from any side and fades out at its
   own edge; two tones with a clean line and a pearly rim where it is seen edge on; no texture
   read at all. The list comes from the model (`field.lenses(t)`, or a snapshot's LENS records),
@@ -177,10 +185,21 @@ At the storm 20 km off (`t=8.25`, the far slices on):
 One read a step is the cell's own boiling noise: in the far slices the layer is not marched at
 all, so nothing else is read there.
 
-And the break taught its own lesson. `--break read` put its extra read inside the LAYER's path —
-which this view never takes, since its cloud is all storm cells — so **the check passed on a
-build broken on purpose**. The break now adds four reads at the top of `cloudStep`, whichever
-path the step takes (817c129); the run that shows the check failing is below.
+**The check now proves its own numbers** (`89fb6a5`). It counts the marches it sets off and asks
+whether what came back is counts at all — a step count is a whole number, a cloud's green is not:
+
+> ok   the counting shader itself ran, twice, and handed back counts and not a picture (2 marches, 3174 of 3174 pixels a whole number of steps)
+
+Without that, the check could not tell the counting picture from the last frame's ordinary one,
+whose red over green is about 1 — the very number it is looking for. It also catches the other
+way of passing on nothing: at the fair view over the opening place, where the volume draws no
+cloud at all, the old check printed "0.00 reads a step" and passed; it now fails there, saying
+0 of 0 pixels were counted, because a view with no cloud measures nothing.
+
+And the break taught its own lesson too. `--break read` first put its extra read inside the
+LAYER's path — which this view never takes, since its cloud is all storm cells — so the check
+passed on a build broken on purpose. The break now adds four reads at the top of `cloudStep`,
+whichever path the step takes (817c129).
 
 **2. The motion (`node scripts/cloud-motion.mjs`).** Three runs of this check found three faults
 of the check, not of the clouds, and each is worth knowing:
@@ -562,6 +581,11 @@ are not crossed at all.
   slate where it is deep, with an anvil at the top and rain falling out of its base in shafts
   that you can see slanting downwind. They are drawn out to 200 km, so a storm stands on the
   far skyline.
+- **And the rain is there to be seen.** Until this morning a shaft was drawn only under a storm
+  one was looking INTO — which is the one place from which rain cannot be seen — so from the side,
+  which is how a storm is usually watched, the rain was missing: at the cell seen from 9 km it
+  stands on 9 % of the picture, and 8.5 of those were blank or cut off in mid-air. The pair is
+  `haven_ledge_Q_cell9.png` (before) and `haven_ledge_M_cell9.png` (after).
 - **New in the sky**: altocumulus and cirrus overhead (with the 22-degree halo round the Sun),
   mist lying in the basins at first light, and lenticular plates standing over the ranges on a
   windy day.
@@ -584,12 +608,14 @@ this.cloudVolume.place(rig.pos, this.frame);                // beforeScene
 Nothing of B's own files was changed upstream, so the merge was clean and the frozen builds no
 longer need a patch of their own.
 
-## Asked of the main session — **still wanted** (two lists in `src/sky/skySystem.js`)
+## Asked of the main session — **done** (the owning head `e63d72e`, merged back here)
 
-The fog sheet and the lenses are now the only drawn things of the sky with no step in the
-governor's ladder and no part the benchmark's cost test can leave out. Their module side is
-built and tested (`scripts/fog-sheet-test.mjs`, `scripts/lens-list-test.mjs`); what is wanted is
-the wiring, which is in a file that is not mine:
+The fog sheet and the lenses were the only drawn things of the sky with no step in the governor's
+ladder and no part the benchmark's cost test could leave out. Their module side was built and
+tested here (`scripts/fog-sheet-test.mjs`, `scripts/lens-list-test.mjs`) and the main session put
+the wiring in within the hour: `skyStep('lenses', 0.2, ...)` and `skyStep('fog-sheet', 0.3, ...)`
+in the ladder, both savings in `SKY_SAVINGS`, `'lenses'` in `SKY_PARTS`, and the four `case` lines.
+What was asked for was this:
 
 ```js
 // SKY_SAVINGS (sky/skySystem.js)
@@ -607,13 +633,12 @@ case 'lenses': return !!this.lenses.live(id);
 else if (id === 'lenses') this.lenses.partOut(id, out);
 ```
 
-and then a step for each in `src/perf/governor.js`, cheapest visual loss first: the lenses
-before the fog (a lens is a small thing high up; the fog is what a valley at first light is
-about). Each thins and leaves the thing itself: with both steps on there is still a lens over
-every near summit and fog in every basin (`scripts/fog-sheet-test.mjs` and
-`scripts/lens-list-test.mjs` hold them to that). Until the wiring lands they are not in the
-ladder, so the `?debug=floor` pictures in this report do NOT have them on: a floor picture with
-the fog and the lenses thinned is one to take after that line is in.
+and a step for each in `src/perf/governor.js`, cheapest visual loss first: the lenses before the
+fog (a lens is a small thing high up; the fog is what a valley at first light is about), which is
+the order it went in at. Each thins and leaves the thing itself: with both steps on there is still
+a lens over every near summit and fog in every basin (the two tests hold them to that). The
+`?debug=floor` pictures taken before `e63d72e` do not have them on; `_M2_floor`, from `buildD2`,
+does.
 
 ## Views on Haven with weather in them (the model, found in Node in seconds)
 
@@ -785,6 +810,19 @@ case or a benchmark view from a Node scan.
   cut away by that rule, while a heavy core (alpha near 1) is untouched. To spare it, the march
   would have to hand the rain's share back apart from the cloud's, and its four channels are
   full. Worth a look in `haven_ledge_M_cell9.png` at the shaft's outer edge.
+- **A tower still reads as a smooth pill, and its anvil as a plate.** Looking at
+  `haven_ledge_M_storm20.png` (20 km) and `haven_ledge_M_storm35.png` (35 km) as pictures rather
+  than as checks: the storm is a grey cylinder with a flat cap under a crisp cream disc. The
+  cover is right — a map of the view in Node says the lid really is four anvils of 10 km radius
+  merged, which is what four storms do — but three things read wrong. The tower's inside is one
+  flat tone, because a chord five kilometres deep goes straight to the slate floor
+  (`CELL_FLOOR`), so the lit side it should have toward the Sun is lost. Its surface has no
+  cauliflower: the erosion noise repeats every 1 900 m, which is two or three lumps across a
+  4.5 km tower — too coarse for billows, too fine for an outline. And the anvil's edge is a line
+  where it should be fibres. The anvil's underside and grain and the width of its torn edge are
+  mine and are now 0.20, 0.30 and 0.42 (`0ae1a83`, the pair is `_M_storm20` against `_M2_storm20`);
+  the tower's own shape and its two tones want the next round, and the numbers to try first are
+  `CELL_FACE0/1` and `CELL_NOISE` with a finer frequency for the erosion.
 - **Scud was not built.** The brief asks for ragged fragments hanging under a raining base; what
   is there is the wisps — the great soft patches torn out of a cloud within a kilometre of the
   eye, which cost no read of their own. A raining base keeps its clean line. Its constant was
@@ -804,8 +842,9 @@ case or a benchmark view from a Node scan.
 One browser at a time on this machine, as detached chains in
 `/tmp/claude-0/-home-user-what-it-s-best-at/fa086d69-ff44-5069-99a3-fdab3300646a/scratchpad`
 (`chainM*.sh`, logs in `logs/`, pictures in `shots/`, frozen builds `buildC1` = this branch as it
-was this morning, `buildD1` = this branch with the rain's six fixes and the lenses' order,
-`buildQ2` = the owning head):
+was this morning, `buildD2` = this branch merged with the owning head at `e63d72e`, which is where
+every picture from the storm cells onward is taken, `buildQ2` = the owning head of this morning,
+which is the "before" of the pairs):
 
 | chain | what |
 | --- | --- |
