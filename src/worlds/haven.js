@@ -179,12 +179,24 @@ export default {
       wall: { label: 'The range across the valley', heading: 250, pitch: 3, fov: 26 },
       ship: { label: 'The lander', east: -20, north: -12, heading: 230, pitch: 3, fov: 50 },
       dusk: { label: 'Evening', heading: 275, pitch: 0, fov: 60, timeOffsetHours: 9.6 },
-      // The day's weather (sky A's model, seed 23; the hours from find-weather --scene, the
-      // places and headings asked of the model): not benchmarked (only the first five are).
-      mist: { label: 'Morning mist', heading: 240, pitch: -14, fov: 55, timeOffsetHours: -0.5 },
-      storm: { label: 'Afternoon storm', heading: 243, pitch: 4, fov: 45, timeOffsetHours: 8.25 },
-      front: { label: 'A front coming', heading: 280, pitch: 4, fov: 55, timeOffsetHours: 33 },
-      crown: { label: 'Wind on the Crown', lat: 13.362, lon: 68.95, heading: 0, pitch: 8, fov: 45, timeOffsetHours: 53 },
+      // The day's weather (sky A's model, seed 23; the hours from find-weather --scene). Each
+      // looks AT its weather from a place with the view open (docs/briefs/sky-faults-report.md,
+      // fault 4: the places by scripts/find-overlook.mjs, sketched by scripts/peek.mjs, the
+      // weather's own place and hour by scripts/sky-scan.mjs; `alt`: m over the sea, a view
+      // from the air where all the ground that looks at the thing is wood). Not benchmarked
+      // (only the first five are).
+      // the mist in the valley 75 km south-west of the opening place, 140 m deep an hour after the
+      // Sun is up there (the model's only mist of that morning that lies over ground one can see:
+      // nearer the opening place its hollows are lakes, and their mist would be under the water)
+      mist: { label: 'Morning mist', lat: -58.5, lon: 28.2, alt: 1500, heading: 250, pitch: -11, fov: 55, timeOffsetHours: 0.75 },
+      // the storm from the air 30 km to its north-north-east (on a world this small a tower 60 km off
+      // is mostly under the horizon), the Sun to the right of it: its lit side, its shade side, its
+      // rain; clear sky overhead there at that hour
+      storm: { label: 'Afternoon storm', lat: -47.26, lon: 32.06, alt: 2600, heading: 208, pitch: 6, fov: 40, timeOffsetHours: 8.25 },
+      // the rain deck down on the range across the valley, the Sun going down behind it
+      front: { label: 'A front coming', lat: -48.51554, lon: 48.64021, heading: 264, pitch: 9, fov: 60, timeOffsetHours: 33 },
+      // the Crown from 14 km to the east-south-east, its lee side: cloud banked on the windward side and over the top
+      crown: { label: 'Wind on the Crown', lat: 13.90909, lon: 71.95116, alt: 1950, heading: 297, pitch: 7, fov: 50, timeOffsetHours: 53 },
     },
   },
   places: [

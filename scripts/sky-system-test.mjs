@@ -485,7 +485,7 @@ if (BREAK === 'clock') {
 // ---- 9. the governor ---------------------------------------------------------------------------------
 {
   // (the order of fix/governor10, the tenth phone results: the steps that bought nothing go last)
-  const LADDER = ['grass-mid', 'trees-far', 'far-trees', 'tree-leaves', 'grass', 'pollen', 'cloud-upper', 'rain-shafts', 'cloud-shade-rate', 'lenses', 'fog-sheet', 'terrain-1', 'terrain-2', 'cloud-shade-coarse', 'clouds', 'far-relief', 'cloud-volume', 'cloud-steps', 'cloak', 'figure', 'fine-shadows', 'bloom', 'detail', 'soft-shadows', 'contact', 'edge-glow', 'dust', 'rocks', 'far-rock-shadows', 'far-rocks', 'rain', 'leaves', 'sun-beams', 'air-shadow', 'tree-shadows'];
+  const LADDER = ['grass-mid', 'trees-far', 'far-trees', 'tree-leaves', 'grass', 'pollen', 'cloud-far', 'cloud-upper', 'rain-shafts', 'cloud-shade-rate', 'lenses', 'fog-sheet', 'terrain-1', 'terrain-2', 'cloud-shade-coarse', 'clouds', 'far-relief', 'cloud-volume', 'cloud-steps', 'cloak', 'figure', 'fine-shadows', 'bloom', 'detail', 'soft-shadows', 'contact', 'edge-glow', 'dust', 'rocks', 'far-rock-shadows', 'far-rocks', 'rain', 'leaves', 'sun-beams', 'air-shadow', 'tree-shadows'];
   check(FEATURE_STEPS.map((f) => f.id).join(',') === LADDER.join(','), "the governor's ladder: as it was, with the plan's four sky steps (cloud-upper, rain-shafts, cloud-shade-rate in the second group, cloud-shade-coarse before 'clouds')");
   // the plan's four: through the sky's setters; not live and not built while their parts are stand-ins
   {
@@ -549,7 +549,7 @@ if (BREAK === 'clock') {
   }
   // the steps not built yet are not measured
   const stubIdx = FEATURE_STEPS.map((f, i) => (f.has && !f.has(app) ? i : -1)).filter((i) => i >= 0);
-  check(stubIdx.length === 6 && !ct.configs.some((c) => stubIdx.includes(c[0])), `the cost test measures no step that is not built yet (${stubIdx.map((i) => FEATURE_STEPS[i].id).join(', ')})`);
+  check(stubIdx.length === 7 && !ct.configs.some((c) => stubIdx.includes(c[0])), `the cost test measures no step that is not built yet (${stubIdx.map((i) => FEATURE_STEPS[i].id).join(', ')})`);
   ct.restore();
   check(app.paused === false, '... and let go again when the test is over');
   // the route's clock is pinned: the game's own pace whatever the player had, given back at the end

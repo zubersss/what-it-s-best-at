@@ -10,7 +10,7 @@ import { havenProducer, tWeather } from './sky-scan.mjs';
 import { png } from './lib/png.mjs';
 import { sampler2D, sampler3D } from './lib/glslSamplers.mjs';
 import { cloudNoiseData } from '../src/sky/cloudNoiseData.js';
-import { skyLowJS, skyLowDensityJS, skyHeapBodyJS, skyLowNoiseJS, skyToLowJS, steerQuat, skyRiseOf, SKY_V0 } from '../src/sky/skyGlsl.js';
+import { skyLowJS, skyLowDensityJS, skyHeapBodyJS, skyMassJS, skyToLowJS, steerQuat, skyRiseOf, SKY_V0 } from '../src/sky/skyGlsl.js';
 import { Steer } from '../src/weather/sky/steer.js';
 import haven from '../src/worlds/haven.js';
 
@@ -38,7 +38,7 @@ for (let j = 0; j < W; j++) for (let i = 0; i < W; i++) {
   }
   // the far shell's reading: the body at the height where the masses are widest
   const rr = R + L[2] + (L[3] - L[2]) * SKY_V0.WIDEST, q = skyToLowJS(u.uCloudSteer, up).map((x) => x * rr * u.uSkyLow[0]);
-  const body = Math.max(skyHeapBodyJS(skyLowNoiseJS(noise, q, rr, u.uCloudRise[0]), L[0]), L[1] > 0 ? Math.min(1, Math.max(0, (L[1] - 0.02) / 0.28)) : 0);
+  const body = Math.max(skyHeapBodyJS(skyMassJS(noise, q, rr, u.uCloudRise[0]), L[0]), L[1] > 0 ? Math.min(1, Math.max(0, (L[1] - 0.02) / 0.28)) : 0);
   cov += Math.max(L[0], L[1]) > 0.1 ? 1 : 0; drawn += d > 0.25 ? 1 : 0; shell += body > 0.12 ? 1 : 0;
   const o = (j * 2 * W + i) * 3;
   px[o] = 40 + 215 * L[0]; px[o + 1] = 40; px[o + 2] = 40 + 215 * L[1];

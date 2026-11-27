@@ -12,6 +12,7 @@ import { G } from '../render/globals.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { HEAP_GLSL, SKY_UNIFORMS, SKY_NOISE_UNIFORM_GLSL, SKY_STEER_UNIFORM_GLSL, SKY_FIELD_GLSL, SKY_V0 } from './skyGlsl.js';
+import { CLOUD_LOOK as TONE } from './cloudLook.js';
 
 // The rule the shell, the volume and every shadow share (fair-weather fields, heaps carved
 // from the noise on the low layer's steering) lives in sky/skyGlsl.js; passed on from here
@@ -51,6 +52,7 @@ precision highp sampler3D;
 ${SKY_NOISE_UNIFORM_GLSL}${SKY_STEER_UNIFORM_GLSL}
 uniform vec4 uVol;             // x: 1 / the noise's scale (1/m; 0: no volume), y: the world's radius in units of the fair-weather field, z: the radius at which the volume's masses are widest (m), w: the low pattern's rise (m, SKY_UNIFORMS.uCloudRise.x)
 uniform float uNearFade;       // metres: nearer than this the cloud is drawn as a volume instead (cloudVolume.js); 0: all of it is this shell
+uniform int uHeights;          // the heights at which the field's layer is read along each line of sight (3; 1 under the governor's step cloud-far)
 in vec3 vRel;
 layout(location = 0) out vec4 fragColor;
 ${SKY_FIELD_GLSL}
@@ -102,27 +104,64 @@ void main() {
   float relief = 1.0;            // the Sun on a heap's own shape: over 1 on its sunward side, under 1 in its own shade
   float cFar = 0.0;              // what the layer is from so far that its heaps are smaller than a pixel
   float deck = 0.0;              // how much of the cover here is a sheet (a deck's underside is grey)
+  vec3 tone = vec3(1.0);         // (the field's heaps) what the cloud makes of the Sun's light where the sight line meets it
+  float glow = 1.0;              // ... and how much of the bright rim round the Sun it takes there (none in a heap's shade)
   if (field) {
-    // The field's own cloud, carved by the shared forms at the height where the masses are
-    // widest: the same heaps and decks the volume marches near the traveller, so a cloud keeps
-    // its place and its outline when one comes near and the volume takes it over.
+    // The field's own cloud, carved by the shared forms: the same heaps and decks the volume
+    // marches near the traveller, so a cloud keeps its place and its outline when one comes
+    // near and the volume takes it over.
     vec4 A = wxRead(tWxA, up);
     vec4 L = skyLowOf(A);
-    float share = skyLowShare(A, L), rr = uSkyLow.y + mix(L.z, L.w, ${glf(SKY_V0.WIDEST)});
-    float fine = 1.0 - smoothstep(150.0, 600.0, px * rr);
-    vec3 q = skyFormQ(skyToLow(uCloudSteer, up) * (rr * uSkyLow.x), skyToLow(uCloudSteer, up), share);
-    vec2 n = skyLowNoise2(tCloudNoise, q, rr, uCloudRise.x);
-    float dv = skyEdgeEat(max(skyHeapBody(n.x, L.x), L.y > 0.0 ? smoothstep(0.02, 0.3, L.y) : 0.0), n.y * fine);
+    // (clear sky: nothing more is read. Most of a fair day's sky ends here.)
+    if (max(L.x, L.y) < 0.02) discard;
+    float share = skyLowShare(A, L), depth = max(L.w - L.z, 1.0);
+    float h0 = length(planetPos) - uSkyLow.y;            // where this pixel of the shell stands (m over the sea)
+    float fine = 1.0 - smoothstep(150.0, 600.0, px * (uSkyLow.y + h0));
+    // A HEAP HAS HEIGHT. The line of sight is followed through the layer at up to three heights,
+    // the one the eye meets first first (from below the base, from above the top), each read
+    // where the sight line itself crosses that height: so a heap far off shows its top to one
+    // above it, its underside to one below, its side to one beside it, and toward the horizon
+    // the heaps stand in front of one another as they do. (Read once, at the height where the
+    // masses are widest, a field of heaps was flat cut-outs in one tone, and dashes at the
+    // horizon. The governor step cloud-far goes back to that one reading.)
+    vec3 rd = -V;
+    float sinE = dot(rd, up), inv = 1.0 / (abs(sinE) < 0.07 ? (sinE < 0.0 ? -0.07 : 0.07) : sinE);
+    float through = 1.0, yHit = 0.0, wHit = 0.0, dMid = 0.0, yMid = 0.5;
+    vec3 pMid = planetPos;
+    for (int i = 0; i < 3; i++) {
+      if (i >= uHeights) break;
+      float yi = uHeights == 1 ? ${glf(SKY_V0.WIDEST)} : sinE > 0.0 ? 0.2 + 0.3 * float(i) : 0.8 - 0.3 * float(i);
+      float hi = L.z + yi * depth;
+      vec3 pp = uHeights == 1 ? planetPos : planetPos + rd * ((hi - h0) * inv);
+      vec3 qs = skyToLow(uCloudSteer, pp) * uSkyLow.x;
+      vec3 qf = skyFormQ(qs, normalize(qs), share);
+      vec2 n = skyMass2(tCloudNoise, qf, uSkyLow.y + hi, uCloudRise.x);
+      // (a sheet thinner than the layer lies at its foot: asked at a height inside it)
+      float d = max(skyHeapAt(n.x, L.x, yi), skySheetAt(n.x, L.y, min(yi, 0.5 * share), share));
+      d = skyEdgeEat(d, n.y * fine);
+      float a = smoothstep(0.0, 0.45, d);
+      yHit += through * a * yi; wHit += through * a;
+      through *= 1.0 - a;
+      if (i == (uHeights == 1 ? 0 : 1)) { dMid = d; pMid = pp; yMid = yi; }
+    }
     float c = max(L.x, L.y);
     cFar = c; deck = L.y;
-    cover = mix(smoothstep(0.0, 0.45, dv) * 0.75, c * 0.5, far);
-    // A heap seen from above has a lit side and a side in its own shade: the same cloud a few
-    // hundred metres toward the Sun says which this is (as the volume does near the traveller).
-    if (far < 1.0) {
-      vec3 u1 = normalize(up + uSunDir * (450.0 / rr));
-      float n1 = skyLowNoise(tCloudNoise, skyToLow(uCloudSteer, u1) * (rr * uSkyLow.x), rr, uCloudRise.x);
-      float dv1 = skyHeapBody(n1, L.x);
-      relief = clamp(1.0 + 1.25 * (dv - dv1), 0.6, 1.24);
+    cover = mix((1.0 - through) * 0.75, c * 0.5, far);
+    // Its two tones, as the volume gives them near the traveller: where the sight line meets
+    // the cloud high in the heap, or on the side turned to the Sun (less cloud a few hundred
+    // metres toward the Sun than here), the Sun's own warm white; low in it, or on the side
+    // turned away, the lilac of its shade, and its underside a step darker.
+    if (far < 1.0 && wHit > 0.003) {
+      float yM = yHit / wHit, mu0s = max(dot(up, uSunDir), 0.0);
+      vec3 ps = pMid + uSunDir * 450.0;
+      vec3 q1 = skyToLow(uCloudSteer, ps) * uSkyLow.x;
+      float d1 = skyHeapAt(skyMass(tCloudNoise, skyFormQ(q1, normalize(q1), share), length(ps), uCloudRise.x), L.x, yMid + 450.0 * mu0s / depth);
+      float sunward = clamp(0.5 + (dMid - d1) * 2.2 + (yM - 0.42) * 1.1 - 0.3 * dot(rd, uSunDir) * (1.0 - yM), 0.0, 1.0);
+      float inSun = smoothstep(0.4, 0.56, sunward);
+      vec3 shade = vec3(${TONE.SHADE_TINT.map(glf).join(', ')}) * (${glf(TONE.SHADE)} * mix(${glf(TONE.UNDER)}, 1.0, smoothstep(0.02, 0.3, yM)));
+      tone = mix(mix(shade, vec3(0.64), share), vec3(1.0), inSun);
+      tone = mix(tone, vec3(1.0), far);
+      glow = mix(mix(inSun, 1.0, share), 1.0, far);
     }
   } else if (uVol.x > 0.0) {
     // With a volume near the traveller, this shell is the same clouds seen from far off: the
@@ -179,20 +218,23 @@ void main() {
   // makes a white thing. With the light of its under side, a field of heaps from 30 km was
   // hardly lighter than the desert under it. By the line of sight, not by where the
   // traveller is: on the way through the layer the clouds far off are seen edge on.)
+  fwd = mix(0.6, fwd, glow);
   fwd = mix(fwd, 0.45 + 0.8 * max(mu0, 0.0), smoothstep(0.0, 0.3, dot(V, up)));
   // (from below: a heap's underside is light, a deck's is grey and a rain deck's nearly slate —
   // the same tones the volume gives them near the traveller, so the hand-over at its reach shows
   // no step)
   float under = uCloud.w > 0.5 ? mix(1.0, mix(uVol.x > 0.0 ? 0.6 : 0.42, ${glf(0.32)}, smoothstep(0.1, 0.6, deck)), cover) : 1.0;
+  // (the field's heaps carry their own shade, the tone above: only its decks are greyed from below)
+  if (field) under = uCloud.w > 0.5 ? mix(1.0, ${glf(0.32)} / 0.64, smoothstep(0.1, 0.6, deck) * cover) : 1.0;
   vec3 sun = directSun(planetPos) * smoothstep(-0.06, 0.08, mu0) * fwd * under;
   // (matched to the volume near the traveller, whose sunlit faces are white)
   // (... and as white without the volume, in the painted look: with the governor's last
   // saving on, the same clouds were grey)
-  vec3 col = vec3(0.86) * (sun * (uVol.x > 0.0 ? 0.8 : mix(0.42, 0.8, uPaint.x)) + skyLight(uCloud.w > 0.5 ? -up : up, up) * 0.9 + skyLight(up, up) * 0.25) / PI;
+  vec3 col = vec3(0.86) * (sun * tone * (uVol.x > 0.0 ? 0.8 : mix(0.42, 0.8, uPaint.x)) + skyLight(uCloud.w > 0.5 ? -up : up, up) * 0.9 + skyLight(up, up) * 0.25) / PI;
   // (... in two tones: its body, and its thick middle a step darker. From below only: seen
   // from above the thick middle of a heap is its sunlit top, and with it darkened a field
   // of heaps from 30 km was grey flakes with pale rims.)
-  if (uPaint.x > 0.0) col *= mix(1.0, mix(1.0, 0.8, smoothstep(0.55, 0.7, cover)), uPaint.x * (1.0 - far) * uCloud.w);
+  if (uPaint.x > 0.0 && !field) col *= mix(1.0, mix(1.0, 0.8, smoothstep(0.55, 0.7, cover)), uPaint.x * (1.0 - far) * uCloud.w);
   col *= relief;
   col = aerialPerspective(col, vRel);
   fragColor = vec4(col * uExposure * alpha, alpha);
@@ -203,7 +245,7 @@ export class CloudLayer {
     this.renderer = renderer;
     const blank = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); blank.needsUpdate = true;
     this.blank = blank; this.texture = blank;
-    this.uniforms = { ...lightingUniforms(), tCloudMap: { value: blank }, uCloud: { value: new THREE.Vector4(0.8, 1, 0, 1) }, uNearFade: { value: 0 }, uFair: { value: 0 }, tCloudNoise: { value: null }, uVol: { value: new THREE.Vector4() }, uCloudSteer: SKY_UNIFORMS.uCloudSteer,
+    this.uniforms = { ...lightingUniforms(), tCloudMap: { value: blank }, uCloud: { value: new THREE.Vector4(0.8, 1, 0, 1) }, uNearFade: { value: 0 }, uHeights: { value: 3 }, uFair: { value: 0 }, tCloudNoise: { value: null }, uVol: { value: new THREE.Vector4() }, uCloudSteer: SKY_UNIFORMS.uCloudSteer,
       uShellR: { value: 1 }, uSkyLow: SKY_UNIFORMS.uSkyLow, tWxA: SKY_UNIFORMS.tWxA, tWxB: SKY_UNIFORMS.tWxB, tWxC: SKY_UNIFORMS.tWxC, uCloudRise: SKY_UNIFORMS.uCloudRise };
     const mat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1 }, uniforms: this.uniforms, vertexShader: VERT, fragmentShader: FRAG,

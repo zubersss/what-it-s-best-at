@@ -210,7 +210,7 @@ node scripts/overdraw.mjs [--part trees,farForest,grass,leaves] [--view "in the 
 node scripts/make-world.mjs [--width 4096] [--seed 7] [--preview dir] [--only-preview]   # makes the small world's land (Haven): elevation with drainage, lakes, rain (a minute; --width 2048 --only-preview: nine seconds, with pictures to judge it by)
 node scripts/make-world-maps.mjs   # ... and from that its colour, slope, water and cloud maps (needs Python's PIL for the JPEGs); prints the albedo map's mean for the world file
 node scripts/find-haven-site.mjs [--open] [--lat 28,52]   # places on Haven to begin at: level ground over low ground and water, high ground near by
-node scripts/find-overlook.mjs --world haven --lat .. --lon .. --heading .. [--below 1500]   # the very spot: level underfoot, the ground falling away in front, mountains on the far skyline (then look with peek.mjs)
+node scripts/find-overlook.mjs --world haven --lat .. --lon .. --heading .. [--below 1500] [--sky]   # the very spot: level underfoot, the ground falling away in front, mountains on the far skyline (--sky: a LOW far skyline, for a view of the weather; then look with peek.mjs)
 node scripts/far-trees-test.mjs     # the far forest's trees are the near trees: a thinned tile is a subset of the full one, at the same places (no browser)
 node scripts/far-tree-above.mjs [--old] [--out file.png] [--dist 450,1200,3000] [--down 15,35,60,90] [--sun 25]   # the far trees seen from above, sketched without a browser in seconds: a closed wood and lone trees at three distances and four angles (the rule is life/farTreeForm.js)
 node scripts/far-tree-form-test.mjs  # that rule's promises (nothing changes from the ground, nothing switches, a wood's cover from above, a lone tree's size, shadows); node scripts/far-tree-shade-test.mjs [--was]   # the land's shadow on a far tile's trees against a ray from every tree (15 s)
@@ -250,6 +250,7 @@ node scripts/sky-list-test.mjs [--break hold|nofast]   # the storm cells and anv
 node scripts/sky-slots-test.mjs [--break reslot]   # the sky field's snapshots on the GPU: every blend of the 'now' maps reads the pair's own two snapshots, forwards, backwards and after jumps (a renderer that only keeps count; no browser, seconds)
 node scripts/sky-scan.mjs [--t 4] [--lat .. --lon ..] [--span 120] [--stub fair]   # the sky field's numbers round a place at an hour of the game (?t=): heap, sheet, base, thickness, country, mid, high (no browser, seconds)
 node scripts/sky-above.mjs [--t 4] [--span 120] [--stub fair] [--out file.png]   # the low cloud from straight above as the game cuts it: the hour's cover (left) and the cloud carved from it (right), with the share of the land under cloud (no browser, 20 s)
+node scripts/sky-probe.mjs --distdir <build> [--shot ledge] --query "alt=2500&heading=243&t=8.25" --out dir/name [--try "upper=__app.sky.partOut('cloud-upper',true);;flat=__app.sky.setSaving('cloud-far',true)"] [--size 440x206]   # one view of the real game loaded once, then pictured again with a switch tried each time (seconds a switch, where a page load is minutes): for telling WHICH part of the sky draws or hides a thing
 node scripts/sky-steer-test.mjs · node scripts/sky-format-test.mjs · node scripts/sky-cell-test.mjs   # each cloud layer's wind (closed form against a frame-by-frame sum), the weather field's snapshot format (JS and GLSL decoders), a storm cell's shape (JS against its GLSL) (no browser)
 npm run probe          # top-down shaded relief of the height function (no browser)
 node scripts/sky-table.mjs [--lat .. --lon ..]   # where the sky bodies are from a place over time (no browser)
@@ -762,6 +763,17 @@ finished benchmark leaves its text in `window.__benchResult`.
   Node check passing. A renderer that only keeps count (`scripts/sky-slots-test.mjs`) is
   enough to test such a thing. And a round hour in `?t=` is a special moment (f = 0 between
   two snapshots): take a picture at an odd minute as well.
+- On a world 250 km in radius the ground drops 8 km under the horizon's level 64 km away
+  (d x d / 2R): a storm tower 10 km high "64 km off" shows its top third over the far hills,
+  and its air path is 60 km of thick low air. What is meant to be seen whole is seen from
+  30 km (13 degrees of tower) or from the air. And the ground that looks at a thing may all
+  be wood: a bookmark can be a view from the air (`alt`, m over the sea).
+- A part built against a test pattern answers the pattern's question: the fog sheet drew fog
+  standing "over the country" (the stub's fog) and none of the model's, which lies in hollows
+  below it. When the real producer arrives, ask each reader what it reads of it.
+- A noise texture that repeats every few kilometres shows as rows from the air however the
+  cover varies: cut the masses from two readings at scales with no common period (the fine
+  one alone gave crumbs a kilometre wide in rows 4.2 km apart).
 - Two clocks: `?t=` (and a bookmark's `timeOffsetHours`) counts hours from the scene's own
   moment; the weather's clock counts seconds from `weather.epoch` (521 hours apart on Haven).
   A Node scan of the model at `t = H * 3600` asks about another day than the game shows at

@@ -35,6 +35,7 @@ export const UPPER_LOOK = Object.freeze({
   MID_SHADE: 0.72,                // its shaded side (two tones, as the heaps have)
   MID_PATCH: 0.28,                // how much the field clumps into patches and lanes (0: an even screen)
   MID_PATCH_K: 0.21,              // how large those patches are, against a cloudlet
+  WINDOW: 0.8,                    // how much of the mid and high cloud in FRONT of a storm tower is taken away on the lines of sight that go on into it
   ANVIL_TORN: 0.42,               // how far the cirrus strokes move an anvil's edge (a torn fringe)
   HIGH_STRETCH: 7,                // how far the high noise is drawn out along its own wind
   HIGH_ALPHA: 0.5,                // cirrus is never more than half there ...
@@ -160,6 +161,21 @@ void main() {
   // (nothing smaller than a pixel: from far above, a field of cloudlets is its own mean)
   float small = smoothstep(0.4, 1.4, px * uUpper.y / ${glf(U.MID_CELL)});
   if (small > 0.0) alpha = mix(alpha, cover * (high ? 0.55 : 0.8), small);
+  // A storm tower farther along this line of sight: the tower is the sky's landmark, and the
+  // veil in front of it is thinned to ${Math.round((1 - U.WINDOW) * 100)} % where the sight line goes on into its hull (by the
+  // length of tower behind, so the thinning ends softly at its outline). Not its own anvil, which
+  // lies over its tower as it should. (A mackerel sky 5 km up crosses every line of sight to a
+  // tower 30 km off: the storm of the day was a column of cloudlets.)
+  if (an < 0.05 && uCellCount > 0) {
+    vec3 ray = normalize(vRel);
+    float behind = 0.0;
+    for (int k = 0; k < CELL_MAX; k++) {
+      if (k >= uCellCount) break;
+      vec2 ch = cellChord(k, uCamPlanetPos, ray);
+      if (ch.y > ch.x && ch.x > dist) behind = max(behind, smoothstep(0.0, 1500.0, ch.y - ch.x));
+    }
+    alpha *= 1.0 - ${glf(U.WINDOW)} * behind;
+  }
   if (alpha < 0.004) discard;
   // light: the Sun through the air at this height (so it goes gold and then pink after the land's
   // sunset), the sky from above and below

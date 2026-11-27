@@ -407,7 +407,10 @@ export class App {
     this.rig.setLatLon(p.lat ?? b.lat ?? s.lat, p.lon ?? b.lon ?? s.lon, b.eye ?? s.eye, p.heading ?? b.heading ?? s.heading, p.pitch ?? b.pitch ?? s.pitch);
     const east = p.east ?? b.east ?? 0, north = p.north ?? b.north ?? 0;
     if (east || north) this.rig.offsetMetres(east, north, b.eye ?? s.eye);
-    if (p.alt != null) { if (this.rig.mode === 'walk') this.rig.setMode('fly'); this.rig.pos.setLength(this.world.radius + p.alt); this.rig.agl = 0; }
+    // (a view from the air: the URL's alt, or the bookmark's own — m over the sea. Where the ground
+    // that looks at a thing is all wood, the view is flown: Haven's mist and its Crown)
+    const alt = p.alt ?? b.alt ?? null;
+    if (alt != null) { if (this.rig.mode === 'walk') this.rig.setMode('fly'); this.rig.pos.setLength(this.world.radius + alt); this.rig.agl = 0; }
     this.rig.baseFov = this.rig.fov = p.fov ?? b.fov ?? CONFIG.DEFAULT_FOV;
     // A bookmark is a place and a moment: it restores its world's scene time.
     this.baseJD = dateToJD(Date.parse(sc.dateUTC));
@@ -416,7 +419,7 @@ export class App {
     if (b.label && !this.shotMode && !this.benchmark?.active) this.toast?.show(b.label, 2600);
     // With the character: a place on the ground is stood on (unless hovering); a view from
     // up high is flown.
-    if (this.rig.mode === 'hero') { if (p.alt == null && !this.rig.hover) this.rig.standUp(); else this.rig.onFoot = false; }
+    if (this.rig.mode === 'hero') { if (alt == null && !this.rig.hover) this.rig.standUp(); else this.rig.onFoot = false; }
     if (this.hero) this.hero.started = false;
     this.heroVisKnown = false;            // (its terrain shadow is asked again for the new place)
     this.jumpedAt = performance.now();

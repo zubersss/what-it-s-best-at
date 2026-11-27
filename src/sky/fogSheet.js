@@ -19,7 +19,7 @@ import { makeSkyAt } from '../weather/sky/format.js';
 export const FOG_LOOK = Object.freeze({
   SPAN: 60000,       // m across the whole sheet
   N: 129,            // points a side
-  EDGE: 40,          // m of fog over the country at which the sheet is fully there
+  EDGE0: 0.1, EDGE1: 0.7,   // the share of a place's texels with fog between which the sheet fades in
   LUMP: 900,         // m: the soft lumps of its top (in what it takes of the light behind it;
                      // its top itself is level, as a lake of mist is)
   ALPHA: 0.97,       // the most it takes of what is behind it
@@ -33,20 +33,44 @@ ${SKY_FIELD_GLSL}
 uniform vec3 uAnchor;          // the lattice's middle, a point of the world (planet axes, m)
 uniform vec3 uEast, uNorth;    // its axes there
 uniform float uStep;           // m between two points of the lattice
+uniform vec3 uCamPlanetPos;    // the eye (planet axes, m): the sheet is drawn relative to it
 out vec3 vRel;
 out vec3 vPlanet;
-out float vFog;                // how much fog stands over the country here (m)
+out float vFog;                // how much of this place has fog (0 none .. 1 all four of its texels)
+// The fog's top at a place and how much of the place has fog, from the four texels round it,
+// EACH TAKEN BY ITSELF: the top is the mean over the texels that have fog, and the share of them
+// is what fades the sheet out. (A filtered read mixes a basin's top with the zero of a texel
+// that has none, and the sheet's rim then dived to the sea.)
+vec2 fogAt(vec3 dir) {
+  ivec2 sz = textureSize(tWxC, 0);
+  vec2 q = wxUV(dir) * vec2(sz) - 0.5, f = fract(q);
+  ivec2 i0 = ivec2(floor(q));
+  float has = 0.0, top = 0.0;
+  for (int k = 0; k < 4; k++) {
+    ivec2 o = ivec2(k & 1, k >> 1);
+    ivec2 ij = ivec2((i0.x + o.x + 2 * sz.x) % sz.x, clamp(i0.y + o.y, 0, sz.y - 1));
+    float w = (o.x == 1 ? f.x : 1.0 - f.x) * (o.y == 1 ? f.y : 1.0 - f.y);
+    float t = wxFogTop(texelFetch(tWxC, ij, 0));
+    if (t > 0.0) { has += w; top += w * t; }
+  }
+  return vec2(has > 0.0 ? top / has : 0.0, has);
+}
 void main() {
   // the lattice point: a place of the world, not of the traveller
   vec3 p = uAnchor + uEast * (position.x * uStep) + uNorth * (position.y * uStep);
   vec3 dir = normalize(p);
-  vec4 C = wxRead(tWxC, dir);
-  float top = wxFogTop(C), country = wxCountry(C);
-  vFog = max(top - country, 0.0);
+  // The sheet lies AT THE FOG'S TOP, a level lake of mist, and the depth test cuts it against
+  // the real ground: the mist is seen wherever the ground is lower than its top, in the hollows,
+  // and a ridge standing out of it hides it. (It was drawn only where the top stood above the
+  // COUNTRY, the ground smoothed over 15 km; the weather model puts its fog in hollows, which
+  // are below that by what a hollow is, so none of the model's fog was ever drawn.)
+  vec2 fg = fogAt(dir);
+  vFog = fg.y;
   vPlanet = dir;
-  vec3 w = dir * (uSkyLow.y + max(top, country)) - uCamPlanetPos;
+  vec3 w = dir * (uSkyLow.y + fg.x) - uCamPlanetPos;
   vRel = w;
-  gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0);
+  // (no fog here: out of the picture)
+  gl_Position = fg.y > 0.0 ? projectionMatrix * viewMatrix * vec4(w, 1.0) : vec4(2.0, 2.0, 2.0, 1.0);
 }`;
 
 const FRAG = /* glsl */`
@@ -58,10 +82,10 @@ in vec3 vPlanet;
 in float vFog;
 layout(location = 0) out vec4 fragColor;
 void main() {
-  if (vFog < 1.0) discard;
+  if (vFog < 0.02) discard;
   // soft lumps along its top, read in the low layer's frame so they drift with the ground wind
   float n = skyTex3(tCloudNoise, skyToLow(uCloudSteer, vPlanet) * (uSkyLow.y * uSkyLow.x * ${glf(4200 / F.LUMP)})).r;
-  float alpha = ${glf(F.ALPHA)} * smoothstep(0.0, ${glf(F.EDGE)}, vFog) * smoothstep(0.15, 0.55, n + 0.35);
+  float alpha = ${glf(F.ALPHA)} * smoothstep(${glf(F.EDGE0)}, ${glf(F.EDGE1)}, vFog) * smoothstep(0.15, 0.55, n + 0.35);
   if (alpha < 0.01) discard;
   vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos);
   vec3 sun = directSun(planetPos) * max(dot(up, uSunDir), 0.0);
@@ -130,20 +154,20 @@ export class FogSheet {
       a = this._anchor = [base[0] + east[0] * ne * step + north[0] * nn * step, base[1] + east[1] * ne * step + north[1] * nn * step, base[2] + east[2] * ne * step + north[2] * nn * step];
       ({ east, north } = frameAt(a));
     }
-    // Is there fog within reach? (the field over a square of 25 places across the sheet; the
+    // Is there fog within reach? (the field over a square of 81 places across the sheet; the
     // sheet is drawn only where there is. A ring of eight at the sheet's edge missed what lay
     // between them: fog lies in basins a few kilometres wide, and one of those falls through a
     // ring of 24 km easily. Asked again when the traveller has gone a few kilometres or the
-    // clock has moved on — it burns off over an hour — so this is 0.2 ms every few seconds,
+    // clock has moved on — it burns off over an hour — so this is under a millisecond every few seconds,
     // not page work in every frame.)
     const out = this._at || (this._at = makeSkyAt());
     const a0 = this._fogAt;
     if (!a0 || Math.abs(sky.t - this._fogT) > 60 || (p.x - a0[0]) ** 2 + (p.y - a0[1]) ** 2 + (p.z - a0[2]) ** 2 > 3000 * 3000) {
       let fog = 0;
-      const look = (x, y, z) => { const v = sky.field.at([x, y, z], sky.t, out); fog = Math.max(fog, v.field.fogTop - v.field.country); };
+      const look = (x, y, z) => { const v = sky.field.at([x, y, z], sky.t, out); fog = Math.max(fog, v.field.fogTop); };
       const reach = F.SPAN * 0.45;
-      for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) {
-        const ce = i * reach * 0.5, cn = j * reach * 0.5;
+      for (let j = -4; j <= 4; j++) for (let i = -4; i <= 4; i++) {
+        const ce = i * reach * 0.25, cn = j * reach * 0.25;
         look(p.x + east[0] * ce + north[0] * cn, p.y + east[1] * ce + north[1] * cn, p.z + east[2] * ce + north[2] * cn);
       }
       this._fogAt = [p.x, p.y, p.z]; this._fogT = sky.t; this._fog = fog;
