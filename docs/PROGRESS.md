@@ -106,6 +106,13 @@ tools), and draws only the surface's outside. The cloth's own mesh is no longer 
   touches the skirt there is no skirt: the statue has one skin);
 - drawing both sides: the cloth's two faces lie a centimetre apart and cross in motion,
   the inner one showing through as dark rags. Only the outside is drawn.
+- cutting only the sleeves off the skirt and closing each side's hole (a fan to its middle,
+  then lacing it shut side to side): the stretched sheet in flight went (2 700 drawn-out
+  edges to 400), but the holes are areas, not lines (half the closing triangles were over
+  12 cm long as the sculpt stands), and the closings stood out of the sleeves as spikes in
+  the walk. To do it properly each hole needs a real patch (triangulated in its own plane,
+  with points inside it that are bound as cloth). Not worth it yet: in the game's flight
+  view, from behind, the sheet is hidden by the body.
 
 **Seen in the game** (Mars, the ledge, `?hero=1&heropose=hover|stand&posedir=front|fly|walk&posedir=side&fov=36`):
 whole and right in each; from behind in flight one looks up the gown at the boots.
