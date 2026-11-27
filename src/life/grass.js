@@ -684,11 +684,14 @@ export class Grass {
     // a flower: the stem, leaves, petals (each from the middle outward: x across, y out), the middle
     const flower = (f) => {
       // (the stem a ribbon of two triangles; every other part a kite of two: x across, y out)
-      const p = [-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 0, 0, 1, 1, 0, -1, 1, 0], b = [0, 0, 0, 0, 0, 0], n = f.leaves + f.petals + 1;
-      for (let i = 1; i <= n; i++) { p.push(0, 0, 0, -0.5, 0.55, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0.5, 0.55, 0); b.push(i, i, i, i, i, i); }
+      // (four corners a part, shared by its two triangles: handed over corner by corner, a part
+      // was six runs of the vertex shader for four places)
+      const p = [-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 1, 0], b = [0, 0, 0, 0], ix = [0, 1, 2, 0, 2, 3], n = f.leaves + f.petals + 1;
+      for (let i = 1; i <= n; i++) { p.push(0, 0, 0, -0.5, 0.55, 0, 0, 1, 0, 0.5, 0.55, 0); b.push(i, i, i, i); ix.push(4 * i, 4 * i + 1, 4 * i + 2, 4 * i, 4 * i + 2, 4 * i + 3); }
       const d = { NPET: f.petals, LEAVES: f.leaves, FGROW: f.grow.toFixed(4) };
       if (f.in) { d.IN0 = f.in[0].toFixed(2); d.IN1 = f.in[1].toFixed(2); }
-      return field(f, plain(p, 'aPart', b), FLOWER_VERT, d, 2 * (n + 1), f.light);
+      const geo = plain(p, 'aPart', b); geo.setIndex(ix);
+      return field(f, geo, FLOWER_VERT, d, 2 * (n + 1), f.light);
     };
     // (fields: what goes with the traveller's height first, the grass near by and the flowers;
     // clumps: the far grass, which stays to a greater height and has the governor's step of its own.
