@@ -6,6 +6,22 @@ changes behaviour.
 
 ## Where things stand (read this first)
 
+### Sent 2026-11-25 (late morning): the third link of the rich-and-smooth work, with the new sky
+
+The owner: "Give me a link with everything done merged". This link is ccr-aa39490a-qiw63x at
+173afd5 (PR #37): **the sky by rule** (packages A to D: the day's weather, the clouds of many
+kinds, their shade on everything lit from one map fixed to the world, rain, lightning, thunder
+and wind where the traveller is), the fourth round (trees T4, from above A6, the air and the
+mountains L4 so far, flowers F4), the field's lists every two seconds (`listClock.js`), Haven's
+weather views (keys 6 to 9, the menu's Views), the fog and the lenses on the governor's ladder.
+**Known wrong in it** (being fixed by the helpers, see below): the model's low heaps are not
+drawn (noon over the ranges is an empty sky: `docs/shots/sky/main-noon_air-de185f9.png`; the
+stub's fair heaps did draw, so the fault is in what the model hands the clouds); a storm 64 km
+off is a pale ghost at the horizon; a pale hard-edged disc in the front's view; the weather
+views look into hillsides (A3 is moving them). Until de185f9 the field was the stub's 'fair'
+test pattern whenever the URL had no switch (lesson in CLAUDE.md). The sky's cold code review
+(`review-sky`, five parts with refuters) is still running.
+
 ### Sent 2026-11-25 07:10: the second link of the rich-and-smooth work (read this first)
 
 The owner, after the tenth results, asked for clouds and weather and said the shadows jump;
@@ -21,6 +37,32 @@ blossom from above stickers; clouds at 3 km flat and dashed, the mountain a smoo
 the tree close-ups badly framed; water from the air oily or paint-bucket blue; grass and
 flowers at eye height too even). **Next**: the sky's four packages (helpers running:
 `docs/briefs/sky-*.md`), and a fourth round on the critic's gaps 1, 3, 4 and the mountains.
+Sent as PR #36, main at 607ddca. Since: the fourteenth final picture and the final tests on
+5ab3400 (smoke, foot, shadowturns pass); **sky A merged** (fd6ce5c: the day's weather by
+rule; nothing on screen changes until B's clouds land, since the field is drawn only under
+`debug=sky:*` until then); the **fourth round** handed out (`docs/briefs/round4.md`: trees
+T4, from above A6, air L4, flowers F4). The sky helpers may edit `skySystem.js`, `haven.js`'s
+hours and add their own governor steps on their branches (marked "(sky X)", tests passing):
+waiting on this session cost them hours; clashes are resolved at the merge.
+**07:45**: sky A done and merged (6b534be: Haven's weather bookmarks and three cost views,
+`?debug=sky:model`, a worker re-asked when started anew). Sky B merged so far and wired
+here (d46152e): **the new clouds are on in Haven** on this branch (the field always on, the
+upper shells, the fog sheet and the lenticulars made). Not yet seen in a picture from this
+head: B takes its pictures and the climb, crossing and storm-pass runs from it. The wood
+walk before and after (`docs/shots/trees-refined/wood_walk_shadows_before_after11.md`):
+the middle ground where the trees' shadows lie changed 63 -> 55 % and flickered 10 -> 7.9 %;
+the wind dominates, so "calmer", not proof (the proof is the Node replays).
+**08:05**: **all four sky packages merged** on this branch (dfbf8c1: A 3fda6d3 Earth's field from
+its maps and storm cells kept between snapshots; C 4e7c2fc one map of the clouds' shade fixed
+to the world, read by the ground, the trees and the rocks, the ground's fragment shader down to
+15 of 16 textures; B bd3e9e6 the anvil frayed and darker underneath, the mackerel sky in
+patches, lenticulars drawn, the storms kept at the governor's floor; D e1318e3 rain, lightning,
+thunder and wind where the traveller is), with the air helper's water from the air (122e0e0: one
+fade by depth, a calm sky sheen, no rainbow) and the trees' probe. Clashes: `skySystem.js`'s
+field (on wherever the weather is made by rule; on Earth under `sky:model` only), the ground's
+water (the calm sheen with C's `vCloud.z`), `play-profile.mjs`. Every Node check passes. A cold
+code review of the whole sky runs (`review-sky`, five parts, each finding checked by a
+refuter); the helpers take their remaining pictures from dfbf8c1.
 
 ### In hand: Haven rich and smooth (the owner's ninth phone results)
 

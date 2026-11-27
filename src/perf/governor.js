@@ -103,6 +103,10 @@ export const FEATURE_STEPS = [
   skyStep('cloud-upper', 0.5, 'middle and high cloud plainer'),
   skyStep('rain-shafts', 0.5, 'plainer rain shafts under the clouds'),
   skyStep('cloud-shade-rate', 0.3, "the clouds' shadows a little behind (every other frame)"),
+  // (sky B: the lenses before the fog: a lens is a small thing high up, the fog what a valley at
+  // first light is about; each thins and leaves the thing itself. Guesses until the phone says)
+  skyStep('lenses', 0.2, 'fewer, plainer lens clouds over the peaks'),
+  skyStep('fog-sheet', 0.3, 'valley fog drawn coarser'),
   // (the patches: the cost test cannot ask about them, the ground would have to settle
   // again each time; a guess. They are also what the governor gives up when the page's own
   // work is what is slow: see _down.)

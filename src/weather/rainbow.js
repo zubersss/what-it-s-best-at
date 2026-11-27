@@ -44,18 +44,20 @@ export class Rainbow {
   // Every frame. weather: the Weather; rig: the camera rig; aspect: the view's.
   update(weather, rig, aspect, sunDir) {
     let want = 0;
-    if (weather.def && rig.agl < 8000) {
+    if ((weather.def || weather.own) && rig.agl < 8000) {
       // rain a few kilometres off on the side away from the Sun, the Sun low enough for the
       // bow to stand above the horizon and not hidden where the traveller stands
       const p = rig.pos, len = p.length(), lat = Math.asin(p.z / len) * 180 / Math.PI, lon = Math.atan2(p.y, p.x) * 180 / Math.PI, e = weather._e, n = weather._n, u = weather._u;
       const se = sunDir.x * e[0] + sunDir.y * e[1] + sunDir.z * e[2], sn = sunDir.x * n[0] + sunDir.y * n[1] + sunDir.z * n[2], su = sunDir.x * u[0] + sunDir.y * u[1] + sunDir.z * u[2];
-      const h = Math.hypot(se, sn) || 1, cl = Math.max(0.2, Math.cos(lat * Math.PI / 180));
-      let rain = 0;
-      for (const d of [2500, 6000, 11000]) rain = Math.max(rain, weather.rainAt(lat - sn / h * d / 111200, lon - se / h * d / (111200 * cl)));
       const low = su > 0.02 && su < 0.66 ? Math.min(1, (0.66 - su) / 0.15) * Math.min(1, (su - 0.02) / 0.05) : 0;
+      // (the air is asked only where a bow could stand: four looks, and none with the Sun high)
+      const h = Math.hypot(se, sn) || 1, cl = Math.max(0.2, Math.cos(lat * Math.PI / 180)), m = weather.mPerDeg;
+      let rain = 0;
+      if (low > 0) for (const d of [2500, 6000, 11000, 18000]) rain = Math.max(rain, weather.rainNear(lat - sn / h * d / m, lon - se / h * d / (m * cl)));
       want = Math.min(1, rain / 1.5) * low * Math.max(0, (weather.sunShade - 0.35) / 0.65);
     }
-    this.strength += (want - this.strength) * 0.03;
+    // (a picture: the bow at once at its full, not a hundred frames of fading in)
+    this.strength += (want - this.strength) * (weather.quiet ? 1 : 0.03);
     this.mesh.visible = this.strength > 0.01;
     if (!this.mesh.visible) return;
     const m = rig.camera.matrixWorld.elements, U = this.uniforms;

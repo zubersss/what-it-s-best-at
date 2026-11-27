@@ -150,7 +150,13 @@ export const GRASS_PRELUDE = /* glsl */`
     // was a chequerboard, woven across the whole field seen from 100 m up)
     vec2 p = (at + uGrassLie) * ${(2 * Math.PI / PERIOD).toFixed(8)};
     return 0.55 * sin(47.0 * p.x + 23.0 * p.y + 2.2 * sin(11.0 * p.y - 7.0 * p.x)) + 0.45 * sin(53.0 * p.y - 19.0 * p.x + 1.7 + 1.9 * sin(9.0 * p.x + 5.0 * p.y + 2.0 * sin(3.0 * p.y - 2.0 * p.x)));
+  }  // broad swaths some 90 m across, fresher green and drier gold, that the far field shows too
+  // (a whole number of waves in PERIOD, like lieAt)
+  float swathAt(vec2 at) {
+    vec2 p = (at + uGrassLie) * ${(2 * Math.PI / PERIOD).toFixed(8)};
+    return 0.6 * sin(29.0 * p.x - 11.0 * p.y + 1.3 * sin(7.0 * p.y + 3.0 * p.x)) + 0.4 * sin(23.0 * p.y + 13.0 * p.x + 2.1 + 1.1 * sin(5.0 * p.x - 4.0 * p.y));
   }
+
   // the wind over the field: which way and how hard it bends grass (east, north), and where the wave is (0..1)
   vec3 windAt(vec3 rel, float own) {
     vec2 w2 = vec2(dot(uGrassWind.xyz, uGrassEast), dot(uGrassWind.xyz, uGrassNorth));
@@ -226,12 +232,16 @@ const BLADE_VERT = /* glsl */`
     float square = smoothstep(0.22, 0.5, rise);
     if (hash2(cell + 3.7 + aBlade).y < square * smoothstep(40.0, 90.0, dist) * 1.02) OUT_OF_PICTURE
     #endif
-    float lie = lieAt(at);
+    float lie = lieAt(at), swath = swathAt(at);
+    // (clumps a metre across of taller and shorter blades, the ground's own: counted from where
+    // the grass began, as the tussocks are; and here and there a seed head, taller, its tip pale)
+    float clump = hash2(mod(floor(at) + uGrassLie, ${2 * PERIOD}.0) + 9.1).x;
+    float seedHead = step(0.9, fract(hb.x * 5.3 + hb.y * 2.9)) * smoothstep(0.25, 0.5, dryHere(g.b) + 0.2 * swath);
     float wide = WIDE * (0.8 + 0.9 * hb.x) * (1.0 + GROW * dist);
     #ifdef FAR
     wide *= uGrassKeep.w;          // (the governor's step: half of them, each wider)
     #endif
-    float tall = TALL * (0.24 + 0.34 * hb.x) * (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) * (0.85 + 0.3 * lie);
+    float tall = TALL * (0.24 + 0.34 * hb.x) * (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) * (0.85 + 0.3 * lie) * (0.6 + 0.8 * clump) * (1.0 + 0.5 * seedHead);
     // How many blades lie over each other along the line of sight: the field's blade area
     // over a square metre of ground, seen at this angle. Beyond LAYERS deep the rest are
     // behind those in front: left out, blade by blade, each by its own number. (This is
@@ -267,7 +277,10 @@ const BLADE_VERT = /* glsl */`
     vec3 rel = uGrassEast * p2.x + uGrassNorth * p2.y + uGrassUp * up;
     // green grass and dry grass, each darker at the foot (the blades shade each other
     // there); paler where the wind's wave bows them
-    float tone = y, shade = (0.85 + 0.3 * h.x) * (0.92 + 0.12 * lie) * (0.94 + 0.12 * w.z), dry = dryHere(g.b) + (h.x - 0.5) * 0.16;
+    // (the wind's waves as bands of lighter and darker grass rolling across the field; the
+    // swaths fresher and drier by place)
+    float tone = y, shade = (0.85 + 0.3 * h.x) * (0.92 + 0.12 * lie) * (0.86 + 0.28 * w.z), dry = dryHere(g.b) + (h.x - 0.5) * 0.16 + 0.4 * swath + 0.1 * (clump - 0.5);
+    shade *= 1.0 + 0.14 * swath;          // (the lush swaths deeper, the dry ones brighter)
     #ifdef FAR
     // (looked down on, or far off, a blade is the ground's own grass colour: its dark foot
     // showing from above was a field of dark specks that ended in an arc)
@@ -278,6 +291,8 @@ const BLADE_VERT = /* glsl */`
     dry -= 0.10 * lie;
     #endif
     vec3 alb = grassColour(dry, tone) * shade;
+    // (a seed head's tip pale straw, catching the light)
+    alb = mix(alb, vec3(0.42, 0.36, 0.22), seedHead * smoothstep(0.65, 1.0, y) * 0.8);
     float skyShare = 0.55 + 0.45 * tone;
     #ifdef FAR
     // (flowers: in a drift some blades are stalks in flower, their upper part the flower's colour:

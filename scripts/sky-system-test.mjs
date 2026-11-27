@@ -89,7 +89,7 @@ import haven from '../src/worlds/haven.js';
 import earth from '../src/worlds/earth.js';
 
 const argv = process.argv.slice(2), BREAK = argv.includes('--break') ? argv[argv.indexOf('--break') + 1] : null;
-const BREAKS = ['quat', 'march', 'heap', 'clock', 'order', 'noclouds', 'field', 'ladder', 'parts', 'guards', 'rise', 'fade', 'shell', 'probe', 'frame', 'worker', 'hour', 'clockpin', 'rain'];
+const BREAKS = ['quat', 'march', 'heap', 'clock', 'order', 'noclouds', 'field', 'ladder', 'parts', 'guards', 'rise', 'fade', 'shell', 'probe', 'frame', 'worker', 'hour', 'clockpin', 'rain', 'reask'];
 if (BREAK && !BREAKS.includes(BREAK)) { console.log(`no break ${BREAK} (${BREAKS.join(', ')})`); process.exit(2); }
 if (BREAK) console.log(`(with a fault put in: ${BREAK})`);
 let failed = 0;
@@ -164,8 +164,10 @@ const heapText = BREAK === 'heap' ? HEAP_GLSL.replace('vec3 qv = skyToLow(steer,
   } catch (e) { err = e.message; }
   check(!err, `the shared rule, the field rule and the march's marchPattern() and density() run as GLSL ES 3${err ? ': ' + err : ''}`);
   check(marchRayOk, "the march turns its camera, its ray and the Sun's direction into the low layer's axes once a ray (skyToLow of uCloudSteer)");
-  // every reader of the rule hands it the steering, and none reads a drift
-  const readers = { terrain: '../src/terrain/terrainMaterial.js', treeShade: '../src/life/treeShade.js', farRocks: '../src/rocks/farRocks.js', shell: '../src/sky/clouds.js', volume: '../src/sky/cloudVolume.js' };
+  // every reader of the rule hands it the steering, and none reads a drift. (Package C: the
+  // ground, the trees' shade and the far rocks no longer read the rule at all - they read the
+  // one cloud-shade atlas, which reads the rule for them: src/sky/cloudShade.js.)
+  const readers = { atlas: '../src/sky/cloudShade.js', shell: '../src/sky/clouds.js', volume: '../src/sky/cloudVolume.js' };
   const badR = [];
   for (const [k, f] of Object.entries(readers)) {
     const s = read(f);
@@ -174,9 +176,15 @@ const heapText = BREAK === 'heap' ? HEAP_GLSL.replace('vec3 qv = skyToLow(steer,
     if (!/uCloudSteer: (SKY_UNIFORMS|sh)\.uCloudSteer/.test(s)) badR.push(`${k} does not take the one uCloudSteer object`);
     // (the shared uniforms declared only through the guarded texts, and the heaps' scales a vec4: its w the rise)
     if (/uniform\s+(highp\s+)?(vec4\s+uCloudSteer|sampler3D\s+tCloudNoise|vec4\s+uCloudRise)\b/.test(s.replace(/\/\/.*$/gm, ''))) badR.push(`${k} declares a shared uniform by a line of its own`);
-    if (['terrain', 'treeShade', 'farRocks'].includes(k) && !/uniform vec4 [^;]*\buCloudVol\b/.test(s)) badR.push(`${k}'s uCloudVol is not a vec4 (the rise is its w)`);
+    if (k === 'atlas' && !/uniform vec4 [^;]*\buCloudVol\b/.test(s)) badR.push(`${k}'s uCloudVol is not a vec4 (the rise is its w)`);
   }
-  check(!badR.length, `the ground, the trees' shade map, the far rocks, the shell and the volume all read the clouds on the steering and the rise, through the guarded uniforms${badR.length ? ': ' + badR.join('; ') : ''}`);
+  // and what is lit reads the shade from the atlas, none of them working the rule out again
+  for (const [k, f] of [['the ground', '../src/terrain/terrainMaterial.js'], ["the trees' shade", '../src/life/treeShade.js'], ['the far rocks', '../src/rocks/farRocks.js']]) {
+    const s = read(f).replace(/\/\/.*$/gm, '');
+    if (/cloudHeap\s*\(|HEAP_GLSL/.test(s)) badR.push(`${k} works the heaps out itself`);
+    if (!/tCloudShade|SHADE_READ_GLSL|cloudShade\.js/.test(s)) badR.push(`${k} does not read the shade atlas`);
+  }
+  check(!badR.length, `the atlas, the shell and the volume read the clouds on the steering and the rise through the guarded uniforms, and the ground, the trees' shade and the far rocks read the atlas${badR.length ? ': ' + badR.join('; ') : ''}`);
   const cl = new CloudLayer(null), cv = new CloudVolume(null);
   check(cl.uniforms.uCloudSteer === SKY_UNIFORMS.uCloudSteer && cv.uniforms.uCloudSteer === SKY_UNIFORMS.uCloudSteer, 'the shell and the volume hold the very uniform object the sky system fills');
 }
@@ -477,7 +485,7 @@ if (BREAK === 'clock') {
 // ---- 9. the governor ---------------------------------------------------------------------------------
 {
   // (the order of fix/governor10, the tenth phone results: the steps that bought nothing go last)
-  const LADDER = ['grass-mid', 'trees-far', 'far-trees', 'tree-leaves', 'grass', 'pollen', 'cloud-upper', 'rain-shafts', 'cloud-shade-rate', 'terrain-1', 'terrain-2', 'cloud-shade-coarse', 'clouds', 'far-relief', 'cloud-volume', 'cloud-steps', 'cloak', 'fine-shadows', 'bloom', 'detail', 'soft-shadows', 'contact', 'edge-glow', 'dust', 'rocks', 'far-rock-shadows', 'far-rocks', 'rain', 'leaves', 'sun-beams', 'air-shadow', 'tree-shadows'];
+  const LADDER = ['grass-mid', 'trees-far', 'far-trees', 'tree-leaves', 'grass', 'pollen', 'cloud-upper', 'rain-shafts', 'cloud-shade-rate', 'lenses', 'fog-sheet', 'terrain-1', 'terrain-2', 'cloud-shade-coarse', 'clouds', 'far-relief', 'cloud-volume', 'cloud-steps', 'cloak', 'fine-shadows', 'bloom', 'detail', 'soft-shadows', 'contact', 'edge-glow', 'dust', 'rocks', 'far-rock-shadows', 'far-rocks', 'rain', 'leaves', 'sun-beams', 'air-shadow', 'tree-shadows'];
   check(FEATURE_STEPS.map((f) => f.id).join(',') === LADDER.join(','), "the governor's ladder: as it was, with the plan's four sky steps (cloud-upper, rain-shafts, cloud-shade-rate in the second group, cloud-shade-coarse before 'clouds')");
   // the plan's four: through the sky's setters; not live and not built while their parts are stand-ins
   {
@@ -510,7 +518,7 @@ if (BREAK === 'clock') {
   const skyRows = PARTS_OUT.filter((p) => SKY_PARTS.includes(p.id));
   if (BREAK === 'parts') delete skyRows[0].has;
   check(new Set(ids).size === ids.length && ids[ids.length - 1] === 'everything' && SKY_PARTS.every((id) => ids.includes(id)) && skyRows.every((p) => typeof p.has === 'function'),
-    `PARTS_OUT: ${ids.length} rows with ids, 'everything' last, the sky's six (${SKY_PARTS.join(', ')}) measured only where the sky has them`);
+    `PARTS_OUT: ${ids.length} rows with ids, 'everything' last, the sky's seven (${SKY_PARTS.join(', ')}) measured only where the sky has them`);
   // a cost test on a stand-in app: its parts, its hour, its clock held
   const sky = new SkySystem({ terrain: terrain(), parts: fakeParts() }); sky.setWorld(haven, DATA);
   const rig = { setLatLon(lat, lon) { this.at = [lat, lon]; }, pos: new THREE.Vector3(1, 0, 0), velocity: new THREE.Vector3(), mode: 'walk', standUp() {} };
@@ -541,7 +549,7 @@ if (BREAK === 'clock') {
   }
   // the steps not built yet are not measured
   const stubIdx = FEATURE_STEPS.map((f, i) => (f.has && !f.has(app) ? i : -1)).filter((i) => i >= 0);
-  check(stubIdx.length === 4 && !ct.configs.some((c) => stubIdx.includes(c[0])), `the cost test measures no step that is not built yet (${stubIdx.map((i) => FEATURE_STEPS[i].id).join(', ')})`);
+  check(stubIdx.length === 6 && !ct.configs.some((c) => stubIdx.includes(c[0])), `the cost test measures no step that is not built yet (${stubIdx.map((i) => FEATURE_STEPS[i].id).join(', ')})`);
   ct.restore();
   check(app.paused === false, '... and let go again when the test is over');
   // the route's clock is pinned: the game's own pace whatever the player had, given back at the end
@@ -618,7 +626,11 @@ if (BREAK === 'clock') {
   }
   {
     const { sky } = run('', true);
-    check(!sky.field.on && !sky.field.busy, 'with no switch Haven has no field yet (nothing on screen reads one in step 0)');
+    // (sky B: the field is always on where the weather is made by rule: the clouds draw from it)
+    check(sky.field.on || sky.field.busy, 'with no switch Haven has its field: the weather made by rule (sky B: the clouds draw from it)');
+    // (it was the stub's 'fair' test pattern for a whole merge: no storm of the day was drawn)
+    const pre = sky.field.opts?.preset ?? null;
+    check(!!sky.field.opts && (pre === null || pre === 'model') && !!sky.field.producer?.lenses, `with no switch the field is the world's own model, not the stub's test pattern (preset ${pre})`);
   }
   check(hourAtEpoch(haven.weather) === 15 && STUB_PRESETS.length === 4, "the stub's day: 15 h local at the weather clock's zero, so the scene's 17:00 UTC is 08:00 at the opening place");
 }
@@ -772,7 +784,9 @@ function ts0() { let t = T0; while (steer.risePhases(t).wa < 1 || steer.risePhas
   sky.weatherStep(ctx(sky, rig, jdOf(T_SCENE_MS)));
   check(Math.abs(G.uWeather.value.x - 0.15) < 1e-6 && Math.abs(G.uWeather.value.y - 0.45) < 1e-6, `the shade probe's value (C) is the shade on the figure and the things near it: uWeather ${G.uWeather.value.x.toFixed(2)}, ${G.uWeather.value.y.toFixed(2)}`);
   parts.probe.value = null;
-  // the flashes reach the volume's uBolt setter
+  // the flashes reach the volume's uBolt setter (a weather that takes the strokes itself, as D's
+  // does: with the field always on the stand-in would set the flash from the field's own strokes)
+  const tsWas = wx.takesStrikes; wx.takesStrikes = true;
   wx.flash = null; wx.bolts = [{ pos: [1, 2, 3], power: 4 }];
   sky.weatherStep(ctx(sky, rig, jdOf(T_SCENE_MS)));
   const fromD = parts.cloudVolume.bolts?.length === 1 && parts.cloudVolume.bolts[0].power === 4;
@@ -782,6 +796,7 @@ function ts0() { let t = T0; while (steer.risePhases(t).wa < 1 || steer.risePhas
   wx.update = function () { this.flash = { dir: new THREE.Vector3(0, 0, 1), dist: 5000, ground: true, power: 1 }; this.flashLight.set(0, 0, 0.5); };
   sky.weatherStep(ctx(sky, rig, jdOf(T_SCENE_MS)));
   const ground = parts.cloudVolume.bolts === null;
+  wx.takesStrikes = tsWas;
   const cv = new CloudVolume(null); cv.setBolts([{ pos: [0, 0, 0], power: 1 }, { pos: [1, 0, 0], power: 0 }, { pos: [2, 0, 0], power: 2 }, { pos: [3, 0, 0], power: 3 }]);
   check(fromD && fromFlash && ground && cv.bolts.length === BOLTS && cv.bolts[1].power === 2, `the flashes reach the volume's uBolt setter: D's list, else a flash in the cloud (where it is, x6 its light), none for a stroke to the ground; the volume keeps ${BOLTS} of power`);
   // D's strokes have a slot of their own
@@ -813,6 +828,23 @@ function ts0() { let t = T0; while (steer.risePhases(t).wa < 1 || steer.risePhas
     const had = !!f.worker;
     f.setWorld(null, null);
     check(made === 1 && had && ended === 1 && f.worker === null, `the field's worker (and its copy of the land) is ended when the field is: a switch away, or no field (${made} made, ${ended} ended)`);
+  } finally { if (saved === undefined) delete globalThis.Worker; else globalThis.Worker = saved; }
+}
+
+{
+  // (sky A) a worker started anew (the land's file arriving) is asked again: the question put to
+  // the one it replaces is never answered (the model's field once waited for ever on it)
+  const saved = globalThis.Worker; const made = [];
+  globalThis.Worker = class { constructor() { this.asked = []; made.push(this); } postMessage(m) { if (m.kind === 'snap') this.asked.push(m.t); } terminate() {} };
+  try {
+    const f = new SkyField(null);
+    f.setWorld(haven, { preset: 'fair', land: { data: new Int16Array(8), width: 4, height: 2, scale: 1 } });
+    f.update(1000);
+    const was = f.asking;
+    f._make(f.opts);                       // what the land's arrival does
+    if (BREAK === 'reask') f.asking = was;
+    f.update(1000.5);
+    check(made.length === 2 && made[0].asked.length === 1 && made[1].asked.length === 1, `a worker started anew is asked for the snapshot again (asked of the first ${made[0]?.asked.length}, of the second ${made[1]?.asked.length})`);
   } finally { if (saved === undefined) delete globalThis.Worker; else globalThis.Worker = saved; }
 }
 

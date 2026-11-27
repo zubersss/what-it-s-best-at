@@ -76,7 +76,15 @@ export function treeBlock(hs, bi, bj, spacing = 7, nominal = BLOCK_DEG, salt = 4
     if (over >= 1) continue;
     if (over > 0) dens *= 1 - over;
     if (u3 >= dens) continue;
-    const sp = pick(flora ? floraFor(flora, cls, h / Math.max(1, line), near) : speciesFor(cls, lat, ((lon + 540) % 360) - 180, h, near), u4), S = SPECIES[sp];
+    // (the trees that flower stand in drifts: along a wood's edge, a stream, one hillside, with
+    // plain green between, and a few alone; by a broad noise of the place, some 400 m to a
+    // cell, near water more. Evenly mixed they were polka dots over every wood from the air.)
+    // (and within a drift in groves some 130 m across, with green between: by the broad noise
+    // alone a drift was itself an even scatter of pink dots)
+    // (by water too: a stream's banks in flower in stretches, not the whole of every bank)
+    const grove = smoothstep01((0.5 + 0.5 * noise3(px / 130 + 1.7, py / 130 - 4.1, pz / 130 + 2.3) - 0.48) / 0.2);
+    const drift = near ? 0.1 + 3.5 * grove : 0.05 + 14.0 * smoothstep01((0.5 + 0.5 * noise3(px / 420 - 5.3, py / 420 + 2.9, pz / 420 + 7.7) - 0.5) / 0.2) * grove;
+    const sp = pickDrift(flora ? floraFor(flora, cls, h / Math.max(1, line), near) : speciesFor(cls, lat, ((lon + 540) % 360) - 180, h, near), u4, drift), S = SPECIES[sp];
     // height: the measured canopy's, more or less, and stunted toward the tree line
     const base = Math.max(tall, near ? 9 : 2.5), height = Math.max(1.2, base * S.tall * (0.72 + 0.5 * u1) * (over > 0 ? 1 - 0.6 * over : 1));
     const r = R + h, q = n * TREE_FLOATS;
@@ -138,4 +146,13 @@ export function treeTile(hs, ti, tj, blocks = 8, spacing = 7, lo = 0, hi = 1, no
   let at = 0;
   for (const p of parts) { trees.set(p, at); at += p.length; }
   return { origin, count: n, trees };
+}
+
+// pick (life/cover.js) with the weight of the species that flower times `drift`.
+function smoothstep01(x) { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); }
+function pickDrift(list, u, drift) {
+  let total = 0; for (const e of list) total += e[1] * (SPECIES[e[0]].blossom ? drift : 1);
+  let t = u * total;
+  for (const e of list) { t -= e[1] * (SPECIES[e[0]].blossom ? drift : 1); if (t <= 0) return e[0]; }
+  return list[list.length - 1][0];
 }

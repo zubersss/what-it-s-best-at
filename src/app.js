@@ -539,6 +539,9 @@ export class App {
         { label: this.audio.on ? 'Sound: on' : 'Sound: off', sub: 'tap to change', stay: true, on: this.audio.on, act: () => this.toggleSound() },
         { label: 'To the start', sub: `of ${this.world.name}`, act: () => this.applyBookmark(Object.keys(this.world.scene.bookmarks)[0]) },
       ] },
+      // (every view of this world's file, by its label: the keys 1 to 9 on a keyboard)
+      { title: 'Views', items: Object.entries(this.world.scene.bookmarks).filter(([, b]) => b.label).map(([name, b], k) => (
+        { label: b.label, sub: k < 9 ? `key ${k + 1}` : '', on: this.bookmark === name, act: () => this.applyBookmark(name) })) },
       { title: 'Camera and picture', items: [
         { label: 'Free camera', sub: 'leave the character', act: () => this.input.virtualTap('KeyF') },
         { label: 'Read-out', sub: 'one line / all / off', act: () => this.hud.toggle() },

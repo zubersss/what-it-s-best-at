@@ -137,7 +137,7 @@ function parse(tokens) {
     for (const op of ['=', '+=', '-=', '*=', '/=']) if (accept(op)) { if (lhs.n !== 'id') fail('only a name can be assigned to here'); const e = expr(); expect(end); return { n: 'set', name: lhs.v, op, e }; }
     expect(end); return { n: 'expr', e: lhs };
   };
-  const prog = { uniforms: [], consts: [], fns: [] };
+  const prog = { uniforms: [], consts: [], globals: [], fns: [] };
   while (!eof()) {
     if (accept('precision')) { while (!accept(';')) i++; continue; }
     if (accept('uniform')) {
@@ -152,7 +152,9 @@ function parse(tokens) {
     if (accept('const')) { prog.consts.push(decl(true)); continue; }
     if (!isType()) fail('expected a declaration');
     const ret = type(), nm = name();
-    if (!accept('(')) fail('only uniforms, constants and functions are understood at the top');
+    // a variable of the whole shader (a running total a function adds to, as the clouds' read count)
+    if (is('=') || is(';')) { const init = accept('=') ? expr() : null; expect(';'); prog.globals.push({ name: nm, type: ret, init }); continue; }
+    if (!accept('(')) fail('only uniforms, constants, a shader\'s variables and functions are understood at the top');
     const params = [];
     if (!accept(')')) {
       if (is('void') && is(')', 1)) { i += 2; } else {
@@ -170,6 +172,7 @@ function parse(tokens) {
   const once = (key, what) => { if (seen.has(key)) throw new Error(`glsl: ${what} is defined twice`); seen.set(key, true); };
   for (const u of prog.uniforms) once(`v ${u.name}`, `the uniform ${u.name}`);
   for (const c of prog.consts) for (const it of c.items) once(`v ${it.name}`, `the constant ${it.name}`);
+  for (const g of prog.globals) once(`v ${g.name}`, `the variable ${g.name}`);
   for (const fn of prog.fns) once(`f ${fn.name}(${fn.params.map((p) => p.type).join(',')})`, `the function ${fn.name}(${fn.params.map((p) => p.type).join(', ')})`);
   return prog;
 }
@@ -268,7 +271,7 @@ const BUILTINS = ['length', 'normalize', 'dot', 'cross', 'distance', 'abs', 'sig
   'sin', 'cos', 'tan', 'asin', 'acos', 'radians', 'degrees', 'atan', 'pow', 'mod', 'min', 'max', 'clamp', 'mix', 'step', 'smoothstep', 'texture', 'textureLod'];
 
 function emit(prog, f) {
-  const out = ['"use strict"; const F = {}, C = {};'];
+  const out = ['"use strict"; const F = {}, C = {}, G = {};'];
   const globals = new Map();     // name -> 'C' | 'U'
   for (const u of prog.uniforms) globals.set(u.name, 'U');
   const fnNames = new Set(prog.fns.map((x) => x.name));
@@ -311,7 +314,7 @@ function emit(prog, f) {
       case 'ret': lines.push(`${ind}return ${s.e ? ex(s.e) : ''};`); return;
       case 'if': lines.push(`${ind}if (R.b(${ex(s.c)}))`); st({ n: 'block', body: [s.a] }, lines, ind); if (s.b) { lines.push(`${ind}else`); st({ n: 'block', body: [s.b] }, lines, ind); } return;
       case 'decl': for (const it of s.items) { const init = it.init ? ex(it.init) : `R.ctor('${it.type}', [0])`; scope[scope.length - 1].add(it.name); lines.push(`${ind}let v_${it.name} = ${init};`); } return;
-      case 'set': { const r = ref(s.name); if (!r.startsWith('v_')) throw new Error(`glsl: ${s.name} cannot be assigned to`); const e = ex(s.e); lines.push(`${ind}${r} = ${s.op === '=' ? e : `R.${{ '+=': 'add', '-=': 'sub', '*=': 'mul', '/=': 'div' }[s.op]}(${r}, ${e})`};`); return; }
+      case 'set': { const r = ref(s.name); if (!r.startsWith('v_') && !r.startsWith('G.')) throw new Error(`glsl: ${s.name} cannot be assigned to`); const e = ex(s.e); lines.push(`${ind}${r} = ${s.op === '=' ? e : `R.${{ '+=': 'add', '-=': 'sub', '*=': 'mul', '/=': 'div' }[s.op]}(${r}, ${e})`};`); return; }
       case 'expr': lines.push(`${ind}${ex(s.e)};`); return;
       case 'break': lines.push(`${ind}break;`); return;
       case 'continue': lines.push(`${ind}continue;`); return;
@@ -331,6 +334,12 @@ function emit(prog, f) {
   };
   scope = [new Set()];
   for (const c of prog.consts) for (const it of c.items) { out.push(`C.${it.name} = ${ex(it.init)};`); globals.set(it.name, 'C'); }
+  // (a shader's own variables: set up here, and F.reset() puts them back, as a new pixel would)
+  for (const g of prog.globals) globals.set(g.name, 'G');
+  if (prog.globals.length) {
+    const set = prog.globals.map((g) => `G.${g.name} = ${g.init ? ex(g.init) : `R.ctor('${g.type}', [0])`};`);
+    out.push(set.join('\n'), `F.reset = function () {\n  ${set.join('\n  ')}\n};`, 'F.globals = G;');
+  }
   for (const fn of prog.fns) {
     scope = [new Set(fn.params.map((p) => p.name))];
     const lines = [`F.${fn.name} = function (${fn.params.map((p) => `v_${p.name}`).join(', ')}) {`];
