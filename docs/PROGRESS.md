@@ -43,6 +43,11 @@ traveller sees at noon), the sky's code review, and the fourth round's critic ga
 
 ### The owner's rigged character (2026-11-27): a skeleton, eight clips and its own colours
 
+**On the link since 63b8282 (PR #41)**, with the sky helper's heaps (the fog sheet held back).
+Asked of the owner: how it looks standing, walking, running, sprinting, jumping, landing,
+hovering and flying; a plain Haven benchmark in Sharp; and which Meshy plan the model was
+made on (for `docs/ASSETS.md`).
+
 The owner sent `Chinese_Swordsman_AllAnims_30mb.glb` ("here is the model with the animations
 rigged"), made with Meshy as asked: kept as sent in `assets-src/hero-rig/`. In it: one
 surface of 153 000 triangles cut into many small pieces for its picture (163 000 vertices),
