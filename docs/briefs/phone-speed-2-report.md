@@ -367,6 +367,11 @@ the cloud layer's and the upper cloud's meshes 0.27 M (not indexed: said to the 
 the figure 0.07 M. After this branch's cuts the grass and flowers are about a third of what
 they were and the trees half; the next in line, not done:
 
+- *(Since: for the far forest this is mostly had another way. Its vertex shader now throws a
+  tree outside the picture out at its first lines, see "The trees' layers" below: the trees of
+  a tile that stand beside the picture are still handed over, and cost a matrix and a
+  comparison each. Cutting the tiles in parts would save that remainder; left until the
+  phone's forest group says it is worth an afternoon. The far rocks are 11 000 triangles.)*
 - *The far forest and the far rocks by parts of a tile.* A tile of far trees (889 m and up)
   or far rocks is handed over whole when any of it is in the picture: at the opening view
   44 800 far trees are handed over for 27 800 standing all round, 10 800 far rocks for 1 400
@@ -483,8 +488,8 @@ ground not drawn at all ... with leaves, petals, pollen, falls and the lander").
 less the group "the ground's shading" is what the ground's triangles and the small things
 cost, if anything; and with it "what is left then" is a frame with only the passes that run
 whatever is hidden. (The sum "the groups one by one add up to" counts the ground's shading
-twice since.) A row "nothing drawn" inside the groups' own phase would be the last step, if
-the next results still leave a gap.
+twice since.) And the line for "nothing drawn at all" now also says how much less that is
+than everything on just before it: the number to set beside "every group out at once: saved".
 
 ### The uploads inside a pass, named (6 to 8 a frame on Haven, 40 to 57 KB)
 
