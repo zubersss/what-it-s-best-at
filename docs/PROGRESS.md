@@ -41,6 +41,32 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### The second joined build of 2026-11-27 (17:30 UTC): more cuts, mist from the shore, a clean winter (sent: PR #43, main daa009f)
+
+On top of main 6fac2be, this branch at `219fe4b`: the **speed helper** to `830d621` (only
+the cells that can carry a flower are handed over, flowers' and near trees' corners shared,
+the grass's choosing skipped while nothing moves: the opening frame 1.75 M triangles for
+3.07 M two links ago, the forest view 1.81 M for 3.17 M; the cost test also measures the
+savings in seven families; `?debug=grasswhole`; the build check fails on the marks of an
+unfinished merge; `scripts/all-node-checks.sh`), the **sky helper** to `8e58ba3` (an eye
+inside the mist is veiled by it: the shore has mist, no lid; the weather model takes the
+life's season; the heaps looked at in motion from 3 km: nothing pops; NOT its `407db74`,
+the anvil in progress), the **seasons helper** to `012dc2f` (the lying leaves' buffer goes
+to the GPU only as far as it changed; lying leaves and grass blades go under new snow: the
+bright dots on winter's snow were flattened grass tips; the land's painted snow keeps a
+wider margin on its own day; the ground's shading costs the same as before pieces 3 to 5
+by `ground-cost-run.sh`).
+
+**Checked** (builds of `a21979f`, `fe0be39` and `219fe4b`, each the one before plus a
+helper's push): every no-browser test (35) on each; the whole smoke with the Mars benchmark
+at `--dsf 0.5` on the first two (the benchmark's code is the same in the third), `smoke
+--no-bench` on the third; noon from the air and the mist's view on the first (as on the
+link); the opening view with the character running on the first and third; winter's opening
+view on the second (dots) and third (clean): `docs/shots/joined/`.
+
+**Asked of the owner**: as below (one plain Haven benchmark in Sharp, the paced
+`?scale=0.775` run, the character, the Meshy plan), on this build.
+
 ### The joined build of 2026-11-27 afternoon: the frame-rate cuts, the mist, the seasons' ground, smoother clouds
 
 **Sent 2026-11-27 15:10 UTC: PR #42, main at 6fac2be** (pictures of that build:
