@@ -56,7 +56,7 @@ export class Hero {
     // (its "focus"), fine enough (7 mm) for the hard-edged shadow of a suited figure under
     // an airless sky.
     for (const m of this.casters) m.userData.shadowFocus = this.group;
-    this.group.visible = false; this.sculpt = null; this.shown = true;
+    this.group.visible = false; this.sculpt = null; this.rigMesh = null; this.shown = true;
     const tris = (m) => m.geometry.attributes.position.count / 3;
     this.triangles = this.robe.triangles + tris(this.torso) + 2 * (tris(this.arms[0]) + tris(this.forearms[0]) + tris(this.legs[0]) + tris(this.shins[0]));
 
@@ -86,6 +86,22 @@ export class Hero {
     this.robe.drawn = false;
     this.show(this.shown);
   }
+  // The owner's rigged character (heroRigMesh.js) takes the place of both: its own skeleton
+  // and clips pose it (heroAnim.js); this class still places it, faces it and lays it along
+  // its flight, and no longer leans, twists, bobs or crouches the body itself (the clips do),
+  // nor works out the cloth.
+  useRig(rigMesh) {
+    this.rigMesh = rigMesh; this.group.add(rigMesh.mesh);
+    this.robe.drawn = false;
+    this.show(this.shown);
+  }
+  dropRig() {
+    if (!this.rigMesh) return null;
+    const r = this.rigMesh; this.group.remove(r.mesh); this.rigMesh = null;
+    this.robe.drawn = !this.sculpt;
+    this.show(this.shown);
+    return r;
+  }
   // ... and gives it back (a device that cannot make the sculpt's shaders).
   dropSculpt() {
     if (!this.sculpt) return null;
@@ -97,8 +113,9 @@ export class Hero {
   // The figure in the picture or out of it (its shadow stays either way).
   show(on) {
     this.shown = on;
-    this.body.visible = this.cape.visible = on && !this.sculpt;
-    if (this.sculpt) this.sculpt.mesh.visible = on;
+    this.body.visible = this.cape.visible = on && !this.sculpt && !this.rigMesh;
+    if (this.sculpt) this.sculpt.mesh.visible = on && !this.rigMesh;
+    if (this.rigMesh) this.rigMesh.mesh.visible = on;
   }
 
   // Meshes that should cast into the near shadow map.
@@ -226,12 +243,13 @@ export class Hero {
     const run = THREE.MathUtils.smoothstep(hspeed, 2.5, 6.5), sup = THREE.MathUtils.smoothstep(hspeed, 8, 40);
     const leanTarget = onFoot && !motion.airborne ? 0.15 * run + 0.40 * sup : 0;
     this.lean += (leanTarget - this.lean) * (1 - Math.exp(-dt * 6));
-    this.body.rotateX((this.lean + KNEEL_LEAN * this.kneel) * this.foot);
+    const own = this.rigMesh ? 0 : 1;            // (the rigged character's clips lean, twist, bob and crouch by themselves)
+    this.body.rotateX((this.lean + KNEEL_LEAN * this.kneel) * this.foot * own);
     // A step turns and tips the body: the shoulders against the legs, the weight over the
     // foot on the ground (from the gait as the last frame left it).
     const going = this.foot * (1 - this.air) * Math.min(1, hspeed / 1.6) * (1 - this.kneel), gs = Math.sin(this.gait);
-    this.body.rotateY(-(0.05 + 0.07 * run) * gs * going * (1 - 0.6 * sup));
-    this.body.rotateZ((0.025 + 0.02 * run) * Math.cos(this.gait) * going * (1 - 0.6 * sup));
+    this.body.rotateY(-(0.05 + 0.07 * run) * gs * going * (1 - 0.6 * sup) * own);
+    this.body.rotateZ((0.025 + 0.02 * run) * Math.cos(this.gait) * going * (1 - 0.6 * sup) * own);
     this.body.updateMatrix();
     this._m3.setFromMatrix4(this.body.matrix);
 
@@ -366,7 +384,7 @@ export class Hero {
       p.copy(motion.heroRel || rig.heroRel);
       // (and the body rides the stride: lowest as a foot takes the weight, highest between steps)
       const bob = (0.012 + 0.030 * run) * Math.cos(2 * this.gait - 1.4) * Math.min(1, hspeed / 1.6) * (1 - this.air) * (1 - this.kneel);
-      p.addScaledVector(up, -(crouch * 0.30 + 0.05 * run * (1 - this.air) + KNEEL_DROP * this.kneel + bob) * this.foot);
+      p.addScaledVector(up, -(crouch * 0.30 + 0.05 * run * (1 - this.air) + KNEEL_DROP * this.kneel + bob) * this.foot * own);
       // The chase offsets of flight fade out on foot instead of dropping (the figure jumped
       // up to 0.7 m on landing while the view turned, and again after the next take-off),
       // and the pitch is tracked so it is never stale when flight resumes.
@@ -394,6 +412,22 @@ export class Hero {
       }
     }
 
+    if (this.rigMesh) {
+      // (the rigged character: its clips by this state; no cloth is worked out)
+      this.rigMesh.pose(dt, { foot: this.foot, speed: hspeed, air: this.air, vUp: motion.vUp || 0, fly: fs, since: (motion.clock ?? 0) - (motion.landedAt ?? -99), landSpeed: motion.landSpeed || 0 });
+      // What hangs loose of its bones (the skirt, the sleeves, the hair) trails down the air
+      // going past and flutters (heroRig.js, flowed): this far for free cloth (m, the group's
+      // frame), eased so that a turn or a stop swings it round instead of snapping it. Standing
+      // still a breeze from ahead and a little to one side keeps it alive (as the old cloth's did).
+      const F = this.flow || (this.flow = new Float32Array(4)), sp = THREE.MathUtils.smoothstep;
+      const amt = speed > 0.3 ? (onFoot ? 0.03 + 0.11 * sp(hspeed, 1, 6) + 0.08 * sp(hspeed, 8, 40) : 0.05 + 0.17 * sp(speed, 2, 30)) : 0;
+      const bz = this._bz.set(0.45 + 0.2 * Math.sin(this.time * 0.21), 0.05, -0.65).applyMatrix3(this._m3).multiplyScalar((0.022 + 0.012 * Math.sin(this.time * 0.53)) * (1 - fs));
+      const ke = 1 - Math.exp(-dt * 4), wx = (speed > 0.3 ? -motion.velocity.x / speed * amt : 0) + bz.x, wy = (speed > 0.3 ? -motion.velocity.y / speed * amt : 0) + bz.y, wz = (speed > 0.3 ? -motion.velocity.z / speed * amt : 0) + bz.z;
+      if (!this.started) { F[0] = wx; F[1] = wy; F[2] = wz; } else { F[0] += (wx - F[0]) * ke; F[1] += (wy - F[1]) * ke; F[2] += (wz - F[2]) * ke; }
+      F[3] = this.time;
+      this.started = true;
+      return;
+    }
     // The cloth: gravity, inertia, and the air streaming past. In vacuum there is no air, but
     // it is still made to trail the direction of flight a little (owner's request).
     const g = this._g.copy(up).multiplyScalar(-env.gravity);

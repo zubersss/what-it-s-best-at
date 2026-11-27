@@ -53,32 +53,10 @@ import { G } from '../render/globals.js';
 import { FAIR_GLSL, SKY_FIELD_GLSL, SKY_FIELD_UNIFORMS_GLSL, SKY_UNIFORMS } from './skyGlsl.js';
 import { CELL_GLSL, CELL_MAX } from '../weather/sky/cellShape.js';
 import { makeSkyAt } from '../weather/sky/format.js';
+import { CLOUD_LOOK } from './cloudLook.js';
 
-// ---- the numbers of the look (the report lists them; the world file may pin them) ------------
-export const CLOUD_LOOK = Object.freeze({
-  SUN_LOOK: 280,            // m toward the Sun: the look that splits a heap into its two tones
-  SHADE: 0.64, LIT: 1.0,    // the two tones, with a clean line between them
-  CELL_DENSE: 1.45,         // a cell is this much more solid than a heap
-  CELL_FACE0: 250, CELL_FACE1: 700,   // m of chord between which a tower's own face turns from the Sun's tone to its shade
-  CELL_LIT: 300,            // m of chord toward the Sun under which a tower's cloud is fully lit ...
-  CELL_DEEP: 2600,          // ... and over which it is as dark as it gets
-  CELL_FLOOR: 0.11,         // the light the base of a tower keeps (0.08..0.15 of the lit top)
-  CELL_TINT: [0.62, 0.66, 1.0],   // the slate-indigo its shade is pulled toward
-  CELL_SKY: 0.2,            // the share of the sky's light that reaches the heart of a tower
-  CELL_BOIL: 5.5,           // m/s: its noise boils upward in the cell's own moving frame (3..8)
-  CELL_NOISE: 0.55,         // the share of the cell's own noise that eats at its hull
-  ROUND: 0.18, ROUND_K: 0.22,   // the light that comes round into a cloud from its sides, and how deep it reaches
-  FLOOR_DECK: 0.3,              // the least light a deck's base keeps (coloured shade, never black)
-  GROUND_HALF: 0.5,         // under a storm the light from the ground below is halved
-  MID_K: 1.2, HIGH_K: 0.35, // the Sun left by the layers above: exp(-MID_K mid - HIGH_K high)
-  SHAFT_K: 0.00014, SHAFT_P: 0.85,   // the rain's optical depth a metre: K rate^P
-  SHAFT_FALL: 9,            // m/s a drop falls (its foot is offset downwind by this)
-  SHAFT_NEAR: 600,          // m: nearer than this the shafts fade out (D's streaks take over)
-  SHAFT_MIST: 300,          // m over the country that a shaft's foot turns to mist
-  SHAFT_GREY: 0.7,          // the share of the sky's light a shaft shows
-  SHAFT_GLOW: 1.1,          // the silver glow with a low Sun behind it
-  VIRGA: 2000,              // m: light rain under a base this far over the ground fades out
-});
+// (the numbers of the look: sky/cloudLook.js, shared with the far shell)
+export { CLOUD_LOOK } from './cloudLook.js';
 const K = CLOUD_LOOK;
 const glf = (x) => { const s = String(x); return /[.eE]/.test(s) ? s : s + '.0'; };
 
@@ -144,11 +122,13 @@ vec3 marchPattern(vec3 camQ, vec3 dirQ, float t) { return (camQ + dirQ * t) * uC
 // height in the layer (0 base .. 1 top).
 // (the rule itself is the shared one, sky/skyGlsl.js's skyLowAt: the far shell and the shade
 // atlas cut the same cloud by it)
-float layerAt(vec3 q, float r, float cover, float sheet, float share, float y, bool fine) {
-  return skyLowAt(tCloudNoise, q, r, uCloudRise.x, cover, sheet, share, y, fine);
+// (low: the great masses' own reading at the place, skyMassLow: read once a step and handed to
+// the look toward the Sun as well, which is 280 m off and inside the same mass)
+float layerAt(vec3 q, float r, float cover, float sheet, float share, float y, bool fine, float low) {
+  return skyLowAtL(tCloudNoise, q, r, uCloudRise.x, cover, sheet, share, y, fine, low);
 }
 // the heaps alone (no sheet), which is what the march read before the field: one call of it
-float density(vec3 q, float r, float c, float y, bool fine) { return skyLowAt(tCloudNoise, q, r, uCloudRise.x, c, 0.0, 0.0, y, fine); }
+float density(vec3 q, float r, float c, float y, bool fine) { return skyPlainAt(tCloudNoise, q, r, uCloudRise.x, c, y, fine); }
 
 // ---- what a ray gathers (one pixel's running total, so the stretches can be marched in order)
 float gT;                      // what the ray still lets through
@@ -163,9 +143,13 @@ float gSigma;                  // how fast full cloud takes light out, per metre
 
 // The light of one step: lit (the share of the Sun that reaches it), skyK (the share of the
 // sky's light, which a deep cloud shuts out as well), y (its height in its cloud), tint (its own
-// colour), groundK (the light from the ground below, halved under a storm).
-void cloudAdd(float d, float dt, float lit, float skyK, float y, vec3 tint, float groundK, vec3 p, float t) {
-  vec3 light = gSunC * (lit * min(0.6 + 0.4 * gPhase, 2.5)) + (gSkyC * (0.45 + 0.55 * y) + gSkyDown * (1.0 - y) * 0.5 * groundK) * (0.55 * skyK);
+// colour), groundK (the light from the ground below, halved under a storm), sunTint (what the
+// cloud has made of the Sun's own colour on the way to this place: a heap's shade side is lilac),
+// glow (how much of the bright rim round the Sun this place takes: all of it where the Sun
+// strikes, none in a heap's shade — with it, the shade side of a heap looked at toward the Sun
+// was as bright as its lit side, and the heap one tone).
+void cloudAdd(float d, float dt, float lit, vec3 sunTint, float glow, float skyK, float y, vec3 tint, float groundK, vec3 p, float t) {
+  vec3 light = gSunC * sunTint * (lit * mix(0.85, min(0.6 + 0.4 * gPhase, 2.5), glow)) + (gSkyC * (0.45 + 0.55 * y) + gSkyDown * (1.0 - y) * 0.5 * groundK) * (0.55 * skyK);
   light *= tint;
   for (int b = 0; b < BOLTS; b++) {
     if (uBolt[b].w <= 0.0) continue;
@@ -212,18 +196,34 @@ float cloudCellDensity(int k, vec3 p) {
   float eat = ${glf(K.CELL_NOISE)} * (1.0 - n.x) + 0.12 * (1.0 - n.y);
   return clamp((e - eat * (1.0 - e)) / max(1.0 - eat, 0.2), 0.0, 1.0);
 }
+// Which way the tower's own surface faces at p, against the Sun (1: turned to it, -1: away):
+// the outward direction of its hull there (the column's, its dome's; its flat base faces down).
+float cloudCellFacing(int k, vec3 p) {
+  vec4 d = uCells[k * 5 + 3];
+  vec3 l = cellLocal(k, p), ld = cellLocalDir(k, uSunDir);
+  float r = uCells[k * 5 + 1].w, hd = cellDomeHeight(r, d.x), zd = d.x - hd;
+  vec3 n = vec3(l.xy / (r * r), l.z > zd ? (l.z - zd) / (hd * hd) : 0.0);
+  n.z -= (1.0 - smoothstep(0.0, 400.0, l.z)) * 2.0 / r;
+  return dot(normalize(n + vec3(0.0, 0.0, 1e-12)), normalize(ld));
+}
 // the light of a cell's cloud at p: the exact chord toward the Sun through the tower
 void cloudCellAdd(int k, vec3 p, float d, float dt, float t, float y) {
   float chord = cellLight(k, p, uSunDir);
+  // On the side turned to the Sun that chord is the depth of the SAMPLE under the surface, not
+  // of the surface one sees: a few hundred metres under the hull it is already a kilometre or
+  // two (the square root of the tower's width times the depth), so a tower lit from the side had
+  // one thin lit edge on a column of shade. Where the hull faces the Sun the chord counts for a
+  // tenth: the whole sunward half is the Sun's tone, the half turned away the tower's slate.
+  chord *= 1.0 - 0.9 * smoothstep(-0.1, 0.3, cloudCellFacing(k, p));
   // the painter's two tones for the tower's own cauliflower (a short chord toward the Sun is a
   // face turned to it), and under them the slate that comes with the depth of the whole tower
-  float lit = mix(${glf(K.SHADE)}, 1.0, 1.0 - smoothstep(${glf(K.CELL_FACE0)}, ${glf(K.CELL_FACE1)}, chord));
-  lit *= mix(1.0, ${glf(K.CELL_FLOOR)} / ${glf(K.SHADE)}, smoothstep(${glf(K.CELL_LIT)}, ${glf(K.CELL_DEEP)}, chord));
+  float lit = mix(${glf(K.CELL_SHADE)}, 1.0, 1.0 - smoothstep(${glf(K.CELL_FACE0)}, ${glf(K.CELL_FACE1)}, chord));
+  lit *= mix(1.0, ${glf(K.CELL_FLOOR)} / ${glf(K.CELL_SHADE)}, smoothstep(${glf(K.CELL_LIT)}, ${glf(K.CELL_DEEP)}, chord));
   float dark = 1.0 - lit;
   vec3 tint = mix(vec3(1.0), vec3(${glf(K.CELL_TINT[0])}, ${glf(K.CELL_TINT[1])}, ${glf(K.CELL_TINT[2])}), dark * 0.9);
   // (the sky's light is shut out of a tower as the Sun's is: a storm's base is slate, not a grey
   // that the sky keeps lighting)
-  cloudAdd(d * ${glf(K.CELL_DENSE)}, dt, lit, mix(1.0, ${glf(K.CELL_SKY)}, dark), y, tint, ${glf(K.GROUND_HALF)}, p, t);
+  cloudAdd(d * ${glf(K.CELL_DENSE)}, dt, lit, vec3(1.0), 1.0, mix(1.0, ${glf(K.CELL_SKY)}, dark), y, tint, ${glf(K.GROUND_HALF)}, p, t);
 }
 
 // ---- the rain below the base --------------------------------------------------------------------
@@ -291,7 +291,7 @@ void cloudStep(float t, float dt, bool far) {
     if (d > cd) { cd = d; ck = gCellK[c]; }
   }
   // the layer's own cloud at this place, from the field (one read) or from the day's map
-  float ld = 0.0, y = 0.0, base = 0.0, depth = 1.0, share = 0.0, cover = 0.0, sheet = 0.0;
+  float ld = 0.0, y = 0.0, base = 0.0, depth = 1.0, share = 0.0, cover = 0.0, sheet = 0.0, low = 0.0;
   if (!far && uLayerOn > 0.5 && cd < 0.75) {
     if (uSkyLow.w > 0.5) {
       vec4 A = skyTex2(tWxA, wxUV(up));
@@ -305,7 +305,10 @@ void cloudStep(float t, float dt, bool far) {
     y = (r - uSkyLow.y - base) / depth;
     if ((cover > 0.01 || sheet > 0.01) && y > 0.0 && y < 1.0) {
       vec3 qr = marchPattern(gCamQ, gDirQ, t);
-      ld = layerAt(skyFormQ(qr, normalize(qr), share), r, cover, sheet, share, y, true);
+      vec3 qf = skyFormQ(qr, normalize(qr), share);
+      // (a world without a field keeps its own rule: Earth's heaps as they were)
+      if (uSkyLow.w > 0.5) { low = skyMassLow(tCloudNoise, qf); ld = layerAt(qf, r, cover, sheet, share, y, true, low); }
+      else ld = density(qf, r, cover, y, true);
     }
   }
   if (cd > 0.0 && cd >= ld) {
@@ -330,7 +333,8 @@ void cloudStep(float t, float dt, bool far) {
   // masses; and under a deep deck hardly any reaches the base.
   vec3 q2 = marchPattern(gCamQ, gDirQ, t) + gSunQ * (${glf(K.SUN_LOOK)} * uCloud.z);
   float y2 = y + ${glf(K.SUN_LOOK)} * gMu0 / depth;
-  float dl = layerAt(skyFormQ(q2, normalize(q2), share), r + ${glf(K.SUN_LOOK)} * gMu0, cover, sheet, share, y2, false);
+  vec3 q2f = skyFormQ(q2, normalize(q2), share);
+  float dl = uSkyLow.w > 0.5 ? layerAt(q2f, r + ${glf(K.SUN_LOOK)} * gMu0, cover, sheet, share, y2, false, low) : density(q2f, r + ${glf(K.SUN_LOOK)} * gMu0, cover, y2, false);
   float sunward = clamp(0.5 + (d - dl) * 2.2 + (y - 0.42) * 1.1, 0.0, 1.0);
   // how much cloud stands between this place and the Sun inside its own column
   float above = gSigma * (1.0 - y) * depth * max(d, share) * 0.35 / max(gMu0, 0.25);
@@ -341,7 +345,13 @@ void cloudStep(float t, float dt, bool far) {
   above *= max(smoothstep(0.74, 0.97, cover), share);
   // (two tones with a clean line between them, the shade a light one: a poster's cloud)
   float through = clamp(exp(-above) + ${glf(K.ROUND)} * exp(-${glf(K.ROUND_K)} * above), mix(1.0, ${glf(K.FLOOR_DECK)}, share), 1.0);
-  float lit = mix(${glf(K.SHADE)}, ${glf(K.LIT)}, smoothstep(0.4, 0.56, sunward)) * through;
+  // (a heap, not a deck: a warm white where the Sun strikes, and a lilac shade side with the
+  // underside a step darker again; a deck keeps its greys. Without a field, the rule as it was.)
+  float inSun = smoothstep(0.4, 0.56, sunward);
+  bool painted = uSkyLow.w > 0.5;
+  float lit = mix(painted ? mix(${glf(K.SHADE)}, 0.64, share) : 0.64, ${glf(K.LIT)}, inSun) * through;
+  vec3 sunTint = vec3(1.0);
+  if (painted) sunTint = mix(vec3(1.0), vec3(${K.SHADE_TINT.map(glf).join(', ')}) * mix(${glf(K.UNDER)}, 1.0, smoothstep(0.02, 0.3, y)), (1.0 - inSun) * (1.0 - share));
   // (a sheet shuts the sky's light out as well as the Sun's; among heaps it comes round between them)
   float skyK = mix(1.0, through, share);
   // (no field: the storm patches the world's weather gave, as before)
@@ -350,7 +360,7 @@ void cloudStep(float t, float dt, bool far) {
     float sm = skyTex3(tCloudNoise, marchPattern(gCamQ, gDirQ, t) * 1.9 + 0.23).g;
     tint *= mix(1.0, 0.36 + 1.25 * sm, uStorm * (1.0 - y / 0.6));
   }
-  cloudAdd(d, dt, lit * wisp, skyK, y, tint, 1.0, p, t);
+  cloudAdd(d, dt, lit * wisp, sunTint, painted ? mix(inSun, 1.0, share) : 1.0, skyK, y, tint, 1.0, p, t);
 }
 
 void main() {
@@ -493,7 +503,10 @@ void main() {
     if (gT < 0.02) break;
     float a, b, ns;
     if (seg == 0) { a = mA; b = min(mB, c0); ns = n * clamp((b - a) / layerLen, 0.0, 1.0); }
-    else if (seg == 1) { a = max(mA, c0); b = min(mB, c1); ns = far ? max(n, 4.0) : clamp(n * 1.2, 6.0, 14.0); }
+    // (a tower beyond the reach: half again the far slices' steps through it. A step of a kilometre
+    // put the first one anywhere in the tower's outer kilometre, and the side turned to the Sun,
+    // a skin a few hundred metres deep, came out a mottled middle tone. Few pixels pay for it.)
+    else if (seg == 1) { a = max(mA, c0); b = min(mB, c1); ns = far ? max(n * 1.5, 6.0) : clamp(n * 1.2, 6.0, 14.0); }
     else { a = max(mA, c1); b = mB; ns = n * clamp((b - a) / layerLen, 0.0, 1.0); }
     if (b <= a) continue;
     ns = max(ns, 2.0);
@@ -519,7 +532,14 @@ void main() {
   if (alpha < 0.003) { fragColor = vec4(0.0); return; }
   float tMean = gTMean / max(gWSum, 1e-5);
   // the cloud's own brightness, seen through the air between it and the eye
-  vec3 col = aerialPerspective(gC / alpha / PI, dir * tMean);
+  vec3 own = gC / alpha / PI;
+  vec3 col = aerialPerspective(own, dir * tMean);
+  // A storm tower far off stands in thinner air than the land under it and is the sky's landmark:
+  // it keeps CELL_HAZE of the air's veil far off (all of it to half the reach, CELL_HAZE from 40 km). (With all of it, 60 km of a small
+  // world's air left a tower 10 km high a quarter of its green and a fifteenth of its blue: a
+  // slate tower was the horizon's own colour, "a pale ghost". The layer's own cloud, and a cell
+  // within the reach, take the air whole, as the land beside them does.)
+  if (gCells > 0) col = mix(own, col, mix(1.0, ${glf(K.CELL_HAZE)}, smoothstep(0.5 * uSliceZ[NEAR_SLICES], uSliceZ[NEAR_SLICES + 1], tMean)));
   fragColor = vec4(col * uExposure * alpha, alpha);
 }`;
 

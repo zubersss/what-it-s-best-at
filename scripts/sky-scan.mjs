@@ -30,7 +30,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const p = havenProducer(preset), t = tWeather(H);
   const s = p.snapshot(Math.floor(t / 120) * 120);
   const R = haven.radius, dLat = (span / R) * 180 / Math.PI;
-  for (const key of ['heap', 'sheet', 'base', 'thick', 'country', 'mid', 'high']) {
+  for (const key of (arg('keys', 'heap,sheet,base,thick,country,mid,high')).split(',')) {
     console.log(`${key} (north at the top, ${span / 1000} km across, ?t=${H})`);
     for (let j = 0; j < n; j++) {
       let row = '';
@@ -38,7 +38,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         const lat = lat0 + dLat * (0.5 - j / (n - 1)), lon = lon0 + dLat * (i / (n - 1) - 0.5) / Math.cos(lat * Math.PI / 180);
         const uv = uvOfLatLon(lat, ((lon % 360) + 360) % 360);
         const f = fieldAt(s, null, 0, uv[0], uv[1]);
-        row += (key === 'heap' || key === 'sheet' || key === 'mid' || key === 'high' ? f[key].toFixed(2) : String(Math.round(f[key]))).padStart(6);
+        row += (['heap', 'sheet', 'mid', 'high', 'wet'].includes(key) ? f[key].toFixed(2) : String(Math.round(f[key]))).padStart(6);
       }
       console.log(row);
     }

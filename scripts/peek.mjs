@@ -35,7 +35,8 @@ if (bm && (bm.east || bm.north) && opt('lat', null) == null) {       // metres f
 }
 const { east, north, up } = localFrame(d0);
 const ground = hs.height(d0[0], d0[1], d0[2], 1);
-const camR = R + ground + (alt != null ? +alt : eye);
+// (a bookmark's own alt is metres over the sea, as the game takes it: a view from the air)
+const camR = alt != null ? R + ground + +alt : bm?.alt != null ? R + Math.max(bm.alt, ground + eye) : R + ground + eye;
 const cam = d0.map((v) => v * camR);
 const sunEA = elevationAzimuth(cam, eph.sunDir);
 console.log(`${world.name} ${lat.toFixed(4)}, ${lon.toFixed(4)}  ground ${ground.toFixed(0)} m  t=${tHours} h  Sun: elevation ${sunEA.elevation.toFixed(1)}, azimuth ${sunEA.azimuth.toFixed(0)}`);

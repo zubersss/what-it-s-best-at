@@ -100,6 +100,11 @@ export const FEATURE_STEPS = [
   // (pollen in the air over flowers: 3 200 points at most, a point each; not yet measured on the phone, a guess)
   { id: 'pollen', buys: 0.3, label: 'less pollen in the air', live: (app) => !!app.pollen?.mesh?.visible, apply: (app, off) => { app.pollen?.setShare(off ? 0.4 : 1); } },
   // (the clouds plan's, not yet built nor measured: the plan's estimates)
+  // (sky-faults: the far heaps read at three heights along each line of sight, so that a heap far
+  // off has a top, a side and an underside; with the step on they are read once, flat, in the
+  // same places. A guess until the phone's cost table says: up to six more looks into the noise
+  // on each pixel of far cloud, none on clear sky.)
+  skyStep('cloud-far', 1.0, 'far clouds flatter'),
   skyStep('cloud-upper', 0.5, 'middle and high cloud plainer'),
   skyStep('rain-shafts', 0.5, 'plainer rain shafts under the clouds'),
   skyStep('cloud-shade-rate', 0.3, "the clouds' shadows a little behind (every other frame)"),
@@ -132,10 +137,10 @@ export const FEATURE_STEPS = [
   // 1.2: the page's own work, which cannot shorten a frame the GPU is late on. The fine
   // shadow tile -0.4 / 1.3. The glow 0.4 in one view.)
   { id: 'cloud-steps', buys: 0.3, label: 'coarser clouds near you', live: (app) => cloudVolume(app) && app.cloudVolume.enabled !== false, apply: (app, off) => { app.sky?.setSaving('cloud-steps', off); } },
-  { id: 'cloak', buys: 0.3, label: 'robe and hair simulated more loosely', live: (app) => !!app.hero?.group?.visible, apply: (app, off) => { app.hero.robe.halfRate = off; } },
+  { id: 'cloak', buys: 0.3, label: 'robe and hair simulated more loosely', live: (app) => !!app.hero?.group?.visible && !app.hero.rigMesh, apply: (app, off) => { app.hero.robe.halfRate = off; } },
   // (the sculpted character, hero/heroSculpt.js: 120 000 triangles in the picture, or the 24 000 its shadow is drawn from.
   //  Not measured on the phone yet: a guess until a benchmark's cost table has it)
-  { id: 'figure', buys: 0.3, label: 'the character drawn from fewer triangles', live: (app) => !!app.hero?.sculpt && !!app.hero.group?.visible, apply: (app, off) => { if (app.hero?.sculpt) app.hero.sculpt.light = off; } },
+  { id: 'figure', buys: 0.3, label: 'the character drawn from fewer triangles', live: (app) => !!(app.hero?.rigMesh || app.hero?.sculpt) && !!app.hero.group?.visible, apply: (app, off) => { if (app.hero?.sculpt) app.hero.sculpt.light = off; if (app.hero?.rigMesh) app.hero.rigMesh.light = off; } },
   // (the shadow map's fine tile, some 20 m round the traveller at 3.9 cm a texel: without it
   // every shadow there, trees' and rocks' alike, is drawn from the 14.6 cm tile)
   { id: 'fine-shadows', buys: 0.3, hold: true, label: 'coarser shadows near you', apply: (app, off) => { app.nearShadow.fine = !off; } },
