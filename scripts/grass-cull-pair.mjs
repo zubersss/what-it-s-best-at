@@ -2,7 +2,11 @@
 // in one browser session, at the same moment (headless; a ground-level view takes half an hour
 // to settle on a software renderer, one from the air a few minutes):
 //   node scripts/grass-cull-pair.mjs --distdir <frozen build> [--world haven] [--shot ledge] [--query "alt=1560&pitch=-28"]
-//        [--out dir] [--suffix _x] [--timeout 1500]
+//        [--out dir] [--suffix _x] [--timeout 1500] [--set "<js in which `off` is true for the old way>" --names new,old]
+// (--set: another switch than the grass's, tried the same way, e.g. the far forest's light at
+// its corners against at every pixel: --set "__app.farForest.shared.uShadow.value.z = off ? 1 : 0"
+// --names corners,pixels --limit 0.5; then the pictures may differ a little, and --limit says by how
+// many percent of the pixels by more than 2 levels)
 // Two builds' pictures of one view cannot be compared to the pixel: the grass's wave is added
 // up frame by frame, and two runs are never ready on the same frame. Here the picture is held
 // still (the wave's phase put back before every frame, pollen and falling leaves out, the
@@ -18,6 +22,7 @@ import zlib from 'node:zlib';
 import { open, opt } from './lib/browser.mjs';
 
 const world = opt('world', 'haven'), shot = opt('shot', 'ledge'), query = opt('query', ''), out = opt('out', '.'), suffix = opt('suffix', ''), timeoutS = +opt('timeout', 1500);
+const setJs = opt('set', ''), names = opt('names', 'blocks,whole').split(','), limit = +opt('limit', 0.05) / 100;
 const [W, H] = opt('size', '880x412').split('x').map(Number);
 const { base, page, errors, snap, goto, close } = await open({ dist: true, width: W, height: H, dsf: +opt('dsf', 1.25) });
 await goto(`${base}?world=${world}&shot=${shot}${query ? '&' + query : ''}`);
@@ -31,18 +36,18 @@ await page.evaluate(() => {
   a.paused = true;
 });
 const take = async (name, off) => {
-  const tris = await page.evaluate(async (off) => {
-    const a = window.__app; a.grass.cullOff = off;
+  const tris = await page.evaluate(async ({ off, setJs }) => {
+    const a = window.__app; if (setJs) new Function('off', '__app', setJs)(off, a); else a.grass.cullOff = off;
     const f0 = a.frameCount; await new Promise((res) => { const w = () => (a.frameCount >= f0 + 3 ? res() : setTimeout(w, 200)); w(); });
     return { grass: a.grass.triangles, all: a.stats.triangles };
-  }, off);
-  const file = path.join(out, `grass_cull_${name}${suffix}.png`);
+  }, { off, setJs });
+  const file = path.join(out, `${setJs ? 'pair' : 'grass_cull'}_${name}${suffix}.png`);
   await snap(file);
   console.log(`  ${name}: ${tris.grass} triangles of grass handed over, ${tris.all} in the frame · ${file}`);
   return { file, ...tris };
 };
 fs.mkdirSync(out, { recursive: true });
-const A = await take('blocks', false), B = await take('whole', true), C = await take('blocks_again', false);
+const A = await take(names[0], false), B = await take(names[1], true), C = await take(`${names[0]}_again`, false);
 await close();
 
 // --- the pictures against each other (PNG, 8 bits, no interlace: what the browser writes)
@@ -72,11 +77,11 @@ function differ(a, b) {
 }
 const pa = pixels(A.file), pb = pixels(B.file), pcx = pixels(C.file);
 const self = differ(pa, pcx), cut = differ(pa, pb);
-console.log(`blocks against blocks, a few frames on (what the picture changes by itself): ${self.text}`);
-console.log(`blocks against whole:                                                        ${cut.text}`);
+console.log(`${names[0]} against ${names[0]}, a few frames on (what the picture changes by itself): ${self.text}`);
+console.log(`${names[0]} against ${names[1]}: ${cut.text}`);
 let failed = false;
-if (cut.two > self.two + 0.0005) { console.log('FAILED: the picture by blocks is not the picture of the whole field'); failed = true; }
-if (!(A.grass < B.grass)) { console.log(`FAILED: the blocks hand over ${A.grass} triangles of grass, the whole field ${B.grass}`); failed = true; }
+if (cut.two > self.two + limit) { console.log(`FAILED: the picture by ${names[0]} is not the picture by ${names[1]}`); failed = true; }
+if (!setJs && !(A.grass < B.grass)) { console.log(`FAILED: the blocks hand over ${A.grass} triangles of grass, the whole field ${B.grass}`); failed = true; }
 if (errors.length) { console.log(`FAILED: page errors — ${errors.slice(0, 3).join(' | ')}`); failed = true; }
-console.log(failed ? 'grass cull pair: FAILED' : `grass cull pair: the same picture from ${(100 * A.grass / B.grass).toFixed(0)} % of the grass's triangles (${A.grass} of ${B.grass})`);
+console.log(failed ? 'pair: FAILED' : setJs ? `pair: the same picture by ${names[0]} and by ${names[1]}` : `grass cull pair: the same picture from ${(100 * A.grass / B.grass).toFixed(0)} % of the grass's triangles (${A.grass} of ${B.grass})`);
 process.exit(failed ? 1 : 0);

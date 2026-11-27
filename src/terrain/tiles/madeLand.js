@@ -20,13 +20,15 @@ const ss = (a, b, x) => { const t = (x - a) / (b - a); return t <= 0 ? 0 : t >= 
 function fbm3(x, y, z, f, o) { let a = 1, s = 0, n = 0; x = x * f + o; y = y * f + o * 0.7; z = z * f + o * 1.3; for (let k = 0; k < 3; k++) { s += a * noise3(x, y, z); n += a; a *= 0.5; x *= 2.03; y *= 2.03; z *= 2.03; } return s / n; }
 export function landNoise1(x, y, z, seed) { return fbm3(x, y, z, 60, 3.1 + seed); }
 export function landNoise2(x, y, z, seed) { return fbm3(x, y, z, 420, 7.7 + seed); }
+// (a third, between the two: a kilometre and a half across, for the tree line's tongues and bays)
+export function landNoise3(x, y, z, seed) { return fbm3(x, y, z, 170, 5.3 + seed); }
 
 export const LAND_DEFAULTS = {
   warm: 25,            // degrees C at the sea's level on the equator
   latCool: 0.24,       // ... less this for every degree of latitude
   lapse: 6.2,          // ... and this for every kilometre up
   treeLine: 3.0,       // no trees where it is colder than this (degrees C): 3.5 km up on the equator, 2 km at 40 degrees
-  treeRag: 1.2,        // ... give or take this times the small noise of the place (degrees C): the tree line's tongues and bays, some 60 m of height either way
+  treeRag: 2.0,        // ... give or take about this (degrees C) by the noises of the place: the tree line's tongues and bays, to some 150 m of height either way, a kilometre and a half and some hundreds of metres across
   snowLine: -1.5,      // snow lies where it is colder than this: from 2.7 km at 40 degrees
   rockSlope: [0.52, 0.72],   // from here the ground is too steep for soil (bare rock by the second)
   dry: 520, wet: 1500, // the year's rain (mm) between which open country closes into forest
@@ -41,7 +43,7 @@ export const LAND_DEFAULTS = {
 // water: h <= 0, or `lake` true with `depth`); slope: metres per metre; lat: degrees;
 // rain: mm a year; n1, n2: two noises of the place in -1..1 (patches some kilometres and
 // some hundreds of metres across).
-export function landAt(L, h, slope, lat, rain, n1, n2, out, lake = false, depth = 0) {
+export function landAt(L, h, slope, lat, rain, n1, n2, out, lake = false, depth = 0, n3 = 0) {
   const C = L.colours;
   if (h <= 0 || lake) {
     const d = lake ? depth : -h, k = ss(0, 260, d), a = lake ? C.lake : C.deep;
@@ -57,12 +59,17 @@ export function landAt(L, h, slope, lat, rain, n1, n2, out, lake = false, depth 
   // (the tree line is not a contour: tongues of wood climb the gullies and bays of meadow come
   // down the spurs, some hundreds of metres across. Without it a mountain flank the maker left
   // at one slope carried a wood's edge dead straight for four kilometres, seen from the air.)
-  const cold = ss(L.treeLine, L.treeLine + 3.5, tC + (L.treeRag ?? 0) * n2);
+  const cold = ss(L.treeLine, L.treeLine + 3.5, tC + (L.treeRag ?? 0) * (0.7 * n3 + 0.45 * n2));
   let f = ss(0.22, 0.62, w + 0.2 * n2) * cold * (1 - ss(L.rockSlope[0] - 0.08, L.rockSlope[1] - 0.06, slope));
   // (the valley floors and the tablelands' tops keep meadows open in the forest)
   f *= 1 - 0.55 * ss(0.3, 0.75, n2) * (1 - ss(0.04, 0.16, slope));
   let cls, closed, tall;
   if (f > 0.66) { cls = 1; closed = 1; } else if (f > 0.38) { cls = 8; closed = 0.55; } else if (f > 0.14) { cls = 9; closed = 0.22; } else { cls = w < 0.22 ? 7 : 10; closed = cls === 7 ? 0.12 : 0.02; }
+  // (how closed the canopy is goes by the wood's own share, not by its class in three steps:
+  // the trees thin toward the ragged line as the rule says, and nothing else thins them there.
+  // The classes stay, for what grows. 1.5 f f: what the three steps and the trees' own
+  // thinning by height came to together, at the opening place and in the wood below it.)
+  if (cls !== 7 && cls !== 10) closed = Math.min(1, 1.5 * f * f);
   tall = cls === 7 ? 1.5 : cls === 10 ? 0 : 7 + 20 * w * (0.45 + 0.55 * cold);
   // the ground between the trees: meadow where wet, golden grass, scrub where dry; tundra over the tree line
   const kg = ss(0.25, 0.7, w), ks = 1 - ss(0.12, 0.28, w);

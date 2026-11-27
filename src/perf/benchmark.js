@@ -333,6 +333,10 @@ export const PARTS_OUT = [
   // (the canvas is held at the picture's size through the test, as play has it; this row is the
   // one that costs: the same pass over the whole screen. Printed as what it adds.)
   { id: 'last-pass', label: "the last pass over the whole screen instead of the picture's size (what it adds)", adds: true, set: (app, out) => { app.canvasHold = out ? 'full' : 'fit'; } },
+  // (the far trees' Sun light and air at every pixel, as they were, instead of at each picture's
+  // corners: what the old way adds, so that the phone itself says whether the move was a gain)
+  { id: 'far-air-pixel', label: "the far forest's light and air at every pixel instead of at its corners (what it adds)", adds: true, has: (app) => !!app.farForest?.def, set: (app, out) => { app.farForest.shared.uShadow.value.z = out ? 1 : 0; } },
+  { id: 'tree-air-pixel', label: "the near trees' light and air at every pixel instead of at their vertices (what it adds)", adds: true, has: (app) => !!app.trees?.def, set: (app, out) => { app.trees.shared.uTreeOld.value = out ? 1 : 0; } },
   // (last: what is left with nothing drawn at all)
   // (and every pass the sky makes into targets of its own: with the scenes alone hidden those all ran)
   { id: 'everything', label: 'everything', set: (app, out) => { app.nearScene.visible = app.farScene.visible = app.heroScene.visible = app.dustScene.visible = !out; if (app.sky?.hasPart('sky-all')) app.sky.partOut('sky-all', out); } },

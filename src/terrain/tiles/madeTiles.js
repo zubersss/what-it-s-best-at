@@ -6,7 +6,7 @@
 // class and canopy: tiles/madeLand.js).
 // (Plain arrays and arithmetic: it runs in the tile worker and in Node.)
 import { DemSet } from '../height/dem.js';
-import { landAt, landNoise1, landNoise2, LAND_DEFAULTS } from './madeLand.js';
+import { landAt, landNoise1, landNoise2, landNoise3, LAND_DEFAULTS } from './madeLand.js';
 
 const TILE = 256, RAD = 180 / Math.PI;
 
@@ -71,7 +71,7 @@ export class MadeWorld {
         d._fixed(lons[x], lat);
         const h = d.h, slope = h > 0 ? Math.hypot(d.gE, d.gN) : 0, px = cl * cx[x], py = cl * sx[x];
         const lv = this.lakeAt(lons[x], lat), lake = lv != null && h < lv;
-        landAt(L, h, slope, lat, this.rainAt(lons[x], lat), landNoise1(px, py, sl, seed), landNoise2(px, py, sl, seed), o, lake, lake ? lv - h : 0);
+        landAt(L, h, slope, lat, this.rainAt(lons[x], lat), landNoise1(px, py, sl, seed), landNoise2(px, py, sl, seed), o, lake, lake ? lv - h : 0, landNoise3(px, py, sl, seed));
         const q = y * W + x, q4 = q * 4;
         rgba[q4] = b8(o.r); rgba[q4 + 1] = b8(o.g); rgba[q4 + 2] = b8(o.b); rgba[q4 + 3] = b8(o.tall * o.closed * 5);
         cls[q] = o.cls; tall[q] = b8(o.tall * 4); closed[q] = b8(o.closed * 255);
