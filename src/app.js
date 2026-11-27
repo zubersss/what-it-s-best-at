@@ -822,7 +822,16 @@ export class App {
   }
 
   // Why the frame that just ended may have been slow (for the benchmark's hitch list).
-  frameCause(now, uploads) {
+  // (A cause that begins with "unknown" is one the governor does not excuse: what is named
+  // in brackets after it is for the benchmark's list alone. The thirteenth results had four
+  // "unknown" hitches of 133 to 233 ms, three of them ten seconds in, with nothing to say
+  // what the page had just done: a shader made at its first use, trees or far tiles filled.)
+  frameCause(now, uploads, dtMs = 0) {
+    // (shaders three has made since the last frame: a program is compiled and linked at the
+    // first draw that uses it, in the middle of the frame, and on a phone that is 100 ms and more)
+    const progs = this.renderer.info.programs || [], had = this._progs ?? progs.length;
+    const made = progs.length > had ? progs.slice(had).map((p) => p.name || 'unnamed') : null;
+    this._progs = progs.length;
     if (this.switching || now < this.switchedAt + 2500) return 'arriving at another world';
     if (now < this.jumpedAt + 2500) return 'jump to a bookmark';
     if (now < (this.bodies?.mapsAt ?? -1e9) + 1500) return 'sky maps arriving';
@@ -832,7 +841,12 @@ export class App {
     if (this.governor.sinceStep < 0.4) return 'quality step';
     if (uploads) return `new terrain (${uploads} patch${uploads > 1 ? 'es' : ''})`;
     if (now < this.loadedAt + 4000) return 'start-up';
-    return 'unknown';
+    const why = [], since = (at) => at != null && now - at < dtMs + 30;
+    if (made) why.push(`${made.length} shader${made.length > 1 ? 's' : ''} made: ${[...new Set(made)].join(' ')}`);
+    if (since(this.trees?.builtMs)) why.push('trees filled');
+    if (since(this.farForest?.filledMs)) why.push('far trees filled');
+    if (since(this.farRocks?.filledMs)) why.push('far rocks filled');
+    return why.length ? `unknown (${why.join(', ')})` : 'unknown';
   }
 
   handleKeys(dt = 1 / 60) {
@@ -1255,7 +1269,7 @@ export class App {
 
     // 0. What kind of frame was the last one, and who is steering
     const uploads = this.lastUploads;
-    const cause = this.frameCause(now, uploads);
+    const cause = this.frameCause(now, uploads, dtMs);
     const bench = this.benchmark?.active;
     if (bench) {
       // The benchmark plays by itself: the player's stick and look input are ignored.
@@ -1539,7 +1553,7 @@ export class App {
     if (this.photoWanted) { this.photoWanted = false; this.savePhoto(); }
     governor.endFrame();
     if (bench && this.benchmark.cost) this.benchmark.cost.frameDone(frameStart);
-    const settling = cause !== 'unknown' && cause !== 'quality step' && !cause.startsWith('new terrain');
+    const settling = !cause.startsWith('unknown') && cause !== 'quality step' && !cause.startsWith('new terrain');
     // An upload's cost can land a frame or two later (the driver finishes textures and
     // mip maps on its own time), so the three frames after one count as soft too.
     this.softFrames = uploads ? 3 : Math.max(0, (this.softFrames || 0) - 1);

@@ -111,9 +111,11 @@ export class Benchmark {
       this.sc[this.n] = app.scriptMs || 0; this.ph[this.n] = Math.max(0, this.phase); this.up[this.n] = Math.min(255, app.lastUploads || 0);
       { const tot = app.profile.total, o = Math.max(0, this.phase) * PARTS.length; for (let i = 0; i < PARTS.length; i++) { this.pt[o + i] += tot[i] - this.ptLast[i]; this.ptLast[i] = tot[i]; } }
       // (the frame that has just ended, as dtMs is)
+      // (what that frame sent to the GPU, for a hitch's line: read before the tally begins again)
+      const sent = this.tally && dtMs > 100 ? ` · uploads ${Math.round(this.tally.n[4] / 1024)} KB in ${this.tally.n[3]}, ${this.tally.n[5]} of them inside a pass` : '';
       if (this.tally) { this.tally.take(this.gl, Math.max(0, this.phase) * TALLY.length); this.glFrames[Math.max(0, this.phase)]++; }
       this.n++;
-      if (dtMs > 100) this.hitches.push({ t: +t.toFixed(1), ms: Math.round(dtMs), cause });
+      if (dtMs > 100) this.hitches.push({ t: +t.toFixed(1), ms: Math.round(dtMs), cause, sent });
       this.maxCalls = Math.max(this.maxCalls, app.stats.calls || 0); this.maxTris = Math.max(this.maxTris, app.stats.triangles || 0);
     }
     const b = this.builds[app.world.id];
@@ -267,7 +269,7 @@ export class Benchmark {
     const causes = [...byCause].sort((a, b) => b[1] - a[1]).map(([k, c]) => `${k} ${c}`).join(', ');
     L.push(`hitches over 100 ms: ${this.hitches.length}${causes ? ` — ${causes}` : ''}`);
     const worst = this.hitches.slice().sort((a, b) => b.ms - a.ms).slice(0, 15).sort((a, b) => a.t - b.t);
-    for (const h of worst) L.push(`  ${h.t}s ${h.ms} ms — ${h.cause}`);
+    for (const h of worst) L.push(`  ${h.t}s ${h.ms} ms — ${h.cause}${h.sent || ''}`);
     if (this.hitches.length > worst.length) L.push(`  (the ${worst.length} longest are listed)`);
     L.push(`most at once: ${this.maxCalls} draw calls, ${Math.round(this.maxTris / 1000)}k triangles, about ${Math.round(this.maxGpuBytes / 1048576)} MB of GPU memory`);
     // What each thing costs to draw, measured after the lap (CostTest).

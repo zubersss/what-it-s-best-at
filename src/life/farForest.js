@@ -444,14 +444,14 @@ ${LIGHTING_PARS}
     const geo = geometry(0, 18), shadowGeo = geometry(18, 6);
     const own = { uTileRel: { value: new THREE.Vector3() }, uTileEast: { value: new THREE.Vector3(1, 0, 0) }, uTileNorth: { value: new THREE.Vector3(0, 1, 0) }, uTileUp: { value: new THREE.Vector3(0, 0, 1) }, uTileShadow: { value: 0 } };
     const material = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3, defines: this.defines, side: THREE.DoubleSide,
+      name: 'FarForest', glslVersion: THREE.GLSL3, defines: this.defines, side: THREE.DoubleSide,
       uniforms: { ...this.shared, ...own },
       vertexShader: this.vertexShader, fragmentShader: this.fragmentShader,
     });
     // A shadow takes its alpha's share of what was drawn there, and writes no depth: where
     // several lie over one another each darkens what the others left.
     const shadowMaterial = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3, defines: this.defines, side: THREE.DoubleSide, depthWrite: false,
+      name: 'FarForestShadow', glslVersion: THREE.GLSL3, defines: this.defines, side: THREE.DoubleSide, depthWrite: false,
       blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
       uniforms: { ...this.shared, ...own },
       vertexShader: this.vertexShader, fragmentShader: this.fragmentShader,
@@ -652,6 +652,7 @@ ${LIGHTING_PARS}
   // of it wants a twentieth of what the near side does.)
   _fill(tile, eyeRel, eye) {
     const s = tile.slot, T = tile.data, iA = s.iA.array, iB = s.iB.array, iC = s.iC.array;
+    this.filledMs = performance.now();          // (when: for the benchmark's hitch list, App.frameCause)
     localFrame([tile.origin.x, tile.origin.y, tile.origin.z], this._e, this._n, this._u);
     const u = s.material.uniforms;
     u.uTileEast.value.set(...this._e); u.uTileNorth.value.set(...this._n); u.uTileUp.value.set(...this._u);
