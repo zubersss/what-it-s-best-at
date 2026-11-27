@@ -323,7 +323,9 @@ export const PARTS_OUT = [
   skyPart('fog', 'fog and mist'),
   skyPart('lenses', 'lens clouds over the peaks'),
   // (the last pass over the canvas at the picture's size, as it now is, instead of the screen's: App.fitCanvas)
-  { id: 'last-pass', label: "the last pass at the picture's size, not the screen's", set: (app, out) => { app.canvasHold = out ? 'fit' : 'full'; } },
+  // (the canvas is held at the picture's size through the test, as play has it; this row is the
+  // one that costs: the same pass over the whole screen. Printed as what it adds.)
+  { id: 'last-pass', label: "the last pass over the whole screen instead of the picture's size (what it adds)", adds: true, set: (app, out) => { app.canvasHold = out ? 'full' : 'fit'; } },
   // (last: what is left with nothing drawn at all)
   { id: 'everything', label: 'everything', set: (app, out) => { app.nearScene.visible = app.farScene.visible = app.heroScene.visible = app.dustScene.visible = !out; } },
 ];
@@ -348,9 +350,10 @@ export class CostTest {
     // the measures of "everything on" on either side of it, not against the first)
     const steps = FEATURE_STEPS.map((f, i) => i).filter((i) => !FEATURE_STEPS[i].id.startsWith('terrain-') && (!FEATURE_STEPS[i].has || FEATURE_STEPS[i].has(app)));
     this.configs = costConfigs(steps, this.parts, this.groups, held, small);
-    // (the canvas at the screen's own size while the parts are measured, so that the one
-    // part that changes it is seen against the rest: App.fitCanvas)
-    app.canvasHold = 'full';
+    // (the canvas at the picture's size while the parts are measured, as in play: held at the
+    // screen's own size, as it was, every measure carried a last pass over 3.74 MP that play
+    // does not pay: App.fitCanvas)
+    app.canvasHold = 'fit';
     // (the clock held while a view is measured: the same sky, Sun and shadows for every saving)
     this.pausedBefore = app.paused; app.paused = true;
     this.off = []; this.out = []; this.lines = []; this.px = new Uint8Array(4); this.vi = -1; this.state = 'settle';
@@ -448,7 +451,7 @@ export class CostTest {
     // (what leaving each part out saves, against "everything on" just before it; the last is
     // what is left with nothing drawn at all: the measuring itself and the page's own work)
     const parts = []; let none = NaN;
-    for (let k = 1; k < n - 4; k++) if (c[k][0] <= -10 && c[k][0] > -100) { const p = this.parts[-10 - c[k][0]]; if (p.id === 'everything') none = ms[k]; else parts.push(`${p.label} ${f(ms[k - 1] - ms[k])}`); }
+    for (let k = 1; k < n - 4; k++) if (c[k][0] <= -10 && c[k][0] > -100) { const p = this.parts[-10 - c[k][0]]; if (p.id === 'everything') none = ms[k]; else parts.push(`${p.label} ${f(p.adds ? ms[k] - ms[k - 1] : ms[k - 1] - ms[k])}`); }
     this.lines.push(`  saved by leaving a part out: ${parts.join(' · ')} · (with nothing drawn at all a frame still takes ${f(none)})`);
     saved.sort((a, b) => b[1] - a[1]);
     this.lines.push(`  saved by one saving alone: ${saved.filter((x) => Math.abs(x[1]) >= 0.3).map((x) => `${x[0]} ${x[1].toFixed(1)}`).join(' · ') || 'nothing over 0.3'}`);
