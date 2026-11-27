@@ -178,6 +178,12 @@ carpet painted under it.
 23 km west of the opening place, from the air at 2 800 m); `haven_ledge_space_winter.png` and
 `..._summer.png` (the southern half from 700 km).
 
+**Known wrong.** Near by, the land's own painted snow is what it was before this work: its
+white is held inside the ground's colour range, so in shade it is a pale grey-lilac, while
+new snow is white (`piece4_peak_seasons.png`: the opening day against winter). I left it:
+making it white changes the opening view's range. Say so and it is one line in the ground's
+`[seasons]` block.
+
 **Not done.** The weather's model still has the Sun's season, not the life's (it is the sky
 helper's file: see piece 1): it will let snow fall in the Sun's winter. Fresh snow's line is
 one number for the whole view, asked at the traveller's place. Lakes do not freeze. Trees
