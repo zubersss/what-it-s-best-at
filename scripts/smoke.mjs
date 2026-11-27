@@ -1,6 +1,6 @@
 // Headless smoke test of the parts a screenshot bookmark never touches: the start screen,
 // Play, the Smooth/Sharp switch, the HUD states, and a complete benchmark run with its
-// results screen.   node scripts/smoke.mjs [--dist] [--out <dir>] [--no-bench] [--soak] [--earth] [--size 440x206 --dsf 1] [--limit <seconds>]
+// results screen.   node scripts/smoke.mjs [--dist] [--out <dir>] [--no-bench] [--soak] [--earth] [--dsf 0.5] [--size 880x412] [--limit <seconds>]
 // --soak runs the 10-minute soak instead of the 3-minute benchmark (two extra laps, and
 // the minute-by-minute table).
 // Software WebGL: the frame rates it prints are meaningless; it checks that things work.
@@ -11,8 +11,9 @@ import { shaderUse, overPhone, countVaryings, PHONE } from './lib/glLimits.mjs';
 
 const out = path.resolve(root, opt('out', 'docs/shots/ui'));
 await mkdir(out, { recursive: true });
-// (--size 440x206 --dsf 1: a small window, for the benchmark's cost test on a slow machine: 240
-// steps of software rendering take this machine an hour and a half at the phone's shape)
+// (--dsf 0.5: a quarter of the pixels, for the benchmark's cost test on a slow machine: 240
+// steps of software rendering take this machine an hour and a half at the phone's shape; a smaller
+// window, --size, hides the start screen's buttons and the clicks time out)
 const [sw, sh] = opt('size', '880x412').split('x').map(Number);
 const { base, page, problems, snap, goto, close } = await open({ dist: flag('dist'), touch: true, width: sw, height: sh, dsf: +opt('dsf', 1.25) });
 const check = (name, ok) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`); if (!ok) problems.push(name); };

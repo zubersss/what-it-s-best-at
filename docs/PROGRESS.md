@@ -43,6 +43,14 @@ traveller sees at noon), the sky's code review, and the fourth round's critic ga
 
 ### The joined build of 2026-11-27 afternoon: the frame-rate cuts, the mist, the seasons' ground, smoother clouds
 
+**Sent 2026-11-27 15:10 UTC: PR #42, main at 6fac2be** (pictures of that build:
+`docs/shots/joined/`). The checkpoint asks the owner for a plain Haven benchmark in Sharp,
+the paced `?bench=haven&scale=0.775` run, a word on how the character moves, and the Meshy
+plan. **Next**: the owner's reply; meanwhile merge the helpers' newer work (the sky's
+`8e58ba3`, the speed helper's `c4850cc` once its browser checks are in), check it as this
+build was checked (`scripts/all-node-checks.sh`, `smoke --no-bench`, `smoke --dsf 0.5`,
+three pictures), and send it as the link after.
+
 This branch at `e8f01b1` and later holds, beyond the link of the rigged character (main
 63b8282): the **sky helper's two lists** to `17d10e2` (the mist drawn again, `HELD = false`
 in `fogSheet.js`, fading out as the eye sinks under its top, so from a lake's shore there is
@@ -55,10 +63,22 @@ partial clears given up; the benchmark counts GL work by stop, tests savings in 
 and are kicked up, snow that comes and goes with the season, grass and flowers by the
 season; governor steps `leaf-carpet` and `snow-edge`, not yet measured on a phone).
 
-**Checked on the joined head**: the build; every check that needs no browser; a full
-`npm run smoke` on the head before the helpers' last three merges and a quick one
-(`--no-bench`) after them; noon from the air, the mist's view (key 6) and the opening view
-with the character running, looked at.
+**Checked on the joined head** (build of `e8f01b1`; only notes and the smoke script after
+it): the build; every check that needs no browser (31; the sky model's "a snapshot in under
+600 ms" line fails while a browser run shares the machine and passes alone); `smoke
+--no-bench` at the phone's shape; the whole smoke with the Mars benchmark and its cost test
+at `--dsf 0.5` (19 checks; at the phone's shape the cost test, 123 steps a view now, does
+not end inside the script's 45 minutes on this machine: the first try "failed" seven checks
+that were one time-out); noon from the air (soft-edged heaps), the mist's view (key 6: a lit
+sheet over the lake at dawn) and the opening view with the character running, looked at.
+
+**On the helpers' branches, for the link after this one**: the sky's third list
+(`8e58ba3`: an eye inside the mist is veiled by it, so the shore has mist and no lid; the
+weather model takes the life's season; the heaps looked at in motion from the air: nothing
+pops; the anvil being written) and the speed helper's further cuts (`c4850cc`: only the
+cells that can carry a flower handed over, shared corners for flowers and near trees: the
+opening frame 1.75 M triangles for 3.07 M on the old link; `scripts/all-node-checks.sh`
+runs every no-browser check), its browser checks still running.
 
 **Asked of the owner**: one plain Haven benchmark in Sharp (the first with the sky's true
 cost cut, the grass by blocks and the rigged character: its cost table's `figure` row says

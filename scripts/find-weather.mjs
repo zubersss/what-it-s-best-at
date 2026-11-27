@@ -46,7 +46,7 @@ const SKYMERE = haven.places.find((p) => p.id === 'skymere');
 function producer(width = 256, over = {}) {
   const weather = { ...haven.weather, ...over };
   const layout = fieldLayout({ weather: { ...weather, field: { width } } });
-  const opts = { weather, radius: R, dayHours: haven.dayHours || 24, origin: START, layout, wxland: PLANES };
+  const opts = { weather, radius: R, dayHours: haven.dayHours || 24, origin: START, layout, wxland: PLANES, year: haven.year || null };
   return { p: makeProducer(opts), opts, steer: new Steer(weather, R) };
 }
 const fx = (x, n = 2) => (Number.isFinite(x) ? x.toFixed(n) : '-');
