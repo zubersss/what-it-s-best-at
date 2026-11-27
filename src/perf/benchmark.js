@@ -229,7 +229,7 @@ export class Benchmark {
       const d = idx.map((i) => dts[i]);
       L.push(`  ${name}: ${fps(d).toFixed(1)} · ${(100 * d.filter(isLate).length / d.length).toFixed(1)} % · ${avg(idx.map((i) => sc[i])).toFixed(1)} ms · ${mp(avg(idx.map((i) => px[i])))} · ${refreshes(d)}`);
       // (the three largest parts of that work, ms a frame)
-      L.push(`      ${Profile.text(Array.from(this.pt.subarray(k * PARTS.length, (k + 1) * PARTS.length), (v) => v / idx.length), 0.2).split(' · ').slice(0, 4).join(' · ')}`);
+      L.push(`      ${Profile.text(Array.from(this.pt.subarray(k * PARTS.length, (k + 1) * PARTS.length), (v) => v / idx.length), 0.2).split(' · ').slice(0, 6).join(' · ')}`);
       // (what was handed to the GPU, a frame: counts, true whatever the frames' lengths say)
       if (this.glFrames?.[k]) L.push(`      ${GlTally.text(this.gl, k * TALLY.length, this.glFrames[k])}`);
     }
