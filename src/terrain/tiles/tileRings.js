@@ -162,7 +162,7 @@ export class TileRings {
         else if (w && !r.redone && this.rings.some((q) => q !== r && el(q) && q.zoom < r.zoom)) { r.redone = true; r.tx = null; }
       }
       this._give(r, { data: new Int16Array(m.buffer), width: W, height: W, zoom: m.zoom, tx: m.tx, ty: m.ty, waterOnly: !!m.waterOnly,
-        water: w ? { segs: new Float32Array(w.segs), gridStart: new Int32Array(w.gridStart), gridItems: new Int32Array(w.gridItems), lake: w.lake ? new Uint16Array(w.lake) : null } : null });
+        water: w ? { segs: new Float32Array(w.segs), gridStart: new Int32Array(w.gridStart), gridItems: new Int32Array(w.gridItems), lake: w.lake ? new Uint16Array(w.lake) : null, falls: w.falls ? new Float32Array(w.falls) : null } : null });
     }
     else this._give(r, { data: new Uint8Array(m.buffer), mips: m.mips.map((b) => new Uint8Array(b)), width: W, zoom: m.zoom, tx: m.tx, ty: m.ty,
       cover: m.cover ? { cls: new Uint8Array(m.cover.cls), tall: new Uint8Array(m.cover.tall), closed: new Uint8Array(m.cover.closed) } : null });

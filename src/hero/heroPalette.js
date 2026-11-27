@@ -93,3 +93,4 @@ export function fillPalette(out, parts, pos, shared) {
   }
   return out;
 }
+

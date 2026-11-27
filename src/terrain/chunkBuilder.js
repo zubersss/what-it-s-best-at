@@ -3,6 +3,9 @@
 import { faceToDir, nodeEdge } from './cubeSphere.js';
 import { toHalf } from './halfFloat.js';
 
+// Running water in the normal map: this many m/s of flow to one (see build, and FLOW_UNIT in terrainMaterial.js).
+export const FLOW_UNIT = 16;
+
 export function vertexCount(G) { return (G + 1) * (G + 1) + 4 * (G + 1); }
 
 // The vertices of a chunk are kept in one layer of a texture, G + 1 texels wide: vertex v
@@ -80,6 +83,7 @@ export class ChunkBuilder {
     const M = this.M;
     this.H = new Float64Array(M * M);
     this.Wd = new Float32Array(M * M);          // how deep the water is at each sample (0 on land)
+    this.Fl = new Float32Array(M * M * 2);      // how the water runs at each sample (m/s toward east and north; 0 on land and still water)
     this.P = new Float64Array(M * M * 3);
     this.D = new Float64Array(M * M * 3);
     this.hp = new Float64Array((this.G + 1) * (this.G + 1));
@@ -94,7 +98,7 @@ export class ChunkBuilder {
 
   // sun: [x,y,z] unit direction (planet-fixed) and sunHalf: its angular radius, for the baked shadow map.
   build(face, level, ix, iy, sun, sunHalf) {
-    const { hs, G, NR, M, H, Wd, P, D, step } = this;
+    const { hs, G, NR, M, H, Wd, Fl, P, D, step } = this;
     const R = hs.radius;
     const size = 2 / (1 << level), a0 = -1 + ix * size, b0 = -1 + iy * size;
     const edge = nodeEdge(level, R);
@@ -110,7 +114,7 @@ export class ChunkBuilder {
         faceToDir(face, a, b, dir);
         const h = hs.height(dir[0], dir[1], dir[2], minWL);
         const o = j * M + i, r = R + h;
-        H[o] = h; Wd[o] = hs.waterDepth;
+        H[o] = h; Wd[o] = hs.waterDepth; Fl[o * 2] = hs.flowE; Fl[o * 2 + 1] = hs.flowN;
         D[o * 3] = dir[0]; D[o * 3 + 1] = dir[1]; D[o * 3 + 2] = dir[2];
         P[o * 3] = dir[0] * r; P[o * 3 + 1] = dir[1] * r; P[o * 3 + 2] = dir[2] * r;
         if (h < minH) minH = h; if (h > maxH) maxH = h;
@@ -194,6 +198,17 @@ export class ChunkBuilder {
       const cav = ((H[s - 1] + H[s + 1] + H[s - M] + H[s + M]) * 0.25 - H[s]) / texel;
       // (water: the fourth number is 1 + its depth in metres instead: see terrainMaterial.js)
       const ao = Wd[s] > 0 ? 1 + Wd[s] : 1 / (1 + Math.max(0, cav) * 5.0);
+      // (running water: the normal map holds twice (the surface's normal + the flow, in the
+      // planet's axes, FLOW_UNIT m/s to one). Its length along the vertical, above one, says
+      // how much of a texel is river, however texels and mip levels are blended; what is
+      // left across the vertical is the flow. Land and still water keep a normal of length
+      // one. Read in terrainMaterial.js: writer and reader change in the same edit.)
+      const fe = Fl[s * 2], fn = Fl[s * 2 + 1];
+      if (Wd[s] > 0 && (fe !== 0 || fn !== 0)) {
+        const dx = D[s * 3], dy = D[s * 3 + 1], dz = D[s * 3 + 2], el = 1 / (Math.hypot(dx, dy) || 1), ex = -dy * el, ey = dx * el;          // east; north = up x east
+        const kx = -dz * ey, ky = dz * ex, kz = dx * ey - dy * ex;
+        nx = 2 * (nx + (ex * fe + kx * fn) / FLOW_UNIT); ny = 2 * (ny + (ey * fe + ky * fn) / FLOW_UNIT); nz = 2 * (nz + kz * fn / FLOW_UNIT);
+      }
       const t = (j * T + i) * 4;
       nf[t] = nx; nf[t + 1] = ny; nf[t + 2] = nz; nf[t + 3] = ao;
     }

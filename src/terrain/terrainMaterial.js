@@ -3,6 +3,8 @@
 // come from world.surface.
 import * as THREE from 'three';
 import { WAVE_GLSL, LIFTED, WAVE_STEPS } from '../water/waves.js';
+import { FLOW_UNIT } from './chunkBuilder.js';
+import { RIVER_GLSL } from '../water/river.js';
 import { CONFIG } from '../config.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
@@ -245,8 +247,16 @@ ${FLOWERS_GLSL}
 uniform vec4 uWind;            // xyz: where the wind blows to (unit, planet axes), w: its speed (m/s)
 uniform vec3 uWave;            // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
 uniform float uLitter;         // fallen leaves under the trees, 0..1 by the season
+// [seasons] The far canopy's trees that drop their leaves, by the season (worked out by the one
+// rule, life/season.js canopyYear, and only read here): eight entries by height. rgb: their
+// leaves' colour on this day (branches where they are bare); a: the level of the canopy's
+// patch noise over which a patch is theirs (their share of the wood there; 9: none).
+uniform vec4 uCanopyYear[8];
+uniform vec4 uCanopyAlt;       // x: the first entry's height (m); y: entries a metre; z: metres of height a degree toward the pole counts for; w: the latitude the entries are for (degrees from the equator)
 ${WAVE_GLSL}
 uniform float uTime;
+uniform float uWaterQ;         // living water's governor step: 1 = its fine motion in full, 0 = thinned (a river's lanes from the nearest whole-number pair alone, not the four blended)
+${RIVER_GLSL}
 uniform vec2 uGloss;           // ice and wet ground: x = how strong the Sun's sheen is (0: none), y = how tight (roughness)
 uniform float uFarRoughness;  // the same for ground whose chunk texels are kilometres (seen from orbit)
 uniform float uDetailStrength;
@@ -370,17 +380,22 @@ ${ALBEDO_RANGE_GLSL}
 // and the trees on it specks of another colour in both.
 ${PAINT_LEAF}
 ${FAR_GREEN_GLSL}
-vec3 farCanopyColour(vec3 tint, vec3 c1, vec3 c2, float turn, float dist) {
+vec3 farCanopyColour(vec3 tint, vec3 c1, vec3 c2, float height, float absLat, float dist) {
   vec3 leaf = vec3(0.045, 0.085, 0.03) * 0.61;
   if (uPaint.x > 0.0) leaf = paintLeaf(leaf);
   vec3 leaves = farGreen(leaf * (1.12 * 0.76), dist) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
-  // (in their season, in patches: the trees that turn among those that do not. Few patches:
-  // turn is 1 from autumn to the end of winter, and with two thirds of the canopy turned a
-  // wood of firs and pines, which keep their needles, was gold and rust all winter under
-  // green trees: the gold scales of the opening place in its first morning, which is the
-  // last day of its winter. The canopy does not know what grows in it; one patch in six
-  // turns, as the aspens and cottonwoods among Haven's conifers do.)
-  return mix(leaves, mix(vec3(0.17, 0.10, 0.02), vec3(0.13, 0.035, 0.015), smoothstep(-0.1, 0.25, c1.r)) * (0.8 + 0.6 * (c2.b + 0.5)), turn * 0.85 * smoothstep(0.2, 0.34, c2.r + 0.5 * c1.g));
+  // [seasons] In patches, the trees that drop their leaves among those that keep them: as
+  // many patches as the wood at this height has of them, in their leaves' colour on this
+  // day (pale green, summer's green, gold and red, bare branches). The canopy does not know
+  // which trees stand in it; the rule that the trees themselves ask does (uCanopyYear).
+  float x = clamp((height + uCanopyAlt.z * (absLat - uCanopyAlt.w) - uCanopyAlt.x) * uCanopyAlt.y, 0.0, 6.999);
+  int i = int(x); vec4 yr = mix(uCanopyYear[i], uCanopyYear[i + 1], x - float(i));
+  if (yr.a > 2.0) return leaves;
+  vec3 theirs = yr.rgb * 0.61;
+  if (uPaint.x > 0.0) theirs = paintLeaf(theirs);
+  // (each patch its own tone, and some redder than the mean, as each tree is)
+  theirs = farGreen(theirs * (1.12 * 0.76), dist) * (0.8 + 0.6 * (c2.b + 0.5)) * mix(vec3(1.0), vec3(1.12, 0.78, 0.8), smoothstep(-0.1, 0.25, c1.r) * smoothstep(0.0, 0.3, (yr.r - yr.g) / max(yr.r, 1e-4)));
+  return mix(leaves, theirs, 0.85 * smoothstep(yr.a, yr.a + 0.14, c2.r + 0.5 * c1.g));
 }
 // The far canopy's grain: how it tilts the surface, along the tile's two axes, where a
 // pixel is narrower than the canopy's unevenness (nearC 1: all of it; 0: none).
@@ -459,6 +474,19 @@ void main() {
   vec3 up = normalize(planetPos);
   float dist = length(vRel);
   vec3 V = -vRel / dist;
+  // --- living water, 1 of 2 (the water helper's block): a river's flow. On running water
+  // the normal map holds twice (the surface's normal + the flow / FLOW_UNIT m/s), see
+  // chunkBuilder.js: what it has along the vertical above one is the share of the pixel
+  // that is river (land and still water: a normal of length one, so none), what it has
+  // across the vertical is the flow. The normal itself is put back.
+  float river = clamp((dot(nt.xyz, up) - 1.03) / 0.9, 0.0, 1.0);
+  vec3 flowT = vec3(0.0);                       // the flow here (m/s, planet axes, along the ground)
+  if (river > 0.0) { flowT = nt.xyz - up * dot(nt.xyz, up); N = normalize(nt.xyz - flowT * river); flowT *= ${(FLOW_UNIT / 2).toFixed(1)}; }
+  // (how far the detail tile's coordinates go in a pixel, from the place itself: the
+  // coordinates jump by whole tiles from patch to patch, and their own change across a
+  // patch's edge drew a hairline over the river there)
+  vec3 relX = dFdx(vRel), relY = dFdy(vRel);
+  vec2 dux = vec2(dot(relX, uTanU), dot(relX, uTanV)) / float(DETAIL_TILE), duy = vec2(dot(relY, uTanU), dot(relY, uTanV)) / float(DETAIL_TILE);
 
   vec4 d0 = texture(tDetail, vDetailUv);
   vec4 d1 = vec4(0.5), d2 = vec4(0.5);
@@ -698,7 +726,7 @@ void main() {
     // (a canopy seen from the side shows the sides of its crowns: lit with the Sun behind
     // the eye, dark against it, as the trees drawn one by one are; from straight above, its top)
     N = normalize(N + (V - up * dot(V, up)) * (1.1 * vShell));
-    vec3 leaves = farCanopyColour(mapTint, c1, c2, uLitter, dist);
+    vec3 leaves = farCanopyColour(mapTint, c1, c2, vHeight, degrees(asin(clamp(abs(up.z), 0.0, 1.0))), dist);
     // (not from far off: there the forest is what the picture from space shows, not one
     // flat green laid over it in blocks: the canopy's map has pixels a kilometre wide)
     // (by distance, not by the patch's texel: a patch a step finer than its neighbours was
@@ -897,7 +925,8 @@ void main() {
   // deep: a patch's texel there is tens of metres, and a sharp edge drew lakes with
   // stair-stepped outlines)
   float waterAir = smoothstep(0.0, 0.4, uAloft), waterFar = waterAir * smoothstep(1500.0, 6000.0, dist);
-  float water = uSea.x > 0.5 ? smoothstep(0.02, 0.22 + 1.3 * waterFar, waterDepth) : 0.0;
+  // (a river is water from bank to bank: a brook a hand deep was half ground colour)
+  float water = uSea.x > 0.5 ? smoothstep(0.02, mix(0.22, 0.06, river) + 1.3 * waterFar, waterDepth) : 0.0;
   float foam = 0.0, waveRough = 0.0;
   if (water > 0.0) {
     // waves: the long ones as slopes (the surface itself rises with them near the
@@ -912,9 +941,16 @@ void main() {
     vec3 wv = wave(vDetailUv, uWave.z, wind2, uWave.x * shoal * (1.0 - 0.8 * inland), nw);
     waveRough = uWave.x * 0.5 * smoothstep(0.02, 0.3, fw);
     vec2 drift = uWave.z * vec2(0.011, 0.006);
-    vec3 r1 = texture(tDetail, vDetailUv * 3.0 + drift).rgb - 0.5, r2 = texture(tDetail, vDetailUv * 13.0 - drift * 2.3).rgb - 0.5;
     float near = 1.0 - smoothstep(0.02, 0.4, fw);
-    vec2 rip = (r1.rg + 0.6 * r2.rg) * (uSea.w * near * (0.4 + 0.1 * uWind.w));
+    vec2 rip = vec2(0.0);
+    // (the wind's ripples: not where the whole pixel is river, which has its own)
+    if (river < 0.999) { vec3 r1 = texture(tDetail, vDetailUv * 3.0 + drift).rgb - 0.5, r2 = texture(tDetail, vDetailUv * 13.0 - drift * 2.3).rgb - 0.5; rip = (r1.rg + 0.6 * r2.rg) * (uSea.w * near * (0.4 + 0.1 * uWind.w)); }
+    // --- living water, 2 of 2 (the water helper's block): a river runs (water/river.js)
+    vec4 run = vec4(0.0);                       // xy its ripples' slope, z its streaks (0..1), w its speed (m/s)
+    if (river > 0.0) {
+      run = riverRun(vDetailUv, dux, duy, vec2(dot(flowT, uTanU), dot(flowT, uTanV)), dot(uTanU, uTanV), uWave.z, near, uDetailMean.b, uWaterQ > 0.5);
+      rip = mix(rip, run.xy * uSea.w, river);
+    }
     vec3 Nw = normalize(up - uTanU * (wv.x + rip.x) - uTanV * (wv.y + rip.y));
     N = normalize(mix(N, Nw, water));
     // foam: a line where the water runs out on the shore, bands that follow the bed's
@@ -946,6 +982,10 @@ void main() {
     // blue lost at three depths made a river of changing depth cycle through sand, yellow,
     // green and lilac, "an oily rainbow ribbon" from 1 km)
     if (waterAir > 0.0) { float tg = exp(-0.16 * waterDepth * 2.3); body = mix(body, mix(deepC, vec3(0.10, 0.20, 0.19), tg), waterAir); }
+    // (living water: a river's own colour, and the pale streaks its current draws out)
+    // (its colour from the first of it in a pixel: at its banks, where a pixel is part river and
+    // part bank, the sea's pale sand showed as a white hem.)
+    if (river > 0.0) { body = mix(body, riverBody(waterDepth, waterAir), smoothstep(0.0, 0.2, river)); foam = max(foam * (1.0 - river), riverFoam(run, waterDepth) * river * water); }
     albedo = mix(albedo, mix(body, vec3(0.75), foam), water);
     ao = mix(ao, 1.0, water);
   }
@@ -1067,13 +1107,13 @@ export function makeTerrainShared(world, textures) {
     uCover: { value: new THREE.Vector4() },
     // w: the cover pattern (d0.a + 0.3 d1.a) is about normal; logistic scale = its spread / 1.702
     uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
-    uPlain: { value: 0 }, uTide: { value: new THREE.Vector2(0, 0) }, uAirRelief: { value: 0 },
+    uWaterQ: { value: 1 }, uPlain: { value: 0 }, uTide: { value: new THREE.Vector2(0, 0) }, uAirRelief: { value: 0 },
     // the clouds' shade, the one atlas every lit thing reads (sky/cloudShade.js), and how wet
     // the ground is per place; the four below are the cloud rule's own numbers, which the atlas
     // reads to write itself with (nothing in the ground's shaders reads them any more)
     ...CLOUD_SHADE_UNIFORMS, ...CLOUD_WET_UNIFORMS,
     tCloudNoise: { value: null }, uCloudHeap: { value: new THREE.Vector4(0, 0, 0, 0) }, uCloudVol: { value: new THREE.Vector4() }, uCloudSteer: SKY_UNIFORMS.uCloudSteer,
-    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) }, uGrassWave: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, uCanopyYear: { value: Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, 0, 9)) }, uCanopyAlt: { value: new THREE.Vector4(0, 0, 0, 45) }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) }, uGrassWave: { value: new THREE.Vector4(0, 0, 0, 0) },
     tRingColour: { value: textures.white }, uRingColour: { value: new THREE.Vector4(0, 0, 1, 0) },
     tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoShift: { value: 0 }, uAlbedoSteep: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
     uAlbedoRange: { value: new THREE.Vector2() }, uRockHue: { value: new THREE.Vector2() }, uCoverContrast: { value: 1 }, uBedrockSlope: { value: 0 },

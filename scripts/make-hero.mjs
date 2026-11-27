@@ -85,6 +85,22 @@ for (let v = 0; v < nv; v++) {
   gar[v] = name === 'hair' ? 4 : name === 'skin' || name === 'boot' || name === 'brow' || name === 'lip' ? 0 : gar[v] === 2 ? (P[v * 3] >= 0 ? 2 : 3) : gar[v] === 1 ? 1 : 0;
 }
 
+// The hands. The seeds' skin stopped at the knuckles (the cuff's silk ran over the back of
+// the hand and the thumb: a white glove with skin fingers). Everything joined to a hand's
+// skin within HAND of the middle of that skin is the hand's skin too: that reaches the wrist
+// and stops at the cuff.
+{
+  const SK = LABELS.indexOf('skin'), HAND = +(process.env.HAND || 0.105);
+  let more = 0;
+  for (const s of [1, -1]) {
+    let cx = 0, cy = 0, cz = 0, c = 0; const todo = [];
+    for (let v = 0; v < nv; v++) if (lab[v] === SK && P[v * 3] * s > 0.3) { cx += P[v * 3]; cy += P[v * 3 + 1]; cz += P[v * 3 + 2]; c++; todo.push(v); }
+    cx /= c; cy /= c; cz /= c;
+    while (todo.length) { const v = todo.pop(); for (let e = start[v]; e < start[v + 1]; e++) { const w = items[e]; if (lab[w] !== SK && Math.hypot(P[w * 3] - cx, P[w * 3 + 1] - cy, P[w * 3 + 2] - cz) < HAND) { lab[w] = SK; more++; todo.push(w); } } }
+  }
+  say(`the hands: ${more} more vertices are skin`);
+}
+
 // ---- 3. colour ----------------------------------------------------------------------------
 // How hollow the surface is at a vertex, at the scale of a centimetre or two: the normals of
 // its neighbourhood lean toward it (a groove, the foot of a fold) or away (a ridge). Smoothed

@@ -16,6 +16,12 @@ export default {
   radius: 250000,
   gravity: 9.81,
   dayHours: 24,
+  // Its year, for everything that lives by the season (life/season.js): 48 of its days from
+  // one spring to the next, twelve to a season, short enough to live through. `at`: on that
+  // date the life's calendar reads that day of 365.25 (counted as in the northern half): the
+  // scene's morning reads what Earth's calendar read on its date, the first day of spring at
+  // the opening place in the south. The Sun is not on this year: it stays on its orbit.
+  year: { days: 48, at: ['2024-09-22T17:00:00Z', 265] },
 
   terrain: {
     maxLevel: 14,               // ~24 m chunks (a cube face is 393 km across)

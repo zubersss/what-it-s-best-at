@@ -1,0 +1,93 @@
+SOLAR SYSTEM EXPLORER — 3-minute Haven benchmark
+build 49e4294 · mode Sharp (target 30 fps) · ran 180 s, 5178 frames
+average fps 28.8 · 1% low 11.6 · worst frame 250 ms · late frames (over 1.2x the target, as the governor counts them) 328 = 6.33 %
+render resolution: average 3.41 MP (2704x1261) · minimum 2.66 MP (2391x1115) · native 4.45 MP (3088x1440)
+by part: Haven 27.7 fps · flight 29.4 · Moon 29.4
+the page's own work per frame: average 8.0 ms · worst 1 % 35.6 ms (a frame has 33.2 ms)
+by stop (fps · late frames · own work · resolution · frame lengths in screen refreshes):
+  Haven ledge: 23.9 · 32.3 % · 10.7 ms · 2.67 MP · 2: 67.7 % · 3: 20.1 % · 4: 10.0 % · 5+: 2.2 %
+      ground 1.9 · rocks and trees 1.7 · sky and weather 1.4 · character 1.3
+  Haven sun: 27.8 · 13.2 % · 10.8 ms · 2.67 MP · 2: 86.8 % · 3: 10.2 % · 4: 3.0 % · 5+: 0.0 %
+      ground 2.3 · character 1.8 · sky and weather 1.5 · clouds 1.1
+  Haven wall: 29.9 · 0.6 % · 10.6 ms · 2.67 MP · 2: 99.4 % · 3: 0.6 % · 4: 0.0 % · 5+: 0.0 %
+      ground 2.3 · character 1.9 · sky and weather 1.6 · rocks and trees 1.0
+  Haven ship: 27.1 · 19.4 % · 11.1 ms · 2.67 MP · 2: 80.6 % · 3: 17.2 % · 4: 2.2 % · 5+: 0.0 %
+      ground 2.7 · character 2.1 · sky and weather 1.6 · rocks and trees 1.0
+  Haven dusk: 29.5 · 0.8 % · 10.5 ms · 2.67 MP · 2: 99.2 % · 3: 0.0 % · 4: 0.6 % · 5+: 0.3 %
+      ground 2.3 · character 1.7 · sky and weather 1.5 · rocks and trees 1.1
+  flight: 29.4 · 2.0 % · 7.9 ms · 3.32 MP · 2: 98.0 % · 3: 1.1 % · 4: 0.3 % · 5+: 0.5 %
+      character 1.5 · ground 1.3 · sky and weather 1.0 · terrain 0.9
+  Moon ledge: 30.0 · 0.3 % · 5.2 ms · 4.45 MP · 2: 99.7 % · 3: 0.3 % · 4: 0.0 % · 5+: 0.0 %
+      character 1.4 · terrain 1.1 · ground 0.8 · finishing 0.5
+  Moon sun: 30.0 · 0.0 % · 5.4 ms · 4.45 MP · 2: 100.0 % · 3: 0.0 % · 4: 0.0 % · 5+: 0.0 %
+      terrain 1.3 · character 1.2 · ground 0.8 · finishing 0.5
+  Moon wall: 28.9 · 9.8 % · 5.3 ms · 4.45 MP · 2: 90.2 % · 3: 9.5 % · 4: 0.3 % · 5+: 0.0 %
+      character 1.3 · terrain 1.0 · ground 0.9 · finishing 0.5
+  Moon ship: 28.2 · 16.2 % · 5.4 ms · 4.05 MP · 2: 83.8 % · 3: 15.3 % · 4: 0.9 % · 5+: 0.0 %
+      character 1.4 · terrain 1.1 · ground 0.8 · finishing 0.4
+  Moon dusk: 30.0 · 0.3 % · 6.2 ms · 3.60 MP · 2: 99.7 % · 3: 0.3 % · 4: 0.0 % · 5+: 0.0 %
+      character 1.7 · terrain 1.3 · ground 0.9 · finishing 0.7
+frames that took in new terrain: 36 % of all · late among them 6.9 % · late among the rest 6.0 %
+frame lengths in screen refreshes (16.6 ms each): 2: 93.7 % · 3: 4.9 % · 4: 1.1 % · 5+: 0.3 %
+quality steps: 69 (resolution down 4, up 2; features off 29, back on 29) · ended at Sharp 30 fps · 4.45 MP (100 % of native)
+late frames left alone at the end, as nothing the governor gives up cures them: 0.0 % · quality put back after steps that cured nothing: 1 times
+  0s haven: starting at 2.24 MP
+  3.5s off: thinner grass in the middle distance
+  3.5s off: half the grass
+  3.5s off: less pollen in the air
+  3.5s off: middle and high cloud plainer
+  3.5s off: the clouds' shadows a little behind (every other frame)
+  8.6s fewer terrain patches (x0.8): the work per frame is what is slow
+  9.5s off: the trees' full shapes to two thirds of their distance
+  10.4s off: the far forest thinned
+  17s off: every leaf on the nearest trees
+  17.9s off: terrain detail (fewer patches)
+  17.9s off: terrain detail (fewer patches again)
+  18.8s off: coarser cloud shadows
+  18.8s off: the clouds' shadows on the ground
+  21.8s back on: the clouds' shadows a little behind (every other frame)
+  21.8s back on: coarser cloud shadows
+  21.8s back on: thinner grass in the middle distance
+  21.8s back on: half the grass
+  21.8s back on: less pollen in the air
+  21.8s back on: middle and high cloud plainer
+  29.7s back on: the trees' full shapes to two thirds of their distance
+  32.7s back on: the far forest thinned
+  35.7s back on: every leaf on the nearest trees
+  39.5s off: thinner grass in the middle distance
+  39.5s off: the trees' full shapes to two thirds of their distance
+  40.5s off: the far forest thinned
+  40.5s off: every leaf on the nearest trees
+  41.4s off: half the grass
+  41.4s off: less pollen in the air
+  41.4s off: middle and high cloud plainer
+  … 39 more
+hitches over 100 ms: 9 — jump to a bookmark 3, unknown 2, sky maps arriving 2, arriving at another world 2
+  0.6s 150 ms — jump to a bookmark
+  0.7s 200 ms — jump to a bookmark
+  8.4s 250 ms — unknown
+  8.5s 117 ms — unknown
+  48.2s 150 ms — jump to a bookmark
+  90.8s 217 ms — sky maps arriving
+  90.9s 117 ms — sky maps arriving
+  98.6s 117 ms — arriving at another world
+  98.9s 133 ms — arriving at another world
+most at once: 222 draw calls, 2973k triangles, about 237 MB of GPU memory
+
+what each thing costs to draw · Haven, ledge (ms a frame, from the frame's start until it is drawn; picture held at 2.07 MP):
+  everything on 61.6 (from 44.4 to 80.6 over the test) · every saving on 37.4 · everything on at 1.00 MP 62.1 · at native (4.45 MP) 67.9
+  saved by leaving a part out: grass -3.8 · trees 4.6 · the far forest 3.6 · the figure -1.1 · the shadow maps 0.2 · the ground's shading 8.8 · the ground and all on it 18.2 · the sky 1.2 · the middle and high cloud 4.5 · storm cells far off -2.1 · rain shafts 0.2 · fog and mist 8.1 · lens clouds over the peaks 3.2 · the last pass at the picture's size, not the screen's -1.9 · (with nothing drawn at all a frame still takes 47.0)
+  saved by one saving alone: cloud-steps 7.9 · far-trees 4.9 · cloud-volume 4.5 · sun-beams 3.3 · rain-shafts 2.9 · trees-far 2.0 · far-relief 1.9 · far-rock-shadows 1.8 · cloak 1.7 · figure 1.3 · rocks 1.2 · contact 1.1 · cloud-shade-rate 0.8 · pollen 0.8 · lenses 0.7 · detail -0.4 · cloud-upper -0.6 · leaves -0.6 · tree-leaves -0.9 · clouds -0.9 · rain -1.1 · fine-shadows -1.2 · tree-shadows -2.1 · fog-sheet -4.5 · bloom -5.1 · far-rocks -6.6 · cloud-shade-coarse -6.8 · air-shadow -7.2 · dust -9.2 · edge-glow -10.7
+what each thing costs to draw · Haven, in the forest (ms a frame, from the frame's start until it is drawn; picture held at 2.07 MP):
+  everything on 63.2 (from 57.6 to 72.0 over the test) · every saving on 42.3 · everything on at 1.00 MP 64.3 · at native (4.45 MP) 73.6
+  saved by leaving a part out: grass 11.9 · trees 8.4 · the far forest 5.9 · the figure -1.3 · the shadow maps 6.1 · the ground's shading -4.0 · the ground and all on it 9.9 · the sky -3.2 · the middle and high cloud -2.4 · storm cells far off 3.3 · rain shafts 0.1 · fog and mist 2.4 · lens clouds over the peaks -1.5 · the last pass at the picture's size, not the screen's 7.7 · (with nothing drawn at all a frame still takes 54.5)
+  saved by one saving alone: tree-shadows 9.5 · soft-shadows 5.0 · leaves 2.6 · contact 2.5 · grass 2.4 · air-shadow 2.0 · trees-far 1.9 · figure 1.8 · tree-leaves 1.8 · cloud-upper 1.4 · rain-shafts 1.0 · cloak 1.0 · pollen 0.8 · clouds 0.8 · bloom 0.7 · far-trees 0.4 · cloud-volume 0.3 · cloud-shade-rate -0.4 · cloud-steps -0.6 · far-rocks -0.8 · lenses -0.9 · far-relief -1.6 · rain -2.0 · grass-mid -2.1 · fog-sheet -2.1 · fine-shadows -2.6 · detail -3.2 · sun-beams -3.7 · cloud-shade-coarse -4.9 · edge-glow -5.4
+what each thing costs to draw · Haven, from the air (ms a frame, from the frame's start until it is drawn; picture held at 2.07 MP):
+  everything on 51.4 (from 36.5 to 65.7 over the test) · every saving on 28.6 · everything on at 1.00 MP 53.5 · at native (4.45 MP) 54.3
+  saved by leaving a part out: grass -7.6 · trees -2.2 · the far forest -15.9 · the figure 2.9 · the shadow maps -2.8 · the ground's shading 20.5 · the ground and all on it 7.9 · the sky -13.4 · the middle and high cloud 15.5 · storm cells far off 28.1 · rain shafts 0.4 · fog and mist -4.8 · lens clouds over the peaks 18.8 · the last pass at the picture's size, not the screen's -1.5 · (with nothing drawn at all a frame still takes 39.6)
+  saved by one saving alone: detail 18.5 · tree-leaves 18.2 · soft-shadows 18.1 · fine-shadows 15.1 · cloud-shade-rate 12.7 · cloak 12.5 · leaves 9.0 · fog-sheet 8.6 · grass 5.7 · sun-beams 3.6 · cloud-volume 3.6 · tree-shadows 3.0 · contact 1.9 · far-trees 1.8 · pollen 1.7 · far-rock-shadows 1.2 · grass-mid -1.1 · air-shadow -1.2 · trees-far -1.4 · rain -1.6 · figure -3.2 · rocks -4.4 · bloom -4.5 · dust -4.6 · cloud-steps -5.2 · far-relief -6.2 · cloud-shade-coarse -7.3 · clouds -7.8 · edge-glow -9.2 · cloud-upper -9.6 · far-rocks -11.1 · rain-shafts -11.9 · lenses -16.1
+
+terrain patches built: Haven 1031 (33 ms each), Moon 1921 (50 ms each) · shadows re-baked: 828 · patch cap at the end: 180
+screen 823x384 CSS px · pixel ratio 3.75 · refresh 60 Hz
+GPU: ANGLE (Qualcomm, Adreno (TM) 740, OpenGL ES 3.2)
+Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/158.0.0.0 Mobile Safari/537.36
