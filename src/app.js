@@ -11,6 +11,7 @@ import { Profile, PARTS } from './perf/profile.js';
 import { Look } from './render/look.js';
 import { Grass } from './life/grass.js';
 import { Pollen } from './life/pollen.js';
+import { Falls } from './water/falls.js';
 import { Governor, MODES, FRAME } from './perf/governor.js';
 import { Benchmark } from './perf/benchmark.js';
 import { waveHeightAt, waveScale } from './water/waves.js';
@@ -293,6 +294,8 @@ export class App {
     this.nearShadow.addCaster(this.rocks.mesh, this.rocks.depthMaterial, null, () => this.rocks.nearCount);
     // (boulders and outcrops as far as they can be seen: the land's own, in tiles)
     this.farRocks = new FarRocks(world, this.terrain); this.nearScene.add(this.farRocks.group);
+    // (waterfalls from afar and their mist: living water)
+    this.falls = new Falls(this.terrain.shared); this.nearScene.add(this.falls.mesh);
     this.addRockCasters();
     this.farRocks.off = params.debug.includes('farrocksoff');      // ?debug=farrocksoff: none of them, for before/after pictures
     // Trees (worlds that have them): drawn with the ground, and they cast shadows
@@ -1209,6 +1212,7 @@ export class App {
       // (streamed elevation has arrived or moved: what was stood on the old ground is stood again)
       if (this._ringsSeen !== this.terrain.ringSerial && !this.terrain.tiles.busy) {
         this._ringsSeen = this.terrain.ringSerial;
+        this.falls.rebuild(this.terrain.ringFalls || [], this.world.radius, rig.travellerAt);
         if (this.lander) this.placeLander(this.world, this.terrain.hs);
         this.rocks.cellKey = '';
       }
@@ -1220,7 +1224,10 @@ export class App {
         const f = rig.travellerAt, l = f.length(), h = this.terrain.hs.height(f.x / l, f.y / l, f.z / l, 1), up = h - (this.world.surface.sea.level ?? 0);
         // (what the tide has left of it; lakes and rivers keep theirs)
         rig.water = Math.max(0, this.terrain.hs.waterDepth + (up < 4 ? this.tide || 0 : 0));
-      } else rig.water = 0;
+        // (and how it runs there: a river carries what swims in it. East and north at the place.)
+        const hs = this.terrain.hs, fe = hs.flowE, fn = hs.flowN, dx = f.x / l, dy = f.y / l, dz = f.z / l, el = 1 / (Math.hypot(dx, dy) || 1), ex = -dy * el, ey = dx * el;
+        rig.current.set(ex * fe - dz * ey * fn, ey * fe + dz * ex * fn, (dx * ey - dy * ex) * fn);
+      } else { rig.water = 0; rig.current.set(0, 0, 0); }
     }
 
     prof.mark(0);
@@ -1300,6 +1307,9 @@ export class App {
     post.setScale(this.photoWanted ? 1 : governor.scale);
     this.fitCanvas(now);
     G.uViewport.value.set(post.viewW, post.viewH);
+    // (the far waterfalls: listed again when the traveller has gone far from where they were listed)
+    if (this.falls.count && this.falls.anchor.distanceToSquared(rig.travellerAt) > 2.5e7) this.falls.rebuild(this.terrain.ringFalls || [], this.world.radius, rig.travellerAt);
+    this.falls.update(rig.pos, post.viewH);
     this.grass.setView(post.viewH);                 // (blades and pollen measure a pixel of this picture, not of the canvas)
     G.uExposure.value = post.exposure;
     const aspect = post.viewW / post.viewH;
