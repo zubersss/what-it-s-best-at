@@ -154,11 +154,11 @@ export function frameAt(q) {
   return { up, east, north };
 }
 
-// Held back (the owner's session, 2026-11-27): the sheet's first pictures are a flat, opaque,
-// near-white plate with ruler-straight edges on a lake (docs/shots/sky-faults/view_mist.png).
-// Nothing of it is drawn on the phone link until it reads as mist: the sky helper's second
-// list, item 1, takes this line out with the cure.
-const HELD = true;
+// (Held back from the link for a morning, 2026-11-27, while it drew as a flat white plate; let
+// go when it read as mist from above and from the opening view. Still wrong: from inside the
+// mist at eye height the water below the eye is not veiled: weather.js's veil does not know of
+// mist that stands on water.)
+const HELD = false;
 
 export class FogSheet {
   constructor(renderer) {
