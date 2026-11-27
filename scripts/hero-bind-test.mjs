@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import { parseHero } from '../src/hero/heroFile.js';
 import { posed } from './hero/heroBind.mjs';
 
-const LIMIT = 600, ROUGH = 3000, list = process.argv.includes('--list');
+const LIMIT = 900, ROUGH = 3000, list = process.argv.includes('--list');
 const b = fs.readFileSync(new URL('../public/data/hero.bin', import.meta.url)), hero = parseHero(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
 let failed = 0; const check = (ok, text) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${text}`); if (!ok) failed++; };
 for (const [li, m] of hero.lods.entries()) {

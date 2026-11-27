@@ -415,13 +415,15 @@ export class Hero {
     // owner wants the robe flowing. Like the cloak trailing in vacuum before it, a
     // deliberate departure from physics.
     // (its push is a share of this world's gravity, so the cloth leans and ripples instead
-    // of standing straight out: about a third of its weight, gusting to a half)
-    const bt = this.time, push = env.gravity * (0.30 + 0.14 * Math.sin(bt * 0.53) + 0.08 * Math.sin(bt * 1.37 + 1.0));
+    // of standing straight out)
+    // (a fifth of its weight, gusting to a third: at a third to a half, a wide sleeve of the
+    // sculpt stood out sideways like a flag on a figure standing still)
+    const bt = this.time, push = env.gravity * (0.20 + 0.09 * Math.sin(bt * 0.53) + 0.05 * Math.sin(bt * 1.37 + 1.0));
     const bs = push / (0.9 + 5.5 * air);                  // (cloth follows the air at this rate: robe.js)
     // ("From ahead" is toward the back of an upright figure and toward the feet of a flying
     // one: left blowing at its back in flight, it blew upward, and stood a sleeve on end
     // over the back like a fin.)
-    const bx = (0.75 + 0.2 * Math.sin(bt * 0.21)) * (1 - 0.8 * fs);
+    const bx = (0.45 + 0.2 * Math.sin(bt * 0.21)) * (1 - 0.8 * fs);
     const bl = this._bz.set(bx * bs, (0.1 - 0.8 * fs) * bs, -0.65 * (1 - fs) * bs).applyMatrix3(this._m3);
     wind.add(bl);
     if (!this.started) { this.robe.reset(this._m3); this.started = true; }
