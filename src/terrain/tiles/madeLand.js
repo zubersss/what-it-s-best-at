@@ -26,6 +26,7 @@ export const LAND_DEFAULTS = {
   latCool: 0.24,       // ... less this for every degree of latitude
   lapse: 6.2,          // ... and this for every kilometre up
   treeLine: 3.0,       // no trees where it is colder than this (degrees C): 3.5 km up on the equator, 2 km at 40 degrees
+  treeRag: 1.2,        // ... give or take this times the small noise of the place (degrees C): the tree line's tongues and bays, some 60 m of height either way
   snowLine: -1.5,      // snow lies where it is colder than this: from 2.7 km at 40 degrees
   rockSlope: [0.52, 0.72],   // from here the ground is too steep for soil (bare rock by the second)
   dry: 520, wet: 1500, // the year's rain (mm) between which open country closes into forest
@@ -53,7 +54,10 @@ export function landAt(L, h, slope, lat, rain, n1, n2, out, lake = false, depth 
   // how wet the place is for plants: the rain, less on slopes, in patches
   const w = ss(L.dry, L.wet, rain * (1 - 0.35 * ss(0.2, 0.6, slope)) * (1 + 0.3 * n1)) ;
   // trees: closing with wetness, thinning toward the tree line and on steep ground
-  const cold = ss(L.treeLine, L.treeLine + 3.5, tC);
+  // (the tree line is not a contour: tongues of wood climb the gullies and bays of meadow come
+  // down the spurs, some hundreds of metres across. Without it a mountain flank the maker left
+  // at one slope carried a wood's edge dead straight for four kilometres, seen from the air.)
+  const cold = ss(L.treeLine, L.treeLine + 3.5, tC + (L.treeRag ?? 0) * n2);
   let f = ss(0.22, 0.62, w + 0.2 * n2) * cold * (1 - ss(L.rockSlope[0] - 0.08, L.rockSlope[1] - 0.06, slope));
   // (the valley floors and the tablelands' tops keep meadows open in the forest)
   f *= 1 - 0.55 * ss(0.3, 0.75, n2) * (1 - ss(0.04, 0.16, slope));
