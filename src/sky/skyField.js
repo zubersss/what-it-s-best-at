@@ -242,6 +242,11 @@ export class SkyField {
       for (const t of Object.values(s.ex)) { t.flipY = false; t.generateMipmaps = false; t.minFilter = t.magFilter = THREE.NearestFilter; }
     }
     r.state.unbindTexture();
+    this._passMat();
+  }
+  // The blend's own material, made once (and by precompile before any snapshot has arrived).
+  _passMat() {
+    if (this._mat) return;
     this._mat = makePassMaterial(/* glsl */`
       uniform sampler2D t0, t1;
       uniform float uF;
@@ -253,11 +258,19 @@ export class SkyField {
     this._quad.frustumCulled = false;
     this._cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   }
+  // Its shader made while the game loads (App.precompile): made at the first blend, when the
+  // first snapshot arrives some seconds into play, it was a hitch there. Into a target of the
+  // maps' own kind, so that the program made is the one the blend then uses.
+  precompile(r) {
+    this._passMat();
+    const prev = r.getRenderTarget(), rt = new THREE.WebGLRenderTarget(4, 4, { depthBuffer: false, generateMipmaps: false });
+    try { r.setRenderTarget(rt); r.compile(this._quad, this._cam); } finally { r.setRenderTarget(prev); rt.dispose(); }
+  }
   _free() {
     if (this._rt) for (const t of Object.values(this._rt)) t.dispose();
     if (this._gl && this._tex) for (const s of this._tex) { for (const k of ['A', 'B', 'C']) this._gl.deleteTexture(s[k]); for (const t of Object.values(s.ex)) t.dispose(); }
     this._rt = null; this._tex = null; this.textures = null; this._cpu = null;
-    this._mat?.dispose(); this._mat = null;
+    // (the blend's material is kept: it is no world's, and its program was made while loading)
   }
 
   // ---- the snapshots ---------------------------------------------------------------------------

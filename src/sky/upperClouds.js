@@ -67,12 +67,27 @@ export const UPPER_LOOK = Object.freeze({
 const U = UPPER_LOOK;
 const glf = (x) => { const s = String(x); return /[.eE]/.test(s) ? s : s + '.0'; };
 
+// (HAZE_UV: the lighting chunk's air reads gl_FragCoord unless told where its pixel is; a vertex
+// shader has none, and this one asks for no air. As the far forest's vertex shader has it.)
 const VERT = /* glsl */`
+#define HAZE_UV 1
+${LIGHTING_PARS}
+uniform vec4 uUpper;
 out vec3 vRel;
+out vec3 vSun;                 // the Sun's light at the shell here, through the air at its height (directSun), gone below the horizon
+out vec3 vSky;                 // the sky's light on the side of the shell that is looked at
 void main() {
   vec4 w = modelMatrix * vec4(position, 1.0);
   vRel = w.xyz;
   gl_Position = projectionMatrix * viewMatrix * w;
+  // The Sun's and the sky's light, worked out at the shell's corners (10 892 of them) and not at
+  // every pixel of the sky, twice over: across a triangle of a shell 5 or 9 km up they change by
+  // next to nothing, and they were three looks into the tables a pixel a shell. (The air between
+  // the eye and the shell stays with the pixel: a triangle overhead spans tens of degrees of
+  // sky, from thin air to the horizon's thick.)
+  vec3 pv = uCamPlanetPos + vRel, upv = normalize(pv);
+  vSun = directSun(pv) * smoothstep(-0.09, 0.06, dot(upv, uSunDir));
+  vSky = skyLight(uUpper.z > 0.5 ? -upv : upv, upv);
 }`;
 
 const FRAG = /* glsl */`
@@ -84,6 +99,8 @@ ${CELL_GLSL}
 ${ANVIL_GLSL}
 uniform vec4 uUpper;           // x 1 for the high layer (0 the mid), y the shell's radius (m), z 1 when the camera is below it, w 1 while the shell is thinned (the governor)
 in vec3 vRel;
+in vec3 vSun;
+in vec3 vSky;
 layout(location = 0) out vec4 fragColor;
 
 // the layer's pattern at a point of its own frame (one read)
@@ -268,11 +285,11 @@ void main() {
   // stood here, every ice effect was put opposite the Sun — the bright rim and the 22-degree halo
   // ringing the antisolar point, where a real sky has neither.)
   float mu0 = dot(up, uSunDir), cs = dot(normalize(vRel), uSunDir);
-  vec3 sun = directSun(planetPos) * smoothstep(-0.09, 0.06, mu0);
+  vec3 sun = vSun;
   // (ice: a bright rim toward the Sun, and the 22-degree halo of a cirrostratus veil)
   float fwd = 0.75 + 0.9 * pow(max(cs, 0.0), 8.0);
   if (high) fwd += ${glf(U.HALO)} * (1.0 - smoothstep(0.0, 0.02, abs(cs - 0.927))) * smoothstep(0.1, 0.4, cover);
-  vec3 col = vec3(0.9) * (sun * fwd * shade + skyLight(uUpper.z > 0.5 ? -up : up, up) * (0.8 * skyShade)) / PI;
+  vec3 col = vec3(0.9) * (sun * fwd * shade + vSky * (0.8 * skyShade)) / PI;
   // (its shade is the tower's slate, not the warm grey of the ground's light)
   col *= mix(vec3(1.0), vec3(${glf(CLOUD_LOOK.CELL_TINT[0])}, ${glf(CLOUD_LOOK.CELL_TINT[1])}, ${glf(CLOUD_LOOK.CELL_TINT[2])}), 0.8 * anUnder);
   // (an anvil keeps the share of the air's veil its tower keeps (CLOUD_LOOK.CELL_HAZE): through
