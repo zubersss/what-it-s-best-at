@@ -109,6 +109,16 @@ until then only the sculpt's stance, flight and the run had been looked at):
 - Drawn-out edges now (`hero-bind-test`, full mesh): hover 8, walk 88, fly 24, fast 90,
   take-off 36, run 398 (bound 600); super speed 492, the kneel 1 208 (bound 3 000).
 
+**Read those two runs with care** (the speed helper's first counts, 2026-11-27 09:26,
+`docs/briefs/phone-speed-2-report.md` on `ccr-6f4f9272-speed`): `?scale=` switched the
+frame pacing off, so both ran flat out (52 fps at the first stop of the floor run) and slid
+stop by stop, most likely with heat; the "two refreshes or five" pattern is an unpaced
+58 ms frame, not work done every other frame. By count every Haven stop at rest hands the
+GPU the same frame (23 passes, about 150 draw calls, 3.0 M triangles, 32 KB of uploads),
+nothing grows with time, no texture is uploaded inside a pass; 57 % of all triangles are
+grass and flowers; 7 passes a frame begin without a whole clear, 5 of them the sky's. The
+plain benchmark (28.8 fps, the opening view at 23.9) remains the honest measure.
+
 **Haven is too heavy** (`docs/benchmarks/2026-11-27-haven-42da110-fixed-size.txt`, the
 picture held at 2.25 MP, so the governor took no step): everything on, Haven 18.1 fps, its
 stops after the first at 14 to 17 with half the frames over 83 ms; every saving on, 34.8,
