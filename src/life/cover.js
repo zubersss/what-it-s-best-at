@@ -5,7 +5,7 @@
 // about a particular place live here, only what a forester would know of the region.
 // (Plain data and arithmetic: it runs in the terrain workers and in Node.)
 
-import { localDay, treeSeason, TREE_YEAR } from './season.js';
+import { localDay, treeSeason, TREE_YEAR, LIFE_YEAR, SEASONS } from './season.js';
 
 // How closed each class's canopy is (share of tree sites taken) and how tall where no
 // measurement says (m). Index: the class; 0 = unknown.
@@ -283,7 +283,7 @@ export function treeLine(lat) { return 4100 - 85 * Math.max(0, Math.abs(lat) - 2
 // of 8 { x, y, z, w } for the leaves on the ground (uLitterYear); returns { alt0, step, perDeg, lat }.
 const BRANCHES = [0.11, 0.085, 0.06], OWNS = Array.from({ length: 24 }, (_, k) => (k + 0.5) / 24), NOISE_SD = 0.28;
 const probit = (p) => 4.91 * (Math.pow(p, 0.14) - Math.pow(1 - p, 0.14));
-export function canopyYear(world, day, lat, lon, year, litter = null) {
+export function canopyYear(world, day, lat, lon, year, litter = null, shares = null) {
   const flora = world.life?.flora, ld = world.life?.trees?.line;
   const line = Math.max(200, ld ? ld.base - ld.perDeg * Math.max(0, Math.abs(lat) - (ld.from ?? 0)) : treeLine(lat)), step = line / 7, ts = {};
   for (let i = 0; i < 8; i++) {
@@ -304,6 +304,7 @@ export function canopyYear(world, day, lat, lon, year, litter = null) {
       }
     }
     share /= Math.max(all, 1e-6);
+    if (shares) shares[i] = share;
     const none = share < 0.004, level = none ? 9 : NOISE_SD * probit(1 - Math.min(0.996, share)) - 0.07;
     const c = none ? [0, 0, 0] : [r / (share * all), g / (share * all), b / (share * all)];
     if (year.length === 32) { year[i * 4] = c[0]; year[i * 4 + 1] = c[1]; year[i * 4 + 2] = c[2]; year[i * 4 + 3] = level; }
@@ -313,4 +314,22 @@ export function canopyYear(world, day, lat, lon, year, litter = null) {
     if (litter) { const v = litter[i], k = Math.max(down, 1e-6); v.x = lr / k; v.y = lg / k; v.z = lb / k; v.w = Math.min(1, 3 * down / Math.max(all, 1e-6)); }
   }
   return { alt0: 0, step, perDeg: TREE_YEAR.LAT_DAYS / TREE_YEAR.ALT_DAYS * 1000, lat: Math.abs(lat) };
+}
+// ... and the same wood seen from so far that neither a tree nor a patch of trees is a pixel:
+// what the season does to its colour as a whole (the ground's shader, uCanopyFar: beyond some
+// 19 km a wood is the land's colour map, which is painted for high summer and knows no season).
+// far: 8 { x, y, z, w }: rgb the wood's mean leaf colour on this day over its mean in high
+// summer (1: no change), w: the share of its trees that drop their leaves. The wood's mean:
+// the evergreens' leaf (EVER, the far canopy's own green in the shader) and the others' by
+// their share. One rule: both days are asked of canopyYear.
+const EVER = [0.045, 0.085, 0.03];
+export function canopyFar(world, day, lat, lon, far) {
+  const now = new Float32Array(32), ref = new Float32Array(32), sNow = [], sRef = [];
+  canopyYear(world, day, lat, lon, now, null, sNow);
+  canopyYear(world, (lat >= 0 ? 80 : 80 + LIFE_YEAR / 2) + SEASONS.summer * LIFE_YEAR, lat, lon, ref, null, sRef);
+  for (let i = 0; i < 8; i++) {
+    const v = far[i], c = [0, 0, 0];
+    for (let k = 0; k < 3; k++) { const a = EVER[k] * (1 - sNow[i]) + now[i * 4 + k] * sNow[i], b = EVER[k] * (1 - sRef[i]) + ref[i * 4 + k] * sRef[i]; c[k] = Math.min(2.5, Math.max(0.4, a / Math.max(b, 1e-5))); }
+    v.x = c[0]; v.y = c[1]; v.z = c[2]; v.w = sNow[i];
+  }
 }

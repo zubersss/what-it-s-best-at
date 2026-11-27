@@ -136,6 +136,10 @@ export const FEATURE_STEPS = [
   { id: 'cloud-volume', buys: 8.5, label: 'clouds with depth (they stay as a layer)', live: cloudVolume, apply: (app, off) => { app.sky?.setSaving('cloud-volume', off); } },
   // (4.9 from the air on the thirteenth; 3.5 at the opening view and 2.1 from the air before)
   { id: 'far-relief', buys: 4.5, label: 'relief shading of far ground', live: (app) => (app.terrain?.shared?.uRelief?.value.x ?? 1) > 0, apply: (app, off) => { app.quality.w = off ? 0 : 1; } },
+  // (not measured on the phone yet. From the air it takes 2 of the 13 texture reads a pixel of
+  // ground makes: the land's painted patches from one read, the rock's bands on rock only,
+  // the forest floor's tufts from one. Nothing is removed: docs/briefs/ground-cost-report.md)
+  { id: 'ground-far', buys: 2.0, label: "the far ground's finer tones", apply: (app, off) => { const u = app.terrain?.shared?.uGroundThin; if (u) u.value = off ? 1 : 0; } },
   // --- 3. nothing that could be measured on the phone: every family's two takes inside the
   // noise in all three views of the thirteenth results (the shadows' 1.9 / 0.8 / -2.8, the
   // grass's 1.3 / -1.8 / 0.5, rocks and the figure 0.9 / 0.7 / 0.0), and the steps of the

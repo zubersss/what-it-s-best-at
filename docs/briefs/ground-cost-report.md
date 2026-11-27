@@ -198,3 +198,84 @@ colour 1, the detail tile 4 to 6 (its first read, the canopy's, the floor's two,
 patches' two with a long footprint), relief and strata 2.5 to 3, the sky's light 1, **and the
 cloud's shade: 2 on every pixel of a patch wider than 800 m, which from 3 km is all of
 them** (the sky helper's part).
+
+## 3. The sky's light from the vertices
+
+Two things every pixel asked the sky's table for do not depend on the surface's normal, and
+are smooth over a patch: the level-ground table's answer for the place (`skyThere`: asked by
+every pixel from 3 km up, where the place's own Sun height counts) and the sky's light on
+level ground there (the air of a wood, `forestAir`: asked by every pixel of forest, one or
+two reads). The vertices ask now (`vSkyThere`, `vSkyUp`), and `lightingGlsl.js` has the
+forms that take them: `skyLight(N, up, there)` and `forestAir(.., skyUp)` /
+`forestAirParts(.., skyUp, ..)`; the old forms call the new ones, so there is one rule.
+On patches wider than 16 km (the land at the horizon, where the vertical turns across a
+triangle) the pixel asks as before: without that a thin band at the horizon was up to 16
+levels off. `vGrid` and `vDetailUv` share a row of varyings to make room (15 rows promised;
+14 used). The vertex stage reads one more map (`tIrradiance`).
+
+**The count** (reads a pixel; before any cut -> after the first cuts -> now):
+
+| view | reads a pixel | of them light, shade and air |
+|---|---|---|
+| the opening view | 16.7 -> 14.7 -> 14.4 | 3.5 -> 3.5 -> 3.2 |
+| from 300 m | 18.6 -> 14.3 -> 13.5 | 2.1 -> 2.1 -> 1.4 |
+| from 3 km | 18.8 -> 14.6 -> 12.8 | 4.1 -> 4.1 -> 2.3 |
+
+**So from the air the ground reads 27 % (300 m) and 32 % (3 km) less than it did, and 14 %
+less at the opening view** (where half the ground's pixels are within 30 m, under the grass
+on the phone, and read as before: its ground beyond 300 m reads 15 to 25 % less).
+
+What the light still reads from the air, counted: the sky's table 1.0 to 1.2 and the cloud's
+shade 1.1 to 1.2 a pixel beyond 3 km (not 2, as section 2 guessed).
+
+**The pictures**: `docs/shots/ground-cost/cut2_<ledge|air300|air3k>_<morning|noon>.jpg`,
+against the first cuts' tree (a9ceb86, which has the base's ragged tree line; the pictures
+of section 2 are from before that merge and cannot be compared with these): **the largest
+difference in all six is 1 level.**
+
+The proxy, the first cuts -> now: morning 4 015 -> 4 038, 2 509 -> 2 552, 1 662 -> 1 508;
+noon 4 249 -> 4 050, 2 770 -> 2 460, 1 672 -> 1 492 ms.
+
+## 4. A saving for a phone that still needs it: `ground-far`
+
+A new step of the governor (`src/perf/governor.js`, after `far-relief`; in the benchmark's
+ground group, `perf/costPlan.js`; the ladder pinned in `sky-system-test`): "the far ground's
+finer tones". It thins, it takes nothing away: the land's painted patches are cut from one
+read of their pattern instead of two (the same stretches, their edges a little plainer), the
+rock's bands lie on rock only (not on the ground that is a tenth scree), the forest floor's
+tufts come from one read. `uGroundThin` in the ground's shader.
+
+| view | reads a pixel, everything on | with `ground-far` | pixels over 2 levels / over 8 |
+|---|---|---|---|
+| the opening view | 14.4 | 12.8 | 1.6 % / 0.03 % |
+| from 300 m | 13.5 | 11.4 | 8.1 % / 0.52 % |
+| from 3 km | 12.8 | 11.2 | 7.3 % / 0.38 % |
+
+Pictures: `docs/shots/ground-cost/thin_<view>_morning.jpg`. With `far-relief` on as well (2
+more reads wherever the far relief is added: a quarter of the opening view's ground, half
+from 300 m, all from 3 km) a phone at these two steps reads **9 to 10 a pixel from the air
+where it read 18.7**. `--step ground-far` of the cost tool applies a step by its name.
+**Not measured on the phone**: its `buys` (2.0) is a guess until a benchmark's cost table
+has it.
+
+## 5. What is left, and what I would do next
+
+A pixel of ground from the air now reads 13: the patch's normal and shadow 2.3 to 2.6 (4
+where two patches blend, a fifth to a third of the ground), the land's colour 1, the detail
+tile 5 (its first read; the canopy's grain on wood; the floor's two; the painted patches'
+two, with a long footprint), relief and strata 2.4 to 2.9, the sky's table 1, the cloud's
+shade 1.2. No single read is left that has no weight. Further than this is not trimming:
+
+- **The cloud's shade at the vertices of coarser patches** (the sky helper's): 1.2 a pixel
+  beyond 3 km.
+- **The far ground's colour baked into the patch** (the brief's point 3): the land's colour,
+  the painted patches, the strata, the snow and the season's tint do not change with the
+  eye, and would be one read of a map of the patch's own in place of five to seven. It takes
+  the last free texture of the sixteen, 20 to 25 MB, a pass that writes each patch's colour
+  when it is built and again when the day changes, and the crowns' and the grass's fine
+  patterns must stay per pixel. Some days of work and a risk to the look: worth it only if
+  the next benchmark says the ground is still what is slow.
+- The software proxy cannot tell which of these the phone feels (it moved 10 to 16 % for a
+  third fewer reads). **A benchmark of this build is the next fact**: the row for the
+  ground's shading against 14.4 (opening view) and 17.0 (from the air) of the thirteenth
+  results, and the new step in the cost table.
