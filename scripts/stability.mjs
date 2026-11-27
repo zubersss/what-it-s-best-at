@@ -95,6 +95,14 @@ const MOVES = [
   // tones, its cut edge and the hand-over to the far shell at 16 km; and from the ground under them)
   { id: 'haven_heaps_air', world: 'haven', shot: 'ledge', query: 'alt=4500&heading=30&pitch=-12&t=4', step: { fwd: 2 }, stride: 250, slow: true },
   { id: 'haven_heaps_ground', world: 'haven', shot: 'ledge', query: 't=4&heading=20&pitch=16', step: { fwd: 0.055 }, stride: 160, slow: true },
+  // (the look in motion, second list: flying level at 3 km under the noon heaps, their shade on
+  // the country below redrawn in turns; sinking through the top of the mist on the lake of the
+  // mist view, 6 cm a frame, from over it to 14 m inside it, where the air's veil is all there;
+  // and standing still at the opening view while the clock runs half a second a frame: the
+  // clouds drift, the shade map's windows are redrawn, and nothing else may change)
+  { id: 'haven_heaps_3k', world: 'haven', shot: 'ledge', query: 'alt=3000&heading=30&pitch=-6&t=4', step: { fwd: 2 }, stride: 250, slow: true },
+  { id: 'haven_mist_sink', world: 'haven', shot: 'ledge', query: 'lat=-58.84&lon=26.85&alt=516&heading=268&pitch=-3&fov=60&t=0.75', step: { up: -0.06 }, stride: 130, slow: true },
+  { id: 'haven_drift_still', world: 'haven', shot: 'ledge', query: '', step: { time: 0.5 }, stride: 600, slow: true },
   { id: 'haven_storm_pass', world: 'haven', shot: 'ledge', query: 'alt=2600&pitch=4&heading=45&t=6&debug=storm', step: { fwd: 1 }, stride: 300, slow: true },
   { id: 'earth_forest_flight', world: 'earth', shot: 'ledge', query: 'lat=36.3&lon=247.9&alt=3000&heading=0&pitch=-25&t=5', step: { fwd: 1.5 }, stride: 300, slow: true },
 ];
@@ -160,6 +168,7 @@ const move = (step, times) => page.evaluate(({ step, times }) => {
   // (in flight: straight up, and level along the way the view points whatever its pitch)
   if (step.up) { const l = r.pos.length(); r.pos.multiplyScalar((l + step.up * times) / l); r.agl = 0; }
   if (step.level) { const l = r.pos.length(), f = r.forward, k = (f.x * r.pos.x + f.y * r.pos.y + f.z * r.pos.z) / l, hx = f.x - r.pos.x / l * k, hy = f.y - r.pos.y / l * k, hz = f.z - r.pos.z / l * k, hl = Math.hypot(hx, hy, hz) || 1, d = step.level * times / hl; r.pos.set(r.pos.x + hx * d, r.pos.y + hy * d, r.pos.z + hz * d).setLength(l); r.agl = 0; }
+  if (step.time) a.timeOffsetHours += step.time * times / 3600;          // the clock, in seconds a frame (the camera stays)
   if (step.yaw) r.heading = (r.heading + step.yaw * times + 360) % 360;
   return a.frameCount;
 }, { step, times });
