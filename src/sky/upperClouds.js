@@ -56,6 +56,7 @@ export const UPPER_LOOK = Object.freeze({
   ANVIL_GRAIN: 0.3,               // how much the strokes thin and thicken its sheet
   ANVIL_STEPS: 8, ANVIL_STEPS_THIN: 4,   // steps through an anvil's depth along a line of sight (thinned: the governor's cloud-upper)
   ANVIL_UNDER_EDGE: 0.5,          // its underside toward its thin edge, against its top (HIGH_UNDER under its deep middle)
+  ANVIL_FIND: 5, ANVIL_FIND_THIN: 2,   // halvings that find where a line of sight enters it
   ANVIL_EXT: 260,                 // m of anvil that takes 63 % of what is behind it
   ANVIL_LIT0: 0.3, ANVIL_LIT1: 0.85,   // how high in the anvil (0 its underside .. 1 its top) what is seen goes from the underside's grey to the lit top
   HALO: 0.062,                    // how strong the 22-degree halo is
@@ -96,19 +97,31 @@ vec3 anvilSeen(int k, vec3 o, vec3 d) {
   vec2 ch = anvilChord(k, o, d);
   if (ch.y <= ch.x) return vec3(0.0, 0.0, 1.0);
   float L = length(${CELL_UNIFORMS.anvils}[k * ${ANVIL_VEC4}].xyz);
-  int steps = uUpper.w > 0.5 ? ${U.ANVIL_STEPS_THIN} : ${U.ANVIL_STEPS};
-  float ds = (ch.y - ch.x) / float(steps), T = 1.0, hs = 0.0, ws = 0.0, mx = 0.0;
+  bool thin = uUpper.w > 0.5;
+  int steps = thin ? ${U.ANVIL_STEPS_THIN} : ${U.ANVIL_STEPS};
+  float ds = (ch.y - ch.x) / float(steps), T = 1.0, mx = 0.0, t0 = ch.x, tIn = -1.0;
   for (int i = 0; i < ${U.ANVIL_STEPS}; i++) {
     if (i >= steps) break;
-    vec3 p = o + d * (ch.x + (float(i) + 0.5) * ds);
-    float dn = anvilDensity(k, p);
-    if (dn <= 0.0) continue;
-    float rp = length(p), th = anvilDepth(anvilPlace(k, p / rp));
-    float a = 1.0 - exp(-dn * ds / ${glf(U.ANVIL_EXT)});
-    hs += T * a * clamp(1.0 + (rp - L) / th, 0.0, 1.0); ws += T * a;
-    T *= 1.0 - a; mx = max(mx, dn);
+    float t = ch.x + (float(i) + 0.5) * ds;
+    float dn = anvilDensity(k, o + d * t);
+    if (dn <= 0.0) { if (tIn < 0.0) t0 = t; continue; }
+    if (tIn < 0.0) tIn = t;
+    T *= exp(-dn * ds / ${glf(U.ANVIL_EXT)}); mx = max(mx, dn);
   }
-  return vec3(mx, ws > 0.0 ? hs / ws : 0.0, T);
+  if (tIn < 0.0) return vec3(0.0, 0.0, 1.0);
+  // Where the line of sight ENTERS it, found between the last clear step and the first in
+  // cloud: how high in the anvil that is says what is seen (its underside, its side, its top).
+  // (Taken from the steps themselves it was a step's length wrong: bands across the underside,
+  // and an underside lit like a top.)
+  for (int i = 0; i < ${U.ANVIL_FIND}; i++) {
+    if (thin && i >= ${U.ANVIL_FIND_THIN}) break;
+    float tm = 0.5 * (t0 + tIn);
+    if (anvilDensity(k, o + d * tm) > 0.0) tIn = tm; else t0 = tm;
+  }
+  vec3 pe = o + d * tIn;
+  float re = length(pe);
+  float hs = clamp(1.0 + (re - L) / anvilDepth(anvilPlace(k, pe / re)), 0.0, 1.0);
+  return vec3(mx, hs, T);
 }
 
 void main() {
@@ -172,7 +185,11 @@ void main() {
       // (its underside is not one grey: dark under its deep middle, paler toward its thin edge,
       // where the light comes through the ice)
       float under = mix(${glf(U.ANVIL_UNDER_EDGE)}, ${glf(U.HIGH_UNDER)}, smoothstep(0.15, 0.8, an));
-      shade = mix(shade, mix(under, 1.12, smoothstep(${glf(U.ANVIL_LIT0)}, ${glf(U.ANVIL_LIT1)}, anH)) * (0.93 + 0.14 * n), smoothstep(0.05, 0.5, an));
+      // (and its SIDE: a line of sight that enters it above its base looks at a face turned toward
+      // the eye, lit when the Sun is behind the eye. Without, a storm seen from its sunlit side
+      // was a pale tower under a dark plate.)
+      float side = smoothstep(0.04, 0.3, anH) * clamp(0.25 - 1.2 * dot(normalize(vRel), uSunDir), 0.0, 1.0);
+      shade = mix(shade, mix(under, 1.12, max(smoothstep(${glf(U.ANVIL_LIT0)}, ${glf(U.ANVIL_LIT1)}, anH), side)) * (0.93 + 0.14 * n), smoothstep(0.05, 0.5, an));
     }
   } else {
     // Altocumulus: rows of small rounded cloudlets, each with a lit and a shaded side; thick, it

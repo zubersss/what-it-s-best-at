@@ -831,6 +831,11 @@ finished benchmark leaves its text in `window.__benchResult`.
   "FAIL" lines that followed were one time-out. And a test that grows (the cost test went from
   some 40 steps to 240) outgrows a limit set for the old one without a word: when a run "fails"
   at its limit, read how far it had got before reading the failures.
+- A thing with depth asked for at one height is a sheet from every side (the anvil), and a
+  march through it shades in bands a step long unless the place the line of sight ENTERS is
+  found (a few halvings between the last clear step and the first in cloud). And a view "from
+  the side, 32 km off" on Haven is from below: at that distance a 9.5 km top stands 2 degrees
+  over the level of an eye at 6.5 km.
 - The same thing drawn three ways must take its season from one answer (near meshes, whole
   tree pictures, the far forest): bare aspens were full green crowns from 60 m on for as
   long as only the nearest mesh asked. And a rule's colours must be looked at after

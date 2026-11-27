@@ -84,7 +84,7 @@ export const CELL_SHAPE = Object.freeze({
   ANVIL_THIN: 0.6,    // ... thinning by this share to its far end
   ANVIL_FLARE: 1400,  // m: how much deeper it hangs round its tower (the tower's top widens into it: without, a plate laid on a column) ...
   ANVIL_FLARE_IN: 0.3, // ... all of that inside this share of its neck's radius, none at the neck's edge ...
-  ANVIL_FLARE_ALONG: 0.5, // ... and none from this share of the way downwind
+  ANVIL_FLARE_ALONG: 0.9, // ... and none from this share of the way downwind (a wedge: deep at its tower, thin at its far end)
   ANVIL_NECK: 0.45,   // its radius over the tower, a share of its far radius
   ANVIL_EDGE_IN: 0.6, // its heart ends at this share of the way out
   ANVIL_SOFT: 150,    // m: its top and bottom fade over this much height
