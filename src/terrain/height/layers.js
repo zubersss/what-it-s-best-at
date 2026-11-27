@@ -464,7 +464,7 @@ export const OPS = {
         let bank = false;
         if (dem.rivS < 1e8) {
           const a = dem.rivA, s = dem.rivS, L = dem.rivL, wide = 4 + a * 1.2;
-          if (s < a) { const u = s / a; c.water = 0.02 + dem.rivD * (1 - u * u); c.h = L; c.slope = 0; c.flowE = dem.rivE; c.flowN = dem.rivN; return; }
+          if (s < a) { const u = s / a; c.water = 0.02 + dem.rivD * (1 - u * u); c.h = L; c.slope = 0; return; }
           if (s < a + wide) { const u = (s - a) / wide, k = u * u * (3 - 2 * u); c.h = L + 0.05 + (c.h - L - 0.05) * k; c.slope *= k; bank = true; }
         }
         // (past the last cell that knows a lake's level its water thins to nothing)

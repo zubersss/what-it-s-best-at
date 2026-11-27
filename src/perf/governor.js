@@ -143,10 +143,6 @@ export const FEATURE_STEPS = [
   // (0.4 ms from the air, -2.3 and -7.9 elsewhere: noise. The ground's shader now reads
   // its close-up layers only where they can show, which is what this step used to save.)
   { id: 'detail', buys: 0.3, label: 'close-up ground detail', apply: (app, off) => { app.quality.x = off ? 0 : 1; } },
-  // (living water: a river's lanes are worked out once instead of four times blended. The water
-  // still runs; where the flow turns its lanes change at a line. And the waterfalls' mist goes; their
-  // white sheets stay. Not measured on the phone yet: a guess.)
-  { id: 'water', buys: 0.3, label: "running water's lanes drawn more simply", live: (app) => !!app.world?.surface?.sea, apply: (app, off) => { const u = app.terrain?.shared?.uWaterQ; if (u) u.value = off ? 0 : 1; app.falls?.setMist(!off); } },
   // (0.4 ms)
   { id: 'soft-shadows', buys: 0.3, hold: true, label: 'soft edges on rock and ship shadows', apply: (app, off) => { app.quality.y = off ? 0 : 1; } },
   // (nothing: -3.6 from the air)

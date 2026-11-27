@@ -31,7 +31,7 @@ export function createHeightSource(world, rasters = []) {
   // nearby plus `shadowHeadroom` for what the procedural layers can add on top.
   const reach = terrain.shadowRange ?? 150000, headroom = terrain.shadowHeadroom ?? 1500;
   if (env.dem) env.dem.buildTops(reach);
-  const c = { x: 0, y: 0, z: 1, px: 0, py: 0, pz: 0, h: 0, slope: 0, res: 1e12, minWL: 0, water: 0, flowE: 0, flowN: 0, map: null };
+  const c = { x: 0, y: 0, z: 1, px: 0, py: 0, pz: 0, h: 0, slope: 0, res: 1e12, minWL: 0, water: 0, map: null };
   const n = fns.length;
   const regional = fns.filter((f) => f.prepare);
   let cover = null;
@@ -41,13 +41,12 @@ export function createHeightSource(world, rasters = []) {
     life: world.life || null,   // (what grows: the trees' own rules, read where trees are placed)
     baseSlope: 0,
     waterDepth: 0,              // after height(): how deep the water is there (m; 0 on land)
-    flowE: 0, flowN: 0,         // after height(): how the water runs there (m/s toward east and north; 0 on land and on still water)
     height(x, y, z, minWL) {
       c.x = x; c.y = y; c.z = z;
       c.px = x * radius; c.py = y * radius; c.pz = z * radius;
-      c.h = 0; c.slope = 0; c.res = 1e12; c.minWL = minWL > 0.02 ? minWL : 0.02; c.water = 0; c.flowE = 0; c.flowN = 0; c.map = null;
+      c.h = 0; c.slope = 0; c.res = 1e12; c.minWL = minWL > 0.02 ? minWL : 0.02; c.water = 0; c.map = null;
       for (let i = 0; i < n; i++) fns[i](c);
-      hs.baseSlope = c.slope; hs.waterDepth = c.water; hs.flowE = c.flowE; hs.flowN = c.flowN;
+      hs.baseSlope = c.slope; hs.waterDepth = c.water;
       hs.nearWater = env.dem ? (env.dem.lakeL > -1e8 ? 0 : env.dem.rivS < 1e8 ? Math.max(0, env.dem.rivS - env.dem.rivA) : 1e9) : 1e9;
       return c.h;
     },

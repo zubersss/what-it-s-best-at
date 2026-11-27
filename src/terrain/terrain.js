@@ -8,7 +8,6 @@ import { WorkerPool } from './workerPool.js';
 import { makeTerrainMaterial, makeTerrainShared, setTerrainSurface, setDemList, DETAIL_TILE, DETAIL_PERIOD } from './terrainMaterial.js';
 import { makeDetailTexture, makeStrataTexture } from './surfaceTextures.js';
 import { FACES, dirToFace } from './cubeSphere.js';
-import { RIVER_STRIDE } from './height/dem.js';
 import { TileRings, mosaicBox } from './tiles/tileRings.js';
 
 const _focus = new THREE.Vector3(), _vel = new THREE.Vector3();
@@ -459,8 +458,6 @@ export class Terrain {
   // takes it, and the ground it changes is marked to be built again.
   setRing(slot, raster) {
     this.hs.setRing(slot, raster);
-    // (the ring's waterfalls, for what is drawn of them from afar: water/falls.js)
-    (this.ringFalls || (this.ringFalls = []))[slot] = raster && raster.water && raster.water.falls ? { zoom: raster.zoom, tx: raster.tx, ty: raster.ty, width: raster.width, falls: raster.water.falls } : null;
     // (posted without a transfer list: each worker gets its own copy)
     this.workers.tell(() => [{ type: 'ring', slot, raster: raster ? { width: raster.width, height: raster.height, zoom: raster.zoom, tx: raster.tx, ty: raster.ty, buffer: raster.data.buffer, water: raster.water, waterOnly: raster.waterOnly } : null }]);
     const now = raster ? mosaicBox(raster.zoom, raster.tx, raster.ty, raster.width / 256) : null, old = this.ringBoxes[slot] || null;
@@ -473,7 +470,7 @@ export class Terrain {
     let nowWet = null;
     if (raster && raster.water) {
       const W = raster.width, G = W >> 4, grid = new Uint8Array(G * G), wt = raster.water, sg = wt.segs;
-      for (let o = 0; o < sg.length; o += RIVER_STRIDE) {
+      for (let o = 0; o < sg.length; o += 10) {
         const pad = (Math.max(sg[o + 6], sg[o + 7]) * 2.2 + 12) / 25 + 1;        // (pixels, generously: banks included)
         const x0 = Math.max(0, Math.floor((Math.min(sg[o], sg[o + 2]) - pad) / 16)), x1 = Math.min(G - 1, Math.floor((Math.max(sg[o], sg[o + 2]) + pad) / 16));
         const y0 = Math.max(0, Math.floor((Math.min(sg[o + 1], sg[o + 3]) - pad) / 16)), y1 = Math.min(G - 1, Math.floor((Math.max(sg[o + 1], sg[o + 3]) + pad) / 16));

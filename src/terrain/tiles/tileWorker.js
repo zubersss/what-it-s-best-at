@@ -6,7 +6,7 @@
 // Messages in:  { type: 'want', id, key, url, kind, zoom, tx, ty, n, ext }   (n x n tiles from column tx, row ty)
 // Messages out: { type: 'mosaic', id, key, kind, zoom, tx, ty, n, buffer, mips? } or { type: 'failed', id, key, reason }
 // A newer 'want' with the same key replaces an older one that has not finished.
-import { mosaicWater, seaBed, despike } from './hydrology.js';
+import { hydrology, packWater, seaBed, despike } from './hydrology.js';
 import { MadeWorld } from './madeTiles.js';
 
 const TILE = 256;
@@ -177,12 +177,32 @@ async function waters(m, h, W, cell, lakes = null) {
     const ru = m.hydrology.rain, wu = m.hydrology.water || '';
     if (!rainMaps.has(ru)) rainMaps.set(ru, fetch(ru).then((r) => (r.ok ? r.arrayBuffer() : null)).then((b) => (b ? new Uint8Array(b) : null)).catch(() => null));
     if (!waterMaps.has(wu)) waterMaps.set(wu, wu ? greyMap(wu) : Promise.resolve(null));
-    const rain = await rainMaps.get(ru), seen = await waterMaps.get(wu);
+    const rain = await rainMaps.get(ru), seen = await waterMaps.get(wu), n = 2 ** m.zoom;
+    const rainAt = (x, y) => {
+      if (!rain) return 600;
+      const lon = (m.tx + x / TILE) / n * 360, lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * (m.ty + y / TILE) / n))) * 57.29577951;
+      const v = rain[Math.min(359, Math.max(0, Math.floor((90 - lat) * 2))) * 720 + ((Math.floor(lon * 2) % 720) + 720) % 720] / 3.2;
+      return v * v;
+    };
     // the nearest coarser zoom that has (or will have) a result
     let coarse = null;
     for (let z = m.zoom - 1; z >= 0 && !coarse; z--) if (hydro.has(z)) coarse = await Promise.race([hydro.get(z), new Promise((r) => setTimeout(() => r(null), 8000))]);
     if (coarse && !coarse.res) coarse = null;
-    const { packed, mine } = mosaicWater(m, h, W, cell, { rain, seen, lakes, coarse });
+    const s = coarse ? 2 ** (coarse.zoom - m.zoom) : 1;
+    const res = hydrology(h, W, cell, rainAt, {
+      minFlow: m.hydrology.minFlow, lakes,
+      lat: (y) => Math.atan(Math.sinh(Math.PI * (1 - 2 * (m.ty + y / TILE) / n))) * 57.29577951,
+      // (the water map: the whole world, north first, from longitude -180)
+      water: seen ? (x, y) => {
+        const lon = (m.tx + x / TILE) / n, lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * (m.ty + y / TILE) / n))) * 57.29577951;
+        return seen.data[Math.min(seen.H - 1, Math.max(0, Math.floor((90 - lat) / 180 * seen.H))) * seen.W + ((Math.floor(lon * seen.W) % seen.W) + seen.W) % seen.W];
+      } : null,
+      coarse: coarse ? { q: coarse.res.q, down: coarse.res.down, W: coarse.res.W, s, ox: m.tx * TILE * s - coarse.tx * TILE, oy: m.ty * TILE * s - coarse.ty * TILE } : null,
+    });
+    const packed = packWater(res, h);
+    packed.info = { rivers: res.rivers.length, stretches: packed.segs.length / 10, inflow: !!coarse, flow: 0 };
+    for (let i = 0; i < res.q.length; i++) if (res.q[i] > packed.info.flow) packed.info.flow = res.q[i];
+    const mine = { res: { q: res.q, down: res.down, W }, zoom: m.zoom, tx: m.tx, ty: m.ty };
     hydro.set(m.zoom + 0.5, mine);          // (handed to those waiting by the caller: see `settle`)
     return packed;
   } catch (e) { console.warn('rivers and lakes:', e); return null; }
@@ -214,8 +234,8 @@ self.onmessage = async (ev) => {
         const out = new Int16Array(W * W); for (let i = 0; i < out.length; i++) out[i] = Math.max(-32768, Math.min(32767, Math.round(h[i])));
         const msg = { type: 'mosaic', id: m.id, key: m.key, kind: m.kind, zoom, tx, ty, n, buffer: out.buffer, waterOnly: true }, transfer = [out.buffer];
         if (water) {
-          msg.water = { info: water.info, segs: water.segs.buffer, gridStart: water.gridStart.buffer, gridItems: water.gridItems.buffer, lake: water.lake ? water.lake.buffer : null, falls: water.falls.buffer };
-          transfer.push(water.segs.buffer, water.gridStart.buffer, water.gridItems.buffer, water.falls.buffer); if (water.lake) transfer.push(water.lake.buffer);
+          msg.water = { info: water.info, segs: water.segs.buffer, gridStart: water.gridStart.buffer, gridItems: water.gridItems.buffer, lake: water.lake ? water.lake.buffer : null };
+          transfer.push(water.segs.buffer, water.gridStart.buffer, water.gridItems.buffer); if (water.lake) transfer.push(water.lake.buffer);
         }
         self.postMessage(msg, transfer);
       } else {
@@ -254,8 +274,8 @@ self.onmessage = async (ev) => {
       if (latest.get(m.key) !== m.id) return;
       const msg = { type: 'mosaic', id: m.id, key: m.key, kind: m.kind, zoom, tx, ty, n, buffer: out.buffer }, transfer = [out.buffer];
       if (water) {
-        msg.water = { info: water.info, segs: water.segs.buffer, gridStart: water.gridStart.buffer, gridItems: water.gridItems.buffer, lake: water.lake ? water.lake.buffer : null, falls: water.falls.buffer };
-        transfer.push(water.segs.buffer, water.gridStart.buffer, water.gridItems.buffer, water.falls.buffer); if (water.lake) transfer.push(water.lake.buffer);
+        msg.water = { info: water.info, segs: water.segs.buffer, gridStart: water.gridStart.buffer, gridItems: water.gridItems.buffer, lake: water.lake ? water.lake.buffer : null };
+        transfer.push(water.segs.buffer, water.gridStart.buffer, water.gridItems.buffer); if (water.lake) transfer.push(water.lake.buffer);
       }
       self.postMessage(msg, transfer);
     } else {
