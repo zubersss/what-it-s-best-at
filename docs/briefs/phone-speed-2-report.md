@@ -249,6 +249,13 @@ before the clear is what the picture and the shadow tiles now do).
   and flowers for 1 838 800, the frame 1.75 million for 3.07**. (The opening view is a meadow
   in full flower: its lists hold a fifth of the near cells. Flowers: 129 000 triangles for
   237 000 by blocks alone and 622 000 on today's link.)
+- *The newest build* (c657162 and the switch after it: flowers' lists, trees' shared corners,
+  the cost test's families): `npm run smoke` passed, 18 checks, every shader linked and inside
+  a phone's limits; the forest view of the cost test draws whole with the trees from shared
+  corners (`docs/shots/speed-2/forest_trees_shared_corners.jpg`: 1.81 million triangles in the
+  frame, 3.17 on today's link with the figure in it). In that smoke run's cost test a family
+  that buys something repeats (the ground's savings: 468.8 and 455.6 ms on the software
+  renderer) and one that does not, does not (the sky's on Mars: -82.4 and 235.9).
 - A first try at "before and after" with two builds' pictures of the opening view could not
   say it: the two runs were ready on different frames (181 and 184), and the grass's wave is
   added up frame by frame, so every near blade stood a pixel to one side in one of them (3 %
