@@ -555,6 +555,26 @@ background, no frame of play.
 in that frame: "2 shaders made: Trees FarForest", "trees filled", "far trees filled", "far
 rocks filled", and what it sent to the GPU ("uploads 412 KB in 14, 3 of them inside a pass").
 
+### The first stop's own work (19.5 ms on the phone at the ledge, while loading)
+
+`node scripts/play-profile.mjs --world haven --seconds 420 --distdir <build 1072ea2>`: play from
+the start screen at the opening place, the page's own time a frame as the governor reads it
+(this machine's processor; the parts that draw are its software renderer's and say nothing):
+
+- frames 26 to 60 of play (everything arriving): **6 to 23 ms a frame, 12 on average**, up
+  and down from one frame to the next (7.4, 13.8, 23.5, 15.6, 20.7, 7.9 ...);
+- frames 78 to 85 (arrived): **6 to 8 ms**.
+
+By part over the first sixty frames, of the parts that are the page's own work and not
+drawing: **the trees 12.3 ms a frame** (their lists and meshes filled as blocks arrive),
+the grass 6.3 (its blocks and flower lists remade as the ground under it changes, and its
+light table), the ground's patches 1.5, far rocks 0.6, far forest 0.2, steering 0.4. So the
+phone's first stop reads as loading, as the main session took it: the work is the trees' and
+the grass's lists being made while their ground arrives, twice the page's work at rest, and
+it is over in some sixty frames. The phone's own line has the same parts in the same order
+after the ground (grass 2.3, trees 2.3). Not cut: it is two seconds of a visit; if the next
+table's first stop is still the worst, the trees' filling is the part to spread.
+
 ## Step 4: the governor, from the families
 
 The order of savings and what each is taken to buy were the tenth results' single numbers.
