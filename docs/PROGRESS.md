@@ -41,6 +41,57 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### The owner's rigged character (2026-11-27): a skeleton, eight clips and its own colours
+
+The owner sent `Chinese_Swordsman_AllAnims_30mb.glb` ("here is the model with the animations
+rigged"), made with Meshy as asked: kept as sent in `assets-src/hero-rig/`. In it: one
+surface of 153 000 triangles cut into many small pieces for its picture (163 000 vertices),
+a Mixamo skeleton of 24 joints, **eight clips** (Idle 2.0 s, Walk 1.03, Run 0.63, Sprint
+0.47, Jump 1.87, Hover 2.97, Flight 2.97, Landing 3.97), and three 4 096 pictures (colour,
+normal, metal/roughness); meshopt-compressed and quantised (glTF-Transform).
+
+**It replaces the hand-made binding** (the sculpt bound to the game's limbs and cloth, all
+of the sections below): that path stays in the repository and is what a device gets if the
+rigged files do not load or its shaders cannot be made, and is no longer worked on.
+
+**How** (`node scripts/make-hero-rig.mjs`, 2 s):
+- `scripts/hero/glb.mjs` reads the GLB in Node (meshopt and quantisation decoded).
+- Written: `public/data/hero_rig.bin` (10 MB: the skeleton with parents before children,
+  the clips read 30 times a second, three meshes: the whole surface, a lighter one, and the
+  shape alone welded and reduced to 24 000 triangles for the shadow map) and
+  `public/data/hero_rig.jpg` (the colour picture at 2 048). Nothing of the surface or the
+  motion is changed. One matrix (`root`) fits the figure to the game's frame: the soles
+  0.93 m under the origin as it stands in Idle, 1.88 m tall (the file: 1.65 m).
+- `src/hero/heroRig.js` (plain numbers, the game and Node alike): a clip read at a time,
+  the joints' places, the matrices the surface is drawn with.
+- `src/hero/heroAnim.js` chooses the clips from the state `hero.js` already works out:
+  Idle, Walk, Run, Sprint by the pace, the three gaits in step (one phase, each read from
+  where its left foot is furthest forward) and played faster or slower with the pace; a
+  jump or a fall on foot: the Jump clip's rising and falling frames by the vertical speed;
+  after a touch-down the Landing clip from its contact, more of it the harder the landing,
+  played 1.7 times as fast as made; in the air Hover, and Flight by how much it flies (read
+  there and back: it is not a loop). Where the game moves the body itself the clip's hips
+  are held (a jump's rise, the flight's lean: the game lays the body along its flight).
+  Each clip is put on the game's ground by its own measure (the gaits tread 5 cm over
+  Idle's floor in the file).
+- `src/hero/heroRigMesh.js` draws it: skinned in the vertex shader from 72 uniform vectors
+  (no texture read for a vertex), coloured from its picture, lit by the game's light, both
+  sides (the robe opens). `hero.js`: with a rig the body no longer leans, twists, bobs or
+  crouches by itself and **the cloth is not worked out at all** (0.4 to 0.7 ms a frame of
+  the page's work saved).
+- `node scripts/hero-rig-preview.mjs --clip Run` (frames of a clip, or `--state
+  "foot=1,speed=5.5"` for the game's own choice) draws it without a browser in a second.
+
+**Changed for the player**: the character is the owner's own, with the owner's motion and
+colours; no simulated cloth (the robe and hair go with the skeleton; they do not stream).
+
+**Not done / to look at next**: the robe and hair do not flow (a wind flutter in the vertex
+shader on what hangs far from a bone, and a trailing lean in flight, is the cheap next
+step); the normal and roughness pictures are not used; steady flight is the Flight clip
+read slowly there and back with the hips held (little life); footfall dust still keeps the
+old gait's time; the file is 10 MB (positions as floats, an unwelded lighter mesh); cost on
+the phone not measured (153 000 triangles, and no cloth simulation).
+
 ### The owner on build 8c8ff89 (2026-11-27): "a constant t pose", "the running cape still look horrible"; Meshy
 
 The owner, with two screenshots (a run on a slope, super speed among boulders): "The running

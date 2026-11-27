@@ -23,7 +23,7 @@ sizes, real maps or the explorer's side of things, and allowed a full restart ("
 gets my idea across").
 
 So the game is: you fly a robed, long-haired character (the owner's own design, and since
-2026-11-27 the owner's own sculpt: `docs/PROGRESS.md`, "The owner's sculpt in the game") over **a small made-up world** (`haven`,
+2026-11-27 the owner's own model, rigged and animated: `docs/PROGRESS.md`, "The owner's rigged character") over **a small made-up world** (`haven`,
 milestone 12 in `docs/ROADMAP.md`): small enough that the horizon bends from a few
 kilometres up and mountains stand on its edge from space, its land shaped by rule to be
 beautiful (peaks, stepped plateaus, canyons, valleys, a sea), its water following the
@@ -235,6 +235,8 @@ node scripts/parts-out.mjs --world haven --shot ledge [--query ..] [--box 0.2,0.
 scripts/ground-cost-run.sh <scratch dir> [--only ledge,air3k] [--before old-terrainMaterial.js] [--save dir] [--parts file.mjs] [--size 880x412 --dsf 2.2]   # what the ground's shading costs, as a count of work on software WebGL (never a frame rate): the game's ground alone at ten views, the shader of an earlier commit beside the new one in the same browser session, and how far their pictures are apart (git show <commit>:src/terrain/terrainMaterial.js > old-terrainMaterial.js). Runs scripts/ground-cost.mjs from a copy of the tree: the dev server reloads the page at any source edit
 node scripts/make-hero.mjs [--tris 120000] [--low 24000] [--stage look]   # the owner's sculpt (assets-src/hero/) into the game's character file (public/data/hero.bin), 25 s: materials and garments by the seeds in scripts/hero/seeds.mjs, colours, two reduced meshes, the binding to the figure's parts and cloth (scripts/hero/heroBind.mjs). Run again after changing a seed, a joint or a cloth sheet
 node scripts/hero-preview.mjs --out f.png [--pose stand|hover|fly|fast|walk|run] [--yaws 0,90,180] [--labels|--garments|--parts|--cloth] [--lod 1] [--twosided]   # that file drawn without a browser in a second, posed by the game's own code
+node scripts/make-hero-rig.mjs [--low 24000] [--texture 2048]   # the owner's rigged character (assets-src/hero-rig/*.glb: skeleton, clips, pictures) into public/data/hero_rig.bin and .jpg, 2 s (needs Python's PIL for the picture)
+node scripts/hero-rig-preview.mjs --clip Run [--frames 6] [--yaw 90] | --state "foot=1,speed=5.5" [--times 0,0.2] [--out f.png]   # the rigged character drawn without a browser: frames of a clip, or the game's own choice of clips for a state (hero/heroAnim.js)
 node scripts/hero-bind-test.mjs [--list]   # the character's binding: standing it gives the sculpt back, in the game's poses the surface is not torn (no browser, 10 s; --list: the worst edges by cause)
 node scripts/hero-cost.mjs   # what the character costs the page each frame, without a browser (seconds): the cloth at 60 and 30 frames a second, the whole figure; fails if the cloth's points have moved from scripts/lib/robe-reference.json
 node scripts/grass-place-test.mjs   # a place's blades and tussocks are the place's, never the anchor's: anchor steps, the 2 560 m wrap, a grass saving on (no browser, seconds)
@@ -757,6 +759,10 @@ finished benchmark leaves its text in `window.__benchResult`.
   pose, not only the sculpt's stance and the poses that are fun. And measure a tear before guessing at it: a count of edges
   drawn out in a pose, by cause (`node scripts/hero-bind-test.mjs --list`), named the fused
   joins in one run after three guesses had not.
+- When a model has no skeleton, ask its maker for one before binding it by hand. A day went
+  into binding the owner's sculpt to the game's limbs and cloth (tears, a T-pose, a flying
+  gown); the owner's tool rigged and animated it in minutes, and the file read into the game
+  in an hour. Ask what the tool that made an asset can export first.
 - Look at the game as the player gets it, with no switch in the URL. The sky's field fell back
   to a stub's test pattern ("fair") whenever no `sky:` switch was given: four helpers pictured
   their work under `debug=sky:model`, every check asked only "is the field on", and the merged

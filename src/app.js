@@ -52,6 +52,7 @@ import { FarRocks } from './rocks/farRocks.js';
 import { Lander } from './ship/lander.js';
 import { Hero } from './hero/hero.js';
 import { HeroSculpt } from './hero/heroSculpt.js';
+import { HeroRigMesh } from './hero/heroRigMesh.js';
 import { Dust } from './fx/dust.js';
 import { createHeightSource, loadRasters } from './terrain/height/heightSource.js';
 import { Terrain } from './terrain/terrain.js';
@@ -340,7 +341,7 @@ export class App {
     // rocks and lander in front of a lingering cloud still hide it)
     this.dustScene = new THREE.Scene();
     this.dustScene.add(this.dust.points);
-    for (const m of this.hero.casters) this.nearShadow.addCaster(m, this.hero.depthMaterial, () => this.hero.group.visible && !this.hero.sculpt);
+    for (const m of this.hero.casters) this.nearShadow.addCaster(m, this.hero.depthMaterial, () => this.hero.group.visible && !this.hero.sculpt && !this.hero.rigMesh);
     // The owner's sculpt for the figure (hero/heroSculpt.js). Without the file, or on a
     // device that cannot make its shaders (asked in updateHero once they have been used),
     // the figure built in code is drawn (roughly: its joints are the sculpt's now).
@@ -350,8 +351,22 @@ export class App {
       if (!res.ok) throw new Error(`data/hero.bin: ${res.status}`);
       const sculpt = new HeroSculpt(this.hero, await res.arrayBuffer()); clearTimeout(timer);
       this.hero.useSculpt(sculpt);
-      this.nearShadow.addCaster(sculpt.shadowMesh, sculpt.depthMaterial, () => this.hero.group.visible);
+      this.nearShadow.addCaster(sculpt.shadowMesh, sculpt.depthMaterial, () => this.hero.group.visible && !this.hero.rigMesh);
     } catch (e) { console.warn('the sculpted character is not used:', e.message); }
+    // The owner's rigged character (hero/heroRigMesh.js): the same figure with a skeleton,
+    // its own clips of motion and its own colours. It is what is drawn when it loads; the
+    // sculpt above stays as the figure for a device or a line that cannot take it.
+    try {
+      const stop = new AbortController(), timer = setTimeout(() => stop.abort(), 45000);
+      const [bin, img] = await Promise.all([fetch('data/hero_rig.bin', { signal: stop.signal }), fetch('data/hero_rig.jpg', { signal: stop.signal })]);
+      if (!bin.ok || !img.ok) throw new Error(`data/hero_rig: ${bin.status}, ${img.status}`);
+      const [buffer, picture] = await Promise.all([bin.arrayBuffer(), img.blob().then((b) => createImageBitmap(b))]);
+      clearTimeout(timer);
+      const rigMesh = new HeroRigMesh(this.hero, buffer, picture);
+      renderer.initTexture(rigMesh.texture);            // (handed to the GPU now, not at its first draw in the middle of a picture)
+      this.hero.useRig(rigMesh);
+      this.nearShadow.addCaster(rigMesh.shadowMesh, rigMesh.depthMaterial, () => this.hero.group.visible);
+    } catch (e) { console.warn('the rigged character is not used:', e.message); }
     await this.terrain.workers.ready;
 
     // ?debug=floor: every saving the governor has, and Smooth's share of the patches: what a
@@ -1514,7 +1529,14 @@ export class App {
     hero.group.updateMatrixWorld(true);
     // (the sculpt's movers, handed to the GPU now: a texture first used in the middle of the
     // picture is uploaded there)
-    if (hero.sculpt) {
+    if (hero.rigMesh) {
+      hero.rigMesh.update();
+      if (this.rigChecked !== true && (this.rigFrames = (this.rigFrames || 0) + 1) > 20) {
+        const ok = hero.rigMesh.drawable(this.renderer);
+        if (ok === false) { const r = hero.dropRig(); this.nearShadow.removeCaster(r.shadowMesh); console.warn('the rigged character cannot be drawn on this device: the sculpt is used'); }
+        if (ok !== null) this.rigChecked = true;
+      }
+    } else if (hero.sculpt) {
       this.renderer.initTexture(hero.sculpt.update());
       if (this.sculptChecked !== true && (this.sculptFrames = (this.sculptFrames || 0) + 1) > 20) {
         const ok = hero.sculpt.drawable(this.renderer);
