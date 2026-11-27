@@ -41,6 +41,36 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### The benchmark build of 2026-11-27 night (branch at 1072ea2; sent: PR #44, main f9385d7): the cuts so far, and a cost table that can name the sky's part
+
+**What it holds beyond the link's daa009f**: the cost test's plan made on the view's own
+world, each sky part measured twice, "the ground not drawn at all" as a group, two
+"what it adds" rows for the trees' light at their corners, named hitches (the sky and the
+speed helpers); the governor's order by the families; every scene's shaders made while
+loading; the trees' and far forest's Sun light and air at their vertices (11 to 13 looks
+a pixel to 2); the ground's first cuts (16.7 to 14.7 reads a pixel at the opening view,
+18.8 to 14.6 from 3 km); the page's own sky work 2.2 to 1.4 ms; the ragged tree line;
+the storm's tower and anvil; the mist at the water's own height, veiling an eye inside it.
+**Not in it** (the link after): the upper shells' light at their vertices, the sky field's
+shader made while loading, the clouds' shade at every patch's vertices, the sky's light
+on the ground at the vertices.
+
+**Checked on the frozen build of 1072ea2**: every no-browser test (35, the sky model's
+timing line now against a yardstick of the same run); the whole smoke with the Mars
+benchmark at `--dsf 0.5` (18 checks; 53 shaders made, all inside a phone's limits); noon
+from the air, the mist's view, the opening view with the character running
+(`docs/shots/joined/*1072ea2*`); on the build two merges before (a8c29d2): the storm's
+view and the forest view.
+
+**Asked of the owner**: the plain Haven benchmark in Sharp from the start screen (the
+governor at work with its new order) and the paced `?bench=haven&scale=0.775` run, full
+screen if possible. **To read first in the answer**: the sky's parts one by one (the march
+with its layers, the middle and high cloud, the far low shell, the shade map, the field's
+maps, the far pass), the forest's group against 15.0 and the two "what it adds" rows, the
+ground's shading against 14.4 and 17.0, "the ground not drawn at all", whether an
+"unknown" hitch still stands ten seconds in, and in the plain run the steps the governor
+took and where it settled. The cost test is a third longer than before (175 measures a view).
+
 ### The thirteenth results (2026-11-27 evening, build daa009f): everything on, held at one size, paced
 
 The owner: "I have the paid meshy plan" (recorded in `docs/ASSETS.md`), and one run:
