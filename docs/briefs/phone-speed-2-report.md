@@ -332,6 +332,32 @@ Two things in it that are others' and were handed on: the rigged figure is 153 0
 triangles, 8 % of the frame; and the seasons' lying leaves hand their whole buffer
 (`treeLeaves.lieGeo`, 75 KB) to the GPU every frame at rest, inside the picture's pass.
 
+### What a frame is made of now, in runs of the vertex shader (the counter's new column)
+
+The phone's tables have said for three benchmarks that a frame's cost hardly goes by the
+picture's size; what does not go by it is mostly geometry, and a tile-based GPU runs the
+vertex shader for every vertex handed over (twice: once to sort the triangles into its
+tiles, once to draw). Triangles undercount a mesh whose corners are not shared: a blade of
+grass is three runs for one triangle. The counter (`gl-count.mjs`) counts runs since
+3dc70c9. On today's link (a5948f1), the forest view of the cost test, a frame at rest:
+**8.9 million runs**, of them grass blades 3.37 M, single flowers 1.87 M, the far forest
+about 0.8 M, the near trees 0.52 M and their shadow casters 0.25 M, the ground about 0.5 M,
+the cloud layer's and the upper cloud's meshes 0.27 M (not indexed: said to the sky helper),
+the figure 0.07 M. After this branch's cuts the grass and flowers are about a third of what
+they were and the trees half; the next in line, not done:
+
+- *The far forest and the far rocks by parts of a tile.* A tile of far trees (889 m and up)
+  or far rocks is handed over whole when any of it is in the picture: at the opening view
+  44 800 far trees are handed over for 27 800 standing all round, 10 800 far rocks for 1 400
+  in the picture. Each tile's list cut in four by place (four draws, each culled by its own
+  bounds) would hand over about half. A change to how the tiles are filled and drawn in
+  `farForest.js` and `farRocks.js`: an afternoon each, with their own tests to bring in step.
+- *Blades by how many a block can keep.* Looked along at eye height five layers of blades are
+  kept of twenty; which blades go is by a number of each one's own, so all are handed over.
+  If the number went by the blade's place in its cell, a block could hand over only as many
+  blades a cell as its steepest look keeps. Changes which blades are kept (not how many, nor
+  where), and saves little on a hillside that faces the eye, as the opening view's does.
+
 Looked at and left:
 - *A middle mesh for the figure*: the sculpt made again at 60 000 triangles
   (`make-hero --tris 60000`, into a scratch file) could not be told from the 120 000 one at
