@@ -91,6 +91,10 @@ const MOVES = [
   // them looking across that wind. The stub's thin test pattern had nothing in this view: its
   // `t=` is counted from the scene's own moment, not from the weather's epoch.)
   { id: 'haven_cross', world: 'haven', shot: 'ledge', query: 'lat=-41.674&lon=59.442&alt=1800&pitch=8&heading=176&t=32&debug=sky:model', step: { fwd: 1 }, stride: 300, slow: true },
+  // (sky-faults: the redone heaps. From the air among them at noon, toward the Sun: a heap's two
+  // tones, its cut edge and the hand-over to the far shell at 16 km; and from the ground under them)
+  { id: 'haven_heaps_air', world: 'haven', shot: 'ledge', query: 'alt=4500&heading=30&pitch=-12&t=4', step: { fwd: 2 }, stride: 250, slow: true },
+  { id: 'haven_heaps_ground', world: 'haven', shot: 'ledge', query: 't=4&heading=20&pitch=16', step: { fwd: 0.055 }, stride: 160, slow: true },
   { id: 'haven_storm_pass', world: 'haven', shot: 'ledge', query: 'alt=2600&pitch=4&heading=45&t=6&debug=storm', step: { fwd: 1 }, stride: 300, slow: true },
   { id: 'earth_forest_flight', world: 'earth', shot: 'ledge', query: 'lat=36.3&lon=247.9&alt=3000&heading=0&pitch=-25&t=5', step: { fwd: 1.5 }, stride: 300, slow: true },
 ];
