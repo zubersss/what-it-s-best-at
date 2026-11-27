@@ -380,3 +380,52 @@ Looked at and left:
   (`hero-preview --h 330 --lod 0|1`), the rope trims, the belt and the hands are visibly
   softer. Not a cut without a change; left to the governor.
 - *Buffers handed over inside a pass* (above): not the known fault; left.
+
+## Step 4: the governor (waits for the phone)
+
+Not begun, on purpose. Its order of savings and what each is taken to buy (`FEATURE_STEPS`,
+`buys`) were set from cost tables whose every single number has since been shown to be the
+baseline's drift (the eleventh results' reader; and the smoke run above, where every single
+saving "saved" 20 to 190 ms of a frame that grew by 4 500). The new benchmark's two tables
+(groups of parts, families of savings; two takes each) are what an order can be made from.
+When they are in:
+1. `buys` from the families first (a family whose two takes agree), then within a family
+   from its "one saving alone" numbers where those are large and of the family's size.
+2. The grass's two savings were at the head of the order for buying 5.0 and 1.6 ms. They
+   now thin by the shader's first line instead of by not handing blades over, on a field of
+   which a third is handed over at all: what they buy is to be read again, and the order
+   with it.
+3. The hole the last reader found (one view held for five minutes with late frames nothing
+   cures: most savings left on in six to eight runs of eight) is a question about a device
+   whose late frames nothing cures. Whether the phone is one, paced, is what the first run
+   asked for says (the five stops alike or not). `npm run govsim` before anything is sent.
+
+## Lessons (for CLAUDE.md, the main session's to take or leave)
+
+- **A run at a held size was not a run of the game**: `?scale=` switched the frame pacing off
+  with the governor, the phone drew flat out and slowed stop by stop. A benchmark that is to
+  say what play is like must be paced as play is; and when stops that hand the GPU the same
+  frame run at 29 and at 14 frames a second, it is the device, not the page.
+- **Count what is handed over before reading a cost table.** A count is true on any device
+  and takes ten minutes a view (`scripts/gl-count.mjs`); it said in one run that 57 % of the
+  triangles were grass of which two thirds were thrown out again, that nothing alternates
+  and nothing piles up, and that two builds a day apart hand over the same frame. Triangles
+  undercount what is not indexed: count runs of the vertex shader.
+- **A change to the game can break a check that stands in for the game** (a stub of the
+  renderer without a call the game now makes; a Benchmark made without a renderer): two of
+  mine went out that way, the game itself whole. `./scripts/all-node-checks.sh` before a push.
+- **Conflict marks inside a shader's text build.** A merge left `<<<<<<<` in `grass.js`
+  inside a template string: the build passed, every Node check that does not compile the
+  shader would have, and the grass would have been gone on the phone. After a merge, look for
+  the marks in `src/` whatever the build says (`grep -rn '<<<<<<<' src scripts`).
+- **Two runs of the game are not the same picture.** The grass's wave is added up frame by
+  frame and two runs are never ready on the same frame: a before and an after from two
+  builds differ along every near blade. A pair is taken in one session, the picture held
+  still (`scripts/grass-cull-pair.mjs` shows how).
+- **The shader's own tests can be asked on the page, of a box**: what the vertex shader
+  throws out by a rule of place (a ring, the picture's edge, a table that says "nothing
+  here") need not be handed over, and if the page's test is the shader's own asked of a box
+  that holds every place the shader could ask it of, the picture is the same and a replay in
+  Node can prove it cell by cell. Where the rule is a number of the thing's own (a hash),
+  work the number out as the shader does, in 32-bit sums, and leave a margin for a GPU that
+  rounds another way; the shader still decides.
