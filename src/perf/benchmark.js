@@ -42,7 +42,9 @@ export class Benchmark {
     this.pt = new Float64Array(11 * PARTS.length); this.ptLast = Float64Array.from(app.profile.total);
     this.cost = null; this.costLines = null;
     // what the page hands the GPU, per stop (perf/glTally.js: counted for the length of the run only)
-    this.tally = this.tally || new GlTally(app.renderer.getContext()); this.tally.install(); this.tally.take(null);
+    // (no renderer: a test's stand-in for the app, in Node; nothing is counted then)
+    const glc = app.renderer?.getContext?.();
+    if (glc) { this.tally = this.tally || new GlTally(glc); this.tally.install(); this.tally.take(null); }
     this.gl = new Float64Array(11 * TALLY.length); this.glFrames = new Float64Array(11);
     this.rebakesFrom = app.terrain.rebakes || 0;
     this.n = 0;
@@ -109,7 +111,7 @@ export class Benchmark {
       this.sc[this.n] = app.scriptMs || 0; this.ph[this.n] = Math.max(0, this.phase); this.up[this.n] = Math.min(255, app.lastUploads || 0);
       { const tot = app.profile.total, o = Math.max(0, this.phase) * PARTS.length; for (let i = 0; i < PARTS.length; i++) { this.pt[o + i] += tot[i] - this.ptLast[i]; this.ptLast[i] = tot[i]; } }
       // (the frame that has just ended, as dtMs is)
-      this.tally.take(this.gl, Math.max(0, this.phase) * TALLY.length); this.glFrames[Math.max(0, this.phase)]++;
+      if (this.tally) { this.tally.take(this.gl, Math.max(0, this.phase) * TALLY.length); this.glFrames[Math.max(0, this.phase)]++; }
       this.n++;
       if (dtMs > 100) this.hitches.push({ t: +t.toFixed(1), ms: Math.round(dtMs), cause });
       this.maxCalls = Math.max(this.maxCalls, app.stats.calls || 0); this.maxTris = Math.max(this.maxTris, app.stats.triangles || 0);
