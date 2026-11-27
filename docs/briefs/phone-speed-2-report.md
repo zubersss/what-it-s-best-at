@@ -234,6 +234,11 @@ before the clear is what the picture and the shadow tiles now do).
   renderer whose baseline climbed from 1 257 to 5 785 ms over the test, the ground's shading
   read 1 226 and 1 249 ms in its two takes: the groups hold under a drifting baseline, where
   the single savings of the same test all read 20 to 190 ms "saved" (the drift).
+- *The flowers' lists (b4ee34b), the same check*: blocks and lists against the whole field,
+  no pixel more than one level apart (0.013 % of them by one); **519 780 triangles of grass
+  and flowers for 1 838 800, the frame 1.75 million for 3.07**. (The opening view is a meadow
+  in full flower: its lists hold a fifth of the near cells. Flowers: 129 000 triangles for
+  237 000 by blocks alone and 622 000 on today's link.)
 - A first try at "before and after" with two builds' pictures of the opening view could not
   say it: the two runs were ready on different frames (181 and 184), and the grass's wave is
   added up frame by frame, so every near blade stood a pixel to one side in one of them (3 %
@@ -297,7 +302,14 @@ before the clear is what the picture and the shadow tiles now do).
    eye, the picture and the tables as they were a frame before, the last choosing is put on
    again (0.007 ms). While the eye moves: 0.25 ms a frame on the build machine with a browser
    drawing beside it, 0.54 ms on a frame that makes the flowers' lists again.
-6. **The figure's nine part matrices are uniforms** (`heroSculpt.js`): a vertex with no loose
+6. **The near trees' corners are shared between their triangles** (`treeGeometry.js`,
+   `sharedCorners`; `trees.js`). A tree's mesh was handed over corner by corner, three to a
+   triangle, though its cards are quads and its boughs strips: 193 602 corners over the 81
+   meshes are 94 929 distinct vertices. The same triangles in the same order, every attribute
+   of every corner the same to the last bit (`node scripts/tree-shared-corners-test.mjs`,
+   `--break merge|order`). In the forest view of the cost test the trees and their shadow
+   casters were 773 000 runs of a vertex shader a frame; about half now.
+7. **The figure's nine part matrices are uniforms** (`heroSculpt.js`): a vertex with no loose
    cloth (body, boots, hands, head) read nine texels of a float texture and now reads none;
    a cloth vertex reads its particles as before. The same numbers: no change to the picture.
 
