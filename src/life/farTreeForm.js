@@ -83,5 +83,8 @@ export const SHADOW_GLSL = /* glsl */`
 // from the eye.
 export const FAR_GREEN_GLSL = /* glsl */`
 float farGreenW(float dist) { return smoothstep(300.0, 1300.0, dist); }
-vec3 farGreen(vec3 leaf, float dist) { return mix(leaf, dot(leaf, vec3(0.3, 0.6, 0.1)) * vec3(0.72, 0.88, 0.38), 0.7 * farGreenW(dist)); }
+// (a leaf turned gold or red keeps its colour far off: gone over to the olive, an autumn wood
+// from the air was a tint, not gold and red crowns among green ones. Nothing changes for a
+// leaf with more green than red in it; the same guard as paintLeaf's, life/trees.js.)
+vec3 farGreen(vec3 leaf, float dist) { return mix(leaf, dot(leaf, vec3(0.3, 0.6, 0.1)) * vec3(0.72, 0.88, 0.38), 0.7 * farGreenW(dist) * (1.0 - smoothstep(0.0, 0.3, (leaf.r - leaf.g) / max(leaf.r, 1e-4)))); }
 `;

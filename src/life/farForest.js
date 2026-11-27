@@ -35,11 +35,11 @@ import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { localFrame } from '../core/ephemeris.js';
 import { VARIANTS } from './treeGeometry.js';
-import { SPECIES, bloomOf } from './cover.js';
+import { SPECIES, treeLook, COLOUR_TOP } from './cover.js';
 import { TREE_FLOATS } from './treeBlock.js';
 import { BASE_BLOCKS, BAND, LEVELS, band, levelReach, wantedTiles, GROW } from './farTiles.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
-import { PAINT_LEAF, TREE_WOOD } from './trees.js';
+import { PAINT_LEAF, TREE_WOOD, TREE_THIN } from './trees.js';
 import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
 import { SHADOW0, FORM_GLSL, SHADOW_GLSL, FAR_GREEN_GLSL, DENS_STEPS, SHADOW_LONG, SHADOW_FAR0, SHADOW_FAR1, TOP0, TOP1, TOP_MAX, TOP_POW, END_ABOVE } from './farTreeForm.js';
 
@@ -83,17 +83,22 @@ const MARGIN = 1.5;           // a tile is filled with rather more trees than ar
 // Leaves and bark are dark (0.03 to 0.6 of the light that falls on them): the byte covers
 // that range, not 0 to 1, so that a far tree's green is the near one's to within a part in
 // three hundred and the two cannot differ at the line where they meet.
-const COLOUR_TOP = 0.75;
+// (COLOUR_TOP: life/cover.js, with treeLook, which the near trees ask too)
 // A tree in flower, far off: its leaf colour gone over to its petals' as far as it is in
 // flower (near by the picture says which texels are petals: life/trees.js; here the whole
-// crown takes the colour). own: the tree's own number (it flowers a few days before or after its neighbours).
-function inFlower(sp, day, own, south) { const k = bloomOf(sp, day + (own - 0.5) * 8, south ? -1 : 1).open * 0.8; return sp.leaf.map((v, i) => v + (sp.blossom.colour[i] * 0.5 - v) * k); }
-function pack(c) { const b = (v) => Math.round(Math.min(1, Math.max(0, v / COLOUR_TOP)) * 255); return b(c[0]) * 65536 + b(c[1]) * 256 + b(c[2]); }
-// The colours packed once: a species' leaves and bark, and a flowering species' crown by its
-// tree's own number in this many steps (an eighth of a day of flowering apart), worked out
-// again when the day changes. (Worked out tree by tree in every fill, a flowering wood made
+// crown takes the colour).
+const b8 = (v) => Math.round(Math.min(1, Math.max(0, v / COLOUR_TOP)) * 255);
+function pack(c) { return b8(c[0]) * 65536 + b8(c[1]) * 256 + b8(c[2]); }
+// A tree's leaves on a day, packed (tl: treeLook's answer for it)
+function packLook(sp, tl) {
+  if (!sp.blossom) return b8(tl.r) * 65536 + b8(tl.g) * 256 + b8(tl.b);
+  const k = tl.open * 0.8, c = sp.blossom.colour;
+  return b8(tl.r + (c[0] * 0.5 - tl.r) * k) * 65536 + b8(tl.g + (c[1] * 0.5 - tl.g) * k) * 256 + b8(tl.b + (c[2] * 0.5 - tl.b) * k);
+}
+// The colours that never change, packed once: a species' bark, and the leaves of a species
+// that neither drops them nor flowers. (A tree that does either is asked about in every fill,
+// into one object kept for it: worked out into new arrays tree by tree, a flowering wood made
 // thousands of short-lived objects a frame in flight: review farforest-8.)
-const OWN_STEPS = 64;
 const PACK_LEAF = SPECIES.map((sp) => pack(sp.leaf)), PACK_TRUNK = SPECIES.map((sp) => pack(sp.trunk));
 
 
@@ -120,7 +125,7 @@ export class FarForest {
     // (and a fourth, 3: the tree's shadow on the ground, drawn only for a traveller in the air: update())
     for (let q = 0; q < 4; q++) { for (const [u, v] of [[0, 0], [1, 0], [0, 1], [1, 1]]) corner.push(q, u, v); index.push(q * 4, q * 4 + 2, q * 4 + 1, q * 4 + 1, q * 4 + 2, q * 4 + 3); }
     this.corner = new THREE.BufferAttribute(new Float32Array(corner), 3); this.index = new THREE.BufferAttribute(new Uint16Array(index), 1);
-    this.bloom = new Map(); this.bloomDay = null; this.bloomSouth = null;
+    this.seasonDay = null; this._tl = {};
     // Shared by every tile; only where a tile stands is its own (uTileRel and its frame).
     this.shared = {
       ...lightingUniforms(),
@@ -137,7 +142,7 @@ export class FarForest {
     };
     this.vertexShader = /* glsl */`
       in vec4 iA;            // xyz: the tree's foot from the tile's origin (m, planet axes), w: its height (m)
-      in vec4 iB;            // x: crown width, y: turn (radians), z: which picture (shape x variants + variant), w: a number of its own
+      in vec4 iB;            // x: crown width, y: turn (radians), z: which picture (shape x variants + variant), w: a number of its own (under 1) + how much of its picture is thinned away, in 255 steps (whole)
       in vec4 iC;            // x: its rank, and beside it the chance its site had of a tree (2 x that in DENS_STEPS steps + the rank), y: leaf colour packed, z: trunk colour packed, w: 4 x (1 or 2 if it drops its leaves) + 3 x how much of the Sun the land leaves it + 16 x (in 15 steps) how much sunlight the ground at its feet takes by its slope + 256 if its species flowers
       uniform vec3 uTileRel, uTileEast, uTileNorth, uTileUp;
       uniform vec4 uRectTree[CELLS], uRectRose[CELLS], uRoseGeo[CELLS];
@@ -187,7 +192,7 @@ export class FarForest {
         float mid = uCellMid[cell];
         float flowers = floor(iC.w / 256.0), rest = iC.w - 256.0 * flowers;
         float groundQ = floor(rest / 16.0), packed = rest - 16.0 * groundQ;
-        float fall = floor(packed * 0.25 + 1e-3), sunLeft = clamp((packed - fall * 4.0) / 3.0, 0.0, 1.0) * cloudShade(foot + uTileUp * (iA.w * 0.7));
+        float fall = floor(packed * 0.25 + 1e-3), thinQ = floor(iB.w), sunLeft = clamp((packed - fall * 4.0) / 3.0, 0.0, 1.0) * cloudShade(foot + uTileUp * (iA.w * 0.7));
         if (position.x > 2.5) {
           // The fourth quad, drawn only from the air and in a draw of its own (the slot's shadow
           // mesh): the picture of the whole tree laid on the ground along the Sun's ray, the
@@ -201,7 +206,7 @@ export class FarForest {
           // (a little over the ground, and more far off, where the depth buffer is coarse)
           vRel = foot + across * ((position.y - 0.5) * wideM) + along * ((1.0 - position.z) * longM) + uTileUp * (0.4 + 0.0015 * d);
           vN = uTileUp; vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vOwn = vec2(0.0); vShade = 0.0; vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0); vTone = vec2(1.0, 0.0);
-          vShadowA = a * shadowAlpha(wideM * longM, dens, keep);
+          vShadowA = a * shadowAlpha(wideM * longM, dens, keep) * (1.0 - 0.8 * thinQ / 255.0);          // (a bare tree's shadow is its branches')
           rect = uRectTree[cell]; vUv = vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
           gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
           return;
@@ -239,7 +244,7 @@ export class FarForest {
         l *= iA.w * grow;
         vRel = foot + uTileEast * (l.x * c - l.z * s) + uTileUp * l.y + uTileNorth * (l.x * s + l.z * c);
         vN = normalize(uTileEast * (nl.x * c - nl.z * s) + uTileUp * nl.y + uTileNorth * (nl.x * s + nl.z * c));
-        vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); vOwn = vec2(iB.w, fall + 4.0 * flowers); vShade = sunLeft; vShadowA = 0.0;
+        vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); vOwn = vec2(iB.w - thinQ, thinQ / 255.0 + 4.0 * flowers); vShade = sunLeft; vShadowA = 0.0;
         // (the crown's top: lit as a dome pixel by pixel in the fragment shader; by its four
         // corners alone it was one flat tone, no lit cap and no shaded side)
         vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0);
@@ -265,6 +270,7 @@ export class FarForest {
       layout(location = 0) out vec4 fragColor;
       ${PAINT_LEAF}
       ${TREE_WOOD}
+      ${TREE_THIN}
       ${FAR_GREEN_GLSL}
       void main() {
         vec3 cut = texture(tTreeAtlas, vUv).rgb;
@@ -283,8 +289,10 @@ export class FarForest {
         // reviews farforest-6, farforest2-2); a tree that flowers is its petals' colour all
         // over from here, see inFlower)
         bool flowers = vOwn.y > 3.5;
-        float fall = vOwn.y - (flowers ? 4.0 : 0.0);
+        float thin = vOwn.y - (flowers ? 4.0 : 0.0);
         bool wood = treeWood(cut);          // (one rule with the near trees: TREE_WOOD, life/trees.js)
+        // (leaves off the tree: its picture thinned clump by clump, the near trees' rule, TREE_THIN)
+        if (!wood && treeThinned(vUv, lod, vOwn.x, thin)) discard;
         vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel), N = normalize(vN);
         // Seen from above, the crown's top is a dome: its cap faces the sky, its rim leans out,
         // so the Sun's side is lit and the far side a crescent in the shade's colour (the
@@ -293,10 +301,8 @@ export class FarForest {
           float r2 = min(dot(vDome.xy, vDome.xy), 1.0);
           N = normalize(mix(N, normalize(vDomeE * vDome.x + vDomeN * vDome.y + up * (1.1 * sqrt(1.0 - 0.8 * r2))), vDome.z));
         }
-        // leaves in their season: green, then this tree's own gold, orange or red
-        float turn = fall > 0.5 ? clamp(uSeason.x * 1.6 - vOwn.x * 0.6, 0.0, 1.0) : 0.0;
-        vec3 autumn = fall > 1.5 ? vec3(0.42, 0.26, 0.03) : mix(vec3(0.40, 0.20, 0.03), vec3(0.30, 0.045, 0.02), smoothstep(0.35, 0.8, fract(vOwn.x * 7.3)));
-        vec3 leafC = mix(vLeafC * (0.5 + 0.22 * fract(vOwn.x * 13.7)), autumn * 0.6, turn);
+        // (leaves in their season: vLeafC is this tree's leaves on this day, life/season.js)
+        vec3 leafC = vLeafC * (0.5 + 0.22 * fract(vOwn.x * 13.7));
         // (a tree in flower keeps its petals' pink at every distance: through the leaves'
         // painted green and the far olive it came out tan, "dead patches or litter")
         float bloomW = flowers ? smoothstep(-0.005, 0.03, vLeafC.r - vLeafC.g) : 0.0;
@@ -461,17 +467,9 @@ export class FarForest {
     const high = 0.7 * Math.max(0, rig.agl);
     // (a new day: the trees in flower are a day further on, as the near trees are; the tiles
     // that hold any are filled again)
-    const south = tr.anchor ? tr.anchor.z < 0 : false;
-    if (Math.floor(tr.day || 0) !== this.bloomDay || south !== this.bloomSouth || !this.bloom) {
-      const first = this.bloomDay == null; this.bloom ??= new Map();
-      this.bloomDay = Math.floor(tr.day || 0); this.bloomSouth = south;
-      for (let k = 0; k < SPECIES.length; k++) {
-        const sp = SPECIES[k]; if (!sp.blossom) continue;
-        const tab = this.bloom.get(k) || new Float64Array(OWN_STEPS + 1);
-        for (let o = 0; o <= OWN_STEPS; o++) tab[o] = pack(inFlower(sp, tr.day || 0, o / OWN_STEPS, south));
-        this.bloom.set(k, tab);
-      }
-      if (!first) for (const b of this.tiles.values()) if (b.flowering) b.fillEye = null;
+    if (tr.seasonDay !== this.seasonDay) {
+      const first = this.seasonDay == null; this.seasonDay = tr.seasonDay;
+      if (!first) for (const b of this.tiles.values()) if (b.seasonal) b.fillEye = null;
     }
     // How long since the last frame, for what eases (s; a frame of a second and more in a
     // headless picture is let through whole)
@@ -602,9 +600,10 @@ export class FarForest {
     const uf = this.shared.uFar.value, full2 = uf.x ** 2, inner2 = uf.z ** 2, far2 = uf.y ** 2, thin = uf.w;
     const ex = eyeRel.x, ey = eyeRel.y, ez = eyeRel.z;
     const up = this._u, geoX = this.shared.uRoseGeo?.value || [], topPow = -0.25 - TOP_POW;
-    let n = 0, bound2 = 0, shown = 0, margin = MARGIN, tallest = 0, flowering = false, maxDown = -1, reach = 0;
+    const day = this.seasonDay ?? 0, R = this.world.radius, ox = tile.origin.x, oy = tile.origin.y, oz = tile.origin.z;
+    let n = 0, bound2 = 0, shown = 0, margin = MARGIN, tallest = 0, seasonal = false, maxDown = -1, reach = 0;
     for (let pass = 0; pass < 3; pass++) {
-      n = 0; bound2 = 0; shown = 0; tallest = 0; flowering = false; maxDown = -1; reach = 0;
+      n = 0; bound2 = 0; shown = 0; tallest = 0; seasonal = false; maxDown = -1; reach = 0;
       for (let k = 0, q = 0; k < tile.have; k++, q += TREE_FLOATS) {
         const x = T[q], y = T[q + 1], z = T[q + 2], rank = T[q + 8];
         const dx = x + ex, dy = y + ey, dz = z + ez, d2 = dx * dx + dy * dy + dz * dz;
@@ -615,9 +614,14 @@ export class FarForest {
         if (rank < keep && d2 > inner2 && d2 < far2) shown++;
         const spi = T[q + 6], sp = SPECIES[spi], own = T[q + 7];
         iA[n * 4] = x; iA[n * 4 + 1] = y; iA[n * 4 + 2] = z; iA[n * 4 + 3] = T[q + 3];
-        iB[n * 4] = T[q + 4]; iB[n * 4 + 1] = T[q + 5]; iB[n * 4 + 2] = sp.arch * VARIANTS + Math.min(VARIANTS - 1, Math.floor(((own * 7.31) % 1) * VARIANTS)); iB[n * 4 + 3] = own;
-        iC[n * 4] = rank + 2 * Math.round(Math.min(1, Math.max(0, T[q + 9])) * DENS_STEPS); iC[n * 4 + 1] = sp.blossom ? this.bloom.get(spi)[Math.round(own * OWN_STEPS)] : PACK_LEAF[spi]; iC[n * 4 + 2] = PACK_TRUNK[spi]; iC[n * 4 + 3] = sp.fall * 4 + 3 * tile.vis[k] + 16 * Math.round(15 * (tile.lit ? tile.lit[k] : 1)) + (sp.blossom ? 256 : 0);
-        if (sp.blossom) flowering = true;
+        iB[n * 4] = T[q + 4]; iB[n * 4 + 1] = T[q + 5]; iB[n * 4 + 2] = sp.arch * VARIANTS + Math.min(VARIANTS - 1, Math.floor(((own * 7.31) % 1) * VARIANTS)); iB[n * 4 + 3] = Math.min(own, 0.9999);
+        iC[n * 4] = rank + 2 * Math.round(Math.min(1, Math.max(0, T[q + 9])) * DENS_STEPS); iC[n * 4 + 1] = PACK_LEAF[spi]; iC[n * 4 + 2] = PACK_TRUNK[spi]; iC[n * 4 + 3] = sp.fall * 4 + 3 * tile.vis[k] + 16 * Math.round(15 * (tile.lit ? tile.lit[k] : 1)) + (sp.blossom ? 256 : 0);
+        if (sp.fall || sp.blossom) {
+          // (its leaves on this day, and how far in flower: the answer the near trees get)
+          const tl = treeLook(sp, day, ox + x, oy + y, oz + z, R, own, this._tl);
+          iC[n * 4 + 1] = packLook(sp, tl); iB[n * 4 + 3] += Math.round(tl.thin * 255);
+          seasonal = true;
+        }
         if (T[q + 3] > tallest) tallest = T[q + 3];
         // (how steeply it is seen, for its tile's shadows; and how far its parts reach out
         // from its foot: the rosette spread from above, the upright pictures widened)
@@ -634,7 +638,7 @@ export class FarForest {
       n = CAP; margin = pass === 0 ? 1.2 : 1.0;
     }
     n = Math.min(n, CAP);
-    tile.count = n; tile.shown = shown; tile.flowering = flowering; tile.maxDown = maxDown; tile.fillLen = eye.length();
+    tile.count = n; tile.shown = shown; tile.seasonal = seasonal; tile.maxDown = maxDown; tile.fillLen = eye.length();
     tile.fillEye = (tile.fillEye || new THREE.Vector3()).copy(eye);
     s.geo.instanceCount = n; s.shadowGeo.instanceCount = n;
     // (with the reach of its trees' parts: from above a closed wood's crown tops spread to

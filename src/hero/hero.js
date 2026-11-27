@@ -267,21 +267,22 @@ export class Hero {
     const H = this._hovPose || (this._hovPose = new Float32Array(12)), C = this._cruisePose || (this._cruisePose = new Float32Array(12));
     const B = this._boostPose || (this._boostPose = new Float32Array(12));
     const lean = this.bank * 0.35, flutter = Math.sin(this.time * 2.3) * 0.03;
-    // (the arms are held out from the sides as the owner sculpted them, in every pose: the
-    // wide sleeves hang clear of the gown there. Brought in to the sides, as a suited figure's
-    // arms were, each sleeve was pressed through the skirt and tore it.)
-    const OUT = SCULPT_ARM - 0.07;
-    H.set([-0.03 + sway, OUT + 0.5 * breathe + Math.max(0, lean), -0.14 - breathe,
-      -0.03 - sway, -OUT + 0.5 * breathe + Math.min(0, lean), -0.12 + breathe,
+    // (the arms hang a little out from the sides: OUT. The sculpt holds them much further
+    // out, 0.585; a figure that stood, ran and flew like that was "doing a constant T pose",
+    // the owner said. What lets them come in is the binding: a sleeve gives way to the skirt
+    // where they join, scripts/hero/heroBind.mjs)
+    const OUT = 0.24;
+    H.set([-0.06 + sway, OUT + 0.5 * breathe + Math.max(0, lean), -0.20 - breathe,
+      -0.06 - sway, -OUT + 0.5 * breathe + Math.min(0, lean), -0.16 + breathe,
       -0.12 + sway - this.legSwing, 0.04, 0.50 + this.legSwing * 0.5,
       -0.05 - sway - this.legSwing, -0.04, 0.16 + Math.max(0, this.legSwing)]);
     const ride = Math.sin(this.time * 1.3) * 0.05, ride2 = Math.sin(this.time * 0.9 + 1.7) * 0.04, kick = Math.sin(this.time * 0.75) * 0.10;
-    C.set([0.42 + ride, Math.max(0.2, OUT - 0.08 + ride2 + lean * 1.4), -0.22 - ride2,     // (x > 0: back from the shoulder; z: out from the side)
-      0.42 - ride * 0.7, Math.min(-0.2, -(OUT - 0.08) + ride2 * 0.6 + lean * 1.4), -0.22 + ride2,
+    C.set([0.42 + ride, Math.max(0.08, OUT + ride2 + lean * 1.4), -0.22 - ride2,     // (x > 0: back from the shoulder; z: out from the side)
+      0.42 - ride * 0.7, Math.min(-0.08, -OUT + ride2 * 0.6 + lean * 1.4), -0.22 + ride2,
       0.05 + kick, 0.05, 0.42 + flutter - kick * 1.2,
       0.02 - kick, -0.04, 0.22 - flutter + kick * 1.2]);
-    B.set([0.36, OUT - 0.18, -0.05,
-      0.36, -(OUT - 0.18), -0.05,
+    B.set([0.34, 0.10, -0.05,
+      0.34, -0.10, -0.05,
       0.02, -0.012, 0.05,
       0.02, 0.012, 0.05]);
     for (let i = 0; i < 12; i++) P[i] = H[i] + (C[i] + (B[i] - C[i]) * b - H[i]) * fs;
@@ -296,10 +297,10 @@ export class Hero {
       if (onFoot && !motion.airborne && hspeed > 1.2 && Math.floor(this.gait / Math.PI - 0.5) !== Math.floor(g0 / Math.PI - 0.5)) {
         this.steps = (this.steps || 0) + 1; this.stepSide = this.stepSide ? 0 : 1; this.stepSpeed = hspeed;
       }
-      // (the arms: a small swing with the stride, held out from the sides and swept back as the
-      // pace rises, the sleeves streaming behind: a robed runner does not pump its fists)
-      const amp = Math.min(1, hspeed / 1.6), legA = 0.36 + 0.44 * run, armB = 0.20 + 0.10 * run;
-      const kneeK = 0.34 + 1.10 * run, elbow = 0.14 + 0.22 * run;
+      // (the arms work with the legs: a walker's easy swing, a runner's bent arms driving
+      // forward and back; at super speed they trail, swept back)
+      const amp = Math.min(1, hspeed / 1.6), legA = 0.36 + 0.44 * run, armB = (0.30 + 0.50 * run) * (1 - 0.7 * sup);
+      const kneeK = 0.34 + 1.10 * run, elbow = 0.10 + 0.14 * amp + 1.05 * run * (1 - 0.75 * sup);
       // In the air: legs tucked while rising, reaching down for the ground while falling.
       this.air += ((motion.airborne ? 1 : 0) - this.air) * (1 - Math.exp(-dt * 10));
       const rising = THREE.MathUtils.clamp((motion.vUp || 0) / 2, 0, 1);
@@ -331,8 +332,8 @@ export class Hero {
         const fold = Math.max(0, cs), knee = 0.06 + ga * (kneeK * fold * fold * (3 - 2 * fold) + 0.10 * run + 0.22 * run * give) + crouch * 1.4 + this.air * (0.35 + 0.95 * rising);
         F[6 + i * 3] = hip; F[7 + i * 3] = sd * (0.04 + 0.05 * this.air); F[8 + i * 3] = knee;
         // arms (index i) swing against the leg on the same side
-        F[i * 3] = armB * sn * ga + 0.02 + 0.40 * run * ga - this.air * 0.35 + crouch * 0.3;
-        F[1 + i * 3] = sd * (OUT + 0.10 * this.air - 0.06 * run);
+        F[i * 3] = armB * sn * ga + 0.04 + 0.50 * sup * ga - this.air * 0.45 + crouch * 0.3;
+        F[1 + i * 3] = sd * (OUT - 0.06 + 0.22 * this.air + 0.04 * run + 0.10 * sup);
         F[2 + i * 3] = -(elbow * (0.6 + 0.4 * ga) + 0.15 * this.air);
       }
       // (angles are relative to the torso, which leans KNEEL_LEAN forward with the hips
@@ -346,7 +347,7 @@ export class Hero {
         -0.95, -0.06, 1.40]));    // right leg: knee on the ground, shin along it
       // (rising: the arms pressed down and out a little, as if pushing off the air; it was a fist up)
       const L = this._launchPose || (this._launchPose = new Float32Array([
-        0.14, 0.50, -0.18,  0.14, -0.50, -0.18,  0.05, 0.02, 0.10,  0.02, -0.02, 0.22]));
+        0.14, 0.32, -0.18,  0.14, -0.32, -0.18,  0.05, 0.02, 0.10,  0.02, -0.02, 0.22]));
       for (let i = 0; i < 12; i++) F[i] += (K[i] - F[i]) * this.kneel + (L[i] - F[i]) * this.launch * (1 - this.kneel);
       const k = this.foot;
       for (let i = 0; i < 12; i++) P[i] += (F[i] - P[i]) * k;
@@ -407,7 +408,7 @@ export class Hero {
     // upright figure flipped the robe up round the waist and the hair over the head.
     {
       const al = wind.dot(head), cx = wind.x - head.x * al, cy = wind.y - head.y * al, cz = wind.z - head.z * al;
-      const cl = Math.hypot(cx, cy, cz), lim = (1.1 + 1.9 * this.foot) * env.gravity / (0.9 + 5.5 * air);     // (running, it streams out behind: three times its weight)
+      const cl = Math.hypot(cx, cy, cz), lim = (1.1 - 0.5 * this.foot + 0.9 * this.foot * sup) * env.gravity / (0.9 + 5.5 * air);     // (on foot the robe trails behind a runner at some thirty degrees, it does not fly: 0.6 of its weight; it was three times, right for a short cloak and a flag on this gown; at super speed 1.5)
       if (cl > lim) { const k = lim / cl - 1; wind.x += cx * k; wind.y += cy * k; wind.z += cz * k; }
     }
     // A breeze is always blowing through the robe and the hair (gently, from ahead and a

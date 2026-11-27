@@ -5,6 +5,7 @@
 //   node scripts/tree-preview.mjs [--out dir] [--variant 0|1|2] [--only 0,2,7] [--below]
 //                                 [--close [--from 4] [--tall 22] [--size 1540x721] [--fov 30]]
 //                                 [--against dir]
+//                                 [--year <species number> [--alt 1400] [--lat 45]]
 //
 // One sheet per four shapes: columns are shapes, rows are close, near and far.
 // --below: seen from under the crown, looking up (what a walker in a forest sees).
@@ -12,6 +13,9 @@
 // --close: one picture a shape of the close mesh from `from` metres off its foliage, at
 //   eye height, at the density of the phone (1540 x 721 through a 30 degree lens is what
 //   a 1 440 pixel screen shows of it): what a walker sees of a leaf.
+// --year n: one species (life/cover.js) through its year by the season's rule (life/season.js):
+//   a column a stage from bare in flower to bare again, rows close, near, far; under each its
+//   hemisphere's day, and how much of its leaves is gone.
 // --against dir: the same pictures from the tree code of another checkout (its src/life
 //   and scripts/lib), side by side, old on the left.
 import fs from 'node:fs';
@@ -36,7 +40,26 @@ const here = await load(new URL('..', import.meta.url).pathname), sets = against
 const list = (only || here.geos.map((_, i) => i));
 const look = (a) => ({ tall: 1, leaf: LEAF[a], trunk: TRUNK[a], petal: a === 8 ? PETAL : null });
 
-if (close) {
+const yearOf = opt('year', null);
+if (yearOf != null) {
+  const { SPECIES, treeLook } = await import('../src/life/cover.js');
+  const sp = SPECIES[+yearOf], a = sp.arch, alt = +opt('alt', 1400), lat = +opt('lat', 45), R = 250000, la = lat * Math.PI / 180;
+  const DAYS = [84, 100, 108, 116, 130, 200, 250, 262, 270, 278, 286, 296, 320], CW = 250, CH = 300, S = 250, W = CW * DAYS.length, img = Buffer.alloc(W * CH * 3 * 3), tl = {};
+  const side = sideView(S / (TALL[a] * 1.12), CW, CH);
+  const show = (c) => c.map((v) => Math.min(1, v * 3.2));
+  console.log(`${sp.name} at ${alt} m, latitude ${lat}:`);
+  DAYS.forEach((d, ci) => {
+    treeLook(sp, d, (R + alt) * Math.cos(la), 0, (R + alt) * Math.sin(la), R, +opt('own', 0.37), tl);
+    for (let lod = 0; lod < 3; lod++) {
+      sky(img, W, ci * CW, lod * CH, CW, CH);
+      const thin = lod === 2 ? tl.thin : tl.gone;
+      drawTree(here.geos[a][variant][lod], here.atlas, img, W, ci * CW, lod * CH, CW, CH, side, { tall: TALL[a], wide: WIDE[a], leaf: show([tl.r, tl.g, tl.b]), trunk: show(sp.trunk), petal: sp.blossom && tl.open > 0.5 ? show(sp.blossom.colour) : null, gone: thin, lod: lod === 2 ? 1 : 0 });
+    }
+    console.log(`  day ${d}: gone ${tl.gone.toFixed(2)}, in flower ${tl.open.toFixed(2)}, leaf ${[tl.r, tl.g, tl.b].map((v) => v.toFixed(3)).join(' ')}`);
+  });
+  const file = `${out}/tree_year_${sp.name.replace(/ /g, '_')}_${alt}m.png`;
+  fs.writeFileSync(file, png(W, CH * 3, img)); console.log(file);
+} else if (close) {
   const [cw, ch] = opt('size', '1540x721').split('x').map(Number), fov = +opt('fov', 30), from = +opt('from', 4);
   for (const a of list) {
     const W = cw * sets.length + 6 * (sets.length - 1), img = Buffer.alloc(W * ch * 3, 255), tall = +opt('tall', TALL[a]), counts = [];

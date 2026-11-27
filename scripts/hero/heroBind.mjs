@@ -124,6 +124,18 @@ function membership(m) {
     }
     [a, b] = [b, a];
   }
+  // Across a join the lesser garment gives way: the body before the skirt before a sleeve
+  // before the hair. On the lesser side a vertex is all the greater garment's at the join
+  // itself and its own from some way off; on the greater side it is its own throughout. (Half
+  // and half on both sides, an arm brought in to the side dragged the skirt's own cloth in
+  // with its sleeve, and the skirt was dented through itself at the hip: a ragged hole.)
+  const RANK = [0, 1, 2, 2, 3];
+  for (let v = 0; v < n; v++) {
+    const g = G[v], o = v * 5; let above = 0;
+    for (let h = 0; h < 5; h++) if (RANK[h] < RANK[g]) above += a[o + h];
+    const A = Math.min(1, 2 * above);
+    for (let h = 0; h < 5; h++) { if (h === g) a[o + h] = 1 - A; else if (RANK[h] < RANK[g]) a[o + h] = above > 1e-6 ? A * a[o + h] / above : 0; else a[o + h] = 0; }
+  }
   // (skin and boots are the body's alone, whatever cloth lies against them: a hand half
   //  given to its sleeve's cloth was drawn out of shape by it)
   for (let v = 0; v < n; v++) if (m.label[v] === L.skin || m.label[v] === L.boot || m.label[v] === L.brow || m.label[v] === L.lip) { a.fill(0, v * 5, v * 5 + 5); a[v * 5] = 1; }
