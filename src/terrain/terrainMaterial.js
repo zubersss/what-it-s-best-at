@@ -256,7 +256,7 @@ uniform vec4 uCanopyYear[8];
 uniform vec4 uLitterYear[8];   // the leaves lying in a wood, by height as uCanopyYear: rgb their colour, a: how much of the floor they cover
 uniform vec4 uLeafTree[8];     // the nearest trees with leaves under them (life/leaves.js TreeLeaves): xyz the foot from the eye (m), w the crown's radius (0: none)
 uniform vec4 uLeafTreeCol[8];  // ... rgb the colour of its fallen leaves, a: how much of them lies
-uniform vec4 uLeafDrift;       // xyz: where the wind carries them, in crown radii (planet axes); w: 1 while leaves lie anywhere near
+uniform vec4 uLeafDrift;       // xyz: where the wind carries them, in crown radii (planet axes); w: 1 while leaves lie anywhere near, 0.5 the same without each tree's own carpet (the governor's step leaf-carpet), 0 none
 uniform vec4 uCanopyAlt;       // x: the first entry's height (m); y: entries a metre; z: metres of height a degree toward the pole counts for; w: the latitude the entries are for (degrees from the equator)
 ${WAVE_GLSL}
 uniform float uTime;
@@ -587,7 +587,8 @@ void main() {
       float pale = smoothstep(0.30, 0.50, min(raw.r, min(raw.g, raw.b)));
       // (only where it can matter: where the land is pale, or high enough for new snow)
       if (pale > 0.0 || snowMay(vHeight, up)) {
-        float rough = flNoise(planetPos / 1500.0 + vec3(5.0, 2.0, 9.0)) + 0.4 * flNoise(planetPos / 310.0 + vec3(1.0, 7.0, 4.0)) - 0.7;
+        float rough = 0.0;
+        if (uSnowFine > 0.5) rough = flNoise(planetPos / 1500.0 + vec3(5.0, 2.0, 9.0)) + 0.4 * flNoise(planetPos / 310.0 + vec3(1.0, 7.0, 4.0)) - 0.7;
         snowHere = vec3(snowSeason(vHeight, up, N, ts, rough), pale);
         if (pale * snowHere.y > 0.0) raw = mix(raw, mix(vec3(0.215, 0.195, 0.115), vec3(0.20, 0.17, 0.14), rockW), pale * snowHere.y);
       }
@@ -715,7 +716,7 @@ void main() {
           float xl = clamp((vHeight + uCanopyAlt.z * (degrees(asin(clamp(abs(up.z), 0.0, 1.0))) - uCanopyAlt.w) - uCanopyAlt.x) * uCanopyAlt.y, 0.0, 6.999);
           int il = int(xl); vec4 ly = mix(uLitterYear[il], uLitterYear[il + 1], xl - float(il));
           float amt = ly.a * wooded * (1.0 + 1.5 * (1.0 - wooded)); vec3 colL = ly.rgb;
-          if (dist < 90.0) for (int i = 0; i < 8; i++) {
+          if (dist < 90.0 && uLeafDrift.w > 0.75) for (int i = 0; i < 8; i++) {
             vec4 lt = uLeafTree[i];
             if (lt.w <= 0.0) continue;
             vec3 dl = vRel - lt.xyz - uLeafDrift.xyz * lt.w;
