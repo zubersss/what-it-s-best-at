@@ -307,7 +307,7 @@ export class SkySystem {
     // The clouds' shade on the figure and the things near it: the shade probe's (C) where it has a
     // value, else the weather's at the traveller (Earth's maps). (No clouds: none of their shade.)
     const pv = this.noClouds ? null : this.probe.value, shade = own && !this.noClouds;
-    G.uWeather.value.set(pv ? pv.sun : shade ? wx.sunShade : 1, pv ? pv.sky : shade ? wx.skyShade : 1, own ? wx.wet : 0, own && this.rain.enabled ? wx.veil : 0);
+    G.uWeather.value.set(pv ? pv.sun : shade ? wx.sunShade : 1, pv ? pv.sky : shade ? wx.skyShade : 1, own ? wx.wet : 0, Math.max(own && this.rain.enabled ? wx.veil : 0, this.noClouds ? 0 : (this.fog?.eyeVeil || 0)));
     G.uFlash.value.copy(wx.flashLight);
     // (lightning inside the cloud: the flashes D hands over, else the one flash there is when it is in the cloud)
     this.cloudVolume.setBolts?.(wx.bolts ?? this._boltOf(wx, rig));

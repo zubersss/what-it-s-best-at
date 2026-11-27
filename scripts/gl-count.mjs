@@ -9,7 +9,8 @@
 // software-drawn frame takes ten seconds), then --steady frames at rest, a few with nothing drawn (the
 // four scenes hidden: what is paid whatever is on screen), the look round and the flight forward
 // of the benchmark. For every frame: each pass (a bind of a render target that is then drawn into
-// or cleared) with its draw calls, triangles and instances by material; whether the pass began
+// or cleared) with its draw calls, triangles, runs of the vertex shader and instances by material;
+// whether the pass began
 // with a whole clear (a tile-based GPU must otherwise read the target back in) or took up a target
 // left earlier in the frame; every texture and buffer upload with its bytes, what it is, and where
 // it fell (between frames, before the frame's first draw, between two passes, or inside a pass:
@@ -66,7 +67,7 @@ function install() {
       const [w, h] = fbSize(S.fb), id = idOf(S.fb);
       const seen = f.passes.some((q) => q.fb === id);
       const full = kind === 'clear' && (!S.scissor || (S.sbox[0] <= 0 && S.sbox[1] <= 0 && S.sbox[2] >= w && S.sbox[3] >= h));
-      p = { fbo: S.fb, fb: id, w, h, n: 0, draws: 0, tris: 0, inst: 0, clears: 0, first: full ? 'whole clear' : kind === 'clear' ? 'clear of a part' : 'draw', again: seen, area: 0, by: {} };
+      p = { fbo: S.fb, fb: id, w, h, n: 0, draws: 0, tris: 0, inst: 0, verts: 0, clears: 0, first: full ? 'whole clear' : kind === 'clear' ? 'clear of a part' : 'draw', again: seen, area: 0, by: {} };
       f.passes.push(p);
     }
     p.n++;
@@ -77,8 +78,11 @@ function install() {
     const t = (mode === 4 ? Math.floor(count / 3) : mode === 5 || mode === 6 ? Math.max(0, count - 2) : 0) * inst;
     p.draws++; p.tris += t; p.inst += inst > 1 ? inst : 0;
     p.area = Math.max(p.area, S.scissor ? Math.min(S.vp[2] * S.vp[3], S.sbox[2] * S.sbox[3]) : S.vp[2] * S.vp[3]);
-    const l = C.label || '(direct)', b = p.by[l] || (p.by[l] = [0, 0, 0]);
-    b[0]++; b[1] += t; b[2] += inst > 1 ? inst : 0;
+    // (runs of the vertex shader: every corner of an unindexed mesh, each vertex once of an indexed one, for every instance)
+    const v = (C.vtx || count) * inst;
+    p.verts += v;
+    const l = C.label || '(direct)', b = p.by[l] || (p.by[l] = [0, 0, 0, 0]);
+    b[0]++; b[1] += t; b[2] += inst > 1 ? inst : 0; b[3] += v;
   };
   wrap('drawArrays', function (o, a) { draw(this, a[0], a[2], 1); return o.apply(this, a); });
   wrap('drawElements', function (o, a) { draw(this, a[0], a[1], 1); return o.apply(this, a); });
@@ -153,7 +157,7 @@ function install() {
     const fbLabel = (id, w, h) => (id ? (C.fbName.get(id) || 'target ' + id) : 'the canvas') + ` ${w}x${h}`;
     const texLabel = (u) => { const t = u.tex && C.texNameOf ? C.texNameOf(u.tex) : null; return t || `texture ${u.w}x${u.h}${u.d > 1 ? 'x' + u.d : ''}`; };
     const rec = { tag: f.tag, ms: +(performance.now() - f.t).toFixed(1), passes: [], up: [], misc: f.misc, game: C.game ? C.game() : null };
-    for (const p of f.passes) rec.passes.push({ fb: fbLabel(p.fb, p.w, p.h), first: p.first, again: p.again, draws: p.draws, tris: p.tris, inst: p.inst, clears: p.clears, area: p.area, by: p.by });
+    for (const p of f.passes) rec.passes.push({ fb: fbLabel(p.fb, p.w, p.h), first: p.first, again: p.again, draws: p.draws, tris: p.tris, inst: p.inst, verts: p.verts, clears: p.clears, area: p.area, by: p.by });
     for (const u of f.up) {
       let where = u.where;
       if (!where) {
@@ -202,7 +206,12 @@ function install() {
       const rbd = r.renderBufferDirect.bind(r);
       r.renderBufferDirect = (camera, scene, geometry, material, object, group) => {
         C.label = C.matName.get(material) || material.name || material.type || '?';
-        try { return rbd(camera, scene, geometry, material, object, group); } finally { C.label = ''; }
+        // (how many vertices one instance of this draw runs the shader for)
+        // (the vertices of one instance: of whichever attribute is a vertex's and not an instance's; the ground's patches have no 'position')
+        let per = 0; for (const k in geometry.attributes) { const at = geometry.attributes[k]; if (!at.isInstancedBufferAttribute && !(at.data && at.data.isInstancedInterleavedBuffer)) { per = at.count; break; } }
+        const range = geometry.drawRange;
+        C.vtx = geometry.index ? per : Math.min(per, range.count < Infinity ? range.count : Infinity);
+        try { return rbd(camera, scene, geometry, material, object, group); } finally { C.label = ''; C.vtx = 0; }
       };
     }
     return { materials: C.matName.size, textures: C.texName.size, targets: C.fbName.size, buffers: C.bufName.size, walked: n };
@@ -277,12 +286,12 @@ function summary(stop, frames) {
   const of = (ph) => frames.filter((f) => f.tag === stop + ':' + ph);
   const k = (x) => (x >= 1e6 ? (x / 1e6).toFixed(2) + 'M' : x >= 1e3 ? (x / 1e3).toFixed(1) + 'k' : String(Math.round(x)));
   const kb = (b) => (b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).toFixed(0) + ' KB');
-  const tot = (f) => f.passes.reduce((a, p) => { a.draws += p.draws; a.tris += p.tris; a.inst += p.inst; return a; }, { draws: 0, tris: 0, inst: 0 });
+  const tot = (f) => f.passes.reduce((a, p) => { a.draws += p.draws; a.tris += p.tris; a.inst += p.inst; a.verts += p.verts || 0; return a; }, { draws: 0, tris: 0, inst: 0, verts: 0 });
   const avg = (list, fn) => (list.length ? list.reduce((a, f) => a + fn(f), 0) / list.length : 0);
   const line = (name, list) => {
     if (!list.length) return;
     const up = (f, inside) => f.up.filter((u) => !u.kind.endsWith('alloc') && (!inside || u.where.startsWith('inside'))).reduce((a, u) => a + u.bytes, 0);
-    console.log(`  ${name.padEnd(14)} ${String(list.length).padStart(3)} frames · a frame: ${avg(list, (f) => f.passes.length).toFixed(1)} passes, ${avg(list, (f) => tot(f).draws).toFixed(0)} draw calls, ${k(avg(list, (f) => tot(f).tris))} triangles, ${k(avg(list, (f) => tot(f).inst))} instances · uploads ${kb(avg(list, (f) => up(f)))} (${kb(avg(list, (f) => up(f, true)))} inside a pass) · the page's own work ${avg(list, (f) => f.game?.own || 0).toFixed(1)} ms`);
+    console.log(`  ${name.padEnd(14)} ${String(list.length).padStart(3)} frames · a frame: ${avg(list, (f) => f.passes.length).toFixed(1)} passes, ${avg(list, (f) => tot(f).draws).toFixed(0)} draw calls, ${k(avg(list, (f) => tot(f).tris))} triangles, ${k(avg(list, (f) => tot(f).verts))} runs of a vertex shader, ${k(avg(list, (f) => tot(f).inst))} instances · uploads ${kb(avg(list, (f) => up(f)))} (${kb(avg(list, (f) => up(f, true)))} inside a pass) · the page's own work ${avg(list, (f) => f.game?.own || 0).toFixed(1)} ms`);
   };
   for (const ph of ['arrive', 'settle', 'steady', 'nothing drawn', 'look', 'fly']) line(ph, of(ph));
   // -- growth: the first frames after the jump against the frames at rest
@@ -307,7 +316,7 @@ function summary(stop, frames) {
         r.order += i; r.n++; r.draws += p.draws; r.tris += p.tris; r.inst += p.inst; r.again += p.again ? 1 : 0; r.area = Math.max(r.area, p.area);
         r.min = Math.min(r.min, p.tris); r.max = Math.max(r.max, p.tris);
         r.first.set(p.first, (r.first.get(p.first) || 0) + 1);
-        for (const [l, b] of Object.entries(p.by)) { const x = r.by.get(l) || [0, 0, 0]; x[0] += b[0]; x[1] += b[1]; x[2] += b[2]; r.by.set(l, x); }
+        for (const [l, b] of Object.entries(p.by)) { const x = r.by.get(l) || [0, 0, 0, 0]; x[0] += b[0]; x[1] += b[1]; x[2] += b[2]; x[3] += b[3] || 0; r.by.set(l, x); }
         rows.set(key, r);
       });
     }
@@ -315,10 +324,10 @@ function summary(stop, frames) {
       const first = [...r.first].sort((a, b) => b[1] - a[1]).map(([f, c]) => (c === r.n ? f : `${f} ${c}/${r.n}`)).join(', ');
       console.log(`    ${r.key}${r.n < list.length ? ` [in ${r.n} of ${list.length} frames]` : ''}: ${(r.draws / r.n).toFixed(1)} calls, ${k(r.tris / r.n)} tris${r.max > r.min * 1.05 + 10 ? ` (${k(r.min)} to ${k(r.max)})` : ''}${r.inst ? ', ' + k(r.inst / r.n) + ' inst' : ''} · begins with a ${first}${r.again ? ' · TAKEN UP AGAIN after another target' : ''} · up to ${k(r.area)} px`);
       const by = [...r.by].sort((a, b) => b[1][1] - a[1][1] || b[1][0] - a[1][0]);
-      console.log('        ' + by.slice(0, 14).map(([l, b]) => `${l} ${(b[0] / r.n).toFixed(b[0] % r.n ? 1 : 0)}c ${k(b[1] / r.n)}t${b[2] ? ' ' + k(b[2] / r.n) + 'i' : ''}`).join(' · ') + (by.length > 14 ? ` · and ${by.length - 14} more` : ''));
+      console.log('        ' + by.slice(0, 14).map(([l, b]) => `${l} ${(b[0] / r.n).toFixed(b[0] % r.n ? 1 : 0)}c ${k(b[1] / r.n)}t ${k(b[3] / r.n)}v${b[2] ? ' ' + k(b[2] / r.n) + 'i' : ''}`).join(' · ') + (by.length > 14 ? ` · and ${by.length - 14} more` : ''));
     }
   };
-  table(st, 'at rest, pass by pass (c: draw calls, t: triangles, i: instances, a frame):');
+  table(st, 'at rest, pass by pass (c: draw calls, t: triangles, v: runs of the vertex shader, i: instances, a frame):');
   table(of('nothing drawn'), 'with the four scenes hidden (what is paid whatever is on screen):');
   // -- one frame and the next: the frames at rest side by side
   if (st.length >= 4) {

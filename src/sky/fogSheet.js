@@ -25,7 +25,8 @@ export const FOG_LOOK = Object.freeze({
                      // its top itself is level, as a lake of mist is)
   ALPHA: 0.96,       // the most it takes of what is behind it
   LAKE: 34, LAKE_DEEP: 30,   // m of mist over a lake's deep water where the field has fog, and the water's depth at which it is all there (thin at the shore)
-  UNDER: 24,         // m under its top at which the eye no longer sees the sheet from below (see the fragment shader)
+  VEIL: 0.0045,      // 1/m: the air's veil for an eye inside the mist (one sees some 250 m; 500 m off the water is gone into it)
+  VEIL_IN: 14,       // m of mist over the eye at which that veil is all there
   SHADE: 0.4,        // the share of the Sun's light it keeps in the land's shadow (cooler there, never the sky's blue alone)
   EXT: 55,           // m of mist along the line of sight that takes 63 % of what is behind it (thin at its edge: the water and the far shore show through)
   RAG: 0.55,         // how far the lumps thin and thicken its depth (its edge broken into tongues) ...
@@ -133,11 +134,8 @@ void main() {
   // (looked up through, little; looked along, all of it: no ceiling over one who stands in it)
   float path = sinE < 0.0 ? d / max(-sinE, 0.22) : min(max(length(planetPos) - length(uCamPlanetPos), 0.0), d) / max(sinE, 0.05);
   float alpha = ${glf(F.ALPHA)} * smoothstep(${glf(F.EDGE0)}, ${glf(F.EDGE1)}, vFog) * (1.0 - exp(-path / ${glf(F.EXT)}));
-  // From INSIDE the mist the sheet cannot veil what lies below the eye (it is over the eye): one
-  // stood under a warm lid with clear water at one's feet. Until the weather's own veil knows of
-  // this mist, the sheet is seen from above and from its own top only: it fades out as the eye
-  // sinks under it, gone UNDER m below its top.
-  if (sinE > 0.0) alpha *= 1.0 - smoothstep(3.0, ${glf(F.UNDER)}, length(planetPos) - length(uCamPlanetPos));
+  // (from INSIDE the mist the sheet is over the eye and veils the sky; what lies below the eye's
+  // level is veiled by the air's own veil, which the sheet hands the sky system: eyeVeil)
   if (alpha < 0.01) discard;
   // the dawn's colour: the sky's cool light everywhere, and the low Sun's warm one where the land
   // lets it through (the mist in a mountain's shadow is blue-grey, the tongue the Sun has reached gold)
@@ -181,6 +179,7 @@ export class FogSheet {
     this.landTex = new THREE.DataTexture(this.landBytes, F.N, F.N, THREE.RGBAFormat, THREE.UnsignedByteType);
     this.landTex.minFilter = this.landTex.magFilter = THREE.NearestFilter; this.landTex.generateMipmaps = false; this.landTex.flipY = false; this.landTex.colorSpace = THREE.NoColorSpace;
     this.uniforms.tFogLand.value = this.landTex;
+    this.eyeVeil = 0;                // 1/m: the air's veil for an eye inside the mist (see _eye)
     this.land = null;                // () => the page's height source (terrain.hs): set by the sky system
     this._landAnchor = null; this._sunAt = 0; this._landDirty = false; this._landAge = 0; this.landAsked = 0;
     const mat = new THREE.ShaderMaterial({
@@ -206,6 +205,8 @@ export class FogSheet {
   update(c) {
     const sky = c.sky, R = sky?.R || 0;
     this.ready = false;
+    // (the veil goes when the mist does: eased off here, and set again by _eye while there is mist)
+    this._veilWas = this.eyeVeil; this.eyeVeil = c.sky?.shotMode || this.eyeVeil < 1e-6 ? 0 : this.eyeVeil * 0.92;
     if (this.held || !R || !sky.field?.on || sky.noClouds || this.off || !this.uniforms.tCloudNoise.value) return;
     const step = this.uniforms.uStep.value, p = c.rig.pos;
     // The lattice's middle: the traveller's place snapped to whole steps, kept until it is a
@@ -249,6 +250,25 @@ export class FogSheet {
     u.uEast.value.set(east[0], east[1], east[2]); u.uNorth.value.set(north[0], north[1], north[2]);
     this._land(east, north, R);
     this.ready = true;
+    this._eye(c, R);
+  }
+
+  // The eye inside the mist: how much mist stands over it, by the same rule the sheet is laid by
+  // (the field's fog top at the eye, or the water's surface and the mist that stands on it), and
+  // from that the air's own veil (eyeVeil, 1/m), which the sky system puts into what every lit
+  // thing reads (uWeather.w, beside the rain's). Eased, so that walking into the mist it comes on.
+  _eye(c, R) {
+    const hs = this.land ? this.land() : null, here = c.sky?.here, p = c.rig.pos;
+    let want = 0;
+    if (hs && here && here.field.fogTop > 0) {
+      const l = p.length(), g = hs.height(p.x / l, p.y / l, p.z / l, F.LAND_WL), wd = hs.waterDepth > 0 ? hs.waterDepth : 0;
+      const surf = Math.max(0, g + wd), k = Math.min(1, Math.max(0, wd / F.LAKE_DEEP));
+      const top = wd > 0 ? Math.max(here.field.fogTop, surf + F.LAKE * k * k * (3 - 2 * k)) : here.field.fogTop;
+      const over = top - (l - R), t = Math.min(1, Math.max(0, over / F.VEIL_IN));
+      want = top > surf ? F.VEIL * t * t * (3 - 2 * t) : 0;
+    }
+    const was = this._veilWas || 0;
+    this.eyeVeil = was + (want - was) * (c.sky?.shotMode ? 1 : 0.08);
   }
 
   // The real surface under every point of the lattice, and the land's shadow on it. The lattice

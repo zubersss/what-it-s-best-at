@@ -64,7 +64,8 @@ const need = (s, re, what) => { const m = s.match(re); if (!m) { broken(`the sha
 const SCRAMBLE = ['int k = gl_InstanceID % uBlockN, lid = gl_InstanceID / uBlockN;', 'float code = uBlocks[k >> 2][k & 3];', `vec2 w = vec2(mod(code, ${NB}.0), floor(code / ${NB}.0)) * float(BW) + vec2(float(lid % BW), float(lid / BW));`, 'if (max(w.x, w.y) >= float(GRID)) { own = vec2(0.0); return vec2(1.0e6); }'];
 const rules = fields.map((fl) => {
   const vs = fl.mesh.material.vertexShader, defs = fl.mesh.material.defines;
-  for (const s of SCRAMBLE) if (!vs.includes(s)) broken(`${name(fl)}: the instances' order is no longer "${s}" (bring the replay in step)`);
+  // (a ring's instances are dealt to its blocks; a field of flowers has its cells as a list)
+  for (const s of fl.list ? ['vec2 w = aCell;'] : SCRAMBLE) if (!vs.includes(s)) broken(`${name(fl)}: the instances' order is no longer "${s}" (bring the replay in step)`);
   const rc = need(vs, /\bvec2 rc = ([^;]+);/, 'cell middle (vec2 rc = ...)'), own = need(vs, /\n\s*own = ([^;]+);/, "cell's number (own = ...)");
   if (!rc || !own) return null;
   // (which cells a thinned field keeps: a rule of the cell's own number, and the share it is held against)
@@ -87,7 +88,7 @@ const rules = fields.map((fl) => {
 // reserved word of GLSL ES 3: no browser here to compile them, and a shader that fails draws nothing)
 const pollen = new Pollen(grass, terrain.shared);
 for (const [who, mat] of [...fields.map((fl) => [name(fl), fl.mesh.material]), ['pollen', pollen.material]]) {
-  if (/latticeCell/.test(mat.vertexShader)) for (const d of ['GRID', 'SPACING', 'HALF', 'SEED', 'BW']) if (!(d in mat.defines)) broken(`${who}: the shader compiles the grass's lattice but has no ${d}`);
+  if (/latticeCell/.test(mat.vertexShader)) for (const d of ['GRID', 'SPACING', 'HALF', 'SEED', ...(/uBlockN/.test(mat.vertexShader) ? ['BW'] : [])]) if (!(d in mat.defines)) broken(`${who}: the shader compiles the grass's lattice but has no ${d}`);
   if (/\b(patch|sample|filter|input|output|common|active|partition|half)\b/.test(mat.vertexShader.replace(/\/\/.*$/gm, ''))) broken(`${who}: a reserved word of GLSL ES 3 in the shader`);
 }
 if (failed) { console.log('grass places: the replay cannot run'); process.exit(1); }
@@ -147,12 +148,19 @@ const route = [[0, 0], [-300, 0], [-300, -300], [300, 300], [300, 0], [700, 130]
 fields.forEach((fl, k) => {
   const r = rules[k], G = r.grid, BW = r.bw, n = fl.blockN.value, codes = fl.blocks.value, seen = new Uint8Array(G * G);
   let twice = 0, none = 0;
+  if (fl.list) {
+    // (a field of flowers: the list it draws until cull() has chosen is every cell)
+    const g = fl.mesh.geometry, a = g.attributes.aCell.array;
+    if (g !== fl.geo || g.instanceCount !== G * G) broken(`${name(fl)}: a field of flowers that has not been culled draws ${g.instanceCount} cells, not its ${G * G}`);
+    for (let i = 0; i < g.instanceCount; i++) { const wx = a[i * 2], wy = a[i * 2 + 1]; if (wx !== Math.floor(wx) || wy !== Math.floor(wy) || wx < 0 || wy < 0 || Math.max(wx, wy) >= G) { twice++; continue; } if (seen[wy * G + wx]++) twice++; }
+  } else {
   if (n !== NBLOCKS || fl.geo.instanceCount !== NBLOCKS * BW * BW) broken(`${name(fl)}: a field that has not been culled hands over ${fl.geo.instanceCount} instances in ${n} blocks, not every block`);
   for (let i = 0; i < fl.geo.instanceCount; i++) {
     const b = i % n, lid = Math.floor(i / n), code = codes[b];
     const wx = mod(code, NB) * BW + (lid % BW), wy = Math.floor(code / NB) * BW + Math.floor(lid / BW);
     if (Math.max(wx, wy) >= G) continue;
     if (seen[wy * G + wx]++) twice++;
+  }
   }
   for (let q = 0; q < G * G; q++) if (!seen[q]) none++;
   if (twice || none) broken(`${name(fl)}: of the window's cells ${none} are drawn by no instance and ${twice} by more than one`);

@@ -499,3 +499,59 @@ would be rewritten) and the three frames a camera step apart from 1 km and from 
 The second is `npm run stability`'s way and takes this machine about two hours; it should be
 run on the merged head by whoever has the machine free, with the clouds' hand-over at 16 km
 and a heap's edge in view.
+
+## Third list (the owner's session, 2026-11-27 12:54)
+
+**(1) The veil for mist that stands on water** (`mist_shore_veil.png` against
+`mist_shore_after.png`). The fog sheet works out how much mist stands over the eye by the very
+rule it is laid by (the field's fog top at the eye, or the water's surface and the mist on it)
+and hands the sky system the air's own veil for it (`fogSheet.eyeVeil`, 0.0045 a metre with
+14 m of mist overhead: one sees some 250 m), which goes into what every lit thing reads beside
+the rain's (`uWeather.w`, `sky/skySystem.js`; not in `weather.js`, which does not know the
+sheet: one rule, one writer). Eased on and off. The sheet is seen from inside again (the
+second list's fade is taken out): it is the mist over the eye, the veil is the mist in front
+of it. From the shore: pale water going into the veil, no horizon. The veil's colour is the
+rain veil's (the sky's light), a little cooler than the sheet above the horizon.
+
+**(5) The weather's season is the life's** (`weather/sky/model.js seasonOf`): where the world
+keeps a year of its own (the world file's `year`, handed to the producer and its worker as
+`opts.year` by `sky/skyField.js`), the model's `season` is `northSummer(lifeDay(...))` of
+`life/season.js` instead of the Sun's declination / 23.44. It moves the systems' tracks, the
+tropical line and the temperature (so rain against snow); the Sun's height and the day's
+length stay the Sun's. For the seasons helper: `at().temp` and `at().snow` are now in the
+life's season, so fresh snow needs no 900 m limit against the season's line on that account;
+the place to take it out is where that limit is applied (`snowFell` in `life/season.js`, its
+caller in `src/app.js`), which is not mine and is not touched. On the scene's own day the two
+seasons agree (life day 265 is the equinox), so the opening day's weather is as it was; the
+front's and the Crown's days are 0.2 and 0.3 of a season cooler in the north (checked: the
+storm, the front's deck and the Crown's bank are where their views look). The scripts that
+build the model pass the year too (`sky-scan`, `find-weather`, `sky-model-test`). One limit of
+`sky-model-test` was moved from 0.25 to 0.3 and the reason is written beside it (the worst
+single texel's change on its chosen calm day; on other days it is 0.4 to 1.0 with either
+season).
+
+**(2) The clouds in motion.** In Node (`node scripts/sky-boil-test.mjs`; `--break slide`
+fails): the two readings of the noise are in one frame, so sideways the masses and their lumps
+go together; upward the lumps rise through the masses at the steering's 0.5 m/s. In 60 s of
+the clock at most 5.3 % of a heap's cloud appears or goes in its own frame (cover 0.5; 3.8 %
+at full cover): heaps drift whole, their lumps creeping. In the game, `npm run stability`'s
+way, two new moves (`haven_heaps_air`, `haven_heaps_ground`): results below when in.
+
+**(2), in the game** (`node scripts/stability.mjs --only haven_heaps_air` and
+`haven_heaps_ground`, settled frames one camera step apart, on the build of this list):
+- from 3 km among the heaps at noon, two stations (`motion_heaps_air_0.png`, `_1.png`):
+  0.11 % and 0.10 % of the pixels change between frames, flicker 0.001 % and 0.003 %. The
+  difference picture is thin lines along the heaps' edges (the camera's own step) and one
+  small speckled patch inside a near heap at the bottom right of station 0 (the march's
+  grain where the eye is close to cloud). Nothing pops.
+- from the ground under heaps at noon, one station (`motion_heaps_ground_0.png`; the run said
+  "not ready in time" and took what was on screen): 39 % changed and 7.8 % flicker, ALL of
+  it in the grass, which waves; the sky's part of the difference picture is black. The
+  heaps overhead are steady, white on top and lilac underneath.
+- not run: `--streaming` (pops while ground arrives), the hand-over at 16 km in a long
+  flight, the shade map's new turns seen on the ground while walking, the mist's veil coming
+  on as one walks into it.
+
+**(3)** was cured under the second list. **(4) The anvil: not done.**
+
+SKY-SECOND-DONE (2026-11-27), with the anvil left.
