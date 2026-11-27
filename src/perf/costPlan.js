@@ -8,7 +8,7 @@
 // large, and set against its own neighbours the drift does not reach it. The two takes are
 // printed side by side: a number that does not repeat is not one.
 export const GROUPS = [
-  { id: 'sky', label: 'the sky (clouds of every kind, their shadows, fog, the far pass)', parts: ['sky', 'clouds-all', 'cloud-upper', 'cells-far', 'rain-shafts', 'fog', 'lenses'] },
+  { id: 'sky', label: 'the sky (every pass of it: clouds of every kind, their shadows, the weather maps, fog, the far pass)', parts: ['sky', 'sky-all', 'clouds-all', 'cloud-upper', 'cells-far', 'rain-shafts', 'fog', 'lenses'] },
   { id: 'forest', label: 'the forest (trees near and far)', parts: ['trees', 'far-forest'] },
   { id: 'grass', label: 'grass and flowers', parts: ['grass'] },
   { id: 'shadows', label: 'the shadow maps', parts: ['shadow-maps'] },

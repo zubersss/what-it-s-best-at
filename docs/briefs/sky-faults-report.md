@@ -161,7 +161,7 @@ drew before, so this is new on mornings with fog: its governor step `fog-sheet` 
 unchanged); 81 questions of the field every 60 s of the clock or 3 km flown in place of 25.
 A bookmark's `alt` costs nothing.
 
-## Fault 2: a storm 64 km off is a pale ghost — IN PROGRESS (three causes found, three cures in)
+## Fault 2: a storm 64 km off is a pale ghost — FOUR CAUSES, FOUR CURES; THE ANVIL NOT DONE
 
 **The causes**, told apart in one browser session with `scripts/sky-probe.mjs` (the view loaded
 once, a part switched off for each picture: `storm_probe_parts.png`, `storm_probe_nohaze.png`):
@@ -189,9 +189,256 @@ once, a part switched off for each picture: `storm_probe_parts.png`, `storm_prob
 
 **Pictures** (`shot=storm`, 16:15, from 30 km): `storm_60km_ground.png` (the first try, from
 open ground 60 km off: the top third over a ridge), `storm_30km_1_haze.png` (cure 2 alone),
-`storm_30km_2_window.png` (cures 2 and 3), `view_storm.png` (all four; being taken).
+`storm_30km_2_window.png` (cures 2 and 3), `view_storm.png` (all four: a sunlit right half, a
+slate shade side, the anvil over it, heaps in front).
+
+**Cost**: nothing on a day without a storm. With one: the tower's own steps beyond the reach
+half again (12 for 8, on the few pixels its hull covers), one evaluation of the hull's own
+direction a step inside a tower (arithmetic, no read), and in the mid and high shells one
+chord test a cell (at most 8, arithmetic) on pixels that have cover.
 
 **Not done**: the anvil is still a sheet of no thickness on the high shell, 9.6 km in radius
 over a tower 4.4 km in radius: a plate over a column. Sky B's report said where the cure
 belongs (the flare in the cell's own shape, `weather/sky/cellShape.js`, marched with it);
 that is a rewrite of the cell's exact chords and is not begun.
+
+## Fault 5: from high above the clouds are flat — THE HEAPS REDONE, THE MIDDLE LAYER FROM ABOVE; THE REST LISTED
+
+The critic's words (`haven-rich-critic-2.md`, gap 2): at 3 km "one flat beige-khaki cloud
+mass ... no sunlit top, no coloured shade side and no readable edge"; lower, cream cut-outs
+in one tone and rows of dashes at the horizon. With fault 1 cured the true field was on
+screen for the first time, and that is exactly what it was (`look_high_before.png`).
+
+**What the pictures are made of** (asked before tuning anything, in Node and with the probe):
+
+1. **The slab.** The model's heap cover reaches 0.9 to 1.0 in the middle of every field of
+   heaps, and the rule cut the cloud at that cover: seen from above a cover of 0.6 was cloud
+   over three quarters of the sky and 0.8 over all of it (the union of every level of a noise
+   as deep as the layer: CLAUDE.md's lesson about a grey lid). A heap cover is not a lid; a
+   lid is a SHEET, the field's other cover.
+2. **The rows of dashes.** The noise the heaps are cut from repeats every 4.2 km on Haven
+   (`clouds.volume.scale`). Cut from it alone a field of heaps was crumbs a kilometre wide
+   standing in rows 4.2 km apart: `above_rows_before.png` (`node scripts/sky-above.mjs`,
+   the low cloud from straight above, 60 km across).
+3. **One tone.** A heap's shade side kept 0.64 of the Sun's light in the Sun's own colour, and
+   the bright rim round the Sun (the forward lobe) was added to shade and light alike: looked
+   at toward the Sun a heap was as bright on its shade side as on its lit side. Beige on
+   beige.
+4. **Flat far heaps.** Beyond the volume's reach (16 km) the layer was read once, at one
+   height, on a sheet: a heap had no top, no side and no underside.
+5. **The storm tower** (fault 2) and **the middle cloud seen from above** (below).
+
+**What was changed** (all in the shared rule `sky/skyGlsl.js`, the march `sky/cloudVolume.js`,
+the far shell `sky/clouds.js`, the look's numbers now in `sky/cloudLook.js`; the JS twins
+changed with the GLSL, and the parity tests pass):
+
+- **Heaps stay heaps** (`CLOUD_RULE.CARVE0/1`): the field's heap cover c is cut at
+  k = 0.35 + 0.29 c (eased in from nothing below c = 0.12). Seen from straight above: cloud
+  over 12 % of the sky at c = 0.3, 25 % at 0.6, 49 % at 1.0; the one-height reading (the
+  shade atlas's, and the far shell's under `cloud-far`) is within 11 points of it (it was 45 %
+  against 74 % at 0.6). Sheets are
+  untouched: an overcast is still an overcast.
+- **The great masses** (`MASS_K`, `MASS_W`): the field's cloud is cut from two readings of
+  the noise, its own and one 3.2 times as coarse (repeating every 13.5 km, never in step with
+  the first), 0.55 of the coarse one, stretched back to one reading's spread. Masses two to
+  five kilometres across with lumps on them, and no rows: `above_masses_after.png`. The
+  coarse reading does not rise, so the masses stand while their lumps boil up through them.
+  One more read of the noise a step of the march (read once and handed to the look toward
+  the Sun): 4 a step where it was 3, the plan's own limit.
+- **Two tones** (`CLOUD_LOOK.SHADE` 0.42, `SHADE_TINT` lilac, `UNDER` 0.72): where the Sun
+  strikes, its own warm white; the shade side 0.42 of it turned lilac, the flat underside a
+  step darker again, and no forward glow in the shade. Decks keep their greys.
+- **Far heaps have height** (`sky/clouds.js`): beyond the reach each line of sight is
+  followed through the layer at three heights, the one the eye meets first first, each read
+  where the sight line itself crosses that height; the first one met gives the tone (top,
+  side or underside), with one look toward the Sun as the volume has. Clear sky now ends at
+  one read of the field (it was three reads everywhere). Governor step **`cloud-far`**
+  (after `pollen`, before `cloud-upper`; pinned in `scripts/sky-system-test.mjs`): one
+  height again, flat, the same clouds in the same places.
+- **Earth is as it was**: a world without a field keeps its own rule (`skyPlainAt`: the fine
+  reading alone, cut at the cover itself), in the march and in the shell.
+- **The middle layer from above** (`sky/upperClouds.js`): seen from above a veil of it thin
+  enough to see through was a grey film on the country; from above only, it keeps its lumps'
+  two tones and what is less than half there is cut to a clean edge. From below it is as it
+  was.
+
+**Pictures** (reference shape, the default game; `before` is fault 1's build, so the true
+field under the old look):
+
+| view | before | after |
+|---|---|---|
+| 3 km over the ledge at noon, toward the Sun, 12 down (`alt=4500&heading=30&pitch=-12&t=4`) | `look_high_before.png` | `look_high_after.png`, `look_high_after2.png` (the head) |
+| 5.5 km over the ledge, 20 down, 14:00 (`alt=7000&heading=200&pitch=-20&t=6`) | `look_7k_before.png` | `look_7k_after.png` |
+| 1.7 km over the ledge toward the afternoon Sun (`alt=3200&heading=300&pitch=2&t=6.5`) | `look_side_before.png` | `look_side_after.png` |
+| the brief's noon view (`alt=2513&heading=200&t=4`) | `noon_air_after.png` (fault 1) | `look_noon_after.png` |
+
+**The floor** (`?debug=floor`, every saving on): `look_high_floor.png`.
+
+**Cost** (counts, never a frame rate):
+- The march, `node scripts/cloud-cost.mjs --only reads` at the high view on both builds: **4
+  reads a step** out of the rise's fade where it was 3 (6 for 5 in the fade), which is the
+  plan's own limit and the tool's check; and cloud on **22 861 pixels of the small picture
+  where it was 100 935** (separate heaps, not a slab): about a third of the reads at that
+  view. A day of decks gains nothing and pays the one read more.
+- The far shell: clear sky, one read of the field where it was one and two of the noise; a
+  pixel with cloud, one read of the field and eight of the noise (three heights of two, and
+  the look toward the Sun) where it was three in all. Governor step `cloud-far` (buys: a
+  guess of 1.0 ms until the phone's cost table has it) takes it to two and one.
+- The upper shells from above: no more reads (the two tones' second read was already made
+  under a veil's edge; it is now made under all of a veil seen from above).
+- **Not measured on the phone.** The owner's session should ask for a Haven benchmark in
+  Sharp after merging this: the cost table's rows for `cloud-far`, `cloud-volume` and
+  `cloud-steps` are the ones to read.
+
+**Not done / known wrong** (in the order I would take them):
+1. **Thin tall turrets** were reduced late, not ended (`CLOUD_RULE.TOP_LOW`: a dome's height is taken 0.6
+   from the coarse reading; from the lumps' reading a dome stood a kilometre or two tall on a
+   foot a few hundred metres wide: the white spike on the near heap in `crown_spike.png`, the
+   comb at the left of `look_side_after.png`, which was taken before this). `view_crown.png`
+   and `look_high_after2.png` are after it: the spike on the near heap is half as tall and
+   still there, and the heaps' tops are broader and lower. The other `look_*_after` pictures
+   and `view_storm.png`, `view_mist.png`, `view_front.png` were taken before this last change
+   (builds f7 to f9 of the same day); the rule's tests pass on the head.
+2. **The near heaps' outline is stepped** at the reference size (`look_noon_after.png`): the
+   march's small picture is a quarter of the view each way and the clean cut is made from
+   it. It was so before; a white heap on a blue sky shows it more than a beige one on beige.
+3. **The anvil** is a sheet on the high shell (fault 2).
+4. **The middle layer changes as one climbs through it**: its thin veils are cut away from
+   above and kept from below. At the crossing the layer is edge on, but the far part of it
+   changes as one rises through 5 km.
+5. **The clouds' shadows on the ground from high above are faint**: the shade atlas has them
+   (the forest under the big heap in `look_high_after.png` is darker), but the look lifts
+   shade from the air (`look.aloft.lift`), which is the ground's shader and shared; not
+   touched.
+6. **The far heaps' tone from above at noon is white all over**: a top is lit, and from above
+   one sees tops; the side and the underside show from beside and below. Not judged yet from
+   a low Sun at 10 km and more.
+7. **Not looked at in motion.** Every picture here is a standing camera. The rule changes
+   are of the kind that cannot slide (no value hangs on the traveller; the three heights are
+   read where the sight line crosses them, which is the same world point from anywhere), but
+   `npm run stability` and a flight through the hand-over at 16 km have not been run on this
+   build: this machine takes two hours for them and they were left for the main session.
+8. **The model's fog under lakes** (fault 4) and its thinness.
+
+## Checks
+
+On the head of this branch: `node scripts/sky-slots-test.mjs`, `fog-sheet-test`,
+`cloud-volume-test`, `cloud-shade-test`, `sky-system-test`, `sky-list-test`, `sky-steer-test`,
+`sky-format-test`, `sky-cell-test`, `weather-test` and `./scripts/build-check.sh` pass.
+`sky-model-test` passes when the machine is quiet (a snapshot in 534 ms against 600 allowed);
+its timing check fails when a headless browser renders beside it on this machine's four cores
+(625 ms), and the model's code is untouched (`git diff` over `src/weather` is empty).
+Every picture run checked every shader
+against a phone's limits (`scripts/shots.mjs`): none over. `npm run smoke` was not run.
+
+New checks that fail when what they guard is broken: `sky-slots-test --break reslot`,
+`fog-sheet-test --break country`.
+
+SKY-FAULTS-DONE (2026-11-27): faults 1 to 4 cured as written above; fault 5's heaps and far
+heaps redone and the list of what is left is under it. (Sent before I had read four notes from
+the owner's session that were queued while I worked: what they asked is below.)
+
+## After the brief: what the owner's session asked in its notes (2026-11-27, later)
+
+### The mist must be mist, not a plate (`view_mist.png` was a flat white sheet with a ruler's edge)
+
+**What the plate was made of**: one level sheet at the fog's top, as opaque at its rim as in
+its middle (it knew nothing of the ground under it: where the ground rose through it the depth
+test cut it, a hard line), lit by the Sun whether or not a mountain stood in the way.
+
+**What it is now** (`src/sky/fogSheet.js`):
+- **It knows the real surface under it.** Every point of its lattice (129 x 129 over 60 km,
+  fixed to the world) asks the page's own height function once what stands there, water
+  counted as its surface, and keeps it in a small texture (four bytes a point). The mist's
+  depth at a place is its top less that: where a hollow is a lake whose water stands over the
+  model's fog, there is none (the model's fog on lake beds is no longer drawn at all).
+- **Thin at its edges, thick in its middle**: what it takes of the picture behind it goes by
+  the length of mist on the line of sight (63 % in 55 m), so the shore and the water show
+  through its rim and its middle is white. Seen from inside it, the same rule: looked up
+  through, little; looked along, all of it. No ceiling over one who stands in it.
+- **Feathered and broken**: its depth is thinned and thickened by lumps 900 m across that
+  drift with the ground wind, and finer wisps take up to 16 m from it: the edge is where the
+  ground rises through that, in tongues.
+- **A soft top**: its vertices rise and fall with the same lumps, by up to a third of its
+  depth (28 m at most).
+- **The dawn's colour**: the land's own shadow on it is asked of the same height function (a
+  short look toward the Sun from each point of the lattice, 32 points a frame); in a
+  mountain's shadow it keeps 0.4 of the Sun's light and is cool, where the low Sun reaches it
+  it is warm.
+- **Mist lies on water.** The valley of the mist view is a LAKE in the game (the land's maker
+  floods every pit; its surface is at 489 m, the model's fog top between 390 and 506 m across
+  it: `scripts/sky-probe.mjs --print` asked the running game). The model knows the land's bed
+  and not its water, so all but a rim of its mist was under the lake. Where the field has fog
+  and the place is water, the mist now stands on the water: nothing at the shore, 34 m over
+  water 30 m deep and more.
+- **It asks again.** A lake's water reaches the page after its land does: a lattice asked once
+  when the page began had the bed for ever (the first three pictures of this piece). The
+  surface is asked again in strides through the lattice (32 points a frame); when one has
+  changed by more than 2 m or has become water, all of it is asked again at the next frame.
+- Checks (`scripts/fog-sheet-test.mjs`): the lattice holds the real surface under each point,
+  a lake as its water; a step of the anchor moves what is known and asks only the new column
+  (`--break noshift` fails it).
+
+**Cost** (counts): drawn only while the field has fog within 27 km. Then: one sheet of 32 768
+triangles (8 192 under the governor's `fog-sheet`), a vertex 4 fetches of the field, one of its
+own land and one read of the noise, a pixel of mist 2 reads of the noise. The page's own work:
+16 641 questions of the height function the first time fog comes within reach or after a jump
+(17 ms on this machine, once; the land's shadow after it spread over 16 frames), 129 a lattice
+step (469 m flown), and at most 32 x 6 a frame for the shadow (0.2 ms here). On the phone the
+part `fog` of the benchmark's list measures it; it has never been measured (it never drew).
+
+**Pictures**: `mist_plate_before.png` (as it was: a plate on the lake's rim), `mist_rim_only.png`
+(feathered and lit by the dawn, still only the rim: the rest under the water),
+`view_mist.png` (now: the bookmark, key 6), `mist_shore_blue.png` (eye height on the east
+shore before the shade's light and before the mist lay on the water),
+`mist_shore_after.png` (the same place now; taken after this commit if it is not here yet).
+
+**Not done**: standing IN the mist, what lies below the eye's level is not veiled by it (the
+sheet is over the eye there; the weather's own veil at the traveller goes by the model's fog
+top, which knows nothing of the mist on the water): from the shore the sky is mist and the
+water at one's feet is clear; its top's lumps are 469 m apart at the least (the lattice); the
+model's fog under lakes is hidden, not moved onto the water (package A's land planes).
+
+### What of the sky is paid every frame, and what was cut
+
+**Found**: the benchmark's row "everything out" hid the four scenes and left every pass the
+sky makes into targets of its own running: the field's three blends, the shade map's two
+windows and its world strip, the probe (a pass, a read back, a fence and a flush), the march,
+its smoothing pass and its gathered pass, and inside the picture six full-screen layers, the
+upper shells and the far shell. That is the 13 to 28 ms the eleventh results showed with
+"nothing drawn" (the speed helper's GL counts say the same: 8 of the frame's 23 passes).
+
+**The benchmark can now leave each out** (`sky/skySystem.js SKY_PARTS`, `perf/benchmark.js`):
+`cloud-march` (the volume: march, two small passes, six layers), `cloud-shell` (the far low
+cloud), `sky-field` (the field's uploads and blend), `sky-all` (every pass of the sky), beside
+the seven it had; and **"everything" now takes the sky out too**, so that row is again what
+measuring costs.
+
+**Cut, with no change to the picture**:
+1. **No march under a clear sky.** With no low cloud within the volume's reach (49 places of
+   the field, asked every 800 m or 20 s) and no storm cell in the shaders, the march, its two
+   small passes and the six layers laid from it are not made at all (they drew nothing, at
+   about 1.1 MP of march, as many of smoothing and 13.5 MP of blending on the phone by the
+   speed helper's count). The governor's `cloud-steps` and `cloud-volume` are then not live.
+   The opening morning is such a sky.
+2. **The shade map's two windows only when their picture can have changed**: their lattice has
+   stepped, the Sun has moved, or 8 (near) and 24 (middle) frames have gone by for the clouds'
+   drift (fewer as the clock runs faster). Standing or walking: 30 and 10 draws in 240 frames
+   where there were 240 and 240 (`node scripts/sky-turns-test.mjs`; `--break always` fails).
+   Flying 80 m a frame they are drawn every frame, as before.
+3. **The probe every fourth frame** in play (its value was eased over frames already).
+4. **The field's blend in turns**: one of its three maps a frame, not all three.
+
+**Not cut, and why**: the six layers when there IS cloud near (a layer with nothing in it is
+still a full-screen pass: the page cannot know which slices are empty without reading the
+march back); the upper shells and the far shell over clear sky (one read of the field a pixel
+and a discard; their triangles are 43 600 and 48 000); the passes that begin without a whole
+clear (the speed helper's finding: `invalidateFramebuffer` before the partial clears of the
+field's, the shade map's and the march's targets is the next thing to try, in `src/sky/`).
+None of this is measured on the phone.
+
+### The first morning's sky
+
+At the opening hour the model has no heaps within 30 km, a mackerel sky (middle cloud 0.3) over
+the western half and a bank of stratus 15 to 20 km to the north-west: not a lid.
+`open_ledge_after.png` is the opening view on this head.

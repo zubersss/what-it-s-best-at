@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { G } from '../render/globals.js';
 import { LIGHTING_PARS, lightingUniforms } from '../render/lightingGlsl.js';
+import { SNOW_GLSL, SNOW_UNIFORMS } from '../render/snowGlsl.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { noise3, hash3 } from '../terrain/height/noise.js';
 import { latLonToDir, dirToLatLon } from '../core/ephemeris.js';
@@ -98,7 +99,7 @@ export class Rocks {
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, defines: atmosphereDefines(),
       uniforms: {
-        ...lightingUniforms(), uFadeRadius: fade, uRockAlbedo: { value: new THREE.Vector3(...def.albedo) }, uDustAlbedo: { value: new THREE.Vector3(...world.surface.dust) },
+        ...lightingUniforms(), ...SNOW_UNIFORMS, uFadeRadius: fade, uRockAlbedo: { value: new THREE.Vector3(...def.albedo) }, uDustAlbedo: { value: new THREE.Vector3(...world.surface.dust) },
         uRoughness: { value: world.surface.roughness ?? 0.5 },
         uDustCap: { value: def.dustCap ?? 0.55 },
       },
@@ -111,6 +112,7 @@ export class Rocks {
         }`,
       fragmentShader: /* glsl */`${LIGHTING_PARS}
         uniform vec3 uRockAlbedo, uDustAlbedo; uniform float uRoughness, uDustCap;
+        ${SNOW_GLSL}
         in vec3 vRel; in vec3 vN; in vec3 vLocal; in vec2 vMisc;
         layout(location = 0) out vec4 fragColor;
         void main() {
@@ -122,6 +124,8 @@ export class Rocks {
           vec3 N = normalize(mix(F, normalize(vN), 0.3));
           float top = smoothstep(0.45, 0.95, dot(N, up));
           vec3 albedo = mix(uRockAlbedo * vMisc.y, uDustAlbedo, top * uDustCap) * uGroundTint;   // (the map's range is already in uGroundTint: Terrain.tintAt)       // dust settles on top; local rock is the local colour
+          // (new snow on it, where the season's line has come down: render/snowGlsl.js)
+          if (uSnowLand.z > 0.0) albedo = mix(albedo, vec3(0.80, 0.83, 0.88), snowSeason(length(planetPos) - uPlanetRadius, up, up, 0.0, 0.0).x * smoothstep(0.2, 0.7, dot(N, up)));
           float contact = mix(0.55, 1.0, smoothstep(-0.35, 0.25, vLocal.z));        // darker where it meets the ground
           float diffuse = groundDiffuse(N, uSunDir, V, uRoughness);
           // (the painted look: a rock is its faces, each either lit or in shade)

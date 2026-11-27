@@ -41,6 +41,88 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### Where the helpers stand (2026-11-27 12:15 UTC) and what the next link needs
+
+This branch (head 6da582c and later) is ahead of the link (main 63b8282) by: **seasons
+pieces 3 to 5** (leaves that lie and are kicked up, snow that comes and goes, grass and
+flowers by the season: `0ab73e7`; its cost on the ground's shader asked for and not yet
+known), and the **sky helper's second list so far** (`2b4b133`: the mist made mist, still
+held by `HELD` in `fogSheet.js` until its picture from the shore; the sky's work paid every
+frame cut: no march and no laid layers under a clear sky, the shade windows drawn only
+when something moved, the probe every fourth frame; the benchmark's "everything out" now
+takes the sky out too, with four new parts). Not yet here: the **speed helper's branch**
+(`ccr-6f4f9272-speed`: counts by stop in the benchmark, the cost test in groups, grass
+handed over block by block, partial clears given up, `?scale=` runs paced), waiting on
+its own pictures and smoke.
+**The next link** = those three together, after: a full `npm run smoke` on the joined head,
+Haven's opening view from the ground and noon from the air looked at, the seasons' cost
+known. Then ask the owner for one plain Haven benchmark in Sharp (the first with the sky's
+true cost cut and the rigged character).
+A smoke and two Haven pictures of 6da582c were started at 12:12 (`chain_m5.sh` in the
+session's scratchpad; results in its `smoke_m5.txt`, `log_m5.txt`, `m5/`).
+
+### The owner's rigged character (2026-11-27): a skeleton, eight clips and its own colours
+
+**On the link since 63b8282 (PR #41)**, with the sky helper's heaps (the fog sheet held back).
+Asked of the owner: how it looks standing, walking, running, sprinting, jumping, landing,
+hovering and flying; a plain Haven benchmark in Sharp; and which Meshy plan the model was
+made on (for `docs/ASSETS.md`).
+
+The owner sent `Chinese_Swordsman_AllAnims_30mb.glb` ("here is the model with the animations
+rigged"), made with Meshy as asked: kept as sent in `assets-src/hero-rig/`. In it: one
+surface of 153 000 triangles cut into many small pieces for its picture (163 000 vertices),
+a Mixamo skeleton of 24 joints, **eight clips** (Idle 2.0 s, Walk 1.03, Run 0.63, Sprint
+0.47, Jump 1.87, Hover 2.97, Flight 2.97, Landing 3.97), and three 4 096 pictures (colour,
+normal, metal/roughness); meshopt-compressed and quantised (glTF-Transform).
+
+**It replaces the hand-made binding** (the sculpt bound to the game's limbs and cloth, all
+of the sections below): that path stays in the repository and is what a device gets if the
+rigged files do not load or its shaders cannot be made, and is no longer worked on.
+
+**How** (`node scripts/make-hero-rig.mjs`, 2 s):
+- `scripts/hero/glb.mjs` reads the GLB in Node (meshopt and quantisation decoded).
+- Written: `public/data/hero_rig.bin` (10 MB: the skeleton with parents before children,
+  the clips read 30 times a second, three meshes: the whole surface, a lighter one, and the
+  shape alone welded and reduced to 24 000 triangles for the shadow map) and
+  `public/data/hero_rig.jpg` (the colour picture at 2 048). Nothing of the surface or the
+  motion is changed. One matrix (`root`) fits the figure to the game's frame: the soles
+  0.93 m under the origin as it stands in Idle, 1.88 m tall (the file: 1.65 m).
+- `src/hero/heroRig.js` (plain numbers, the game and Node alike): a clip read at a time,
+  the joints' places, the matrices the surface is drawn with.
+- `src/hero/heroAnim.js` chooses the clips from the state `hero.js` already works out:
+  Idle, Walk, Run, Sprint by the pace, the three gaits in step (one phase, each read from
+  where its left foot is furthest forward) and played faster or slower with the pace; a
+  jump or a fall on foot: the Jump clip's rising and falling frames by the vertical speed;
+  after a touch-down the Landing clip from its contact, more of it the harder the landing,
+  played 1.7 times as fast as made; in the air Hover, and Flight by how much it flies (read
+  there and back: it is not a loop). Where the game moves the body itself the clip's hips
+  are held (a jump's rise, the flight's lean: the game lays the body along its flight).
+  Each clip is put on the game's ground by its own measure (the gaits tread 5 cm over
+  Idle's floor in the file).
+- `src/hero/heroRigMesh.js` draws it: skinned in the vertex shader from 72 uniform vectors
+  (no texture read for a vertex), coloured from its picture, lit by the game's light, both
+  sides (the robe opens). `hero.js`: with a rig the body no longer leans, twists, bobs or
+  crouches by itself and **the cloth is not worked out at all** (0.4 to 0.7 ms a frame of
+  the page's work saved).
+- `node scripts/hero-rig-preview.mjs --clip Run` (frames of a clip, or `--state
+  "foot=1,speed=5.5"` for the game's own choice) draws it without a browser in a second.
+
+**Changed for the player**: the character is the owner's own, with the owner's motion and
+colours; no simulated cloth (the robe and hair go with the skeleton; they do not stream).
+
+**The robe and hair in the air** (no cloth is simulated): every vertex has a number for how
+loose it hangs (`loose`: its distance from the middle line of each bone against the girth of
+what the bone carries, measured as the file stands; the hair by its colour in the picture
+and how far below the nape), and what is loose trails down the air going past the figure
+and flutters (`heroRig.js` `flowed`, the same sum in the vertex shader; `hero.js` works out
+the flow: against the motion, up to 0.22 m for free cloth, a light breeze standing still).
+A cheap stand-in for cloth: it shears, it does not fold or collide.
+
+**Not done / to look at next**: the normal and roughness pictures are not used; steady flight is the Flight clip
+read slowly there and back with the hips held (little life); footfall dust still keeps the
+old gait's time; the file is 10 MB (positions as floats, an unwelded lighter mesh); cost on
+the phone not measured (153 000 triangles, and no cloth simulation).
+
 ### The owner on build 8c8ff89 (2026-11-27): "a constant t pose", "the running cape still look horrible"; Meshy
 
 The owner, with two screenshots (a run on a slope, super speed among boulders): "The running
@@ -108,6 +190,16 @@ until then only the sculpt's stance, flight and the run had been looked at):
   sculpted. (The 3 600 gown vertices "inside a leg" were its lining.)
 - Drawn-out edges now (`hero-bind-test`, full mesh): hover 8, walk 88, fly 24, fast 90,
   take-off 36, run 398 (bound 600); super speed 492, the kneel 1 208 (bound 3 000).
+
+**Read those two runs with care** (the speed helper's first counts, 2026-11-27 09:26,
+`docs/briefs/phone-speed-2-report.md` on `ccr-6f4f9272-speed`): `?scale=` switched the
+frame pacing off, so both ran flat out (52 fps at the first stop of the floor run) and slid
+stop by stop, most likely with heat; the "two refreshes or five" pattern is an unpaced
+58 ms frame, not work done every other frame. By count every Haven stop at rest hands the
+GPU the same frame (23 passes, about 150 draw calls, 3.0 M triangles, 32 KB of uploads),
+nothing grows with time, no texture is uploaded inside a pass; 57 % of all triangles are
+grass and flowers; 7 passes a frame begin without a whole clear, 5 of them the sky's. The
+plain benchmark (28.8 fps, the opening view at 23.9) remains the honest measure.
 
 **Haven is too heavy** (`docs/benchmarks/2026-11-27-haven-42da110-fixed-size.txt`, the
 picture held at 2.25 MP, so the governor took no step): everything on, Haven 18.1 fps, its

@@ -5,6 +5,7 @@
 // within a day: see CLAUDE.md.)
 //
 // Plain data and strings: no three.js here, so the ground's material can take the GLSL.
+import { flowerOut } from './season.js';
 
 // How much grass a land-cover class has, and how dry it is (IGBP classes 1..17; 0: none known).
 export const AMOUNT = [0, 0.6, 0.55, 0.6, 0.7, 0.65, 0.4, 0.3, 0.85, 0.9, 1, 0.9, 0.9, 0, 0.9, 0, 0.04, 0];
@@ -51,6 +52,26 @@ export const KINDS = [null,
   K('cotton grass', 'globe', 0.03, 0.50, 12, [0.86, 0.86, 0.82], [0.84, 0.84, 0.78], [0.86, 0.86, 0.82], true),
   K('thistle', 'globe', 0.034, 0.95, 12, [0.52, 0.20, 0.56], [0.62, 0.28, 0.60], [0.20, 0.30, 0.12]),
 ];
+// When each kind flowers: [from, to], life days as in the northern half of a world
+// (life/season.js: day 80 is the spring equinox; flowerOut). Every kind is out by the first
+// days of spring (they come one after another through the last weeks of winter, primrose
+// first), and they go over one after another from late spring to autumn: a meadow is all its
+// kinds in spring, its tall late ones in high summer, grass alone in autumn and winter.
+const DAYS = {
+  primrose: [40, 135], dandelion: [42, 230], speedwell: [45, 200], bluebell: [50, 150], daisy: [50, 240], buttercup: [55, 210], saxifrage: [56, 180], balsamroot: [58, 170],
+  clover: [60, 250], 'orange poppy': [60, 215], thrift: [60, 220], 'cow parsley': [62, 190], 'moss campion': [62, 190], lupin: [64, 200], 'cotton grass': [64, 215],
+  poppy: [66, 225], gentian: [66, 235], 'ox-eye daisy': [66, 235], paintbrush: [66, 230], sage: [66, 240], cornflower: [68, 240], 'pink mallow': [68, 245], foxglove: [68, 225],
+  yarrow: [68, 270], fireweed: [70, 262], thistle: [70, 275],
+};
+for (const k of KINDS) if (k) k.days = DAYS[k.name] || [60, 230];
+// What the shaders are handed (uKindShut: how far each kind is from being out, 0 out .. 1
+// none; by number as KINDS), on a life day at a latitude; and how much of all of them is out.
+export function kindsShut(day, lat, out = new Float32Array(KINDS.length)) {
+  let open = 0;
+  for (let k = 1; k < KINDS.length; k++) { const o = flowerOut(KINDS[k].days[0], KINDS[k].days[1], day, lat); out[k] = 1 - o; open += o; }
+  out[0] = 0;
+  return open / (KINDS.length - 1);
+}
 const kindOf = (name) => { const i = KINDS.findIndex((k) => k && k.name === name); if (i < 0) throw new Error('no flower called ' + name); return i; };
 
 // A flora: the mix of a kind of land. `lead`: the kinds that take turns to lead, one to a
@@ -232,6 +253,9 @@ export const FLOWERS_GLSL = /* glsl */`
   const vec3 KIND_MID[KIND_N] = vec3[KIND_N](${kinds((k) => v3(k.mid))});
   const vec3 KIND_A[KIND_N] = vec3[KIND_N](${kinds((k) => v3(k.a))});
   const vec3 KIND_B[KIND_N] = vec3[KIND_N](${kinds((k) => v3(k.b))});
+  // (how far each kind is from flowering on this day, by the season's rule: 0 out, 1 none; kindsShut above)
+  uniform float uKindShut[KIND_N];
+  float kindOpen(int k) { return 1.0 - uKindShut[clamp(k, 0, KIND_N - 1)]; }
   const float KIND_PALE[KIND_N] = float[KIND_N](${kinds((k) => (k.pale ? '1.0' : '0.0'))});
   float flHash(uvec3 p) {
     uint h = (p.x * 374761393u) ^ (p.y * 668265263u) ^ (p.z * 1440662683u);
@@ -332,6 +356,8 @@ export const FLOWERS_GLSL = /* glsl */`
       share = mix(mean, vec2(own.x, own.y * (1.0 - own.x)), sharp);
     }
     vec3 w = vec3(1.0 - share.x - share.y, share) * vec3(KIND_PALE[lead] > 0.5 ? 0.45 : 1.0, KIND_PALE[ca] > 0.5 ? 0.45 : 1.0, KIND_PALE[cb] > 0.5 ? 0.45 : 1.0);
+    // (each kind by how far it is out on this day)
+    w *= vec3(mix(kindOpen(lead), kindOpen(next), nextShare), kindOpen(ca), kindOpen(cb));
     float sw = max(w.x + w.y + w.z, 1e-4);
     vec3 leadCol = mix(mix(KIND_A[lead], KIND_B[lead], 0.5), mix(KIND_A[next], KIND_B[next], 0.5), nextShare);
     vec3 col = (w.x * leadCol + w.y * mix(KIND_A[ca], KIND_B[ca], 0.5) + w.z * mix(KIND_A[cb], KIND_B[cb], 0.5)) / sw;
@@ -347,9 +373,14 @@ export const FLOWERS_GLSL = /* glsl */`
 // where they are at the camera (radians; worked out frame by frame: life/grass.js).
 export const GRASS_GLSL = /* glsl */`
   uniform vec4 uGrassWave;
+  uniform vec4 uGrassYear;     // the season's grass (life/season.js grassSeason): x fresh, y dry, z brown, w beaten flat
   vec3 grassColour(float dry, float y) {
     vec3 green = mix(vec3(0.035, 0.06, 0.02), vec3(0.11, 0.17, 0.045), y), gold = mix(vec3(0.10, 0.06, 0.02), vec3(0.33, 0.20, 0.045), y);
-    return mix(green, gold, clamp(dry, 0.0, 1.0));
+    // (the season: new growth is greener than the land's dryness says, and a brighter green;
+    // late summer golder; autumn and winter brown)
+    dry = clamp(dry, 0.0, 1.0); dry = dry * (1.0 - 0.8 * uGrassYear.x) + 0.6 * uGrassYear.y * (1.0 - dry);
+    green = mix(green, mix(vec3(0.03, 0.07, 0.015), vec3(0.10, 0.21, 0.035), y), uGrassYear.x);
+    return mix(mix(green, gold, dry), mix(vec3(0.07, 0.05, 0.025), vec3(0.20, 0.15, 0.075), y), 0.8 * uGrassYear.z);
   }
   float grassWave(vec3 rel) { return sin(dot(rel, uGrassWave.xyz) + uGrassWave.w) * 0.5 + 0.5; }`;
 // (the waves' number per metre: 18 m from crest to crest)

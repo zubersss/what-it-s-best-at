@@ -276,7 +276,8 @@ const BLADE_VERT = /* glsl */`
     #ifdef FAR
     wide *= uGrassKeep.w;          // (the governor's step: half of them, each wider)
     #endif
-    float tall = TALL * (0.24 + 0.34 * hb.x) * (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) * (0.85 + 0.3 * lie) * (0.6 + 0.8 * clump) * (1.0 + 0.5 * seedHead);
+    float tall = TALL * (0.24 + 0.34 * hb.x) * (0.6 + 0.6 * g.g) * (1.0 + 0.3 * g.b) * (0.85 + 0.3 * lie) * (0.6 + 0.8 * clump) * (1.0 + 0.5 * seedHead)
+      * (1.0 - 0.45 * min(uGrassYear.w, 1.0) - 0.5 * clamp(uGrassYear.w - 1.0, 0.0, 1.0));          // (the season: beaten down in autumn, and under the snow)
     tall *= keep;
     // (never narrower than about a pixel at its foot: a blade thinner than that lands on a
     // pixel's middle in one frame and misses it in the next, and a field of them crawled as
@@ -325,7 +326,7 @@ const BLADE_VERT = /* glsl */`
     float fk = tableNearest(tTable, uTab, at).a, kind = floor(fk + 0.001);
     vec2 hf = hash2(cell + 5.1 + aBlade);
     // (pale kinds on fewer blades: a white meadow seen from the air was frost)
-    float bloom = step(0.5, kind) * fract(fk + 0.001) * (KIND_PALE[clamp(int(kind + 0.5), 0, KIND_N - 1)] > 0.5 ? 0.35 : 0.7) * (1.0 - 0.5 * rise) * (1.0 - 0.7 * smoothstep(60.0, 400.0, dist));
+    float bloom = step(0.5, kind) * fract(fk + 0.001) * (KIND_PALE[clamp(int(kind + 0.5), 0, KIND_N - 1)] > 0.5 ? 0.35 : 0.7) * (1.0 - 0.5 * rise) * (1.0 - 0.7 * smoothstep(60.0, 400.0, dist)) * kindOpen(int(kind + 0.5));          // (and by how far its kind is out on this day)
     // (in flower: its own number under that share, over a soft edge that keeps the share as it
     // was, and none where there is none; and only where the single flowers are not kept, by
     // their own rule: HANDOVER and FLOWER_EDGE above)
@@ -374,6 +375,8 @@ const FLOWER_VERT = /* glsl */`
     // (big heads stand wider apart: a lattice full of heads a hand across was a carpet that
     // hid the grass. As many of a kind's heads to the square metre as cover the same ground.)
     float headSize = KIND_SHAPE[clamp(int(kind + 0.5), 0, KIND_N - 1)].y;
+    // (the season: a kind's flowers come out one by one, each by its own number, and go the same way)
+    if (h3.y * 0.999 >= kindOpen(int(kind + 0.5))) OUT_OF_PICTURE
     if (kind < 0.5 || h2.x >= fract(gn.a + 0.001) * 1.1 * min(1.0, pow(0.036 / headSize, 2.0))) OUT_OF_PICTURE
     if (outside(projectionMatrix * viewMatrix * vec4(uGrassEast * rel2.x + uGrassNorth * rel2.y + uGrassUp * groundUp(gn, at), 1.0), ${FLOWER_REACH.toFixed(1)})) OUT_OF_PICTURE
     vec2 grad; vec4 g = tableAt(tTable, uTab, at, grad);
@@ -621,7 +624,7 @@ export class Grass {
       ...lightingUniforms(),
       uGrassCam: { value: new THREE.Vector3() }, uGrassCurve: { value: new THREE.Vector2() }, uGrassLie: { value: new THREE.Vector2() },
       uGrassEast: { value: new THREE.Vector3(1, 0, 0) }, uGrassNorth: { value: new THREE.Vector3(0, 1, 0) }, uGrassUp: { value: new THREE.Vector3(0, 0, 1) },
-      uGrassWind: wind, uGrassWave: this.waveU, uGrassKeep: { value: new THREE.Vector4(1, 1, 1, 1) }, uGrassGov: { value: new THREE.Vector2(1, 1) }, uGrassView: { value: 500 }, uGrassTone: terrain.shared.uGrassTone,
+      uGrassWind: wind, uGrassWave: this.waveU, uGrassKeep: { value: new THREE.Vector4(1, 1, 1, 1) }, uGrassGov: { value: new THREE.Vector2(1, 1) }, uGrassView: { value: 500 }, uGrassTone: terrain.shared.uGrassTone, uGrassYear: terrain.shared.uGrassYear, uKindShut: terrain.shared.uKindShut,
     };
     // The land's own shadow on the ground round the traveller (a mountain between a place
     // and the Sun), for the far grass: SHADE_N x SHADE_N places SHADE_CELL apart, asked of the

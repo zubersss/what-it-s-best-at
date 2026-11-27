@@ -49,7 +49,7 @@ export function drawTree(geo, A, img, W, ox, oy, cw, ch, proj, o = {}) {
       if (card) {
         const au = u * U[t * 6] + v * U[t * 6 + 2] + w * U[t * 6 + 4], av = u * U[t * 6 + 1] + v * U[t * 6 + 3] + w * U[t * 6 + 5], s = sampleAtlas(A, au, av);
         if (s[0] < 0.42) continue;
-        if (gone > 0 && s[2] <= 0.75 && !(o.petal && s[2] > 0.25)) { const cs = leaf > 3.5 ? clump : 12, h = fr(Math.sin(Math.floor(au * A.W / cs) * 12.9898 + Math.floor(av * A.H / cs) * 78.233 + own * 37) * 43758.5453); if (h < gone * 1.05) continue; }
+        if (gone > 0 && s[2] <= 0.75 && !(o.petal && s[2] > 0.25)) { const whole = leaf > 3.5, cs = whole ? clump : 12, ju = whole ? (s[1] - 0.8) * 5 * cs : 0, jv = whole ? -(s[1] - 0.8) * 4 * cs : 0, h = fr(Math.sin(Math.floor((au * A.W + ju) / cs) * 12.9898 + Math.floor((av * A.H + jv) / cs) * 78.233 + own * 37) * 43758.5453); if (h < gone * 1.05) continue; }
         const petal = o.petal ? Math.min(1, Math.max(0, s[2] > 0.5 ? 2 - s[2] * 2.2 : s[2] * 2)) : 0;
         if (!o.petal && s[2] > 0.25 && s[2] < 0.75 && A.W > 2048) continue;          // (a petal on a tree not in flower: nothing)
         col = s[2] > 0.75 || (!o.petal && s[2] > 0.5) ? twigC : leafC.map((c, k) => (c * (1 - petal) + (o.petal ? o.petal[k] : 0) * petal) * (0.6 + 0.5 * s[1]) * (leaf > 3.1 && leaf < 3.5 ? 0.5 : 1));     // (3.25: a crown's dark heart)
