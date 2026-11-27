@@ -41,7 +41,7 @@ function patches() {
   // round it and sewn together along the bottom, widening to a deep opening at the wrist.
   const sleeve = (s) => ({
     name: s > 0 ? 'sleeveL' : 'sleeveR', nx: 7, ny: 6, sx: 2, sy: 2, pins: 'col', pinCol: 3, seam: 0.03, out: 0,
-    rest: (u, v) => [s * 0.26, 0.40 - v * 0.52, (u - 0.5) * 2 * (0.10 + 0.32 * v)],
+    rest: (u, v) => [s * 0.26, 0.40 - v * 0.47, (u - 0.5) * 2 * (0.10 + 0.40 * v)],
     normal: [s, 0, 0],
     body: [-0.30, 0.62, 0.155], spheres: [], limbs: s > 0 ? [0, 1, 4, 5, 6, 7] : [2, 3, 4, 5, 6, 7],
     folds: (u, v) => 0.012 * v * Math.cos(2 * Math.PI * 3.0 * u + 1.0),

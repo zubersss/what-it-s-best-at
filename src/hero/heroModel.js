@@ -281,7 +281,12 @@ function dusty(g, yFull, yClean, amount) {
 
 // A limb hangs along -Y from its pivot at the origin, in two pieces: the upper part
 // (shoulder or hip to the joint) and the lower part, whose own origin is the joint.
-export const ELBOW = 0.29, HAND = 0.31, KNEE = 0.41, ANKLE = 0.45;       // segment lengths (m)
+// Segment lengths (m), measured on the owner's sculpt in the game's frame (scripts/make-hero.mjs,
+// FIT): shoulder to elbow, elbow to the hand's middle, hip to knee, knee to ankle.
+export const ELBOW = 0.255, HAND = 0.30, KNEE = 0.42, ANKLE = 0.395;
+// How the sculpt stands: each arm this far out from hanging straight down, each leg this far
+// apart (radians, about the figure's front-to-back axis). Hero.sculptPose stands the figure so.
+export const SCULPT_ARM = 0.585, SCULPT_LEG = 0.078;
 export function upperArmGeometry() {
   return mergeGeometries([lathe([
     [0, 0.014], [0.028, 0.006, ...F], [0.046, -0.02, ...F], [0.052, -0.06, ...F], [0.048, -0.25, ...F], [0.04, -0.29, ...F], [0, -0.30, ...F],
@@ -388,4 +393,5 @@ void main() {
 }`;
 
 // Where the limbs hang from (shoulders, hips), in the body's frame.
-export const SHOULDER = [0.20, 0.50, 0], HIP = [0.082, 0.0, 0];
+// (the sculpt's joints)
+export const SHOULDER = [0.149, 0.556, -0.01], HIP = [0.085, 0.0, 0];

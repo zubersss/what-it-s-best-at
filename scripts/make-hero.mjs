@@ -11,16 +11,16 @@
 //      its hollows a little darker so the carving shows without a texture;
 //   4. reduced, twice (the figure, and a lighter one for its shadow);
 //   5. put in the game's frame (hips at the origin, +Y the head, +Z the chest, metres);
-//   6. bound to the game's figure (hero/hero.js): each vertex to one or two of its nine rigid
-//      parts, and the loose cloth (skirt, sleeves, hair) to the simulated sheets of
-//      hero/robe.js, as they hang with the figure standing as the sculpt stands (heroBind.mjs).
+//   6. bound to the game's figure (hero/hero.js): each vertex to up to four of its movers, the
+//      nine rigid parts and the particles of the simulated cloth (hero/robe.js: skirt,
+//      sleeves, hair), as they are with the figure standing as the sculpt stands (heroBind.mjs).
 // --stage look stops after 5 and writes no binding (for looking at colours).
 //
 // Untrusted input: the GLB is parsed by hand and nothing in it is run.
 import fs from 'node:fs';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import { loadGLB, adjacency, Heap } from './hero/lib.mjs';
-import { LABELS, seeds } from './hero/seeds.mjs';
+import { LABELS, seeds, GARMENTS, garments } from './hero/seeds.mjs';
 
 const args = process.argv.slice(2), opt = (n, d) => (args.includes('--' + n) ? args[args.indexOf('--' + n) + 1] : d);
 const ROOT = new URL('..', import.meta.url).pathname, SRC = ROOT + 'assets-src/hero/Silver_Plumage_Sentinel_compressed.glb';
@@ -43,10 +43,10 @@ const { P, N, I } = loadGLB(SRC), nv = P.length / 3, { start, items } = adjacenc
 say(`read: ${nv} vertices, ${I.length / 3} triangles`);
 
 // ---- 2. labels by seeds -------------------------------------------------------------------
-function label(K = 150) {
+function label(names, list0, K) {
   const lab = new Uint8Array(nv).fill(255), dist = new Float64Array(nv).fill(Infinity), heap = new Heap(nv); let missed = 0;
-  for (const [name, list] of Object.entries(seeds())) {
-    const id = LABELS.indexOf(name), pts = [];
+  for (const [name, list] of Object.entries(list0)) {
+    const id = names.indexOf(name), pts = [];
     for (const s of list) {
       if (s.p) pts.push([s.v, s.p[0], s.p[1]]);
       else { const L = Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]), n = Math.max(1, Math.ceil(L / 0.015)); for (let k = 0; k <= n; k++) { const t = k / n; pts.push([s.v, s.a[0] + (s.b[0] - s.a[0]) * t, s.a[1] + (s.b[1] - s.a[1]) * t]); } }
@@ -71,12 +71,19 @@ function label(K = 150) {
       if (nd < dist[w]) { dist[w] = nd; lab[w] = lab[v]; heap.push(nd, w); }
     }
   }
-  const cnt = LABELS.map(() => 0); for (let v = 0; v < nv; v++) if (lab[v] < 255) cnt[lab[v]]++;
-  say(`labels: ${LABELS.map((n, i) => `${n} ${cnt[i]}`).join(', ')}; ${missed} seeds met nothing`);
+  const cnt = names.map(() => 0); for (let v = 0; v < nv; v++) if (lab[v] < 255) cnt[lab[v]]++;
+  say(`${names.map((n, i) => `${n} ${cnt[i]}`).join(', ')}; ${missed} seeds met nothing`);
   return lab;
 }
 function s_r(view) { return view === 'x' ? 0.004 : 0.012; }
-const lab = label();
+const lab = label(LABELS, seeds(), 150);
+// The garments (for the binding): 0 the body and its own clothes, 1 the skirt, 2 and 3 the
+// left and right sleeve, 4 the hair. Hair, skin and boots by their material; the rest by seeds.
+const gar = label(GARMENTS, garments(), 20);
+for (let v = 0; v < nv; v++) {
+  const name = LABELS[lab[v]];
+  gar[v] = name === 'hair' ? 4 : name === 'skin' || name === 'boot' || name === 'brow' || name === 'lip' ? 0 : gar[v] === 2 ? (P[v * 3] >= 0 ? 2 : 3) : gar[v] === 1 ? 1 : 0;
+}
 
 // ---- 3. colour ----------------------------------------------------------------------------
 // How hollow the surface is at a vertex, at the scale of a centimetre or two: the normals of
@@ -126,29 +133,31 @@ function reduce(tris) {
 // ---- 5. the game's frame ------------------------------------------------------------------
 function mesh(tris) {
   const { from, index } = reduce(tris), n = from.length;
-  const position = new Float32Array(n * 3), normal = new Float32Array(n * 3), colour = new Uint8Array(n * 4), label8 = new Uint8Array(n);
+  const position = new Float32Array(n * 3), normal = new Float32Array(n * 3), colour = new Uint8Array(n * 4), label8 = new Uint8Array(n), garment = new Uint8Array(n);
   for (let k = 0; k < n; k++) {
     const v = from[k];
     position[k * 3] = P[v * 3] * FIT.scale; position[k * 3 + 1] = (P[v * 3 + 1] + FIT.lift) * FIT.scale; position[k * 3 + 2] = P[v * 3 + 2] * FIT.scale;
     normal.set(N.subarray(v * 3, v * 3 + 3), k * 3);
     for (let c = 0; c < 3; c++) colour[k * 4 + c] = Math.round(255 * Math.sqrt(Math.min(1, col[v * 3 + c])));        // (the root of the albedo: the dark hair keeps its steps)
-    colour[k * 4 + 3] = mat[v]; label8[k] = lab[v];
+    colour[k * 4 + 3] = mat[v]; label8[k] = lab[v]; garment[k] = gar[v];
   }
   say(`reduced to ${index.length / 3} triangles, ${n} vertices`);
-  return { position, normal, colour, label: label8, index };
+  return { position, normal, colour, label: label8, garment, index };
 }
 const lods = [mesh(TRIS), mesh(LOW)];
 
 // ---- 6. bound to the game's figure --------------------------------------------------------
-if (STAGE !== 'look') { const { bind } = await import('./hero/heroBind.mjs'); for (const m of lods) Object.assign(m, await bind(m, say)); }
+let shared = null;
+if (STAGE !== 'look') { const { bind } = await import('./hero/heroBind.mjs'); for (const m of lods) { const b = await bind(m, say); shared = b.shared; delete b.shared; Object.assign(m, b); } }
 
 // ---- written ------------------------------------------------------------------------------
 // 'HERO', the length of a JSON header, the header, then the arrays it lists (each begins on a
 // multiple of four bytes from the file's start).
 {
   const TYPES = new Map([[Float32Array, 'f32'], [Uint8Array, 'u8'], [Uint16Array, 'u16'], [Uint32Array, 'u32'], [Int8Array, 'i8']]);
-  const head = { fit: FIT, labels: LABELS, lods: [] }, chunks = []; let at = 0;
+  const head = { fit: FIT, labels: LABELS, shared: {}, lods: [] }, chunks = []; let at = 0;
   const lay = [];
+  for (const [name, a] of Object.entries(shared || {})) { head.shared[name] = { type: TYPES.get(a.constructor), count: a.length, at: 0 }; lay.push([head.shared[name], a]); }
   for (const m of lods) {
     const L = { vertices: m.position.length / 3, triangles: m.index.length / 3, arrays: {} };
     for (const [name, a] of Object.entries(m)) { if (!ArrayBuffer.isView(a)) { L[name] = a; continue; } L.arrays[name] = { type: TYPES.get(a.constructor), count: a.length, at: 0 }; lay.push([L.arrays[name], a]); }

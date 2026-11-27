@@ -5,6 +5,8 @@
 //        [--lod 0|1] [--labels] [--grid] [--pose name]
 //
 // --labels: each label in a loud colour of its own (for placing seeds: hero/seeds.mjs);
+// --garments, --parts, --cloth: the same for the binding's garments, the rigid parts that carry
+//   a vertex, and its share of loose cloth (white: all cloth);
 // --grid: a line every 0.1 m (in the game's frame; the sculpt's own coordinates are these
 // divided by fit.scale, less fit.lift). --pose: the figure as the game poses it (heroBind.mjs).
 import fs from 'node:fs';
@@ -15,13 +17,13 @@ const a = process.argv.slice(2), opt = (n, d) => (a.includes('--' + n) ? a[a.ind
 const file = opt('file', new URL('../public/data/hero.bin', import.meta.url).pathname), buf = fs.readFileSync(file);
 const hero = parseHero(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length)), m = hero.lods[+opt('lod', 0)];
 let P = m.position, N = m.normal; const I = m.index, nv = m.vertices;
-if (opt('pose', null)) { const { posed } = await import('./hero/heroBind.mjs'); ({ position: P, normal: N } = await posed(m, opt('pose', null), +opt('time', 3))); }
+if (opt('pose', null)) { const { posed } = await import('./hero/heroBind.mjs'); ({ position: P, normal: N } = await posed(m, hero.shared, opt('pose', null), +opt('time', 3))); }
 const yaws = opt('yaws', '0,45,180').split(',').map(Number), H = +opt('h', 1000), box = (opt('box', null) || '-0.6,-0.96,0.6,0.92').split(',').map(Number);
 const sc = H / (box[3] - box[1]), W = Math.ceil((box[2] - box[0]) * sc), TW = W * yaws.length, img = new Uint8Array(TW * H * 3);
 for (let y = 0; y < H; y++) for (let x = 0; x < TW; x++) { const q = (y * TW + x) * 3, t = y / H; img[q] = 120 - 40 * t; img[q + 1] = 150 - 40 * t; img[q + 2] = 185 - 50 * t; }
 const PAL = [[225, 225, 232], [150, 30, 140], [215, 160, 130], [120, 125, 150], [240, 235, 120], [120, 120, 220], [70, 70, 80], [200, 80, 60], [40, 20, 10], [220, 60, 90]];
 const C = new Float32Array(nv * 3);
-for (let v = 0; v < nv; v++) for (let k = 0; k < 3; k++) C[v * 3 + k] = a.includes('--labels') ? PAL[m.label[v] % PAL.length][k] / 255 : (m.colour[v * 4 + k] / 255) ** 2;
+for (let v = 0; v < nv; v++) for (let k = 0; k < 3; k++) C[v * 3 + k] = a.includes('--labels') ? PAL[m.label[v] % PAL.length][k] / 255 : a.includes('--garments') ? PAL[m.garment[v] % PAL.length][k] / 255 : a.includes('--parts') ? (PAL[m.parts[v * 4] % PAL.length][k] * (255 - m.parts[v * 4 + 2] - m.parts[v * 4 + 3]) + PAL[m.parts[v * 4 + 1] % PAL.length][k] * m.parts[v * 4 + 2] + PAL[0][k] * m.parts[v * 4 + 3]) / 65025 : a.includes('--cloth') ? (m.shares[v * 4] + m.shares[v * 4 + 1] + m.shares[v * 4 + 2] + m.shares[v * 4 + 3]) / 255 : (m.colour[v * 4 + k] / 255) ** 2;
 const L = [-0.42, 0.62, 0.66], enc = (v) => Math.min(255, 255 * Math.pow(Math.max(0, v), 1 / 2.2));
 yaws.forEach((yd, vi) => {
   const y = yd * Math.PI / 180, c = Math.cos(y), s = Math.sin(y), zb = new Float32Array(W * H).fill(-1e9);

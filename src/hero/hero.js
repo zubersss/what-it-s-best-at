@@ -8,7 +8,7 @@
 // Local frame of the figure: +Y = toward the head, +Z = chest, +X = its left. Metres.
 import * as THREE from 'three';
 import { lightingUniforms } from '../render/lightingGlsl.js';
-import { torsoGeometry, upperArmGeometry, forearmGeometry, thighGeometry, shinGeometry, ELBOW, HAND, KNEE, ANKLE, SHOULDER, HIP, HERO_VERT, HERO_FRAG } from './heroModel.js';
+import { torsoGeometry, upperArmGeometry, forearmGeometry, thighGeometry, shinGeometry, ELBOW, HAND, KNEE, ANKLE, SHOULDER, HIP, SCULPT_ARM, SCULPT_LEG, HERO_VERT, HERO_FRAG } from './heroModel.js';
 import { atmosphereDefines } from '../atmosphere/atmosphere.js';
 import { Robe } from './robe.js';
 
@@ -96,12 +96,27 @@ export class Hero {
     c[o + 7] = j.x; c[o + 8] = j.y; c[o + 9] = j.z; c[o + 10] = e.x; c[o + 11] = e.y; c[o + 12] = e.z; c[o + 13] = r1;
   }
 
+  // The figure standing as the owner's sculpt stands (arms out and down, legs a little apart,
+  // nothing bent, the body upright at the origin): the pose the sculpt is bound in
+  // (scripts/hero/heroBind.mjs) and the one its parts' rest places are taken from (heroSculpt.js).
+  sculptPose() {
+    this.body.position.set(0, 0, 0); this.body.quaternion.identity();
+    this._limb(this.arms[0], this.forearms[0], 0, SCULPT_ARM, 0, ELBOW, HAND, 0.065, 0.06, 0);
+    this._limb(this.arms[1], this.forearms[1], 0, -SCULPT_ARM, 0, ELBOW, HAND, 0.065, 0.06, 2);
+    this._limb(this.legs[0], this.shins[0], 0, SCULPT_LEG, 0, KNEE, ANKLE, 0.085, 0.078, 4);
+    this._limb(this.legs[1], this.shins[1], 0, -SCULPT_LEG, 0, KNEE, ANKLE, 0.085, 0.078, 6);
+    this._sleevePins(0, 'sleeveL'); this._sleevePins(1, 'sleeveR');
+    for (const m of this.parts) m.updateMatrix();
+  }
+  // The nine rigid parts, in the order the sculpt's binding names them.
+  get parts() { return [this.torso, this.arms[0], this.forearms[0], this.arms[1], this.forearms[1], this.legs[0], this.shins[0], this.legs[1], this.shins[1]]; }
+
   // The wide sleeve of arm i lies over the arm from the upper arm to the wrist: the line it
   // is fixed along, in the body's frame, on the outer side of the limb as posed this frame.
   _sleevePins(i, name) {
     const up = this.arms[i], lo = this.forearms[i], pts = this._pins, v = this._pv, n = 6, sx = i ? -0.05 : 0.05;
     for (let k = 0; k < n; k++) {
-      const along = 0.10 + (k / (n - 1)) * 0.52;
+      const along = 0.08 + (k / (n - 1)) * 0.47;
       if (along <= ELBOW) v.set(sx, -along, 0).applyQuaternion(up.quaternion).add(up.position);
       else v.set(sx, -(along - ELBOW), 0).applyQuaternion(lo.quaternion).add(lo.position);
       pts[k * 3] = v.x; pts[k * 3 + 1] = v.y; pts[k * 3 + 2] = v.z;
