@@ -41,7 +41,7 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
-### The second joined build of 2026-11-27 (17:30 UTC): more cuts, mist from the shore, a clean winter
+### The second joined build of 2026-11-27 (17:30 UTC): more cuts, mist from the shore, a clean winter (sent: PR #43, main daa009f)
 
 On top of main 6fac2be, this branch at `219fe4b`: the **speed helper** to `830d621` (only
 the cells that can carry a flower are handed over, flowers' and near trees' corners shared,
