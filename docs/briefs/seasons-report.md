@@ -283,3 +283,30 @@ merged on the way; the before build does not):
   blocks).
 
 Nothing else moved: the land's colours, the grass's gold, the firs, the sky.
+
+## After the close: two things of the seasons' (2026-11-27, during the ground-cost work)
+
+**The woods from afar take the season.** Beyond 19 km a wood was the land's colour map, which
+is painted for high summer: from high above the woods never turned. And nearer, wherever a
+patch of trees was under a pixel, the patches' noise read as its mean and a wood was all
+evergreen or all the others by which side of the cut the mean fell. Now the wood as a whole
+has the mean of its trees by their share (`life/cover.js canopyFar`: the mean leaf colour
+on this day over high summer's, by height, both asked of `canopyYear`; the ground's
+`uCanopyFar`): the map's colour times that beyond the canopy's own colour, and the patches
+fade to their share where they are under a pixel. `season-test` has three checks of it
+(`--break farwood`). Pictures: `far_wood_autumn_40km.png` (autumn from 40 km, before and
+after: the woods gold among the gold grass), `far_wood_air3k_openingday.jpg` (the opening
+day from 3 km: 13 % of pixels over 2 levels, none over 7: a shade greyer, the bare aspens).
+Limits: the table is for the traveller's half of the world (from space the other half's
+woods take this half's season); 9 to 16 % of Haven's wood drops its leaves, and their gold
+is so much brighter than a fir's green that the mean is plainly warm: right for a mix of
+lights, and stronger than the wood looks from inside it.
+
+**The land's own snow is the same white as new snow.** Its colour came through the ground's
+palette: a pale grey with the dust's hue, sage or lilac in the shade, beside new snow that
+was white. Where the land's colour is pale, within its own snow's zone, and the season has
+not taken it off, the ground takes new snow's white (not on rock). `own_snow_autumn_40km.png`,
+`own_snow_openingday_3km.png`: 1 to 3 % of pixels over 2 levels; the pictures' mean
+brightness does not move (122.4 to 122.3 on the opening day from 3 km), in winter nothing
+changes (all of it is new snow then). Risk taken: pale high ground that is not snow would
+turn white too; I found none in these views.

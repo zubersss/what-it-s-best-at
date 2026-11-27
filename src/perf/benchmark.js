@@ -327,7 +327,8 @@ export const PARTS_OUT = [
   // (The ground not drawn at all, where 'ground-shading' leaves its triangles in a flat tone: the
   // two apart are what its triangles cost. On the thirteenth results a frame with every group
   // out still took 31 to 39 ms and one with nothing drawn 11 to 24: between the two stood the
-  // ground in its flat tone and the small things below, which no row asked about. Taken out of
+  // ground in its flat tone and the small things below, which no row asked about, and the
+  // drift of the test, the two being plain numbers from different moments of it. Taken out of
   // their scene, not hidden: the game sets what is visible each frame.)
   { id: 'ground-mesh', label: 'the ground not drawn at all', set: (app, out) => inScene(app.nearScene, [app.terrain?.group], out) },
   // (what flies and lies about and belongs to no other row: leaves, petals, pollen, waterfalls, the lander)
@@ -492,8 +493,9 @@ export class CostTest {
       const rows = this.groups.map((g, i) => [g.label, mean(takes[i]), takes[i]]).filter((r) => r[2].length && !isNaN(r[1])).sort((x, y) => y[1] - x[1]);
       this.lines.push(`  saved by leaving a group out (twice each, against everything on just before and after; the two takes in brackets):`);
       for (const r of rows) this.lines.push(`    ${r[0]}: ${f(r[1])} (${r[2].map(f).join(' · ')})`);
-      // (the sky's own parts are inside the sky's group: not added a second time)
-      const sum = rows.reduce((x, r) => x + (r[0].startsWith('of the sky:') ? 0 : r[1]), 0);
+      // (the sky's own parts are inside the sky's group, and the ground's shading inside "the ground
+      // not drawn at all": not added a second time)
+      const sum = rows.reduce((x, r) => x + (r[0].startsWith('of the ') || r[0].startsWith('with ') ? 0 : r[1]), 0);
       this.lines.push(`    every group out at once: ${f(all)} saved (the groups one by one add up to ${f(sum)}) · what is left then: ${f(on - all)}`);
     }
     // (the savings in families, the same way)
@@ -508,9 +510,9 @@ export class CostTest {
     for (let k = 1; k < n - 4; k++) { if (c[k][0] < 0) continue; const d = onAt(k) - ms[k]; if (!isNaN(d)) saved.push([FEATURE_STEPS[c[k][0]].id, d]); }
     // (what leaving each part out saves, against "everything on" just before it; the last is
     // what is left with nothing drawn at all: the measuring itself and the page's own work)
-    const parts = []; let none = NaN;
-    for (let k = 1; k < n - 4; k++) if (c[k][0] <= -10 && c[k][0] > -100) { const p = this.parts[-10 - c[k][0]]; if (p.id === 'everything') none = ms[k]; else parts.push(`${p.label} ${f(p.adds ? ms[k] - ms[k - 1] : ms[k - 1] - ms[k])}`); }
-    this.lines.push(`  saved by leaving a part out: ${parts.join(' · ')} · (with nothing drawn at all a frame still takes ${f(none)})`);
+    const parts = []; let none = NaN, noneSaved = NaN;
+    for (let k = 1; k < n - 4; k++) if (c[k][0] <= -10 && c[k][0] > -100) { const p = this.parts[-10 - c[k][0]]; if (p.id === 'everything') { none = ms[k]; noneSaved = ms[k - 1] - ms[k]; } else parts.push(`${p.label} ${f(p.adds ? ms[k] - ms[k - 1] : ms[k - 1] - ms[k])}`); }
+    this.lines.push(`  saved by leaving a part out: ${parts.join(' · ')} · (with nothing drawn at all a frame still takes ${f(none)}: ${f(noneSaved)} less than everything on just before it, the number to set beside "every group out at once")`);
     saved.sort((a, b) => b[1] - a[1]);
     this.lines.push(`  saved by one saving alone: ${saved.filter((x) => Math.abs(x[1]) >= 0.3).map((x) => `${x[0]} ${x[1].toFixed(1)}`).join(' · ') || 'nothing over 0.3'}`);
   }

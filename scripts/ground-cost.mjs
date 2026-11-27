@@ -1,7 +1,7 @@
 // What the ground's shading costs, as a count of work (never a frame rate): the real
 // game's ground drawn alone, at a fixed size, at a set of views, in the headless browser.
 //   node scripts/ground-cost.mjs [--only ledge,air3k] [--save dir] [--compare dir] [--frames 5]
-//                                [--tiers] [--size 880x412] [--dsf 1.25] [--dist | --distdir <build>] [--timeout 900] [--floor]
+//                                [--tiers] [--step ground-far] [--add t=6] [--size 880x412] [--dsf 1.25] [--dist | --distdir <build>] [--timeout 900] [--floor]
 // Software WebGL runs every instruction of a fragment on the CPU: its time per pixel
 // follows the count of instructions and texture reads, not a phone's GPU. A shader three
 // times faster here is very likely a great deal faster on the phone; how much, only the
@@ -108,6 +108,8 @@ for (const v of VIEWS) {
     if (use.some((p) => !p.linked)) { console.log(`${v.id}: SHADER FAILED`); failed = true; }
   } catch { /* the page errors below say it */ }
   if (errors.length) { console.log(`${v.id}: PAGE ERRORS — ${errors.slice(0, 3).join(' | ')}`); failed = true; }
+  // --step id[,id]: with these savings of the governor on (what one step buys, and how the ground looks with it)
+  if (opt('step', null)) await page.evaluate(async (ids) => { const m = await import(/* @vite-ignore */ '/src/perf/governor.js'); for (const id of ids) { const st = m.FEATURE_STEPS.find((f) => f.id === id); if (!st) throw new Error('no step ' + id); st.apply(window.__app, true); } }, opt('step', null).split(','));
   const res = await page.evaluate(async ({ frames, floor, before }) => {
     const a = window.__app, r = a.renderer, gl = r.getContext(), post = a.post, sh = a.terrain.shared, cam = a.rig.camera;
     if (floor) a.governor.toFloor();
@@ -203,7 +205,7 @@ for (const v of VIEWS) {
       const flags = [
         ['canopy', 'if (canopyTall > 0.3 && vShell > 0.0) {', 0, 1], ['floor', 'if (vShell < 1.0) {', 0, 2], ['grass', 'if (gw > 0.0) {', 0, 4], ['flowers', 'if (fw.a > 0.0) {', 0, 8],
         ['patches', 'if (uPaint.x > 0.0 && farW < 1.0 && flatW > 0.0 && dist > 60.0) {', 0, 16], ['broad', 'if (grassyB > 0.0) {', 0, 32], ['swaths', 'if (grassy > 0.0) {', 0, 64],
-        ['water', 'if (water > 0.0) {', 0, 128], ['strata', '* (uStrata.y + uStrata.w) > STRATA_LEAST) {', 0, 256],
+        ['water', 'if (water > 0.0) {', 0, 128], ['strata', '* (uStrata.y + uStrata.w) > STRATA_LEAST * (1.0 + 24.0 * uGroundThin)) {', 0, 256],
         ['snow', 'if (pale > 0.0 || snowMay(vHeight, up)) {', 1, 8], ['relief', 'if (lodRef > lodF + 0.05 && nearFade > 0.0) {', 1, 16], ['litter', 'if (nearL > 0.0) {', 1, 32], ['planes', 'if (kp > 0.0) {', 1, 64], ['reliefLight', 'if (kr > 0.0) {', 1, 128],
       ];
       for (const [name, find, ch, bit] of flags) {

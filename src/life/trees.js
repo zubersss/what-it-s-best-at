@@ -17,7 +17,7 @@ import { makeTreeGeometries, VARIANTS, sharedCorners } from './treeGeometry.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
 import { SNOW_GLSL, SNOW_UNIFORMS } from '../render/snowGlsl.js';
 import { EDGE0, EDGE1, TOP0, TOP1 } from './farTreeForm.js';
-import { SPECIES, bloomOf, treeLook, canopyYear } from './cover.js';
+import { SPECIES, bloomOf, treeLook, canopyYear, canopyFar } from './cover.js';
 import { treeSeason } from './season.js';
 
 // A tree of the middle sort (turns orange to red, neither early nor late): what the season of a place is said by
@@ -601,6 +601,7 @@ ${TREE_VERT}
         const cy = canopyYear(this.world, whole, lat, lon, t.shared.uCanopyYear.value, t.shared.uLitterYear.value);
         this.litterMost = Math.max(...t.shared.uLitterYear.value.map((v) => v.w));
         t.shared.uCanopyAlt.value.set(cy.alt0, 1 / cy.step, cy.perDeg, cy.lat);
+        if (t.shared.uCanopyFar) canopyFar(this.world, whole, lat, lon, t.shared.uCanopyFar.value);
       }
     }
     if (!show) return;

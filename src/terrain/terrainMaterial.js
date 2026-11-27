@@ -90,8 +90,16 @@ uniform vec4 uWind;          // xyz: where the wind blows to (unit, planet axes)
 uniform vec3 uWave;          // x: the waves' height scale (m), y: 1 if the surface itself is lifted, z: time (s)
 uniform vec2 uTide;          // x: the sea's level against the level its shore is mapped at (m, 0 or below: the map is the highest tide)
 ${WAVE_GLSL}
-out vec2 vGrid;
-out vec2 vDetailUv;
+// [ground cost] (one row for the two: a phone is promised fifteen rows of varyings, and the sky's light below takes two)
+out vec4 vGD;
+#define vGrid vGD.xy
+#define vDetailUv vGD.zw
+// [ground cost] The sky's light as far as it does not depend on the surface's normal: the
+// level-ground table's answer for the place (lightingGlsl.js, skyThere; asked for by every
+// pixel from 3 km up), and the sky's light on level ground there (the air of a wood: asked
+// for by every pixel of forest). Both are smooth over a patch.
+out vec3 vSkyThere;
+out vec3 vSkyUp;
 out vec3 vRel;
 flat out vec3 vTanU;         // the cube face's two axes laid on the ground at the chunk's centre
 flat out vec3 vTanV;
@@ -201,10 +209,12 @@ void main() {
   // shading must see the shading done here as well as the pixels')
   vSun = vec3(0.0);
   vHazeT = vec3(1.0); vHazeL = vec3(0.0); vHazeG = vec3(0.0);
+  vSkyThere = vec3(0.0); vSkyUp = vec3(0.0);
   vCloud = vec4(1.0, 1.0, 0.0, 0.5);
   vFlowerFields = vec2(0.0, 0.5);
   if (uPlain > 0.5) return;
   vSun = directSun(uCamPlanetPos + rel);
+  { vec3 upS = normalize(uCamPlanetPos + rel); if (uSkyGainMix > 0.0) vSkyThere = skyThere(upS); vSkyUp = skyLight(upS, upS, vSkyThere); }
   // (a vertex behind the eye has no place in the view: the edge of the view on its side)
   // (the cloud over the place, at the vertices of the near ground: the far ground asks at every
   // pixel, see CLOUD_VERT_TILES. And how wet the ground is here, from the weather field: it was
@@ -229,6 +239,7 @@ uniform lowp sampler2DArray tShadow;    // one layer per chunk: baked sun visibi
 // (the parent chunk's layers of the same two arrays: shading morphs toward them exactly as
 // the vertices morph toward the parent's shape)
 uniform sampler2D tStrata;
+uniform float uGroundThin;    // [ground cost] the governor's step ground-far (1: on): the far ground's finer tones from fewer reads (the painted patches from one, the strata on rock only, the forest floor's tufts from one)
 uniform sampler2D tDetail;
 uniform vec4 uDetailMean;        // the detail texture's last level: the one number it comes to seen from far enough
 uniform vec3 uDust, uSand, uScree, uRock, uBedrock;
@@ -257,6 +268,7 @@ uniform float uLitter;         // fallen leaves under the trees, 0..1 by the sea
 // leaves' colour on this day (branches where they are bare); a: the level of the canopy's
 // patch noise over which a patch is theirs (their share of the wood there; 9: none).
 uniform vec4 uCanopyYear[8];
+uniform vec4 uCanopyFar[8];    // the wood as a whole, by height as uCanopyYear (life/cover.js canopyFar): rgb its mean leaf colour on this day over high summer's, a: the share of its trees that drop their leaves
 uniform vec4 uLitterYear[8];   // the leaves lying in a wood, by height as uCanopyYear: rgb their colour, a: how much of the floor they cover
 uniform vec4 uLeafTree[8];     // the nearest trees with leaves under them (life/leaves.js TreeLeaves): xyz the foot from the eye (m), w the crown's radius (0: none)
 uniform vec4 uLeafTreeCol[8];  // ... rgb the colour of its fallen leaves, a: how much of them lies
@@ -315,8 +327,11 @@ vec2 reliefSlope(vec2 uv, float lod) {
   vec2 s = textureLod(tRelief, uv, lod).rg * 2.0 - 1.0;
   return s * abs(s);
 }
-in vec2 vGrid;
-in vec2 vDetailUv;
+in vec4 vGD;
+#define vGrid vGD.xy
+#define vDetailUv vGD.zw
+in vec3 vSkyThere;           // [ground cost] the sky's light, the parts the vertices ask for (see the vertex shader)
+in vec3 vSkyUp;
 in vec3 vRel;
 in vec3 vHMS;                  // x height above the datum, y the morph toward the parent, z the forest raised as a whole (vertex shader): how much canopy stands here
 in vec3 vSun;                  // the Sun's light reaching the place, and the air between the eye and it (worked out at the vertices)
@@ -390,7 +405,7 @@ ${ALBEDO_RANGE_GLSL}
 ${PAINT_LEAF}
 ${FAR_GREEN_GLSL}
 ${SNOW_GLSL}
-vec3 farCanopyColour(vec3 tint, vec3 c1, vec3 c2, float height, float absLat, float dist) {
+vec3 farCanopyColour(vec3 tint, vec3 c1, vec3 c2, float height, float absLat, float dist, float fwC) {
   vec3 leaf = vec3(0.045, 0.085, 0.03) * 0.61;
   if (uPaint.x > 0.0) leaf = paintLeaf(leaf);
   vec3 leaves = farGreen(leaf * (1.12 * 0.76), dist) * (0.85 + 0.5 * (c2.b + 0.5 * c1.b));
@@ -405,7 +420,11 @@ vec3 farCanopyColour(vec3 tint, vec3 c1, vec3 c2, float height, float absLat, fl
   if (uPaint.x > 0.0) theirs = paintLeaf(theirs);
   // (each patch its own tone, and some redder than the mean, as each tree is)
   theirs = farGreen(theirs * (1.12 * 0.76), dist) * (0.8 + 0.6 * (c2.b + 0.5)) * mix(vec3(1.0), vec3(1.12, 0.78, 0.8), smoothstep(-0.1, 0.25, c1.r) * smoothstep(0.0, 0.3, (yr.r - yr.g) / max(yr.r, 1e-4)));
-  return mix(leaves, theirs, 0.85 * smoothstep(yr.a, yr.a + 0.14, c2.r + 0.5 * c1.g));
+  // (where a patch is under a pixel, fwC tiles a pixel, the wood is the mean of the two by
+  // their share: the patches' noise reads as its mean there, and a wood was all one or all
+  // the other by which side of the cut the mean fell)
+  float share = mix(uCanopyFar[i].a, uCanopyFar[i + 1].a, x - float(i));
+  return mix(leaves, theirs, 0.85 * mix(smoothstep(yr.a, yr.a + 0.14, c2.r + 0.5 * c1.g), share, smoothstep(0.3, 0.8, fwC)));
 }
 // The far canopy's grain: how it tilts the surface, along the tile's two axes, where a
 // pixel is narrower than the canopy's unevenness (nearC 1: all of it; 0: none).
@@ -647,13 +666,13 @@ void main() {
   // them, and nearly all gentle ground is a few hundredths scree: two reads on 70 % of the
   // ground for a tint of under a third of a level. STRATA_LEAST: the largest change of the
   // colour that is given up, 0.4 %; a world without strata reads nothing)
-  if ((max(rockW + 0.35 * screeW, bedM) + uStrataFlat) * (uStrata.y + uStrata.w) > STRATA_LEAST) {
+  if ((max(rockW + 0.35 * screeW, bedM) + uStrataFlat) * (uStrata.y + uStrata.w) > STRATA_LEAST * (1.0 + 24.0 * uGroundThin)) {
     // (the strata's picture has one level: read as that, it needs no footprint, which
     // inside a branch it could not have)
     vec3 tint = textureLod(tStrata, vec2(hs * uStrata.x, 0.25), 0.0).rgb * 2.0;
     band = mix(vec3(1.0), tint, uStrata.y);
     // (the fine bands by the same test: on the made world they are a thirtieth of the colour at most)
-    if ((max(rockW + 0.35 * screeW, bedM) + uStrataFlat) * uStrata.w > STRATA_LEAST) band *= mix(vec3(1.0), textureLod(tStrata, vec2(hs * uStrata.z, 0.75), 0.0).rgb * 2.0, uStrata.w);
+    if ((max(rockW + 0.35 * screeW, bedM) + uStrataFlat) * uStrata.w > STRATA_LEAST * (1.0 + 24.0 * uGroundThin)) band *= mix(vec3(1.0), textureLod(tStrata, vec2(hs * uStrata.z, 0.75), 0.0).rgb * 2.0, uStrata.w);
   }
   // (on gentle ground the bands follow the height, so from far away they would draw
   // contour lines across the plains: they show near the ground only)
@@ -715,7 +734,7 @@ void main() {
     if (vShell < 1.0) {
       {
         // open country is grass in patches; under a closed canopy it is litter and shade
-        vec3 g1 = texture(tDetail, vDetailUv * 0.5).rgb, g2 = texture(tDetail, vDetailUv * 4.0).rgb;
+        vec3 g1 = texture(tDetail, vDetailUv * 0.5).rgb, g2 = uGroundThin > 0.5 ? uDetailMean.rgb : texture(tDetail, vDetailUv * 4.0).rgb;
         float veg = smoothstep(0.3, 3.0, canopyTall) * flatW * (1.0 - vShell), tuft = smoothstep(0.35, 0.65, 0.6 * g1.r + 0.4 * g2.g);
         vec3 grass = vec3(0.070, 0.095, 0.030) * mix(vec3(1.0), mapTint, 0.5) * (0.8 + 0.5 * g2.b);
         vec3 litter = vec3(0.085, 0.070, 0.042) * mix(vec3(1.0), mapTint, 0.4);
@@ -787,7 +806,8 @@ void main() {
     // (a canopy seen from the side shows the sides of its crowns: lit with the Sun behind
     // the eye, dark against it, as the trees drawn one by one are; from straight above, its top)
     N = normalize(N + (V - up * dot(V, up)) * (1.1 * vShell));
-    vec3 leaves = farCanopyColour(mapTint, c1, c2, vHeight, degrees(asin(clamp(abs(up.z), 0.0, 1.0))), dist);
+    float latC = degrees(asin(clamp(abs(up.z), 0.0, 1.0)));
+    vec3 leaves = farCanopyColour(mapTint, c1, c2, vHeight, latC, dist, fwC);
     // (not from far off: there the forest is what the picture from space shows, not one
     // flat green laid over it in blocks: the canopy's map has pixels a kilometre wide)
     // (by distance, not by the patch's texel: a patch a step finer than its neighbours was
@@ -841,6 +861,13 @@ void main() {
     // (from a kilometre the wood gathers into larger soft clumps in two or three tones: the
     // detail tile's broad blob, 64 m, lighter and darker, as the far trees' shared tone is)
     leaves *= mix(1.0, 0.68 + 0.62 * smoothstep(-0.12, 0.12, c2.r + 0.4 * c1.g), smoothstep(400.0, 1200.0, dist));
+    // [seasons] (beyond the canopy's own colour the wood is the land's colour map, painted
+    // for high summer: the season's change of the wood as a whole is put on it, uCanopyFar)
+    if (ownC < 1.0) {
+      float xf = clamp((vHeight + uCanopyAlt.z * (latC - uCanopyAlt.w) - uCanopyAlt.x) * uCanopyAlt.y, 0.0, 6.999);
+      int jf = int(xf);
+      albedo *= mix(vec3(1.0), mix(uCanopyFar[jf].rgb, uCanopyFar[jf + 1].rgb, xf - float(jf)), shellW * (1.0 - ownC));
+    }
     albedo = mix(albedo, leaves, shellW * ownC);
     shellOut = shellW;
     ao *= mix(1.0, 0.72 + 0.5 * clamp(c1.b + c2.b, -0.4, 0.5), vShell * ownC);
@@ -921,7 +948,7 @@ void main() {
   // mountain side seen from some kilometres off they were level streaks, like a wood's grain)
   if (uPaint.x > 0.0 && farW < 1.0 && flatW > 0.0 && dist > 60.0) {
     vec2 kp = vec2(10.0, 5.0) * floor(uPlanetRadius * 0.00021975 + 0.5);
-    float pa = textureGrad(tDetail, uvA * kp, gx * kp, gy * kp).a, pb = textureGrad(tDetail, uvA * kp * 3.7 + 0.31, gx * kp * 3.7, gy * kp * 3.7).a;
+    float pa = textureGrad(tDetail, uvA * kp, gx * kp, gy * kp).a, pb = uGroundThin > 0.5 ? pa : textureGrad(tDetail, uvA * kp * 3.7 + 0.31, gx * kp * 3.7, gy * kp * 3.7).a;
     float lay = smoothstep(0.42, 0.58, 0.6 * pa + 0.4 * pb);
     albedo *= mix(vec3(1.0), mix(vec3(0.85, 0.90, 0.85), vec3(1.15, 1.11, 1.0), lay), uPaint.x * (1.0 - farW) * flatW * smoothstep(60.0, 400.0, length(vRel)));
   }
@@ -966,9 +993,14 @@ void main() {
   // past the land's own snow, it lies on the ground and on the canopy raised beyond the
   // trees: white, a little blue in the shade (the light does that), the ground's own colour
   // showing at its edge in patches. Not on water.
-  if (snowHere.x > 0.0 && waterDepth <= 0.0) {
-    float lieS = smoothstep(0.25, 0.75, snowHere.x + (texture(tDetail, vDetailUv * 3.0).g - 0.5) * 0.5 * (1.0 - smoothstep(200.0, 900.0, dist)));
-    albedo = mix(albedo, vec3(0.80, 0.83, 0.88), lieS * (1.0 - 0.45 * shellOut));
+  // (and the land's own snow, painted into its colour map, where it still lies: the same
+  // white. Its colour came through the ground's palette, a pale grey with the dust's hue,
+  // lilac in the shade, beside new snow that was white.)
+  float snowOwn = snowHere.z * (1.0 - snowHere.y) * (snowHere.z > 0.0 ? snowOwnZone(vHeight, up) : 0.0);
+  if ((snowHere.x > 0.0 || snowOwn > 0.0) && waterDepth <= 0.0) {
+    float lieS = 0.0;
+    if (snowHere.x > 0.0) lieS = smoothstep(0.25, 0.75, snowHere.x + (texture(tDetail, vDetailUv * 3.0).g - 0.5) * 0.5 * (1.0 - smoothstep(200.0, 900.0, dist)));
+    albedo = mix(albedo, vec3(0.80, 0.83, 0.88), max(lieS, snowOwn * (1.0 - rockW)) * (1.0 - 0.45 * shellOut));
   }
 
   // --- the tide, and the wash of the waves up the shore. The map's shore is the highest
@@ -1130,7 +1162,11 @@ void main() {
   }
   vec3 sunHere = vSun;
   vec3 direct = sunHere * shadow * diffuse;
-  vec3 ambient = (skyLight(N, up) * ao + planetShine(N)) * contactSky(vRel, N) / PI;
+  // [ground cost] (the sky's light for the place from the vertices; on the few patches so wide
+  // that the vertical turns across a triangle, the land at the horizon, asked here as before)
+  bool skyWide = vChunk.z > float(SKY_VERT_TILES);
+  vec3 skyThereP = skyWide ? (uSkyGainMix > 0.0 ? skyThere(up) : vec3(0.0)) : vSkyThere;
+  vec3 ambient = (skyLight(N, up, skyThereP) * ao + planetShine(N)) * contactSky(vRel, N) / PI;
   if (canopyShade > 0.0) ambient = mix(ambient, dot(ambient, vec3(0.3, 0.55, 0.15)) * mix(vec3(0.85, 1.1, 0.5), vec3(1.25, 0.95, 0.45), uLitter), 0.85 * canopyShade);
   vec3 col = albedo * (direct + ambient);
   if (water > 0.0) {
@@ -1145,7 +1181,7 @@ void main() {
     // straight down. Each ripple read the painted sky in its own direction, and a river
     // from 1 km was a rainbow of lilac, mint and pink.)
     Rv = normalize(mix(Rv, up, waterAir)); Fv = max(Fv, 0.1 * waterAir);
-    col += water * (1.0 - foam) * (sunHere * shadow * (a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0) * 0.25 / max(dot(N, V), 0.2)) + Fv * skyLight(Rv, up) / (PI * mix(1.0, uSkyBoost, waterAir)));
+    col += water * (1.0 - foam) * (sunHere * shadow * (a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0) * 0.25 / max(dot(N, V), 0.2)) + Fv * skyLight(Rv, up, skyThereP) / (PI * mix(1.0, uSkyBoost, waterAir)));
   } else if (uGloss.x > 0.0 || vCloud.z > 0.01) {
     // the Sun's sheen on ice, and on ground the rain has wetted: a broad glint toward the
     // Sun, strongest at a grazing view; it fades with distance into the far ground's plain
@@ -1155,9 +1191,9 @@ void main() {
     float nh = max(dot(N, Hh), 0.0), a2 = gr * gr, dd = nh * nh * (a2 - 1.0) + 1.0;
     float F = 0.03 + 0.97 * pow(1.0 - max(dot(V, Hh), 0.0), 5.0);
     col += sunHere * shadow * (gl * (1.0 - farW) * a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0));
-    if (wetK > 0.0) { vec3 Rw = reflect(-V, N); Rw = normalize(Rw + up * max(0.0, 0.05 - dot(Rw, up))); col += wetK * flatW * 0.5 * pow(1.0 - max(dot(N, V), 0.0), 4.0) * skyLight(Rw, up) / PI; }
+    if (wetK > 0.0) { vec3 Rw = reflect(-V, N); Rw = normalize(Rw + up * max(0.0, 0.05 - dot(Rw, up))); col += wetK * flatW * 0.5 * pow(1.0 - max(dot(N, V), 0.0), 4.0) * skyLight(Rw, up, skyThereP) / PI; }
   }
-  if (woodAir > 0.0) col = forestAir(col, vRel, up, woodAir);
+  if (woodAir > 0.0) col = forestAir(col, vRel, up, woodAir, skyWide ? skyLight(up, up, skyThereP) : vSkyUp);
   // the air (the haze depends on how bright the ground is): from inside it by the numbers
   // worked out at the vertices, from space pixel by pixel
   if (length(uCamPlanetPos) * 0.001 <= uRTop) col = col * vHazeT + vHazeL + vHazeG * (clamp(albedo / max(uGroundAlbedo, vec3(1e-4)), 0.0, 2.5) - 1.0);
@@ -1177,13 +1213,13 @@ export function makeTerrainShared(world, textures) {
     uCover: { value: new THREE.Vector4() },
     // w: the cover pattern (d0.a + 0.3 d1.a) is about normal; logistic scale = its spread / 1.702
     uCoverPattern: { value: new THREE.Vector4(0, 0, 0, (textures.detail.userData.lowSpread ?? 0.1) * Math.hypot(1, 0.3) / 1.702) },
-    uWaterQ: { value: 1 }, uPlain: { value: 0 }, uTide: { value: new THREE.Vector2(0, 0) }, uAirRelief: { value: 0 },
+    uWaterQ: { value: 1 }, uGroundThin: { value: 0 }, uPlain: { value: 0 }, uTide: { value: new THREE.Vector2(0, 0) }, uAirRelief: { value: 0 },
     // the clouds' shade, the one atlas every lit thing reads (sky/cloudShade.js), and how wet
     // the ground is per place; the four below are the cloud rule's own numbers, which the atlas
     // reads to write itself with (nothing in the ground's shaders reads them any more)
     ...CLOUD_SHADE_UNIFORMS, ...CLOUD_WET_UNIFORMS,
     tCloudNoise: { value: null }, uCloudHeap: { value: new THREE.Vector4(0, 0, 0, 0) }, uCloudVol: { value: new THREE.Vector4() }, uCloudSteer: SKY_UNIFORMS.uCloudSteer,
-    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, uCanopyYear: { value: Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, 0, 9)) }, uCanopyAlt: { value: new THREE.Vector4(0, 0, 0, 45) }, uLitterYear: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) }, uLeafTree: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) }, uLeafTreeCol: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) }, uLeafDrift: { value: new THREE.Vector4() }, uGrassYear: { value: new THREE.Vector4() }, uKindShut: { value: new Float32Array(KINDS.length) }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) }, uGrassWave: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uRoughness: { value: 0.5 }, uFarRoughness: { value: 0.5 }, uDetailStrength: { value: 0.5 }, uGloss: { value: new THREE.Vector2(0, 0.3) }, uSea: { value: new THREE.Vector4(0, 0, 0.1, 0.05) }, uWind: { value: new THREE.Vector4(1, 0, 0, 5) }, uWave: { value: new THREE.Vector3(0.3, 1, 0) }, uShell: { value: new THREE.Vector3(200, 300, 0) }, uLitter: { value: 0 }, uCanopyYear: { value: Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, 0, 9)) }, uCanopyAlt: { value: new THREE.Vector4(0, 0, 0, 45) }, uLitterYear: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) }, uCanopyFar: { value: Array.from({ length: 8 }, () => new THREE.Vector4(1, 1, 1, 0)) }, uLeafTree: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) }, uLeafTreeCol: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) }, uLeafDrift: { value: new THREE.Vector4() }, uGrassYear: { value: new THREE.Vector4() }, uKindShut: { value: new Float32Array(KINDS.length) }, tClouds: { value: textures.white }, uCloud: { value: new THREE.Vector4(0, 1, 0, 0) }, uSeaColor: { value: new THREE.Vector3(0.01, 0.03, 0.07) }, uGrassTone: { value: new THREE.Vector4(0, 0, 0, 0) }, uGrassWave: { value: new THREE.Vector4(0, 0, 0, 0) },
     tRingColour: { value: textures.white }, uRingColour: { value: new THREE.Vector4(0, 0, 1, 0) },
     tAlbedo: { value: textures.white }, uAlbedoMap: { value: new THREE.Vector4(1, 1, 1, 0) }, uAlbedoChroma: { value: 1 }, uAlbedoShift: { value: 0 }, uAlbedoSteep: { value: 1 }, uAlbedoFade: { value: new THREE.Vector2(2, 3) },
     uAlbedoRange: { value: new THREE.Vector2() }, uRockHue: { value: new THREE.Vector2() }, uCoverContrast: { value: 1 }, uBedrockSlope: { value: 0 },
@@ -1253,7 +1289,7 @@ export function makeTerrainMaterial(shared, pool) {
     glslVersion: THREE.GLSL3,
     // DETAIL_LAST: the square of the footprint (in repeats of a close-up layer a pixel) beyond which the layer is not read; DETAIL_FADE: from where it fades to its mean.
     // (A sampler with at most 4 taps along the long side answers with the last level, the mean itself, from (4 / 1)^2, or 64 on a GPU that chooses its level a step finer: the reads stopped there until the ground-cost work.)
-    defines: { ...atmosphereDefines(), DETAIL_LAST: '4.0', DETAIL_FADE: '1.0', STRATA_LEAST: '0.004', CLOUD_VERT_TILES: CLOUD_VERT_TILES.toFixed(1), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, DETAIL_TILE, DETAIL_PERIOD, VERT_W: pool.VW, MORPH_START: CONFIG.MORPH_START, GRASS_FAR0: GRASS_GROUND.far[0].toFixed(1), GRASS_FAR1: GRASS_GROUND.far[1].toFixed(1), GRASS_FLOWER_SHARE: GRASS_GROUND.flowers.toFixed(3), GRASS_SLOPE0: GRASS_GROUND.slope[0].toFixed(3), GRASS_SLOPE1: GRASS_GROUND.slope[1].toFixed(3) },
+    defines: { ...atmosphereDefines(), DETAIL_LAST: '4.0', DETAIL_FADE: '1.0', STRATA_LEAST: '0.004', SKY_VERT_TILES: '256.0', CLOUD_VERT_TILES: CLOUD_VERT_TILES.toFixed(1), NORMAL_RES: CONFIG.NORMAL_RES, SHADOW_RES: CONFIG.SHADOW_RES, SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, DETAIL_TILE, DETAIL_PERIOD, VERT_W: pool.VW, MORPH_START: CONFIG.MORPH_START, GRASS_FAR0: GRASS_GROUND.far[0].toFixed(1), GRASS_FAR1: GRASS_GROUND.far[1].toFixed(1), GRASS_FLOWER_SHARE: GRASS_GROUND.flowers.toFixed(3), GRASS_SLOPE0: GRASS_GROUND.slope[0].toFixed(3), GRASS_SLOPE1: GRASS_GROUND.slope[1].toFixed(3) },
     vertexShader: VERT, fragmentShader: FRAG,
     uniforms: {
       ...shared,

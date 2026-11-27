@@ -21,9 +21,10 @@ the plain Haven benchmark (the governor at work, its new order). To read first:
    the trees' cost is not in those looks, and the next cut is their triangles. Negative at
    every view: the vertices cost more than the pixels saved, and the switch is one line.
 2. **The group "the ground not drawn at all ... with leaves, petals, pollen, falls and the
-   lander"** less the group "the ground's shading": what the ground's triangles themselves
-   cost (20 and 27 ms stood unasked-for at the ledge and from the air). And "what is left
-   then" with every group out, which should now be near "nothing drawn at all".
+   lander"** less the group "the ground's shading": what the ground's triangles and the small
+   things cost, if anything (the 20 and 27 ms that seemed to stand unasked-for at the ledge and
+   from the air were mostly the test's own drift: two plain numbers from different moments).
+   And "what is left then" with every group out against "nothing drawn at all".
 3. **The hitch list**: no "unknown" ten seconds in (the shaders are made while loading now);
    any that is left says in brackets what the page did in that frame, and what it uploaded.
 4. **The plain run's steps**: the governor should take the cloud march's coarser steps first,
@@ -366,6 +367,11 @@ the cloud layer's and the upper cloud's meshes 0.27 M (not indexed: said to the 
 the figure 0.07 M. After this branch's cuts the grass and flowers are about a third of what
 they were and the trees half; the next in line, not done:
 
+- *(Since: for the far forest this is mostly had another way. Its vertex shader now throws a
+  tree outside the picture out at its first lines, see "The trees' layers" below: the trees of
+  a tile that stand beside the picture are still handed over, and cost a matrix and a
+  comparison each. Cutting the tiles in parts would save that remainder; left until the
+  phone's forest group says it is worth an afternoon. The far rocks are 11 000 triangles.)*
 - *The far forest and the far rocks by parts of a tile.* A tile of far trees (889 m and up)
   or far rocks is handed over whole when any of it is in the picture: at the opening view
   44 800 far trees are handed over for 27 800 standing all round, 10 800 far rocks for 1 400
@@ -465,19 +471,25 @@ Two things, and one of them is not the GPU's:
   (14.9, 23.9, 11.4) most is that, the read-back that does the measuring, and the passes that
   run whatever is hidden (the shadow maps' own, the glow's chain for the exposure meter, the
   last pass over the picture).
-- **Between "every group out" and "nothing drawn" stand 20, 7 and 27 ms that no row asked
-  about**: with every group out the ground is still drawn, in one flat tone (the group is its
-  *shading*), with the leaves, petals, pollen, waterfalls and the lander. The flat tone's own
-  pixel work is nothing (the shader returns at its first line, vertices and pixels both), so
-  this is the ground's triangles themselves and the picture's target filled and written out:
-  most where the ground fills the picture and the view is long (from the air, 27), least in
-  the wood (7). The count has the ground at 429 000 triangles in one draw at the ledge.
+- **Between "every group out" and "nothing drawn" stand 20, 7 and 27 ms, and they are not
+  to be believed as they stand.** What differs between the two: with every group out the
+  ground is still drawn, in one flat tone (the group is its *shading*), with the leaves,
+  petals, pollen, waterfalls and the lander, while the shadow maps and the glow are off; with
+  nothing drawn it is the other way round. But the two numbers are plain milliseconds taken
+  at different moments of a test whose "everything on" went from 54 to 125 ms at the ledge
+  and from 54 to 96 from the air, and only from 67 to 77 in the wood: the gap is largest where
+  the drift was (20 and 27) and small where it was not (7). And nothing drawn there can cost
+  it: the flat tone returns at the first line of both shaders, and the ground is some 225 000
+  vertices in one draw (429 000 triangles, 122 patches). Most of the gap is the drift.
 
-The cost test now asks: two rows (`ground-mesh`: the ground not drawn at all; `small-things`)
-and a group of the two ("the ground not drawn at all ... with leaves, petals, pollen, falls and
-the lander"). That group less the group "the ground's shading" is what the ground's triangles
-cost; "what is left then" with every group out should now be near "nothing drawn". (The sum
-"the groups one by one add up to" counts the ground's shading twice since.)
+So the cost test now asks properly, against baselines before and after like every group: two
+rows (`ground-mesh`: the ground not drawn at all; `small-things`) and a group of the two ("the
+ground not drawn at all ... with leaves, petals, pollen, falls and the lander"). That group
+less the group "the ground's shading" is what the ground's triangles and the small things
+cost, if anything; and with it "what is left then" is a frame with only the passes that run
+whatever is hidden. (The sum "the groups one by one add up to" leaves this group out, as it
+does the sky's own parts.) And the line for "nothing drawn at all" now also says how much less that is
+than everything on just before it: the number to set beside "every group out at once: saved".
 
 ### The uploads inside a pass, named (6 to 8 a frame on Haven, 40 to 57 KB)
 
