@@ -5,6 +5,7 @@
 //   node scripts/hero-rig-preview.mjs --clip Run [--frames 6] [--yaw 90] [--h 420] [--lod 0|1]
 //                                     [--box -1,-1,1,1] [--out file.png] [--times 0,0.5,1.2]
 //   node scripts/hero-rig-preview.mjs --state "foot=1,speed=5.5" ...   the game's own choice of clips (hero/heroAnim.js)
+//   node scripts/hero-rig-preview.mjs --pose stand|walk|run|super|jump|land|fly|fast|climb ...   the game's own figure (hero/hero.js) for a while: clips, facing and the lie of the body together
 import fs from 'node:fs';
 import { png } from './lib/png.mjs';
 import { parseHero } from '../src/hero/heroFile.js';
@@ -16,12 +17,31 @@ const clip = opt('clip', 'Idle'), H = +opt('h', 420), box = opt('box', '-1.1,-1.
 const frames = +opt('frames', 6), times = opt('times', null)?.split(',').map(Number) || Array.from({ length: frames }, (_, i) => i * rig.clips[clip].duration / frames);
 const sc = H / (box[3] - box[1]), W = Math.round((box[2] - box[0]) * sc), TW = W * times.length, img = Buffer.alloc(TW * H * 3);
 for (let y = 0; y < H; y++) for (let x = 0; x < TW; x++) { const q = (y * TW + x) * 3, t = y / H; img[q] = 118 - 40 * t; img[q + 1] = 150 - 40 * t; img[q + 2] = 190 - 40 * t; }
-let anim = null; const state = opt('state', null);
-if (state) { const { HeroAnim } = await import('../src/hero/heroAnim.js'); anim = new HeroAnim(rig); }
+let anim = null; const state = opt('state', null), game = opt('pose', null);
+if (state || game) { const { HeroAnim } = await import('../src/hero/heroAnim.js'); anim = new HeroAnim(rig); }
+// --pose: the game's own figure (hero/hero.js) flown or walked for a while, as the game does it
+let hero = null, grig = null, genv = null;
+if (game) {
+  const THREE = await import('three'), { Hero } = await import('../src/hero/hero.js');
+  hero = new Hero(); hero.group.visible = true;
+  hero.useRig({ mesh: new THREE.Object3D(), pose: (dt, st) => anim.update(dt, st) });
+  grig = { localUp: [0, 1, 0], forward: new THREE.Vector3(0, 0, 1), right: new THREE.Vector3(-1, 0, 0), up: new THREE.Vector3(0, 1, 0), pitch: 0, agl: 50, heroRel: new THREE.Vector3(0, 0, 4), velocity: new THREE.Vector3(0, 0, 0), throttle: 0, boost: false, onFoot: false, airborne: false, yawRate: 0, vUp: 0, clock: 0, facing: new THREE.Vector3(0, 0, 1) };
+  if (game === 'fly') { grig.velocity.set(0, 0, 25); grig.throttle = 1; }
+  if (game === 'fast') { grig.velocity.set(0, 0, 80); grig.throttle = 1; grig.boost = true; }
+  if (game === 'climb') { grig.velocity.set(0, 25, 0); grig.throttle = 1; }
+  if (game === 'stand') { grig.onFoot = true; grig.agl = 0; }
+  if (game === 'walk') { grig.onFoot = true; grig.velocity.set(0, 0, 1.6); grig.agl = 0; }
+  if (game === 'run') { grig.onFoot = true; grig.velocity.set(0, 0, 5.5); grig.agl = 0; }
+  if (game === 'super') { grig.onFoot = true; grig.velocity.set(0, 0, 45); grig.throttle = 1; grig.agl = 0; }
+  if (game === 'jump') { grig.onFoot = true; grig.airborne = true; grig.vUp = 2.5; grig.agl = 1.6; }
+  if (game === 'land') { grig.onFoot = true; grig.agl = 0; grig.landedAt = 2.0; grig.landSpeed = 12; }
+  genv = { gravity: 9.8, air: 1, groundClearance: null };
+}
+let played = 0;
 const pal = new Float32Array(rig.count * 12), I = m.index, c = Math.cos(yaw), s = Math.sin(yaw), L = [-0.42, 0.62, 0.66], enc = (v) => Math.min(255, 255 * Math.pow(Math.max(0, v), 1 / 2.2));
 times.forEach((time, ti) => {
-  if (anim) { const st = Object.fromEntries(state.split(',').map((kv) => kv.split('=')).map(([k, v]) => [k, +v])); for (let i = 0; i < Math.round((2 + time) * 60); i++) anim.update(1 / 60, st); } else rig.sample(clip, time, rig.pose, true);
-  rig.solve(); rig.palette(pal);
+  if (hero) { while (played < 2 + time) { grig.clock += 1 / 60; played += 1 / 60; hero.update(1 / 60, grig, genv); } hero.body.updateMatrix(); rig.palette(pal, hero.body.matrix.elements); }
+  else { if (anim) { const st = Object.fromEntries(state.split(',').map((kv) => kv.split('=')).map(([k, v]) => [k, +v])); for (let i = 0; i < Math.round((2 + time) * 60); i++) anim.update(1 / 60, st); } else { rig.sample(clip, time, rig.pose, true); rig.solve(); } rig.palette(pal); }
   const { position: P, normal: N } = skinned(m, pal), nv = P.length / 3, X = new Float32Array(nv), Y = new Float32Array(nv), Z = new Float32Array(nv), Sh = new Float32Array(nv), zb = new Float32Array(W * H).fill(-1e9);
   for (let v = 0; v < nv; v++) { const px = P[v * 3], py = P[v * 3 + 1], pz = P[v * 3 + 2], nx = N[v * 3] * c + N[v * 3 + 2] * s, ny = N[v * 3 + 1], nz = -N[v * 3] * s + N[v * 3 + 2] * c; X[v] = ((px * c + pz * s) - box[0]) * sc; Y[v] = (box[3] - py) * sc; Z[v] = -px * s + pz * c; Sh[v] = 0.75 * Math.max(0, nx * L[0] + ny * L[1] + nz * L[2]) + 0.42 + 0.16 * ny; }
   for (let t = 0; t < I.length; t += 3) {
@@ -35,4 +55,4 @@ times.forEach((time, ti) => {
     }
   }
 });
-const out = opt('out', `hero_rig_${clip}.png`); fs.writeFileSync(out, png(TW, H, img)); console.log(`${out}: ${TW} x ${H}, ${state ? 'state ' + state : clip} at ${times.map((t) => t.toFixed(2)).join(', ')} s`);
+const out = opt('out', `hero_rig_${clip}.png`); fs.writeFileSync(out, png(TW, H, img)); console.log(`${out}: ${TW} x ${H}, ${game ? 'pose ' + game : state ? 'state ' + state : clip} at ${times.map((t) => t.toFixed(2)).join(', ')} s`);
