@@ -41,6 +41,26 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### Where the helpers stand (2026-11-27 12:15 UTC) and what the next link needs
+
+This branch (head 6da582c and later) is ahead of the link (main 63b8282) by: **seasons
+pieces 3 to 5** (leaves that lie and are kicked up, snow that comes and goes, grass and
+flowers by the season: `0ab73e7`; its cost on the ground's shader asked for and not yet
+known), and the **sky helper's second list so far** (`2b4b133`: the mist made mist, still
+held by `HELD` in `fogSheet.js` until its picture from the shore; the sky's work paid every
+frame cut: no march and no laid layers under a clear sky, the shade windows drawn only
+when something moved, the probe every fourth frame; the benchmark's "everything out" now
+takes the sky out too, with four new parts). Not yet here: the **speed helper's branch**
+(`ccr-6f4f9272-speed`: counts by stop in the benchmark, the cost test in groups, grass
+handed over block by block, partial clears given up, `?scale=` runs paced), waiting on
+its own pictures and smoke.
+**The next link** = those three together, after: a full `npm run smoke` on the joined head,
+Haven's opening view from the ground and noon from the air looked at, the seasons' cost
+known. Then ask the owner for one plain Haven benchmark in Sharp (the first with the sky's
+true cost cut and the rigged character).
+A smoke and two Haven pictures of 6da582c were started at 12:12 (`chain_m5.sh` in the
+session's scratchpad; results in its `smoke_m5.txt`, `log_m5.txt`, `m5/`).
+
 ### The owner's rigged character (2026-11-27): a skeleton, eight clips and its own colours
 
 **On the link since 63b8282 (PR #41)**, with the sky helper's heaps (the fog sheet held back).
