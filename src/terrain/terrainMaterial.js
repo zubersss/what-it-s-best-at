@@ -1126,7 +1126,11 @@ void main() {
     // the sea does, and less of its own: a lake from 3 km was a fill of royal blue, a river a band
     // of the bed's grey)
     Fv = max(Fv, 0.3 * waterAir * inlandW);
-    col += water * (1.0 - foam) * (sunHere * shadow * (a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0) * 0.25 / max(dot(N, V), 0.2)) + Fv * skyLight(Rv, up) / (PI * mix(1.0, uSkyBoost, waterAir)));
+    // (a river mirrors the sky less at a low angle than still water does, and in its own
+    // green-blue: a brook seen along its length was a band of the horizon's white, a road)
+    Fv = mix(Fv, min(Fv, 0.2), river);
+    vec3 mirrorTint = mix(vec3(1.0), vec3(0.55, 0.84, 0.95), river);
+    col += water * (1.0 - foam) * (sunHere * shadow * (a2 / (PI * dd * dd) * F * max(dot(N, uSunDir), 0.0) * 0.25 / max(dot(N, V), 0.2)) + Fv * mirrorTint * skyLight(Rv, up) / (PI * mix(1.0, uSkyBoost, waterAir)));
   } else if (uGloss.x > 0.0 || vCloud.z > 0.01) {
     // the Sun's sheen on ice, and on ground the rain has wetted: a broad glint toward the
     // Sun, strongest at a grazing view; it fades with distance into the far ground's plain
