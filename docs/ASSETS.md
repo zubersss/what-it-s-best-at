@@ -174,9 +174,6 @@ by seeds placed by hand (`scripts/hero/seeds.mjs`), the colours of the owner's d
 meshes (120 000 and 24 000 triangles, by meshoptimizer, MIT, a build tool only), and the
 binding to the game's own figure and cloth (`scripts/hero/heroBind.mjs`).
 
-**Rights.** The file came from the owner as "the new file for the character model", and
-the design is the owner's (`docs/PROGRESS.md`, "The owner's character"). Where the sculpt
-itself was made (by hand, or with a tool or service that has terms of its own) is not
-recorded in the file (its only mark is the exporter's, `xpostprocessing-quantized`), and
-**the owner has been asked to say, for this record.** Until then it is used as the
-owner's own work, on the owner's word.
+**Rights.** The owner made the model (the owner's words, 2026-11-27: "The model was made
+by me") and sent it as "the new file for the character model"; the design is the owner's
+too (`docs/PROGRESS.md`, "The owner's character"). Ours to use without condition.

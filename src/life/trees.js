@@ -17,6 +17,7 @@ import { makeTreeGeometries, VARIANTS } from './treeGeometry.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
 import { EDGE0, EDGE1, TOP0, TOP1 } from './farTreeForm.js';
 import { SPECIES, bloomOf } from './cover.js';
+import { seasonAt } from './season.js';
 import { blockDeg, TREE_FLOATS, blockLon } from './treeBlock.js';
 import { REBUILD_M, radii, fineStep, toMake, inFarList, nearCandidates, makeOf, castMake, CUT_IN } from './treeLod.js';
 
@@ -511,9 +512,8 @@ export class Trees {
       // and the ground under it take their season from here too): y runs 0 at the spring
       // equinox of this hemisphere, 0.5 at the autumn one. Leaves turn through the autumn,
       // are gone in winter, back in spring; only away from the tropics.
-      const y = (((day - 80) / 365.25 + (lat < 0 ? 0.5 : 0)) % 1 + 1) % 1, sm = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
-      const far = sm(25, 38, Math.abs(lat)), bare = (y > 0.5 ? sm(0.62, 0.72, y) : 1 - sm(0.02, 0.12, y)) * far;
-      this.shared.uSeason.value.set(sm(0.46, 0.62, y) * (y > 0.4 ? 1 : 0) * far, bare, time);
+      const se = seasonAt(day, lat);          // (life/season.js: the one rule)
+      this.shared.uSeason.value.set(se.turned, se.bare, time);
     }
     if (!show) return;
     // A new land-cover picture or new elevation: every tree is worked out again. The trees

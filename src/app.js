@@ -17,6 +17,7 @@ import { waveHeightAt, waveScale } from './water/waves.js';
 import { Trees } from './life/trees.js';
 import { FarForest } from './life/farForest.js';
 import { Leaves, Petals } from './life/leaves.js';
+import { lifeDay, yearAt, seasonLabel, untilSeason, SEASON_NAMES, yearMs, dayMs } from './life/season.js';
 import { overdraw } from './perf/overdraw.js';
 import { SkySystem } from './sky/skySystem.js';
 
@@ -338,11 +339,13 @@ export class App {
     this.dustScene.add(this.dust.points);
     for (const m of this.hero.casters) this.nearShadow.addCaster(m, this.hero.depthMaterial, () => this.hero.group.visible && !this.hero.sculpt);
     // The owner's sculpt for the figure (hero/heroSculpt.js). Without the file, or on a
-    // device that cannot draw it, the figure built in code stays.
+    // device that cannot make its shaders (asked in updateHero once they have been used),
+    // the figure built in code is drawn (roughly: its joints are the sculpt's now).
     try {
-      const res = await fetch('data/hero.bin');
+      const stop = new AbortController(), timer = setTimeout(() => stop.abort(), 30000);     // (a start that waits for ever on a bad line is worse than the old figure)
+      const res = await fetch('data/hero.bin', { signal: stop.signal });
       if (!res.ok) throw new Error(`data/hero.bin: ${res.status}`);
-      const sculpt = new HeroSculpt(this.hero, await res.arrayBuffer());
+      const sculpt = new HeroSculpt(this.hero, await res.arrayBuffer()); clearTimeout(timer);
       this.hero.useSculpt(sculpt);
       this.nearShadow.addCaster(sculpt.shadowMesh, sculpt.depthMaterial, () => this.hero.group.visible);
     } catch (e) { console.warn('the sculpted character is not used:', e.message); }
@@ -354,6 +357,7 @@ export class App {
     this.applyBookmark(params.shot || 'ledge');
     this.pendingAim = params.aim || null;
     if (params.timeOffsetHours != null) this.timeOffsetHours = params.timeOffsetHours;
+    if (params.season) this.goSeason(params.season, true);        // (?season=autumn: the same hour, that season at this place)
     if (params.fly) this.rig.setMode('fly');
     // Interactive sessions start behind the flying character; screenshots stay first person
     // unless asked (?hero=1).
@@ -442,6 +446,18 @@ export class App {
     this.toast?.show(new Date(jdToDate(this.baseJD)).toISOString().slice(0, 10));
   }
   get clock() { return new Date(jdToDate(this.baseJD + this.timeOffsetHours / 24)); }
+  // The day of the life's year on this world now (0..365.25; life/season.js), and where the
+  // traveller's latitude is in its own year (0: its spring equinox).
+  get lifeDay() { return lifeDay(this.world, jdToDate(this.baseJD + this.timeOffsetHours / 24)); }
+  get yearHere() { const p = this.rig.pos; return yearAt(this.lifeDay, Math.asin(p.z / (p.length() || 1)) * 180 / Math.PI); }
+  // The clock moved on to a season where the traveller is (a name of life/season.js, or a
+  // point of the year 0..1): whole days, so the hour stays.
+  goSeason(target, quiet) {
+    const p = this.rig.pos, lat = Math.asin(p.z / (p.length() || 1)) * 180 / Math.PI;
+    const num = Number(target), ms = untilSeason(this.world, this.clock.getTime(), lat, Number.isFinite(num) && target !== '' ? num : String(target));
+    this.baseJD = Math.min(JD_MAX, Math.max(JD_MIN, this.baseJD + ms / 86400000));
+    if (!quiet) this.toast?.show(`${seasonLabel(this.yearHere)}  ·  ${this.clock.toISOString().slice(0, 10)}`);
+  }
 
   // --- the menu, the map ----------------------------------------------------------------
   get overlayOpen() { return !!(this.picker?.visible || this.menu?.visible || this.map?.visible || this.journal?.visible); }
@@ -525,6 +541,11 @@ export class App {
     this.picker?.hide(); this.map?.hide();
     this.menu.toggle();
   }
+  // "early spring · day 1 of a year of 48": the season where the traveller is
+  seasonNote() {
+    const y = this.yearHere, w = this.world, days = Math.round(yearMs(w) / dayMs(w));
+    return `${seasonLabel(y)} here · day ${Math.min(days, Math.floor(y * days) + 1)} of a year of ${days}`;
+  }
   menuSections() {
     const iso = this.clock.toISOString(), day = iso.slice(0, 10);
     return [
@@ -543,6 +564,9 @@ export class App {
           { label: 'This place\'s day', sub: this.world.scene.dateUTC.slice(0, 10), stay: true, act: () => this.setDate(Date.parse(this.world.scene.dateUTC)) },
         ],
         date: { value: day, min: '1950-01-01', max: '2099-12-31', set: (ms) => this.setDate(ms) } },
+      // (the season where the traveller is; the buttons move the date on to it)
+      ...(this.world.life ? [{ title: 'Season', note: this.seasonNote(),
+        items: SEASON_NAMES.map((n) => ({ label: n[0].toUpperCase() + n.slice(1), sub: 'go to', stay: true, act: () => this.goSeason(n) })) }] : []),
       { title: 'Things to do', items: [
         { label: 'Journal', sub: `${this.save.count} places found`, act: () => this.openJournal() },
         { label: 'Photograph', sub: 'full resolution', act: () => this.photoMode(true) },
@@ -1179,7 +1203,7 @@ export class App {
       // game clock, wind and waves, shade, wet ground, rain, lightning and its light, thunder
       // (sky/skySystem.js; a world without weather: a steady breeze from the west).
       const sh = this.terrain.shared;
-      const d = this.clock, day = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000;
+      const day = this.lifeDay;                    // (the day of the life's year: life/season.js)
       const sunE = Math.max(G.uSunIrradiance.value.x, G.uSunIrradiance.value.y, G.uSunIrradiance.value.z, 1e-6) / Math.max(1e-3, 1 - (this.sunCover || 0));
       const speed = this.sky.weatherStep({ now, dt, jd, timeRate: this.timeRate, paused: this.paused, rig, day, sunE, viewW: this.post.viewW, viewH: this.post.viewH, bench, transfer: this.transfer, audio: this.audio });
       // (streamed elevation has arrived or moved: what was stood on the old ground is stood again)
@@ -1248,7 +1272,7 @@ export class App {
     this.rocks.update(rig, eph.sunDir, sunHalf, this.terrain.workers);
     this.farRocks.update(rig, eph.sunDir, sunHalf);
     {
-      const d = this.clock, day = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000;
+      const day = this.lifeDay;                    // (the day of the life's year: life/season.js)
       this.trees.update(rig, day, this.terrain.shared.uWave.value.z);
       this.farForest.update(rig);
       // (beyond the trees the forest is raised as a whole; from high up, all of it)
@@ -1477,7 +1501,14 @@ export class App {
     hero.group.updateMatrixWorld(true);
     // (the sculpt's movers, handed to the GPU now: a texture first used in the middle of the
     // picture is uploaded there)
-    if (hero.sculpt) this.renderer.initTexture(hero.sculpt.update());
+    if (hero.sculpt) {
+      this.renderer.initTexture(hero.sculpt.update());
+      if (this.sculptChecked !== true && (this.sculptFrames = (this.sculptFrames || 0) + 1) > 20) {
+        const ok = hero.sculpt.drawable(this.renderer);
+        if (ok === false) { const sc = hero.dropSculpt(); this.nearShadow.removeCaster(sc.shadowMesh); console.warn('the sculpted character cannot be drawn on this device: the built figure is used'); }
+        if (ok !== null) this.sculptChecked = true;
+      }
+    }
     this.updateDust(dt, env);
     // Terrain shadow on the character: eased toward the workers' last answer (requestHeroVis),
     // so stepping into a canyon's shadow dims it over a moment instead of in one frame.
@@ -1524,9 +1555,10 @@ export class App {
       const at = (o, x, y, z, r) => { v.set(x, y, z).applyMatrix4(b.matrix).add(p); if (Number.isFinite(v.x + v.y + v.z)) o.set(v.x, v.y, v.z, r); else o.w = 0; };
       at(occ[0], 0, 0.30, 0, 0.27);
       at(occ[1], 0, -0.42, 0, 0.17);
+      // the feet: 0.045 below the far ends of the shins (which end at the sculpt's ankles, that much higher than the built figure's did)
       // the feet: the far ends of the shins (the legs' capsules are limbs 4 and 6, two per limb)
-      at(occ[2], c[4 * 7 + 10], c[4 * 7 + 11], c[4 * 7 + 12] + 0.04, 0.09);     // left foot
-      at(occ[3], c[6 * 7 + 10], c[6 * 7 + 11], c[6 * 7 + 12] + 0.04, 0.09);     // right foot
+      at(occ[2], c[4 * 7 + 10], c[4 * 7 + 11] - 0.045, c[4 * 7 + 12] + 0.04, 0.09);     // left foot
+      at(occ[3], c[6 * 7 + 10], c[6 * 7 + 11] - 0.045, c[6 * 7 + 12] + 0.04, 0.09);     // right foot
       grp[0].set(occ[0].x, occ[0].y, occ[0].z, 6);
     } else { grp[0].w = 0; for (let i = 0; i < 4; i++) occ[i].w = 0; }
     const contact = this.contact !== false;
