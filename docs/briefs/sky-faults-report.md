@@ -568,7 +568,7 @@ kind of step, `time`: seconds of the clock a frame with the camera still).
   shows on the country below. Nothing pops.
 - `haven_mist_sink`, sinking 6 cm a frame over the lake of the mist view, four stations from
   516 m to 492 m over the sea (`motion_mist_sink_stations.png`, the first frame of each;
-  `motion_mist_sink_3.png`, the lowest strip): 0 % changed and 0 % flicker at all four, the
+  both since replaced by the run of the fourth note, below: this one ran with the mist drawn up to 79 m too high): 0 % changed and 0 % flicker at all four, the
   largest change of any pixel 35/255. Nothing pops. (The 24 m fade of the note is gone since
   072045a: what comes on is the air's veil, over 14 m.) NOT covered: the run began inside the
   mist already (the water lies higher than my guess of 470 m), so the very moment of passing
@@ -619,3 +619,58 @@ the tower. The model's shade and cover still take the anvil as a sheet (anvilCov
 cost is not measured on the phone: 8 + 5 reads of the anvil's rule on the pixels its ball
 covers, and one ball test an anvil on every pixel of the two upper shells while a storm
 with an anvil is in the list.
+
+## Fourth note (2026-11-27, 18:07): the tower, the anvil's underside, the mist from inside
+
+**A fault of mine found on the way: the mist stood the lake's depth too high.** `fogSheet.js`
+added the water's depth to the height function's answer, and over water that answer is
+already the water's SURFACE (`layers.js`: `c.h = L; c.water = L - g`). Over the mist view's
+lake, 79 m deep in its middle, the mist's top and the eye's veil were up to 79 m too high: a
+dome of mist over the deep water, and an eye far above the real mist fully veiled (the first
+sink run "began inside" for this). The test's made-up land had the same mistake, so it passed.
+Fixed in both; `node scripts/fog-sheet-test.mjs` fails three checks on the old sum. From above
+the mist view hardly changes (`view_mist.png` renewed: it lies lower and flatter).
+
+**The mist from inside** (`motion_mist_sink_stations.png`, renewed: five stations from 537 m,
+14 m over the mist's top, to 505 m, 18 m inside it; before the fix of this note the same run
+showed, 2 m inside the top, clear blue water to a sharp horizon where 8 m higher there had
+been a white plate: a pop, in `motion_mist_sink_pop_before.png`):
+- seen from inside, the sheet takes all of a line of sight that runs along it (the sine of
+  the angle was held at 0.05, so an eye 2 m under the top saw half the far sky through it down
+  to the horizon), and toward the horizon it has the very colour the air's veil gives the
+  water under it: no level line, the far sky and its clouds gone into the mist;
+- the air's veil for an eye inside is 0.009 a metre (was 0.0045) and all there 4 m under the
+  top (was 14 m): the water under an eye just inside is veiled at once.
+- the run's numbers: 0.01 % of pixels changed at the three upper stations, 0 % at the two
+  lower, no flicker. Between stations (8 m apart) the picture now goes from the plate to the
+  inside without clear water in between.
+- LEFT: the tone changes at the top: lit mist from above is warm (the low Sun's), the veil
+  from inside is the sky's cool grey-blue (rainVeil's colour, shared with the rain). And
+  straight down from just inside, the water is veiled by a quarter where from just above the
+  sheet took half. `fog-sheet-test` has no check of this hand-over: it is a thing of two
+  shaders, seen only in the strip.
+
+**(a) The tower** (`anvil_after.png` renewed; `anvil_side_after.png` renewed): its hull is
+eaten by a second, broader reading of its own noise (`CELL_LUMP`, 0.9 of the noise's scale)
+on top of the fine one: the outline moves by up to a kilometre in bulges, where it moved by
+300 m and read as a smooth dome from 30 km. The turn from its lit side to its shade is soft
+(`CELL_TURN`, over a cosine of 0.5 each way) and follows the bulges (`CELL_TURN_LUMP`): no
+straight line down its middle. One more read of the noise a step of a tower's march; not
+measured on the phone, no new governor step (the march's own steps thin it).
+
+**(b), (c) The anvil's underside**: what made it "one beige, the tone of the cloudlets" was
+three things, found one picture at a time: it was lit by the whole sky from below (now it
+keeps 0.22 of that under its deep middle and 0.5 at its rim); 15 km of low air laid its warm
+veil over it (it keeps the share its tower keeps, `CELL_HAZE`); and the mid cloudlets in front
+of it, in its shadow, were drawn sunlit (now taken out entirely on lines of sight that go on
+into an anvil). Its shade is the tower's slate (`CELL_TINT`), darker where it is deep (round
+the tower) and paler toward its thin rim; the rim is frayed by two readings of the cirrus
+strokes (`ANVIL_TORN` 0.6).
+
+Pictures of this note: `anvil_third_note.png` (what the note was written about) against
+`anvil_after.png` (the storm view now) and `anvil_side_after.png` (taken one build earlier:
+the mid cloudlets in front of the anvil were still a fifth there); `mist_inside_at_water.png`
+(an eye at the water inside the mist: the place of the old "shore" pictures is under the
+lake's true surface, the Node height source knows only its bed); `view_mist.png`.
+Not done: the tone's change at the mist's top; nothing of this note measured on the phone;
+`npm run smoke` and `--streaming` not run.

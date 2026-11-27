@@ -101,7 +101,7 @@ const MOVES = [
   // and standing still at the opening view while the clock runs half a second a frame: the
   // clouds drift, the shade map's windows are redrawn, and nothing else may change)
   { id: 'haven_heaps_3k', world: 'haven', shot: 'ledge', query: 'alt=3000&heading=30&pitch=-6&t=4', step: { fwd: 2 }, stride: 250, slow: true },
-  { id: 'haven_mist_sink', world: 'haven', shot: 'ledge', query: 'lat=-58.84&lon=26.85&alt=516&heading=268&pitch=-3&fov=60&t=0.75', step: { up: -0.06 }, stride: 130, slow: true },
+  { id: 'haven_mist_sink', world: 'haven', shot: 'ledge', query: 'lat=-58.84&lon=26.85&alt=537&heading=268&pitch=-3&fov=60&t=0.75', step: { up: -0.06 }, stride: 130, slow: true },
   { id: 'haven_drift_still', world: 'haven', shot: 'ledge', query: '', step: { time: 0.5 }, stride: 600, slow: true },
   { id: 'haven_storm_pass', world: 'haven', shot: 'ledge', query: 'alt=2600&pitch=4&heading=45&t=6&debug=storm', step: { fwd: 1 }, stride: 300, slow: true },
   { id: 'earth_forest_flight', world: 'earth', shot: 'ledge', query: 'lat=36.3&lon=247.9&alt=3000&heading=0&pitch=-25&t=5', step: { fwd: 1.5 }, stride: 300, slow: true },

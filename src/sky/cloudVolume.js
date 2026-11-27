@@ -185,6 +185,7 @@ void cloudFindCells(vec3 o, vec3 dir, float t0, float t1) {
     else if (gCells == 1 || c.x < gCellT[1].x) { gCellK[1] = k; gCellT[1] = c; gCells = 2; }
   }
 }
+float gCellN;       // the cell's own noise where it was last asked (cloudCellDensity): the light takes its bulges from it
 // how solid the cell k is at p, its hull eroded by its own noise, boiling in its own moving frame
 float cloudCellDensity(int k, vec3 p) {
   float e = cellDensity(k, p);
@@ -192,8 +193,14 @@ float cloudCellDensity(int k, vec3 p) {
   vec4 d = uCells[k * 5 + 4];                 // (core, age, seed, base)
   vec3 l = cellLocal(k, p);
   l.z -= ${glf(K.CELL_BOIL)} * d.y;           // (it boils upward through the tower as it lives)
-  vec2 n = skyTex3(tCloudNoise, (l + vec3(d.z * 977.0)) * uCloud.z * 2.2).rg;
-  float eat = ${glf(K.CELL_NOISE)} * (1.0 - n.x) + 0.12 * (1.0 - n.y);
+  vec3 q = (l + vec3(d.z * 977.0)) * uCloud.z;
+  vec2 n = skyTex3(tCloudNoise, q * 2.2).rg;
+  // (and a broader reading of the same noise: with the fine one alone the hull moved in and out
+  // by 300 m, and from 30 km the tower was a smooth pale dome with a clean outline. The two
+  // together move it by up to a kilometre: bulges, as the heaps have.)
+  float m = skyTex3(tCloudNoise, q * ${glf(K.CELL_LUMP_K)} + vec3(0.37, 0.11, 0.73)).r;
+  gCellN = 0.55 * n.x + 0.45 * m;
+  float eat = clamp(${glf(K.CELL_NOISE)} * (1.0 - n.x) + ${glf(K.CELL_LUMP)} * (1.0 - 2.0 * m) + 0.12 * (1.0 - n.y), 0.02, 0.93);
   return clamp((e - eat * (1.0 - e)) / max(1.0 - eat, 0.2), 0.0, 1.0);
 }
 // Which way the tower's own surface faces at p, against the Sun (1: turned to it, -1: away):
@@ -214,7 +221,9 @@ void cloudCellAdd(int k, vec3 p, float d, float dt, float t, float y) {
   // two (the square root of the tower's width times the depth), so a tower lit from the side had
   // one thin lit edge on a column of shade. Where the hull faces the Sun the chord counts for a
   // tenth: the whole sunward half is the Sun's tone, the half turned away the tower's slate.
-  chord *= 1.0 - 0.9 * smoothstep(-0.1, 0.3, cloudCellFacing(k, p));
+  // (the turn from the lit side to the shade is soft and follows the bulges: on the smooth hull
+  // alone it was a straight line down the middle of the tower)
+  chord *= 1.0 - 0.9 * smoothstep(-${glf(K.CELL_TURN)}, ${glf(K.CELL_TURN)}, cloudCellFacing(k, p) + 0.1 + ${glf(K.CELL_TURN_LUMP)} * (gCellN - 0.5));
   // the painter's two tones for the tower's own cauliflower (a short chord toward the Sun is a
   // face turned to it), and under them the slate that comes with the depth of the whole tower
   float lit = mix(${glf(K.CELL_SHADE)}, 1.0, 1.0 - smoothstep(${glf(K.CELL_FACE0)}, ${glf(K.CELL_FACE1)}, chord));
