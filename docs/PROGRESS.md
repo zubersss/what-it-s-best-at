@@ -41,7 +41,7 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
-### The benchmark build of 2026-11-27 night (branch at 1072ea2): the cuts so far, and a cost table that can name the sky's part
+### The benchmark build of 2026-11-27 night (branch at 1072ea2; sent: PR #44, main f9385d7): the cuts so far, and a cost table that can name the sky's part
 
 **What it holds beyond the link's daa009f**: the cost test's plan made on the view's own
 world, each sky part measured twice, "the ground not drawn at all" as a group, two
