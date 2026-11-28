@@ -23,6 +23,9 @@ export const FOG_LOOK = Object.freeze({
   EDGE0: 0.1, EDGE1: 0.7,   // the share of a place's texels with fog between which the sheet fades in
   LUMP: 900,         // m: the soft lumps of its top (in what it takes of the light behind it;
                      // its top itself is level, as a lake of mist is)
+  ABOVE: 0.4,        // what the sheet itself takes, seen from above, of what the line of sight through it would: the things in the mist go into it by their own depth (lightingGlsl.js mistShare), and the sheet is only its lit top. With all of it, every tree standing in the mist was sawn through level where the sheet crossed it
+  MIST_SOFT: 10,     // m under the mist's top at which a thing is in all of it
+  MIST_REACH: 9000,  // m from the lake's nearest water: how far that lake's mist is taken to reach
   ALPHA: 0.96,       // the most it takes of what is behind it
   LAKE: 34, LAKE_DEEP: 30,   // m of mist over a lake's deep water where the field has fog, and the water's depth at which it is all there (thin at the shore)
   VEIL: 0.009,       // 1/m: the air's veil for an eye inside the mist (one sees some 110 m; the sheet itself, looked down through from above, takes 1/EXT a metre: with a quarter of that, the water under an eye just inside the top was clear where a metre higher it had been a white plate)
@@ -137,7 +140,7 @@ void main() {
   // horizon, over water the air's veil had already taken: a level line between the two)
   bool inside = sinE >= 0.0;
   float path = !inside ? d / max(-sinE, 0.22) : min(max(length(planetPos) - length(uCamPlanetPos), 0.0), d) / max(sinE, 0.004);
-  float alpha = (inside ? 1.0 : ${glf(F.ALPHA)}) * smoothstep(${glf(F.EDGE0)}, ${glf(F.EDGE1)}, vFog) * (1.0 - exp(-path / ${glf(F.EXT)}));
+  float alpha = (inside ? 1.0 : ${glf(F.ALPHA * F.ABOVE)}) * smoothstep(${glf(F.EDGE0)}, ${glf(F.EDGE1)}, vFog) * (1.0 - exp(-path / ${glf(F.EXT)}));
   // (from INSIDE the mist the sheet is over the eye and veils the sky; what lies below the eye's
   // level is veiled by the air's own veil, which the sheet hands the sky system: eyeVeil)
   if (alpha < 0.01) discard;
@@ -213,6 +216,9 @@ export class FogSheet {
   update(c) {
     const sky = c.sky, R = sky?.R || 0;
     this.ready = false;
+    // (the mist's share of things seen from above it: none until _level finds mist on water near by)
+    if (!this._mistK) G.uMist.value.y = 0;
+    this._mistWant = 0;
     // (the veil goes when the mist does: eased off here, and set again by _eye while there is mist)
     this._veilWas = this.eyeVeil; this.eyeVeil = c.sky?.shotMode || this.eyeVeil < 1e-6 ? 0 : this.eyeVeil * 0.92;
     if (this.held || !R || !sky.field?.on || sky.noClouds || this.off || !this.uniforms.tCloudNoise.value) return;
@@ -259,6 +265,7 @@ export class FogSheet {
     this._land(east, north, R);
     this.ready = true;
     this._eye(c, R);
+    this._level(c, R, east, north);
   }
 
   // The eye inside the mist: how much mist stands over it, by the same rule the sheet is laid by
@@ -279,6 +286,34 @@ export class FogSheet {
     }
     const was = this._veilWas || 0;
     this.eyeVeil = was + (want - was) * (c.sky?.shotMode ? 1 : 0.08);
+  }
+
+  // The mist on the water nearest the traveller, as one level top: for everything that stands
+  // in it and is looked at from above (lightingGlsl.js mistShare; G.uMist, G.uMistAt). A lake
+  // is level, so its mist's top is one height: the water's surface and LAKE m. Which lake: the
+  // lattice's own water (asked of it again every 30 frames: the anchor moves, the water
+  // arrives), the nearest to the lattice's middle. Whether it has mist: the field's fog there.
+  _level(c, R, east, north) {
+    const N = F.N, b = this.landBytes, half = (N - 1) / 2, fine = F.SPAN / (N - 1), a = this._anchor, sky = c.sky;
+    if (!b || !a) return;
+    if (!this._lake || (this._lakeN = (this._lakeN || 0) + 1) >= 30) {
+      this._lakeN = 0;
+      let best = -1, bd = 1e30;
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { if (!b[(j * N + i) * 4 + 3]) continue; const d = (i - half) * (i - half) + (j - half) * (j - half); if (d < bd) { bd = d; best = j * N + i; } }
+      if (best < 0) this._lake = { none: true };
+      else {
+        const i = best % N, j = (best - i) / N, e = (i - half) * fine, n = (j - half) * fine, surf = (b[best * 4] * 256 + b[best * 4 + 1]) / 8;
+        const q = [a[0] + east[0] * e + north[0] * n, a[1] + east[1] * e + north[1] * n, a[2] + east[2] * e + north[2] * n], l = Math.hypot(q[0], q[1], q[2]), k = (R + surf) / l;
+        const at = this._at || (this._at = makeSkyAt());
+        this._lake = { surf, p: [q[0] * k, q[1] * k, q[2] * k], fog: sky.field.at(q, sky.t, at).field.fogTop > 0 };
+      }
+    }
+    const L = this._lake, p = c.rig.pos;
+    this._mistWant = L.none || !L.fog ? 0 : 1;
+    this._mistK = c.sky?.shotMode ? this._mistWant : (this._mistK || 0) + (this._mistWant - (this._mistK || 0)) * 0.05;
+    if (this._mistK < 0.004) { this._mistK = 0; G.uMist.value.y = 0; return; }
+    G.uMist.value.set(R + L.surf + F.LAKE, this._mistK / F.EXT, F.MIST_SOFT, F.MIST_REACH);
+    G.uMistAt.value.set(L.p[0] - p.x, L.p[1] - p.y, L.p[2] - p.z);
   }
 
   // The real surface under every point of the lattice, and the land's shadow on it. The lattice

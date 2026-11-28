@@ -27,6 +27,8 @@ uniform sampler2D tFroxelC;         //                      transmittance
 uniform vec2 uFroxelRange;          // x: exponent of the slice distribution, y: far limit (km)
 uniform vec2 uLutScaleInv;          // x: 1 / scale of the irradiance LUT, y: 1 / scale of the froxels
 uniform mat3 uSkyFrame;             // planet-fixed -> local sky frame
+uniform vec4 uMist;                 // mist in a hollow, for an eye above it (globals.js): x its top (m from the world's middle), y 1/m, z m of depth, w reach (m)
+uniform vec3 uMistAt;               // its middle, from the camera
 uniform vec4 uWeather;              // x: the Sun through the cloud overhead (1: clear), y: sky light left under it, z: how wet the ground is,
                                     // w: rain in the air (how much of the view a metre of it hides; 0: dry)
 uniform vec3 uFlash;                // lightning's light from the whole sky
@@ -249,10 +251,33 @@ vec3 hazeOverGroundFull(vec3 color, vec3 rel, vec3 rho) {
   vec3 hazed = color * T + L0 + Lg * (rhoW - 1.0);
   return mix(hazed, marched, useMarch);
 }
+// Mist lying in a hollow, for an eye ABOVE it: how much of a thing rel from the eye it
+// takes. By the thing's own depth under the mist's top and by the stretch of the line of sight
+// that runs under that top: a tree standing in it goes paler from its crown down to its foot
+// and is gone, with no line where a sheet would cut it; straight down through a few metres of
+// it one sees the water dimly, along it nothing. Thin near its top (it comes on over uMist.z m
+// of depth), and only within its own reach (the low land of another valley is not in it).
+// mistCol: the mist's own light there. Nothing is read where there is no mist or the thing
+// stands over it. (An eye INSIDE the mist has the air's veil instead: uWeather.w.)
+float mistShare(vec3 rel, out vec3 mistCol) {
+  mistCol = vec3(0.0);
+  if (uMist.y <= 0.0) return 0.0;
+  vec3 p = uCamPlanetPos + rel;
+  float hE = length(uCamPlanetPos) - uMist.x, hP = length(p) - uMist.x;      // m over its top (under 0: in it)
+  if (hP >= 0.0 || hE < 0.0) return 0.0;
+  float under = -hP / max(hE - hP, 1e-3);                                     // the share of the line that runs under the top
+  float k = 1.0 - exp(-uMist.y * length(rel) * under * clamp(-0.5 * hP / uMist.z, 0.0, 1.0));
+  k *= 1.0 - smoothstep(0.7 * uMist.w, uMist.w, length(rel - uMistAt));
+  if (k <= 0.002) return 0.0;
+  vec3 up = normalize(p);
+  mistCol = (skyLight(up, up) * 0.9 + directSun(p) * 0.3) * (1.06 / PI);
+  return k;
+}
 // Rain (or snow) falling in the air between the eye and a thing: a grey veil that thickens
 // with distance, as bright as the sky above lights it (uWeather.w: how much of the view a
 // metre of it takes; 0 in dry air). In a downpour the far shore is gone within a kilometre.
 vec3 rainVeil(vec3 color, vec3 rel) {
+  if (uMist.y > 0.0) { vec3 mc; float km = mistShare(rel, mc); color = mix(color, mc, km); }
   if (uWeather.w <= 0.0) return color;
   vec3 up = normalize(uCamPlanetPos + rel);
   return mix(color, skyLight(up, up) * (0.7 / PI), 1.0 - exp(-length(rel) * uWeather.w));
@@ -280,6 +305,7 @@ void hazeAffine(vec3 rel, vec2 uv, out vec3 T, out vec3 L0, out vec3 Lg) {
     float kv = 1.0 - exp(-dist * uWeather.w);
     T *= 1.0 - kv; Lg *= 1.0 - kv; L0 = L0 * (1.0 - kv) + skyLight(up, up) * (0.7 / PI) * kv;
   }
+  if (uMist.y > 0.0) { vec3 mc; float km = mistShare(rel, mc); T *= 1.0 - km; Lg *= 1.0 - km; L0 = L0 * (1.0 - km) + mc * km; }
 }
 // Small things (rocks, the lander, the character): the haze of mean ground.
 // The air of a wood: a forest breathes a blue haze of its own, and row behind row of trees
