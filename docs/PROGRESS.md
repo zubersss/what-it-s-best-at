@@ -41,6 +41,52 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
+### The owner, 2026-11-28 02:50 UTC: "Give me a playable link and a benchmark a big one so you dont have to keep asking"
+
+**Sent 2026-11-28 04:35 UTC: PR #45, main at beba48b.** In the link: the big benchmark and
+the air route; the Superman flying pose; lakes ending at their true shore; the far woods
+lighter with distance and the land's colour map made again with lighter woods (the ground
+helper's 4d11258: forest 43 78 35, woodland 79 102 48; the map's old mean kept in haven.js on
+purpose); the far woods' season, white snow; the ground's second cut and `ground-far`, the
+upper shells' light and the clouds' shade at vertices, the field's shader made while loading.
+NOT in it: the trees from above (speed helper, 2e5a9c8 and after), the mist from close above
+(sky helper, after 5a6a899), the rest of the plains' pairs.
+Checked: 37 Node checks on the merged head; the whole smoke at `--dsf 0.5` (18 checks) on the
+build before the big benchmark and on the one with it; the short smoke (10) on the merged
+head; `big-bench-run --chain` (two runs follow one another in the real page, one text) and
+`--air` (five stops reached); pictures of the opening view (ground, 2.5 km), storm and mist.
+**Asked of the owner: the big benchmark's text, nothing else.** **Do not deploy to `main`
+while that run may be going** (the page reloads between runs; a new build begins the chain
+again): hold the helpers' merges on this branch until the text is in, or ask first.
+**When the text arrives**: tune the governor first (runs A, D, F: steps and late frames on
+the ground route and the air route); then B against C (what the savings buy at one size), E
+(the air at one size: the forest's layers, the sky), the cost test's rows for the sky's parts
+one by one, the forest's group and its what-it-adds rows, the ground's shading and "ground
+not drawn", the owner's wood at dawn; send each helper its rows.
+
+
+**The big benchmark** (`src/perf/bigBench.js`; the start screen's button "Big benchmark · 30
+min", or `?bench=big`): six of the page's own benchmarks one after another, each opened by
+its own link, the texts kept between them (localStorage; a run the browser throws away is
+made again; another build's chain begins again), one text at the end:
+A. as played (Sharp, the governor at work), with the cost test at four views (the opening
+view, in the forest, from the air, **the owner's wood at dawn over the mist**);
+B. everything on, the picture held at one size; C. every saving on, at one size;
+D. **from the air** as played (a new route, `bench=havenair`: five views from 90 m to 3 km,
+bookmarks `woodDawn`, `wood300`, `air1k`, `air3k`, `mist`; they are in the menu's Views
+too); E. from the air, everything on at one size; F. as played again, the phone warm.
+`cost=0` makes a run without the cost test (B to F). From now on **one thing is asked of
+the owner: this run**; a new question is a new entry in that list, not a new link.
+Checks: `scripts/big-bench-test.mjs` (the chain replayed with a stand-in store),
+`scripts/big-bench-run.mjs --chain` (a chain of two short runs on Mars in the real page)
+and `--air` (the route passing its stops).
+
+**The playable link** is the working branch as it stands with that: the Superman pose, the
+lakes' true shores, the far woods' lifted green and their season, the white snow, the
+ground's second cut, the upper shells' light and the clouds' shade at the vertices, the
+ragged tree line. **Not in it**: the trees' caps for trees looked down on (speed helper,
+in work), the mist that takes things by their depth (sky helper, in work).
+
 ### The owner on build f9385d7 (2026-11-27, 23:35 UTC): from above it still looks bad; a Superman pose
 
 The owner, with a screenshot (`docs/shots/owner/2026-11-28-trees-mist-f9385d7.jpg`: 90 m over

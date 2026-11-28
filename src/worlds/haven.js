@@ -67,6 +67,10 @@ export default {
     reliefMap: { url: 'data/haven_slopes_4096.jpg', strength: 2.0, latFade: [84, 89] },
     // Its colours from the air, made by the same rule as the mosaics round the traveller
     // (scripts/make-world-maps.mjs prints `mean`: the land's mean, in linear light).
+    // (2026-11-28: the map made again with the woods' colours lifted, tiles/madeLand.js; its mean is
+    // now 0.1346, 0.1439, 0.0585, and the number here is kept as it was ON PURPOSE: it is what the
+    // map is divided by, and with the new mean every meadow and mountain would have turned darker
+    // and less green to pay for the woods.)
     albedoMap: { url: 'data/haven_day_4096.jpg', encoding: 'srgb', mean: [0.1299, 0.1272, 0.0560], strength: 1.0, chroma: 1.0, range: [0.2, 4.5], steep: 0.35 },
     meanAlbedo: [0.14, 0.12, 0.07],
     dust: [0.19, 0.17, 0.115],         // dry soil, warm
