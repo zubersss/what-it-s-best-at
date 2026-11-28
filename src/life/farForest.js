@@ -225,6 +225,13 @@ ${LIGHTING_PARS}
             || abs(fc.x) > fc.w + ball * (abs(projectionMatrix[0][0]) + abs(projectionMatrix[2][0]) + 1.0)
             || abs(fc.y) > fc.w + ball * (abs(projectionMatrix[1][1]) + abs(projectionMatrix[2][1]) + 1.0)) NONE
         }
+        // Looked down on, a far tree is a solid crown (farTreeForm.js, SOLID0 to SOLID1 of the
+        // angle from the eye's place; not a bare tree, whose pictures are its boughs; out to
+        // SOLID_FAR1): it grows out of the crown's middle, and the pictures and the rosette draw
+        // in as it grows.
+        float gS = smoothstep(${SOLID0.toFixed(3)}, ${SOLID1.toFixed(3)}, down) * (1.0 - smoothstep(${SOLID_FAR0.toFixed(1)}, ${SOLID_FAR1.toFixed(1)}, d)) * (1.0 - smoothstep(0.35, 0.5, floor(iB.w) / 255.0)) * uSolid;
+        // (and whichever of the two is not drawn for this tree is thrown out here, before the work below)
+        if (position.x > 3.5 ? gS <= 0.0 : (position.x < 2.5 && gS >= 1.0)) NONE
         // What the angle makes of its three quads (life/farTreeForm.js): the thinned ones
         // stand a little wider, so a wood keeps its cover, and from above the rosette is the
         // crown's top, spread over the ground of the trees it stands for.
@@ -236,11 +243,6 @@ ${LIGHTING_PARS}
         float flowers = floor(iC.w / 256.0), rest = iC.w - 256.0 * flowers;
         float groundQ = floor(rest / 16.0), packed = rest - 16.0 * groundQ;
         float fall = floor(packed * 0.25 + 1e-3), thinQ = floor(iB.w), sunLeft = clamp((packed - fall * 4.0) / 3.0, 0.0, 1.0) * cloudShade(foot + uTileUp * (iA.w * 0.7));
-        // Looked down on, a far tree is a solid crown (farTreeForm.js, SOLID0 to SOLID1 of the
-        // angle from the eye's place; not a bare tree, whose pictures are its boughs; out to
-        // SOLID_FAR1): it grows out of the crown's middle, and the pictures and the rosette draw
-        // in as it grows.
-        float gS = smoothstep(${SOLID0.toFixed(3)}, ${SOLID1.toFixed(3)}, down) * (1.0 - smoothstep(${SOLID_FAR0.toFixed(1)}, ${SOLID_FAR1.toFixed(1)}, d)) * (1.0 - smoothstep(0.35, 0.5, thinQ / 255.0)) * uSolid;
         bool solid = position.x > 3.5; float solidTone = 0.0;
         if (solid) {
           if (gS <= 0.0) NONE
@@ -667,6 +669,11 @@ ${LIGHTING_PARS}
       // (the solids: only for a tile some tree of which is looked down on steeply enough, and near enough)
       s.solid.visible = vis && this.solidOn !== false && tile.near < SOLID_FAR1 && solidGate(tile.maxDown ?? 1, len - (tile.fillLen ?? len), tile.near);
       if (s.solid.visible) solidTiles++;
+      // (and a tile every tree of which is a solid by a wide margin hands its pictures over no
+      // more: looked down on steeply, nearer than the solids' reach, none of its trees one that
+      // may be bare; its shadows on the ground stay. The margin covers the eye's way to the
+      // tile's next fill, a tenth of its distance.)
+      if (s.solid.visible && !tile.bare && tile.far3 + (tile.side ?? 900) * 1.5 < SOLID_FAR0 && (tile.minDown ?? 0) - Math.max(0, (tile.fillLen ?? len) - len) / Math.max(50, tile.near) > SOLID1 + 0.15) s.mesh.visible = false;
       if (shade) shadowTiles++;
       if (vis) { drawn += tile.shown; given += tile.count; }
     }
@@ -719,9 +726,9 @@ ${LIGHTING_PARS}
     const ex = eyeRel.x, ey = eyeRel.y, ez = eyeRel.z;
     const up = this._u, geoX = this.shared.uRoseGeo?.value || [], topPow = -0.25 - TOP_POW;
     const day = this.seasonDay ?? 0, R = this.world.radius, ox = tile.origin.x, oy = tile.origin.y, oz = tile.origin.z;
-    let n = 0, bound2 = 0, shown = 0, margin = MARGIN, tallest = 0, seasonal = false, maxDown = -1, reach = 0;
+    let n = 0, bound2 = 0, shown = 0, margin = MARGIN, tallest = 0, seasonal = false, maxDown = -1, minDown = 1, reach = 0;
     for (let pass = 0; pass < 3; pass++) {
-      n = 0; bound2 = 0; shown = 0; tallest = 0; seasonal = false; maxDown = -1; reach = 0;
+      n = 0; bound2 = 0; shown = 0; tallest = 0; seasonal = false; maxDown = -1; minDown = 1; reach = 0;
       for (let k = 0, q = 0; k < tile.have; k++, q += TREE_FLOATS) {
         const x = T[q], y = T[q + 1], z = T[q + 2], rank = T[q + 8];
         const dx = x + ex, dy = y + ey, dz = z + ez, d2 = dx * dx + dy * dy + dz * dz;
@@ -743,7 +750,7 @@ ${LIGHTING_PARS}
         if (T[q + 3] > tallest) tallest = T[q + 3];
         // (how steeply it is seen, for its tile's shadows; and how far its parts reach out
         // from its foot: the rosette spread from above, the upright pictures widened)
-        const dn = crownDown(dx, dy, dz, T[q + 3], up); if (dn > maxDown) maxDown = dn;
+        const dn = crownDown(dx, dy, dz, T[q + 3], up); if (dn > maxDown) maxDown = dn; if (dn < minDown) minDown = dn;
         const g = geoX[iB[n * 4 + 2]] || { x: 0.5, z: 0.5 }, spread = Math.min(TOP_MAX, Math.max(1.5, Math.pow(Math.max(keep, 1e-4), topPow)));
         const out = T[q + 3] * T[q + 4] * Math.max(g.x * spread * 1.1, 1.5 * g.z); if (out > reach) reach = out;
         const r2 = x * x + y * y + z * z + T[q + 3] * T[q + 3];
@@ -756,7 +763,7 @@ ${LIGHTING_PARS}
       n = CAP; margin = pass === 0 ? 1.2 : 1.0;
     }
     n = Math.min(n, CAP);
-    tile.count = n; tile.shown = shown; tile.seasonal = seasonal; tile.maxDown = maxDown; tile.fillLen = eye.length();
+    tile.count = n; tile.shown = shown; tile.seasonal = seasonal; tile.maxDown = maxDown; tile.minDown = minDown; tile.bare = seasonal; tile.fillLen = eye.length();
     tile.fillEye = (tile.fillEye || new THREE.Vector3()).copy(eye);
     s.geo.instanceCount = n; s.shadowGeo.instanceCount = n; s.solidGeo.instanceCount = n;
     // (with the reach of its trees' parts: from above a closed wood's crown tops spread to
