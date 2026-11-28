@@ -29,6 +29,14 @@
 // tree is looked down at (20 and 38 degrees), and the tree's pictures draw in as it grows.
 // From the side a tree is its pictures, from above a thing with a top and sides.
 export const SOLID0 = 0.34, SOLID1 = 0.62;
+// ... and of a far tree (life/farForest.js: one faceted crown a tree, shaped in the vertex
+// shader from the tree's own measures, spread as the rosette is where the wood is thinned):
+// by the same angles, out to these distances (m), beyond which a tree is a few pixels and its
+// rosette serves.
+export const SOLID_FAR0 = 1000, SOLID_FAR1 = 1500;
+// Whether a tile is handed its solids' draw: when the most steeply seen of its trees at its
+// last fill is near the angle solids begin at (as shadowGate, for the shadows).
+export function solidGate(maxDown, rise, near) { return maxDown * 1.05 + Math.max(0, rise) / Math.max(50, near) > SOLID0 - 0.03; }
 export const TOP0 = 0.30, TOP1 = 0.72;        // the rosette spreads between these
 export const TOP_POW = 0.17;                  // ... by keep^-(1/4 + this) in a closed wood. (At 1/4 more the cover would be kept whole, and every
                                               // crown would look the same size on the screen at any distance: a forest with no depth.

@@ -312,7 +312,7 @@ export class App {
     // kilometres; they rise out of the forest the ground shader raises as a whole)
     this.farForest = new FarForest(this.trees, this.terrain); this.nearScene.add(this.farForest.mesh);
     if (params.debug.includes('farwhole')) this.farForest.shared.uShadow.value.w = 1;      // ?debug=farwhole: no far tree thrown out by the vertex shader for standing outside the picture (the same picture)
-    if (params.debug.includes('treesolidoff') && this.trees) { this.trees.shared.uSolid.value = 0; this.trees.solidOn = false; }      // ?debug=treesolidoff: trees looked down on are their pictures and a plate, as before the solid make
+    if (params.debug.includes('treesolidoff') && this.trees) { this.trees.shared.uSolid.value = 0; this.trees.solidOn = false; this.farForest.shared.uSolid.value = 0; this.farForest.solidOn = false; }      // ?debug=treesolidoff: trees looked down on are their pictures and a plate, as before the solid make
     if (params.debug.includes('treeairpixel') && this.trees) this.trees.shared.uTreeOld.value = 1;      // ?debug=treeairpixel: the near trees' Sun light and air worked out at every pixel, as before they were taken from the vertices (the same picture, for a pair)
     if (params.debug.includes('groundskypixel')) this.terrain.shared.uGroundOld.value.x = 1;      // ?debug=groundskypixel: the sky's light on the ground asked at every pixel, as before it was taken from the vertices
     if (params.debug.includes('groundbothmaps')) this.terrain.shared.uGroundOld.value.y = 1;      // ?debug=groundbothmaps: a patch's own normal and shadow read wherever its parent's are, as before

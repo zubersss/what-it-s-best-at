@@ -42,7 +42,7 @@ import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
 import { PAINT_LEAF, TREE_WOOD, TREE_THIN, ROSETTE_THIN } from './trees.js';
 import { SNOW_GLSL, SNOW_UNIFORMS } from '../render/snowGlsl.js';
 import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
-import { SHADOW0, FORM_GLSL, SHADOW_GLSL, FAR_GREEN_GLSL, DENS_STEPS, SHADOW_LONG, SHADOW_FAR0, SHADOW_FAR1, TOP0, TOP1, TOP_MAX, TOP_POW, END_ABOVE } from './farTreeForm.js';
+import { SHADOW0, FORM_GLSL, SHADOW_GLSL, FAR_GREEN_GLSL, DENS_STEPS, SHADOW_LONG, SHADOW_FAR0, SHADOW_FAR1, TOP0, TOP1, TOP_MAX, TOP_POW, END_ABOVE, SOLID0, SOLID1, SOLID_FAR0, SOLID_FAR1, solidGate } from './farTreeForm.js';
 
 // Trees one tile may hand the GPU (a fixed pool). A band of ranks of levels 0 to 2 has at
 // most 64 blocks x 256 sites x 3/4 = 12 288 sites, and a traveller in the thick of a wood
@@ -125,6 +125,11 @@ export class FarForest {
     const corner = [], index = [];
     // (and a fourth, 3: the tree's shadow on the ground, drawn only for a traveller in the air: update())
     for (let q = 0; q < 4; q++) { for (const [u, v] of [[0, 0], [1, 0], [0, 1], [1, 1]]) corner.push(q, u, v); index.push(q * 4, q * 4 + 2, q * 4 + 1, q * 4 + 1, q * 4 + 2, q * 4 + 3); }
+    // (and a fifth thing, 4: the tree's solid crown for whoever looks down on it, drawn in a draw
+    // of its own: a cap (position.y 0), a wide ring of six (1) and a narrower ring beneath (2),
+    // position.z how far round; shaped in the vertex shader from the tree's own measures)
+    { const at = corner.length / 3; corner.push(4, 0, 0); for (const lev of [1, 2]) for (let j = 0; j < 6; j++) corner.push(4, lev, j / 6);
+      for (let j = 0; j < 6; j++) { const a = at + 1 + j, b = at + 1 + (j + 1) % 6, c = at + 7 + j, d = at + 7 + (j + 1) % 6; index.push(at, b, a, a, b, c, c, b, d); } }
     this.corner = new THREE.BufferAttribute(new Float32Array(corner), 3); this.index = new THREE.BufferAttribute(new Uint16Array(index), 1);
     this.seasonDay = null; this._tl = {};
     // Shared by every tile; only where a tile stands is its own (uTileRel and its frame).
@@ -144,6 +149,8 @@ export class FarForest {
       // worked out at each picture's corners (?debug=farairpixel, and the benchmark's row);
       // w: 1 throws no tree out for standing outside the picture (?debug=farwhole)
       uShadow: { value: new THREE.Vector4(0, 0, 0, 0) },
+      // 1: a far tree looked down on is its solid crown; 0: its pictures and rosette, as before (?debug=treesolidoff)
+      uSolid: { value: 1 },
     };
     // What the vertices hand the pixels, declared once for both shaders. Packed: a phone
     // must offer no more than 15 rows of these, and each declaration takes a row (13 here).
@@ -172,7 +179,7 @@ ${LIGHTING_PARS}
       uniform vec4 uRectTree[CELLS], uRectRose[CELLS], uRoseGeo[CELLS];
       uniform float uCellMid[CELLS];
       uniform vec4 uFar, uShadow;
-      uniform float uTileShadow;
+      uniform float uTileShadow, uSolid;
       // (a value noise over the world's place, for the tones neighbouring crowns share)
       float toneHash(vec3 c) { return fract(sin(dot(c, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
       float toneNoise(vec3 p) {
@@ -229,6 +236,28 @@ ${LIGHTING_PARS}
         float flowers = floor(iC.w / 256.0), rest = iC.w - 256.0 * flowers;
         float groundQ = floor(rest / 16.0), packed = rest - 16.0 * groundQ;
         float fall = floor(packed * 0.25 + 1e-3), thinQ = floor(iB.w), sunLeft = clamp((packed - fall * 4.0) / 3.0, 0.0, 1.0) * cloudShade(foot + uTileUp * (iA.w * 0.7));
+        // Looked down on, a far tree is a solid crown (farTreeForm.js, SOLID0 to SOLID1 of the
+        // angle from the eye's place; not a bare tree, whose pictures are its boughs; out to
+        // SOLID_FAR1): it grows out of the crown's middle, and the pictures and the rosette draw
+        // in as it grows.
+        float gS = smoothstep(${SOLID0.toFixed(3)}, ${SOLID1.toFixed(3)}, down) * (1.0 - smoothstep(${SOLID_FAR0.toFixed(1)}, ${SOLID_FAR1.toFixed(1)}, d)) * (1.0 - smoothstep(0.35, 0.5, thinQ / 255.0)) * uSolid;
+        bool solid = position.x > 3.5;
+        if (solid) {
+          if (gS <= 0.0) NONE
+          // A cap over a wide ring over a narrower one beneath, six-sided: the wide ring as wide
+          // as the rosette (so a thinned wood stays closed: the same spread), at the crown's
+          // middle height; a fir's or a spruce's is a cone from its top down to a jagged skirt.
+          bool fir = cell < ${VARIANTS};
+          float top = g.w, half_ = max(top - mid, 0.12), wide = iB.x * (fir ? min(wRose, 2.4) : wRose);
+          float j6 = position.z * 6.0, odd = mod(floor(j6 + 0.5), 2.0), ang = position.z * 6.2831853 + (position.y > 1.5 ? 0.5236 : 0.0) + iB.w * 6.2831853;
+          float own1 = fract(iB.w * 7.13 + j6 * 0.37), r = g.x * wide * (0.86 + 0.2 * own1);
+          vec3 ls = vec3(0.0, top, 0.0);
+          if (position.y > 1.5) ls = fir ? vec3(cos(ang) * r * 0.62, mid - half_ * 0.95, sin(ang) * r * 0.62) : vec3(cos(ang) * r * 0.5, mid - half_ * 0.8, sin(ang) * r * 0.5);
+          else if (position.y > 0.5) ls = fir ? vec3(cos(ang), 0.0, sin(ang)) * (r * mix(1.0, 0.7, odd)) + vec3(0.0, mid - half_ * mix(0.85, 0.55, odd), 0.0) : vec3(cos(ang) * r, mid + half_ * (0.1 * own1 - 0.05), sin(ang) * r);
+          l = mix(vec3(0.0, mid, 0.0), ls, gS);
+          na = vec3(ls.x / max(wide, 1e-3), ls.y - mid + 0.05, ls.z / max(wide, 1e-3));
+          rect = vec4(0.0);
+        } else
         if (position.x > 2.5) {
           // The fourth quad, drawn only from the air and in a draw of its own (the slot's shadow
           // mesh): the picture of the whole tree laid on the ground along the Sun's ray, the
@@ -247,9 +276,9 @@ ${LIGHTING_PARS}
           gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
           return;
         }
-        if (position.x < 1.5) {
+        if (solid) { /* (shaped above) */ } else if (position.x < 1.5) {
           // one of the two crossed pictures of the whole tree (its foot at the bottom middle)
-          float w = wCard;
+          float w = wCard * (1.0 - gS);
           if (w <= 0.0) NONE
           float a = position.x * 1.5707963, x = (position.y - 0.5) * 2.0 * g.z * iB.x * w;
           float x0 = (position.y - 0.5) * 2.0 * g.z;
@@ -259,7 +288,8 @@ ${LIGHTING_PARS}
           // the rosette lying in its crown, for whoever looks down on it
           // (a fir's or a spruce's is its spire seen from above: it never spreads far, so a
           // conifer wood is dark spires among the canopy's round crowns, not a sheet of discs)
-          float wide = iB.x * (cell < ${VARIANTS} ? min(wRose, 2.4) : wRose);
+          if (gS >= 1.0) NONE
+          float wide = iB.x * (cell < ${VARIANTS} ? min(wRose, 2.4) : wRose) * (1.0 - gS);
           l = vec3((position.y - 0.5) * 2.0 * g.x * wide, g.y, (0.5 - position.z) * 2.0 * g.x * wide); rect = uRectRose[cell];
           na = vec3(l.x / wide, g.x, l.z / wide);
         }
@@ -275,12 +305,13 @@ ${LIGHTING_PARS}
         // down on, every fir was a dark disc that the Sun did nothing to.)
         // (Not at the line where the trees one walks among take over, which have the old rule:
         // it comes in over the 200 m beyond that line.)
-        if (position.x > 1.5) nl = normalize(mix(nl, normalize(vec3(na.x, g.x * 1.3, na.z)), smoothstep(${TOP0.toFixed(3)}, ${TOP1.toFixed(3)}, down) * smoothstep(uFar.z, uFar.z + 200.0, d)));
+        if (position.x > 1.5 && !solid) nl = normalize(mix(nl, normalize(vec3(na.x, g.x * 1.3, na.z)), smoothstep(${TOP0.toFixed(3)}, ${TOP1.toFixed(3)}, down) * smoothstep(uFar.z, uFar.z + 200.0, d)));
         float c = cos(iB.y), s = sin(iB.y);
         l *= iA.w * grow;
         vRel = foot + uTileEast * (l.x * c - l.z * s) + uTileUp * l.y + uTileNorth * (l.x * s + l.z * c);
         vN = normalize(uTileEast * (nl.x * c - nl.z * s) + uTileUp * nl.y + uTileNorth * (nl.x * s + nl.z * c));
-        vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); vOwn = vec2(iB.w - thinQ, thinQ / 255.0 * (position.x > 1.5 ? ${ROSETTE_THIN.toFixed(1)} : 1.0) + 4.0 * flowers); vShade = sunLeft; vShadowA = 0.0;
+        vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); vOwn = vec2(iB.w - thinQ, thinQ / 255.0 * (position.x > 1.5 ? ${ROSETTE_THIN.toFixed(1)} : 1.0) + 4.0 * flowers);
+        if (solid) vUv = vec2(0.0); vShade = sunLeft; vShadowA = 0.0;
         // (the crown's top: lit as a dome pixel by pixel in the fragment shader; by its four
         // corners alone it was one flat tone, no lit cap and no shaded side)
         vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0);
@@ -291,8 +322,8 @@ ${LIGHTING_PARS}
         { vec3 ups = normalize(wp); vSnow = snowSeason(length(wp) - uPlanetRadius, ups, ups, 0.0, 0.0).x; }
         float tn = smoothstep(0.3, 0.7, toneNoise(wp / 150.0)) + 0.3 * (toneNoise(wp / 55.0 + 7.3) - 0.5);
         vTone = vec2(0.66 + 0.55 * tn + 0.6 * (groundQ / 15.0 - 0.6), cell < ${VARIANTS} ? 1.0 : 0.0);
-        if (position.x > 1.5) { vDome = vec3((position.y - 0.5) * 2.0, (0.5 - position.z) * 2.0, smoothstep(${TOP0.toFixed(3)}, ${TOP1.toFixed(3)}, down) * smoothstep(uFar.z, uFar.z + 200.0, d)); vDomeE = uTileEast * c + uTileNorth * s; vDomeN = uTileNorth * c - uTileEast * s; }
-        vUv = vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
+        if (position.x > 1.5 && !solid) { vDome = vec3((position.y - 0.5) * 2.0, (0.5 - position.z) * 2.0, smoothstep(${TOP0.toFixed(3)}, ${TOP1.toFixed(3)}, down) * smoothstep(uFar.z, uFar.z + 200.0, d)); vDomeE = uTileEast * c + uTileNorth * s; vDomeN = uTileNorth * c - uTileEast * s; }
+        vUv = solid ? vec2(0.0) : vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
         gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
         // The Sun's light on the tree and the air between it and the eye, worked out here, at
         // the picture's corners: over a picture some metres wide, hundreds of metres off, they
@@ -323,6 +354,10 @@ ${LIGHTING_PARS}
       ${TREE_THIN}
       ${FAR_GREEN_GLSL}
       void main() {
+#ifdef FAR_SOLID
+        // (a solid crown: nothing cut out, one layer; its tone the middle of a picture's)
+        vec3 cut = vec3(1.0, 0.75, 0.0); float lod = 0.0;
+#else
         vec3 cut = texture(tTreeAtlas, vUv).rgb;
         // The cut-out, taken exactly as the near trees take it (trees.js): lower the farther
         // off, because averaged down a tree's needles and leaves cover less of a pixel and a
@@ -331,6 +366,7 @@ ${LIGHTING_PARS}
         vec2 px = vUv * vec2(${ATLAS_W}.0, ${ATLAS_H}.0);
         float lod = 0.5 * log2(max(max(dot(dFdx(px), dFdx(px)), dot(dFdy(px), dFdy(px))), 1.0));
         if (cut.r < mix(0.42, 0.16, clamp(lod / 3.0, 0.0, 1.0))) discard;
+#endif
         // (a tree's shadow on the ground: it takes this share of what is drawn there; see the
         // material's blending)
         if (vShadowA > 0.0) { fragColor = vec4(0.0, 0.0, 0.0, vShadowA); return; }
@@ -342,8 +378,14 @@ ${LIGHTING_PARS}
         float thin = vOwn.y - (flowers ? 4.0 : 0.0);
         bool wood = treeWood(cut);          // (one rule with the near trees: TREE_WOOD, life/trees.js)
         // (leaves off the tree: its picture thinned clump by clump, the near trees' rule, TREE_THIN)
+#ifndef FAR_SOLID
         if (!wood && treeThinned(vUv, cut.g, lod, vOwn.x, thin)) discard;
+#endif
         vec3 planetPos = uCamPlanetPos + vRel, up = normalize(planetPos), V = -normalize(vRel), N = normalize(vN);
+#ifdef FAR_SOLID
+        // (in facets: each face's own way, half and half with the round mass's)
+        { vec3 fn = normalize(cross(dFdx(vRel), dFdy(vRel))); if (dot(fn, V) < 0.0) fn = -fn; N = normalize(N + fn * 0.9); }
+#endif
         // Seen from above, the crown's top is a dome: its cap faces the sky, its rim leans out,
         // so the Sun's side is lit and the far side a crescent in the shade's colour (the
         // critic: "no lit top, no shaded side").
@@ -441,7 +483,7 @@ ${LIGHTING_PARS}
       geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1);
       return geo;
     };
-    const geo = geometry(0, 18), shadowGeo = geometry(18, 6);
+    const geo = geometry(0, 18), shadowGeo = geometry(18, 6), solidGeo = geometry(24, 54);
     const own = { uTileRel: { value: new THREE.Vector3() }, uTileEast: { value: new THREE.Vector3(1, 0, 0) }, uTileNorth: { value: new THREE.Vector3(0, 1, 0) }, uTileUp: { value: new THREE.Vector3(0, 0, 1) }, uTileShadow: { value: 0 } };
     const material = new THREE.ShaderMaterial({
       name: 'FarForest', glslVersion: THREE.GLSL3, defines: this.defines, side: THREE.DoubleSide,
@@ -456,7 +498,14 @@ ${LIGHTING_PARS}
       uniforms: { ...this.shared, ...own },
       vertexShader: this.vertexShader, fragmentShader: this.fragmentShader,
     });
-    const mesh = new THREE.Mesh(geo, material), shadow = new THREE.Mesh(shadowGeo, shadowMaterial);
+    // (the solid crowns: opaque, nothing cut out, a program of its own)
+    const solidMaterial = new THREE.ShaderMaterial({
+      name: 'FarForestSolid', glslVersion: THREE.GLSL3, defines: { ...this.defines, FAR_SOLID: 1 }, side: THREE.DoubleSide,
+      uniforms: { ...this.shared, ...own },
+      vertexShader: this.vertexShader, fragmentShader: this.fragmentShader,
+    });
+    const mesh = new THREE.Mesh(geo, material), shadow = new THREE.Mesh(shadowGeo, shadowMaterial), solid = new THREE.Mesh(solidGeo, solidMaterial);
+    solid.visible = false; solid.renderOrder = 4.9; this.mesh.add(solid);
     // The vertices are worked out from the tile's own uniform, not from this matrix; the
     // mesh is put where the tile stands all the same, so that three can cull it against the
     // view. (The order they are drawn in is set each frame, nearest first.)
@@ -464,14 +513,14 @@ ${LIGHTING_PARS}
     mesh.renderOrder = 5;                   // after the ground: the canopy hides the lower part of a far tree for nothing
     shadow.renderOrder = 3;                 // after the ground they lie on, before every far tree (which then stand on them whole)
     this.mesh.add(mesh); this.mesh.add(shadow);
-    return { geo, shadowGeo, mesh, shadow, material, shadowMaterial, own, iA, iB, iC, tile: null };
+    return { geo, shadowGeo, solidGeo, mesh, shadow, solid, material, shadowMaterial, solidMaterial, own, iA, iB, iC, tile: null };
   }
 
   setWorld(world) {
     this.world = world; this.def = world.life?.trees?.far || null;
     for (const t of this.tiles.values()) if (t.slot) this._free(t);
     this.tiles.clear(); this.asked = 0; this.gen = (this.gen || 0) + 1; this.serial = -1; this.missing = 0; this.count = 0; this.held = 0;
-    for (const s of this.pool) { s.mesh.visible = false; s.shadow.visible = false; s.geo.instanceCount = 0; s.shadowGeo.instanceCount = 0; s.tile = null; }
+    for (const s of this.pool) { s.mesh.visible = false; s.shadow.visible = false; s.solid.visible = false; s.geo.instanceCount = 0; s.shadowGeo.instanceCount = 0; s.solidGeo.instanceCount = 0; s.tile = null; }
     const d = this.def;
     if (d) this.shared.uFar.value.set(d.full ?? 450, d.radius ?? 5600, 0, 1);
   }
@@ -491,7 +540,7 @@ ${LIGHTING_PARS}
   _free(tile) {
     const s = tile.slot;
     if (!s) return;
-    s.tile = null; s.mesh.visible = false; s.shadow.visible = false; s.geo.instanceCount = 0; s.shadowGeo.instanceCount = 0; tile.slot = null;
+    s.tile = null; s.mesh.visible = false; s.shadow.visible = false; s.solid.visible = false; s.geo.instanceCount = 0; s.shadowGeo.instanceCount = 0; s.solidGeo.instanceCount = 0; tile.slot = null;
   }
 
   // Every frame. rig: the camera rig.
@@ -501,7 +550,7 @@ ${LIGHTING_PARS}
     const shown = !!def && this.fraction > 0 && tr.atlasReady && !!t.coverSerial && rig.agl < (def.below ?? 6000);
     this.shown = shown;
     if (!shown) {
-      for (const s of this.pool) { s.mesh.visible = false; s.shadow.visible = false; }
+      for (const s of this.pool) { s.mesh.visible = false; s.shadow.visible = false; s.solid.visible = false; }
       this.count = 0; this.held = 0; this.missing = 0; this.shadowTiles = 0;
       return;
     }
@@ -568,7 +617,7 @@ ${LIGHTING_PARS}
     // At most two tiles are filled in a frame, the nearest first: tiles filled while the
     // traveller stood all came due together (15 to 20 of them every 45 m, some 8 ms of the
     // page's work and 3 MB of buffers in one frame). The margin a tile holds covers the wait.
-    let drawn = 0, given = 0, fills = 0, i = 0, shadowTiles = 0; this.unfilled = 0;
+    let drawn = 0, given = 0, fills = 0, i = 0, shadowTiles = 0, solidTiles = 0; this.unfilled = 0;
     for (const tile of take) {
       if (!tile.slot) {
         const s = this.pool.find((q) => !q.tile);
@@ -584,9 +633,9 @@ ${LIGHTING_PARS}
       }
       // (drawn nearest first: each tile has a material of its own, and three would order
       // them by material before depth)
-      s.mesh.renderOrder = 5 + i / 64; s.shadow.renderOrder = 3 + (i++) / 64;
+      s.mesh.renderOrder = 5 + i / 64; s.solid.renderOrder = 5 + i / 64 - 0.005; s.shadow.renderOrder = 3 + (i++) / 64;          // (a tile's solids before its pictures: what they hide is not shaded)
       s.own.uTileRel.value.subVectors(tile.origin, p);
-      s.mesh.position.copy(s.own.uTileRel.value); s.shadow.position.copy(s.own.uTileRel.value);
+      s.mesh.position.copy(s.own.uTileRel.value); s.shadow.position.copy(s.own.uTileRel.value); s.solid.position.copy(s.own.uTileRel.value);
       // (the tile is drawn when a tree of its band could be; the view culls it by its bounds)
       const vis = tile.count > 0 && tile.far3 <= levelReach(tile.level, full, radius);
       // The trees' shadows on the ground are drawn for a traveller in the air over them: on
@@ -608,12 +657,15 @@ ${LIGHTING_PARS}
       // and with a tree in them looked down on steeply enough to cast one)
       const shade = vis && this.shadows !== false && tile.air > 0 && tile.far3 < SHADOW_FAR1 && sh.reach && shadowGate(tile.maxDown ?? 1, len - (tile.fillLen ?? len), tile.near);
       s.mesh.visible = vis; s.shadow.visible = shade;
+      // (the solids: only for a tile some tree of which is looked down on steeply enough, and near enough)
+      s.solid.visible = vis && this.solidOn !== false && tile.near < SOLID_FAR1 && solidGate(tile.maxDown ?? 1, len - (tile.fillLen ?? len), tile.near);
+      if (s.solid.visible) solidTiles++;
       if (shade) shadowTiles++;
       if (vis) { drawn += tile.shown; given += tile.count; }
     }
     // (count: the trees standing in the picture. held: the instances the tiles hand the
     // GPU, some of which the vertex shader throws out as too thin for their distance.)
-    this.count = drawn; this.held = given; this.shadowTiles = shadowTiles;
+    this.count = drawn; this.held = given; this.shadowTiles = shadowTiles; this.solidTiles = solidTiles;
     // Tiles left behind are let go, with the trees the worker gave them (a few hundred
     // kilobytes each): a traveller who comes back pays one worker job for them again.
     if (this.frame % 60 === 0) for (const [k, b] of this.tiles) if (this.frame - b.used > 240 && !b.asking) { this._free(b); this.tiles.delete(k); }
@@ -699,11 +751,12 @@ ${LIGHTING_PARS}
     n = Math.min(n, CAP);
     tile.count = n; tile.shown = shown; tile.seasonal = seasonal; tile.maxDown = maxDown; tile.fillLen = eye.length();
     tile.fillEye = (tile.fillEye || new THREE.Vector3()).copy(eye);
-    s.geo.instanceCount = n; s.shadowGeo.instanceCount = n;
+    s.geo.instanceCount = n; s.shadowGeo.instanceCount = n; s.solidGeo.instanceCount = n;
     // (with the reach of its trees' parts: from above a closed wood's crown tops spread to
     // several crown widths, and the corner trees' tops were culled with the tile at the
     // screen's edge, review farforest2-4)
     s.geo.boundingSphere.center.set(0, 0, 0); s.geo.boundingSphere.radius = Math.sqrt(bound2) + 20 + reach;
+    s.solidGeo.boundingSphere.center.set(0, 0, 0); s.solidGeo.boundingSphere.radius = s.geo.boundingSphere.radius;
     // (the shadows reach out from the trees' feet by as much as SHADOW_LONG of their heights:
     // with the trees' own bounds the shadows near a tile's corner were culled with it at the
     // screen's edge, review farforest-7)

@@ -161,13 +161,13 @@ vec3 treePosition(out vec3 foot, out float leaf) {
   // middle (aCrown, on a solid) between SOLID0 and SOLID1 of the angle from the eye's PLACE to
   // the tree (never the view's: nothing changes when the head turns), and the pictures and the
   // rosette draw in as it grows. Not a bare tree (its pictures are its boughs; a solid has
-  // none), and not over the last 60 m to the far forest's line, which draws pictures.
+  // none). (The far forest goes on with solids of its own beyond the line, by the same angles.)
 #ifdef TREE_DEPTH
   float edge = 1.0;
 #else
   bool solidMake = iF > 1.5;
   float downT = dot(-normalize(foot + uTreeUp * (iA.w * 0.7)), uTreeUp);
-  float solidG = iF > 0.5 ? smoothstep(${SOLID0.toFixed(3)}, ${SOLID1.toFixed(3)}, downT) * (1.0 - smoothstep(180.0, 240.0, length(foot))) * (1.0 - smoothstep(0.35, 0.5, iB.w)) * uSolid : 0.0;
+  float solidG = iF > 0.5 ? smoothstep(${SOLID0.toFixed(3)}, ${SOLID1.toFixed(3)}, downT) * (1.0 - smoothstep(0.35, 0.5, iB.w)) * uSolid : 0.0;
   float edge = aLeaf > 3.5 ? (1.0 - smoothstep(${EDGE0.toFixed(3)}, ${EDGE1.toFixed(3)}, downT)) * (1.0 - solidG) : 1.0;
   if (solidMake && aLeaf > 0.5) p = mix(aCrown, p, solidG);
 #endif
