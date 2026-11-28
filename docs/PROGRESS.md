@@ -58,6 +58,12 @@ head; `big-bench-run --chain` (two runs follow one another in the real page, one
 **Asked of the owner: the big benchmark's text, nothing else.** **Do not deploy to `main`
 while that run may be going** (the page reloads between runs; a new build begins the chain
 again): hold the helpers' merges on this branch until the text is in, or ask first.
+**On this branch beyond the link (held, see above)**: the sky helper's mist from close above
+(9b77bb2, merged 05:45 UTC: things in the mist go into it by their own depth under its top,
+no level cut at the shore, the inland terraces gone; its strips clean; pair
+`docs/shots/sky-faults/mist_close_pair.png`). To judge again with the trees from above when
+they land: the inland wood's trees now stand pale-footed in rows, which shows the far trees
+as upright cards more than before.
 **When the text arrives**: tune the governor first (runs A, D, F: steps and late frames on
 the ground route and the air route); then B against C (what the savings buy at one size), E
 (the air at one size: the forest's layers, the sky), the cost test's rows for the sky's parts
