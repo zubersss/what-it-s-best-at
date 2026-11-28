@@ -190,7 +190,7 @@ class Shape {
       let fn = norm(cross([B[0] - A[0], B[1] - A[1], B[2] - A[2]], [C[0] - A[0], C[1] - A[1], C[2] - A[2]]));
       const m = [(A[0] + B[0] + C[0]) / 3, (A[1] + B[1] + C[1]) / 3, (A[2] + B[2] + C[2]) / 3], o = norm([m[0] - out[0], out[1] == null ? 0 : m[1] - out[1], m[2] - out[2]]);
       if (fn[0] * o[0] + fn[1] * o[1] + fn[2] * o[2] < 0) fn = [-fn[0], -fn[1], -fn[2]];
-      const k = isLeaf > 1.5 ? 0.8 : isLeaf ? 0.35 : 0.6; fn = norm([fn[0] + (o[0] - fn[0]) * k, fn[1] + (o[1] - fn[1]) * k, fn[2] + (o[2] - fn[2]) * k]);
+      const k = isLeaf > 1.75 ? 0.8 : isLeaf > 1.4 ? 0.5 : isLeaf ? 0.35 : 0.6; fn = norm([fn[0] + (o[0] - fn[0]) * k, fn[1] + (o[1] - fn[1]) * k, fn[2] + (o[2] - fn[2]) * k]);
       for (let v = 0; v < 3; v++) {
         const i = t * 3 + v, [px, py, pz] = tr.p[v], y = Math.max(0, py), r = Math.hypot(px, pz);
         let nn = fn;
@@ -202,7 +202,7 @@ class Shape {
           nn = norm([a[0] * 0.45 + b[0] * 0.8, a[1] * 0.45 + b[1] * 0.8 + 0.3, a[2] * 0.45 + b[2] * 0.8]);
         }
         pos.set(tr.p[v], i * 3); nrm.set(nn, i * 3); uv.set(tr.uv[v], i * 2); leaf[i] = isLeaf;
-        sway[i * 2] = y * y * (0.6 + 1.5 * r) * (isLeaf > 1.5 && isLeaf < 2.5 ? 1.5 : 1); sway[i * 2 + 1] = tr.fl ? tr.fl[v] : isLeaf > 1.5 && isLeaf < 3.5 ? 1 : 0;
+        sway[i * 2] = y * y * (0.6 + 1.5 * r) * (isLeaf > 1.75 && isLeaf < 2.5 ? 1.5 : 1); sway[i * 2 + 1] = tr.fl ? tr.fl[v] : isLeaf > 1.75 && isLeaf < 3.5 ? 1 : 0;
       }
     });
     const g = new THREE.BufferGeometry();
@@ -212,6 +212,92 @@ class Shape {
     g.userData.mid = this.mid;          // (the height the crown's light is reckoned from: the far forest lights its cards by the same rule)
     return g;
   }
+}
+
+// The solid make: the tree as a few faceted masses, for whoever looks down on it. Seen from
+// above a tree's pictures are cards on edge and a plate lying in its crown; what the eye
+// wants there is a thing with a top and sides. It is made FROM the middle-distance mesh, so
+// that it is the same tree: the same height, width and lean, its masses where that tree's
+// bunches of foliage are.
+//   a conifer (0): its tiers, two and two together, each a low cone with a jagged skirt;
+//   a palm (6): one star of fronds drooping round the trunk's top, a small cap in it;
+//   every other shape: its bunches gathered into a few lumps (a cap over a wide ring over a
+//     narrower one beneath: the top catches the Sun, the under-skirt is in the shade);
+//   and the stem, a three-sided tube along the tree's own trunk line.
+// Opaque plain faces (aLeaf 1.5: a solid crown's face, the species' leaf colour, nothing cut
+// out), 40 to 90 triangles.
+const SOLID_LUMPS = [0, 4, 4, 4, 4, 3, 0, 4, 4], SOLID_WIDE = [1, 0.8, 0.82, 0.85, 0.9, 0.9, 1, 0.62, 0.85];
+function solidOf(near, arch, R) {
+  const s = new Shape(1); s.mid = near.mid;
+  const fol = near.tris.filter((t) => t.leaf > 0.5), wood = near.tris.filter((t) => t.leaf < 0.1);
+  const pct = (a, q) => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.min(b.length - 1, Math.floor(q * b.length))] : 0; };
+  // the trunk's line: where the wood is, height by height (followed up from the foot)
+  const woodP = wood.flatMap((t) => t.p);
+  const trunkAt = (y, from) => { let x = 0, z = 0, n = 0; for (const p of woodP) if (Math.abs(p[1] - y) < 0.05 && Math.hypot(p[0] - from[0], p[2] - from[2]) < 0.07) { x += p[0]; z += p[2]; n++; } return n ? [x / n, y, z / n] : [from[0], y, from[2]]; };
+  const foot = trunkAt(0, [0, 0, 0]);
+  let r0 = 0; for (const p of woodP) if (p[1] < 0.02) r0 = Math.max(r0, Math.hypot(p[0] - foot[0], p[2] - foot[2]));
+  r0 = Math.min(0.03, Math.max(0.008, r0 * 0.8));
+  const stem = (top) => { const pts = [foot]; for (let k = 1; k <= 2; k++) pts.push(trunkAt(top * k / 2, pts[k - 1])); s.tube(pts, [r0, r0 * 0.75, r0 * 0.4], 3); return pts[2]; };
+  // a mass's faces: plain, lit from the middle of the mass (build() leans a plain face's own
+  // normal toward straight out from `c`)
+  const face = (a, b, c3, c) => s.tri(a, b, c3, 1.5, c[0], c[1], c[2]);
+  if (arch === 0) {
+    // tiers: the middle mesh's own (their foliage shares a middle on the trunk), two and two
+    const by = new Map();
+    for (const t of fol) { const k = t.out[1].toFixed(4); if (!by.has(k)) by.set(k, []); by.get(k).push(...t.p); }
+    const tiers = [...by.values()].map((P) => ({ hi: pct(P.map((p) => p[1]), 0.97), lo: pct(P.map((p) => p[1]), 0.12), r: pct(P.map((p) => Math.hypot(p[0], p[2])), 0.9), n: P.length })).filter((t) => t.n > 12).sort((a, b) => a.lo - b.lo);
+    const merged = []; for (let k = 0; k < tiers.length; k += 2) { const a = tiers[k], b = tiers[k + 1] || a; merged.push({ hi: Math.max(a.hi, b.hi), lo: Math.min(a.lo, b.lo), r: Math.max(a.r, b.r) }); }
+    const top = stem(merged.length ? merged[merged.length - 1].hi : 0.9);
+    merged.forEach((t, k) => {
+      const n = 6, turn = R() * TAU, ax = trunkAt((t.hi + t.lo) / 2, top), apex = [ax[0], t.hi + 0.02, ax[2]], c = [ax[0], t.lo - t.r * 0.5, ax[2]];
+      const ring = []; for (let j = 0; j < n; j++) { const a = turn + j / n * TAU, out = j % 2 ? 1 : 0.72 + 0.12 * R(), rr = t.r * 0.92 * out; ring.push([ax[0] + Math.cos(a) * rr, t.lo + (t.hi - t.lo) * (j % 2 ? 0.05 : 0.3), ax[2] + Math.sin(a) * rr]); }
+      for (let j = 0; j < n; j++) face(apex, ring[(j + 1) % n], ring[j], c);
+    });
+    // (the spire)
+    { const y = merged.length ? merged[merged.length - 1].hi : 0.9, a = [top[0], Math.min(1, y + 0.07), top[2]], c = [top[0], y - 0.05, top[2]], ring = [0, 1, 2].map((j) => [top[0] + Math.cos(j * 2.094) * 0.02, y - 0.01, top[2] + Math.sin(j * 2.094) * 0.02]); for (let j = 0; j < 3; j++) face(a, ring[(j + 1) % 3], ring[j], c); }
+    return s;
+  }
+  const P = fol.flatMap((t) => t.p);
+  if (arch === 6) {
+    const cx = P.reduce((a, p) => a + p[0], 0) / P.length, cz = P.reduce((a, p) => a + p[2], 0) / P.length, hi = pct(P.map((p) => p[1]), 0.97), lo = pct(P.map((p) => p[1]), 0.2), r = pct(P.map((p) => Math.hypot(p[0] - cx, p[2] - cz)), 0.93);
+    stem(hi - 0.03);
+    const n = 9, turn = R() * TAU, apex = [cx, hi + 0.01, cz], c = [cx, lo - r * 0.4, cz], ring = [], inner = [];
+    for (let j = 0; j < n; j++) { const a = turn + j / n * TAU, a2 = a + 0.5 / n * TAU, rr = r * (0.85 + 0.2 * R()); ring.push([cx + Math.cos(a) * rr, lo - (hi - lo) * 0.25 * R(), cz + Math.sin(a) * rr]); inner.push([cx + Math.cos(a2) * r * 0.36, hi - (hi - lo) * 0.3, cz + Math.sin(a2) * r * 0.36]); }
+    // (each frond a blade from the crown's middle out and down, with a notch between it and the next)
+    for (let j = 0; j < n; j++) { face(apex, inner[j], ring[j], c); face(apex, ring[j], inner[(j + n - 1) % n], c); }
+    return s;
+  }
+  // the bunches of the middle mesh (each has its own middle), as balls
+  const by = new Map();
+  for (const t of fol) { if (t.out[1] == null) continue; const k = t.out.map((v) => v.toFixed(4)).join(','); if (!by.has(k)) by.set(k, []); by.get(k).push(...t.p); }
+  let balls = [...by.values()].map((Q) => { const c = [0, 1, 2].map((i) => Q.reduce((a, p) => a + p[i], 0) / Q.length); return { c, Q, r: pct(Q.map((p) => Math.hypot(p[0] - c[0], p[2] - c[2])), 0.85) }; });
+  if (!balls.length) balls = [{ c: [0, 0.6, 0], Q: P, r: 0.2 }];
+  // ... gathered into a few lumps: seeds far from one another (the largest first), every bunch to its nearest
+  const K = Math.min(SOLID_LUMPS[arch] || 4, balls.length), seeds = [balls.slice().sort((a, b) => b.r - a.r)[0]];
+  while (seeds.length < K) { let best = null, bd = -1; for (const b of balls) { if (seeds.includes(b)) continue; const d = Math.min(...seeds.map((q) => Math.hypot(b.c[0] - q.c[0], (b.c[1] - q.c[1]) * 1.5, b.c[2] - q.c[2]))); if (d > bd) { bd = d; best = b; } } seeds.push(best); }
+  const groups = seeds.map(() => []);
+  for (const b of balls) { let bi = 0, bd = 1e9; seeds.forEach((q, i) => { const d = Math.hypot(b.c[0] - q.c[0], (b.c[1] - q.c[1]) * 1.5, b.c[2] - q.c[2]); if (d < bd) { bd = d; bi = i; } }); groups[bi].push(...b.Q); }
+  const lumps = groups.filter((Q) => Q.length).map((Q) => {
+    const c = [0, 1, 2].map((i) => Q.reduce((a, p) => a + p[i], 0) / Q.length);
+    return { c, r: pct(Q.map((p) => Math.hypot(p[0] - c[0], p[2] - c[2])), 0.85) * SOLID_WIDE[arch], hi: pct(Q.map((p) => p[1]), 0.92), lo: arch === 5 ? pct(Q.map((p) => p[1]), 0.1) * 0.4 : pct(Q.map((p) => p[1]), 0.12) };
+  });
+  const crown = [0, 1, 2].map((i) => P.reduce((a, p) => a + p[i], 0) / P.length);
+  stem(Math.max(...lumps.map((l) => l.c[1])) * (arch === 5 ? 0.5 : 0.96));
+  for (const l of lumps) {
+    const n = 6, turn = R() * TAU, h = l.hi - l.lo, c = [l.c[0] * 0.7 + crown[0] * 0.3, l.lo - h * 0.2, l.c[2] * 0.7 + crown[2] * 0.3];
+    const apex = [l.c[0] + (R() - 0.5) * l.r * 0.15, l.hi, l.c[2] + (R() - 0.5) * l.r * 0.15], wide = [], under = [];
+    for (let j = 0; j < n; j++) {
+      const a = turn + j / n * TAU, a2 = a + 0.5 / n * TAU, rr = l.r * (0.9 + 0.16 * R());
+      wide.push([l.c[0] + Math.cos(a) * rr, l.lo + h * (0.28 + 0.14 * R()), l.c[2] + Math.sin(a) * rr]);
+      under.push([l.c[0] + Math.cos(a2) * rr * 0.5, l.lo, l.c[2] + Math.sin(a2) * rr * 0.5]);
+    }
+    for (let j = 0; j < n; j++) {
+      face(apex, wide[(j + 1) % n], wide[j], c);
+      face(wide[j], wide[(j + 1) % n], under[j], c);
+      face(under[j], wide[(j + 1) % n], under[(j + 1) % n], c);
+    }
+  }
+  return s;
 }
 
 // One list per shape, of VARIANTS trees of that shape, each [close mesh, near mesh, far
@@ -247,11 +333,19 @@ export function makeTreeGeometries() {
   // far: [rosette, its radius, its height] for the whole-tree mesh
   const make = (arch, seed, far, build) => {
     const list = [];
-    for (let v = 0; v < VARIANTS; v++) list.push([2, 1, 0].map((q) => {
-      const s = new Shape(q);
-      if (q === 0) { const f = far(v); s.mid = f[3] ?? 0.6; s.whole(arch, v, f[0], f[1], f[2]); } else build(s, rng(seed + v * 7919), rng(seed + 577 + v * 7919 + q * 131), v, q);
-      return s.build();
-    }));
+    for (let v = 0; v < VARIANTS; v++) {
+      let nearShape = null;
+      const trio = [2, 1, 0].map((q) => {
+        const s = new Shape(q);
+        if (q === 0) { const f = far(v); s.mid = f[3] ?? 0.6; s.whole(arch, v, f[0], f[1], f[2]); } else build(s, rng(seed + v * 7919), rng(seed + 577 + v * 7919 + q * 131), v, q);
+        if (q === 1) nearShape = s;
+        return s.build();
+      });
+      // (the fourth make, for whoever looks down on the tree: not one of the three by distance,
+      // and kept beside them, not among them)
+      trio.solid = solidOf(nearShape, arch, rng(seed + 9001 + v * 7919)).build();
+      list.push(trio);
+    }
     for (const trio of list) crownCoords(trio[2], trio[1]);
     out.push(list);
   };

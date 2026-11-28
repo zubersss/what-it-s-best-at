@@ -4,7 +4,7 @@
 //
 //   node scripts/tree-preview.mjs [--out dir] [--variant 0|1|2] [--only 0,2,7] [--below]
 //                                 [--close [--from 4] [--tall 22] [--size 1540x721] [--fov 30]]
-//                                 [--against dir]
+//                                 [--against dir] [--solid [--down 60] [--file f.png]]
 //                                 [--year <species number> [--alt 1400] [--lat 45]]
 //
 // One sheet per four shapes: columns are shapes, rows are close, near and far.
@@ -59,6 +59,19 @@ if (yearOf != null) {
   });
   const file = `${out}/tree_year_${sp.name.replace(/ /g, '_')}_${alt}m.png`;
   fs.writeFileSync(file, png(W, CH * 3, img)); console.log(file);
+} else if (args.includes('--solid')) {
+  // --solid: the solid make (for whoever looks down on a tree) beside the tree's pictures: a
+  // column a shape; rows: the solid from 60 degrees above, the far pictures from there (what
+  // it replaces), the solid from the side, the pictures from the side (it must be the same tree).
+  const CW = 200, CH = 230, S = 190, W = CW * list.length, img = Buffer.alloc(W * CH * 4 * 3), counts = [];
+  const down = +opt('down', 60) * Math.PI / 180, top = camera([0, 0.55 + 2.7 * Math.sin(down), 2.7 * Math.cos(down)], [0, 0.55, 0], 26, CW, CH), side = sideView(S, CW, CH);
+  list.forEach((a, ci) => {
+    const trio = here.geos[a][variant], o = look(a);
+    [[trio.solid, top], [trio[2], top], [trio.solid, side], [trio[2], side]].forEach(([g, view], row) => { sky(img, W, ci * CW, row * CH, CW, CH); const n = drawTree(g, here.atlas, img, W, ci * CW, row * CH, CW, CH, view, o); if (row === 0) counts.push(`${NAMES[a]} ${n}`); });
+  });
+  const file = opt('file', `${out}/solids_sheet_v${variant}.png`);
+  fs.writeFileSync(file, png(W, CH * 4, img));
+  console.log(file + '\n  triangles: ' + counts.join(' · '));
 } else if (close) {
   const [cw, ch] = opt('size', '1540x721').split('x').map(Number), fov = +opt('fov', 30), from = +opt('from', 4);
   for (const a of list) {
