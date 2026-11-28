@@ -266,7 +266,11 @@ float mistShare(vec3 rel, out vec3 mistCol) {
   float hE = length(uCamPlanetPos) - uMist.x, hP = length(p) - uMist.x;      // m over its top (under 0: in it)
   if (hP >= 0.0 || hE < 0.0) return 0.0;
   float under = -hP / max(hE - hP, 1e-3);                                     // the share of the line that runs under the top
-  float k = 1.0 - exp(-uMist.y * length(rel) * under * clamp(-0.5 * hP / uMist.z, 0.0, 1.0));
+  // (the stretch under the top, but never more than three times the thing's own depth: mist that
+  // lies on a lake is not a level sea over the low land round it, and with the whole stretch a
+  // wood a kilometre inland, seen along the top, was row behind row of one pale tone. So a far
+  // tree is pale at its knees and clear at its crown, by its own depth, as a near one is.)
+  float k = 1.0 - exp(-uMist.y * min(length(rel) * under, -3.0 * hP) * clamp(-0.5 * hP / uMist.z, 0.0, 1.0));
   k *= 1.0 - smoothstep(6300.0, 9000.0, length(rel - uMistAt));
   // (not the water it lies on, uMist.w m under its top: that is the sheet's to hide and to show
   // through its thin places. With the water taken here as well the lake was one flat tone.)
