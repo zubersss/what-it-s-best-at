@@ -266,11 +266,11 @@ function solidOf(near, arch, R) {
     const top = stem(merged.length ? merged[merged.length - 1].hi : 0.9);
     merged.forEach((t, k) => {
       const n = 10, turn = R() * TAU, ax = trunkAt((t.hi + t.lo) / 2, top), apex = [ax[0], t.hi + 0.02, ax[2]], c = [ax[0], t.lo - t.r * 0.5, ax[2]];
-      const ring = []; for (let j = 0; j < n; j++) { const a = turn + j / n * TAU, out = j % 2 ? 1 : 0.5 + 0.12 * R(), rr = t.r * 0.9 * out * (j % 2 ? 0.85 + 0.25 * R() : 1); ring.push([ax[0] + Math.cos(a) * rr, t.lo + (t.hi - t.lo) * (j % 2 ? 0.05 : 0.3), ax[2] + Math.sin(a) * rr]); }
+      const ring = []; for (let j = 0; j < n; j++) { const a = turn + j / n * TAU, out = j % 2 ? 1 : 0.5 + 0.12 * R(), rr = t.r * 0.82 * out * (j % 2 ? 0.85 + 0.2 * R() : 1); ring.push([ax[0] + Math.cos(a) * rr, t.lo + (t.hi - t.lo) * (j % 2 ? 0.05 : 0.3), ax[2] + Math.sin(a) * rr]); }
       for (let j = 0; j < n; j++) face(apex, ring[(j + 1) % n], ring[j], c, apex, [0.15, (j + 1) % 2 ? 1 : 0.55, j % 2 ? 1 : 0.55]);
     });
     // (the spire)
-    { const y = merged.length ? merged[merged.length - 1].hi : 0.9, a = [top[0], Math.min(1, y + 0.07), top[2]], c = [top[0], y - 0.05, top[2]], ring = [0, 1, 2].map((j) => [top[0] + Math.cos(j * 2.094) * 0.02, y - 0.01, top[2] + Math.sin(j * 2.094) * 0.02]); for (let j = 0; j < 3; j++) face(a, ring[(j + 1) % 3], ring[j], c, c); }
+    { const y = merged.length ? merged[merged.length - 1].hi : 0.9, a = [top[0], Math.min(1, y + 0.05), top[2]], c = [top[0], y - 0.05, top[2]], ring = [0, 1, 2].map((j) => [top[0] + Math.cos(j * 2.094) * 0.02, y - 0.01, top[2] + Math.sin(j * 2.094) * 0.02]); for (let j = 0; j < 3; j++) face(a, ring[(j + 1) % 3], ring[j], c, c); }
     return done();
   }
   const P = fol.flatMap((t) => t.p);
@@ -295,11 +295,11 @@ function solidOf(near, arch, R) {
   for (const b of balls) { let bi = 0, bd = 1e9; seeds.forEach((q, i) => { const d = Math.hypot(b.c[0] - q.c[0], (b.c[1] - q.c[1]) * 1.5, b.c[2] - q.c[2]); if (d < bd) { bd = d; bi = i; } }); groups[bi].push(...b.Q); }
   const lumps = groups.filter((Q) => Q.length).map((Q) => {
     const c = [0, 1, 2].map((i) => Q.reduce((a, p) => a + p[i], 0) / Q.length);
-    return { c, r: pct(Q.map((p) => Math.hypot(p[0] - c[0], p[2] - c[2])), 0.85) * SOLID_WIDE[arch], hi: pct(Q.map((p) => p[1]), 0.92), lo: arch === 5 ? pct(Q.map((p) => p[1]), 0.1) * 0.4 : pct(Q.map((p) => p[1]), 0.12) };
+    return { c, r: pct(Q.map((p) => Math.hypot(p[0] - c[0], p[2] - c[2])), 0.85) * SOLID_WIDE[arch], hi: pct(Q.map((p) => p[1]), 0.97), lo: arch === 5 ? pct(Q.map((p) => p[1]), 0.1) * 0.4 : pct(Q.map((p) => p[1]), 0.12) };
   });
   const crown = [0, 1, 2].map((i) => P.reduce((a, p) => a + p[i], 0) / P.length);
   // (the middle of a broad crown: a lump of its own, a little higher than the ones round it)
-  if (SOLID_CORE[arch]) { const rAll = pct(P.map((p) => Math.hypot(p[0] - crown[0], p[2] - crown[2])), 0.8); lumps.push({ c: crown, r: rAll * 0.62, hi: pct(P.map((p) => p[1]), 0.97), lo: pct(P.map((p) => p[1]), arch === 5 ? 0.05 : 0.3) }); }
+  if (SOLID_CORE[arch]) { const rAll = pct(P.map((p) => Math.hypot(p[0] - crown[0], p[2] - crown[2])), 0.8); lumps.push({ c: crown, r: rAll * 0.62, hi: pct(P.map((p) => p[1]), 0.995), lo: pct(P.map((p) => p[1]), arch === 5 ? 0.05 : 0.3) }); }
   stem(Math.max(...lumps.map((l) => l.c[1])) * (arch === 5 ? 0.5 : 0.96));
   for (const l of lumps) {
     const n = arch === 7 ? 5 : 6, turn = R() * TAU, h = l.hi - l.lo, c = [l.c[0] * 0.7 + crown[0] * 0.3, l.lo - h * 0.2, l.c[2] * 0.7 + crown[2] * 0.3];

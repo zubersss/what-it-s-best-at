@@ -359,6 +359,8 @@ export const PARTS_OUT = [
   // (the ground's two cuts that a switch can put back, docs/briefs/ground-cost-report.md: what the old way adds)
   { id: 'ground-sky-pixel', label: "the sky's light on the ground at every pixel instead of at its vertices (what it adds)", adds: true, set: (app, out) => { app.terrain.shared.uGroundOld.value.x = out ? 1 : 0; } },
   { id: 'ground-both-maps', label: "a patch's own maps read wherever its parent's are (what it adds)", adds: true, set: (app, out) => { app.terrain.shared.uGroundOld.value.y = out ? 1 : 0; } },
+  // (trees looked down on as their pictures and a plate, as before the solid makes: what the old way adds from the air)
+  { id: 'tree-solid-off', label: 'trees looked down on as cut-out pictures instead of solid crowns (what it adds)', adds: true, has: (app) => !!app.trees?.def, set: (app, out) => { const v = out ? 0 : 1; app.trees.shared.uSolid.value = v; app.trees.solidOn = !out; app.farForest.shared.uSolid.value = v; app.farForest.solidOn = !out; } },
   // (last: what is left with nothing drawn at all)
   // (and every pass the sky makes into targets of its own: with the scenes alone hidden those all ran)
   { id: 'everything', label: 'everything', set: (app, out) => { app.nearScene.visible = app.farScene.visible = app.heroScene.visible = app.dustScene.visible = !out; if (app.sky?.hasPart('sky-all')) app.sky.partOut('sky-all', out); } },
