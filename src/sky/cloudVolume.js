@@ -462,7 +462,14 @@ void main() {
   float n = far ? uLayer.w : uLayer.z;
   if (gCells > 0 && !far) n = min(n * 1.7, 16.0);
   float L = mB - mA;
-  float jit = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+  // (four starts, one in each pixel of every 2 x 2 block: 0, 1/2, 3/4, 1/4 of a step. The pass
+  // that takes the grain out reads four means of 2 x 2 pixels, and each such mean holds all
+  // four starts once whatever block it is: the grain goes out whole. The starts used to come
+  // from a finer pattern that those four looks did not cancel: what was left of it was a weave
+  // in level rows two pixels of the small picture high, ribs across any heap the traveller
+  // flew beside, plainest where the heap is one dull tone, at a low Sun.)
+  vec2 par = mod(floor(gl_FragCoord.xy), 2.0);
+  float jit = 0.125 + 0.5 * par.x + 0.75 * par.y - par.x * par.y;
   // (the far slices are cut to clean shapes when they are laid: less grain there, a little banding instead)
   float jw = slice >= 2 ? 0.4 : 1.0;
   vec3 mid = uCamPlanetPos + dir * (mA + 0.4 * L);
@@ -553,7 +560,8 @@ void main() {
 }`;
 
 // The march's grain taken out: every pixel of every slice's picture becomes the mean of four
-// looks round it (the march starts at a different depth in every pixel).
+// looks round it, each the mean of a 2 x 2 block (the march starts at one of four depths by
+// the pixel's place in its block).
 const SMOOTH = /* glsl */`
 uniform sampler2D tCloudPass;
 uniform vec2 uPixel;           // a pixel of the part in use
@@ -564,7 +572,9 @@ void main() {
   // (kept inside this slice's own picture: its neighbours are other slices)
   vec2 cells = vec2(float(COLS), float(ROWS)), cell = min(floor(vUv * cells), cells - 1.0), lo = cell / cells + 0.5 * uPixel, hi = (cell + 1.0) / cells - 0.5 * uPixel;
   #define TAP(o) texture(tCloudPass, clamp(vUv + uPixel * o, lo, hi) * uUsed)
-  fragColor = 0.25 * (TAP(vec2(1.2, 0.45)) + TAP(vec2(-0.45, 1.2)) + TAP(vec2(-1.2, -0.45)) + TAP(vec2(0.45, -1.2)));
+  // (each look falls on the corner four pixels share: the mean of a 2 x 2 block, which holds
+  // each of the march's four starts once: see the march's jit)
+  fragColor = 0.25 * (TAP(vec2(0.5, 0.5)) + TAP(vec2(-0.5, 0.5)) + TAP(vec2(-0.5, -0.5)) + TAP(vec2(0.5, -0.5)));
 }`;
 
 // All the cloud along each line of sight, whatever slices it lies in: one small picture (a
