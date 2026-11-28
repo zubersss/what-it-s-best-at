@@ -64,6 +64,16 @@ no level cut at the shore, the inland terraces gone; its strips clean; pair
 `docs/shots/sky-faults/mist_close_pair.png`). To judge again with the trees from above when
 they land: the inland wood's trees now stand pale-footed in rows, which shows the far trees
 as upright cards more than before.
+**Helpers, 2026-11-28 06:40 UTC** (four sessions with this one, the owner's limit):
+speed `session_01R5Bri3Vc6gREhGM2yuwUwB` (`ccr-6f4f9272-speed`, the trees from above);
+ground `session_01R5Bri2SJsiHEniM3EYxxpQ` (`ccr-6f4f9272-seasons`, the plains from the air:
+972bc43 held until its next line); **a fresh sky session**
+`session_01R5BrhzzVarsHmvGi2siTad` (`ccr-6f4f9272-sky-air`, brief
+`docs/briefs/heaps-from-air.md`: the low heaps seen from 1 to 5 km are one dull tone, soft
+and grainy; find the hull and shade it as a surface, the march only near and inside; then
+the sky's cost with the phone's table). The old sky session
+(`session_01R5Bri3JsgPNqFWmnrwMeAB`) is done and archived: the mist merged, the heap's fine
+weave not cured (its eighth note says what is ruled out).
 **When the text arrives**: tune the governor first (runs A, D, F: steps and late frames on
 the ground route and the air route); then B against C (what the savings buy at one size), E
 (the air at one size: the forest's layers, the sky), the cost test's rows for the sky's parts
