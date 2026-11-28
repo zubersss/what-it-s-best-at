@@ -20,6 +20,8 @@ export const PARAMS = {
   scale: num('scale', null),            // fixed render scale (switches the governor off)
   mode: q.get('mode'),                  // 'smooth' (60 fps target) or 'sharp' (30 fps target)
   bench: q.get('bench'),                // 'run' or 'soak': start a benchmark as soon as the scene is ready
+  cost: q.get('cost'),                  // '0': a benchmark without its cost test at the end (the big benchmark's later runs)
+  big: q.get('big') === '1', bigtest: q.get('bigtest') === '1',   // a run of the big benchmark's chain (perf/bigBench.js); bigtest: the chain's own short check
   fly: q.get('fly') === '1',
   dpr: num('dpr', null),                // pretend the screen has this device pixel ratio
   touch: q.get('touch') === '1',        // force the touch controls on

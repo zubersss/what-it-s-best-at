@@ -35,19 +35,24 @@ the ring from 60 to 240 m, where a tree is 100 to 400 pixels tall on the phone.
 And it is paid for dearly: three cut-out layers a tree in that ring, the far forest's 8 where
 it stands, the mist's sheet over it: 14 fps with everything given up.
 
-## The change: a tree looked down on is a solid thing
+## The change: a tree looked down on has form
 
-The look asked for is "trees ... as bold shapes known by their outline", "faceted", "cut-out"
-from the side. From above the same look is **solid crowns in a few facets**: a fir a stack of
-tiers, each a low cone with a jagged skirt; a pine fewer, flatter tiers on a bare stem; a
-broadleaf or a blossom tree a cluster of three to five lumps; an aspen two or three small
-lumps up a pale stem. Opaque (no cut-out test, one layer), lit as one mass by the crown's own
-rule (the normal from the crown's middle, as the cards are lit: `treeGeometry.js`, `aCrown`),
-top faces in the Sun's colour and the under-skirts in the coloured shade, the species' leaf
-colour, the season's (bare trees: stem and boughs only; in flower: the lumps in the petal's
-colour), the wind's sway as a whole.
+**Corrected 2026-11-28 00:10, after the first sheet** (`docs/shots/trees-above/solids_sheet.png`:
+cut gems, low-polygon lumps, which the owner turned down three deliveries running): not
+facets. The crown-top pictures are good from above (a rounded mass with a finely cut leafy
+edge); they are only flat, one to a tree, and crossed by a ruler line. So the picture is kept
+and given form: **a crown-top picture draped over a low dome**. A lump is a cap (an umbrella
+of 10 to 14 triangles sagging from its top to its rim, no underside), carrying the crown-top
+picture of its kind mapped straight down, cut out at its leafy edge, lit by the crown's own
+smooth mass normal as the cards are, darker toward its rim and under its neighbours. A
+broadleaf, blossom, umbrella or bush crown is five to seven such caps overlapping by a
+third, the highest in the middle; a conifer three or four tiers, each a low cone carrying
+the needle rosette; a slender tree six or seven small caps up its stem; a palm its star of
+fronds. The species' leaf colour, the season's (bare trees: stem and boughs only; in flower:
+the caps in the petal's colour), the wind's sway as a whole. From the side the upright
+pictures stay the tree, so the caps need only be right from 20 degrees down and steeper.
 
-1. **A fourth make, `solid`, per shape and variant** in `life/treeGeometry.js`: 40 to 90
+1. **A fourth make, `solid`, per shape and variant** in `life/treeGeometry.js`: 60 to 90
    triangles, corners shared. Judge it alone first, in the sheet (`tree-preview --above`,
    and from the side: it must be the same tree as its picture, the same height, width and
    lean, or a tree will change shape as the eye rises). Look at all nine shapes.

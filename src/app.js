@@ -14,6 +14,7 @@ import { Pollen } from './life/pollen.js';
 import { Falls } from './water/falls.js';
 import { Governor, MODES, FRAME } from './perf/governor.js';
 import { Benchmark } from './perf/benchmark.js';
+import { bigBegin, bigAt, bigDone } from './perf/bigBench.js';
 import { waveHeightAt, waveScale } from './water/waves.js';
 import { Trees } from './life/trees.js';
 import { FarForest } from './life/farForest.js';
@@ -793,8 +794,18 @@ export class App {
     this.toast?.show(`${MODES[next].label} — ${MODES[next].fps} fps`);
   }
 
-  startBenchmark(kind) {
+  startBenchmark(kind, fromLink = false) {
     if (!this.loaded || this.benchmark.active) return;
+    // The big benchmark: a chain of runs, each the page's own benchmark started by its own
+    // link (perf/bigBench.js). Asking for it opens the first run's link; a page opened as one
+    // of its runs says so in the banner (and begins the chain again if there is none to go on
+    // with: another build's, or none kept).
+    if (kind === 'big') { keepAwake(); location.replace(bigBegin(localStorage, location.pathname, BUILD.commit, this.params.bigtest)); return; }
+    if (fromLink && this.params.big) {          // (only a run its own link began: a button pressed after the chain has ended is an ordinary run)
+      const at = bigAt(localStorage, location.pathname, BUILD.commit, this.params.bigtest);
+      if (at.restart) { location.replace(at.restart); return; }
+      this.bigLabel = at.label;
+    }
     this.startScreen.hide(); this.results.hide();
     this.menuOpen = false;
     this.touch.setVisible(false);
@@ -806,6 +817,13 @@ export class App {
   }
 
   onBenchmarkDone(text) {
+    // (a run of the big benchmark: its text is kept and the next run's link opened; the last
+    // run shows all of them as one text)
+    if (this.params.big && this.bigLabel) {
+      const d = bigDone(localStorage, location.pathname, text);
+      if (d.next) { location.replace(d.next); return; }
+      text = d.text; this.bigLabel = null; this.results.title.textContent = 'The big benchmark: results';
+    }
     this.banner.show(false);
     this.rig.hover = this.hoverBefore ?? false;
     this.menuOpen = true;
@@ -1603,7 +1621,7 @@ export class App {
     if (this.frameCount === 3 || this._compileDue) { this._compileDue = false; this.precompile(); }
     if (!this.loaded && this.frameCount > 3 && this.terrain.drawList.length > 0) {
       this.loaded = true; this.loadedAt = now;
-      if (this.params.bench && this.benchmark) this.startBenchmark(this.params.bench);
+      if (this.params.bench && this.benchmark) this.startBenchmark(this.params.bench, true);
     }
     // Play waits until the ground under the start is drawn at full detail (first drafts
     // of the terrain can sit metres below the real surface), or 20 s at most.
