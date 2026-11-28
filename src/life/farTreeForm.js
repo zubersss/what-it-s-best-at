@@ -92,9 +92,15 @@ float farGreenW(float dist) { return smoothstep(300.0, 1300.0, dist); }
 // in the air layer by layer" begins with the wood's own tone: a rich mid green from afar,
 // the dark of a leaf only near by, where one is among the trees. Green leaves only.)
 const float FAR_LIFT = 3.0;
+const float FAR_ALOFT = 0.45;
 vec3 farGreen(vec3 leaf, float dist) {
   float green = 1.0 - smoothstep(0.0, 0.3, (leaf.r - leaf.g) / max(leaf.r, 1e-4));
   vec3 c = mix(leaf, dot(leaf, vec3(0.3, 0.6, 0.1)) * vec3(0.72, 0.88, 0.38), 0.7 * farGreenW(dist) * green);
-  return c * (1.0 + (FAR_LIFT - 1.0) * green * smoothstep(300.0, 2600.0, dist));
+  // (and from up in the air, uAloft of the lighting text, part of it from much nearer: a wood
+  // looked down on shows its crowns' tops, the most lit thing a tree has, and from 300 m up
+  // the wood a kilometre off was a quarter as bright as the meadow beside it. FAR_ALOFT of
+  // the lift from 80 m, all of it by 500 m. On foot nothing changes: uAloft is 0 there.)
+  float w = max(smoothstep(300.0, 2600.0, dist), FAR_ALOFT * uAloft * smoothstep(80.0, 500.0, dist));
+  return c * (1.0 + (FAR_LIFT - 1.0) * green * w);
 }
 `;
