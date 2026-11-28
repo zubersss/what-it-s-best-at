@@ -26,7 +26,29 @@ export class MadeWorld {
     const L = this.lakes; if (!L) return null;
     const j = Math.min(L.height - 1, Math.max(0, Math.floor((90 - lat) / 180 * L.height))), i = Math.min(L.width - 1, Math.floor(lon / 360 * L.width));
     const id = L.ids[j * L.width + i];
-    return id ? L.levels[id - 1] : null;
+    if (id) return L.levels[id - 1];
+    // Beyond the lake's own cells: a lake ends where the ground rises through its level, and
+    // between a lake's cell and the dry one beside it that is somewhere short of the dry
+    // cell's middle, as often past the edge between the two as before it. Cut at the edge,
+    // half the shore was the map's lattice: ruler lines 200 to 400 m long with square
+    // corners, seen from the air. So a place within half a cell of a lake's cell is the
+    // lake's too, where the ground stays under the lake's level all the way to that cell's
+    // middle (a place under the level beyond the lip the lake spills over is not: the lip
+    // stands between).
+    const fy = (90 - lat) / 180 * L.height, fx = lon / 360 * L.width, sx = fx - Math.floor(fx) < 0.5 ? -1 : 1, sy = fy - Math.floor(fy) < 0.5 ? -1 : 1;
+    let lv = null, to = null, near = 1e9;
+    for (const [dx, dy] of [[sx, 0], [0, sy], [sx, sy]]) {
+      const jj = j + dy, ii = (i + dx + L.width) % L.width; if (jj < 0 || jj >= L.height) continue;
+      const id2 = L.ids[jj * L.width + ii]; if (!id2) continue;
+      const cx = Math.floor(fx) + dx + 0.5, cy = jj + 0.5, dist = Math.hypot(cx - fx, cy - fy);
+      if (dist < near) { near = dist; lv = L.levels[id2 - 1]; to = [cx / L.width * 360, 90 - cy / L.height * 180]; }
+    }
+    if (lv == null) return null;
+    const d = this.dem, keep = [d.h, d.gE, d.gN];
+    let under = true;
+    for (const t of [0, 0.25, 0.5, 0.75]) { d._fixed(((lon + (to[0] - lon) * t) % 360 + 360) % 360, lat + (to[1] - lat) * t); if (d.h >= lv) { under = false; break; } }
+    d.h = keep[0]; d.gE = keep[1]; d.gN = keep[2];          // (the caller's own reading of the ground stands)
+    return under ? lv : null;
   }
 
   // The year's rain at a place (mm), between the map's cells.

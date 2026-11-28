@@ -178,7 +178,13 @@ export default {
     costViews: [
       { name: 'in the forest', lat: 22.983, lon: 129.507, heading: 6, pitch: -4 },
       { name: 'from the air', lat: -48.54992, lon: 49.05567, alt: 5000, heading: 235, pitch: -14 },
+      // (the owner's screenshot of 2026-11-28: 90 m over the wood on the shore of the mist view's
+      // lake at dawn, 14 fps with 14 savings on)
+      { name: 'over the wood at dawn', lat: -58.68, lon: 26.99, alt: 580, heading: 185, pitch: -28, timeOffsetHours: 0.75 },
     ],
+    // The stops of the benchmark's route from the air (perf/benchmark.js, the kind `havenair`;
+    // five views, each a bookmark below): what one sees flying, from 90 m to 3 km.
+    airStops: ['woodDawn', 'wood300', 'air1k', 'air3k', 'mist'],
     bookmarks: {
       ledge: { label: 'The first morning', heading: 222, pitch: -2, fov: 60 },
       sun: { label: 'The Sun coming up', heading: 64, pitch: 12, fov: 40 },
@@ -203,6 +209,12 @@ export default {
       front: { label: 'A front coming', lat: -48.51554, lon: 48.64021, heading: 264, pitch: 9, fov: 60, timeOffsetHours: 33 },
       // the Crown from 14 km to the east-south-east, its lee side: cloud banked on the windward side and over the top
       crown: { label: 'Wind on the Crown', lat: 13.90909, lon: 71.95116, alt: 1950, heading: 297, pitch: 7, fov: 50, timeOffsetHours: 53 },
+      // From the air (the benchmark's route from the air; the first is the owner's view of
+      // 2026-11-28). Hours from the scene's moment; `alt`: m over the sea.
+      woodDawn: { label: 'Over the wood at dawn', lat: -58.68, lon: 26.99, alt: 580, heading: 185, pitch: -28, fov: 60, timeOffsetHours: 0.75 },
+      wood300: { label: 'The wood from 400 m', lat: -58.68, lon: 26.99, alt: 900, heading: 185, pitch: -35, fov: 60, timeOffsetHours: 4 },
+      air1k: { label: 'The opening country from 1 km', lat: -48.54992, lon: 49.05567, alt: 2513, heading: 200, pitch: -8, fov: 60, timeOffsetHours: 4.1 },
+      air3k: { label: 'Among the heaps, 3 km up', lat: -48.54992, lon: 49.05567, alt: 4500, heading: 30, pitch: -12, fov: 60, timeOffsetHours: 4 },
     },
   },
   places: [
