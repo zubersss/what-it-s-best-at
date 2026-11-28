@@ -16,7 +16,7 @@ import { localFrame } from '../core/ephemeris.js';
 import { makeTreeGeometries, VARIANTS, sharedCorners } from './treeGeometry.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
 import { SNOW_GLSL, SNOW_UNIFORMS } from '../render/snowGlsl.js';
-import { EDGE0, EDGE1, TOP0, TOP1 } from './farTreeForm.js';
+import { EDGE0, EDGE1, TOP0, TOP1, SOLID0, SOLID1 } from './farTreeForm.js';
 import { SPECIES, bloomOf, treeLook, canopyYear, canopyFar } from './cover.js';
 import { treeSeason } from './season.js';
 
@@ -139,8 +139,9 @@ uniform vec4 uTreeWind;      // xyz: where the wind blows to (unit), w: its spee
 uniform float uGustPhase;    // the gust's phase at the anchor (Trees.update): a tree's gust is its place's, whatever the anchor
 uniform vec3 uSeason;        // z: time (s). (x, y: the season of the place, for the leaves in the air; a tree's own season is in iB.w and its leaf colour)
 uniform float uTreeRadius;
-in float iF;                  // 1: a tree of the far list (its cards), drawn only outside uLodCut's radius (life/treeLod.js)
+in float iF;                  // 1: a tree of the far list (its cards), drawn only outside uLodCut's radius (life/treeLod.js); 2: the same tree's solid make (life/treeGeometry.js, solidOf)
 uniform vec4 uLodCut;         // xyz: the eye at the last choice of makes, from the anchor (m); w: the near radius then
+uniform float uSolid;         // 1: trees of the far list looked down on are their solid make; 0: their pictures, as before (?debug=treesolidoff, and the benchmark's row)
 bool treeCull;                // set by treePosition: this tree is the far forest's to draw
 vec3 treePosition(out vec3 foot, out float leaf) {
   foot = uAnchorRel + iA.xyz;
@@ -155,16 +156,30 @@ vec3 treePosition(out vec3 foot, out float leaf) {
   // the same tree at 150 m and at 400 m), and the rosette in the crown is the tree from there.
   // (Not in the shadow pass: a shadow is the tree seen from the Sun, never from the eye. Drawn
   // in by the eye's angle there, every tree in a ring under anyone looking down cast a disc.)
+  // And a tree of the far list looked down on is its solid make: a thing with a top and sides,
+  // where its pictures are cards on edge and a plate. The solid grows out of each mass's own
+  // middle (aCrown, on a solid) between SOLID0 and SOLID1 of the angle from the eye's PLACE to
+  // the tree (never the view's: nothing changes when the head turns), and the pictures and the
+  // rosette draw in as it grows. Not a bare tree (its pictures are its boughs; a solid has
+  // none), and not over the last 60 m to the far forest's line, which draws pictures.
 #ifdef TREE_DEPTH
   float edge = 1.0;
 #else
-  float edge = aLeaf > 3.5 ? 1.0 - smoothstep(${EDGE0.toFixed(3)}, ${EDGE1.toFixed(3)}, dot(-normalize(foot + uTreeUp * (iA.w * 0.7)), uTreeUp)) : 1.0;
+  bool solidMake = iF > 1.5;
+  float downT = dot(-normalize(foot + uTreeUp * (iA.w * 0.7)), uTreeUp);
+  float solidG = iF > 0.5 ? smoothstep(${SOLID0.toFixed(3)}, ${SOLID1.toFixed(3)}, downT) * (1.0 - smoothstep(180.0, 240.0, length(foot))) * (1.0 - smoothstep(0.35, 0.5, iB.w)) * uSolid : 0.0;
+  float edge = aLeaf > 3.5 ? (1.0 - smoothstep(${EDGE0.toFixed(3)}, ${EDGE1.toFixed(3)}, downT)) * (1.0 - solidG) : 1.0;
+  if (solidMake && aLeaf > 0.5) p = mix(aCrown, p, solidG);
 #endif
   // The crown's top, from low down, draws in inside the side pictures (lying flat at crown
   // height and wider than the crown seen from the side, it was a pink or green pad laid on
   // every tree from 20 degrees down); from above it is the crown, whole (the far trees' rule,
   // TOP0 to TOP1). It is its old size again from 180 m to the 240 m line, as the far forest's.
+#ifdef TREE_DEPTH
   if (aCrown.z > 2.5) p.xz *= mix(mix(0.55, 1.0, smoothstep(${TOP0.toFixed(3)}, ${TOP1.toFixed(3)}, dot(-normalize(foot + uTreeUp * (iA.w * 0.7)), uTreeUp))), 1.0, smoothstep(180.0, 240.0, length(foot)));
+#else
+  if (aCrown.z > 2.5 && !solidMake) p.xz *= (1.0 - solidG) * mix(mix(0.55, 1.0, smoothstep(${TOP0.toFixed(3)}, ${TOP1.toFixed(3)}, dot(-normalize(foot + uTreeUp * (iA.w * 0.7)), uTreeUp))), 1.0, smoothstep(180.0, 240.0, length(foot)));
+#endif
   p.xz *= iB.x * (1.0 - 0.85 * gone) * edge;
   vec3 l = vec3(p.x * c - p.z * s, p.y, p.x * s + p.z * c) * iA.w;
   // wind: the whole tree leans a little and its crown swings, gust by gust, each tree in
@@ -181,6 +196,10 @@ vec3 treePosition(out vec3 foot, out float leaf) {
   // A far card is cut where its tree stands inside the near radius of the eye at the last
   // choice of makes: the close and near lists have it there (life/treeLod.js).
   treeCull = length(foot) > uTreeRadius || edge <= 0.0 || (iF > 0.5 && length(iA.xyz - uLodCut.xyz) < uLodCut.w);
+#ifdef TREE_DEPTH
+#else
+  treeCull = treeCull || (solidMake ? solidG <= 0.0 : (aCrown.z > 2.5 && solidG >= 1.0));
+#endif
   float fade = 1.0;
   leaf = aLeaf;
   // (single leaves flutter, each in its own time, harder the harder it blows)
@@ -244,6 +263,7 @@ export class Trees {
       // 1: the Sun's light and the air worked out at every pixel, as before they were taken
       // from the vertices (?debug=treeairpixel, and the benchmark's row)
       uTreeOld: { value: 0 },
+      uSolid: { value: 1 },
     };
     // The trees' picture (made by scripts/make-tree-atlas.mjs). Until it has come, no tree is drawn.
     this.atlasReady = false;
@@ -288,7 +308,7 @@ ${TREE_VERT}
           vTreeM = vec3(position.x * iB.x, position.y, position.z * iB.x) * iA.w + iB.z * 37.0;        // metres in the tree's own frame (for the pattern of its leaves)
           vRel = rel; vN = treeNormal(); vLeaf = leaf; vY = position.y; vLeafC = iC; vTrunkC = iD.rgb; vOwn = vec2(iB.z, iB.w); vUv = aUv; vBloom = iE; vTall = vec2(iA.w, aLeaf < 3.5 ? iB.w : iB.w * (1.0 - max(iE.w, 0.0)) * (aCrown.z > 2.5 ? ${ROSETTE_THIN.toFixed(1)} : 1.0));          // (a whole tree's picture in flower keeps its crown: the far forest's rule, TREE_THIN)
           vCloud = cloudShade(foot + uTreeUp * (iA.w * 0.7)) * iD.w;
-          { float c = cos(iB.y), s = sin(iB.y); vec3 ax = aCrown.z > 1.5 && aCrown.z < 2.5 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0); vCardX = uTreeEast * (ax.x * c - ax.z * s) + uTreeNorth * (ax.x * s + ax.z * c); vCrown = aCrown; }          // (the clouds' shadow, from the map of it: life/treeShade.js)
+          { float c = cos(iB.y), s = sin(iB.y); vec3 ax = aCrown.z > 1.5 && aCrown.z < 2.5 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0); vCardX = uTreeEast * (ax.x * c - ax.z * s) + uTreeNorth * (ax.x * s + ax.z * c); vCrown = iF > 1.5 ? vec3(0.0) : aCrown; }          // (the clouds' shadow, from the map of it: life/treeShade.js)
           gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
           // The Sun's light where the vertex is and the air between it and the eye, worked out
           // here and not at every pixel: over a face of a tree they change by next to nothing,
@@ -387,8 +407,11 @@ ${TREE_VERT}
           }
           // (single leaves: each lighter or darker than its neighbours)
           leafC *= 1.0 - 0.36 * under;
-          if (vLeaf > 1.5) leafC *= 0.94 + 0.44 * smoothstep(0.35, 0.65, leafCells(vTreeM * 4.7 + 1.9));
-          else if (vLeaf > 1.1) leafC *= 0.46;          // (the heart of a mass of foliage: the dark inside, see Shape.heart in treeGeometry.js)
+          bool solid = !card && vLeaf > 1.4 && vLeaf < 1.75;          // (a face of the solid make)
+          if (vLeaf > 1.75) leafC *= 0.94 + 0.44 * smoothstep(0.35, 0.65, leafCells(vTreeM * 4.7 + 1.9));
+          else if (vLeaf > 1.1 && !solid) leafC *= 0.46;
+          // (a solid crown in flower: its petals' colour, deep under and pale where it looks up)
+          if (solid && vBloom.w > 0.0) leafC = mix(leafC, mix(vBloom.rgb * vec3(0.62, 0.42, 0.52), mix(vBloom.rgb, vec3(0.8, 0.76, 0.76), 0.45), smoothstep(-0.3, 0.7, dot(N, up))), smoothstep(0.0, 0.6, vBloom.w));          // (the heart of a mass of foliage: the dark inside, see Shape.heart in treeGeometry.js)
           // (a card's foliage: cleaner green, lighter where the crown looks up; and each needle
           // and leaf its own tone, from the picture)
           if (card) {
@@ -404,7 +427,7 @@ ${TREE_VERT}
             leafC = mix(leafC, mix(vBloom.rgb * vec3(0.62, 0.42, 0.52), mix(vBloom.rgb, vec3(0.8, 0.76, 0.76), 0.45), pale), petal);
           }
           // (the heart of a bunch: the dark inside of the crown, see Shape.heart in treeGeometry.js)
-          bool heart = (vLeaf > 3.1 && vLeaf < 3.5) || (vLeaf > 1.1 && vLeaf < 1.5);
+          bool heart = (vLeaf > 3.1 && vLeaf < 3.5) || (vLeaf > 1.1 && vLeaf < 1.4);
           if (vLeaf > 3.1 && vLeaf < 3.5) leafC *= 0.5;
           // (a twig, drawn in a spray or a thin tube of its own: grey-brown whatever the trunk's
           // colour, and darker than the limb it grows from; a pine's red is its trunk's plates)
@@ -511,6 +534,25 @@ ${TREE_VERT}
       mesh.frustumCulled = false; mesh.visible = false; mesh.userData.lod = lod;
       return { geo, mesh, cap, iA, iB, iC, iD, iE, iF, count: 0, tris: base.attributes.position.count / 3, lod };
     })));
+    // The solid make of each shape and variant: the far list's own trees (its instance
+    // buffers, its count), drawn a second time as a solid where they are looked down on
+    // (TREE_VERT, solidG). It casts no shadow: a shadow is the tree seen from the Sun, and the
+    // far list's pictures cast it as before.
+    this.solids = [];
+    this.geos.forEach((variants, a) => variants.forEach((makes, v) => {
+      const far = this.sets[a][v][2], base = makes.solid, geo = new THREE.InstancedBufferGeometry();
+      const shared = sharedCorners(base, ['position', 'normal', 'aLeaf', 'aSway', 'aUv', 'aCrown']);
+      for (const name of ['position', 'normal', 'aLeaf', 'aSway', 'aUv', 'aCrown']) geo.setAttribute(name, shared.attributes[name]);
+      geo.setIndex(shared.index);
+      for (const name of ['iA', 'iB', 'iC', 'iD', 'iE']) geo.setAttribute(name, far[name]);
+      geo.setAttribute('iF', new THREE.InstancedBufferAttribute(new Float32Array(far.cap).fill(2), 1));
+      geo.instanceCount = 0;
+      const mesh = new THREE.Mesh(geo, this.material);
+      mesh.frustumCulled = false; mesh.visible = false; mesh.userData.lod = 1.5;
+      const solid = { geo, mesh, far, tris: base.attributes.position.count / 3 };
+      this.sets[a][v].solid = solid; this.solids.push(solid);
+    }));
+    this.solidOn = true; this.lookedDown = false; this.solidTrees = 0;
     // What casts a tree's shadow (life/treeLod.js, castMake: the near mesh while the tree is
     // drawn with skeleton and sprays, its far mesh, two crossed pictures of the tree and a
     // rosette in its crown, once it is drawn so; every tree its far mesh while the close mesh
@@ -541,7 +583,7 @@ ${TREE_VERT}
         });
       }
     });
-    this.meshes = this.sets.flat(2).map((s) => s.mesh);
+    this.meshes = this.sets.flat(2).map((s) => s.mesh).concat(this.solids.map((s) => s.mesh));
     this.blocks = new Map();                 // 'bi:bj' -> { state: 0 asked, 1 ready, origin, trees, count, used }
     this.asked = 0; this.frame = 0; this.serial = -1;
     this.anchor = new THREE.Vector3(); this.builtAt = new THREE.Vector3(1e12, 0, 0); this.fineAt = new THREE.Vector3(1e12, 0, 0); this.nearest = 0; this.dirty = false;
@@ -557,6 +599,7 @@ ${TREE_VERT}
     this.blocks.clear(); this.asked = 0; this.gen = (this.gen || 0) + 1; this.sunStale = 0; this.sunDirty = false; this.dirty = true; this.serial = -1; this._gustSet = false;
     this.shared.uSeason.value.set(0, 0, 0);
     for (const s of this.sets.flat(2)) { s.count = 0; s.geo.instanceCount = 0; for (const g of s.castGeos) g.instanceCount = 0; s.mesh.visible = false; }
+    for (const s of this.solids) { s.geo.instanceCount = 0; s.mesh.visible = false; }
     this.count = 0; this.triangles = 0; this.names = ''; this.falling = 0; this.reach = 0; this.blooming = []; this.shedding = []; this.day = 0;
   }
 
@@ -584,6 +627,10 @@ ${TREE_VERT}
     if (!show) this.reach = 0;
     // (hidden: the cost test takes the near trees out without moving the line the far forest begins at)
     for (const s of this.sets.flat(2)) s.mesh.visible = show && !this.hidden && s.count > 0 && this.atlasReady;
+    // (the solids: only while some tree of the far list is looked down on steeply enough for
+    // one to begin; an eye on level ground hands none of them over)
+    this._lookDown(rig);
+    for (const s of this.solids) s.mesh.visible = s.far.mesh.visible && this.lookedDown && this.solidOn;
     const p = rig.pos, len = p.length(), lat = Math.asin(p.z / len) * 180 / Math.PI, lon = ((Math.atan2(p.y, p.x) * 180 / Math.PI) + 360) % 360;
     {
       // The year in the leaves (worked out whether or not trees are drawn: the far forest
@@ -765,7 +812,7 @@ ${TREE_VERT}
     }
     this.shedding = shedding;                 // the nearest trees dropping their leaves, or with leaves lying under them (life/leaves.js, TreeLeaves)
     this.blooming = blooming;                 // the nearest trees in flower (from the anchor, m): the petals come off these (life/leaves.js)
-    for (const trio of this.sets.flat()) this._send(trio[2]);
+    for (const trio of this.sets.flat()) { this._send(trio[2]); trio.solid.geo.instanceCount = trio[2].count; }
     this.falling = falling; this.near = near;          // (near: trees within 60 m, for the leaves that come off them)
     this.names = [...names.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map((e) => e[0]).join(', ');
     this._fine(p);
@@ -803,6 +850,26 @@ ${TREE_VERT}
       count += s.count; tris += s.count * s.tris;
     }
     this.count = count - cut; this.triangles = tris - cutTris;          // (trees drawn: the far cards cut inside the near radius are not)
+  }
+
+  // Whether any tree of the far list is looked down on from where the eye is, by the vertex
+  // shader's own measure (the sine of the angle to seven tenths of the tree's height against
+  // SOLID0, less a margin): the solids are handed over only then. A sum over the far lists
+  // (a few thousand trees at most), every frame: the eye rises and sinks without the lists
+  // being made again.
+  _lookDown(rig) {
+    const A = this.anchor, ex = rig.pos.x - A.x, ey = rig.pos.y - A.y, ez = rig.pos.z - A.z, u = this.shared.uTreeUp.value, limit = SOLID0 - 0.03;
+    let any = false, n = 0;
+    for (const s of this.solids) {
+      const I = s.far.iA.array, c = s.far.count;
+      for (let i = 0; i < c && !any; i++) {
+        const h = I[i * 4 + 3] * 0.7, x = ex - (I[i * 4] + u.x * h), y = ey - (I[i * 4 + 1] + u.y * h), z = ez - (I[i * 4 + 2] + u.z * h);
+        const up = x * u.x + y * u.y + z * u.z;
+        if (up > 0 && up * up > limit * limit * (x * x + y * y + z * z)) any = true;
+      }
+      n += c;
+    }
+    this.lookedDown = any; this.solidTrees = any ? n : 0;
   }
 
   // One tree into a list: where it stands from the anchor, its size, kind and colours.

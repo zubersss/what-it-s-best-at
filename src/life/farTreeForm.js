@@ -24,6 +24,11 @@
 // The shadow's quad is handed over only from the air (two triangles a tree more, there);
 // none of the rest is seen from the ground (down < TOP0).
 
+// The solid make of a tree one flies among (60 to 240 m: life/treeGeometry.js, solidOf; drawn
+// by life/trees.js): it grows out of the crown's middle between these sines of the angle the
+// tree is looked down at (20 and 38 degrees), and the tree's pictures draw in as it grows.
+// From the side a tree is its pictures, from above a thing with a top and sides.
+export const SOLID0 = 0.34, SOLID1 = 0.62;
 export const TOP0 = 0.30, TOP1 = 0.72;        // the rosette spreads between these
 export const TOP_POW = 0.17;                  // ... by keep^-(1/4 + this) in a closed wood. (At 1/4 more the cover would be kept whole, and every
                                               // crown would look the same size on the screen at any distance: a forest with no depth.

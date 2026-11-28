@@ -305,12 +305,14 @@ export class App {
     // Trees (worlds that have them): drawn with the ground, and they cast shadows
     this.trees = new Trees(world, this.terrain); this.trees.renderer = renderer;
     for (const set of this.trees.sets.flat(2)) this.nearScene.add(set.mesh);
+    for (const s of this.trees.solids) this.nearScene.add(s.mesh);          // (the trees' solid makes, for whoever looks down on them)
     // (what casts their shadows, and when: life/trees.js, casters)
     for (const c of this.trees.casters) this.nearShadow.addCaster(c.mesh, this.trees.depthMaterial, c.on, c.fineCount);
     // (the far forest: the same trees as those near by, thinned with distance, out to some
     // kilometres; they rise out of the forest the ground shader raises as a whole)
     this.farForest = new FarForest(this.trees, this.terrain); this.nearScene.add(this.farForest.mesh);
     if (params.debug.includes('farwhole')) this.farForest.shared.uShadow.value.w = 1;      // ?debug=farwhole: no far tree thrown out by the vertex shader for standing outside the picture (the same picture)
+    if (params.debug.includes('treesolidoff') && this.trees) { this.trees.shared.uSolid.value = 0; this.trees.solidOn = false; }      // ?debug=treesolidoff: trees looked down on are their pictures and a plate, as before the solid make
     if (params.debug.includes('treeairpixel') && this.trees) this.trees.shared.uTreeOld.value = 1;      // ?debug=treeairpixel: the near trees' Sun light and air worked out at every pixel, as before they were taken from the vertices (the same picture, for a pair)
     if (params.debug.includes('groundskypixel')) this.terrain.shared.uGroundOld.value.x = 1;      // ?debug=groundskypixel: the sky's light on the ground asked at every pixel, as before it was taken from the vertices
     if (params.debug.includes('groundbothmaps')) this.terrain.shared.uGroundOld.value.y = 1;      // ?debug=groundbothmaps: a patch's own normal and shadow read wherever its parent's are, as before
@@ -335,6 +337,7 @@ export class App {
       const order = (o, n) => o.traverse((m) => { m.renderOrder = n; });
       order(this.grass.mesh, -30); order(this.leaves.mesh, -30); order(this.petals.mesh, -30); order(this.treeLeaves.mesh, -30); order(this.kicked.mesh, -30);
       for (const set of this.trees.sets.flat(2)) order(set.mesh, -20.3 + 0.1 * set.lod);          // (the nearest trees' meshes first: what they hide is not shaded)
+      for (const s of this.trees.solids) order(s.mesh, -20.15);          // (solids before the pictures of the same trees: nothing cut out, and what they hide is not shaded)
       order(this.rocks.mesh, -10);
     }
     // (a picture must not depend on which frame it is; and at Sharp's 30 frames a second
