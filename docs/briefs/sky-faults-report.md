@@ -818,3 +818,10 @@ the trees' own or the mist on them: the same move on the build before the mist, 
 
 **Not done**: the counts (`gl-count`): the law adds no pass and no texture, so they are the
 sheet's as before; the phone's ms are the cost test's row. Nothing measured on the phone.
+
+The same move on the build before the mist (and before two merges of the main branch, the
+trees from above among them: not a clean pair): 4.9 / 1.7 / 0.44 % changed, flicker 0.49 /
+0.13 / 0.03 %, the same kind of thing in the same place: the outlines of the trees below.
+With the mist it is 6.7 / 3.2 / 0.8 % and 0.64 / 0.31 / 0.07 %: the trees' own flicker at
+half a metre a frame from 90 m, and more of it, because more of each tree now shows where
+the sheet used to hide it whole below its level. Nothing in the mist's own part.
