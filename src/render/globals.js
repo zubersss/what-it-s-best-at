@@ -21,7 +21,7 @@ export const G = {
   // sky's light is left under that cloud, z how wet the ground is (0..1).
   uWeather: { value: new THREE.Vector4(1, 1, 0, 0) },
   // (mist lying in a hollow, seen from above it: sky/fogSheet.js sets these, lightingGlsl.js mistShare reads them)
-  uMist: { value: new THREE.Vector4(0, 0, 1, 1) },      // x its top (m from the world's middle), y the share of the view a metre of it takes (0: none), z m under its top at which it is all there, w its reach (m from uMistAt)
+  uMist: { value: new THREE.Vector4(0, 0, 1, 1) },      // x its top (m from the world's middle), y the share of the view a metre of it takes (0: none), z m under its top at which it is all there, w m from its top down to the water it lies on (the water itself is the sheet's)
   uMistAt: { value: new THREE.Vector3() },               // the middle of that mist, from the camera (m)
   uFlash: { value: new THREE.Vector3(0, 0, 0) },          // lightning: light from the whole sky for an instant
   uShineDir: { value: new THREE.Vector3(0, 0, 1) },

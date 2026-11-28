@@ -23,11 +23,10 @@ export const FOG_LOOK = Object.freeze({
   EDGE0: 0.1, EDGE1: 0.7,   // the share of a place's texels with fog between which the sheet fades in
   LUMP: 900,         // m: the soft lumps of its top (in what it takes of the light behind it;
                      // its top itself is level, as a lake of mist is)
-  ABOVE: 0.62,       // what the sheet itself takes, seen from above, of what the line of sight through it would: the things in the mist go into it by their own depth (lightingGlsl.js mistShare), and the sheet is only its lit top. With all of it, every tree standing in the mist was sawn through level where the sheet crossed it
+  ABOVE: 0.85,       // what the sheet itself takes, seen from above, of what the line of sight through it would: the things in the mist go into it by their own depth (lightingGlsl.js mistShare), and the sheet is only its lit top. With all of it, every tree standing in the mist was sawn through level where the sheet crossed it
   MIST_K: 0.6,       // the share a metre things in the mist lose, against the sheet's own (1 / EXT)
   BILLOW: 0.3,       // how far the top's billows go from their shaded hollows to their lit crests, seen from above
   MIST_SOFT: 16,     // m under the mist's top at which a thing is in all of it
-  MIST_REACH: 9000,  // m from the lake's nearest water: how far that lake's mist is taken to reach
   ALPHA: 0.96,       // the most it takes of what is behind it
   LAKE: 34, LAKE_DEEP: 30,   // m of mist over a lake's deep water where the field has fog, and the water's depth at which it is all there (thin at the shore)
   VEIL: 0.009,       // 1/m: the air's veil for an eye inside the mist (one sees some 110 m; the sheet itself, looked down through from above, takes 1/EXT a metre: with a quarter of that, the water under an eye just inside the top was clear where a metre higher it had been a white plate)
@@ -199,7 +198,7 @@ export class FogSheet {
     this.land = null;                // () => the page's height source (terrain.hs): set by the sky system
     this._landAnchor = null; this._sunAt = 0; this._landDirty = false; this._landAge = 0; this.landAsked = 0;
     const mat = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1 }, uniforms: this.uniforms,
+      glslVersion: THREE.GLSL3, defines: { ...atmosphereDefines(), SPACE_HAZE: 1, OWN_CLOUD_SHADOW: 1, NO_MIST: 1 }, uniforms: this.uniforms,
       vertexShader: VERT, fragmentShader: FRAG, side: THREE.DoubleSide, depthTest: true, depthWrite: false, transparent: true,
       blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
     });
@@ -317,7 +316,7 @@ export class FogSheet {
     this._mistWant = L.none || !L.fog ? 0 : 1;
     this._mistK = c.sky?.shotMode ? this._mistWant : (this._mistK || 0) + (this._mistWant - (this._mistK || 0)) * 0.05;
     if (this._mistK < 0.004) { this._mistK = 0; G.uMist.value.y = 0; return; }
-    G.uMist.value.set(R + L.surf + F.LAKE, this._mistK * F.MIST_K / F.EXT, F.MIST_SOFT, F.MIST_REACH);
+    G.uMist.value.set(R + L.surf + F.LAKE, this._mistK * F.MIST_K / F.EXT, F.MIST_SOFT, F.LAKE);
     G.uMistAt.value.set(L.p[0] - p.x, L.p[1] - p.y, L.p[2] - p.z);
   }
 

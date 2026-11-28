@@ -27,7 +27,7 @@ uniform sampler2D tFroxelC;         //                      transmittance
 uniform vec2 uFroxelRange;          // x: exponent of the slice distribution, y: far limit (km)
 uniform vec2 uLutScaleInv;          // x: 1 / scale of the irradiance LUT, y: 1 / scale of the froxels
 uniform mat3 uSkyFrame;             // planet-fixed -> local sky frame
-uniform vec4 uMist;                 // mist in a hollow, for an eye above it (globals.js): x its top (m from the world's middle), y 1/m, z m of depth, w reach (m)
+uniform vec4 uMist;                 // mist in a hollow, for an eye above it (globals.js): x its top (m from the world's middle), y 1/m, z m of depth, w m from its top down to the water it lies on
 uniform vec3 uMistAt;               // its middle, from the camera
 uniform vec4 uWeather;              // x: the Sun through the cloud overhead (1: clear), y: sky light left under it, z: how wet the ground is,
                                     // w: rain in the air (how much of the view a metre of it hides; 0: dry)
@@ -267,7 +267,10 @@ float mistShare(vec3 rel, out vec3 mistCol) {
   if (hP >= 0.0 || hE < 0.0) return 0.0;
   float under = -hP / max(hE - hP, 1e-3);                                     // the share of the line that runs under the top
   float k = 1.0 - exp(-uMist.y * length(rel) * under * clamp(-0.5 * hP / uMist.z, 0.0, 1.0));
-  k *= 1.0 - smoothstep(0.7 * uMist.w, uMist.w, length(rel - uMistAt));
+  k *= 1.0 - smoothstep(6300.0, 9000.0, length(rel - uMistAt));
+  // (not the water it lies on, uMist.w m under its top: that is the sheet's to hide and to show
+  // through its thin places. With the water taken here as well the lake was one flat tone.)
+  k *= 1.0 - smoothstep(uMist.w - 8.0, uMist.w - 2.0, -hP);
   if (k <= 0.002) return 0.0;
   vec3 up = normalize(p);
   mistCol = (skyLight(up, up) * 0.9 + directSun(p) * 0.3) * (1.06 / PI);
@@ -277,7 +280,9 @@ float mistShare(vec3 rel, out vec3 mistCol) {
 // with distance, as bright as the sky above lights it (uWeather.w: how much of the view a
 // metre of it takes; 0 in dry air). In a downpour the far shore is gone within a kilometre.
 vec3 rainVeil(vec3 color, vec3 rel) {
+#ifndef NO_MIST
   if (uMist.y > 0.0) { vec3 mc; float km = mistShare(rel, mc); color = mix(color, mc, km); }
+#endif
   if (uWeather.w <= 0.0) return color;
   vec3 up = normalize(uCamPlanetPos + rel);
   return mix(color, skyLight(up, up) * (0.7 / PI), 1.0 - exp(-length(rel) * uWeather.w));
