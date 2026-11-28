@@ -86,5 +86,15 @@ float farGreenW(float dist) { return smoothstep(300.0, 1300.0, dist); }
 // (a leaf turned gold or red keeps its colour far off: gone over to the olive, an autumn wood
 // from the air was a tint, not gold and red crowns among green ones. Nothing changes for a
 // leaf with more green than red in it; the same guard as paintLeaf's, life/trees.js.)
-vec3 farGreen(vec3 leaf, float dist) { return mix(leaf, dot(leaf, vec3(0.3, 0.6, 0.1)) * vec3(0.72, 0.88, 0.38), 0.7 * farGreenW(dist) * (1.0 - smoothstep(0.0, 0.3, (leaf.r - leaf.g) / max(leaf.r, 1e-4)))); }
+// (and LIGHTER with distance, FAR_LIFT at 2.6 km and beyond: a leaf's own colour reflects a
+// twentieth of the light, and a wood of it seen from the air was a black-green floor a third
+// as bright as the open ground beside it, a plain of wood a slate one. "The far ground lost
+// in the air layer by layer" begins with the wood's own tone: a rich mid green from afar,
+// the dark of a leaf only near by, where one is among the trees. Green leaves only.)
+const float FAR_LIFT = 3.0;
+vec3 farGreen(vec3 leaf, float dist) {
+  float green = 1.0 - smoothstep(0.0, 0.3, (leaf.r - leaf.g) / max(leaf.r, 1e-4));
+  vec3 c = mix(leaf, dot(leaf, vec3(0.3, 0.6, 0.1)) * vec3(0.72, 0.88, 0.38), 0.7 * farGreenW(dist) * green);
+  return c * (1.0 + (FAR_LIFT - 1.0) * green * smoothstep(300.0, 2600.0, dist));
+}
 `;
