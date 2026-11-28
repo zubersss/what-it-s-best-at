@@ -470,8 +470,12 @@ void main() {
   // flew beside, plainest where the heap is one dull tone, at a low Sun.)
   vec2 par = mod(floor(gl_FragCoord.xy), 2.0);
   float jit = 0.125 + 0.5 * par.x + 0.75 * par.y - par.x * par.y;
-  // (the far slices are cut to clean shapes when they are laid: less grain there, a little banding instead)
-  float jw = slice >= 2 ? 0.4 : 1.0;
+  // (every slice starts at its four depths across the whole of a step. The slices from 900 m on
+  // used to keep 0.4 of that, "less grain, a little banding instead": the banding was ribs in
+  // level rows across any heap a few kilometres off that the traveller flew beside, its steps
+  // there being some hundreds of metres. With the grain cancelled whole by the pass after
+  // this one, nothing is bought by the banding.)
+  float jw = 1.0;
   vec3 mid = uCamPlanetPos + dir * (mA + 0.4 * L);
   vec3 upM = normalize(mid);
   gSunC = directSun(mid); gSkyC = skyLight(upM, upM); gSkyDown = skyLight(-upM, upM);
