@@ -157,6 +157,7 @@ say plainly what is needed and carry on with everything that does not depend on 
 - "continue": a milestone at `checkpoint sent` is accepted (mark it `done` in
   `docs/ROADMAP.md`); start the next unfinished milestone and work through it to its
   checkpoint.
+- **Ask for ONE thing: the big benchmark** (the start screen's button, or `?bench=big`): the owner's word of 2026-11-28, "a benchmark a big one so you dont have to keep asking". Its text holds every run that used to be asked for one by one (`src/perf/bigBench.js` lists them); when a new question needs a new run, add it to that list rather than asking for another link.
 - Pasted benchmark results: tune the governor and resolution range from them first (the
   results name each stop of the route and the page's own work per frame: slow work is
   not cured by fewer pixels), then continue as above.
@@ -210,6 +211,7 @@ node scripts/overdraw.mjs [--part trees,farForest,grass,leaves] [--view "in the 
 node scripts/make-world.mjs [--width 4096] [--seed 7] [--preview dir] [--only-preview]   # makes the small world's land (Haven): elevation with drainage, lakes, rain (a minute; --width 2048 --only-preview: nine seconds, with pictures to judge it by)
 node scripts/make-world-maps.mjs   # ... and from that its colour, slope, water and cloud maps (needs Python's PIL for the JPEGs); prints the albedo map's mean for the world file
 node scripts/land-sketch.mjs --lat .. --lon .. [--zoom 8] [--tiles 3] [--set treeRag=0] [--out file.png]   # a made world's land from straight above as its rule paints it (woods, tree line, meadows), without a browser in seconds; --set: one number of the rule changed, for before against after
+node scripts/lake-shore-test.mjs [--break lattice|leak]   # a made world's lakes end where the ground rises through their level, not on the map's lattice, and no water stands beyond the lip a lake spills over (no browser, seconds)
 node scripts/find-haven-site.mjs [--open] [--lat 28,52]   # places on Haven to begin at: level ground over low ground and water, high ground near by
 node scripts/find-overlook.mjs --world haven --lat .. --lon .. --heading .. [--below 1500] [--sky]   # the very spot: level underfoot, the ground falling away in front, mountains on the far skyline (--sky: a LOW far skyline, for a view of the weather; then look with peek.mjs)
 node scripts/far-trees-test.mjs     # the far forest's trees are the near trees: a thinned tile is a subset of the full one, at the same places (no browser)
@@ -233,7 +235,7 @@ python3 scripts/fit-orbits.py      # orbits fitted to JPL Horizons (needs ssd.jp
 npm run assets         # re-download and convert the small NASA/Yale files into public/data/
 python3 scripts/fetch-maps.py   # the rest of public/data/ (needs: pip install rasterio numpy pillow), see docs/ASSETS.md
 node scripts/parts-out.mjs --world haven --shot ledge [--query ..] [--box 0.2,0.6,0.8,1] [--distdir build]   # who draws that? one view taken with one part out at a time (grass, clumps, trees, far forest, rocks, shadow casters), and how much of the picture each changes
-scripts/ground-cost-run.sh <scratch dir> [--only ledge,air3k] [--before old-terrainMaterial.js] [--save dir] [--parts file.mjs] [--size 880x412 --dsf 2.2]   # what the ground's shading costs, as a count of work on software WebGL (never a frame rate): the game's ground alone at ten views, the shader of an earlier commit beside the new one in the same browser session, and how far their pictures are apart (git show <commit>:src/terrain/terrainMaterial.js > old-terrainMaterial.js). Runs scripts/ground-cost.mjs from a copy of the tree: the dev server reloads the page at any source edit
+scripts/ground-cost-run.sh <scratch dir> [--only ledge,air3k] [--before old-terrainMaterial.js] [--save dir] [--compare dir] [--parts file.mjs] [--tiers] [--step ground-far] [--add t=6] [--size 880x412 --dsf 2.2]   # what the ground's shading costs, as a count of work on software WebGL (never a frame rate): the game's ground alone at ten views, the shader of an earlier commit beside the new one in the same browser session, and how far their pictures are apart (git show <commit>:src/terrain/terrainMaterial.js > old-terrainMaterial.js). Runs scripts/ground-cost.mjs from a copy of the tree: the dev server reloads the page at any source edit. --tiers: what a pixel of the ground reads, counted by the shader itself (texture reads by map and kind, noises, loop turns; by distance and by block; why the parent's maps and the strata were asked for): a count true on any device
 node scripts/make-hero.mjs [--tris 120000] [--low 24000] [--stage look]   # the owner's sculpt (assets-src/hero/) into the game's character file (public/data/hero.bin), 25 s: materials and garments by the seeds in scripts/hero/seeds.mjs, colours, two reduced meshes, the binding to the figure's parts and cloth (scripts/hero/heroBind.mjs). Run again after changing a seed, a joint or a cloth sheet
 node scripts/hero-preview.mjs --out f.png [--pose stand|hover|fly|fast|walk|run] [--yaws 0,90,180] [--labels|--garments|--parts|--cloth] [--lod 1] [--twosided]   # that file drawn without a browser in a second, posed by the game's own code
 node scripts/make-hero-rig.mjs [--low 24000] [--texture 2048]   # the owner's rigged character (assets-src/hero-rig/*.glb: skeleton, clips, pictures) into public/data/hero_rig.bin and .jpg, 2 s (needs Python's PIL for the picture)
@@ -248,7 +250,7 @@ node scripts/shadow-fine-rocks-test.mjs   # every rock whose shadow lies in the 
 node scripts/shadow-axes-test.mjs   # a still spot's shadow hardly moves when the light axes are renewed or the anchor resets (no browser)
 node scripts/terrain-bake-sun-test.mjs   # a patch built mid-walk is baked for the same Sun as its neighbours (no browser)
 npm run treeshadows   # the trees' shadows in motion, without a browser (about 40 s): flecks fixed to the ground through tile re-centres and axes renewals, no lurch at a rebuild, the shadow's mesh changing only where the picture does, the fine tile's count
-node scripts/season-test.mjs [--break year|opening|evergreen|far|ground|jump|litter|snow|grass|whole]   # the season's one rule (life/season.js): Haven's opening morning unchanged (calendar, bare trees, flowering, snow, grass, flowers), evergreens never turn, one answer near, far and in the ground, the leaves on the ground, the snow line, the meadow's kinds through the year, going to a season in whole days (no browser, seconds); node scripts/tree-preview.mjs --year 5 [--alt 1400 --lat 45]   # a species through its year at its three distances
+node scripts/season-test.mjs [--break year|opening|evergreen|far|ground|jump|litter|snow|grass|whole|farwood]   # the season's one rule (life/season.js): Haven's opening morning unchanged (calendar, bare trees, flowering, snow, grass, flowers), evergreens never turn, one answer near, far and in the ground, the leaves on the ground, the snow line, the meadow's kinds through the year, going to a season in whole days (no browser, seconds); node scripts/tree-preview.mjs --year 5 [--alt 1400 --lat 45]   # a species through its year at its three distances
 node scripts/leaf-rest-test.mjs [--break relist]   # the lying leaves and petals replayed at rest (life/leaves.js): while they are laid only that frame's stretch of the buffer goes to the GPU, and nothing once they lie, nor when the same trees are listed again (no browser, seconds)
 node scripts/sky-system-test.mjs [--break <fault>]   # the sky's step 0 (docs/briefs/sky-step0.md): the shared cloud rule's GLSL against its JS, the clouds going with the day's low wind and rising on the game clock, the guards that let a shader take two shared texts, the frame order and the interfaces the sky packages build on, the governor's and the benchmark's hooks, the debug switches (no browser, 10 s; --break puts one fault in to see its check fail)
 node scripts/sky-list-test.mjs [--break hold|nofast]   # the storm cells and anvils asked every frame from moments 2 s apart and blended: within a few cm of the model's own answer, forwards and backwards, and the model asked about once in 60 frames (no browser, 3 s)
@@ -262,6 +264,7 @@ node scripts/sky-steer-test.mjs · node scripts/sky-format-test.mjs · node scri
 node scripts/tree-shared-corners-test.mjs [--break merge|order]   # a tree's mesh with its corners shared is the same triangles to the last bit, from half the vertices (no browser, seconds)
 node scripts/grass-cull-pair.mjs --distdir <frozen build> [--query "debug=floor"] [--out dir]   # the grass by blocks and lists against the grass handed over whole, in one browser session at the same moment: pixels that differ, triangles handed over (half an hour at a ground-level view)
 node scripts/gl-count.mjs --distdir <frozen build> [--stops ledge,sun] [--floor] [--out counts.json] [--query "lat=..&lon=.."]   # what the game hands the GPU, counted call by call in the real game at the benchmark's stops (ten minutes a stop): every pass with its draw calls and triangles by material and whether it begins with a whole clear, every upload with its bytes and where in the frame it falls; a frame at rest, one frame against the next, the frames after a jump (counts are true on any device; nothing in it is a frame rate)
+node scripts/big-bench-test.mjs [--break order|build]   # the big benchmark's chain (perf/bigBench.js) replayed with a stand-in store: six runs in their order, every text kept under its name, another build's chain begun again (no browser, a second); node scripts/big-bench-run.mjs --chain | --air [--distdir <build>]   # the chain in the real page (a short one of two runs on Mars, ten minutes), or its route from the air passing its five stops
 node scripts/cost-plan-test.mjs [--break drift|pass|bytes]   # the benchmark's counts (perf/glTally.js) against a made-up context, and the order of its cost test (perf/costPlan.js): every group measured twice between two baselines, a drifting baseline does not move a group's number (no browser, a second)
 node scripts/grass-blocks-test.mjs [--break reach|ring|table|height]   # the grass handed over block by block (life/grassBlocks.js) leaves out nothing the shader would draw: 105 views over a made-up land, the shader's own tests replayed for every cell (no browser, 6 s)
 node scripts/far-forest-cull-test.mjs [--break ball|plane]   # the far trees the vertex shader throws out before its heavy work, for standing outside the picture, could never have been in it: 60 000 made-up trees, eyes and lenses (no browser, seconds); in the game `debug=farwhole` throws none out and `debug=farairpixel` works their Sun light and air out at every pixel as before: the same picture each way (`scripts/grass-cull-pair.mjs --set ..` takes such a pair in one session)
@@ -293,7 +296,7 @@ pictures), and the world's landmarks (`olympus`, `gale` on Mars; `tycho`, `tauru
 Moon) (fixed camera bookmark, deterministic screenshot mode, skips the start screen),
 `t=<hours offset>`, `season=spring|summer|autumn|winter` (the clock moved on by whole days to that season at the place; or a point of the place's year, 0 its spring equinox .. 1), `hud=0|1`, `scale=<fixed render scale>`, `dpr=<ratio>` (pretend the
 screen has this device pixel ratio: sets the canvas's pixel size), `mode=smooth|sharp`,
-`bench=run|soak|earth` (start a benchmark straight away), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|fast|bank|climb|hover`
+`bench=run|soak|earth|haven|havenair|big` (start a benchmark straight away; `havenair`: Haven's route from the air, five views from 90 m to 3 km; `big`: the big benchmark, six runs one after another and one text, about half an hour), `cost=0` (a benchmark without its cost test), `fly=1`, `touch=1`, `hero=0|1`, `heropose=fly|fast|bank|climb|hover`
 (cruising, boosting, turning, straight up, hovering), `heropose=stand|walk|run|super|jump|land|launch`
 (with `hero=1`: on foot; `land` is the three-point kneel after a hard landing, `launch` the
 fist-up take-off), `posedir=side` (seen from the side; `front`: a moving on-foot pose coming toward the
@@ -307,7 +310,7 @@ frozen in mid-flight; `dust=run` with an on-foot pose: the puffs of the last foo
 `debug=noclouds` (a clear sky: no cloud layer, no cloud volume and none of their shadows; from 1.2 km over Haven's opening place one is in cloud),
 `debug=treeshade` (the far trees painted by how much of the Sun the land and the clouds leave them: red all, blue none),
 `debug=nofar` (none of the from-space terrain changes; or one at a time: `norelief`,
-`nofarrough`, `noboost`) for before/after pictures, `debug=farrocksoff` (none of the far rocks, for before/after pictures), `debug=farwhole` and `debug=farairpixel` (the far forest as before its savings: no tree thrown out by the vertex shader for standing outside the picture; its Sun light and air at every pixel instead of at each picture's corners), `debug=treeairpixel` (the same for the near trees: light and air at every pixel instead of at the vertices), `debug=grasswhole` (every cell of the grass and the flowers handed to the GPU, none chosen by the page: the picture must be the same, three times the triangles), `debug=floor` (every saving of the
+`nofarrough`, `noboost`) for before/after pictures, `debug=farrocksoff` (none of the far rocks, for before/after pictures), `debug=farwhole` and `debug=farairpixel` (the far forest as before its savings: no tree thrown out by the vertex shader for standing outside the picture; its Sun light and air at every pixel instead of at each picture's corners), `debug=treeairpixel` (the same for the near trees: light and air at every pixel instead of at the vertices), `debug=grasswhole` (every cell of the grass and the flowers handed to the GPU, none chosen by the page: the picture must be the same, three times the triangles), `debug=groundskypixel`, `debug=groundbothmaps` (the ground's shading as before two of its cuts: the sky's light asked at every pixel; a patch's own maps read wherever its parent's are; the benchmark has a row for each), `debug=floor` (every saving of the
 governor on and Smooth's share of the patches: what a phone that has given everything up
 draws).
 
@@ -339,7 +342,7 @@ clock: faster, slower, stop, today, a date; the season here and four buttons to 
 read-out, Smooth ↔ Sharp, full screen), `▲` up, `▼` down. The time slider is part of the
 full read-out.
 
-Interactive sessions open on the start screen (Play, Benchmark, Soak test, mode). A
+Interactive sessions open on the start screen (Play, Big benchmark, the single benchmarks, Soak test, mode). A
 finished benchmark leaves its text in `window.__benchResult`.
 
 ## Architecture rules
@@ -850,6 +853,23 @@ finished benchmark leaves its text in `window.__benchResult`.
   rule ends a thing, with noise at two scales in it. And a change to where trees stand is
   looked at from the opening place before anything else: three trees had appeared within
   15 m of it (`node scripts/find-tree.mjs` on the old checkout and the new says which).
+- A patch of the ground is drawn out to twice the distance at which its blend toward its
+  parent is complete (a patch splits by its nearest point, its pixels reach a patch's width
+  further): on three quarters of the far ground the parent's maps were the whole answer and
+  the patch's own were read and weighted nought. A blend's two ends are each a branch. And a
+  shader's own count of what it reads (`ground-cost --tiers`) found in an hour what reading
+  the shader had not: every pixel made 15 to 20 reads at every distance.
+- A `--before` comparison draws an old shader with today's textures and uniforms: once a
+  cut changes what a texture holds (the relief map's two halves packed into one texel) the
+  old shader reads rubbish and the comparison says 29 % of the picture moved. Compare then
+  against pictures saved by a run of the old tree (`--save`, `--compare`). And a queue of
+  runs that each copy the working tree copies whatever was edited in between: copy once.
+- A mask at the map's resolution cuts on the map's lattice: a lake's cells ended it on ruler
+  lines 200 to 600 m long with square corners wherever the true shore (the ground rising
+  through the lake's level, between the cells) lay past the cell's edge. What a coarse map
+  says "is" a thing, the fine ground decides where it ends; and what is let through must be
+  joined to the thing (the ground under the level all the way to a lake cell: without that
+  test water stood 8 m deep beyond the lip a lake spills over). Seen only from the air.
 - The same thing drawn three ways must take its season from one answer (near meshes, whole
   tree pictures, the far forest): bare aspens were full green crowns from 60 m on for as
   long as only the nearest mesh asked. And a rule's colours must be looked at after

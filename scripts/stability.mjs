@@ -81,7 +81,11 @@ const MOVES = [
   // camera creeps, and the world window's rows, which are redrawn a sixteenth at a time, must
   // not show a strip of their own in the distance. The clock is held, as it is in every
   // picture, so the clouds themselves do not move.)
-  { id: 'haven_cloudshade_flight', world: 'haven', shot: 'ledge', query: 'lat=-48.25389&lon=40.80403&alt=3400&heading=250&pitch=-14', step: { fwd: 1 }, stride: 250, slow: true },
+  // (2026-11-27: its first place was inside a cloud at its hour, one grey picture that guarded
+  // nothing. Now 3 km over the opening place at noon, looking down 25 degrees over open ground,
+  // wood and water with the heaps' shadows across them: the shade is asked at the ground's
+  // vertices, and a shadow's edge must not shift when a patch splits under the traveller.)
+  { id: 'haven_cloudshade_flight', world: 'haven', shot: 'ledge', query: 'alt=4500&heading=30&pitch=-25&t=4', step: { fwd: 2 }, stride: 250, slow: true },
   { id: 'haven_shadeedge_walk', world: 'haven', shot: 'ledge', query: 'lat=-47.79320&lon=49.37973&heading=244&pitch=-6', step: { fwd: 0.055 }, stride: 160, slow: true },
   { id: 'haven_climb', world: 'haven', shot: 'ledge', query: 'alt=1663&pitch=-60', step: { up: 2 }, stride: 175, slow: true },      // (stations at 150, 500 and 850 m: from 1.2 km up the opening place is in cloud)
   // (flying level under the heaps with the clock held: no cloud may move between frames, and

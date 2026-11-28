@@ -41,7 +41,68 @@ session and has not been run again. **Known wrong in the character**: see its se
 **Next**: the owner's reply; then the sky's known wrongs (the low heaps first: it is what a
 traveller sees at noon), the sky's code review, and the fourth round's critic gaps.
 
-### The benchmark build of 2026-11-27 night (branch at 1072ea2): the cuts so far, and a cost table that can name the sky's part
+### The owner, 2026-11-28 02:50 UTC: "Give me a playable link and a benchmark a big one so you dont have to keep asking"
+
+**The big benchmark** (`src/perf/bigBench.js`; the start screen's button "Big benchmark · 30
+min", or `?bench=big`): six of the page's own benchmarks one after another, each opened by
+its own link, the texts kept between them (localStorage; a run the browser throws away is
+made again; another build's chain begins again), one text at the end:
+A. as played (Sharp, the governor at work), with the cost test at four views (the opening
+view, in the forest, from the air, **the owner's wood at dawn over the mist**);
+B. everything on, the picture held at one size; C. every saving on, at one size;
+D. **from the air** as played (a new route, `bench=havenair`: five views from 90 m to 3 km,
+bookmarks `woodDawn`, `wood300`, `air1k`, `air3k`, `mist`; they are in the menu's Views
+too); E. from the air, everything on at one size; F. as played again, the phone warm.
+`cost=0` makes a run without the cost test (B to F). From now on **one thing is asked of
+the owner: this run**; a new question is a new entry in that list, not a new link.
+Checks: `scripts/big-bench-test.mjs` (the chain replayed with a stand-in store),
+`scripts/big-bench-run.mjs --chain` (a chain of two short runs on Mars in the real page)
+and `--air` (the route passing its stops).
+
+**The playable link** is the working branch as it stands with that: the Superman pose, the
+lakes' true shores, the far woods' lifted green and their season, the white snow, the
+ground's second cut, the upper shells' light and the clouds' shade at the vertices, the
+ragged tree line. **Not in it**: the trees' caps for trees looked down on (speed helper,
+in work), the mist that takes things by their depth (sky helper, in work).
+
+### The owner on build f9385d7 (2026-11-27, 23:35 UTC): from above it still looks bad; a Superman pose
+
+The owner, with a screenshot (`docs/shots/owner/2026-11-28-trees-mist-f9385d7.jpg`: 90 m over
+a wood on the shore of the mist view's lake at dawn, **14 fps at 1.60 MP with 14 savings
+on**), instead of the benchmark: "The mist and the trees from above still look bad and the
+plains and the grass things are dark far away really refine the trees though before working
+on other things the sky feeling accept of the game I want to game fo look beautiful when
+your flying high above also could we get the superman animation flying pose instead of mine
+keep the othe ones though".
+
+**Reproduced** (`docs/shots/owner/repro_floor.png`:
+`lat=-58.68&lon=26.99&alt=580&heading=185&pitch=-28&t=0.75&hero=1&heropose=hover&debug=floor`).
+**Named** (`docs/shots/owner/trees_three_makes_from_above.png`, `tree-preview --above`): every
+tree more than 60 m from the eye is two crossed pictures and a flat rosette; from above that
+is a plate with a ruler line across it, and an eye 90 m over a wood sees nothing else out to
+240 m. The lesson "a card on edge is nothing" had been applied to the far forest only.
+
+**In hand** (three briefs, one helper each; this is the fourth time the owner says it of the
+view from the air, so the technique changes, not the tuning):
+- `docs/briefs/trees-above.md` (speed helper, **first priority**): a fourth make, a solid
+  crown in a few facets, drawn for trees looked down on; the far forest from above staying
+  a closed wood where it is thinned; the governor's tree steps not making plates; layers
+  counted.
+- `docs/briefs/mist-close.md` (sky helper): things in the mist go into it by their own depth
+  under its top (no ruler line at the trees), a top with form from a hundred metres, seeing
+  down through it, cheap.
+- `docs/briefs/plains-far.md` (ground helper): find by pictures and by parts what is dark
+  far off (the plains, "the grass things"), then the land lighter with distance, never darker.
+- **Done here**: the Superman flying pose (`scripts/make-hero-rig.mjs`, a clip made by rule
+  on the owner's skeleton; `heroAnim.js` uses it where Flight was; the model's eight clips
+  stay in the file): `docs/shots/hero/rig_superman_fly.png`. To be seen in the game.
+
+**The benchmark of f9385d7 has not come**: the cost jobs that wait for its table still wait.
+**Next**: each helper's first pictures to the owner as they come; when the trees' solids are
+in the owner's view, a link with them, the pose, and what else is ready; then ask again for
+the two benchmark runs.
+
+### The benchmark build of 2026-11-27 night (branch at 1072ea2; sent: PR #44, main f9385d7): the cuts so far, and a cost table that can name the sky's part
 
 **What it holds beyond the link's daa009f**: the cost test's plan made on the view's own
 world, each sky part measured twice, "the ground not drawn at all" as a group, two

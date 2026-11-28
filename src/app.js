@@ -14,6 +14,7 @@ import { Pollen } from './life/pollen.js';
 import { Falls } from './water/falls.js';
 import { Governor, MODES, FRAME } from './perf/governor.js';
 import { Benchmark } from './perf/benchmark.js';
+import { bigBegin, bigAt, bigDone } from './perf/bigBench.js';
 import { waveHeightAt, waveScale } from './water/waves.js';
 import { Trees } from './life/trees.js';
 import { FarForest } from './life/farForest.js';
@@ -312,6 +313,8 @@ export class App {
     this.farForest = new FarForest(this.trees, this.terrain); this.nearScene.add(this.farForest.mesh);
     if (params.debug.includes('farwhole')) this.farForest.shared.uShadow.value.w = 1;      // ?debug=farwhole: no far tree thrown out by the vertex shader for standing outside the picture (the same picture)
     if (params.debug.includes('treeairpixel') && this.trees) this.trees.shared.uTreeOld.value = 1;      // ?debug=treeairpixel: the near trees' Sun light and air worked out at every pixel, as before they were taken from the vertices (the same picture, for a pair)
+    if (params.debug.includes('groundskypixel')) this.terrain.shared.uGroundOld.value.x = 1;      // ?debug=groundskypixel: the sky's light on the ground asked at every pixel, as before it was taken from the vertices
+    if (params.debug.includes('groundbothmaps')) this.terrain.shared.uGroundOld.value.y = 1;      // ?debug=groundbothmaps: a patch's own normal and shadow read wherever its parent's are, as before
     if (params.debug.includes('farairpixel')) this.farForest.shared.uShadow.value.z = 1;      // ?debug=farairpixel: the far trees' Sun light and air worked out at every pixel, as before they were taken from each picture's corners (the same picture, for a pair)
     if (params.debug.includes('treeshade')) this.farForest.shared.uShadow.value.y = 1;      // ?debug=treeshade: the far trees painted by how much of the Sun the land and the clouds leave them
     this.grass = new Grass(this.terrain, this.terrain.shared.uWind); this.grass.setWorld(world); this.grass.eager = this.shotMode; this.grass.debugKinds = params.debug.includes('flowers');
@@ -788,8 +791,18 @@ export class App {
     this.toast?.show(`${MODES[next].label} — ${MODES[next].fps} fps`);
   }
 
-  startBenchmark(kind) {
+  startBenchmark(kind, fromLink = false) {
     if (!this.loaded || this.benchmark.active) return;
+    // The big benchmark: a chain of runs, each the page's own benchmark started by its own
+    // link (perf/bigBench.js). Asking for it opens the first run's link; a page opened as one
+    // of its runs says so in the banner (and begins the chain again if there is none to go on
+    // with: another build's, or none kept).
+    if (kind === 'big') { keepAwake(); location.replace(bigBegin(localStorage, location.pathname, BUILD.commit, this.params.bigtest)); return; }
+    if (fromLink && this.params.big) {          // (only a run its own link began: a button pressed after the chain has ended is an ordinary run)
+      const at = bigAt(localStorage, location.pathname, BUILD.commit, this.params.bigtest);
+      if (at.restart) { location.replace(at.restart); return; }
+      this.bigLabel = at.label;
+    }
     this.startScreen.hide(); this.results.hide();
     this.menuOpen = false;
     this.touch.setVisible(false);
@@ -801,6 +814,13 @@ export class App {
   }
 
   onBenchmarkDone(text) {
+    // (a run of the big benchmark: its text is kept and the next run's link opened; the last
+    // run shows all of them as one text)
+    if (this.params.big && this.bigLabel) {
+      const d = bigDone(localStorage, location.pathname, text);
+      if (d.next) { location.replace(d.next); return; }
+      text = d.text; this.bigLabel = null; this.results.title.textContent = 'The big benchmark: results';
+    }
     this.banner.show(false);
     this.rig.hover = this.hoverBefore ?? false;
     this.menuOpen = true;
@@ -838,6 +858,7 @@ export class App {
       for (const sc of [this.farScene, this.nearScene, this.weatherScene, this.heroScene, this.dustScene]) if (sc) r.compile(sc, cam);
       if (this.pollen?.mesh) r.compile(this.pollen.mesh, cam);          // (drawn as a scene of its own)
       this.nearShadow?.precompile?.(r);
+      this.sky?.precompile?.(r);          // (the weather field's blend: first drawn when its first snapshot arrives)
     } catch (e) { console.warn('precompile:', e); }
     r.setRenderTarget(prev);
   }
@@ -1597,7 +1618,7 @@ export class App {
     if (this.frameCount === 3 || this._compileDue) { this._compileDue = false; this.precompile(); }
     if (!this.loaded && this.frameCount > 3 && this.terrain.drawList.length > 0) {
       this.loaded = true; this.loadedAt = now;
-      if (this.params.bench && this.benchmark) this.startBenchmark(this.params.bench);
+      if (this.params.bench && this.benchmark) this.startBenchmark(this.params.bench, true);
     }
     // Play waits until the ground under the start is drawn at full detail (first drafts
     // of the terrain can sit metres below the real surface), or 20 s at most.

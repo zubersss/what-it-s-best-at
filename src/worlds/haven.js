@@ -67,6 +67,10 @@ export default {
     reliefMap: { url: 'data/haven_slopes_4096.jpg', strength: 2.0, latFade: [84, 89] },
     // Its colours from the air, made by the same rule as the mosaics round the traveller
     // (scripts/make-world-maps.mjs prints `mean`: the land's mean, in linear light).
+    // (2026-11-28: the map made again with the woods' colours lifted, tiles/madeLand.js; its mean is
+    // now 0.1346, 0.1439, 0.0585, and the number here is kept as it was ON PURPOSE: it is what the
+    // map is divided by, and with the new mean every meadow and mountain would have turned darker
+    // and less green to pay for the woods.)
     albedoMap: { url: 'data/haven_day_4096.jpg', encoding: 'srgb', mean: [0.1299, 0.1272, 0.0560], strength: 1.0, chroma: 1.0, range: [0.2, 4.5], steep: 0.35 },
     meanAlbedo: [0.14, 0.12, 0.07],
     dust: [0.19, 0.17, 0.115],         // dry soil, warm
@@ -178,7 +182,13 @@ export default {
     costViews: [
       { name: 'in the forest', lat: 22.983, lon: 129.507, heading: 6, pitch: -4 },
       { name: 'from the air', lat: -48.54992, lon: 49.05567, alt: 5000, heading: 235, pitch: -14 },
+      // (the owner's screenshot of 2026-11-28: 90 m over the wood on the shore of the mist view's
+      // lake at dawn, 14 fps with 14 savings on)
+      { name: 'over the wood at dawn', lat: -58.68, lon: 26.99, alt: 580, heading: 185, pitch: -28, timeOffsetHours: 0.75 },
     ],
+    // The stops of the benchmark's route from the air (perf/benchmark.js, the kind `havenair`;
+    // five views, each a bookmark below): what one sees flying, from 90 m to 3 km.
+    airStops: ['woodDawn', 'wood300', 'air1k', 'air3k', 'mist'],
     bookmarks: {
       ledge: { label: 'The first morning', heading: 222, pitch: -2, fov: 60 },
       sun: { label: 'The Sun coming up', heading: 64, pitch: 12, fov: 40 },
@@ -203,6 +213,12 @@ export default {
       front: { label: 'A front coming', lat: -48.51554, lon: 48.64021, heading: 264, pitch: 9, fov: 60, timeOffsetHours: 33 },
       // the Crown from 14 km to the east-south-east, its lee side: cloud banked on the windward side and over the top
       crown: { label: 'Wind on the Crown', lat: 13.90909, lon: 71.95116, alt: 1950, heading: 297, pitch: 7, fov: 50, timeOffsetHours: 53 },
+      // From the air (the benchmark's route from the air; the first is the owner's view of
+      // 2026-11-28). Hours from the scene's moment; `alt`: m over the sea.
+      woodDawn: { label: 'Over the wood at dawn', lat: -58.68, lon: 26.99, alt: 580, heading: 185, pitch: -28, fov: 60, timeOffsetHours: 0.75 },
+      wood300: { label: 'The wood from 400 m', lat: -58.68, lon: 26.99, alt: 900, heading: 185, pitch: -35, fov: 60, timeOffsetHours: 4 },
+      air1k: { label: 'The opening country from 1 km', lat: -48.54992, lon: 49.05567, alt: 2513, heading: 200, pitch: -8, fov: 60, timeOffsetHours: 4.1 },
+      air3k: { label: 'Among the heaps, 3 km up', lat: -48.54992, lon: 49.05567, alt: 4500, heading: 30, pitch: -12, fov: 60, timeOffsetHours: 4 },
     },
   },
   places: [

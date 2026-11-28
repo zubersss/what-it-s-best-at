@@ -15,8 +15,11 @@ import { GROUPS, SAVING_GROUPS, costConfigs, baselineAt, framesFor } from './cos
 const LAP = 180, STOP = 12, FLIGHT = 60;
 // The routes: the first world's five views, a flight, the second world's five views.
 // (haven: the made world of milestone 12, where the game now opens)
-const ROUTES = { run: ['mars', 'moon'], soak: ['mars', 'moon'], earth: ['earth', 'moon'], haven: ['haven', 'moon'] };
-const KIND_NAMES = { earth: 'Earth benchmark', haven: 'Haven benchmark' };
+const ROUTES = { run: ['mars', 'moon'], soak: ['mars', 'moon'], earth: ['earth', 'moon'], haven: ['haven', 'moon'], havenair: ['haven', 'moon'] };
+// (a route whose stops on its first world are not the world's first five views but a list of
+// its own in the world's file: Haven from the air, scene.airStops)
+const STOPS = { havenair: 'airStops' };
+const KIND_NAMES = { earth: 'Earth benchmark', haven: 'Haven benchmark', havenair: 'Haven from the air benchmark' };
 
 export class Benchmark {
   constructor(app) {
@@ -60,7 +63,8 @@ export class Benchmark {
     this.builds = { [this.first]: [0, 0], [this.second]: [0, 0] };
     this.maxGpuBytes = 0;
     // the first five bookmarks of each world: its main scene (the rest are landmarks, not benchmarked)
-    this.names = { [this.first]: Object.keys(WORLDS[this.first].scene.bookmarks).slice(0, 5), [this.second]: Object.keys(WORLDS[this.second].scene.bookmarks).slice(0, 5) };
+    const five = (id) => Object.keys(WORLDS[id].scene.bookmarks).slice(0, 5), own = STOPS[this.kind] && WORLDS[this.first].scene[STOPS[this.kind]];
+    this.names = { [this.first]: own && own.length === 5 && own.every((n) => WORLDS[this.first].scene.bookmarks[n]) ? own.slice() : five(this.first), [this.second]: five(this.second) };
     // The route's clock is pinned: each stop begins at its bookmark's moment (App.gotoBookmark sets
     // it) and the clock runs at the game's own pace, whatever the player had set (stopped, or a
     // time-lapse): every run meets the same sky, the clouds moved by the same wind, the same storm.
@@ -77,7 +81,7 @@ export class Benchmark {
     const p = this.phase;
     const where = p < 0 ? '' : p < 5 ? `${WORLDS[this.first].name} · ${this.names[this.first][p]}` : p === 5 ? `flight to ${WORLDS[this.second].name}` : `${WORLDS[this.second].name} · ${this.names[this.second][p - 6]}`;
     if (this.cost) return `Benchmark · measuring what each thing costs · ${this.cost.status}`;
-    return `${this.kind === 'soak' ? 'Soak test' : KIND_NAMES[this.kind] || 'Benchmark'} ${mmss(t)} / ${mmss(this.duration)} · ${where}`;
+    return `${this.app.bigLabel || ''}${this.kind === 'soak' ? 'Soak test' : KIND_NAMES[this.kind] || 'Benchmark'} ${mmss(t)} / ${mmss(this.duration)} · ${where}`;
   }
 
   key(code, down) {
@@ -123,7 +127,7 @@ export class Benchmark {
     this.lastBuilt = app.terrain.built; this.lastBuildMs = app.terrain.buildMs;
     if (this.n % 60 === 1) this.maxGpuBytes = Math.max(this.maxGpuBytes, app.gpuBytes);
     if (t >= this.duration) {
-      if (this.kind === 'soak') { this._finish(false); return; }
+      if (this.kind === 'soak' || app.params?.cost === '0') { this._finish(false); return; }          // (cost=0: the big benchmark's later runs, which need no second cost test)
       this.releaseAll(); this.cost = new CostTest(this); return;
     }
 
@@ -356,6 +360,11 @@ export const PARTS_OUT = [
   // corners: what the old way adds, so that the phone itself says whether the move was a gain)
   { id: 'far-air-pixel', label: "the far forest's light and air at every pixel instead of at its corners (what it adds)", adds: true, has: (app) => !!app.farForest?.def, set: (app, out) => { app.farForest.shared.uShadow.value.z = out ? 1 : 0; } },
   { id: 'tree-air-pixel', label: "the near trees' light and air at every pixel instead of at their vertices (what it adds)", adds: true, has: (app) => !!app.trees?.def, set: (app, out) => { app.trees.shared.uTreeOld.value = out ? 1 : 0; } },
+  // (the middle and high cloud's Sun and sky light at every pixel, as it was, instead of at the shells' vertices)
+  { id: 'upper-light-pixel', label: "the middle and high cloud's light at every pixel instead of at its vertices (what it adds)", adds: true, has: (app) => !!app.sky?.hasPart('clouds-all'), set: (app, out) => { if (app.sky?.upper) app.sky.upper.lightAtPixel = out; } },
+  // (the ground's two cuts that a switch can put back, docs/briefs/ground-cost-report.md: what the old way adds)
+  { id: 'ground-sky-pixel', label: "the sky's light on the ground at every pixel instead of at its vertices (what it adds)", adds: true, set: (app, out) => { app.terrain.shared.uGroundOld.value.x = out ? 1 : 0; } },
+  { id: 'ground-both-maps', label: "a patch's own maps read wherever its parent's are (what it adds)", adds: true, set: (app, out) => { app.terrain.shared.uGroundOld.value.y = out ? 1 : 0; } },
   // (last: what is left with nothing drawn at all)
   // (and every pass the sky makes into targets of its own: with the scenes alone hidden those all ran)
   { id: 'everything', label: 'everything', set: (app, out) => { app.nearScene.visible = app.farScene.visible = app.heroScene.visible = app.dustScene.visible = !out; if (app.sky?.hasPart('sky-all')) app.sky.partOut('sky-all', out); } },

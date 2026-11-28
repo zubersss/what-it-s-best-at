@@ -73,14 +73,20 @@ vec2 octEncode(vec3 n) {
 // side), so each place gets the sky light of its own Sun height from the level-ground
 // table, over the part of the sky the surface faces (uSkyGainMix fades this in between 3
 // and 30 km of altitude).
-vec3 skyLight(vec3 N, vec3 up) {
+// (in three parts, so that a shader whose vertices can ask for what does not depend on the
+// surface's normal does so: the level-ground table's answer at a place, skyThere, is the same
+// for every surface there. One rule: skyLight(N, up) is skyLight(N, up, skyThere(up)).)
+vec3 skyThere(vec3 up) {
+  float mu = dot(up, uSunDir);
+  float ug = 0.5 + 0.5 * sign(mu) * sqrt(abs(mu));
+  return texture(tIrradiance, vec2((ug * (float(SKYE_W) - 1.0) + 0.5) / float(SKYL_W), (float(IRR) + 1.5) / float(SKYL_H))).rgb;
+}
+vec3 skyLight(vec3 N, vec3 up, vec3 thereRaw) {
   vec2 e = octEncode(uSkyFrame * N);
   vec2 uv = (e * (float(IRR) - 1.0) + 0.5) / vec2(float(SKYL_W), float(SKYL_H));
   vec3 E = texture(tIrradiance, uv).rgb * uLutScaleInv.x;
   if (uSkyGainMix > 0.0) {
-    float mu = dot(up, uSunDir);
-    float ug = 0.5 + 0.5 * sign(mu) * sqrt(abs(mu));
-    vec3 there = texture(tIrradiance, vec2((ug * (float(SKYE_W) - 1.0) + 0.5) / float(SKYL_W), (float(IRR) + 1.5) / float(SKYL_H))).rgb * ((0.5 + 0.5 * dot(N, up)) / SKYE_SCALE);
+    vec3 there = thereRaw * ((0.5 + 0.5 * dot(N, up)) / SKYE_SCALE);
     E = mix(E, there, uSkyGainMix);
   }
   // (the painted look: shade is lit by more of the sky than is physical, and by its colour
@@ -89,6 +95,7 @@ vec3 skyLight(vec3 N, vec3 up) {
   if (uPaint.x > 0.0) { float g = dot(E, vec3(0.3, 0.55, 0.15)); E = max(vec3(0.0), mix(vec3(g), E, 1.0 + 0.3 * uPaint.x)) * mix(vec3(1.0), uPaint.y * mix(vec3(0.88, 1.06, 0.98), vec3(1.04, 0.9, 1.1), uAloft), uPaint.x); }
   return E * uSunIrradiance * uWeather.y + uFlash;
 }
+vec3 skyLight(vec3 N, vec3 up) { return skyLight(N, up, uSkyGainMix > 0.0 ? skyThere(up) : vec3(0.0)); }
 
 // The painted look's light and colour. paintLit: sunlight on a surface in two tones with a
 // soft edge between them, in place of the plain cosine (x: the cosine of the Sun's angle
@@ -280,19 +287,22 @@ void hazeAffine(vec3 rel, vec2 uv, out vec3 T, out vec3 L0, out vec3 Lg) {
 // amount: how much forest this is (1: a tree). Trees, the ground under them and the far
 // canopy all ask here, so that they agree.
 // (in two parts, for whoever works the air out at a thing's corners and not at every pixel,
-// as the far forest does: the colour is mix(colour, air, k))
-void forestAirParts(vec3 rel, vec3 up, float amount, out vec3 air, out float k) {
+// as the far forest does: the colour is mix(colour, air, k). skyUp: skyLight(up, up) at the
+// place, for a shader whose vertices have asked for it, as the ground's do.)
+void forestAirParts(vec3 rel, vec3 up, float amount, vec3 skyUp, out vec3 air, out float k) {
   // (the sky's light, a third of the way to grey: with its full blue the far firs were cyan)
-  air = skyLight(up, up); air = mix(air, vec3(dot(air, vec3(0.3, 0.55, 0.15))), 0.35) * (0.3 / PI);
+  air = mix(skyUp, vec3(dot(skyUp, vec3(0.3, 0.55, 0.15))), 0.35) * (0.3 / PI);
   // (not from high above: the air of a wood is a thing of the landscape, and from orbit it
   // turned every forest teal)
   // (and from up in the air, like the haze, less of it over the wood straight below)
   k = uPaint.x * 0.34 * amount * (1.0 - exp(-length(rel) / 150.0)) * smoothstep(0.5, 1.0, uHaze) * hazeAloft(normalize(rel), up);
 }
-vec3 forestAir(vec3 color, vec3 rel, vec3 up, float amount) {
-  vec3 air; float k; forestAirParts(rel, up, amount, air, k);
+void forestAirParts(vec3 rel, vec3 up, float amount, out vec3 air, out float k) { forestAirParts(rel, up, amount, skyLight(up, up), air, k); }
+vec3 forestAir(vec3 color, vec3 rel, vec3 up, float amount, vec3 skyUp) {
+  vec3 air; float k; forestAirParts(rel, up, amount, skyUp, air, k);
   return mix(color, air, k);
 }
+vec3 forestAir(vec3 color, vec3 rel, vec3 up, float amount) { return forestAir(color, rel, up, amount, skyLight(up, up)); }
 vec3 aerialPerspective(vec3 color, vec3 rel) { return rainVeil(hazeOverGround(color, rel, vec3(1.0)), rel); }
 // The ground itself, with its own albedo.
 vec3 aerialPerspective(vec3 color, vec3 rel, vec3 albedo) {

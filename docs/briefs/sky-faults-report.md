@@ -732,3 +732,41 @@ every S/40: a vertex every d/38 at most at distance d. The atlas has 55 m a texe
 over), 1 530 m beyond (under 1). Not changed by me: `terrainMaterial.js` is in another
 helper's hands; it is one constant (`CLOUD_VERT_TILES`), to be looked at in
 `haven_cloudshade_flight` before and after.
+
+## Sixth note (2026-11-27, 21:23 and 21:48): the cuts that are certain
+
+All on the main branch's 45d79bd merged in (the speed helper's rows and my plan-on-the-view's-
+world both kept; `cost-plan-test` and `sky-system-test` pass).
+
+**The upper shells' Sun and sky light at their vertices** (`upperClouds.js`): `directSun` and
+`skyLight` are worked out at the shell's 10 892 corners and handed down, not at every sky
+pixel of each of the two shells (three looks into the tables a pixel a shell less). The AIR
+between the eye and the shell stays with the pixel, against what I first said ("8 reads to
+3"): a shell's triangle is 9 km wide, overhead it spans tens of degrees of sky from thin air
+to the horizon's thick, and the froxels are asked by the pixel's place on screen. So it is
+some 8 reads to 5. Pictures: `cost_noon_before.png` / `cost_noon_after.png` (from 1 km over
+the opening place at noon, looking up 14 degrees): no pixel differs by more than 7 of 255;
+`cost_storm_before.png` / `cost_storm_after.png`: the sky identical, the only differences in
+the bottom strip of ground (the main branch's ragged tree line came in with the merge).
+The first form of it did not compile (the lighting chunk reads `gl_FragCoord` unless told
+`HAZE_UV`, as the far forest's vertex shader tells it): the picture run said so, the build
+did not.
+
+**The clouds' shade at every patch's vertices** (`terrainMaterial.js`, the one constant
+`CLOUD_VERT_TILES`, the ground-cost helper told first): two reads less on every ground pixel
+of a patch wider than 800 m. `cost_shade_before.png` / `cost_shade_after.png` (from 3 km over
+the opening place at noon, looking down 25 degrees over heaps and their shadows): 0.036 % of
+the pixels differ by more than 8 of 255, none by more than 16. In motion:
+`haven_heaps_3k` again, result below when in. (`haven_cloudshade_flight`, the move made for
+this, is inside a cloud at its hour: its picture is one grey. It needs a new place or hour.)
+
+**The weather field's blend shader made while loading** (`skyField.precompile`, called from
+`App.precompile` through `sky.precompile`; the material is kept across worlds, so its program
+is not thrown away with the field). `scripts/shader-first-use.mjs`: result below when in.
+
+Checks on this head (a build of it frozen): every Node test passes (the sky's, the cost
+plan's, the model's alone); `npm run smoke` at --dsf 0.5 passes (the benchmark with its cost
+test on Mars, every shader inside a phone's limits, none failed to compile);
+`scripts/shader-first-use.mjs`: 69 shaders made before play, 0 after the third frame of play
+(87 frames in 420 s here). Not run: the Haven benchmark in the smoke test (hours on this
+machine; it is the one that would print the sky's new rows), `--streaming`.
