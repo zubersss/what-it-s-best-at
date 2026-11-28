@@ -770,3 +770,51 @@ test on Mars, every shader inside a phone's limits, none failed to compile);
 `scripts/shader-first-use.mjs`: 69 shaders made before play, 0 after the third frame of play
 (87 frames in 420 s here). Not run: the Haven benchmark in the smoke test (hours on this
 machine; it is the one that would print the sky's new rows), `--streaming`.
+
+## Seventh note (2026-11-28): the mist from close above (docs/briefs/mist-close.md)
+
+The owner's view (90 m over the wood on the shore of the mist view's lake at dawn):
+`mist_close_pair.png` (before over after), `mist_close_floor.png` (with every saving on, an
+earlier form of the same law), `mist_close_key6.png` (key 6: it keeps its look),
+`mist_close_down.png` (straight down from 17 m over its top: an even grey-brown, the dark
+dawn water dimmed; at that distance the top's lumps, 900 m wide, give it no form).
+
+**What was wrong**: the mist was only a sheet at its top. Whatever stood in it was cut level
+where the sheet crossed it, and the sheet's own tone was all there was to see of it.
+
+**What it is now.**
+- `lightingGlsl.js`, `float mistShare(vec3 rel, out vec3 mistCol)` (shared; the speed helper
+  told first): for an eye above the mist, a thing goes into it by its own depth under the
+  mist's top: the stretch of the line of sight under the top, at most 2.5 times the thing's
+  own depth (mist on a lake is not a level sea over the low land round it: with the whole
+  stretch a wood inland was row behind row of one pale tone), coming on over 16 m of depth,
+  lit by the sky alone (with a share of the Sun's a wood in a hill's shadow took a sunlit
+  cream), and NOT the water the mist lies on, which is the sheet's to hide and to show through
+  its thin places. Called in `rainVeil` (everything that takes the air at the pixel) and at
+  the end of `hazeAffine` (the ground and the trees, at their vertices). No texture, no pass:
+  two shared uniforms (`uMist`, `uMistAt` in `globals.js`), nothing read where there is no
+  mist or the thing stands over its top.
+- `fogSheet.js` `_level`: the mist's top as one level, the surface of the lattice's own water
+  nearest the traveller and 34 m (a lake is level), with the field's fog there; asked again
+  every 30 frames. The sheet seen from above takes 0.85 of what it took, is left out of the
+  law (`NO_MIST`), and its top has billows: the two readings of the noise it already made
+  shade it into lit crests and hollows (flatter from far off and under the governor's
+  existing `fog-sheet` step: no new step).
+- The cost test has a row, "things in the mist going into it by their own depth" (what
+  leaving it out saves).
+
+**On the way, three forms that were wrong, each seen only in a picture**: the law taking the
+water too (the lake one flat beige, key 6 a plate); two pushes in which the sheet was not
+drawn at all (its pixel shader read a uniform only its vertex shader declared: the build and
+every Node test passed); the mist on things lit by the Sun where the land shades it.
+
+**In motion** (`motion_mist_sink_stations.png`, `motion_mist_shore_stations.png`: first frame
+and difference of each station): sinking through its top, three stations: 0.01 % of pixels
+changed, no flicker. Level flight 90 m over the shore along it (`haven_mist_shore`, new, half
+a metre a frame): the mist's part of the difference picture is black at all three stations
+(no crawl on the billows, no line at the shore); 6.7 / 3.2 / 0.8 % changed and 0.64 / 0.31 /
+0.07 % flicker, all of it on the outlines of the trees passing 90 m below. Whether that is
+the trees' own or the mist on them: the same move on the build before the mist, below when in.
+
+**Not done**: the counts (`gl-count`): the law adds no pass and no texture, so they are the
+sheet's as before; the phone's ms are the cost test's row. Nothing measured on the phone.
