@@ -76,3 +76,29 @@ shade for. The land's colour map (the wood beyond 19 km, a khaki olive from 20 k
 changed yet: from 20 km there is no band where the canopy's own colour hands over to it,
 but it is duller than the lifted wood near by; a greener forest colour in the land rule
 would need the map made again.
+
+## 4. The land's colour map made again, and the opening view from the ground
+
+The land rule's wood colours lifted (`tiles/madeLand.js`: forest 36 64 30 -> 43 78 35,
+woodland 74 92 46 -> 79 102 48), `make-world.mjs` and `make-world-maps.mjs` run again: the
+land came out the same (only `haven_day_4096.jpg` and `haven_day_512.jpg` changed). From
+20 km the wood is a mid green where it was khaki (`pair_20km_map.jpg`); a first try at
+54 98 42 was a kelly-green felt from there and was dropped. The map's mean in `haven.js` is
+kept as it was, on purpose (a note there): it is what the map is divided by, and the new
+mean (0.1346, 0.1439, 0.0585) would have darkened every meadow and mountain to pay for the
+woods.
+
+**The opening view from the ground** (`pair_ground_opening.jpg`; display levels, box means):
+
+| what | before | after |
+|---|---|---|
+| the big fir | 82 97 81 | 82 96 80 |
+| the near wood below | 38 62 65 | 38 62 64 |
+| the mountain | 195 145 123 | 194 144 122 |
+| the grass | 123 99 40 | 122 98 39 |
+| the wood on the middle slope, about 1 km off | 57 82 79 | 64 89 77 |
+| the far wooded slope, 2 to 3 km off | 100 115 120 | 111 125 117 |
+
+The firs, the wood below, the mountain and the meadow are the same to a level; the far
+slopes' woods are 7 to 10 levels lighter and greener, which is the change itself. 5.7 % of
+the picture's pixels are over 2 levels.
