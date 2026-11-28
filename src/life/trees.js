@@ -16,7 +16,7 @@ import { localFrame } from '../core/ephemeris.js';
 import { makeTreeGeometries, VARIANTS, sharedCorners } from './treeGeometry.js';
 import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
 import { SNOW_GLSL, SNOW_UNIFORMS } from '../render/snowGlsl.js';
-import { EDGE0, EDGE1, TOP0, TOP1, SOLID0, SOLID1 } from './farTreeForm.js';
+import { EDGE0, EDGE1, TOP0, TOP1, SOLID0, SOLID1, SOLID_B0, SOLID_B1, solidLate } from './farTreeForm.js';
 import { SPECIES, bloomOf, treeLook, canopyYear, canopyFar } from './cover.js';
 import { treeSeason } from './season.js';
 
@@ -167,7 +167,9 @@ vec3 treePosition(out vec3 foot, out float leaf) {
 #else
   bool solidMake = iF > 1.5;
   float downT = dot(-normalize(foot + uTreeUp * (iA.w * 0.7)), uTreeUp);
-  float solidG = iF > 0.5 ? smoothstep(${SOLID0.toFixed(3)}, ${SOLID1.toFixed(3)}, downT) * (1.0 - smoothstep(0.35, 0.5, iB.w)) * uSolid : 0.0;
+  // (iF's fraction: a quarter on the shapes that are solid from lower down, farTreeForm.js SOLID_B0)
+  bool solidEarly = fract(iF) > 0.1;
+  float solidG = iF > 0.5 ? smoothstep(solidEarly ? ${SOLID_B0.toFixed(3)} : ${SOLID0.toFixed(3)}, solidEarly ? ${SOLID_B1.toFixed(3)} : ${SOLID1.toFixed(3)}, downT) * (1.0 - smoothstep(0.35, 0.5, iB.w)) * uSolid : 0.0;
   float edge = aLeaf > 3.5 ? (1.0 - smoothstep(${EDGE0.toFixed(3)}, ${EDGE1.toFixed(3)}, downT)) * (1.0 - solidG) : 1.0;
   if (solidMake && aLeaf > 0.5) p = mix(aCrown, p, solidG);
 #endif
@@ -523,7 +525,7 @@ ${TREE_VERT}
         }`,
     });
     // one mesh per shape, variant and distance: [shape][variant][0 close, 1 near, 2 far]
-    this.sets = this.geos.map((variants) => variants.map((pair) => pair.map((base, lod) => {
+    this.sets = this.geos.map((variants, arch) => variants.map((pair) => pair.map((base, lod) => {
       const cap = [CLOSE_CAP, NEAR_CAP, FAR_CAP][lod], geo = new THREE.InstancedBufferGeometry();
       // (the same triangles, each corner that several share handed over once: half the vertices)
       const shared = sharedCorners(base, ['position', 'normal', 'aLeaf', 'aSway', 'aUv', 'aCrown']);
@@ -533,7 +535,7 @@ ${TREE_VERT}
       const iA = at(4), iB = at(4), iC = at(3), iD = at(4), iE = at(4);
       geo.setAttribute('iA', iA); geo.setAttribute('iB', iB); geo.setAttribute('iC', iC); geo.setAttribute('iD', iD); geo.setAttribute('iE', iE);
       // (iF: 1 on the far list's cards, cut inside the near radius; written once)
-      const iF = new THREE.InstancedBufferAttribute(new Float32Array(cap).fill(lod === 2 ? 1 : 0), 1); geo.setAttribute('iF', iF);
+      const iF = new THREE.InstancedBufferAttribute(new Float32Array(cap).fill(lod === 2 ? 1 + (solidLate(arch) ? 0 : 0.25) : 0), 1); geo.setAttribute('iF', iF);
       geo.instanceCount = 0;
       const mesh = new THREE.Mesh(geo, this.material);
       mesh.frustumCulled = false; mesh.visible = false; mesh.userData.lod = lod;
@@ -550,7 +552,7 @@ ${TREE_VERT}
       for (const name of ['position', 'normal', 'aLeaf', 'aSway', 'aUv', 'aCrown']) geo.setAttribute(name, shared.attributes[name]);
       geo.setIndex(shared.index);
       for (const name of ['iA', 'iB', 'iC', 'iD', 'iE']) geo.setAttribute(name, far[name]);
-      geo.setAttribute('iF', new THREE.InstancedBufferAttribute(new Float32Array(far.cap).fill(2), 1));
+      geo.setAttribute('iF', new THREE.InstancedBufferAttribute(new Float32Array(far.cap).fill(2 + (solidLate(a) ? 0 : 0.25)), 1));
       geo.instanceCount = 0;
       const mesh = new THREE.Mesh(geo, this.material);
       mesh.frustumCulled = false; mesh.visible = false; mesh.userData.lod = 1.5;
@@ -863,7 +865,7 @@ ${TREE_VERT}
   // (a few thousand trees at most), every frame: the eye rises and sinks without the lists
   // being made again.
   _lookDown(rig) {
-    const A = this.anchor, ex = rig.pos.x - A.x, ey = rig.pos.y - A.y, ez = rig.pos.z - A.z, u = this.shared.uTreeUp.value, limit = SOLID0 - 0.03;
+    const A = this.anchor, ex = rig.pos.x - A.x, ey = rig.pos.y - A.y, ez = rig.pos.z - A.z, u = this.shared.uTreeUp.value, limit = SOLID_B0 - 0.03;
     let any = false, n = 0;
     for (const s of this.solids) {
       const I = s.far.iA.array, c = s.far.count;

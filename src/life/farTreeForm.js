@@ -32,6 +32,12 @@
 // finely cut, and the solids were the poorer picture there; it is from steeper than 40 that
 // the pictures are cards on edge.)
 export const SOLID0 = 0.62, SOLID1 = 0.86;
+// ... those are a fir's and a palm's (their pictures show a spire or a fan of fronds finely cut
+// until one is nearly over them). A broad crown, a pine, a bush is its leafy domes from 25
+// degrees to 40: its rosette is a plate with its upright pictures across it from as low as that.
+export const SOLID_B0 = 0.42, SOLID_B1 = 0.64;
+// (the shapes that keep their pictures longer: life/cover.js ARCH, conifer and palm)
+export const solidLate = (arch) => arch === 0 || arch === 6;
 // ... and of a far tree (life/farForest.js: one faceted crown a tree, shaped in the vertex
 // shader from the tree's own measures, spread as the rosette is where the wood is thinned):
 // by the same angles, out to these distances (m), beyond which a tree is a few pixels and its
@@ -39,7 +45,7 @@ export const SOLID0 = 0.62, SOLID1 = 0.86;
 export const SOLID_FAR0 = 1000, SOLID_FAR1 = 1500;
 // Whether a tile is handed its solids' draw: when the most steeply seen of its trees at its
 // last fill is near the angle solids begin at (as shadowGate, for the shadows).
-export function solidGate(maxDown, rise, near) { return maxDown * 1.05 + Math.max(0, rise) / Math.max(50, near) > SOLID0 - 0.03; }
+export function solidGate(maxDown, rise, near) { return maxDown * 1.05 + Math.max(0, rise) / Math.max(50, near) > SOLID_B0 - 0.03; }
 export const TOP0 = 0.30, TOP1 = 0.72;        // the rosette spreads between these
 export const TOP_POW = 0.17;                  // ... by keep^-(1/4 + this) in a closed wood. (At 1/4 more the cover would be kept whole, and every
                                               // crown would look the same size on the screen at any distance: a forest with no depth.

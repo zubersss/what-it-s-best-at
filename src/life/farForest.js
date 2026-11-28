@@ -42,7 +42,7 @@ import { ATLAS_W, ATLAS_H } from './treeAtlasLayout.js';
 import { PAINT_LEAF, TREE_WOOD, TREE_THIN, ROSETTE_THIN } from './trees.js';
 import { SNOW_GLSL, SNOW_UNIFORMS } from '../render/snowGlsl.js';
 import { TREE_SHADE_VERT, TREE_SHADE_UNIFORMS } from './treeShade.js';
-import { SHADOW0, FORM_GLSL, SHADOW_GLSL, FAR_GREEN_GLSL, DENS_STEPS, SHADOW_LONG, SHADOW_FAR0, SHADOW_FAR1, TOP0, TOP1, TOP_MAX, TOP_POW, END_ABOVE, SOLID0, SOLID1, SOLID_FAR0, SOLID_FAR1, solidGate } from './farTreeForm.js';
+import { SHADOW0, FORM_GLSL, SHADOW_GLSL, FAR_GREEN_GLSL, DENS_STEPS, SHADOW_LONG, SHADOW_FAR0, SHADOW_FAR1, TOP0, TOP1, TOP_MAX, TOP_POW, END_ABOVE, SOLID0, SOLID1, SOLID_B0, SOLID_B1, SOLID_FAR0, SOLID_FAR1, solidGate } from './farTreeForm.js';
 
 // Trees one tile may hand the GPU (a fixed pool). A band of ranks of levels 0 to 2 has at
 // most 64 blocks x 256 sites x 3/4 = 12 288 sites, and a traveller in the thick of a wood
@@ -229,7 +229,8 @@ ${LIGHTING_PARS}
         // angle from the eye's place; not a bare tree, whose pictures are its boughs; out to
         // SOLID_FAR1): it grows out of the crown's middle, and the pictures and the rosette draw
         // in as it grows.
-        float gS = smoothstep(${SOLID0.toFixed(3)}, ${SOLID1.toFixed(3)}, down) * (1.0 - smoothstep(${SOLID_FAR0.toFixed(1)}, ${SOLID_FAR1.toFixed(1)}, d)) * (1.0 - smoothstep(0.35, 0.5, floor(iB.w) / 255.0)) * uSolid;
+        int archS = int(iB.z + 0.5) / ${VARIANTS}; bool lateS = archS == 0 || archS == 6;          // (a fir, a palm: from steeper, farTreeForm.js solidLate)
+        float gS = smoothstep(lateS ? ${SOLID0.toFixed(3)} : ${SOLID_B0.toFixed(3)}, lateS ? ${SOLID1.toFixed(3)} : ${SOLID_B1.toFixed(3)}, down) * (1.0 - smoothstep(${SOLID_FAR0.toFixed(1)}, ${SOLID_FAR1.toFixed(1)}, d)) * (1.0 - smoothstep(0.35, 0.5, floor(iB.w) / 255.0)) * uSolid;
         // (and whichever of the two is not drawn for this tree is thrown out here, before the work below)
         if (position.x > 3.5 ? gS <= 0.0 : (position.x < 2.5 && gS >= 1.0)) NONE
         // What the angle makes of its three quads (life/farTreeForm.js): the thinned ones
