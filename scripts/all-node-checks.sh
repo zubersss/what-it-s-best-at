@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 fail=""
 run() { name="$1"; shift; if "$@" > "${TMPDIR:-/tmp}/node-check-$name.log" 2>&1; then echo "ok   $name"; else echo "FAIL $name"; fail="$fail $name"; fi; }
 run build ./scripts/build-check.sh
-for t in cost-plan-test lake-shore-test far-forest-cull-test leaf-rest-test grass-blocks-test grass-place-test grass-flowers-pixels-test grass-light-test season-test sky-system-test sky-list-test sky-slots-test sky-steer-test sky-format-test sky-cell-test far-trees-test far-tree-form-test far-tree-shade-test far-ground-test shadow-fine-rocks-test shadow-axes-test terrain-bake-sun-test tree-shadow-test shadow-hash-steady-test tree-shared-corners-test hero-bind-test hero-cost rig-over-rock check-ephemeris; do [ -f scripts/$t.mjs ] && run $t node scripts/$t.mjs; done
+for t in cost-plan-test big-bench-test lake-shore-test far-forest-cull-test leaf-rest-test grass-blocks-test grass-place-test grass-flowers-pixels-test grass-light-test season-test sky-system-test sky-list-test sky-slots-test sky-steer-test sky-format-test sky-cell-test far-trees-test far-tree-form-test far-tree-shade-test far-ground-test shadow-fine-rocks-test shadow-axes-test terrain-bake-sun-test tree-shadow-test shadow-hash-steady-test tree-shared-corners-test hero-bind-test hero-cost rig-over-rock check-ephemeris; do [ -f scripts/$t.mjs ] && run $t node scripts/$t.mjs; done
 run rocks npm run rocks
 run govsim npm run govsim
 run lakes npm run lakes
