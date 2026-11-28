@@ -361,6 +361,8 @@ export const PARTS_OUT = [
   // (the ground's two cuts that a switch can put back, docs/briefs/ground-cost-report.md: what the old way adds)
   { id: 'ground-sky-pixel', label: "the sky's light on the ground at every pixel instead of at its vertices (what it adds)", adds: true, set: (app, out) => { app.terrain.shared.uGroundOld.value.x = out ? 1 : 0; } },
   { id: 'ground-both-maps', label: "a patch's own maps read wherever its parent's are (what it adds)", adds: true, set: (app, out) => { app.terrain.shared.uGroundOld.value.y = out ? 1 : 0; } },
+  // (things standing in a lake's mist going into it by their own depth: lightingGlsl.js mistShare, at the ground's and the trees' vertices; out, the sheet alone hides them)
+  { id: 'mist-depth', label: 'things in the mist going into it by their own depth', has: (app) => !!app.sky?.hasPart('fog'), set: (app, out) => { if (app.sky?.fog) app.sky.fog.noDepth = out; } },
   // (last: what is left with nothing drawn at all)
   // (and every pass the sky makes into targets of its own: with the scenes alone hidden those all ran)
   { id: 'everything', label: 'everything', set: (app, out) => { app.nearScene.visible = app.farScene.visible = app.heroScene.visible = app.dustScene.visible = !out; if (app.sky?.hasPart('sky-all')) app.sky.partOut('sky-all', out); } },

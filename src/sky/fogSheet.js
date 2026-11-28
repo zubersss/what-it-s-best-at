@@ -24,8 +24,8 @@ export const FOG_LOOK = Object.freeze({
   LUMP: 900,         // m: the soft lumps of its top (in what it takes of the light behind it;
                      // its top itself is level, as a lake of mist is)
   ABOVE: 0.85,       // what the sheet itself takes, seen from above, of what the line of sight through it would: the things in the mist go into it by their own depth (lightingGlsl.js mistShare), and the sheet is only its lit top. With all of it, every tree standing in the mist was sawn through level where the sheet crossed it
-  MIST_K: 0.6,       // the share a metre things in the mist lose, against the sheet's own (1 / EXT)
-  BILLOW: 0.3,       // how far the top's billows go from their shaded hollows to their lit crests, seen from above
+  MIST_K: 0.45,      // the share a metre things in the mist lose, against the sheet's own (1 / EXT)
+  BILLOW: 0.24,      // how far the top's billows go from their shaded hollows to their lit crests, seen from above
   MIST_SOFT: 16,     // m under the mist's top at which a thing is in all of it
   ALPHA: 0.96,       // the most it takes of what is behind it
   LAKE: 34, LAKE_DEEP: 30,   // m of mist over a lake's deep water where the field has fog, and the water's depth at which it is all there (thin at the shore)
@@ -155,7 +155,8 @@ void main() {
   vec3 col = vec3(${glf(F.BRIGHT)}) * (sun * 0.8 + skyLight(up, up) * 0.9) / PI;
   // (its top has form from above: the lumps that thin and thicken it are crests in the light and
   // hollows in the shade, with the finer wisps across them; two readings with no common period)
-  if (!inside) col *= 1.0 - ${glf(F.BILLOW)} + ${glf(2 * F.BILLOW)} * (0.65 * n + 0.35 * n2) * mix(0.75, 1.0, vSun);
+  // (flatter under the governor's step, and from far off, where they were a dotted pattern)
+  if (!inside) { float bw = ${glf(F.BILLOW)} * (uFogLand.y > 1.5 ? 0.4 : 1.0) * (1.0 - 0.6 * smoothstep(1500.0, 5000.0, length(vRel))); col *= 1.0 - bw + 2.0 * bw * (0.65 * n + 0.35 * n2) * mix(0.75, 1.0, vSun); }
   col = aerialPerspective(col, vRel);
   // (from inside, toward the horizon, it is the very colour the air's veil gives the water and
   // the shore under it (rainVeil in the lighting chunk): the mist is one thing, above the eye's
@@ -313,7 +314,7 @@ export class FogSheet {
       }
     }
     const L = this._lake, p = c.rig.pos;
-    this._mistWant = L.none || !L.fog ? 0 : 1;
+    this._mistWant = L.none || !L.fog || this.noDepth ? 0 : 1;
     this._mistK = c.sky?.shotMode ? this._mistWant : (this._mistK || 0) + (this._mistWant - (this._mistK || 0)) * 0.05;
     if (this._mistK < 0.004) { this._mistK = 0; G.uMist.value.y = 0; return; }
     G.uMist.value.set(R + L.surf + F.LAKE, this._mistK * F.MIST_K / F.EXT, F.MIST_SOFT, F.LAKE);
