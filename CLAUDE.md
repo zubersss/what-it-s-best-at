@@ -210,6 +210,7 @@ node scripts/overdraw.mjs [--part trees,farForest,grass,leaves] [--view "in the 
 node scripts/make-world.mjs [--width 4096] [--seed 7] [--preview dir] [--only-preview]   # makes the small world's land (Haven): elevation with drainage, lakes, rain (a minute; --width 2048 --only-preview: nine seconds, with pictures to judge it by)
 node scripts/make-world-maps.mjs   # ... and from that its colour, slope, water and cloud maps (needs Python's PIL for the JPEGs); prints the albedo map's mean for the world file
 node scripts/land-sketch.mjs --lat .. --lon .. [--zoom 8] [--tiles 3] [--set treeRag=0] [--out file.png]   # a made world's land from straight above as its rule paints it (woods, tree line, meadows), without a browser in seconds; --set: one number of the rule changed, for before against after
+node scripts/lake-shore-test.mjs [--break lattice|leak]   # a made world's lakes end where the ground rises through their level, not on the map's lattice, and no water stands beyond the lip a lake spills over (no browser, seconds)
 node scripts/find-haven-site.mjs [--open] [--lat 28,52]   # places on Haven to begin at: level ground over low ground and water, high ground near by
 node scripts/find-overlook.mjs --world haven --lat .. --lon .. --heading .. [--below 1500] [--sky]   # the very spot: level underfoot, the ground falling away in front, mountains on the far skyline (--sky: a LOW far skyline, for a view of the weather; then look with peek.mjs)
 node scripts/far-trees-test.mjs     # the far forest's trees are the near trees: a thinned tile is a subset of the full one, at the same places (no browser)
@@ -861,6 +862,12 @@ finished benchmark leaves its text in `window.__benchResult`.
   old shader reads rubbish and the comparison says 29 % of the picture moved. Compare then
   against pictures saved by a run of the old tree (`--save`, `--compare`). And a queue of
   runs that each copy the working tree copies whatever was edited in between: copy once.
+- A mask at the map's resolution cuts on the map's lattice: a lake's cells ended it on ruler
+  lines 200 to 600 m long with square corners wherever the true shore (the ground rising
+  through the lake's level, between the cells) lay past the cell's edge. What a coarse map
+  says "is" a thing, the fine ground decides where it ends; and what is let through must be
+  joined to the thing (the ground under the level all the way to a lake cell: without that
+  test water stood 8 m deep beyond the lip a lake spills over). Seen only from the air.
 - The same thing drawn three ways must take its season from one answer (near meshes, whole
   tree pictures, the far forest): bare aspens were full green crowns from 60 m on for as
   long as only the nearest mesh asked. And a rule's colours must be looked at after

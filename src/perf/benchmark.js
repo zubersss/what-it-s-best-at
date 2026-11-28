@@ -356,6 +356,8 @@ export const PARTS_OUT = [
   // corners: what the old way adds, so that the phone itself says whether the move was a gain)
   { id: 'far-air-pixel', label: "the far forest's light and air at every pixel instead of at its corners (what it adds)", adds: true, has: (app) => !!app.farForest?.def, set: (app, out) => { app.farForest.shared.uShadow.value.z = out ? 1 : 0; } },
   { id: 'tree-air-pixel', label: "the near trees' light and air at every pixel instead of at their vertices (what it adds)", adds: true, has: (app) => !!app.trees?.def, set: (app, out) => { app.trees.shared.uTreeOld.value = out ? 1 : 0; } },
+  // (the middle and high cloud's Sun and sky light at every pixel, as it was, instead of at the shells' vertices)
+  { id: 'upper-light-pixel', label: "the middle and high cloud's light at every pixel instead of at its vertices (what it adds)", adds: true, has: (app) => !!app.sky?.hasPart('clouds-all'), set: (app, out) => { if (app.sky?.upper) app.sky.upper.lightAtPixel = out; } },
   // (the ground's two cuts that a switch can put back, docs/briefs/ground-cost-report.md: what the old way adds)
   { id: 'ground-sky-pixel', label: "the sky's light on the ground at every pixel instead of at its vertices (what it adds)", adds: true, set: (app, out) => { app.terrain.shared.uGroundOld.value.x = out ? 1 : 0; } },
   { id: 'ground-both-maps', label: "a patch's own maps read wherever its parent's are (what it adds)", adds: true, set: (app, out) => { app.terrain.shared.uGroundOld.value.y = out ? 1 : 0; } },

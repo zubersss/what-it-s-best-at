@@ -101,6 +101,7 @@ uniform vec4 uUpper;           // x 1 for the high layer (0 the mid), y the shel
 in vec3 vRel;
 in vec3 vSun;
 in vec3 vSky;
+uniform float uUpperOld;
 layout(location = 0) out vec4 fragColor;
 
 // the layer's pattern at a point of its own frame (one read)
@@ -285,11 +286,12 @@ void main() {
   // stood here, every ice effect was put opposite the Sun — the bright rim and the 22-degree halo
   // ringing the antisolar point, where a real sky has neither.)
   float mu0 = dot(up, uSunDir), cs = dot(normalize(vRel), uSunDir);
-  vec3 sun = vSun;
+  // (uUpperOld: the old way, at every pixel, for the benchmark's what-it-adds row)
+  vec3 sun = uUpperOld > 0.5 ? directSun(planetPos) * smoothstep(-0.09, 0.06, mu0) : vSun;
   // (ice: a bright rim toward the Sun, and the 22-degree halo of a cirrostratus veil)
   float fwd = 0.75 + 0.9 * pow(max(cs, 0.0), 8.0);
   if (high) fwd += ${glf(U.HALO)} * (1.0 - smoothstep(0.0, 0.02, abs(cs - 0.927))) * smoothstep(0.1, 0.4, cover);
-  vec3 col = vec3(0.9) * (sun * fwd * shade + vSky * (0.8 * skyShade)) / PI;
+  vec3 col = vec3(0.9) * (sun * fwd * shade + (uUpperOld > 0.5 ? skyLight(uUpper.z > 0.5 ? -up : up, up) : vSky) * (0.8 * skyShade)) / PI;
   // (its shade is the tower's slate, not the warm grey of the ground's light)
   col *= mix(vec3(1.0), vec3(${glf(CLOUD_LOOK.CELL_TINT[0])}, ${glf(CLOUD_LOOK.CELL_TINT[1])}, ${glf(CLOUD_LOOK.CELL_TINT[2])}), 0.8 * anUnder);
   // (an anvil keeps the share of the air's veil its tower keeps (CLOUD_LOOK.CELL_HAZE): through
@@ -303,7 +305,7 @@ export class UpperClouds {
   constructor(renderer) {
     this.renderer = renderer;
     this.thin = false; this.off = false;
-    this.uniforms = { ...lightingUniforms(), uUpper: { value: new THREE.Vector4(0, 1, 1, 0) },
+    this.uniforms = { ...lightingUniforms(), uUpper: { value: new THREE.Vector4(0, 1, 1, 0) }, uUpperOld: { value: 0 },
       uSkyLow: SKY_UNIFORMS.uSkyLow, tWxA: SKY_UNIFORMS.tWxA, tWxB: SKY_UNIFORMS.tWxB, tWxC: SKY_UNIFORMS.tWxC,
       tCloudNoise: SKY_UNIFORMS.tCloudNoise, uCloudSteer: SKY_UNIFORMS.uCloudSteer, uCloudRise: SKY_UNIFORMS.uCloudRise,
       uSteerInv: { value: SKY_UNIFORMS.uSteerInv.value }, uSteerSpin: { value: SKY_UNIFORMS.uSteerSpin.value }, uSteerRise: { value: SKY_UNIFORMS.uSteerRise.value },
@@ -355,5 +357,7 @@ export class UpperClouds {
   saving(id, off) { if (id === 'cloud-upper') this.thin = !!off; }
   live(id) { return id === 'cloud-upper' && this.ready; }
   has() { return true; }
+  // (the benchmark's row: the shells' Sun and sky light at every pixel, as it was)
+  set lightAtPixel(on) { this.uniforms.uUpperOld.value = on ? 1 : 0; }
   partOut(id, out) { if (id === 'cloud-upper') this.off = !!out; }
 }
