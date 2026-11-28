@@ -243,7 +243,7 @@ ${LIGHTING_PARS}
         float flowers = floor(iC.w / 256.0), rest = iC.w - 256.0 * flowers;
         float groundQ = floor(rest / 16.0), packed = rest - 16.0 * groundQ;
         float fall = floor(packed * 0.25 + 1e-3), thinQ = floor(iB.w), sunLeft = clamp((packed - fall * 4.0) / 3.0, 0.0, 1.0) * cloudShade(foot + uTileUp * (iA.w * 0.7));
-        bool solid = position.x > 3.5; float solidTone = 0.0;
+        bool solid = position.x > 3.5; float solidTone = 0.0; vec2 solidUv = vec2(0.5);
         if (solid) {
           if (gS <= 0.0) NONE
           // A cap over a wide ring over a narrower one beneath, six-sided: the wide ring as wide
@@ -258,7 +258,10 @@ ${LIGHTING_PARS}
           else if (position.y > 0.5) ls = fir ? vec3(cos(ang), 0.0, sin(ang)) * (r * mix(1.0, 0.7, odd)) + vec3(0.0, mid - half_ * mix(0.85, 0.55, odd), 0.0) : vec3(cos(ang) * r, mid + half_ * (0.1 * own1 - 0.05), sin(ang) * r);
           l = mix(vec3(0.0, mid, 0.0), ls, gS);
           na = vec3(ls.x / max(wide, 1e-3), ls.y - mid + 0.05, ls.z / max(wide, 1e-3));
-          rect = vec4(0.0);
+          // (it carries the crown-top picture from its middle outward, for its foliage's tones:
+          // nothing is cut out of it, see the fragment shader)
+          rect = uRectRose[cell];
+          solidUv = vec2(0.5) + vec2(cos(ang), sin(ang)) * (position.y < 0.5 ? 0.0 : position.y < 1.5 ? 0.3 : 0.48);
           // (painted: light at its top, dark beneath, whatever the Sun does: in flat light a crown is still a dome)
           solidTone = position.y < 0.5 ? 1.0 : position.y < 1.5 ? (fir ? mix(0.8, 0.5, odd) : 0.7) : 0.22;
         } else
@@ -314,8 +317,7 @@ ${LIGHTING_PARS}
         l *= iA.w * grow;
         vRel = foot + uTileEast * (l.x * c - l.z * s) + uTileUp * l.y + uTileNorth * (l.x * s + l.z * c);
         vN = normalize(uTileEast * (nl.x * c - nl.z * s) + uTileUp * nl.y + uTileNorth * (nl.x * s + nl.z * c));
-        vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); vOwn = vec2(iB.w - thinQ, thinQ / 255.0 * (position.x > 1.5 ? ${ROSETTE_THIN.toFixed(1)} : 1.0) + 4.0 * flowers);
-        if (solid) vUv = vec2(0.0); vShade = sunLeft; vShadowA = 0.0;
+        vLeafC = unpack(iC.y); vTrunkC = unpack(iC.z); vOwn = vec2(iB.w - thinQ, thinQ / 255.0 * (position.x > 1.5 ? ${ROSETTE_THIN.toFixed(1)} : 1.0) + 4.0 * flowers); vShade = sunLeft; vShadowA = 0.0;
         // (the crown's top: lit as a dome pixel by pixel in the fragment shader; by its four
         // corners alone it was one flat tone, no lit cap and no shaded side)
         vDome = vec3(0.0); vDomeE = vec3(0.0); vDomeN = vec3(0.0);
@@ -328,7 +330,7 @@ ${LIGHTING_PARS}
         vTone = vec2(0.66 + 0.55 * tn + 0.6 * (groundQ / 15.0 - 0.6), cell < ${VARIANTS} ? 1.0 : 0.0);
         if (solid) vDome = vec3(solidTone, 0.0, 0.0);          // (a solid has no dome: the slot carries its painted tone)
         if (position.x > 1.5 && !solid) { vDome = vec3((position.y - 0.5) * 2.0, (0.5 - position.z) * 2.0, smoothstep(${TOP0.toFixed(3)}, ${TOP1.toFixed(3)}, down) * smoothstep(uFar.z, uFar.z + 200.0, d)); vDomeE = uTileEast * c + uTileNorth * s; vDomeN = uTileNorth * c - uTileEast * s; }
-        vUv = solid ? vec2(0.0) : vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
+        vUv = solid ? mix(rect.xy, rect.zw, solidUv) : vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
         gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
         // The Sun's light on the tree and the air between it and the eye, worked out here, at
         // the picture's corners: over a picture some metres wide, hundreds of metres off, they
@@ -360,8 +362,10 @@ ${LIGHTING_PARS}
       ${FAR_GREEN_GLSL}
       void main() {
 #ifdef FAR_SOLID
-        // (a solid crown: nothing cut out, one layer; its tone the middle of a picture's)
-        vec3 cut = vec3(1.0, 0.75, 0.0); float lod = 0.0;
+        // (a solid crown: nothing cut out, one layer. The crown-top picture gives its foliage's
+        // tones, and where the picture has a gap between its lobes the crown is its dark inside)
+        vec3 pic = texture(tTreeAtlas, vUv).rgb;
+        vec3 cut = vec3(1.0, mix(0.12, pic.g, smoothstep(0.2, 0.42, pic.r)), 0.0); float lod = 0.0;
 #else
         vec3 cut = texture(tTreeAtlas, vUv).rgb;
         // The cut-out, taken exactly as the near trees take it (trees.js): lower the farther
