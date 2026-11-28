@@ -190,7 +190,7 @@ class Shape {
       let fn = norm(cross([B[0] - A[0], B[1] - A[1], B[2] - A[2]], [C[0] - A[0], C[1] - A[1], C[2] - A[2]]));
       const m = [(A[0] + B[0] + C[0]) / 3, (A[1] + B[1] + C[1]) / 3, (A[2] + B[2] + C[2]) / 3], o = norm([m[0] - out[0], out[1] == null ? 0 : m[1] - out[1], m[2] - out[2]]);
       if (fn[0] * o[0] + fn[1] * o[1] + fn[2] * o[2] < 0) fn = [-fn[0], -fn[1], -fn[2]];
-      const k = isLeaf > 1.75 ? 0.8 : isLeaf > 1.4 ? 0.5 : isLeaf ? 0.35 : 0.6; fn = norm([fn[0] + (o[0] - fn[0]) * k, fn[1] + (o[1] - fn[1]) * k, fn[2] + (o[2] - fn[2]) * k]);
+      const k = isLeaf > 1.75 ? 0.8 : isLeaf > 1.4 ? 0.3 : isLeaf ? 0.35 : 0.6; fn = norm([fn[0] + (o[0] - fn[0]) * k, fn[1] + (o[1] - fn[1]) * k, fn[2] + (o[2] - fn[2]) * k]);
       for (let v = 0; v < 3; v++) {
         const i = t * 3 + v, [px, py, pz] = tr.p[v], y = Math.max(0, py), r = Math.hypot(px, pz);
         let nn = fn;
@@ -228,7 +228,7 @@ class Shape {
 // out), 40 to 90 triangles.
 // (how many lumps round the crown, how wide each against its bunches' reach, and whether the
 // crown has a lump at its middle as well: a broad crown is one mass, a pine's or an aspen's is not)
-const SOLID_LUMPS = [0, 4, 3, 3, 3, 2, 0, 5, 3], SOLID_WIDE = [1, 0.8, 0.88, 0.88, 0.9, 0.9, 1, 0.5, 0.88], SOLID_CORE = [0, 0, 1, 1, 1, 1, 0, 0, 1];
+const SOLID_LUMPS = [0, 4, 2, 2, 2, 2, 0, 5, 2], SOLID_WIDE = [1, 0.8, 0.95, 0.95, 0.95, 0.9, 1, 0.5, 0.95], SOLID_CORE = [0, 0, 1, 1, 1, 1, 0, 0, 1];
 function solidOf(near, arch, R) {
   const s = new Shape(1); s.mid = near.mid;
   const fol = near.tris.filter((t) => t.leaf > 0.5), wood = near.tris.filter((t) => t.leaf < 0.1);
@@ -302,18 +302,26 @@ function solidOf(near, arch, R) {
   if (SOLID_CORE[arch]) { const rAll = pct(P.map((p) => Math.hypot(p[0] - crown[0], p[2] - crown[2])), 0.8); lumps.push({ c: crown, r: rAll * 0.62, hi: pct(P.map((p) => p[1]), 0.995), lo: pct(P.map((p) => p[1]), arch === 5 ? 0.05 : 0.3) }); }
   stem(Math.max(...lumps.map((l) => l.c[1])) * (arch === 5 ? 0.5 : 0.96));
   for (const l of lumps) {
-    const n = arch === 7 ? 5 : 6, turn = R() * TAU, h = l.hi - l.lo, c = [l.c[0] * 0.7 + crown[0] * 0.3, l.lo - h * 0.2, l.c[2] * 0.7 + crown[2] * 0.3];
-    const apex = [l.c[0] + (R() - 0.5) * l.r * 0.15, l.hi, l.c[2] + (R() - 0.5) * l.r * 0.15], wide = [], under = [];
+    // A lump: a cap, a shoulder, its widest ring and a narrower one beneath. (A broad crown's
+    // lumps have the shoulder: without it a wide flat bunch was a six-sided plate from above.)
+    const round = !!SOLID_CORE[arch], n = 5, turn = R() * TAU, h = l.hi - l.lo, c = [l.c[0] * 0.7 + crown[0] * 0.3, l.lo - h * 0.2, l.c[2] * 0.7 + crown[2] * 0.3];
+    const apex = [l.c[0] + (R() - 0.5) * l.r * 0.25, l.hi, l.c[2] + (R() - 0.5) * l.r * 0.25], wide = [], under = [], sh = [];
     for (let j = 0; j < n; j++) {
-      const a = turn + j / n * TAU, a2 = a + 0.5 / n * TAU, rr = l.r * (0.9 + 0.16 * R());
-      wide.push([l.c[0] + Math.cos(a) * rr, l.lo + h * (0.28 + 0.14 * R()), l.c[2] + Math.sin(a) * rr]);
+      const a = turn + j / n * TAU, a2 = a + 0.5 / n * TAU, rr = l.r * (0.78 + 0.34 * R());
+      wide.push([l.c[0] + Math.cos(a) * rr, l.lo + h * (0.25 + 0.2 * R()), l.c[2] + Math.sin(a) * rr]);
       under.push([l.c[0] + Math.cos(a2) * rr * 0.5, l.lo, l.c[2] + Math.sin(a2) * rr * 0.5]);
+      sh.push([l.c[0] + Math.cos(a2) * rr * (0.5 + 0.2 * R()), l.lo + h * (0.72 + 0.14 * R()), l.c[2] + Math.sin(a2) * rr * (0.5 + 0.2 * R())]);
     }
     const mid = [l.c[0], l.lo + h * 0.35, l.c[2]];
     for (let j = 0; j < n; j++) {
-      face(apex, wide[(j + 1) % n], wide[j], c, mid, [1, 0.72, 0.72]);
-      face(wide[j], wide[(j + 1) % n], under[j], c, mid, [0.72, 0.72, 0.2]);
-      face(under[j], wide[(j + 1) % n], under[(j + 1) % n], c, mid, [0.2, 0.72, 0.2]);
+      const k = (j + 1) % n;
+      if (round) {
+        face(apex, sh[k], sh[j], c, mid, [1, 0.86, 0.86]);
+        face(sh[j], wide[k], wide[j], c, mid, [0.86, 0.6, 0.6]);
+        face(sh[j], sh[k], wide[k], c, mid, [0.86, 0.86, 0.6]);
+      } else face(apex, wide[k], wide[j], c, mid, [1, 0.66, 0.66]);
+      face(wide[j], wide[k], under[j], c, mid, [0.6, 0.6, 0.15]);
+      face(under[j], wide[k], under[k], c, mid, [0.15, 0.6, 0.15]);
     }
   }
   return done();

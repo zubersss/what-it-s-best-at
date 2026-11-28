@@ -402,7 +402,10 @@ ${TREE_VERT}
             leafC = paintLeaf(leafC) * mix(0.64, 1.15, smoothstep(-0.45, 0.55, dot(N, up)));
             // (a crown is bunches of leaves, drawn as patches of three tones with clean edges;
             // not from far off, where a patch is smaller than a pixel)
-            float c = leafCells(vTreeM * 2.6) * 0.65 + leafCells(vTreeM * 6.1 + 3.3) * 0.35, near = 1.0 - smoothstep(60.0, 140.0, length(vRel));
+            // (a solid make's masses carry the patches too, larger, as far as they are drawn: a
+            // mass in one tone was a plate with corners)
+            bool solidF = vLeaf > 1.4 && vLeaf < 1.75;
+            float c = solidF ? leafCells(vTreeM * 0.9) * 0.6 + leafCells(vTreeM * 2.3 + 3.3) * 0.4 : leafCells(vTreeM * 2.6) * 0.65 + leafCells(vTreeM * 6.1 + 3.3) * 0.35, near = solidF ? 1.0 : 1.0 - smoothstep(60.0, 140.0, length(vRel));
             leafC *= mix(1.0, 0.72 + 0.3 * smoothstep(0.40, 0.44, c) + 0.26 * smoothstep(0.58, 0.62, c), near);
           }
           // (single leaves: each lighter or darker than its neighbours)
@@ -411,7 +414,7 @@ ${TREE_VERT}
           if (vLeaf > 1.75) leafC *= 0.94 + 0.44 * smoothstep(0.35, 0.65, leafCells(vTreeM * 4.7 + 1.9));
           else if (vLeaf > 1.1 && !solid) leafC *= 0.46;
           // (a solid's masses are painted: light at their tops and tips, dark inside and beneath)
-          if (solid) leafC *= mix(0.5, 1.14, vTall.z);
+          if (solid) leafC *= mix(0.4, 1.12, vTall.z);
           // (a solid crown in flower: its petals' colour, deep under and pale where it looks up)
           if (solid && vBloom.w > 0.0) leafC = mix(leafC, mix(vBloom.rgb * vec3(0.62, 0.42, 0.52), mix(vBloom.rgb, vec3(0.8, 0.76, 0.76), 0.45), smoothstep(-0.3, 0.7, dot(N, up))), smoothstep(0.0, 0.6, vBloom.w));          // (the heart of a mass of foliage: the dark inside, see Shape.heart in treeGeometry.js)
           // (a card's foliage: cleaner green, lighter where the crown looks up; and each needle

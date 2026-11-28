@@ -408,7 +408,7 @@ ${LIGHTING_PARS}
         if (uPaint.x > 0.0) leafC = paintLeaf(leafC) * mix(0.5, 1.12, smoothstep(-0.5, 0.6, dot(N, up)));
         leafC *= 0.46 + 0.6 * cut.g;
 #ifdef FAR_SOLID
-        leafC *= mix(0.55, 1.14, solidTone);
+        leafC *= mix(0.42, 1.12, solidTone);
 #endif
         // (the clumps' shared tone, from 250 m out; a fir's spire from above darker than the
         // round crowns about it)

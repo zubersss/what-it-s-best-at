@@ -26,9 +26,12 @@
 
 // The solid make of a tree one flies among (60 to 240 m: life/treeGeometry.js, solidOf; drawn
 // by life/trees.js): it grows out of the crown's middle between these sines of the angle the
-// tree is looked down at (20 and 38 degrees), and the tree's pictures draw in as it grows.
-// From the side a tree is its pictures, from above a thing with a top and sides.
-export const SOLID0 = 0.34, SOLID1 = 0.62;
+// tree is looked down at (38 and 59 degrees), and the tree's pictures draw in as it grows.
+// From the side a tree is its pictures, from above a thing with a top and sides. (First set
+// at 20 to 38 degrees: looked at from 30 degrees up a tree's pictures still show its side,
+// finely cut, and the solids were the poorer picture there; it is from steeper than 40 that
+// the pictures are cards on edge.)
+export const SOLID0 = 0.62, SOLID1 = 0.86;
 // ... and of a far tree (life/farForest.js: one faceted crown a tree, shaped in the vertex
 // shader from the tree's own measures, spread as the rosette is where the wood is thinned):
 // by the same angles, out to these distances (m), beyond which a tree is a few pixels and its
