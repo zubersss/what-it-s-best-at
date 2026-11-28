@@ -5,7 +5,8 @@
 // the middle mesh's foliage top, its crown between 0.55 and 1.2 of that foliage's reach, its
 // crown's middle within 0.08 of a tree height of it sideways (the lean), or a tree would change
 // shape as the eye rises; every face's point of growth (aCrown) inside the solid's own box,
-// the stem's its own vertex; its faces plain (aLeaf 1.5, no picture), its tones 0..1; and the
+// the stem's its own vertex; its faces plain (aLeaf 1.5, no picture: fir, palm) or cards of the
+// trees' picture (3: the domes of the other shapes), its tones 0..1; and the
 // shaders that draw it know the code 1.5 (--break: one measure put wrong, to see its check fail).
 import fs from 'node:fs';
 import { makeTreeGeometries } from '../src/life/treeGeometry.js';
@@ -37,10 +38,10 @@ geos.forEach((variants, a) => variants.forEach((trio, v) => {
   for (let i = 0; i < sl.length; i++) {
     const g = [sc[i * 3], sc[i * 3 + 1] + (brk === 'grow' && sl[i] > 0.5 ? 2 : 0), sc[i * 3 + 2]];
     if (sl[i] < 0.5) { if (g.some((x, k) => Math.abs(x - sp[i * 3 + k]) > 1e-6)) badGrow++; }
-    else { if (g.some((x, k) => x < lo[k] - 0.02 || x > hi[k] + 0.02)) badGrow++; if (Math.abs(sl[i] - 1.5) > 1e-6 || su[i * 2] >= 0) badCode++; if (!(sw[i * 2 + 1] >= 0 && sw[i * 2 + 1] <= 1)) badTone++; }
+    else { if (g.some((x, k) => x < lo[k] - 0.02 || x > hi[k] + 0.02)) badGrow++; const plain = Math.abs(sl[i] - 1.5) < 1e-6 && su[i * 2] < 0, dome = Math.abs(sl[i] - 3) < 1e-6 && su[i * 2] >= 0 && su[i * 2] <= 1 && su[i * 2 + 1] >= 0 && su[i * 2 + 1] <= 1; if (!plain && !dome) badCode++; if (!(sw[i * 2 + 1] >= 0 && sw[i * 2 + 1] <= 1)) badTone++; }
   }
   if (badGrow) fail(`${name}: ${badGrow} corners grow from a point outside the solid (aCrown)`);
-  if (badCode) fail(`${name}: ${badCode} foliage corners that are not plain faces of code 1.5`);
+  if (badCode) fail(`${name}: ${badCode} foliage corners that are neither plain faces of code 1.5 nor cards of the picture (3, inside it)`);
   if (badTone) fail(`${name}: ${badTone} corners with a tone outside 0..1`);
   rows.push(`${name}: ${tris} tris, top ${top.toFixed(2)}/${ntop.toFixed(2)}, crown x${wide.toFixed(2)}`);
 }));

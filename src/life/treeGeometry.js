@@ -221,14 +221,16 @@ class Shape {
 // bunches of foliage are.
 //   a conifer (0): its tiers, two and two together, each a low cone with a jagged skirt;
 //   a palm (6): one star of fronds drooping round the trunk's top, a small cap in it;
-//   every other shape: its bunches gathered into a few lumps (a cap over a wide ring over a
-//     narrower one beneath: the top catches the Sun, the under-skirt is in the shade);
+//   every other shape: its bunches gathered into a few lumps, each a shallow dome carrying
+//     the crown-top picture (see below);
 //   and the stem, a three-sided tube along the tree's own trunk line.
-// Opaque plain faces (aLeaf 1.5: a solid crown's face, the species' leaf colour, nothing cut
-// out), 40 to 90 triangles.
+// A fir's and a palm's faces are opaque plain faces (aLeaf 1.5: the species' leaf colour,
+// nothing cut out); the domes are cards of the trees' picture (aLeaf 3). 30 to 90 triangles.
 // (how many lumps round the crown, how wide each against its bunches' reach, and whether the
 // crown has a lump at its middle as well: a broad crown is one mass, a pine's or an aspen's is not)
-const SOLID_LUMPS = [0, 4, 2, 2, 2, 2, 0, 5, 2], SOLID_WIDE = [1, 0.8, 0.95, 0.95, 0.95, 0.9, 1, 0.5, 0.95], SOLID_CORE = [0, 0, 1, 1, 1, 1, 0, 0, 1];
+const SOLID_LUMPS = [0, 4, 2, 2, 2, 2, 0, 4, 2], SOLID_WIDE = [1, 0.85, 0.95, 0.95, 0.95, 0.9, 1, 0.6, 0.95], SOLID_CORE = [0, 0, 1, 1, 1, 1, 0, 0, 1];
+// (which crown-top picture a shape's domes carry: needles, leaves, blossom; as its rosette's)
+const SOLID_TOP = [null, CROWNS.N, CROWNS.L, CROWNS.L, CROWNS.L, CROWNS.N, null, CROWNS.L, CROWNS.B];
 function solidOf(near, arch, R) {
   const s = new Shape(1); s.mid = near.mid;
   const fol = near.tris.filter((t) => t.leaf > 0.5), wood = near.tris.filter((t) => t.leaf < 0.1);
@@ -302,26 +304,30 @@ function solidOf(near, arch, R) {
   if (SOLID_CORE[arch]) { const rAll = pct(P.map((p) => Math.hypot(p[0] - crown[0], p[2] - crown[2])), 0.8); lumps.push({ c: crown, r: rAll * 0.62, hi: pct(P.map((p) => p[1]), 0.995), lo: pct(P.map((p) => p[1]), arch === 5 ? 0.05 : 0.3) }); }
   stem(Math.max(...lumps.map((l) => l.c[1])) * (arch === 5 ? 0.5 : 0.96));
   for (const l of lumps) {
-    // A lump: a cap, a shoulder, its widest ring and a narrower one beneath. (A broad crown's
-    // lumps have the shoulder: without it a wide flat bunch was a six-sided plate from above.)
-    const round = !!SOLID_CORE[arch], n = 5, turn = R() * TAU, h = l.hi - l.lo, c = [l.c[0] * 0.7 + crown[0] * 0.3, l.lo - h * 0.2, l.c[2] * 0.7 + crown[2] * 0.3];
-    const apex = [l.c[0] + (R() - 0.5) * l.r * 0.25, l.hi, l.c[2] + (R() - 0.5) * l.r * 0.25], wide = [], under = [], sh = [];
+    // A lump is a shallow dome carrying the crown-top picture (the trees' picture, CROWNS: a
+    // rounded mass of foliage with a lobed edge, cut out): a cap, a shoulder and a rim that
+    // hangs lower, the picture laid on it from its middle outward. Several of them at their
+    // bunches' own heights, one over another, are a crown with depth and a leafy outline; as
+    // bare faceted lumps the broad crowns were folded paper beside the trees' own pictures.
+    // (Being the picture, they turn, thin and flower with the tree as its other cards do.)
+    const n = 8, round = !!SOLID_CORE[arch], turn = R() * TAU, h = Math.max(l.hi - l.lo, l.r * 0.5), c = [l.c[0] * 0.7 + crown[0] * 0.3, l.lo - h * 0.2, l.c[2] * 0.7 + crown[2] * 0.3];
+    const [u0, v0, u1, v1] = crownRect(SOLID_TOP[arch]), um = (u0 + u1) / 2, vm = (v0 + v1) / 2, pt = turn + R() * TAU;
+    const uvAt = (a, f) => [um + Math.cos(a + pt) * f * (u1 - u0) / 2, vm + Math.sin(a + pt) * f * (v1 - v0) / 2];
+    const apex = [l.c[0], l.hi, l.c[2]], sh = [], rim = [], uS = [], uR = [], reach = l.r * 1.12;
     for (let j = 0; j < n; j++) {
-      const a = turn + j / n * TAU, a2 = a + 0.5 / n * TAU, rr = l.r * (0.78 + 0.34 * R());
-      wide.push([l.c[0] + Math.cos(a) * rr, l.lo + h * (0.25 + 0.2 * R()), l.c[2] + Math.sin(a) * rr]);
-      under.push([l.c[0] + Math.cos(a2) * rr * 0.5, l.lo, l.c[2] + Math.sin(a2) * rr * 0.5]);
-      sh.push([l.c[0] + Math.cos(a2) * rr * (0.5 + 0.2 * R()), l.lo + h * (0.72 + 0.14 * R()), l.c[2] + Math.sin(a2) * rr * (0.5 + 0.2 * R())]);
+      // (the rim at the picture's very edge, eight-sided: its lobes reach to nine tenths of the way, and a six-sided rim cut them straight)
+      const a = turn + j / n * TAU, a2 = a + 0.5 / n * TAU, k = 0.99;
+      sh.push([l.c[0] + Math.cos(a2) * reach * 0.52, l.hi - h * 0.2, l.c[2] + Math.sin(a2) * reach * 0.52]); uS.push(uvAt(a2 - turn, 0.52));
+      rim.push([l.c[0] + Math.cos(a) * reach * k, l.hi - h * (0.6 + 0.25 * R()), l.c[2] + Math.sin(a) * reach * k]); uR.push(uvAt(a - turn, k));
     }
-    const mid = [l.c[0], l.lo + h * 0.35, l.c[2]];
+    const mid = [l.c[0], l.hi - h * 0.4, l.c[2]], uA = uvAt(0, 0), dome = (a, b, c3, ua, ub, uc) => { s.tri(a, b, c3, 3, c[0], c[1], c[2], ua, ub, uc, null, [0, 0, 0]); grows.push(mid); };
     for (let j = 0; j < n; j++) {
       const k = (j + 1) % n;
-      if (round) {
-        face(apex, sh[k], sh[j], c, mid, [1, 0.86, 0.86]);
-        face(sh[j], wide[k], wide[j], c, mid, [0.86, 0.6, 0.6]);
-        face(sh[j], sh[k], wide[k], c, mid, [0.86, 0.86, 0.6]);
-      } else face(apex, wide[k], wide[j], c, mid, [1, 0.66, 0.66]);
-      face(wide[j], wide[k], under[j], c, mid, [0.6, 0.6, 0.15]);
-      face(under[j], wide[k], under[k], c, mid, [0.15, 0.6, 0.15]);
+      // (a broad crown's dome has a shoulder; a pine's or an aspen's small ones are plain caps)
+      if (!round) { dome(apex, rim[k], rim[j], uA, uR[k], uR[j]); continue; }
+      dome(apex, sh[k], sh[j], uA, uS[k], uS[j]);
+      dome(sh[j], rim[k], rim[j], uS[j], uR[k], uR[j]);
+      dome(sh[j], sh[k], rim[k], uS[j], uS[k], uR[k]);
     }
   }
   return done();
