@@ -245,7 +245,11 @@ function solidOf(near, arch, R) {
   // (grow: the point the face grows out of as the eye rises, its mass's own middle; it goes to
   // the vertices as aCrown, which a solid has no other use for. The stem's is each vertex itself.)
   const grows = [];
-  const face = (a, b, c3, c, grow = c) => { s.tri(a, b, c3, 1.5, c[0], c[1], c[2]); grows.push(grow); };
+  // tone: each corner's place in its mass, 0 deep inside or underneath, 1 at its top or its tips
+  // (it goes to the vertices as aSway.y: a solid's faces do not flutter): the mass is painted
+  // lighter there whatever the Sun does, so that looked straight down on in flat light a fir is
+  // still tier over tier and a crown a dome.
+  const face = (a, b, c3, c, grow = c, tone = [1, 1, 1]) => { s.tri(a, b, c3, 1.5, c[0], c[1], c[2], NOUV, NOUV, NOUV, null, tone); grows.push(grow); };
   const done = () => {
     const g = s.build(), C = g.attributes.aCrown.array, Pg = g.attributes.position.array, L = g.attributes.aLeaf.array;
     // (build() puts wood first, in the order made; the faces after, in theirs)
@@ -258,12 +262,12 @@ function solidOf(near, arch, R) {
     const by = new Map();
     for (const t of fol) { const k = t.out[1].toFixed(4); if (!by.has(k)) by.set(k, []); by.get(k).push(...t.p); }
     const tiers = [...by.values()].map((P) => ({ hi: pct(P.map((p) => p[1]), 0.97), lo: pct(P.map((p) => p[1]), 0.12), r: pct(P.map((p) => Math.hypot(p[0], p[2])), 0.9), n: P.length })).filter((t) => t.n > 12).sort((a, b) => a.lo - b.lo);
-    const merged = [], per = Math.ceil(tiers.length / 9); for (let k = 0; k < tiers.length; k += per) { const g = tiers.slice(k, k + per); merged.push({ hi: Math.max(...g.map((t) => t.hi)), lo: Math.min(...g.map((t) => t.lo)), r: Math.max(...g.map((t) => t.r)) }); }
+    const merged = [], per = Math.ceil(tiers.length / 6); for (let k = 0; k < tiers.length; k += per) { const g = tiers.slice(k, k + per); merged.push({ hi: Math.max(...g.map((t) => t.hi)), lo: Math.min(...g.map((t) => t.lo)), r: Math.max(...g.map((t) => t.r)) }); }
     const top = stem(merged.length ? merged[merged.length - 1].hi : 0.9);
     merged.forEach((t, k) => {
-      const n = 6, turn = R() * TAU, ax = trunkAt((t.hi + t.lo) / 2, top), apex = [ax[0], t.hi + 0.02, ax[2]], c = [ax[0], t.lo - t.r * 0.5, ax[2]];
-      const ring = []; for (let j = 0; j < n; j++) { const a = turn + j / n * TAU, out = j % 2 ? 1 : 0.72 + 0.12 * R(), rr = t.r * 0.92 * out; ring.push([ax[0] + Math.cos(a) * rr, t.lo + (t.hi - t.lo) * (j % 2 ? 0.05 : 0.3), ax[2] + Math.sin(a) * rr]); }
-      for (let j = 0; j < n; j++) face(apex, ring[(j + 1) % n], ring[j], c, apex);
+      const n = 10, turn = R() * TAU, ax = trunkAt((t.hi + t.lo) / 2, top), apex = [ax[0], t.hi + 0.02, ax[2]], c = [ax[0], t.lo - t.r * 0.5, ax[2]];
+      const ring = []; for (let j = 0; j < n; j++) { const a = turn + j / n * TAU, out = j % 2 ? 1 : 0.5 + 0.12 * R(), rr = t.r * 0.9 * out * (j % 2 ? 0.85 + 0.25 * R() : 1); ring.push([ax[0] + Math.cos(a) * rr, t.lo + (t.hi - t.lo) * (j % 2 ? 0.05 : 0.3), ax[2] + Math.sin(a) * rr]); }
+      for (let j = 0; j < n; j++) face(apex, ring[(j + 1) % n], ring[j], c, apex, [0.15, (j + 1) % 2 ? 1 : 0.55, j % 2 ? 1 : 0.55]);
     });
     // (the spire)
     { const y = merged.length ? merged[merged.length - 1].hi : 0.9, a = [top[0], Math.min(1, y + 0.07), top[2]], c = [top[0], y - 0.05, top[2]], ring = [0, 1, 2].map((j) => [top[0] + Math.cos(j * 2.094) * 0.02, y - 0.01, top[2] + Math.sin(j * 2.094) * 0.02]); for (let j = 0; j < 3; j++) face(a, ring[(j + 1) % 3], ring[j], c, c); }
@@ -276,7 +280,7 @@ function solidOf(near, arch, R) {
     const n = 9, turn = R() * TAU, apex = [cx, hi + 0.01, cz], c = [cx, lo - r * 0.4, cz], ring = [], inner = [];
     for (let j = 0; j < n; j++) { const a = turn + j / n * TAU, a2 = a + 0.5 / n * TAU, rr = r * (0.85 + 0.2 * R()); ring.push([cx + Math.cos(a) * rr, lo - (hi - lo) * (0.3 + 0.4 * R()), cz + Math.sin(a) * rr]); inner.push([cx + Math.cos(a2) * r * 0.36, hi - (hi - lo) * 0.3, cz + Math.sin(a2) * r * 0.36]); }
     // (each frond a blade from the crown's middle out and down, with a notch between it and the next)
-    for (let j = 0; j < n; j++) { face(apex, inner[j], ring[j], c, apex); face(apex, ring[j], inner[(j + n - 1) % n], c, apex); }
+    for (let j = 0; j < n; j++) { face(apex, inner[j], ring[j], c, apex, [0.4, 0.55, 1]); face(apex, ring[j], inner[(j + n - 1) % n], c, apex, [0.4, 1, 0.55]); }
     return done();
   }
   // the bunches of the middle mesh (each has its own middle), as balls
@@ -307,9 +311,9 @@ function solidOf(near, arch, R) {
     }
     const mid = [l.c[0], l.lo + h * 0.35, l.c[2]];
     for (let j = 0; j < n; j++) {
-      face(apex, wide[(j + 1) % n], wide[j], c, mid);
-      face(wide[j], wide[(j + 1) % n], under[j], c, mid);
-      face(under[j], wide[(j + 1) % n], under[(j + 1) % n], c, mid);
+      face(apex, wide[(j + 1) % n], wide[j], c, mid, [1, 0.72, 0.72]);
+      face(wide[j], wide[(j + 1) % n], under[j], c, mid, [0.72, 0.72, 0.2]);
+      face(under[j], wide[(j + 1) % n], under[(j + 1) % n], c, mid, [0.2, 0.72, 0.2]);
     }
   }
   return done();

@@ -46,6 +46,7 @@ export function drawTree(geo, A, img, W, ox, oy, cw, ch, proj, o = {}) {
       // (true to perspective: weights by 1/depth)
       const u = su * a[2] / iz, v = sv * b[2] / iz, w = sw * c[2] / iz;
       let col = flat, nl = u * nls[0] + v * nls[1] + w * nls[2], lit;
+      if (leaf > 1.4 && leaf < 1.75 && geo.attributes.aSway) { const SW = geo.attributes.aSway.array, tone = u * SW[t * 6 + 1] + v * SW[t * 6 + 3] + w * SW[t * 6 + 5], k = 0.5 + 0.64 * tone; col = flat.map((c) => c * k); }          // (a solid's painted tone)
       if (card) {
         const au = u * U[t * 6] + v * U[t * 6 + 2] + w * U[t * 6 + 4], av = u * U[t * 6 + 1] + v * U[t * 6 + 3] + w * U[t * 6 + 5], s = sampleAtlas(A, au, av);
         if (s[0] < 0.42) continue;

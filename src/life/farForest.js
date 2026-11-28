@@ -241,7 +241,7 @@ ${LIGHTING_PARS}
         // SOLID_FAR1): it grows out of the crown's middle, and the pictures and the rosette draw
         // in as it grows.
         float gS = smoothstep(${SOLID0.toFixed(3)}, ${SOLID1.toFixed(3)}, down) * (1.0 - smoothstep(${SOLID_FAR0.toFixed(1)}, ${SOLID_FAR1.toFixed(1)}, d)) * (1.0 - smoothstep(0.35, 0.5, thinQ / 255.0)) * uSolid;
-        bool solid = position.x > 3.5;
+        bool solid = position.x > 3.5; float solidTone = 0.0;
         if (solid) {
           if (gS <= 0.0) NONE
           // A cap over a wide ring over a narrower one beneath, six-sided: the wide ring as wide
@@ -257,6 +257,8 @@ ${LIGHTING_PARS}
           l = mix(vec3(0.0, mid, 0.0), ls, gS);
           na = vec3(ls.x / max(wide, 1e-3), ls.y - mid + 0.05, ls.z / max(wide, 1e-3));
           rect = vec4(0.0);
+          // (painted: light at its top, dark beneath, whatever the Sun does: in flat light a crown is still a dome)
+          solidTone = position.y < 0.5 ? 1.0 : position.y < 1.5 ? (fir ? mix(0.8, 0.5, odd) : 0.7) : 0.22;
         } else
         if (position.x > 2.5) {
           // The fourth quad, drawn only from the air and in a draw of its own (the slot's shadow
@@ -322,6 +324,7 @@ ${LIGHTING_PARS}
         { vec3 ups = normalize(wp); vSnow = snowSeason(length(wp) - uPlanetRadius, ups, ups, 0.0, 0.0).x; }
         float tn = smoothstep(0.3, 0.7, toneNoise(wp / 150.0)) + 0.3 * (toneNoise(wp / 55.0 + 7.3) - 0.5);
         vTone = vec2(0.66 + 0.55 * tn + 0.6 * (groundQ / 15.0 - 0.6), cell < ${VARIANTS} ? 1.0 : 0.0);
+        if (solid) vDome = vec3(solidTone, 0.0, 0.0);          // (a solid has no dome: the slot carries its painted tone)
         if (position.x > 1.5 && !solid) { vDome = vec3((position.y - 0.5) * 2.0, (0.5 - position.z) * 2.0, smoothstep(${TOP0.toFixed(3)}, ${TOP1.toFixed(3)}, down) * smoothstep(uFar.z, uFar.z + 200.0, d)); vDomeE = uTileEast * c + uTileNorth * s; vDomeN = uTileNorth * c - uTileEast * s; }
         vUv = solid ? vec2(0.0) : vec2(mix(rect.x, rect.z, position.y), mix(rect.y, rect.w, position.z));
         gl_Position = projectionMatrix * viewMatrix * vec4(vRel, 1.0);
@@ -385,6 +388,7 @@ ${LIGHTING_PARS}
 #ifdef FAR_SOLID
         // (in facets: each face's own way, half and half with the round mass's)
         { vec3 fn = normalize(cross(dFdx(vRel), dFdy(vRel))); if (dot(fn, V) < 0.0) fn = -fn; N = normalize(N + fn * 0.9); }
+        float solidTone = vDome.x;
 #endif
         // Seen from above, the crown's top is a dome: its cap faces the sky, its rim leans out,
         // so the Sun's side is lit and the far side a crescent in the shade's colour (the
@@ -401,6 +405,9 @@ ${LIGHTING_PARS}
         vec3 bloomC = leafC * 1.3;
         if (uPaint.x > 0.0) leafC = paintLeaf(leafC) * mix(0.5, 1.12, smoothstep(-0.5, 0.6, dot(N, up)));
         leafC *= 0.46 + 0.6 * cut.g;
+#ifdef FAR_SOLID
+        leafC *= mix(0.55, 1.14, solidTone);
+#endif
         // (the clumps' shared tone, from 250 m out; a fir's spire from above darker than the
         // round crowns about it)
         leafC *= mix(1.0, vTone.x, smoothstep(250.0, 900.0, length(vRel))) * mix(1.0, 0.7, vTone.y * vDome.z);

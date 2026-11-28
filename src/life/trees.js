@@ -204,7 +204,7 @@ vec3 treePosition(out vec3 foot, out float leaf) {
   leaf = aLeaf;
   // (single leaves flutter, each in its own time, harder the harder it blows)
   vec3 flutter = vec3(0.0);
-  if (aLeaf > 1.5 && aLeaf < 3.5) { float ph = dot(position, vec3(41.0, 57.0, 73.0)) + iB.z * 31.0, amp = aSway.y * iA.w * (${WIND_FLUTTER[0]} + ${WIND_FLUTTER[1]} * uTreeWind.w); flutter = (uTreeEast * sin(uSeason.z * 7.3 + ph) + uTreeUp * sin(uSeason.z * 9.1 + ph * 1.7) + uTreeNorth * sin(uSeason.z * 6.1 + ph * 0.6)) * amp; }
+  if (aLeaf > 1.75 && aLeaf < 3.5) { float ph = dot(position, vec3(41.0, 57.0, 73.0)) + iB.z * 31.0, amp = aSway.y * iA.w * (${WIND_FLUTTER[0]} + ${WIND_FLUTTER[1]} * uTreeWind.w); flutter = (uTreeEast * sin(uSeason.z * 7.3 + ph) + uTreeUp * sin(uSeason.z * 9.1 + ph * 1.7) + uTreeNorth * sin(uSeason.z * 6.1 + ph * 0.6)) * amp; }
   return foot + (uTreeEast * l.x + uTreeUp * l.y + uTreeNorth * l.z + uTreeWind.xyz * bend + flutter) * fade;
 }
 vec3 treeNormal() {
@@ -274,7 +274,7 @@ export class Trees {
     // What the vertices hand the pixels, declared once for both shaders. Packed: a phone must
     // offer no more than 15 rows of these, and each declaration takes a row (14 here).
     const vary = (io) => /* glsl */`
-        ${io} vec4 vBloom; ${io} vec2 vTall;  // (vTall: the tree's height in metres; how bare it is)
+        ${io} vec4 vBloom; ${io} vec3 vTall;  // (vTall: the tree's height in metres; how bare it is; on a solid make, the corner's tone: treeGeometry.js, solidOf)
         ${io} vec3 vRel; ${io} vec3 vN; ${io} vec3 vLeafC; ${io} vec3 vTrunkC; ${io} vec3 vTreeM;
         ${io} vec4 vUvOwn;                // xy: where in the trees' picture, zw: the tree's own number, and how much of its leaves is off it
         ${io} vec4 vBits;                 // x: leaf or wood (aLeaf), y: the height in the tree, z: how much of the Sun the clouds and the land leave it, w: new snow lying where the tree stands (render/snowGlsl.js)
@@ -303,10 +303,10 @@ ${TREE_VERT}
           vec3 foot; float leaf;
           vec3 rel = treePosition(foot, leaf);
           // (beyond the radius the far forest draws this tree: out of the picture here)
-          if (treeCull) { vSun = vec3(0.0); vAirT = vec3(1.0); vAirL = vec3(0.0); vCloud = 1.0; vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vLeaf = 0.0; vY = 0.0; vOwn = vec2(0.0); vTreeM = vec3(0.0); vUv = vec2(0.0); vBloom = vec4(0.0); vTall = vec2(0.0); vSnow = 0.0; gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+          if (treeCull) { vSun = vec3(0.0); vAirT = vec3(1.0); vAirL = vec3(0.0); vCloud = 1.0; vRel = vec3(0.0); vN = vec3(0.0, 0.0, 1.0); vLeafC = vec3(0.0); vTrunkC = vec3(0.0); vLeaf = 0.0; vY = 0.0; vOwn = vec2(0.0); vTreeM = vec3(0.0); vUv = vec2(0.0); vBloom = vec4(0.0); vTall = vec3(0.0); vSnow = 0.0; gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
           { vec3 pp = uCamPlanetPos + foot, ups = normalize(pp); vSnow = snowSeason(length(pp) - uPlanetRadius, ups, ups, 0.0, 0.0).x; }
           vTreeM = vec3(position.x * iB.x, position.y, position.z * iB.x) * iA.w + iB.z * 37.0;        // metres in the tree's own frame (for the pattern of its leaves)
-          vRel = rel; vN = treeNormal(); vLeaf = leaf; vY = position.y; vLeafC = iC; vTrunkC = iD.rgb; vOwn = vec2(iB.z, iB.w); vUv = aUv; vBloom = iE; vTall = vec2(iA.w, aLeaf < 3.5 ? iB.w : iB.w * (1.0 - max(iE.w, 0.0)) * (aCrown.z > 2.5 ? ${ROSETTE_THIN.toFixed(1)} : 1.0));          // (a whole tree's picture in flower keeps its crown: the far forest's rule, TREE_THIN)
+          vRel = rel; vN = treeNormal(); vLeaf = leaf; vY = position.y; vLeafC = iC; vTrunkC = iD.rgb; vOwn = vec2(iB.z, iB.w); vUv = aUv; vBloom = iE; vTall = vec3(iA.w, aLeaf < 3.5 ? iB.w : iB.w * (1.0 - max(iE.w, 0.0)) * (aCrown.z > 2.5 ? ${ROSETTE_THIN.toFixed(1)} : 1.0), aSway.y);          // (a whole tree's picture in flower keeps its crown: the far forest's rule, TREE_THIN)
           vCloud = cloudShade(foot + uTreeUp * (iA.w * 0.7)) * iD.w;
           { float c = cos(iB.y), s = sin(iB.y); vec3 ax = aCrown.z > 1.5 && aCrown.z < 2.5 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0); vCardX = uTreeEast * (ax.x * c - ax.z * s) + uTreeNorth * (ax.x * s + ax.z * c); vCrown = iF > 1.5 ? vec3(0.0) : aCrown; }          // (the clouds' shadow, from the map of it: life/treeShade.js)
           gl_Position = projectionMatrix * viewMatrix * vec4(rel, 1.0);
@@ -410,6 +410,8 @@ ${TREE_VERT}
           bool solid = !card && vLeaf > 1.4 && vLeaf < 1.75;          // (a face of the solid make)
           if (vLeaf > 1.75) leafC *= 0.94 + 0.44 * smoothstep(0.35, 0.65, leafCells(vTreeM * 4.7 + 1.9));
           else if (vLeaf > 1.1 && !solid) leafC *= 0.46;
+          // (a solid's masses are painted: light at their tops and tips, dark inside and beneath)
+          if (solid) leafC *= mix(0.5, 1.14, vTall.z);
           // (a solid crown in flower: its petals' colour, deep under and pale where it looks up)
           if (solid && vBloom.w > 0.0) leafC = mix(leafC, mix(vBloom.rgb * vec3(0.62, 0.42, 0.52), mix(vBloom.rgb, vec3(0.8, 0.76, 0.76), 0.45), smoothstep(-0.3, 0.7, dot(N, up))), smoothstep(0.0, 0.6, vBloom.w));          // (the heart of a mass of foliage: the dark inside, see Shape.heart in treeGeometry.js)
           // (a card's foliage: cleaner green, lighter where the crown looks up; and each needle
