@@ -825,3 +825,27 @@ trees from above among them: not a clean pair): 4.9 / 1.7 / 0.44 % changed, flic
 With the mist it is 6.7 / 3.2 / 0.8 % and 0.64 / 0.31 / 0.07 %: the trees' own flicker at
 half a metre a frame from 90 m, and more of it, because more of each tree now shows where
 the sheet used to hide it whole below its level. Nothing in the mist's own part.
+
+## Eighth note (2026-11-28): the heap ribbed in level stripes — NOT cured
+
+The view: 3 km over the opening place at the opening hour (`alt=4513`), a heap beside the
+traveller filling the lower right. In my pictures at the reference size the ribs are a fine
+weave in level rows, about 8 screen pixels by 6, of 1 to 1.4 levels of 255 from row to row
+(`ribs_three_builds_contrast4.png`: the heap at four times the contrast on three builds).
+Measured down three columns of the heap: mean change from row to row, and how often it turns.
+
+What it is NOT, each tried in the real game and measured:
+- the march's starts against the pass that takes their grain out (four starts a 2 x 2 block
+  with four means of 2 x 2, which cancel exactly): 1.39 and 33 turns before, the same after;
+- the slices from 900 m keeping 0.4 of their start's spread: the same after giving them all;
+- the clouds' shadows, the clean cut of the edge, the middle and high cloud, the far low
+  shell, each switched off alone (`sky-probe`): 1.39 to 1.49, 33 turns, with or without.
+Only the governor's fewer steps moved it (21 turns for 33), which says the march's steps have
+a part in it but not which.
+Both changes to `cloudVolume.js` are taken back (no gain shown, and a change of the march's
+grain is a change of every cloud's look): the file is as at 9b77bb2.
+
+Not tried: the weave's period in the small picture against the noise's own texel at that
+distance (a moire of the fine octave), the summary picture's five looks read from the
+unsmoothed march, the froxels' place in the small picture. A probe that draws the march's
+small picture itself, slice by slice, would say in which pass the rows are born.
