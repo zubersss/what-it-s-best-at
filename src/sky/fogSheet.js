@@ -24,7 +24,7 @@ export const FOG_LOOK = Object.freeze({
   LUMP: 900,         // m: the soft lumps of its top (in what it takes of the light behind it;
                      // its top itself is level, as a lake of mist is)
   ABOVE: 0.85,       // what the sheet itself takes, seen from above, of what the line of sight through it would: the things in the mist go into it by their own depth (lightingGlsl.js mistShare), and the sheet is only its lit top. With all of it, every tree standing in the mist was sawn through level where the sheet crossed it
-  MIST_K: 0.45,      // the share a metre things in the mist lose, against the sheet's own (1 / EXT)
+  MIST_K: 0.38,      // the share a metre things in the mist lose, against the sheet's own (1 / EXT)
   BILLOW: 0.24,      // how far the top's billows go from their shaded hollows to their lit crests, seen from above
   MIST_SOFT: 16,     // m under the mist's top at which a thing is in all of it
   ALPHA: 0.96,       // the most it takes of what is behind it
@@ -120,6 +120,7 @@ in vec3 vPlanet;
 in float vFog;
 in float vDepth;
 in float vSun;
+uniform vec2 uFogLand;
 layout(location = 0) out vec4 fragColor;
 void main() {
   if (vFog < 0.02 || vDepth <= 0.0) discard;

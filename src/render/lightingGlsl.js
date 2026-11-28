@@ -266,18 +266,20 @@ float mistShare(vec3 rel, out vec3 mistCol) {
   float hE = length(uCamPlanetPos) - uMist.x, hP = length(p) - uMist.x;      // m over its top (under 0: in it)
   if (hP >= 0.0 || hE < 0.0) return 0.0;
   float under = -hP / max(hE - hP, 1e-3);                                     // the share of the line that runs under the top
-  // (the stretch under the top, but never more than three times the thing's own depth: mist that
+  // (the stretch under the top, but never more than two and a half times the thing's own depth: mist that
   // lies on a lake is not a level sea over the low land round it, and with the whole stretch a
   // wood a kilometre inland, seen along the top, was row behind row of one pale tone. So a far
   // tree is pale at its knees and clear at its crown, by its own depth, as a near one is.)
-  float k = 1.0 - exp(-uMist.y * min(length(rel) * under, -3.0 * hP) * clamp(-0.5 * hP / uMist.z, 0.0, 1.0));
+  float k = 1.0 - exp(-uMist.y * min(length(rel) * under, -2.5 * hP) * clamp(-0.5 * hP / uMist.z, 0.0, 1.0));
   k *= 1.0 - smoothstep(6300.0, 9000.0, length(rel - uMistAt));
   // (not the water it lies on, uMist.w m under its top: that is the sheet's to hide and to show
   // through its thin places. With the water taken here as well the lake was one flat tone.)
   k *= 1.0 - smoothstep(uMist.w - 8.0, uMist.w - 2.0, -hP);
   if (k <= 0.002) return 0.0;
   vec3 up = normalize(p);
-  mistCol = (skyLight(up, up) * 0.9 + directSun(p) * 0.3) * (1.06 / PI);
+  // (the sky's light alone: the Sun's would need the land's shadow there, which this does not
+  // know, and a wood in a hill's shadow at dawn took a sunlit cream)
+  mistCol = skyLight(up, up) * (1.0 / PI);
   return k;
 }
 // Rain (or snow) falling in the air between the eye and a thing: a grey veil that thickens
